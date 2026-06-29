@@ -1,0 +1,130 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ink: #15161a;
+  --ink-2: #6a6e78;
+  --ink-3: #a0a4ac;
+  --black: #0b0b0d;
+  --primary: #f2820d;
+  --primary-dark: #e36f0a;
+  --amber: #fbb040;
+  --primary-soft: #fdf1e3;
+  --active-border: #f6dec0;
+  --graphite: #3a3c44;
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --border: #e7e8ec;
+  --border-soft: #eeeff2;
+}
+
+* {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: #f3f4f7;
+  background-image:
+    radial-gradient(1100px 620px at 100% -12%, rgba(251, 176, 64, 0.13), transparent 60%),
+    radial-gradient(900px 600px at -12% 112%, rgba(242, 130, 13, 0.07), transparent 55%);
+  background-repeat: no-repeat;
+  color: var(--ink);
+  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-size: 14px;
+}
+
+@layer components {
+  /* Wordmark "polobh" para superfícies claras */
+  .wordmark {
+    font-family: "Sora", sans-serif;
+    font-weight: 800;
+    letter-spacing: -1px;
+  }
+  .wordmark .polo {
+    background: linear-gradient(135deg, #9a9ca3, #c9cbd1);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .wordmark .bh {
+    background: linear-gradient(135deg, #fbb040, #e36f0a);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .input-focus:focus {
+    outline: none;
+    border-color: #f2820d;
+    box-shadow: 0 0 0 4px rgba(242, 130, 13, 0.12);
+  }
+}
+
+/* Scrollbar discreta */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #d8dade;
+  border-radius: 99px;
+  border: 3px solid var(--bg);
+}
+
+@keyframes fadein {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---- Documento A4 (visualização em tela + fonte do PDF) ---- */
+.doc-sheet {
+  width: 210mm;
+  min-height: 297mm;
+  margin: 0 auto;
+  background: #fff;
+  color: #15161a;
+  box-shadow: 0 10px 40px -12px rgba(16, 30, 66, 0.25);
+}
+.doc-sheet--landscape {
+  width: 297mm;
+  min-height: 210mm;
+}
+/* evita quebrar blocos no meio ao imprimir */
+.doc-avoid-break {
+  break-inside: avoid;
+}
+
+@page {
+  size: A4;
+  margin: 12mm;
+}
+
+/* Estilos de impressão (Baixar PDF via janela de impressão) */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  html,
+  body {
+    background: #fff !important;
+  }
+  .doc-sheet {
+    width: auto !important;
+    min-height: auto !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+  }
+  .print-area {
+    box-shadow: none !important;
+    border: none !important;
+  }
+}

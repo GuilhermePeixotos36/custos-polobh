@@ -1,0 +1,51 @@
+/**
+ * Avisa antes de sair de um formulário com alterações não salvas.
+ * - Navegação interna (links/botões): intercepta com useBlocker + dialog.
+ * - Recarregar/fechar a aba: beforeunload nativo.
+ *
+ * `liberar()` desativa o guarda para a navegação programática feita logo após
+ * salvar (senão o próprio "salvar e ir para o detalhe" seria bloqueado).
+ */
+import { useEffect, useRef } from "react";
+import { useBlocker } from "react-router-dom";
+import { confirmar } from "@/store/confirm";
+
+export function useUnsavedGuard(sujo: boolean) {
+  const bypass = useRef(false);
+
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      sujo && !bypass.current && currentLocation.pathname !== nextLocation.pathname
+  );
+
+  useEffect(() => {
+    if (blocker.state !== "blocked") return;
+    let ativo = true;
+    confirmar({
+      titulo: "Sair sem salvar?",
+      mensagem: "Há alterações não salvas neste formulário. Se sair agora, elas serão perdidas.",
+      confirmarTexto: "Sair sem salvar",
+      cancelarTexto: "Continuar editando",
+      tom: "danger",
+    }).then((ok) => {
+      if (!ativo) return;
+      if (ok) blocker.proceed();
+      else blocker.reset();
+    });
+    return () => {
+      ativo = false;
+    };
+  }, [blocker.state]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!sujo) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [sujo]);
+
+  return { liberar: () => (bypass.current = true) };
+}
