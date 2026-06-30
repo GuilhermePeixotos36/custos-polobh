@@ -51,14 +51,49 @@ function montarEndereco(d: BrasilApiCnpj): string {
   return d.cep ? `${partes} - CEP: ${d.cep}` : partes;
 }
 
+/** Validação do dígito verificador do CNPJ (evita chamada à API com lixo). */
+export function cnpjValido(cnpjRaw: string): boolean {
+  const c = onlyDigits(cnpjRaw);
+  if (c.length !== 14) return false;
+  if (/^(\d)\1{13}$/.test(c)) return false; // todos os dígitos iguais
+  const dv = (base: string): number => {
+    const pesos = base.length === 12
+      ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+      : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+    const soma = base.split("").reduce((s, d, i) => s + Number(d) * pesos[i], 0);
+    const r = soma % 11;
+    return r < 2 ? 0 : 11 - r;
+  };
+  const d1 = dv(c.slice(0, 12));
+  const d2 = dv(c.slice(0, 12) + d1);
+  return c.endsWith(`${d1}${d2}`);
+}
+
 export async function consultarCnpj(cnpjRaw: string): Promise<DadosCnpj> {
   const cnpj = onlyDigits(cnpjRaw);
-  if (cnpj.length !== 14) throw new Error("CNPJ inválido (precisa de 14 dígitos).");
+  if (cnpj.length !== 14) {
+    throw new Error("Informe um CNPJ com 14 dígitos.");
+  }
+  // Valida localmente antes de chamar a API — evita o 400 e dá mensagem clara.
+  if (!cnpjValido(cnpj)) {
+    throw new Error("CNPJ inválido — confira os números digitados.");
+  }
 
-  const resp = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`);
+  let resp: Response;
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 12000);
+    resp = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`, { signal: ctrl.signal });
+    clearTimeout(timer);
+  } catch {
+    throw new Error("Sem resposta da consulta agora. Verifique a conexão e tente de novo, ou preencha manualmente.");
+  }
+
   if (!resp.ok) {
-    if (resp.status === 404) throw new Error("CNPJ não encontrado na base pública.");
-    throw new Error(`Falha na consulta (${resp.status}). Preencha manualmente.`);
+    if (resp.status === 404) throw new Error("CNPJ não encontrado na base da Receita.");
+    if (resp.status === 400) throw new Error("CNPJ inválido — confira os números digitados.");
+    if (resp.status === 429) throw new Error("Muitas consultas em sequência. Aguarde alguns segundos e tente de novo.");
+    throw new Error(`Não foi possível consultar agora (erro ${resp.status}). Preencha manualmente.`);
   }
   const d = (await resp.json()) as BrasilApiCnpj;
 
