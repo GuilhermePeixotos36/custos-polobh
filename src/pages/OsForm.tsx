@@ -456,7 +456,19 @@ export function OsForm() {
                   <option value="Cliente">Cliente</option>
                 </Select>
               </Field>
-              <Field label="CNAE"><Input value={os.financeiro.cnae} onChange={(e) => updFin({ cnae: e.target.value })} /></Field>
+              <Field label="CNAE" hint={os.fornecedor.cnaes?.length ? `(${os.fornecedor.cnaes.length} do CNPJ)` : "(consulte o CNPJ)"}>
+                <Input
+                  list="cnae-fornecedor"
+                  value={os.financeiro.cnae}
+                  onChange={(e) => updFin({ cnae: e.target.value })}
+                  placeholder="Selecione ou digite"
+                />
+                <datalist id="cnae-fornecedor">
+                  {(os.fornecedor.cnaes ?? []).map((c, i) => (
+                    <option key={i} value={c} />
+                  ))}
+                </datalist>
+              </Field>
               <Field label="Código de serviço"><Input value={os.financeiro.codigoServico} onChange={(e) => updFin({ codigoServico: e.target.value })} /></Field>
               <Field label="Descritivo NF" className="md:col-span-3"><Textarea value={os.financeiro.descritivoNf} onChange={(e) => updFin({ descritivoNf: e.target.value })} /></Field>
               <Field label="Valor total"><NumberInput value={os.financeiro.valorTotal} onValue={(v) => updFin({ valorTotal: v, valorAPagar: v - os.financeiro.descontoNegociado })} /></Field>
