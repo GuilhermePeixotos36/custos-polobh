@@ -22,6 +22,7 @@ import { IcBack, IcCopy, IcDownload, IcPlus, IcChevron, IcSend } from "@/compone
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import { calcularTotais, agruparPorFornecedor } from "@/domain/calc";
+import { RentabilidadeItens } from "@/components/RentabilidadeItens";
 import { brl, dataBR } from "@/lib/format";
 import { gerarEcExcel } from "@/lib/excel";
 import { enviarEcParaAprovacao } from "@/lib/email";
@@ -171,6 +172,14 @@ export function EcDetail() {
               </div>
             )}
           </Card>
+
+          {/* Rentabilidade por item (restrito ao financeiro) */}
+          {verFinanceiro && (
+            <Card padded={false}>
+              <div className="p-5"><CardTitle hint="A = estimado na EC · B = gasto até hoje · C = (A−B)/A">Rentabilidade por item</CardTitle></div>
+              <RentabilidadeItens linhas={ec.linhas} />
+            </Card>
+          )}
 
           {/* OSs vinculadas */}
           <Card padded={false}>

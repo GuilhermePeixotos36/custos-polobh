@@ -22,6 +22,8 @@ import {
 } from "@/domain/calc";
 import { gerarEcExcel } from "@/lib/excel";
 import { consultarCnpj } from "@/lib/cnpj";
+import { useAuth } from "@/store/auth";
+import { RentabilidadeItens } from "@/components/RentabilidadeItens";
 import { flags } from "@/lib/flags";
 import { toast } from "@/store/toast";
 import { confirmar } from "@/store/confirm";
@@ -43,6 +45,7 @@ const novaLinha = (ordem: number): EcLinha => ({
   descricao: "",
   valorPolobh: 0,
   valorCliente: 0,
+  valorGasto: 0,
   statusAprovacao: "Pendente",
   fornecedorRazao: "",
   fornecedorCnpj: "",
@@ -87,6 +90,7 @@ export function EcForm() {
   const editando = Boolean(id);
   const { data: existente } = useAsync(() => (id ? repo.ecs.obter(id) : Promise.resolve(undefined)), [id]);
 
+  const verFinanceiro = useAuth((s) => s.pode("financeiro"));
   const [ec, setEc] = useState<Ec | null>(null);
   const [baseline, setBaseline] = useState("");
   const [cnpjLoading, setCnpjLoading] = useState(false);
@@ -342,6 +346,18 @@ export function EcForm() {
             </dl>
           </Card>
         </div>
+
+        {/* Rentabilidade por item (restrito ao financeiro) */}
+        {verFinanceiro && (
+          <Card padded={false}>
+            <div className="p-5">
+              <CardTitle hint="Lance o valor gasto em cada item; a rentabilidade (A−B)/A é calculada automaticamente.">
+                Rentabilidade por item
+              </CardTitle>
+            </div>
+            <RentabilidadeItens linhas={ec.linhas} onGasto={(id, v) => updLinha(id, { valorGasto: v })} />
+          </Card>
+        )}
       </div>
     </PageShell>
   );

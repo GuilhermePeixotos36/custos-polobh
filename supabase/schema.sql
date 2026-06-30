@@ -63,6 +63,7 @@ create table if not exists ec_linhas (
   descricao text,
   valor_polobh numeric default 0,
   valor_cliente numeric default 0,
+  valor_gasto numeric default 0,      -- gasto até a data (rentabilidade por item)
   status_aprovacao text default 'Pendente',
   fornecedor_razao text,
   fornecedor_cnpj text,

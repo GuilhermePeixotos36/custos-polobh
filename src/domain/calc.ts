@@ -116,6 +116,32 @@ export const producaoPadrao = (): Producao => ({
   qtdAlimentacaoViagem: 0,
 });
 
+/* ------------------------- Rentabilidade ------------------------- */
+
+export interface RentabilidadeItem {
+  estimado: number; // A — valor total estimado do item na EC
+  gasto: number; // B — valor gasto até a presente data
+  percent: number | null; // C — (A - B) / A; null quando A = 0
+}
+
+/** Rentabilidade de um item: A=estimado, B=gasto, C=(A-B)/A. */
+export function rentabilidadeItem(l: {
+  valorPolobh: number;
+  valorCliente: number;
+  valorGasto: number;
+}): RentabilidadeItem {
+  const estimado = r2((l.valorPolobh || 0) + (l.valorCliente || 0));
+  const gasto = r2(l.valorGasto || 0);
+  return { estimado, gasto, percent: estimado > 0 ? (estimado - gasto) / estimado : null };
+}
+
+/** Rentabilidade agregada de uma lista de itens. */
+export function rentabilidadeTotal(linhas: { valorPolobh: number; valorCliente: number; valorGasto: number }[]): RentabilidadeItem {
+  const estimado = r2(linhas.reduce((s, l) => s + (l.valorPolobh || 0) + (l.valorCliente || 0), 0));
+  const gasto = r2(linhas.reduce((s, l) => s + (l.valorGasto || 0), 0));
+  return { estimado, gasto, percent: estimado > 0 ? (estimado - gasto) / estimado : null };
+}
+
 /* --------------------- Consolidação EC -> OS --------------------- */
 
 export interface LinhaFornecedorGrupo {

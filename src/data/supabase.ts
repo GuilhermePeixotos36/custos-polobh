@@ -19,7 +19,7 @@ function podeFinanceiro(): boolean {
 const financeiroVazio = () => ({
   tomador: "" as const, descritivoNf: "", cnae: "", codigoServico: "",
   valorUnitario: 0, valorTotal: 0, descontoNegociado: 0, valorAPagar: 0,
-  bvPercentual: 0, bvValor: 0, acertoFinanceiro: "",
+  bvPercentual: 0, bvValor: 0, bvJustificativa: "", acertoFinanceiro: "",
 });
 import type {
   AuthRepository,
@@ -186,6 +186,7 @@ function mapLinha(r: any): EcLinha {
     descricao: r.descricao ?? "",
     valorPolobh: Number(r.valor_polobh) || 0,
     valorCliente: Number(r.valor_cliente) || 0,
+    valorGasto: Number(r.valor_gasto) || 0,
     statusAprovacao: r.status_aprovacao ?? "Pendente",
     fornecedorRazao: r.fornecedor_razao ?? "",
     fornecedorCnpj: r.fornecedor_cnpj ?? "",
@@ -206,6 +207,7 @@ function linhaRow(ecId: string, l: EcLinha) {
     descricao: l.descricao,
     valor_polobh: l.valorPolobh,
     valor_cliente: l.valorCliente,
+    valor_gasto: l.valorGasto ?? 0,
     status_aprovacao: l.statusAprovacao,
     fornecedor_razao: l.fornecedorRazao,
     fornecedor_cnpj: l.fornecedorCnpj,

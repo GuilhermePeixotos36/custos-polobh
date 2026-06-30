@@ -114,6 +114,16 @@ export function Fornecedores() {
                 <Field label="Telefone"><Input value={edit.telefone} onChange={(e) => setEdit({ ...edit, telefone: maskTelefone(e.target.value) })} inputMode="tel" placeholder="(31) 90000-0000" /></Field>
                 <Field label="E-mail"><Input value={edit.email} onChange={(e) => setEdit({ ...edit, email: e.target.value })} /></Field>
               </div>
+              {edit.cnaes && edit.cnaes.length > 0 && (
+                <div>
+                  <span className="block mb-1.5 text-[12.5px] font-bold text-ink">CNAEs <span className="text-ink-3 font-medium">(do CNPJ)</span></span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {edit.cnaes.map((c, i) => (
+                      <span key={i} className="text-[11px] bg-[#F0F1F4] text-ink-2 rounded-pill px-2 py-1">{c}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="flex gap-2 pt-1">
                 <Button block onClick={salvar}>Salvar</Button>
                 <Button variant="secondary" onClick={() => setEdit(null)}>Cancelar</Button>

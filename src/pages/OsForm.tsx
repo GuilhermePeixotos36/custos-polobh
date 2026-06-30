@@ -102,7 +102,12 @@ export function OsForm() {
     const g = grupos[0];
     const valorEc = linhas.reduce((s, l) => s + l.valorPolobh + l.valorCliente, 0);
 
-    repo.oss.proximaSeq(ec.id).then((seq) => {
+    // Puxa o fornecedor já cadastrado (pelo CNPJ) para pré-preencher tudo,
+    // inclusive os CNAEs — sem precisar reconsultar o CNPJ na API.
+    Promise.all([
+      repo.oss.proximaSeq(ec.id),
+      g?.fornecedorCnpj ? repo.fornecedores.porCnpj(g.fornecedorCnpj) : Promise.resolve(undefined),
+    ]).then(([seq, fornCadastro]) => {
       const agora = new Date().toISOString();
       setEcCtx(ec);
       iniciar({
@@ -114,7 +119,7 @@ export function OsForm() {
         ecNumero: ec.numero,
         ecLinhaIds: linhaIds,
         status: "Rascunho",
-        fornecedor: fornecedorVazio(g?.fornecedorRazao, g?.fornecedorCnpj),
+        fornecedor: fornCadastro ?? fornecedorVazio(g?.fornecedorRazao, g?.fornecedorCnpj),
         modalidade: "",
         descritivo: descritivoConsolidado(linhas),
         entrega: "",
@@ -124,7 +129,7 @@ export function OsForm() {
         observacoes: "",
         credenciamento: { prazoLimite: "", linkFormulario: `https://forms.polobh.com.br/cred/${ec.id}-${seq}` },
         orcamento: { valorEc, valorComBvNf: valorEc, valorSemBvComNf: valorEc, valorSemBvSemNf: valorEc, parcelas: [{ descricao: "Pagamento único", valor: valorEc }], documentoFiscal: "" },
-        financeiro: { tomador: "", descritivoNf: "", cnae: "", codigoServico: "", valorUnitario: valorEc, valorTotal: valorEc, descontoNegociado: 0, valorAPagar: valorEc, bvPercentual: 0, bvValor: 0, acertoFinanceiro: "" },
+        financeiro: { tomador: "", descritivoNf: "", cnae: "", codigoServico: "", valorUnitario: valorEc, valorTotal: valorEc, descontoNegociado: 0, valorAPagar: valorEc, bvPercentual: 0, bvValor: 0, bvJustificativa: "", acertoFinanceiro: "" },
         criadoEm: agora,
         atualizadoEm: agora,
       });
@@ -140,6 +145,9 @@ export function OsForm() {
   // Linhas da EC que esta OS consolida (mesmo fornecedor).
   const linhasConsolidadas = ecCtx.linhas.filter((l) => os.ecLinhaIds.includes(l.id));
   const linkCredenciamento = os.slugCredenciamento ? `${location.origin}/credenciamento/${os.slugCredenciamento}` : "";
+  // Justificativa do BV é obrigatória quando não há BV ou o percentual é < 15%.
+  const bvPrecisaJustif = os.financeiro.bvPercentual < 15;
+  const bvJustifFaltando = bvPrecisaJustif && !os.financeiro.bvJustificativa?.trim();
 
   const updF = (patch: Partial<Fornecedor>) => setOs((o) => (o ? { ...o, fornecedor: { ...o.fornecedor, ...patch } } : o));
   const updB = (patch: Partial<Fornecedor["dadosBancarios"]>) =>
@@ -172,6 +180,11 @@ export function OsForm() {
   }
 
   async function salvar(status?: Os["status"]) {
+    // BV fora do padrão (sem BV ou < 15%) exige justificativa.
+    if (verFinanceiro && bvJustifFaltando) {
+      toast("Informe a justificativa do BV — obrigatória quando não há BV ou é menor que 15%.", "warning");
+      return;
+    }
     if (status === "Disparada") {
       const destino = os!.fornecedor.email || "o fornecedor (sem e-mail cadastrado)";
       if (!(await confirmar({
@@ -474,6 +487,21 @@ export function OsForm() {
               <Field label="Valor total"><NumberInput value={os.financeiro.valorTotal} onValue={(v) => updFin({ valorTotal: v, valorAPagar: v - os.financeiro.descontoNegociado })} /></Field>
               <Field label="Desconto negociado"><NumberInput value={os.financeiro.descontoNegociado} onValue={(v) => updFin({ descontoNegociado: v, valorAPagar: os.financeiro.valorTotal - v })} /></Field>
               <Field label="BV Pólobh (%)"><NumberInput value={os.financeiro.bvPercentual} onValue={(v) => updFin({ bvPercentual: v, bvValor: (os.financeiro.valorTotal * v) / 100 })} /></Field>
+              <Field
+                label="Justificativa do BV"
+                hint={bvPrecisaJustif ? "(obrigatória)" : "(opcional)"}
+                className="md:col-span-3"
+              >
+                <Textarea
+                  value={os.financeiro.bvJustificativa ?? ""}
+                  onChange={(e) => updFin({ bvJustificativa: e.target.value })}
+                  placeholder="Quem negocia o BV é a produção — registre o motivo quando não houver BV ou for abaixo de 15% (ex.: condição negociada com o fornecedor)."
+                  className={bvJustifFaltando ? "!border-danger" : ""}
+                />
+                {bvJustifFaltando && (
+                  <p className="mt-1 text-[12px] font-semibold text-danger">Obrigatória: o BV está {os.financeiro.bvPercentual <= 0 ? "zerado" : "abaixo de 15%"}.</p>
+                )}
+              </Field>
               <div className="md:col-span-3 grid grid-cols-2 gap-4">
                 <Leitura label="Valor a pagar" v={brl(os.financeiro.valorAPagar)} />
                 <Leitura label="BV (valor)" v={brl((os.financeiro.valorTotal * os.financeiro.bvPercentual) / 100)} />

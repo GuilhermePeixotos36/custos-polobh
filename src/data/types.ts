@@ -122,6 +122,8 @@ export interface EcLinha {
   descricao: string;
   valorPolobh: number;
   valorCliente: number;
+  /** Valor total gasto até a presente data no item (para rentabilidade). */
+  valorGasto: number;
   statusAprovacao: StatusAprovacao;
   fornecedorRazao: string;
   fornecedorCnpj: string;
@@ -241,6 +243,8 @@ export interface FinanceiroOs {
   valorAPagar: number;
   bvPercentual: number; // %
   bvValor: number; // auto
+  /** Justificativa obrigatória quando não há BV ou o BV é < 15%. */
+  bvJustificativa: string;
   acertoFinanceiro: string;
 }
 
