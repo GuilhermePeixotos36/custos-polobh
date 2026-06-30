@@ -361,7 +361,14 @@ const infraVazia = () => ({ energia: "", internet: "", pontosEletricos: "", estr
 function mapOs(r: any): Os {
   // os_financeiro é 1:1 e protegido por RLS — vem null/[] para quem não pode ver.
   const finRow = Array.isArray(r.os_financeiro) ? r.os_financeiro[0] : r.os_financeiro;
-  const financeiro = finRow?.dados ?? financeiroVazio();
+  // BV mora na própria OS (editável pela Produção); o resto do financeiro é restrito.
+  const bv = r.bv ?? {};
+  const financeiro = {
+    ...(finRow?.dados ?? financeiroVazio()),
+    bvPercentual: Number(bv.percentual) || 0,
+    bvValor: Number(bv.valor) || 0,
+    bvJustificativa: bv.justificativa ?? "",
+  };
   return {
     id: r.id,
     numero: r.numero,
@@ -401,6 +408,12 @@ function osRow(os: Os) {
     infraestrutura: os.infraestrutura,
     credenciamento: os.credenciamento,
     orcamento: os.orcamento,
+    // BV na própria OS (gravado por quem tem oss_write, inclui Produção)
+    bv: {
+      percentual: os.financeiro.bvPercentual || 0,
+      valor: os.financeiro.bvValor || 0,
+      justificativa: os.financeiro.bvJustificativa ?? "",
+    },
     observacoes: os.observacoes,
     status: os.status,
     atualizado_em: nowIso(),

@@ -93,6 +93,8 @@ create table if not exists oss (
   orcamento jsonb,
   -- financeiro NÃO fica aqui (vazaria p/ qualquer autenticado via RLS de leitura).
   -- Vai em os_financeiro, com RLS restrita por papel. Ver abaixo.
+  -- BV fica aqui (editável pela Produção via oss_write); o resto do financeiro não.
+  bv jsonb not null default '{"percentual":0,"valor":0,"justificativa":""}'::jsonb,
   observacoes text,
   status text check (status in ('Rascunho','Emitida','Disparada','Cancelada')) default 'Rascunho',
   criado_em timestamptz default now(),

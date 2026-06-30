@@ -180,8 +180,8 @@ export function OsForm() {
   }
 
   async function salvar(status?: Os["status"]) {
-    // BV fora do padrão (sem BV ou < 15%) exige justificativa.
-    if (verFinanceiro && bvJustifFaltando) {
+    // BV fora do padrão (sem BV ou < 15%) exige justificativa — para qualquer perfil.
+    if (bvJustifFaltando) {
       toast("Informe a justificativa do BV — obrigatória quando não há BV ou é menor que 15%.", "warning");
       return;
     }
@@ -457,6 +457,33 @@ export function OsForm() {
           </Card>
         </div>
 
+        {/* Acerto Financeiro — BV (a Produção negocia o BV; visível a todos os perfis) */}
+        <Card>
+          <CardTitle hint="Quem negocia o BV com o fornecedor é a Produção. Justificativa obrigatória quando não há BV ou é abaixo de 15%.">
+            Acerto Financeiro — BV
+          </CardTitle>
+          <div className="grid md:grid-cols-3 gap-4">
+            <Field label="BV Pólobh (%)">
+              <NumberInput value={os.financeiro.bvPercentual} onValue={(v) => updFin({ bvPercentual: v, bvValor: (os.financeiro.valorTotal * v) / 100 })} />
+            </Field>
+            <Field
+              label="Justificativa do BV"
+              hint={bvPrecisaJustif ? "(obrigatória)" : "(opcional)"}
+              className="md:col-span-2"
+            >
+              <Textarea
+                value={os.financeiro.bvJustificativa ?? ""}
+                onChange={(e) => updFin({ bvJustificativa: e.target.value })}
+                placeholder="Registre o motivo quando não houver BV ou for abaixo de 15% (ex.: condição negociada com o fornecedor)."
+                className={bvJustifFaltando ? "!border-danger" : ""}
+              />
+              {bvJustifFaltando && (
+                <p className="mt-1 text-[12px] font-semibold text-danger">Obrigatória: o BV está {os.financeiro.bvPercentual <= 0 ? "zerado" : "abaixo de 15%"}.</p>
+              )}
+            </Field>
+          </div>
+        </Card>
+
         {/* Financeiro Pólobh (restrito) */}
         {verFinanceiro ? (
           <Card className="border-active-border">
@@ -486,24 +513,9 @@ export function OsForm() {
               <Field label="Descritivo NF" className="md:col-span-3"><Textarea value={os.financeiro.descritivoNf} onChange={(e) => updFin({ descritivoNf: e.target.value })} /></Field>
               <Field label="Valor total"><NumberInput value={os.financeiro.valorTotal} onValue={(v) => updFin({ valorTotal: v, valorAPagar: v - os.financeiro.descontoNegociado })} /></Field>
               <Field label="Desconto negociado"><NumberInput value={os.financeiro.descontoNegociado} onValue={(v) => updFin({ descontoNegociado: v, valorAPagar: os.financeiro.valorTotal - v })} /></Field>
-              <Field label="BV Pólobh (%)"><NumberInput value={os.financeiro.bvPercentual} onValue={(v) => updFin({ bvPercentual: v, bvValor: (os.financeiro.valorTotal * v) / 100 })} /></Field>
-              <Field
-                label="Justificativa do BV"
-                hint={bvPrecisaJustif ? "(obrigatória)" : "(opcional)"}
-                className="md:col-span-3"
-              >
-                <Textarea
-                  value={os.financeiro.bvJustificativa ?? ""}
-                  onChange={(e) => updFin({ bvJustificativa: e.target.value })}
-                  placeholder="Quem negocia o BV é a produção — registre o motivo quando não houver BV ou for abaixo de 15% (ex.: condição negociada com o fornecedor)."
-                  className={bvJustifFaltando ? "!border-danger" : ""}
-                />
-                {bvJustifFaltando && (
-                  <p className="mt-1 text-[12px] font-semibold text-danger">Obrigatória: o BV está {os.financeiro.bvPercentual <= 0 ? "zerado" : "abaixo de 15%"}.</p>
-                )}
-              </Field>
-              <div className="md:col-span-3 grid grid-cols-2 gap-4">
+              <div className="md:col-span-3 grid grid-cols-3 gap-4">
                 <Leitura label="Valor a pagar" v={brl(os.financeiro.valorAPagar)} />
+                <Leitura label="BV (%)" v={`${os.financeiro.bvPercentual || 0}%`} />
                 <Leitura label="BV (valor)" v={brl((os.financeiro.valorTotal * os.financeiro.bvPercentual) / 100)} />
               </div>
             </div>
