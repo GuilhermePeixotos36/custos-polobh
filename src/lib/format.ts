@@ -44,6 +44,39 @@ export const maskDoc = (raw: string): string => {
 
 export const onlyDigits = (s: string): string => (s || "").replace(/\D/g, "");
 
+/** Máscara progressiva de CPF/CNPJ enquanto o usuário digita. */
+export const maskCpfCnpjInput = (raw: string): string => {
+  const d = onlyDigits(raw).slice(0, 14);
+  if (d.length <= 11) {
+    return d
+      .replace(/^(\d{3})(\d)/, "$1.$2")
+      .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
+      .replace(/^(\d{3})\.(\d{3})\.(\d{3})(\d)/, "$1.$2.$3-$4");
+  }
+  return d
+    .replace(/^(\d{2})(\d)/, "$1.$2")
+    .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
+    .replace(/^(\d{2})\.(\d{3})\.(\d{3})(\d)/, "$1.$2.$3/$4")
+    .replace(/^(\d{2})\.(\d{3})\.(\d{3})\/(\d{4})(\d)/, "$1.$2.$3/$4-$5");
+};
+
+/** Máscara progressiva de telefone BR: (00) 0000-0000 ou (00) 00000-0000. */
+export const maskTelefone = (raw: string): string => {
+  const d = onlyDigits(raw).slice(0, 11);
+  if (d.length <= 10) {
+    return d
+      .replace(/^(\d{2})(\d)/, "($1) $2")
+      .replace(/^\((\d{2})\) (\d{4})(\d)/, "($1) $2-$3");
+  }
+  return d
+    .replace(/^(\d{2})(\d)/, "($1) $2")
+    .replace(/^\((\d{2})\) (\d{5})(\d)/, "($1) $2-$3");
+};
+
+/** Máscara de placa de veículo (Mercosul/antiga): ABC1D23 / ABC1234. */
+export const maskPlaca = (raw: string): string =>
+  (raw || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 7);
+
 export const iniciais = (nome: string): string =>
   (nome || "?")
     .trim()

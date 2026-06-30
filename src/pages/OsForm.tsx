@@ -18,6 +18,7 @@ import {
   Tr,
   Td,
   tomStatusOs,
+  AvisoEmailPendente,
 } from "@/components/ui";
 import { IcDownload, IcSearch, IcSend, IcChevron, IcSpark, IcLink } from "@/components/icons";
 import { repo } from "@/data";
@@ -32,7 +33,7 @@ import { consultarCnpj } from "@/lib/cnpj";
 import { gerarDescritivo } from "@/lib/ai";
 import { dispararOsPorEmail, enviarCredenciamento } from "@/lib/email";
 import { flags } from "@/lib/flags";
-import { brl, dataBR, dataHoraBR } from "@/lib/format";
+import { brl, dataBR, dataHoraBR, maskCpfCnpjInput, maskTelefone } from "@/lib/format";
 import { useAuth } from "@/store/auth";
 import { toast } from "@/store/toast";
 import { confirmar } from "@/store/confirm";
@@ -253,6 +254,8 @@ export function OsForm() {
         <span className="text-[12.5px] text-ink-3">Consolida {os.ecLinhaIds.length} linha(s) da EC</span>
       </div>
 
+      <AvisoEmailPendente className="mb-4" />
+
       <div className="space-y-4">
         {/* Cliente / projeto (auto da EC, read-only) */}
         <Card>
@@ -316,12 +319,12 @@ export function OsForm() {
           }>Fornecedor</CardTitle>
           {cnpjMsg && <div className="mb-3 text-[12.5px] text-info bg-info-soft rounded-btn px-3 py-2">{cnpjMsg}</div>}
           <div className="grid md:grid-cols-2 gap-4">
-            <Field label="CNPJ/CPF"><Input value={os.fornecedor.cnpj} onChange={(e) => updF({ cnpj: e.target.value })} /></Field>
+            <Field label="CNPJ/CPF"><Input value={os.fornecedor.cnpj} onChange={(e) => updF({ cnpj: maskCpfCnpjInput(e.target.value) })} inputMode="numeric" placeholder="00.000.000/0000-00" /></Field>
             <Field label="Perfil tributário" hint="(auto)"><Input value={os.fornecedor.perfilTributario} onChange={(e) => updF({ perfilTributario: e.target.value })} placeholder="MEI / Simples…" /></Field>
             <Field label="Razão social" className="md:col-span-2"><Input value={os.fornecedor.razaoSocial} onChange={(e) => updF({ razaoSocial: e.target.value })} /></Field>
             <Field label="Endereço" className="md:col-span-2"><Input value={os.fornecedor.endereco} onChange={(e) => updF({ endereco: e.target.value })} /></Field>
             <Field label="Representante"><Input value={os.fornecedor.representante} onChange={(e) => updF({ representante: e.target.value })} /></Field>
-            <Field label="Telefone"><Input value={os.fornecedor.telefone} onChange={(e) => updF({ telefone: e.target.value })} /></Field>
+            <Field label="Telefone"><Input value={os.fornecedor.telefone} onChange={(e) => updF({ telefone: maskTelefone(e.target.value) })} inputMode="tel" placeholder="(31) 90000-0000" /></Field>
             <Field label="E-mail"><Input value={os.fornecedor.email} onChange={(e) => updF({ email: e.target.value })} /></Field>
             <Field label="Banco"><Input value={os.fornecedor.dadosBancarios.banco} onChange={(e) => updB({ banco: e.target.value })} /></Field>
             <Field label="Agência"><Input value={os.fornecedor.dadosBancarios.agencia} onChange={(e) => updB({ agencia: e.target.value })} /></Field>

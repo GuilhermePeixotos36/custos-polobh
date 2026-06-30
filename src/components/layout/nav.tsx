@@ -8,6 +8,7 @@ import {
   IcUsers,
   IcGear,
   IcActivity,
+  IcHelp,
 } from "@/components/icons";
 
 export interface NavItem {
@@ -26,4 +27,5 @@ export const NAV: NavItem[] = [
   { to: "/fornecedores", label: "Fornecedores", icon: <IcUsers />, recurso: "fornecedores", grupo: "Operação" },
   { to: "/configuracoes", label: "Configurações", icon: <IcGear />, recurso: "configuracoes", grupo: "Sistema" },
   { to: "/logs", label: "Logs do sistema", icon: <IcActivity />, recurso: "logs", grupo: "Sistema" },
+  { to: "/guia", label: "Guia do app", icon: <IcHelp />, recurso: "guia", grupo: "Sistema" },
 ];

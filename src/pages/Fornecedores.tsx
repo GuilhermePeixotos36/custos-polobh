@@ -9,6 +9,7 @@ import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import { consultarCnpj } from "@/lib/cnpj";
 import { flags } from "@/lib/flags";
+import { maskCpfCnpjInput, maskTelefone } from "@/lib/format";
 import { toast } from "@/store/toast";
 import type { Fornecedor } from "@/data/types";
 
@@ -99,7 +100,7 @@ export function Fornecedores() {
             }>{edit.id ? "Editar fornecedor" : "Novo fornecedor"}</CardTitle>
             {msg && <div className="mb-3 text-[12.5px] text-info bg-info-soft rounded-btn px-3 py-2">{msg}</div>}
             <div className="grid gap-3">
-              <Field label="CNPJ/CPF"><Input value={edit.cnpj} onChange={(e) => setEdit({ ...edit, cnpj: e.target.value })} /></Field>
+              <Field label="CNPJ/CPF"><Input value={edit.cnpj} onChange={(e) => setEdit({ ...edit, cnpj: maskCpfCnpjInput(e.target.value) })} inputMode="numeric" placeholder="00.000.000/0000-00" /></Field>
               <Field label="Razão social"><Input value={edit.razaoSocial} onChange={(e) => setEdit({ ...edit, razaoSocial: e.target.value })} /></Field>
               <Field label="Nome fantasia"><Input value={edit.nomeFantasia} onChange={(e) => setEdit({ ...edit, nomeFantasia: e.target.value })} /></Field>
               <Field label="Perfil tributário">
@@ -110,7 +111,7 @@ export function Fornecedores() {
               </Field>
               <Field label="Endereço"><Input value={edit.endereco} onChange={(e) => setEdit({ ...edit, endereco: e.target.value })} /></Field>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Telefone"><Input value={edit.telefone} onChange={(e) => setEdit({ ...edit, telefone: e.target.value })} /></Field>
+                <Field label="Telefone"><Input value={edit.telefone} onChange={(e) => setEdit({ ...edit, telefone: maskTelefone(e.target.value) })} inputMode="tel" placeholder="(31) 90000-0000" /></Field>
                 <Field label="E-mail"><Input value={edit.email} onChange={(e) => setEdit({ ...edit, email: e.target.value })} /></Field>
               </div>
               <div className="flex gap-2 pt-1">

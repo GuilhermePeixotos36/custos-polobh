@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { cx, iniciais } from "@/lib/format";
+import { flags } from "@/lib/flags";
 
 export function Toggle({
   checked,
@@ -63,6 +64,25 @@ export function ProgressBar({ value }: { value: number }) {
         className="h-full rounded-pill bg-progress-grad"
         style={{ width: `${Math.max(0, Math.min(100, value))}%` }}
       />
+    </div>
+  );
+}
+
+/**
+ * Aviso de que o envio de e-mail está aguardando a conexão com o Brevo da
+ * Pólobh. Aparece só quando a integração está desligada (flags.email = false).
+ * Renderizar perto de qualquer ação que dispara e-mail.
+ */
+export function AvisoEmailPendente({ className }: { className?: string }) {
+  if (flags.email) return null;
+  return (
+    <div className={cx("flex items-start gap-2 rounded-btn bg-warning-soft text-warning px-3 py-2 text-[12.5px]", className)}>
+      <span className="mt-0.5 shrink-0" aria-hidden>✉️</span>
+      <span>
+        <b>Envio de e-mail aguardando conexão</b> com o e-mail da Pólobh (Brevo). Até a
+        integração ser concluída, os disparos são apenas <b>simulados</b> nos testes — nada é
+        enviado de fato ao destinatário.
+      </span>
     </div>
   );
 }

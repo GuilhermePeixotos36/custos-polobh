@@ -1,7 +1,7 @@
 import { useParams } from "react-router-dom";
 import { useAsync } from "@/hooks/useAsync";
 import { dataBR } from "@/lib/format";
-import { Timeline } from "@/components/Timeline";
+import { Timeline, TimelineConsolidada, type ItemConsolidado } from "@/components/Timeline";
 import { Badge, tomStatusOs } from "@/components/ui";
 import type { CronogramaItem } from "@/data/types";
 
@@ -33,6 +33,10 @@ export function CronogramaPublico() {
   if (loading) return <Centro>Carregando…</Centro>;
   if (!data || !data.projeto) return <Centro>Cronograma não encontrado.</Centro>;
 
+  const blocosConsolidados: ItemConsolidado[] = data.blocos.flatMap((b) =>
+    b.cronograma.map((c) => ({ ...c, fornecedor: b.fornecedor || "Fornecedor" }))
+  );
+
   return (
     <div className="min-h-screen bg-bg">
       <header className="bg-black text-white">
@@ -50,15 +54,25 @@ export function CronogramaPublico() {
           {data.blocos.length === 0 ? (
             <p className="text-ink-3">Nenhuma etapa publicada ainda.</p>
           ) : (
-            data.blocos.map((b, i) => (
-              <div key={i} className="bg-surface border border-border rounded-card shadow-card p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-display font-bold text-ink">{b.fornecedor || "Fornecedor"}</h3>
-                  <Badge tom={tomStatusOs[b.status]}>{b.status}</Badge>
-                </div>
-                <Timeline itens={b.cronograma} />
+            <>
+              {/* Linha do tempo consolidada do evento */}
+              <div className="bg-surface border border-border rounded-card shadow-card p-5">
+                <h2 className="font-display font-bold text-ink text-[15px] mb-3">Linha do tempo do evento</h2>
+                <TimelineConsolidada itens={blocosConsolidados} />
               </div>
-            ))
+
+              {/* Detalhe por fornecedor */}
+              <div className="text-[10.5px] font-extrabold uppercase tracking-[0.14em] text-ink-3 px-1 pt-1">Por fornecedor</div>
+              {data.blocos.map((b, i) => (
+                <div key={i} className="bg-surface border border-border rounded-card shadow-card p-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-display font-bold text-ink">{b.fornecedor || "Fornecedor"}</h3>
+                    <Badge tom={tomStatusOs[b.status]}>{b.status}</Badge>
+                  </div>
+                  <Timeline itens={b.cronograma} />
+                </div>
+              ))}
+            </>
           )}
         </div>
         <p className="text-center text-ink-3 text-[12px] mt-10">© Pólobh Eventos</p>

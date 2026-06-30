@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { Button, Input } from "@/components/ui";
 import { useAsync } from "@/hooks/useAsync";
-import { dataBR } from "@/lib/format";
+import { dataBR, maskCpfCnpjInput, maskPlaca } from "@/lib/format";
 import type { CredenciamentoMembro, CredenciamentoVeiculo } from "@/data/types";
 
 interface Contexto {
@@ -93,7 +93,7 @@ export function CredenciamentoPublico() {
                 {equipe.map((m, i) => (
                   <div key={i} className="grid grid-cols-[1fr_120px_1fr_auto] gap-2 items-center">
                     <Input placeholder="Nome completo" value={m.nome} onChange={(e) => setEquipe((l) => l.map((x, j) => (j === i ? { ...x, nome: e.target.value } : x)))} />
-                    <Input placeholder="CPF" value={m.cpf} onChange={(e) => setEquipe((l) => l.map((x, j) => (j === i ? { ...x, cpf: e.target.value } : x)))} />
+                    <Input placeholder="CPF" inputMode="numeric" value={m.cpf} onChange={(e) => setEquipe((l) => l.map((x, j) => (j === i ? { ...x, cpf: maskCpfCnpjInput(e.target.value) } : x)))} />
                     <Input placeholder="Função" value={m.funcao} onChange={(e) => setEquipe((l) => l.map((x, j) => (j === i ? { ...x, funcao: e.target.value } : x)))} />
                     <button type="button" className="text-ink-3 hover:text-danger px-2" onClick={() => setEquipe((l) => l.filter((_, j) => j !== i))} aria-label="Remover">✕</button>
                   </div>
@@ -111,7 +111,7 @@ export function CredenciamentoPublico() {
                 {veiculos.map((v, i) => (
                   <div key={i} className="grid grid-cols-[1fr_140px_auto] gap-2 items-center">
                     <Input placeholder="Modelo / descrição" value={v.modelo} onChange={(e) => setVeiculos((l) => l.map((x, j) => (j === i ? { ...x, modelo: e.target.value } : x)))} />
-                    <Input placeholder="Placa" value={v.placa} onChange={(e) => setVeiculos((l) => l.map((x, j) => (j === i ? { ...x, placa: e.target.value } : x)))} />
+                    <Input placeholder="Placa" value={v.placa} onChange={(e) => setVeiculos((l) => l.map((x, j) => (j === i ? { ...x, placa: maskPlaca(e.target.value) } : x)))} />
                     <button type="button" className="text-ink-3 hover:text-danger px-2" onClick={() => setVeiculos((l) => l.filter((_, j) => j !== i))} aria-label="Remover">✕</button>
                   </div>
                 ))}

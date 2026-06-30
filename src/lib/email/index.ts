@@ -42,7 +42,12 @@ export async function enviarEmail(msg: MensagemEmail): Promise<ResultadoEmail> {
   // Modo simulação: flag desligada ou endpoint ausente.
   if (!flags.email || !endpoint()) {
     console.info("[email:simulado]", { assunto: msg.assunto, para: destinatarios });
-    return { ok: true, simulado: true, motivo: "Envio simulado (Brevo não configurado).", destinatarios };
+    return {
+      ok: true,
+      simulado: true,
+      motivo: "Aguardando conexão com o e-mail da Pólobh (Brevo) — envio simulado, nada saiu.",
+      destinatarios,
+    };
   }
 
   try {

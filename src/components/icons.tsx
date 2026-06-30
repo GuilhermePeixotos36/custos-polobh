@@ -29,6 +29,19 @@ export const IcShield = (p: P) => (
     <path d="M9 12l2 2 4-4" />
   </I>
 );
+export const IcHelp = (p: P) => (
+  <I {...p}>
+    <circle cx="12" cy="12" r="10" />
+    <path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3" />
+    <path d="M12 17h.01" />
+  </I>
+);
+export const IcBook = (p: P) => (
+  <I {...p}>
+    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+  </I>
+);
 export const IcGrid = (p: P) => (
   <I {...p}>
     <rect x="3" y="3" width="7" height="7" rx="1.5" />

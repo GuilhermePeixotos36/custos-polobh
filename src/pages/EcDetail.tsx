@@ -13,6 +13,7 @@ import {
   Td,
   EmptyState,
   Eyebrow,
+  AvisoEmailPendente,
   tomStatusEc,
   tomStatusOs,
   tomAprovacao,
@@ -251,6 +252,7 @@ export function EcDetail() {
           {podeEditar && (
             <Card>
               <Eyebrow>Ações</Eyebrow>
+              <AvisoEmailPendente className="mt-3" />
               <div className="mt-3 grid gap-2">
                 <Button variant="primary" size="sm" icon={<IcSend width={16} height={16} />}
                   onClick={async () => {

@@ -26,7 +26,7 @@ import { flags } from "@/lib/flags";
 import { toast } from "@/store/toast";
 import { confirmar } from "@/store/confirm";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
-import { brl } from "@/lib/format";
+import { brl, maskCpfCnpjInput } from "@/lib/format";
 import type {
   Cliente,
   Ec,
@@ -227,7 +227,7 @@ export function EcForm() {
           }>Cliente</CardTitle>
           {cnpjMsg && <div className="mb-3 text-[12.5px] text-info bg-info-soft rounded-btn px-3 py-2">{cnpjMsg}</div>}
           <div className="grid md:grid-cols-2 gap-4">
-            <Field label="CNPJ/CPF"><Input value={ec.cliente.cnpjCpf} onChange={(e) => updCli({ cnpjCpf: e.target.value })} placeholder="00.000.000/0000-00" /></Field>
+            <Field label="CNPJ/CPF"><Input value={ec.cliente.cnpjCpf} onChange={(e) => updCli({ cnpjCpf: maskCpfCnpjInput(e.target.value) })} inputMode="numeric" placeholder="00.000.000/0000-00" /></Field>
             <Field label="Cliente (nome)"><Input value={ec.cliente.nome} onChange={(e) => updCli({ nome: e.target.value })} /></Field>
             <Field label="Razão Social" className="md:col-span-2"><Input value={ec.cliente.razaoSocial} onChange={(e) => updCli({ razaoSocial: e.target.value })} /></Field>
             <Field label="Endereço" className="md:col-span-2"><Input value={ec.cliente.endereco} onChange={(e) => updCli({ endereco: e.target.value })} /></Field>

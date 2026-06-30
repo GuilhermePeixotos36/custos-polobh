@@ -1,0 +1,454 @@
+import { useMemo, useState, type ReactNode } from "react";
+import { PageShell, Crumb } from "@/components/layout/AppLayout";
+import { Card } from "@/components/ui";
+import {
+  IcSearch, IcGrid, IcDoc, IcClipboard, IcCalendar, IcUsers, IcGear,
+  IcActivity, IcShield, IcSend, IcCheck, IcBook,
+} from "@/components/icons";
+import { cx } from "@/lib/format";
+
+/* ============================== Componentes ============================== */
+
+function Secao({ titulo, children }: { titulo: string; children: ReactNode }) {
+  return (
+    <section className="scroll-mt-24">
+      <div className="flex items-center gap-2.5 mb-3">
+        <span className="h-4 w-1.5 rounded-full bg-progress-grad" />
+        <h3 className="font-display font-bold text-ink text-[16px]">{titulo}</h3>
+      </div>
+      <div className="space-y-3 text-[13.5px] text-ink-2 leading-relaxed">{children}</div>
+    </section>
+  );
+}
+
+function Passos({ children }: { children: ReactNode }) {
+  const items = Array.isArray(children) ? children : [children];
+  return (
+    <ol className="space-y-2.5">
+      {items.map((c, i) => (
+        <li key={i} className="flex gap-3">
+          <span className="shrink-0 h-6 w-6 rounded-full bg-primary-soft text-primary-dark font-display font-bold text-[12.5px] grid place-items-center">
+            {i + 1}
+          </span>
+          <div className="pt-0.5">{c}</div>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function Dica({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex items-start gap-2.5 rounded-card bg-success-soft text-success px-3.5 py-2.5 text-[13px]">
+      <span className="mt-0.5 shrink-0"><IcCheck width={16} height={16} /></span>
+      <div><b>Dica.</b> {children}</div>
+    </div>
+  );
+}
+
+function Atencao({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex items-start gap-2.5 rounded-card bg-warning-soft text-warning px-3.5 py-2.5 text-[13px]">
+      <span className="mt-0.5 shrink-0" aria-hidden>⚠️</span>
+      <div><b>Atenção.</b> {children}</div>
+    </div>
+  );
+}
+
+/** "Print" ilustrativo: um quadro estilo janela com conteúdo simplificado. */
+function Tela({ titulo, children }: { titulo: string; children: ReactNode }) {
+  return (
+    <div className="rounded-card border border-border overflow-hidden shadow-card bg-surface">
+      <div className="flex items-center gap-1.5 px-3 py-2 bg-[#F4F5F7] border-b border-border">
+        <span className="h-2.5 w-2.5 rounded-full bg-[#E5564B]" />
+        <span className="h-2.5 w-2.5 rounded-full bg-[#F2B441]" />
+        <span className="h-2.5 w-2.5 rounded-full bg-[#36C26B]" />
+        <span className="ml-2 text-[11px] font-bold text-ink-3">{titulo}</span>
+      </div>
+      <div className="p-4">{children}</div>
+    </div>
+  );
+}
+
+function Tag({ children, tom = "neutral" }: { children: ReactNode; tom?: "neutral" | "primary" | "success" | "warning" | "info" }) {
+  const tons: Record<string, string> = {
+    neutral: "bg-[#F0F1F4] text-ink-2",
+    primary: "bg-primary-soft text-primary-dark",
+    success: "bg-success-soft text-success",
+    warning: "bg-warning-soft text-warning",
+    info: "bg-info-soft text-info",
+  };
+  return <span className={cx("inline-flex items-center rounded-pill px-2 py-0.5 text-[11px] font-bold", tons[tom])}>{children}</span>;
+}
+
+/* ============================== Conteúdo ================================ */
+
+interface Modulo {
+  id: string;
+  icone: ReactNode;
+  titulo: string;
+  resumo: string;
+  tags: string[]; // termos para a busca
+  conteudo: ReactNode;
+}
+
+const MODULOS: Modulo[] = [
+  {
+    id: "primeiros-passos",
+    icone: <IcBook />,
+    titulo: "Primeiros passos",
+    resumo: "Login, perfis de acesso e como navegar pelo app.",
+    tags: ["login", "entrar", "senha", "perfil", "acesso", "menu", "navegação", "sair", "logout", "começar"],
+    conteudo: (
+      <>
+        <Secao titulo="Entrar no sistema">
+          <p>O acesso é por <b>e-mail e senha</b>. Cada pessoa tem um <b>perfil</b> que define o que ela pode ver e fazer.</p>
+          <Tela titulo="custos-polobh.vercel.app/login">
+            <div className="max-w-[260px] mx-auto space-y-2">
+              <div className="text-center font-display font-bold text-ink text-sm">Entrar</div>
+              <div className="h-9 rounded-btn border border-border bg-bg flex items-center px-2.5 text-[12px] text-ink-3">voce@polobh.com.br</div>
+              <div className="h-9 rounded-btn border border-border bg-bg flex items-center px-2.5 text-[12px] text-ink-3">••••••••</div>
+              <div className="h-9 rounded-btn bg-primary-grad text-[#2A1602] grid place-items-center text-[12.5px] font-bold">Entrar no painel</div>
+            </div>
+          </Tela>
+          <Passos>
+            <span>Abra o endereço do sistema e digite seu <b>e-mail</b> e <b>senha</b>.</span>
+            <span>Clique em <b>Entrar no painel</b>. Você cai direto no Dashboard.</span>
+            <span>Para sair, use o botão <b>Sair</b> no canto superior direito.</span>
+          </Passos>
+        </Secao>
+        <Secao titulo="O menu lateral">
+          <p>À esquerda fica o menu. Os itens visíveis dependem do seu perfil — você só vê o que tem permissão de usar.</p>
+          <div className="flex flex-wrap gap-1.5">
+            <Tag tom="primary">Dashboard</Tag><Tag>Estimativas (EC)</Tag><Tag>Ordens de Serviço</Tag>
+            <Tag>Cronogramas</Tag><Tag>Fornecedores</Tag><Tag>Configurações</Tag><Tag>Logs</Tag><Tag>Guia</Tag>
+          </div>
+          <Dica>Está com dúvida em algum módulo? Volte sempre aqui no <b>Guia</b> e use a busca no topo.</Dica>
+        </Secao>
+      </>
+    ),
+  },
+  {
+    id: "dashboard",
+    icone: <IcGrid />,
+    titulo: "Dashboard",
+    resumo: "Visão geral: ECs ativas, OSs, faturamento previsto e movimentações.",
+    tags: ["dashboard", "visão geral", "indicadores", "resumo", "faturamento", "gráfico", "início"],
+    conteudo: (
+      <>
+        <Secao titulo="O que mostra">
+          <p>É a tela inicial. Reúne os números do momento para você ter o panorama sem abrir cada módulo.</p>
+          <ul className="grid sm:grid-cols-2 gap-2">
+            <li className="rounded-card bg-bg p-3"><b className="text-ink">ECs ativas</b> — estimativas em andamento.</li>
+            <li className="rounded-card bg-bg p-3"><b className="text-ink">Aguardando aprovação</b> — ECs enviadas ao cliente.</li>
+            <li className="rounded-card bg-bg p-3"><b className="text-ink">OSs emitidas</b> — ordens já geradas.</li>
+            <li className="rounded-card bg-bg p-3"><b className="text-ink">Faturamento previsto</b> — soma dos valores aprovados.</li>
+          </ul>
+          <Dica>Clique nos cartões e nas listas de movimentações recentes para ir direto ao registro.</Dica>
+        </Secao>
+      </>
+    ),
+  },
+  {
+    id: "ec",
+    icone: <IcDoc />,
+    titulo: "Estimativas de Custo (EC)",
+    resumo: "Criar e versionar a EC: cliente, projeto, linhas de custo, produção, totais, aprovação.",
+    tags: ["ec", "estimativa", "orçamento", "cliente", "projeto", "linha de custo", "produção", "honorários", "encargos", "cnpj", "excel", "versão", "duplicar", "arquivar", "cancelar", "aprovação", "totais"],
+    conteudo: (
+      <>
+        <Secao titulo="Para que serve">
+          <p>A <b>EC</b> é o documento que estima o custo de um evento: agrupa os itens por fornecedor, calcula honorários e encargos e chega ao <b>valor total</b>. É a partir dela que se geram as Ordens de Serviço.</p>
+        </Secao>
+        <Secao titulo="Criar uma EC">
+          <Passos>
+            <span>Vá em <b>Estimativas (EC)</b> e clique em <b>Nova EC</b>.</span>
+            <span>Preencha o <b>Cliente</b>. Dica: digite o CNPJ e clique em <b>Consultar CNPJ</b> para puxar razão social e endereço automaticamente.</span>
+            <span>Preencha o <b>Projeto</b> (título, local, datas, participantes).</span>
+            <span>Na tabela <b>Estimativa de custos</b>, adicione as linhas: grupo, item, descrição, fornecedor e valores.</span>
+            <span>Ajuste o bloco <b>Produção</b> (diárias, transporte, alimentação) informando as quantidades.</span>
+            <span>Confira os <b>Totais ao vivo</b> e clique em <b>Salvar</b>.</span>
+          </Passos>
+          <Tela titulo="Nova Estimativa">
+            <div className="space-y-2 text-[12px]">
+              <div className="grid grid-cols-[1fr_1fr_70px_70px] gap-1.5 text-[10px] font-bold uppercase text-ink-3"><span>Item</span><span>Fornecedor</span><span className="text-right">Pólobh</span><span className="text-right">Cliente</span></div>
+              <div className="grid grid-cols-[1fr_1fr_70px_70px] gap-1.5 items-center"><span className="text-ink">Sonorização</span><span className="text-ink-2">Som &amp; Luz</span><span className="text-right font-bold">R$ 8.500</span><span className="text-right">—</span></div>
+              <div className="grid grid-cols-[1fr_1fr_70px_70px] gap-1.5 items-center"><span className="text-ink">Coffee break</span><span className="text-ink-2">Sabor &amp; Arte</span><span className="text-right">—</span><span className="text-right font-bold">R$ 9.200</span></div>
+              <div className="flex justify-between bg-primary-soft rounded-btn px-2.5 py-1.5 mt-1"><b className="text-ink">Valor total bruto</b><b className="text-primary-dark">R$ 40.168,65</b></div>
+            </div>
+          </Tela>
+          <Dica>Os percentuais são fixos: <b>honorários 15%</b> e <b>encargos 16,33%</b>. O valor total recalcula sozinho a cada mudança.</Dica>
+        </Secao>
+        <Secao titulo="Enviar para aprovação, versões e Excel">
+          <Passos>
+            <span>Na EC, em <b>Ações</b>, use <b>Enviar ao cliente para aprovação</b> — a EC vai para o status <Tag tom="warning">Aguardando</Tag>.</span>
+            <span><b>Gerar nova versão (V02…)</b> cria uma cópia que “cancela e substitui” a anterior — use quando o escopo muda.</span>
+            <span><b>Duplicar EC</b> cria uma nova estimativa (V01, Rascunho) a partir desta.</span>
+            <span><b>Gerar Excel</b> exporta a EC formatada com a marca Pólobh.</span>
+          </Passos>
+          <Atencao>Arquivar e Cancelar <b>não apagam</b> a EC — ela continua consultável. Nada é excluído de fato.</Atencao>
+        </Secao>
+      </>
+    ),
+  },
+  {
+    id: "os",
+    icone: <IcClipboard />,
+    titulo: "Ordens de Serviço (OS)",
+    resumo: "Gerar OS a partir da EC, consolidar por fornecedor, bloco financeiro, disparo e PDF.",
+    tags: ["os", "ordem de serviço", "fornecedor", "consolidar", "modalidade", "cronograma", "orçamento", "financeiro", "bv", "disparar", "pdf", "excel", "nota fiscal", "credenciamento"],
+    conteudo: (
+      <>
+        <Secao titulo="Como nasce uma OS">
+          <p>A OS deriva da EC. Você seleciona as linhas de <b>um mesmo fornecedor</b> e gera a ordem para ele.</p>
+          <Passos>
+            <span>Abra a EC e, na tabela de linhas, <b>marque as linhas</b> do mesmo fornecedor.</span>
+            <span>Clique em <b>Gerar OS</b>. A OS já vem com cliente, projeto e itens preenchidos a partir da EC.</span>
+            <span>Complete os dados do <b>Fornecedor</b> (use Consultar CNPJ), o <b>detalhamento</b>, o <b>cronograma</b> e o <b>orçamento</b>.</span>
+            <span>Clique em <b>Salvar</b>.</span>
+          </Passos>
+          <Atencao>Cada OS consolida linhas de <b>um único fornecedor</b>. Se você marcar fornecedores diferentes, o sistema avisa.</Atencao>
+        </Secao>
+        <Secao titulo="Bloco financeiro (restrito)">
+          <p>O bloco <b>Financeiro Pólobh</b> (BV, valor a pagar, margem) só aparece para os perfis <b>Direção</b>, <b>Administrativo</b> e <b>Administrador</b>. A <b>Produção</b> não vê esses valores — nem na tela, nem pela API.</p>
+        </Secao>
+        <Secao titulo="Disparar e exportar">
+          <Passos>
+            <span><b>Disparar OS</b> muda o status para <Tag tom="success">Disparada</Tag> e envia a OS ao fornecedor por e-mail.</span>
+            <span><b>Baixar Excel</b> e <b>Ver / PDF</b> geram o documento da OS (o PDF respeita seu perfil quanto ao financeiro).</span>
+          </Passos>
+          <Atencao>O <b>envio de e-mail está aguardando a conexão com o Brevo</b> da Pólobh. Até lá, o disparo é <b>simulado</b> — a OS é salva e o status muda, mas nenhum e-mail sai de fato.</Atencao>
+        </Secao>
+      </>
+    ),
+  },
+  {
+    id: "cronogramas",
+    icone: <IcCalendar />,
+    titulo: "Cronogramas & link público",
+    resumo: "Linha do tempo consolidada do evento e link público para enviar ao cliente.",
+    tags: ["cronograma", "linha do tempo", "timeline", "link público", "compartilhar", "evento", "etapas"],
+    conteudo: (
+      <>
+        <Secao titulo="Linha do tempo do projeto">
+          <p>O módulo <b>Cronogramas</b> junta as etapas de <b>todos os fornecedores</b> de um projeto numa única linha do tempo, em ordem cronológica, além do detalhe por fornecedor.</p>
+          <Passos>
+            <span>Em <b>Cronogramas</b>, escolha o <b>projeto</b> no seletor do topo.</span>
+            <span>Veja a <b>Linha do tempo consolidada</b> e, abaixo, as etapas por fornecedor.</span>
+          </Passos>
+        </Secao>
+        <Secao titulo="Compartilhar com o cliente">
+          <Passos>
+            <span>Clique em <b>Copiar link público</b>.</span>
+            <span>Envie o link ao cliente. Ele abre <b>sem login</b> e mostra só o cronograma — nenhum valor, custo ou dado interno aparece.</span>
+          </Passos>
+          <Dica>O link usa um código único e não-adivinhável. Cada projeto tem o seu.</Dica>
+        </Secao>
+      </>
+    ),
+  },
+  {
+    id: "credenciamento",
+    icone: <IcSend />,
+    titulo: "Credenciamento de fornecedores",
+    resumo: "Link público para o fornecedor cadastrar equipe e veículos; respostas aparecem na OS.",
+    tags: ["credenciamento", "fornecedor", "equipe", "veículos", "placa", "cpf", "link", "formulário", "acesso ao local"],
+    conteudo: (
+      <>
+        <Secao titulo="Como funciona">
+          <p>Cada OS tem um <b>link de credenciamento</b>. O fornecedor abre esse link (sem login), informa a <b>equipe</b> (nome, CPF, função) e os <b>veículos</b> (modelo, placa), e os dados caem direto no sistema.</p>
+          <Passos>
+            <span>Na OS, no cartão <b>Credenciamento</b>, copie o <b>link público</b> (aparece após salvar a OS).</span>
+            <span>Envie o link ao fornecedor (defina também o <b>prazo limite</b>).</span>
+            <span>Quando ele enviar, as respostas surgem em <b>Credenciamentos recebidos</b>, na própria OS.</span>
+          </Passos>
+          <Tela titulo="custos-polobh.vercel.app/credenciamento/…">
+            <div className="space-y-2 text-[12px]">
+              <div className="font-display font-bold text-ink">Equipe</div>
+              <div className="grid grid-cols-[1fr_90px_1fr] gap-1.5"><span className="bg-bg rounded px-2 py-1">Nome</span><span className="bg-bg rounded px-2 py-1">CPF</span><span className="bg-bg rounded px-2 py-1">Função</span></div>
+              <div className="font-display font-bold text-ink pt-1">Veículos</div>
+              <div className="grid grid-cols-[1fr_90px] gap-1.5"><span className="bg-bg rounded px-2 py-1">Modelo</span><span className="bg-bg rounded px-2 py-1">Placa</span></div>
+            </div>
+          </Tela>
+          <Atencao>Após o <b>prazo limite</b>, o formulário não aceita mais envios.</Atencao>
+        </Secao>
+      </>
+    ),
+  },
+  {
+    id: "fornecedores",
+    icone: <IcUsers />,
+    titulo: "Fornecedores",
+    resumo: "Cadastro com CNPJ automático, perfil tributário, contato e dados bancários.",
+    tags: ["fornecedor", "cnpj", "cadastro", "perfil tributário", "mei", "simples", "banco", "pix", "contato"],
+    conteudo: (
+      <>
+        <Secao titulo="Cadastrar e consultar">
+          <Passos>
+            <span>Em <b>Fornecedores</b>, clique em <b>Novo fornecedor</b>.</span>
+            <span>Digite o <b>CNPJ</b> e clique em <b>Consultar CNPJ</b> — razão social, perfil tributário e endereço vêm da base pública.</span>
+            <span>Complete contato e dados bancários e <b>Salve</b>.</span>
+          </Passos>
+          <Dica>Use a busca no topo da lista para achar um fornecedor por nome, CNPJ ou perfil tributário.</Dica>
+        </Secao>
+      </>
+    ),
+  },
+  {
+    id: "perfis",
+    icone: <IcShield />,
+    titulo: "Perfis & permissões",
+    resumo: "O que cada perfil (Admin, Direção, Produção, Administrativo) pode ver e fazer.",
+    tags: ["perfil", "permissão", "papel", "admin", "direção", "produção", "administrativo", "acesso", "financeiro", "rls"],
+    conteudo: (
+      <>
+        <Secao titulo="Os quatro perfis">
+          <div className="space-y-2">
+            <div className="rounded-card bg-bg p-3"><Tag tom="primary">Administrador</Tag> <span className="ml-1">acesso total + a tela de <b>Logs</b>. Perfil do desenvolvedor/gestor do app.</span></div>
+            <div className="rounded-card bg-bg p-3"><Tag tom="info">Direção</Tag> <span className="ml-1">acesso total ao operacional, incluindo o <b>bloco financeiro</b> e Configurações.</span></div>
+            <div className="rounded-card bg-bg p-3"><Tag tom="success">Produção</Tag> <span className="ml-1">cria e edita ECs/OSs, mas <b>não vê o financeiro</b> nem Configurações.</span></div>
+            <div className="rounded-card bg-bg p-3"><Tag tom="warning">Administrativo</Tag> <span className="ml-1">vê o <b>financeiro</b> e Configurações; não edita ECs.</span></div>
+          </div>
+          <Dica>A matriz completa de perfis × recursos fica em <b>Configurações</b>.</Dica>
+        </Secao>
+      </>
+    ),
+  },
+  {
+    id: "logs",
+    icone: <IcActivity />,
+    titulo: "Logs do sistema",
+    resumo: "Trilha de auditoria de tudo que acontece no app (somente Administrador).",
+    tags: ["logs", "auditoria", "histórico", "eventos", "acesso negado", "exportar", "csv", "admin"],
+    conteudo: (
+      <>
+        <Secao titulo="Para que serve">
+          <p>Visível apenas para o <b>Administrador</b>. Registra logins, alterações em EC/OS/cadastros, tentativas de acesso negado e exportações — para manutenção e segurança.</p>
+          <Passos>
+            <span>Abra <b>Logs do sistema</b> no menu.</span>
+            <span>Filtre por <b>categoria</b>, <b>nível</b> ou use a <b>busca</b>.</span>
+            <span>Use <b>Exportar CSV</b> para baixar a trilha filtrada.</span>
+          </Passos>
+        </Secao>
+      </>
+    ),
+  },
+  {
+    id: "emails",
+    icone: <IcSend />,
+    titulo: "E-mails automáticos",
+    resumo: "Disparo de OS, credenciamento e aprovação — aguardando conexão com o Brevo.",
+    tags: ["email", "e-mail", "brevo", "disparo", "envio", "aprovação", "credenciamento", "simulado"],
+    conteudo: (
+      <>
+        <Secao titulo="Status atual">
+          <Atencao>O envio de e-mails está <b>aguardando a conexão com o e-mail da Pólobh (Brevo)</b>. Enquanto isso, todas as ações de e-mail (disparar OS, enviar credenciamento, enviar EC para aprovação) funcionam em modo <b>simulado</b>: a ação acontece no sistema (status muda, registros são salvos), mas <b>nenhum e-mail sai de fato</b>.</Atencao>
+          <p>Assim que o Brevo for conectado, os mesmos botões passam a enviar os e-mails de verdade — sem nenhuma mudança no uso.</p>
+        </Secao>
+      </>
+    ),
+  },
+  {
+    id: "configuracoes",
+    icone: <IcGear />,
+    titulo: "Configurações",
+    resumo: "Matriz de perfis, retenção de dados e integrações/segurança.",
+    tags: ["configurações", "matriz", "perfis", "retenção", "arquivamento", "integrações", "flags", "segurança", "lgpd"],
+    conteudo: (
+      <>
+        <Secao titulo="O que tem aqui">
+          <ul className="space-y-1.5 list-disc pl-5">
+            <li><b>Matriz de perfis × recursos</b> — quem vê e edita cada módulo.</li>
+            <li><b>Retenção de dados</b> — arquivamento automático (arquivar ≠ apagar).</li>
+            <li><b>Integrações &amp; segurança</b> — status do CNPJ, e-mail (Brevo) e da trilha de auditoria.</li>
+          </ul>
+          <Atencao>Disponível para <b>Direção</b>, <b>Administrativo</b> e <b>Administrador</b>.</Atencao>
+        </Secao>
+      </>
+    ),
+  },
+];
+
+/* ================================ Página ================================ */
+
+export function Guia() {
+  const [busca, setBusca] = useState("");
+  const [ativoId, setAtivoId] = useState("primeiros-passos");
+
+  const filtrados = useMemo(() => {
+    const termos = busca.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (termos.length === 0) return MODULOS;
+    return MODULOS.filter((m) => {
+      const alvo = [m.titulo, m.resumo, ...m.tags].join(" ").toLowerCase();
+      return termos.every((t) => alvo.includes(t));
+    });
+  }, [busca]);
+
+  const ativo = filtrados.find((m) => m.id === ativoId) ?? filtrados[0] ?? null;
+
+  return (
+    <PageShell
+      breadcrumb={<Crumb>Guia do app</Crumb>}
+      title="Guia do aplicativo"
+      subtitle="Documentação completa e didática de cada módulo. Pesquise para ir direto ao ponto."
+    >
+      {/* Busca */}
+      <div className="relative max-w-xl mb-5">
+        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-3"><IcSearch width={18} height={18} /></span>
+        <input
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Buscar módulo ou assunto (ex.: BV, CNPJ, credenciamento, link público…)"
+          className="w-full h-12 bg-surface border-[1.5px] border-[#E2E3E8] rounded-card pl-11 pr-3.5 text-sm text-ink placeholder:text-ink-3 input-focus"
+        />
+      </div>
+
+      <div className="grid lg:grid-cols-[280px_1fr] gap-5 items-start">
+        {/* TOC / lista de módulos */}
+        <nav className="lg:sticky lg:top-[86px] space-y-1.5">
+          <div className="px-1 mb-1 text-[10px] font-extrabold uppercase tracking-[0.14em] text-ink-3">
+            {busca ? `${filtrados.length} resultado(s)` : "Módulos"}
+          </div>
+          {filtrados.length === 0 && (
+            <p className="text-[13px] text-ink-3 px-1">Nada encontrado para “{busca}”. Tente outro termo.</p>
+          )}
+          {filtrados.map((m) => {
+            const sel = ativo?.id === m.id;
+            return (
+              <button
+                key={m.id}
+                onClick={() => setAtivoId(m.id)}
+                className={cx(
+                  "w-full text-left flex items-start gap-3 px-3 py-2.5 rounded-card border transition-colors",
+                  sel ? "bg-primary-soft border-active-border" : "bg-surface border-border hover:bg-[#FAFAFB]"
+                )}
+              >
+                <span className={cx("mt-0.5 shrink-0", sel ? "text-primary-dark" : "text-ink-3")}>{m.icone}</span>
+                <span className="min-w-0">
+                  <span className={cx("block text-[13.5px] font-bold leading-tight", sel ? "text-primary-dark" : "text-ink")}>{m.titulo}</span>
+                  <span className="block text-[11.5px] text-ink-3 leading-snug mt-0.5">{m.resumo}</span>
+                </span>
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Conteúdo */}
+        {ativo ? (
+          <Card className="!p-6 md:!p-8">
+            <div className="flex items-center gap-3 mb-5 pb-5 border-b border-border-soft">
+              <span className="h-11 w-11 rounded-card bg-primary-soft text-primary-dark grid place-items-center">{ativo.icone}</span>
+              <div>
+                <h2 className="font-display font-bold text-ink text-[22px] tracking-[-0.4px] leading-none">{ativo.titulo}</h2>
+                <p className="text-ink-2 text-[13px] mt-1.5">{ativo.resumo}</p>
+              </div>
+            </div>
+            <div className="space-y-7">{ativo.conteudo}</div>
+          </Card>
+        ) : (
+          <Card><p className="text-ink-3 text-sm">Selecione um módulo ou refine a busca.</p></Card>
+        )}
+      </div>
+    </PageShell>
+  );
+}

@@ -5,7 +5,7 @@ import { IcLink, IcCalendar } from "@/components/icons";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import { dataBR } from "@/lib/format";
-import { Timeline } from "@/components/Timeline";
+import { Timeline, TimelineConsolidada, type ItemConsolidado } from "@/components/Timeline";
 
 export function Cronogramas() {
   const { data: ecs } = useAsync(() => repo.ecs.listar(), []);
@@ -17,6 +17,15 @@ export function Cronogramas() {
   const ossDoProjeto = useMemo(
     () => (oss ?? []).filter((o) => o.ecId === ecSel?.id),
     [oss, ecSel]
+  );
+
+  // todas as etapas de todos os fornecedores, com o nome do fornecedor em cada uma
+  const etapasConsolidadas = useMemo<ItemConsolidado[]>(
+    () =>
+      ossDoProjeto.flatMap((o) =>
+        o.cronograma.map((c) => ({ ...c, fornecedor: o.fornecedor.razaoSocial || o.fornecedor.nomeFantasia || "Fornecedor" }))
+      ),
+    [ossDoProjeto]
   );
 
   const linkPublico = ecSel?.slugPublico ? `${location.origin}/cronograma/${ecSel.slugPublico}` : "";
@@ -55,21 +64,37 @@ export function Cronogramas() {
               </div>
             </div>
             <div className="mt-3 text-[12.5px] bg-bg rounded-btn px-3 py-2 text-ink-2 break-all">
-              Link público (sem login): <span className="text-primary-dark font-semibold">{linkPublico}</span>
+              {linkPublico ? (
+                <>Link público (sem login): <span className="text-primary-dark font-semibold">{linkPublico}</span></>
+              ) : (
+                <>Salve este projeto/EC para gerar o link público do cronograma.</>
+              )}
             </div>
           </Card>
 
           {ossDoProjeto.length === 0 ? (
             <Card><EmptyState title="Nenhuma OS com cronograma" hint="Gere OSs para este projeto para montar a linha do tempo." /></Card>
           ) : (
-            ossDoProjeto.map((o) => (
-              <Card key={o.id}>
-                <CardTitle action={<Badge tom={tomStatusOs[o.status]}>{o.status}</Badge>}>
-                  {o.fornecedor.razaoSocial || "Fornecedor"} · {o.numero}
+            <>
+              {/* Linha do tempo consolidada (todos os fornecedores) */}
+              <Card>
+                <CardTitle hint="Todas as etapas de todos os fornecedores em ordem cronológica">
+                  Linha do tempo consolidada
                 </CardTitle>
-                <Timeline itens={o.cronograma} />
+                <TimelineConsolidada itens={etapasConsolidadas} />
               </Card>
-            ))
+
+              {/* Detalhe por fornecedor */}
+              <div className="text-[10.5px] font-extrabold uppercase tracking-[0.14em] text-ink-3 px-1 pt-1">Por fornecedor</div>
+              {ossDoProjeto.map((o) => (
+                <Card key={o.id}>
+                  <CardTitle action={<Badge tom={tomStatusOs[o.status]}>{o.status}</Badge>}>
+                    {o.fornecedor.razaoSocial || "Fornecedor"} · {o.numero}
+                  </CardTitle>
+                  <Timeline itens={o.cronograma} />
+                </Card>
+              ))}
+            </>
           )}
         </div>
       )}

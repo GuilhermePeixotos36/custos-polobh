@@ -14,7 +14,8 @@ export type Recurso =
   | "fornecedores"
   | "financeiro"
   | "configuracoes"
-  | "logs";
+  | "logs"
+  | "guia";
 
 /** Todos os recursos — usado pelo perfil Administrador (acesso total). */
 export const TODOS_RECURSOS: Recurso[] = [
@@ -27,6 +28,7 @@ export const TODOS_RECURSOS: Recurso[] = [
   "financeiro",
   "configuracoes",
   "logs",
+  "guia",
 ];
 
 /** Matriz de perfis × recursos (seção 4 / 9 do brief). Espelha a RLS no banco. */
@@ -42,8 +44,9 @@ export const PERMISSOES: Record<Papel, Recurso[]> = {
     "fornecedores",
     "financeiro",
     "configuracoes",
+    "guia",
   ],
-  Producao: ["dashboard", "ecs", "ecs.editar", "oss", "cronogramas", "fornecedores"],
+  Producao: ["dashboard", "ecs", "ecs.editar", "oss", "cronogramas", "fornecedores", "guia"],
   Administrativo: [
     "dashboard",
     "ecs",
@@ -52,6 +55,7 @@ export const PERMISSOES: Record<Papel, Recurso[]> = {
     "fornecedores",
     "financeiro",
     "configuracoes",
+    "guia",
   ],
 };
 
