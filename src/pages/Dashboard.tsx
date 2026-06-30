@@ -2,32 +2,21 @@ import { useNavigate } from "react-router-dom";
 import { PageShell, Crumb } from "@/components/layout/AppLayout";
 import type { ReactNode } from "react";
 import { Card, CardTitle, Badge, tomStatusEc, Button } from "@/components/ui";
-import { IcPlus, IcDoc, IcClock, IcClipboard, IcTrend } from "@/components/icons";
+import { IcPlus, IcDoc, IcClock } from "@/components/icons";
 import { cx } from "@/lib/format";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
-import { calcularTotais } from "@/domain/calc";
-import { brl, dataBR } from "@/lib/format";
+import { dataBR } from "@/lib/format";
 import { useAuth } from "@/store/auth";
-import type { Ec } from "@/data/types";
-
-function ecTotal(ec: Ec) {
-  return calcularTotais(ec.linhas, ec.producao).valorTotalBruto;
-}
 
 export function Dashboard() {
   const navigate = useNavigate();
   const pode = useAuth((s) => s.pode);
   const ecs = useAsync(() => repo.ecs.listar(), []);
-  const oss = useAsync(() => repo.oss.listar(), []);
 
   const lista = ecs.data ?? [];
   const ativas = lista.filter((e) => !["Cancelada", "Arquivada"].includes(e.status));
   const aguardando = lista.filter((e) => e.status === "Aguardando");
-  const emitidas = (oss.data ?? []).filter((o) => o.status !== "Rascunho");
-  const faturamento = lista
-    .filter((e) => e.status === "Aprovada")
-    .reduce((s, e) => s + ecTotal(e), 0);
 
   // ECs por mês (gráfico simples)
   const porMes = new Map<string, number>();
@@ -41,10 +30,6 @@ export function Dashboard() {
   const kpis = [
     { label: "ECs ativas", valor: ativas.length, hint: "em andamento", icon: <IcDoc />, tom: "orange" as const },
     { label: "Aguardando aprovação", valor: aguardando.length, hint: "pendentes", icon: <IcClock />, tom: "amber" as const },
-    { label: "OSs emitidas", valor: emitidas.length, hint: "fornecedores", icon: <IcClipboard />, tom: "blue" as const },
-    ...(pode("financeiro")
-      ? [{ label: "Faturamento previsto", valor: brl(faturamento), hint: "ECs aprovadas", icon: <IcTrend />, tom: "green" as const }]
-      : []),
   ];
 
   return (
@@ -60,7 +45,7 @@ export function Dashboard() {
         )
       }
     >
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+      <div className="grid grid-cols-2 gap-4 mb-5 lg:max-w-2xl">
         {kpis.map((k) => (
           <KpiCard key={k.label} {...k} />
         ))}

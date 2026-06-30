@@ -1,6 +1,6 @@
 import { Suspense, type ReactNode } from "react";
 import { Navigate, Outlet } from "react-router-dom";
-import { Sidebar } from "./Sidebar";
+import { TopNav } from "./TopNav";
 import { Topbar } from "./Topbar";
 import { Toaster } from "@/components/ui/Toaster";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -18,8 +18,8 @@ export function AppLayout() {
   if (!usuario) return <Navigate to="/login" replace />;
 
   return (
-    <div className="flex min-h-screen">
-      <Sidebar />
+    <div className="flex flex-col min-h-screen">
+      <TopNav />
       <div className="flex-1 min-w-0 flex flex-col">
         <Suspense fallback={<div className="flex-1 grid place-items-center text-ink-3 text-sm">Carregando…</div>}>
           <Outlet />
