@@ -27,6 +27,7 @@ import type {
   EcRepository,
   FornecedorRepository,
   OsRepository,
+  ProjetoRepository,
   Repositorios,
 } from "./repository";
 import type {
@@ -35,6 +36,7 @@ import type {
   EcLinha,
   Fornecedor,
   Os,
+  Projeto,
   Representante,
   Usuario,
 } from "./types";
@@ -194,6 +196,7 @@ function mapLinha(r: any): EcLinha {
     codigoServico: r.codigo_servico ?? "",
     pedidoCompra: r.pedido_compra ?? "",
     statusOs: r.status_os ?? "Pendente",
+    contrato: r.contrato ?? "",
     observacao: r.observacao ?? "",
     ordem: r.ordem ?? 0,
   };
@@ -215,6 +218,7 @@ function linhaRow(ecId: string, l: EcLinha) {
     codigo_servico: l.codigoServico,
     pedido_compra: l.pedidoCompra,
     status_os: l.statusOs,
+    contrato: l.contrato ?? "",
     observacao: l.observacao,
     ordem: l.ordem,
   };
@@ -227,6 +231,8 @@ function mapEc(r: any): Ec {
     id: r.id,
     numero: r.numero,
     slugPublico: r.slug_publico ?? "",
+    projetoId: r.projeto_id ?? "",
+    template: r.template ?? "",
     versao: r.versao,
     status: r.status,
     clienteId: r.cliente_id ?? "",
@@ -245,6 +251,8 @@ function mapEc(r: any): Ec {
 function ecRow(ec: Ec) {
   return {
     numero: ec.numero,
+    projeto_id: isUuid(ec.projetoId) ? ec.projetoId : null,
+    template: ec.template || null,
     cliente_id: isUuid(ec.cliente?.id) ? ec.cliente.id : null,
     cliente: ec.cliente,
     projeto: ec.projeto,
@@ -513,7 +521,67 @@ const authRepo: AuthRepository = {
   },
 };
 
+/* --------------------------------- Projeto ------------------------------- */
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapProjeto(r: any): Projeto {
+  return {
+    id: r.id,
+    nome: r.nome ?? "",
+    cliente: r.cliente ?? clienteVazio(),
+    info: r.projeto ?? {},
+    docsUrl: r.docs_url ?? "",
+    status: r.status ?? "Ativo",
+    criadoEm: r.criado_em,
+    atualizadoEm: r.atualizado_em,
+  };
+}
+
+function projetoRow(p: Projeto) {
+  return {
+    nome: p.nome || p.info?.titulo || "Projeto",
+    cliente: p.cliente,
+    projeto: p.info,
+    docs_url: p.docsUrl ?? "",
+    status: p.status,
+    atualizado_em: nowIso(),
+  };
+}
+
+const projetoRepo: ProjetoRepository = {
+  async listar() {
+    const data = ok(await supabase.from("projetos").select("*").order("criado_em", { ascending: false }));
+    return (data ?? []).map(mapProjeto);
+  },
+  async obter(id) {
+    const data = ok(await supabase.from("projetos").select("*").eq("id", id).maybeSingle());
+    return data ? mapProjeto(data) : undefined;
+  },
+  async salvar(p) {
+    const atualizando = isUuid(p.id);
+    const data = atualizando
+      ? ok(await supabase.from("projetos").update(projetoRow(p)).eq("id", p.id).select("*").single())!
+      : ok(await supabase.from("projetos").insert(projetoRow(p)).select("*").single())!;
+    const proj = mapProjeto(data);
+    auditar({
+      categoria: "Projeto",
+      acao: atualizando ? "projeto.atualizar" : "projeto.criar",
+      mensagem: `Projeto ${proj.nome} ${atualizando ? "atualizado" : "criado"}`,
+      alvoId: proj.id,
+    });
+    return proj;
+  },
+  async remover(id) {
+    const p = await this.obter(id);
+    // Desvincula as ECs (não apaga dados) e remove o projeto.
+    ok(await supabase.from("ecs").update({ projeto_id: null }).eq("projeto_id", id));
+    ok(await supabase.from("projetos").delete().eq("id", id));
+    auditar({ nivel: "aviso", categoria: "Projeto", acao: "projeto.remover", mensagem: `Projeto ${p?.nome ?? id} removido`, alvoId: id });
+  },
+};
+
 export const supabaseRepositorios: Repositorios = {
+  projetos: projetoRepo,
   clientes: clienteRepo,
   fornecedores: fornecedorRepo,
   ecs: ecRepo,

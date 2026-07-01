@@ -19,6 +19,7 @@ export type LogNivel = "info" | "aviso" | "erro";
 export type LogCategoria =
   | "Autenticação"
   | "Acesso"
+  | "Projeto"
   | "EC"
   | "OS"
   | "Fornecedor"
@@ -99,7 +100,7 @@ export type StatusEc =
 export type StatusAprovacao = "Pendente" | "OK";
 export type StatusOs = "Pendente" | "Emitir" | "OK";
 
-export interface Projeto {
+export interface ProjetoInfo {
   titulo: string;
   local: string;
   enderecoLocal: string;
@@ -131,6 +132,7 @@ export interface EcLinha {
   codigoServico: string;
   pedidoCompra: string;
   statusOs: StatusOs;
+  contrato: string; // referência de contrato (consta nos modelos da Marisa)
   observacao: string;
   ordem: number;
 }
@@ -154,15 +156,40 @@ export interface Producao {
   qtdAlimentacaoViagem: number;
 }
 
+/* ------------------------------- Projeto -------------------------------- */
+
+export type TemplateEc = "Corporativo" | "Cultural" | "";
+export type StatusProjeto = "Ativo" | "Arquivado" | "Concluido" | "Cancelado";
+
+/**
+ * Projeto = container de tudo (segue a hierarquia project-centric).
+ * Guarda Cliente + informações do projeto + roteiro + link de documentos,
+ * e é dono das ECs (que podem ter versões).
+ */
+export interface Projeto {
+  id: string;
+  nome: string;
+  cliente: Cliente;
+  info: ProjetoInfo; // título, modalidade, datas, local, participantes, produtora, roteiro
+  docsUrl: string;
+  status: StatusProjeto;
+  criadoEm: string;
+  atualizadoEm: string;
+}
+
+/* --------------------------------- EC ----------------------------------- */
+
 export interface Ec {
   id: string;
   numero: string; // "EC – Cliente – Projeto – V01"
   slugPublico: string; // token não-adivinhável p/ o link público do cronograma
   versao: number;
   status: StatusEc;
+  projetoId: string; // Projeto (container) a que esta EC pertence
+  template: TemplateEc; // tipo de modelo usado ("Corporativo" | "Cultural" | "")
   clienteId: string;
   cliente: Cliente; // snapshot embutido (simplicidade)
-  projeto: Projeto;
+  projeto: ProjetoInfo;
   linhas: EcLinha[];
   producao: Producao;
   responsavel: string; // produtora responsável / visto Pólobh

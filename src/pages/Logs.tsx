@@ -13,7 +13,7 @@ const NIVEL_TOM: Record<LogNivel, Tom> = { info: "info", aviso: "warning", erro:
 const NIVEL_LABEL: Record<LogNivel, string> = { info: "Info", aviso: "Aviso", erro: "Erro" };
 
 const CATEGORIAS: LogCategoria[] = [
-  "Autenticação", "Acesso", "EC", "OS", "Fornecedor", "Cliente", "Configuração", "Exportação", "Sistema",
+  "Autenticação", "Acesso", "Projeto", "EC", "OS", "Fornecedor", "Cliente", "Configuração", "Exportação", "Sistema",
 ];
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

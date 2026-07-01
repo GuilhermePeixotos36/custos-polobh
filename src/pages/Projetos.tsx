@@ -1,0 +1,117 @@
+import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { PageShell, Crumb } from "@/components/layout/AppLayout";
+import { Card, Button, Badge, Table, THead, Th, Tr, Td, EmptyState, Avatar, type Tom } from "@/components/ui";
+import { IcPlus, IcSearch } from "@/components/icons";
+import { repo } from "@/data";
+import { useAsync } from "@/hooks/useAsync";
+import { dataBR, cx } from "@/lib/format";
+import type { StatusProjeto } from "@/data/types";
+
+const tomStatusProjeto: Record<StatusProjeto, Tom> = {
+  Ativo: "success",
+  Arquivado: "neutral",
+  Concluido: "info",
+  Cancelado: "danger",
+};
+
+const FILTROS: { key: "Todos" | StatusProjeto; label: string }[] = [
+  { key: "Todos", label: "Todos" },
+  { key: "Ativo", label: "Ativos" },
+  { key: "Arquivado", label: "Arquivados" },
+  { key: "Concluido", label: "Concluídos" },
+];
+
+export function Projetos() {
+  const navigate = useNavigate();
+  const { data: projetos, loading } = useAsync(() => repo.projetos.listar(), []);
+  const { data: ecs } = useAsync(() => repo.ecs.listar(), []);
+  const [filtro, setFiltro] = useState<"Todos" | StatusProjeto>("Ativo");
+  const [busca, setBusca] = useState("");
+
+  const ecsPorProjeto = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const e of ecs ?? []) m.set(e.projetoId, (m.get(e.projetoId) ?? 0) + 1);
+    return m;
+  }, [ecs]);
+
+  const lista = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    return (projetos ?? [])
+      .filter((p) => filtro === "Todos" || p.status === filtro)
+      .filter((p) => !q || `${p.nome} ${p.cliente?.nome ?? ""}`.toLowerCase().includes(q));
+  }, [projetos, filtro, busca]);
+
+  return (
+    <PageShell
+      breadcrumb={<Crumb>Projetos</Crumb>}
+      title="Projetos"
+      subtitle="Tudo começa por um projeto: cliente, EC, OS, cronograma e fornecedores."
+      topAction={
+        <Button size="sm" icon={<IcPlus width={16} height={16} />} onClick={() => navigate("/projetos/novo")}>
+          Novo projeto
+        </Button>
+      }
+    >
+      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+        <div className="flex gap-1.5">
+          {FILTROS.map((f) => (
+            <button
+              key={f.key}
+              onClick={() => setFiltro(f.key)}
+              className={cx(
+                "h-9 px-3.5 rounded-btn text-[13px] font-bold border-[1.5px] transition-colors",
+                filtro === f.key ? "bg-primary-soft border-active-border text-primary-dark" : "bg-surface border-[#E2E3E8] text-ink-2 hover:text-ink"
+              )}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <div className="relative min-w-[220px]">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-3"><IcSearch width={16} height={16} /></span>
+          <input
+            className="w-full h-10 bg-surface border-[1.5px] border-[#E2E3E8] rounded-btn pl-9 pr-3 text-sm text-ink placeholder:text-ink-3 input-focus"
+            placeholder="Buscar projeto ou cliente…"
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <Card padded={false}>
+        {loading ? (
+          <div className="p-8 text-ink-3 text-sm">Carregando…</div>
+        ) : lista.length === 0 ? (
+          <div className="p-8"><EmptyState title="Nenhum projeto" hint="Crie o primeiro projeto para começar." /></div>
+        ) : (
+          <Table>
+            <THead>
+              <Th>Projeto</Th>
+              <Th>Cliente</Th>
+              <Th align="center">ECs</Th>
+              <Th align="center">Status</Th>
+              <Th>Criado</Th>
+            </THead>
+            <tbody>
+              {lista.map((p) => (
+                <Tr key={p.id} onClick={() => navigate(`/projetos/${p.id}`)}>
+                  <Td>
+                    <div className="flex items-center gap-2.5">
+                      <Avatar nome={p.nome || "P"} size={34} />
+                      <div className="font-bold text-ink">{p.nome || "(sem título)"}</div>
+                    </div>
+                  </Td>
+                  <Td className="text-ink-2">{p.cliente?.nome || "—"}</Td>
+                  <Td align="center"><Badge tom="neutral">{ecsPorProjeto.get(p.id) ?? 0}</Badge></Td>
+                  <Td align="center"><Badge tom={tomStatusProjeto[p.status]}>{p.status}</Badge></Td>
+                  <Td className="text-[12.5px] text-ink-2">{dataBR(p.criadoEm)}</Td>
+                </Tr>
+              ))}
+            </tbody>
+          </Table>
+        )}
+      </Card>
+    </PageShell>
+  );
+}

@@ -6,6 +6,8 @@ import { Login } from "@/pages/Login";
 
 // Páginas carregadas sob demanda (code-splitting) — reduz o bundle inicial.
 const Dashboard = lazy(() => import("@/pages/Dashboard").then((m) => ({ default: m.Dashboard })));
+const Projetos = lazy(() => import("@/pages/Projetos").then((m) => ({ default: m.Projetos })));
+const ProjetoDetail = lazy(() => import("@/pages/ProjetoDetail").then((m) => ({ default: m.ProjetoDetail })));
 const EcList = lazy(() => import("@/pages/EcList").then((m) => ({ default: m.EcList })));
 const EcForm = lazy(() => import("@/pages/EcForm").then((m) => ({ default: m.EcForm })));
 const EcDetail = lazy(() => import("@/pages/EcDetail").then((m) => ({ default: m.EcDetail })));
@@ -37,6 +39,8 @@ export const router = createBrowserRouter([
     element: <AppLayout />,
     children: [
       { index: true, element: <RequireRecurso r="dashboard"><Dashboard /></RequireRecurso> },
+      { path: "projetos", element: <RequireRecurso r="projetos"><Projetos /></RequireRecurso> },
+      { path: "projetos/:id", element: <RequireRecurso r="projetos"><ProjetoDetail /></RequireRecurso> },
       { path: "estimativas", element: <RequireRecurso r="ecs"><EcList /></RequireRecurso> },
       { path: "estimativas/nova", element: <RequireRecurso r="ecs.editar"><EcForm /></RequireRecurso> },
       { path: "estimativas/:id", element: <RequireRecurso r="ecs"><EcDetail /></RequireRecurso> },

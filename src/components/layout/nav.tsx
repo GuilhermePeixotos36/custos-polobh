@@ -2,9 +2,7 @@ import type { ReactNode } from "react";
 import type { Recurso } from "@/store/auth";
 import {
   IcGrid,
-  IcDoc,
-  IcClipboard,
-  IcCalendar,
+  IcFolder,
   IcUsers,
   IcGear,
   IcActivity,
@@ -19,11 +17,11 @@ export interface NavItem {
   grupo: "Operação" | "Sistema";
 }
 
+// Hierarquia project-centric: tudo parte do Projeto. EC, OS e Cronograma
+// viram subguias dentro do projeto (não ficam no menu principal).
 export const NAV: NavItem[] = [
   { to: "/", label: "Dashboard", icon: <IcGrid />, recurso: "dashboard", grupo: "Operação" },
-  { to: "/estimativas", label: "Estimativas (EC)", icon: <IcDoc />, recurso: "ecs", grupo: "Operação" },
-  { to: "/ordens", label: "Ordens de Serviço", icon: <IcClipboard />, recurso: "oss", grupo: "Operação" },
-  { to: "/cronogramas", label: "Cronogramas", icon: <IcCalendar />, recurso: "cronogramas", grupo: "Operação" },
+  { to: "/projetos", label: "Projetos", icon: <IcFolder />, recurso: "projetos", grupo: "Operação" },
   { to: "/fornecedores", label: "Fornecedores", icon: <IcUsers />, recurso: "fornecedores", grupo: "Operação" },
   { to: "/configuracoes", label: "Configurações", icon: <IcGear />, recurso: "configuracoes", grupo: "Sistema" },
   { to: "/logs", label: "Logs do sistema", icon: <IcActivity />, recurso: "logs", grupo: "Sistema" },

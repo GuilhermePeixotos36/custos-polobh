@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { PageShell, Crumb } from "@/components/layout/AppLayout";
 import {
   Card,
@@ -33,7 +33,7 @@ import type {
   Cliente,
   Ec,
   EcLinha,
-  Projeto,
+  ProjetoInfo,
   StatusAprovacao,
   StatusOs,
 } from "@/data/types";
@@ -53,6 +53,7 @@ const novaLinha = (ordem: number): EcLinha => ({
   codigoServico: "",
   pedidoCompra: "",
   statusOs: "Pendente",
+  contrato: "",
   observacao: "",
   ordem,
 });
@@ -68,7 +69,7 @@ const clienteVazio = (): Cliente => ({
   representante: { nome: "", cargo: "", telefones: "", email: "" },
 });
 
-const projetoVazio = (): Projeto => ({
+const projetoVazio = (): ProjetoInfo => ({
   titulo: "",
   local: "",
   enderecoLocal: "",
@@ -86,6 +87,7 @@ const projetoVazio = (): Projeto => ({
 
 export function EcForm() {
   const { id } = useParams();
+  const [params] = useSearchParams();
   const navigate = useNavigate();
   const editando = Boolean(id);
   const { data: existente } = useAsync(() => (id ? repo.ecs.obter(id) : Promise.resolve(undefined)), [id]);
@@ -108,22 +110,34 @@ export function EcForm() {
       if (existente) iniciar(structuredClone(existente));
     } else if (!ec) {
       const agora = new Date().toISOString();
-      iniciar({
-        id: "",
-        numero: numeroEc("Novo Cliente", "Novo Projeto", 1),
-        slugPublico: "",
-        versao: 1,
-        status: "Rascunho",
-        clienteId: "",
-        cliente: clienteVazio(),
-        projeto: projetoVazio(),
-        linhas: [novaLinha(0)],
-        producao: producaoPadrao(),
-        responsavel: "",
-        validadeDias: 30,
-        criadoEm: agora,
-        atualizadoEm: agora,
-      });
+      const projetoId = params.get("projeto") ?? "";
+      const montar = (cliente: Cliente, projeto: ReturnType<typeof projetoVazio>) =>
+        iniciar({
+          id: "",
+          numero: numeroEc(cliente.nome || "Novo Cliente", projeto.titulo || "Novo Projeto", 1),
+          slugPublico: "",
+          projetoId,
+          template: "",
+          versao: 1,
+          status: "Rascunho",
+          clienteId: "",
+          cliente,
+          projeto,
+          linhas: [novaLinha(0)],
+          producao: producaoPadrao(),
+          responsavel: projeto.produtoraResponsavel || "",
+          validadeDias: 30,
+          criadoEm: agora,
+          atualizadoEm: agora,
+        });
+      // Nova EC dentro de um Projeto: herda Cliente + infos do projeto.
+      if (projetoId) {
+        repo.projetos.obter(projetoId).then((pr) =>
+          montar(pr?.cliente ?? clienteVazio(), pr?.info ?? projetoVazio())
+        );
+      } else {
+        montar(clienteVazio(), projetoVazio());
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [existente, editando]);
@@ -143,7 +157,7 @@ export function EcForm() {
   const upd = (patch: Partial<Ec>) => setEc((e) => (e ? { ...e, ...patch } : e));
   const updCli = (patch: Partial<Cliente>) =>
     setEc((e) => (e ? { ...e, cliente: { ...e.cliente, ...patch } } : e));
-  const updProj = (patch: Partial<Projeto>) =>
+  const updProj = (patch: Partial<ProjetoInfo>) =>
     setEc((e) => (e ? { ...e, projeto: { ...e.projeto, ...patch } } : e));
   const updLinha = (lid: string, patch: Partial<EcLinha>) =>
     setEc((e) =>

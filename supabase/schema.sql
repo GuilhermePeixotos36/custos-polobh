@@ -38,10 +38,29 @@ create table if not exists fornecedores (
   criado_em timestamptz default now()
 );
 
+-- Projeto: container de tudo (hierarquia project-centric). Dono das ECs.
+create table if not exists projetos (
+  id uuid primary key default gen_random_uuid(),
+  nome text not null default '',
+  cliente jsonb,
+  projeto jsonb,   -- infos do projeto (título, modalidade, datas, local, roteiro...)
+  docs_url text default '',
+  status text not null default 'Ativo' check (status in ('Ativo','Arquivado','Concluido','Cancelado')),
+  criado_em timestamptz default now(),
+  atualizado_em timestamptz default now()
+);
+alter table projetos enable row level security;
+create policy projetos_read on projetos for select using (papel_atual() is not null);
+create policy projetos_write on projetos for all
+  using (papel_atual() in ('Admin','Direcao','Producao','Administrativo'))
+  with check (papel_atual() in ('Admin','Direcao','Producao','Administrativo'));
+
 create table if not exists ecs (
   id uuid primary key default gen_random_uuid(),
   numero text not null,
   slug_publico text unique default encode(gen_random_bytes(9), 'hex'), -- link público do cronograma
+  projeto_id uuid references projetos(id), -- Projeto a que a EC pertence
+  template text,                           -- 'Corporativo' | 'Cultural'
   cliente_id uuid references clientes(id),
   cliente jsonb,            -- snapshot embutido do cliente (o app edita inline)
   cancelada_substituida boolean default false,
@@ -64,6 +83,7 @@ create table if not exists ec_linhas (
   valor_polobh numeric default 0,
   valor_cliente numeric default 0,
   valor_gasto numeric default 0,      -- gasto até a data (rentabilidade por item)
+  contrato text default '',           -- referência de contrato (modelos da Marisa)
   status_aprovacao text default 'Pendente',
   fornecedor_razao text,
   fornecedor_cnpj text,

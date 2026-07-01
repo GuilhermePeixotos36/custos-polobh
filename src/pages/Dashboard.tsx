@@ -38,9 +38,9 @@ export function Dashboard() {
       title="Visão geral"
       subtitle="Resumo das estimativas e ordens de serviço da Pólobh."
       topAction={
-        pode("ecs.editar") && (
-          <Button size="sm" icon={<IcPlus width={16} height={16} />} onClick={() => navigate("/estimativas/nova")}>
-            Nova EC
+        pode("projetos") && (
+          <Button size="sm" icon={<IcPlus width={16} height={16} />} onClick={() => navigate("/projetos/novo")}>
+            Novo projeto
           </Button>
         )
       }
