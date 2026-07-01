@@ -48,13 +48,13 @@ export function PageShell({
   return (
     <>
       <Topbar breadcrumb={breadcrumb} action={topAction} />
-      <main className="flex-1 px-[34px] py-[30px] max-w-[1280px] w-full mx-auto">
+      <main className="flex-1 px-[40px] py-[30px] max-w-[1720px] w-full mx-auto">
         <div className="mb-6 flex items-end justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="font-display font-bold text-[27px] tracking-[-0.7px] text-ink leading-none">
+            <h1 className="font-display font-bold text-[30px] tracking-[-0.7px] text-ink leading-none">
               {title}
             </h1>
-            {subtitle && <p className="text-ink-2 text-sm mt-2">{subtitle}</p>}
+            {subtitle && <p className="text-ink-2 text-[15px] mt-2">{subtitle}</p>}
           </div>
         </div>
         {children}

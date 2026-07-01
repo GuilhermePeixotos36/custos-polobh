@@ -155,7 +155,7 @@ export function EcDetail() {
                     <Td>
                       <div className="font-bold text-ink">{l.item || "—"}</div>
                       <div className="text-[12px] text-ink-2">{l.descricao}</div>
-                      <div className="text-[11px] text-ink-3 mt-0.5">{l.grupo}</div>
+                      <div className="text-[11px] text-ink-3 mt-0.5">{l.grupo}{l.contrato ? ` · Contrato ${l.contrato}` : ""}</div>
                     </Td>
                     <Td className="text-[12.5px]">{l.fornecedorRazao || "—"}</Td>
                     {verFinanceiro && <Td align="right" className="font-display font-bold">{brl(l.valorPolobh)}</Td>}
@@ -238,25 +238,30 @@ export function EcDetail() {
             </Card>
           )}
 
-          <Card>
-            <Eyebrow>Cliente</Eyebrow>
-            <div className="mt-2 space-y-1.5 text-sm">
-              <p className="font-bold text-ink">{ec.cliente.razaoSocial}</p>
-              <p className="text-ink-2">{ec.cliente.cnpjCpf}</p>
-              <p className="text-ink-2">{ec.cliente.endereco}</p>
-              <p className="text-ink-2">{ec.cliente.representante.nome} · {ec.cliente.representante.email}</p>
-            </div>
-          </Card>
+          {/* Cliente/Projeto só em EC avulsa; dentro de um projeto ficam em "Dados Gerais". */}
+          {!ec.projetoId && (
+            <>
+              <Card>
+                <Eyebrow>Cliente</Eyebrow>
+                <div className="mt-2 space-y-1.5 text-sm">
+                  <p className="font-bold text-ink">{ec.cliente.razaoSocial}</p>
+                  <p className="text-ink-2">{ec.cliente.cnpjCpf}</p>
+                  <p className="text-ink-2">{ec.cliente.endereco}</p>
+                  <p className="text-ink-2">{ec.cliente.representante.nome} · {ec.cliente.representante.email}</p>
+                </div>
+              </Card>
 
-          <Card>
-            <Eyebrow>Projeto</Eyebrow>
-            <div className="mt-2 space-y-1.5 text-sm">
-              <p className="text-ink-2"><b className="text-ink">Local:</b> {ec.projeto.local}</p>
-              <p className="text-ink-2"><b className="text-ink">Participantes:</b> {ec.projeto.participantes}</p>
-              <p className="text-ink-2"><b className="text-ink">Evento:</b> {dataBR(ec.projeto.evento)} · {ec.projeto.horario}</p>
-              <p className="text-ink-2"><b className="text-ink">Responsável:</b> {ec.responsavel}</p>
-            </div>
-          </Card>
+              <Card>
+                <Eyebrow>Projeto</Eyebrow>
+                <div className="mt-2 space-y-1.5 text-sm">
+                  <p className="text-ink-2"><b className="text-ink">Local:</b> {ec.projeto.local}</p>
+                  <p className="text-ink-2"><b className="text-ink">Participantes:</b> {ec.projeto.participantes}</p>
+                  <p className="text-ink-2"><b className="text-ink">Evento:</b> {dataBR(ec.projeto.evento)} · {ec.projeto.horario}</p>
+                  <p className="text-ink-2"><b className="text-ink">Responsável:</b> {ec.responsavel}</p>
+                </div>
+              </Card>
+            </>
+          )}
 
           {podeEditar && (
             <Card>

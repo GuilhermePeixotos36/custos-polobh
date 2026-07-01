@@ -20,6 +20,7 @@ import {
   numeroEc,
   producaoPadrao,
 } from "@/domain/calc";
+import { itensDoTemplate } from "@/domain/ecTemplates";
 import { gerarEcExcel } from "@/lib/excel";
 import { consultarCnpj } from "@/lib/cnpj";
 import { useAuth } from "@/store/auth";
@@ -111,19 +112,30 @@ export function EcForm() {
     } else if (!ec) {
       const agora = new Date().toISOString();
       const projetoId = params.get("projeto") ?? "";
+      const template = (params.get("template") ?? "") as Ec["template"];
+      // Pré-preenche as linhas com o modelo escolhido (Corporativo/Cultural).
+      const itensTpl = itensDoTemplate(template);
+      const linhasIniciais: EcLinha[] = itensTpl.length
+        ? itensTpl.map((it, i) => ({
+            ...novaLinha(i),
+            grupo: it.grupo,
+            item: it.item,
+            descricao: it.descricao,
+          }))
+        : [novaLinha(0)];
       const montar = (cliente: Cliente, projeto: ReturnType<typeof projetoVazio>) =>
         iniciar({
           id: "",
           numero: numeroEc(cliente.nome || "Novo Cliente", projeto.titulo || "Novo Projeto", 1),
           slugPublico: "",
           projetoId,
-          template: "",
+          template,
           versao: 1,
           status: "Rascunho",
           clienteId: "",
           cliente,
           projeto,
-          linhas: [novaLinha(0)],
+          linhas: linhasIniciais,
           producao: producaoPadrao(),
           responsavel: projeto.produtoraResponsavel || "",
           validadeDias: 30,
@@ -165,6 +177,7 @@ export function EcForm() {
     );
 
   const numero = numeroEc(ec.cliente.nome || "Cliente", ec.projeto.titulo || "Projeto", ec.versao);
+  const temProjeto = Boolean(ec.projetoId);
 
   async function consultar() {
     setCnpjMsg("");
@@ -236,6 +249,10 @@ export function EcForm() {
       </div>
 
       <div className="space-y-4">
+        {/* Cliente e Projeto só aparecem em EC avulsa; dentro de um Projeto os dados
+            ficam na aba "Dados Gerais" e não são reeditados aqui. */}
+        {!temProjeto && (
+        <>
         {/* Cliente */}
         <Card>
           <CardTitle action={
@@ -272,6 +289,8 @@ export function EcForm() {
             <Field label="Roteiro" className="md:col-span-2"><Textarea value={ec.projeto.roteiro} onChange={(e) => updProj({ roteiro: e.target.value })} /></Field>
           </div>
         </Card>
+        </>
+        )}
 
         {/* Tabela de custos */}
         <Card padded={false}>
@@ -286,7 +305,7 @@ export function EcForm() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left border-y border-border bg-[#FAFAFB]">
-                  {["Grupo", "Item", "Descrição", "Fornecedor", "Pólobh", "Cliente", "Aprov.", "OS", ""].map((h) => (
+                  {["Grupo", "Item", "Descrição", "Fornecedor", "Pólobh", "Cliente", "Aprov.", "OS", "Contrato", ""].map((h) => (
                     <th key={h} className="px-3 py-2 text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">{h}</th>
                   ))}
                 </tr>
@@ -313,6 +332,7 @@ export function EcForm() {
                         <option>Pendente</option><option>Emitir</option><option>OK</option>
                       </Select>
                     </td>
+                    <td className="px-2 py-2 w-32"><Input className="!h-9 !px-2 !text-[12.5px]" placeholder="Nº/ref." value={l.contrato} onChange={(e) => updLinha(l.id, { contrato: e.target.value })} /></td>
                     <td className="px-2 py-2">
                       <button
                         onClick={async () => {

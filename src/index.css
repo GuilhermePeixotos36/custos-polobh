@@ -39,7 +39,7 @@ body {
   background-repeat: no-repeat;
   color: var(--ink);
   font-family: "Plus Jakarta Sans", system-ui, sans-serif;
-  font-size: 14px;
+  font-size: 15px;
 }
 
 @layer components {

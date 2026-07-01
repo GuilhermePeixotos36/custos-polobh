@@ -53,6 +53,7 @@ export function ProjetoDetail() {
   const [p, setP] = useState<Projeto>(projetoVazio());
   const [aba, setAba] = useState<Aba>("dados");
   const [salvando, setSalvando] = useState(false);
+  const [tplNova, setTplNova] = useState<"Corporativo" | "Cultural" | "">("Corporativo");
 
   useEffect(() => {
     if (novo) setP(projetoVazio());
@@ -195,9 +196,17 @@ export function ProjetoDetail() {
 
       {aba === "ec" && (
         <Card padded={false}>
-          <div className="p-5 flex items-center justify-between">
+          <div className="p-5 flex items-center justify-between gap-3 flex-wrap">
             <CardTitle hint="Estimativas de custo deste projeto (incluindo versões)">Estimativas (EC)</CardTitle>
-            <Button size="sm" icon={<IcPlus width={16} height={16} />} onClick={() => navigate(`/estimativas/nova?projeto=${id}`)}>Nova EC</Button>
+            <div className="flex items-center gap-2">
+              <span className="text-[12.5px] text-ink-3 font-semibold">Modelo</span>
+              <Select className="!h-9 !w-40 !text-[13px]" value={tplNova} onChange={(e) => setTplNova(e.target.value as typeof tplNova)}>
+                <option value="Corporativo">Corporativo</option>
+                <option value="Cultural">Cultural</option>
+                <option value="">Em branco</option>
+              </Select>
+              <Button size="sm" icon={<IcPlus width={16} height={16} />} onClick={() => navigate(`/estimativas/nova?projeto=${id}${tplNova ? `&template=${tplNova}` : ""}`)}>Nova EC</Button>
+            </div>
           </div>
           {ecsDoProjeto.length === 0 ? (
             <div className="p-6"><EmptyState title="Nenhuma EC" hint="Crie a primeira EC deste projeto." /></div>
