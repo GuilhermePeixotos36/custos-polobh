@@ -4,7 +4,7 @@ import {
   Card, CardTitle, Button, Field, Input, Select, Table, THead, Th, Tr, Td,
   Badge, EmptyState, Avatar,
 } from "@/components/ui";
-import { IcPlus, IcSearch } from "@/components/icons";
+import { IcPlus, IcSearch, IcTrash } from "@/components/icons";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import { consultarCnpj } from "@/lib/cnpj";
@@ -17,7 +17,7 @@ const vazio = (): Fornecedor => ({
   id: "", razaoSocial: "", nomeFantasia: "", cnpj: "", perfilTributario: "", endereco: "",
   inscricaoEstadual: "", inscricaoMunicipal: "",
   dadosBancarios: { tipoConta: "", banco: "", agencia: "", conta: "", chavePix: "" },
-  representante: "", telefone: "", email: "",
+  representante: "", telefone: "", email: "", contatos: [],
 });
 
 export function Fornecedores() {
@@ -25,6 +25,16 @@ export function Fornecedores() {
   const [busca, setBusca] = useState("");
   const [edit, setEdit] = useState<Fornecedor | null>(null);
   const [msg, setMsg] = useState("");
+  const [novoContato, setNovoContato] = useState("");
+
+  function addContato() {
+    if (!edit) return;
+    const c = novoContato.trim();
+    if (!c) return;
+    const atuais = edit.contatos ?? [];
+    if (!atuais.includes(c)) setEdit({ ...edit, contatos: [...atuais, c] });
+    setNovoContato("");
+  }
 
   const lista = useMemo(() => {
     const q = busca.trim().toLowerCase();
@@ -55,8 +65,8 @@ export function Fornecedores() {
     <PageShell
       breadcrumb={<Crumb>Fornecedores</Crumb>}
       title="Fornecedores"
-      subtitle="Cadastro com CNPJ, perfil tributário e contato."
-      topAction={<Button size="sm" icon={<IcPlus width={16} height={16} />} onClick={() => { setEdit(vazio()); setMsg(""); }}>Novo fornecedor</Button>}
+      subtitle="Consulta e edição. Os fornecedores são registrados automaticamente ao serem usados nas ECs."
+      topAction={<Button size="sm" icon={<IcPlus width={16} height={16} />} onClick={() => { setEdit(vazio()); setMsg(""); setNovoContato(""); }}>Novo fornecedor</Button>}
     >
       <div className="grid lg:grid-cols-[1.5fr_1fr] gap-4 items-start">
         <Card padded={false}>
@@ -73,7 +83,7 @@ export function Fornecedores() {
               <THead><Th>Fornecedor</Th><Th>CNPJ</Th><Th>Perfil</Th><Th>Contato</Th></THead>
               <tbody>
                 {lista.map((f) => (
-                  <Tr key={f.id} onClick={() => { setEdit(structuredClone(f)); setMsg(""); }}>
+                  <Tr key={f.id} onClick={() => { setEdit(structuredClone(f)); setMsg(""); setNovoContato(""); }}>
                     <Td>
                       <div className="flex items-center gap-2.5">
                         <Avatar nome={f.razaoSocial} size={34} />
@@ -85,7 +95,12 @@ export function Fornecedores() {
                     </Td>
                     <Td className="text-[12.5px]">{f.cnpj}</Td>
                     <Td><Badge tom="info">{f.perfilTributario || "—"}</Badge></Td>
-                    <Td className="text-[12.5px]">{f.email}</Td>
+                    <Td className="text-[12.5px]">
+                      <div>{f.email || "—"}</div>
+                      {(f.contatos?.length ?? 0) > 0 && (
+                        <div className="text-[11px] text-ink-3">{f.contatos!.length} contato(s) das ECs</div>
+                      )}
+                    </Td>
                   </Tr>
                 ))}
               </tbody>
@@ -124,6 +139,39 @@ export function Fornecedores() {
                   </div>
                 </div>
               )}
+
+              <div>
+                <span className="block mb-1.5 text-[12.5px] font-bold text-ink">Contatos <span className="text-ink-3 font-medium">(acumulados das ECs)</span></span>
+                {(edit.contatos ?? []).length === 0 ? (
+                  <p className="text-[12px] text-ink-3">Nenhum contato ainda. São adicionados conforme os registros nas ECs.</p>
+                ) : (
+                  <div className="space-y-1">
+                    {(edit.contatos ?? []).map((c, i) => (
+                      <div key={i} className="flex items-center gap-2 bg-[#F7F8FA] rounded-btn px-2.5 py-1.5">
+                        <span className="text-[12.5px] text-ink flex-1 break-words">{c}</span>
+                        <button
+                          onClick={() => setEdit({ ...edit, contatos: (edit.contatos ?? []).filter((_, j) => j !== i) })}
+                          className="text-ink-3 hover:text-danger shrink-0"
+                          title="Remover contato"
+                        >
+                          <IcTrash width={14} height={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2 mt-2">
+                  <Input
+                    className="!h-9"
+                    placeholder="Novo contato (nome · telefone / e-mail)"
+                    value={novoContato}
+                    onChange={(e) => setNovoContato(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addContato(); } }}
+                  />
+                  <Button variant="secondary" size="sm" onClick={addContato}>Adicionar</Button>
+                </div>
+              </div>
+
               <div className="flex gap-2 pt-1">
                 <Button block onClick={salvar}>Salvar</Button>
                 <Button variant="secondary" onClick={() => setEdit(null)}>Cancelar</Button>

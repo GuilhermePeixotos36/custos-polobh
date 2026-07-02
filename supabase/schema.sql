@@ -35,6 +35,7 @@ create table if not exists fornecedores (
   dados_bancarios jsonb,
   contato jsonb,
   cnaes jsonb,
+  contatos jsonb not null default '[]'::jsonb, -- contatos acumulados a partir das ECs
   criado_em timestamptz default now()
 );
 
@@ -87,6 +88,7 @@ create table if not exists ec_linhas (
   status_aprovacao text default 'Pendente',
   fornecedor_razao text,
   fornecedor_cnpj text,
+  fornecedor_contato text not null default '', -- contato informado na linha (acumula no fornecedor)
   fatura_nf text,
   codigo_servico text,
   pedido_compra text,

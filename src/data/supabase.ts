@@ -130,6 +130,7 @@ function mapFornecedor(r: any): Fornecedor {
     telefone: contato.telefone ?? "",
     email: contato.email ?? "",
     cnaes: r.cnaes ?? [],
+    contatos: r.contatos ?? [],
   };
 }
 
@@ -145,6 +146,7 @@ function fornecedorRow(f: Fornecedor) {
     dados_bancarios: f.dadosBancarios,
     contato: { representante: f.representante, telefone: f.telefone, email: f.email },
     cnaes: f.cnaes ?? [],
+    contatos: f.contatos ?? [],
   };
 }
 
@@ -192,6 +194,7 @@ function mapLinha(r: any): EcLinha {
     statusAprovacao: r.status_aprovacao ?? "Pendente",
     fornecedorRazao: r.fornecedor_razao ?? "",
     fornecedorCnpj: r.fornecedor_cnpj ?? "",
+    fornecedorContato: r.fornecedor_contato ?? "",
     faturaNf: r.fatura_nf ?? "",
     codigoServico: r.codigo_servico ?? "",
     pedidoCompra: r.pedido_compra ?? "",
@@ -214,6 +217,7 @@ function linhaRow(ecId: string, l: EcLinha) {
     status_aprovacao: l.statusAprovacao,
     fornecedor_razao: l.fornecedorRazao,
     fornecedor_cnpj: l.fornecedorCnpj,
+    fornecedor_contato: l.fornecedorContato ?? "",
     fatura_nf: l.faturaNf,
     codigo_servico: l.codigoServico,
     pedido_compra: l.pedidoCompra,

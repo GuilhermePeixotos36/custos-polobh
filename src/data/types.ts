@@ -85,6 +85,12 @@ export interface Fornecedor {
   telefone: string;
   email: string;
   cnaes?: string[];
+  /**
+   * Contatos acumulados a partir dos registros nas ECs. Cada vez que alguém
+   * informa um contato do fornecedor numa EC e ele ainda não existe aqui,
+   * é adicionado a esta lista (texto livre: "Nome — (31) 9…" / e-mail).
+   */
+  contatos?: string[];
 }
 
 /* --------------------------------- EC ----------------------------------- */
@@ -128,6 +134,8 @@ export interface EcLinha {
   statusAprovacao: StatusAprovacao;
   fornecedorRazao: string;
   fornecedorCnpj: string;
+  /** Contato do fornecedor informado nesta linha (acumula no cadastro do fornecedor). */
+  fornecedorContato: string;
   faturaNf: string;
   codigoServico: string;
   pedidoCompra: string;

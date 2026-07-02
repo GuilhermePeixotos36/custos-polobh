@@ -175,3 +175,13 @@ export const IcTrend = (p: P) => (
     <path d="M17 7h4v4" />
   </I>
 );
+export const IcGrip = (p: P) => (
+  <I {...p} fill="currentColor" stroke="none">
+    <circle cx="9" cy="6" r="1.6" />
+    <circle cx="15" cy="6" r="1.6" />
+    <circle cx="9" cy="12" r="1.6" />
+    <circle cx="15" cy="12" r="1.6" />
+    <circle cx="9" cy="18" r="1.6" />
+    <circle cx="15" cy="18" r="1.6" />
+  </I>
+);

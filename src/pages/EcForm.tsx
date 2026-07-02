@@ -8,11 +8,10 @@ import {
   Field,
   Input,
   Textarea,
-  Select,
   NumberInput,
   Eyebrow,
 } from "@/components/ui";
-import { IcPlus, IcTrash, IcDownload, IcSearch, IcChevron } from "@/components/icons";
+import { IcDownload, IcSearch, IcChevron } from "@/components/icons";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import {
@@ -25,18 +24,17 @@ import { gerarEcExcel } from "@/lib/excel";
 import { consultarCnpj } from "@/lib/cnpj";
 import { useAuth } from "@/store/auth";
 import { RentabilidadeItens } from "@/components/RentabilidadeItens";
+import { EcGrupos } from "@/components/EcGrupos";
 import { flags } from "@/lib/flags";
 import { toast } from "@/store/toast";
-import { confirmar } from "@/store/confirm";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
-import { brl, maskCpfCnpjInput } from "@/lib/format";
+import { brl, maskCpfCnpjInput, onlyDigits } from "@/lib/format";
 import type {
   Cliente,
   Ec,
   EcLinha,
+  Fornecedor,
   ProjetoInfo,
-  StatusAprovacao,
-  StatusOs,
 } from "@/data/types";
 
 const novaLinha = (ordem: number): EcLinha => ({
@@ -50,6 +48,7 @@ const novaLinha = (ordem: number): EcLinha => ({
   statusAprovacao: "Pendente",
   fornecedorRazao: "",
   fornecedorCnpj: "",
+  fornecedorContato: "",
   faturaNf: "",
   codigoServico: "",
   pedidoCompra: "",
@@ -57,6 +56,25 @@ const novaLinha = (ordem: number): EcLinha => ({
   contrato: "",
   observacao: "",
   ordem,
+});
+
+/** Monta um Fornecedor completo a partir dos campos conhecidos (resto vazio). */
+const fornecedorNovo = (p: Partial<Fornecedor>): Fornecedor => ({
+  id: "",
+  razaoSocial: "",
+  nomeFantasia: "",
+  cnpj: "",
+  perfilTributario: "",
+  endereco: "",
+  inscricaoEstadual: "",
+  inscricaoMunicipal: "",
+  dadosBancarios: { tipoConta: "", banco: "", agencia: "", conta: "", chavePix: "" },
+  representante: "",
+  telefone: "",
+  email: "",
+  cnaes: [],
+  contatos: [],
+  ...p,
 });
 
 const clienteVazio = (): Cliente => ({
@@ -99,6 +117,9 @@ export function EcForm() {
   const [cnpjLoading, setCnpjLoading] = useState(false);
   const [cnpjMsg, setCnpjMsg] = useState("");
   const [salvando, setSalvando] = useState(false);
+  // Fornecedores registrados — alimentam a lista suspensa por CNPJ na tabela de custos.
+  const { data: fornData, reload: reloadForn } = useAsync(() => repo.fornecedores.listar(), []);
+  const fornecedores = fornData ?? [];
 
   // inicia o formulário e registra a "foto" base para detectar alterações
   const iniciar = (e: Ec) => {
@@ -171,13 +192,49 @@ export function EcForm() {
     setEc((e) => (e ? { ...e, cliente: { ...e.cliente, ...patch } } : e));
   const updProj = (patch: Partial<ProjetoInfo>) =>
     setEc((e) => (e ? { ...e, projeto: { ...e.projeto, ...patch } } : e));
-  const updLinha = (lid: string, patch: Partial<EcLinha>) =>
-    setEc((e) =>
-      e ? { ...e, linhas: e.linhas.map((l) => (l.id === lid ? { ...l, ...patch } : l)) } : e
-    );
 
   const numero = numeroEc(ec.cliente.nome || "Cliente", ec.projeto.titulo || "Projeto", ec.versao);
   const temProjeto = Boolean(ec.projetoId);
+
+  /** Valida o CNPJ na Receita e registra o fornecedor no sistema (chamado pela tabela de custos). */
+  async function validarFornecedor(cnpj: string): Promise<string | null> {
+    try {
+      const d = await consultarCnpj(cnpj);
+      await repo.fornecedores.salvar(fornecedorNovo({ cnpj: d.cnpj, razaoSocial: d.razaoSocial, nomeFantasia: d.nomeFantasia, endereco: d.endereco, perfilTributario: d.perfilTributario, telefone: d.telefone, email: d.email, cnaes: d.cnaes }));
+      await reloadForn();
+      const nome = d.nomeFantasia || d.razaoSocial;
+      toast(`Fornecedor ${nome} registrado no sistema.`, "success");
+      return nome;
+    } catch (e) {
+      toast((e as Error).message, "danger");
+      return null;
+    }
+  }
+
+  /** Ao salvar a EC, garante o cadastro de cada fornecedor citado e acumula os contatos. */
+  async function acumularFornecedores(linhas: EcLinha[]) {
+    const porCnpj = new Map<string, { cnpjRaw: string; razao: string; contatos: Set<string> }>();
+    for (const l of linhas) {
+      const d = onlyDigits(l.fornecedorCnpj);
+      if (d.length !== 14) continue;
+      if (!porCnpj.has(d)) porCnpj.set(d, { cnpjRaw: l.fornecedorCnpj, razao: l.fornecedorRazao, contatos: new Set() });
+      const e = porCnpj.get(d)!;
+      if (!e.razao && l.fornecedorRazao) e.razao = l.fornecedorRazao;
+      const c = l.fornecedorContato.trim();
+      if (c) e.contatos.add(c);
+    }
+    for (const [digits, info] of porCnpj) {
+      const existente = fornecedores.find((f) => onlyDigits(f.cnpj) === digits);
+      if (existente) {
+        const atuais = new Set(existente.contatos ?? []);
+        const antes = atuais.size;
+        info.contatos.forEach((c) => atuais.add(c));
+        if (atuais.size !== antes) await repo.fornecedores.salvar({ ...existente, contatos: [...atuais] });
+      } else {
+        await repo.fornecedores.salvar(fornecedorNovo({ cnpj: info.cnpjRaw, razaoSocial: info.razao, contatos: [...info.contatos] }));
+      }
+    }
+  }
 
   async function consultar() {
     setCnpjMsg("");
@@ -205,6 +262,8 @@ export function EcForm() {
         numero,
         responsavel: ec!.responsavel || ec!.projeto.produtoraResponsavel,
       });
+      // Registra/atualiza os fornecedores citados e acumula seus contatos.
+      await acumularFornecedores(ec!.linhas).catch(() => {});
       toast("Estimativa salva.", "success");
       guard.liberar();
       navigate(`/estimativas/${salvo.id}`);
@@ -292,69 +351,21 @@ export function EcForm() {
         </>
         )}
 
-        {/* Tabela de custos */}
+        {/* Estimativa de custos — grupos e itens com arrastar/soltar e colapso */}
         <Card padded={false}>
-          <div className="p-5 flex items-center justify-between">
-            <CardTitle hint="Agrupe por GRUPO. Totais recalculam ao vivo.">Estimativa de custos</CardTitle>
-            <Button variant="secondary" size="sm" icon={<IcPlus width={16} height={16} />}
-              onClick={() => upd({ linhas: [...ec.linhas, novaLinha(ec.linhas.length)] })}>
-              Adicionar linha
-            </Button>
+          <div className="p-5 pb-3">
+            <CardTitle hint="Arraste pela alça para reordenar grupos e itens (inclusive entre grupos). Clique na seta para expandir/retrair.">
+              Estimativa de custos
+            </CardTitle>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left border-y border-border bg-[#FAFAFB]">
-                  {["Grupo", "Item", "Descrição", "Fornecedor", "Pólobh", "Cliente", "Aprov.", "OS", "Contrato", ""].map((h) => (
-                    <th key={h} className="px-3 py-2 text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {ec.linhas.map((l) => (
-                  <tr key={l.id} className="border-b border-border-soft align-top">
-                    <td className="px-2 py-2 w-28"><Input className="!h-9 !px-2 !text-[12.5px]" value={l.grupo} onChange={(e) => updLinha(l.id, { grupo: e.target.value })} /></td>
-                    <td className="px-2 py-2 w-32"><Input className="!h-9 !px-2 !text-[12.5px]" value={l.item} onChange={(e) => updLinha(l.id, { item: e.target.value })} /></td>
-                    <td className="px-2 py-2 min-w-[220px]"><Textarea className="!min-h-9 !py-1.5 !px-2 !text-[12.5px]" rows={1} value={l.descricao} onChange={(e) => updLinha(l.id, { descricao: e.target.value })} /></td>
-                    <td className="px-2 py-2 min-w-[160px]">
-                      <Input className="!h-9 !px-2 !text-[12.5px]" placeholder="Razão social" value={l.fornecedorRazao} onChange={(e) => updLinha(l.id, { fornecedorRazao: e.target.value })} />
-                      <Input className="!h-8 !px-2 !text-[12px] mt-1" placeholder="CNPJ" value={l.fornecedorCnpj} onChange={(e) => updLinha(l.id, { fornecedorCnpj: e.target.value })} />
-                    </td>
-                    <td className="px-2 py-2 w-28"><NumberInput className="!h-9 !px-2 !text-[12.5px]" value={l.valorPolobh} onValue={(v) => updLinha(l.id, { valorPolobh: v })} /></td>
-                    <td className="px-2 py-2 w-28"><NumberInput className="!h-9 !px-2 !text-[12.5px]" value={l.valorCliente} onValue={(v) => updLinha(l.id, { valorCliente: v })} /></td>
-                    <td className="px-2 py-2 w-28">
-                      <Select className="!h-9 !px-2 !text-[12px]" value={l.statusAprovacao} onChange={(e) => updLinha(l.id, { statusAprovacao: e.target.value as StatusAprovacao })}>
-                        <option>Pendente</option><option>OK</option>
-                      </Select>
-                    </td>
-                    <td className="px-2 py-2 w-28">
-                      <Select className="!h-9 !px-2 !text-[12px]" value={l.statusOs} onChange={(e) => updLinha(l.id, { statusOs: e.target.value as StatusOs })}>
-                        <option>Pendente</option><option>Emitir</option><option>OK</option>
-                      </Select>
-                    </td>
-                    <td className="px-2 py-2 w-32"><Input className="!h-9 !px-2 !text-[12.5px]" placeholder="Nº/ref." value={l.contrato} onChange={(e) => updLinha(l.id, { contrato: e.target.value })} /></td>
-                    <td className="px-2 py-2">
-                      <button
-                        onClick={async () => {
-                          const temConteudo = l.item || l.descricao || l.valorPolobh || l.valorCliente || l.fornecedorRazao;
-                          if (temConteudo && !(await confirmar({
-                            titulo: "Remover esta linha de custo?",
-                            mensagem: l.item || l.descricao || "Esta linha será excluída da estimativa.",
-                            confirmarTexto: "Remover",
-                            tom: "danger",
-                          }))) return;
-                          upd({ linhas: ec.linhas.filter((x) => x.id !== l.id) });
-                        }}
-                        className="text-ink-3 hover:text-danger p-1.5"
-                        title="Remover"
-                      >
-                        <IcTrash width={16} height={16} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="px-5 pb-5">
+            <EcGrupos
+              linhas={ec.linhas}
+              onChange={(linhas) => upd({ linhas })}
+              verFinanceiro={verFinanceiro}
+              fornecedores={fornecedores}
+              onValidarFornecedor={validarFornecedor}
+            />
           </div>
         </Card>
 
@@ -389,7 +400,10 @@ export function EcForm() {
                 Rentabilidade por item
               </CardTitle>
             </div>
-            <RentabilidadeItens linhas={ec.linhas} onGasto={(id, v) => updLinha(id, { valorGasto: v })} />
+            <RentabilidadeItens
+              linhas={ec.linhas}
+              onGasto={(id, v) => upd({ linhas: ec.linhas.map((l) => (l.id === id ? { ...l, valorGasto: v } : l)) })}
+            />
           </Card>
         )}
       </div>
