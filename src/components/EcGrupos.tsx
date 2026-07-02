@@ -1,4 +1,23 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCorners,
+  useDroppable,
+  type DragStartEvent,
+  type DragOverEvent,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  arrayMove,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Input, AutoTextarea, Select, NumberInput, Button } from "@/components/ui";
 import { IcGrip, IcChevron, IcPlus, IcTrash } from "@/components/icons";
 import { FornecedorField } from "@/components/FornecedorField";
@@ -32,7 +51,10 @@ function achatar(grupos: Grupo[]): EcLinha[] {
   return out;
 }
 
-const normalizar = (linhas: EcLinha[]) => achatar(agrupar(linhas));
+const GID = (nome: string) => `G:${nome}`; // id sortable do grupo
+const CID = (nome: string) => `C:${nome}`; // id droppable (container) do grupo
+const ehGrupoId = (id: string) => id.startsWith("G:") || id.startsWith("C:");
+const nomeDoId = (id: string) => id.slice(2);
 
 let seq = 0;
 function novaLinhaBase(): EcLinha {
@@ -67,21 +89,8 @@ function nomeGrupoUnico(base: string, grupos: Grupo[]): string {
   return `${base} ${i}`;
 }
 
-type Drag = { tipo: "grupo"; nome: string } | { tipo: "item"; id: string } | null;
-type Over =
-  | { tipo: "grupo"; nome: string; pos: "antes" | "depois" }
-  | { tipo: "item"; id: string; pos: "antes" | "depois" }
-  | { tipo: "corpo"; nome: string }
-  | null;
-
-function overIgual(a: Over, b: Over): boolean {
-  if (a === b) return true;
-  if (!a || !b || a.tipo !== b.tipo) return false;
-  if (a.tipo === "corpo" && b.tipo === "corpo") return a.nome === b.nome;
-  if (a.tipo === "grupo" && b.tipo === "grupo") return a.nome === b.nome && a.pos === b.pos;
-  if (a.tipo === "item" && b.tipo === "item") return a.id === b.id && a.pos === b.pos;
-  return false;
-}
+const containerDoItem = (grupos: Grupo[], itemId: string) =>
+  grupos.find((g) => g.itens.some((i) => i.id === itemId))?.nome;
 
 interface Props {
   linhas: EcLinha[];
@@ -91,27 +100,44 @@ interface Props {
   onValidarFornecedor: (cnpj: string) => Promise<string | null>;
 }
 
-export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, onValidarFornecedor }: Props) {
-  const grupos = agrupar(linhas);
-  const [expandido, setExpandido] = useState<Record<string, boolean>>({});
-  const dragRef = useRef<Drag>(null);
-  const [over, setOver] = useState<Over>(null);
-  const [arrastando, setArrastando] = useState<string | null>(null); // id do item ou nome do grupo em arraste
-  const datalistId = "ec-fornecedores-cnpj";
+const DATALIST_ID = "ec-fornecedores-cnpj";
 
-  const setOverSafe = (o: Over) => setOver((prev) => (overIgual(prev, o) ? prev : o));
+export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, onValidarFornecedor }: Props) {
+  const [grupos, setGrupos] = useState<Grupo[]>(() => agrupar(linhas));
+  const [expandido, setExpandido] = useState<Record<string, boolean>>({});
+  const [ativo, setAtivo] = useState<{ tipo: "grupo" | "item"; chave: string } | null>(null);
+  const arrastandoRef = useRef(false);
+  // Espelho sempre atual do estado (evita leitura defasada entre onDragOver e onDragEnd).
+  const gruposRef = useRef(grupos);
+  gruposRef.current = grupos;
+
+  // Re-sincroniza com as linhas externas (ex.: template, nova versão) quando não há arraste.
+  useEffect(() => {
+    if (arrastandoRef.current) return;
+    const propSig = JSON.stringify(linhas.map((l) => [l.id, l.grupo]));
+    const curSig = JSON.stringify(achatar(grupos).map((l) => [l.id, l.grupo]));
+    if (propSig !== curSig) setGrupos(agrupar(linhas));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linhas]);
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   const isExp = (nome: string) => expandido[nome] ?? false;
   const toggle = (nome: string) => setExpandido((e) => ({ ...e, [nome]: !isExp(nome) }));
-  const expandirTodos = (v: boolean) =>
-    setExpandido(Object.fromEntries(grupos.map((g) => [g.nome, v])));
+  const expandirTodos = (v: boolean) => setExpandido(Object.fromEntries(grupos.map((g) => [g.nome, v])));
 
-  /* ------- edição de linhas ------- */
+  /* ------- edição (atualiza estado local e propaga) ------- */
+  const commit = (next: Grupo[]) => {
+    gruposRef.current = next;
+    setGrupos(next);
+    onChange(achatar(next));
+  };
+
   const updLinha = (id: string, patch: Partial<EcLinha>) =>
-    onChange(linhas.map((l) => (l.id === id ? { ...l, ...patch } : l)));
+    commit(grupos.map((g) => ({ ...g, itens: g.itens.map((it) => (it.id === id ? { ...it, ...patch } : it)) })));
 
   const renomearGrupo = (nomeAntigo: string, novo: string) => {
-    onChange(linhas.map((l) => (l.grupo === nomeAntigo ? { ...l, grupo: novo } : l)));
+    commit(grupos.map((g) => (g.nome === nomeAntigo ? { ...g, nome: novo } : g)));
     setExpandido((e) => {
       const { [nomeAntigo]: v, ...resto } = e;
       return { ...resto, [novo]: v ?? false };
@@ -119,20 +145,18 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, onVali
   };
 
   const addItem = (grupoNome: string) => {
-    onChange(normalizar([...linhas, { ...novaLinhaBase(), grupo: grupoNome }]));
+    commit(grupos.map((g) => (g.nome === grupoNome ? { ...g, itens: [...g.itens, { ...novaLinhaBase(), grupo: grupoNome }] } : g)));
     setExpandido((e) => ({ ...e, [grupoNome]: true }));
   };
 
   const addGrupo = () => {
     const nome = nomeGrupoUnico("NOVO GRUPO", grupos);
-    onChange(normalizar([...linhas, { ...novaLinhaBase(), grupo: nome }]));
+    commit([...grupos, { nome, itens: [{ ...novaLinhaBase(), grupo: nome }] }]);
     setExpandido((e) => ({ ...e, [nome]: true }));
   };
 
   const delGrupo = async (g: Grupo) => {
-    const temConteudo = g.itens.some(
-      (l) => l.item || l.descricao || l.valorPolobh || l.valorCliente || l.fornecedorRazao
-    );
+    const temConteudo = g.itens.some((l) => l.item || l.descricao || l.valorPolobh || l.valorCliente || l.fornecedorRazao);
     if (
       temConteudo &&
       !(await confirmar({
@@ -143,7 +167,7 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, onVali
       }))
     )
       return;
-    onChange(linhas.filter((l) => l.grupo !== g.nome));
+    commit(grupos.filter((x) => x.nome !== g.nome));
   };
 
   const delItem = async (l: EcLinha) => {
@@ -158,79 +182,84 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, onVali
       }))
     )
       return;
-    onChange(linhas.filter((x) => x.id !== l.id));
+    commit(grupos.map((g) => ({ ...g, itens: g.itens.filter((x) => x.id !== l.id) })));
   };
 
-  /* ------- drag & drop ------- */
-  const limpar = () => {
-    dragRef.current = null;
-    setArrastando(null);
-    setOver(null);
+  /* ------------------------- drag & drop ------------------------- */
+  const onDragStart = (e: DragStartEvent) => {
+    arrastandoRef.current = true;
+    const id = String(e.active.id);
+    if (ehGrupoId(id)) setAtivo({ tipo: "grupo", chave: nomeDoId(id) });
+    else setAtivo({ tipo: "item", chave: id });
   };
 
-  const iniciarDrag = (e: React.DragEvent, d: NonNullable<Drag>) => {
-    dragRef.current = d;
-    setArrastando(d.tipo === "grupo" ? d.nome : d.id);
-    if (e.dataTransfer) {
-      e.dataTransfer.effectAllowed = "move";
-      try {
-        e.dataTransfer.setData("text/plain", d.tipo === "grupo" ? d.nome : d.id);
-      } catch {
-        /* alguns navegadores exigem setData para iniciar o arraste */
+  // Move o item entre grupos ao vivo (permite a animação de "abrir espaço").
+  const onDragOver = (e: DragOverEvent) => {
+    const activeId = String(e.active.id);
+    if (ehGrupoId(activeId) || !e.over) return; // reordenar grupo é tratado no fim
+    const overId = String(e.over.id);
+    const atual = gruposRef.current;
+    const from = containerDoItem(atual, activeId);
+    const to = ehGrupoId(overId) ? nomeDoId(overId) : containerDoItem(atual, overId);
+    if (!from || !to || from === to) return;
+    const gs = atual.map((g) => ({ nome: g.nome, itens: [...g.itens] }));
+    const gf = gs.find((g) => g.nome === from);
+    const gt = gs.find((g) => g.nome === to);
+    if (!gf || !gt) return;
+    const idx = gf.itens.findIndex((x) => x.id === activeId);
+    if (idx < 0) return;
+    const [it] = gf.itens.splice(idx, 1);
+    const movido = { ...it, grupo: to };
+    const j = ehGrupoId(overId) ? gt.itens.length : gt.itens.findIndex((x) => x.id === overId);
+    gt.itens.splice(j < 0 ? gt.itens.length : j, 0, movido);
+    gruposRef.current = gs;
+    setGrupos(gs);
+  };
+
+  const onDragEnd = (e: DragEndEvent) => {
+    arrastandoRef.current = false;
+    setAtivo(null);
+    const atual = gruposRef.current;
+    const activeId = String(e.active.id);
+    const overId = e.over ? String(e.over.id) : null;
+    if (!overId) {
+      commit(atual);
+      return;
+    }
+    // Reordenar grupos
+    if (ehGrupoId(activeId)) {
+      const fromNome = nomeDoId(activeId);
+      const toNome = ehGrupoId(overId) ? nomeDoId(overId) : containerDoItem(atual, overId);
+      if (toNome && fromNome !== toNome) {
+        const oldIndex = atual.findIndex((g) => g.nome === fromNome);
+        const newIndex = atual.findIndex((g) => g.nome === toNome);
+        commit(arrayMove(atual, oldIndex, newIndex));
+        return;
+      }
+      commit(atual);
+      return;
+    }
+    // Reordenar item dentro do mesmo grupo (cross-group já ocorreu no onDragOver)
+    const cont = containerDoItem(atual, activeId);
+    const alvoCont = ehGrupoId(overId) ? nomeDoId(overId) : containerDoItem(atual, overId);
+    if (cont && alvoCont && cont === alvoCont && !ehGrupoId(overId)) {
+      const g = atual.find((x) => x.nome === cont)!;
+      const oldIndex = g.itens.findIndex((x) => x.id === activeId);
+      const newIndex = g.itens.findIndex((x) => x.id === overId);
+      if (oldIndex !== newIndex && newIndex >= 0) {
+        commit(atual.map((x) => (x.nome === cont ? { ...x, itens: arrayMove(x.itens, oldIndex, newIndex) } : x)));
+        return;
       }
     }
+    commit(atual);
   };
 
-  const metade = (e: React.DragEvent): "antes" | "depois" => {
-    const r = e.currentTarget.getBoundingClientRect();
-    return e.clientY < r.top + r.height / 2 ? "antes" : "depois";
-  };
-
-  const soltarGrupo = (alvoNome: string, pos: "antes" | "depois") => {
-    const d = dragRef.current;
-    if (!d || d.tipo !== "grupo" || d.nome === alvoNome) return;
-    const gs = agrupar(linhas);
-    const from = gs.findIndex((g) => g.nome === d.nome);
-    const [movido] = gs.splice(from, 1);
-    let to = gs.findIndex((g) => g.nome === alvoNome);
-    if (pos === "depois") to += 1;
-    gs.splice(to, 0, movido);
-    onChange(achatar(gs));
-  };
-
-  const soltarItem = (destGrupo: string, alvoId: string | null, pos: "antes" | "depois") => {
-    const d = dragRef.current;
-    if (!d || d.tipo !== "item") return;
-    const gs = agrupar(linhas).map((g) => ({ nome: g.nome, itens: [...g.itens] }));
-    let movido: EcLinha | undefined;
-    for (const g of gs) {
-      const i = g.itens.findIndex((x) => x.id === d.id);
-      if (i >= 0) {
-        movido = g.itens.splice(i, 1)[0];
-        break;
-      }
-    }
-    if (!movido) return;
-    movido = { ...movido, grupo: destGrupo };
-    let dest = gs.find((g) => g.nome === destGrupo);
-    if (!dest) {
-      dest = { nome: destGrupo, itens: [] };
-      gs.push(dest);
-    }
-    if (alvoId == null) {
-      dest.itens.push(movido);
-    } else {
-      const j = dest.itens.findIndex((x) => x.id === alvoId);
-      const at = j < 0 ? dest.itens.length : j + (pos === "depois" ? 1 : 0);
-      dest.itens.splice(at, 0, movido);
-    }
-    onChange(achatar(gs.filter((g) => g.itens.length > 0)));
-  };
+  const itemAtivo = ativo?.tipo === "item" ? grupos.flatMap((g) => g.itens).find((i) => i.id === ativo.chave) : undefined;
+  const grupoAtivo = ativo?.tipo === "grupo" ? grupos.find((g) => g.nome === ativo.chave) : undefined;
 
   return (
     <div className="space-y-3">
-      {/* datalist compartilhado: mostra os fornecedores registrados ao digitar o CNPJ */}
-      <datalist id={datalistId}>
+      <datalist id={DATALIST_ID}>
         {fornecedores.map((f) => (
           <option key={f.id} value={maskCpfCnpjInput(onlyDigits(f.cnpj))}>
             {f.nomeFantasia || f.razaoSocial}
@@ -255,195 +284,238 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, onVali
         </div>
       )}
 
-      {grupos.map((g) => {
-        const aberto = isExp(g.nome);
-        const subtotal = g.itens.reduce((s, l) => s + (l.valorPolobh || 0) + (l.valorCliente || 0), 0);
-        const overGrupoAntes = over?.tipo === "grupo" && over.nome === g.nome && over.pos === "antes";
-        const overGrupoDepois = over?.tipo === "grupo" && over.nome === g.nome && over.pos === "depois";
-        const overCorpo = over?.tipo === "corpo" && over.nome === g.nome;
-        const grupoArrastado = arrastando === g.nome;
-        return (
-          <div
-            key={g.nome}
-            className={cx(
-              "rounded-card border bg-white transition-[margin,opacity,box-shadow] duration-200 ease-out",
-              overCorpo ? "border-primary ring-2 ring-primary/25 shadow-lg" : "border-border",
-              overGrupoAntes && "mt-9 border-t-[3px] border-t-primary",
-              overGrupoDepois && "mb-9 border-b-[3px] border-b-primary",
-              grupoArrastado && "opacity-50"
-            )}
-          >
-            {/* Cabeçalho do grupo (arrastável + solta grupo/append item) */}
-            <div
-              onDragOver={(e) => {
-                const d = dragRef.current;
-                if (!d) return;
-                e.preventDefault();
-                if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
-                if (d.tipo === "grupo") setOverSafe({ tipo: "grupo", nome: g.nome, pos: metade(e) });
-                else setOverSafe({ tipo: "corpo", nome: g.nome });
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                const d = dragRef.current;
-                if (d?.tipo === "grupo") soltarGrupo(g.nome, metade(e));
-                else if (d?.tipo === "item") soltarItem(g.nome, null, "depois");
-                limpar();
-              }}
-              className={cx("flex items-center gap-2 px-3 py-3", aberto && "border-b border-border-soft")}
-            >
-              <span
-                draggable
-                onDragStart={(e) => iniciarDrag(e, { tipo: "grupo", nome: g.nome })}
-                onDragEnd={limpar}
-                className="cursor-grab active:cursor-grabbing text-ink-3 hover:text-ink shrink-0 select-none"
-                title="Arraste para reordenar o grupo"
-              >
-                <IcGrip width={20} height={20} />
-              </span>
-              <button onClick={() => toggle(g.nome)} className="shrink-0 text-ink-2 hover:text-ink" title={aberto ? "Retrair" : "Expandir"}>
-                <IcChevron width={20} height={20} className={cx("transition-transform duration-200", aberto && "rotate-90")} />
-              </button>
-              <Input
-                className="!h-10 !px-2.5 !text-[15px] !font-bold !uppercase max-w-sm"
-                value={g.nome}
-                onChange={(e) => renomearGrupo(g.nome, e.target.value)}
+      <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd}>
+        <SortableContext items={grupos.map((g) => GID(g.nome))} strategy={verticalListSortingStrategy}>
+          <div className="space-y-3">
+            {grupos.map((g) => (
+              <GrupoCard
+                key={g.nome}
+                g={g}
+                aberto={isExp(g.nome)}
+                verFinanceiro={verFinanceiro}
+                fornecedores={fornecedores}
+                onToggle={() => toggle(g.nome)}
+                onRenomear={(v) => renomearGrupo(g.nome, v)}
+                onAddItem={() => addItem(g.nome)}
+                onDelGrupo={() => delGrupo(g)}
+                onUpdLinha={updLinha}
+                onDelItem={delItem}
+                onValidarFornecedor={onValidarFornecedor}
               />
-              <span className="shrink-0 text-[12px] font-bold text-ink-3 bg-[#F0F1F4] rounded-pill px-2.5 py-1">
-                {g.itens.length} {g.itens.length === 1 ? "item" : "itens"}
-              </span>
-              {verFinanceiro && subtotal > 0 && (
-                <span className="shrink-0 text-[14px] font-display font-bold text-ink-2">{brl(subtotal)}</span>
-              )}
-              <div className="ml-auto flex items-center gap-1 shrink-0">
-                <Button variant="soft" size="sm" icon={<IcPlus width={15} height={15} />} onClick={() => addItem(g.nome)}>
-                  Item
-                </Button>
-                <button onClick={() => delGrupo(g)} className="text-ink-3 hover:text-danger p-1.5" title="Remover grupo">
-                  <IcTrash width={18} height={18} />
-                </button>
+            ))}
+          </div>
+        </SortableContext>
+
+        {/* Card flutuante que acompanha o cursor */}
+        <DragOverlay dropAnimation={{ duration: 200, easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)" }}>
+          {itemAtivo ? (
+            <div className="rounded-btn border-2 border-primary bg-white shadow-2xl px-3 py-2 opacity-90 rotate-1 flex items-center gap-2 min-w-[260px]">
+              <IcGrip width={18} height={18} className="text-primary" />
+              <div className="min-w-0">
+                <div className="text-[13.5px] font-bold text-ink truncate">{itemAtivo.item || "Item"}</div>
+                {itemAtivo.descricao && <div className="text-[12px] text-ink-2 truncate">{itemAtivo.descricao}</div>}
               </div>
             </div>
+          ) : grupoAtivo ? (
+            <div className="rounded-card border-2 border-primary bg-white shadow-2xl px-3 py-3 opacity-90 rotate-1 flex items-center gap-2">
+              <IcGrip width={20} height={20} className="text-primary" />
+              <span className="text-[15px] font-bold uppercase text-ink">{grupoAtivo.nome}</span>
+              <span className="text-[12px] font-bold text-ink-3 bg-[#F0F1F4] rounded-pill px-2 py-0.5">{grupoAtivo.itens.length} itens</span>
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+    </div>
+  );
+}
 
-            {/* Corpo do grupo (itens) */}
-            {aberto && (
-              <div className="overflow-x-auto">
-                <div className="min-w-[980px]">
-                  {/* legenda de colunas */}
-                  <div className="flex items-center gap-2 px-3 py-2 text-[11px] font-extrabold uppercase tracking-[0.06em] text-ink-3 bg-[#FAFAFB]">
-                    <span className="w-5 shrink-0" />
-                    <span className="w-44 shrink-0">Item</span>
-                    <span className="flex-1 min-w-[240px]">Descrição</span>
-                    <span className="w-60 shrink-0">Fornecedor</span>
-                    {verFinanceiro && <span className="w-28 shrink-0 text-right">Pólobh</span>}
-                    {verFinanceiro && <span className="w-28 shrink-0 text-right">Cliente</span>}
-                    <span className="w-24 shrink-0">Aprov.</span>
-                    <span className="w-24 shrink-0">OS</span>
-                    <span className="w-28 shrink-0">Contrato</span>
-                    <span className="w-7 shrink-0" />
-                  </div>
+/* ------------------------------ Grupo ------------------------------ */
 
-                  {g.itens.map((l) => {
-                    const overAntes = over?.tipo === "item" && over.id === l.id && over.pos === "antes";
-                    const overDepois = over?.tipo === "item" && over.id === l.id && over.pos === "depois";
-                    const itemArrastado = arrastando === l.id;
-                    return (
-                      <div
-                        key={l.id}
-                        onDragOver={(e) => {
-                          const d = dragRef.current;
-                          if (d?.tipo !== "item") return;
-                          e.preventDefault();
-                          e.stopPropagation();
-                          if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
-                          setOverSafe({ tipo: "item", id: l.id, pos: metade(e) });
-                        }}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          if (dragRef.current?.tipo === "item") soltarItem(g.nome, l.id, metade(e));
-                          limpar();
-                        }}
-                        className={cx(
-                          "flex items-start gap-2 px-3 py-2.5 border-b border-border-soft transition-[margin,opacity] duration-200 ease-out",
-                          overAntes && "mt-12 border-t-[3px] border-t-primary",
-                          overDepois && "mb-12 border-b-[3px] border-b-primary",
-                          itemArrastado && "opacity-40"
-                        )}
-                      >
-                        <span
-                          draggable
-                          onDragStart={(e) => {
-                            e.stopPropagation();
-                            iniciarDrag(e, { tipo: "item", id: l.id });
-                          }}
-                          onDragEnd={limpar}
-                          className="cursor-grab active:cursor-grabbing text-ink-3 hover:text-ink shrink-0 mt-2 select-none"
-                          title="Arraste para reordenar / mover de grupo"
-                        >
-                          <IcGrip width={18} height={18} />
-                        </span>
-                        <div className="w-44 shrink-0">
-                          <Input className="!h-10 !px-2.5 !text-[13.5px]" placeholder="Item" value={l.item} onChange={(e) => updLinha(l.id, { item: e.target.value })} />
-                        </div>
-                        <div className="flex-1 min-w-[240px]">
-                          <AutoTextarea className="!text-[13.5px]" placeholder="Descrição" value={l.descricao} onChange={(e) => updLinha(l.id, { descricao: e.target.value })} />
-                        </div>
-                        <div className="w-60 shrink-0">
-                          <FornecedorField
-                            razao={l.fornecedorRazao}
-                            cnpj={l.fornecedorCnpj}
-                            contato={l.fornecedorContato}
-                            fornecedores={fornecedores}
-                            datalistId={datalistId}
-                            onChange={(patch) => updLinha(l.id, patch)}
-                            onValidar={onValidarFornecedor}
-                          />
-                        </div>
-                        {verFinanceiro && (
-                          <div className="w-28 shrink-0">
-                            <NumberInput className="!h-10 !px-2.5 !text-[13.5px]" value={l.valorPolobh} onValue={(v) => updLinha(l.id, { valorPolobh: v })} />
-                          </div>
-                        )}
-                        {verFinanceiro && (
-                          <div className="w-28 shrink-0">
-                            <NumberInput className="!h-10 !px-2.5 !text-[13.5px]" value={l.valorCliente} onValue={(v) => updLinha(l.id, { valorCliente: v })} />
-                          </div>
-                        )}
-                        <div className="w-24 shrink-0">
-                          <Select className="!h-10 !px-2 !text-[13px]" value={l.statusAprovacao} onChange={(e) => updLinha(l.id, { statusAprovacao: e.target.value as StatusAprovacao })}>
-                            <option>Pendente</option>
-                            <option>OK</option>
-                          </Select>
-                        </div>
-                        <div className="w-24 shrink-0">
-                          <Select className="!h-10 !px-2 !text-[13px]" value={l.statusOs} onChange={(e) => updLinha(l.id, { statusOs: e.target.value as StatusOs })}>
-                            <option>Pendente</option>
-                            <option>Emitir</option>
-                            <option>OK</option>
-                          </Select>
-                        </div>
-                        <div className="w-28 shrink-0">
-                          <Input className="!h-10 !px-2.5 !text-[13.5px]" placeholder="Nº/ref." value={l.contrato} onChange={(e) => updLinha(l.id, { contrato: e.target.value })} />
-                        </div>
-                        <button onClick={() => delItem(l)} className="text-ink-3 hover:text-danger p-1.5 shrink-0 mt-1.5" title="Remover linha">
-                          <IcTrash width={18} height={18} />
-                        </button>
-                      </div>
-                    );
-                  })}
+interface GrupoProps {
+  g: Grupo;
+  aberto: boolean;
+  verFinanceiro: boolean;
+  fornecedores: Fornecedor[];
+  onToggle: () => void;
+  onRenomear: (v: string) => void;
+  onAddItem: () => void;
+  onDelGrupo: () => void;
+  onUpdLinha: (id: string, patch: Partial<EcLinha>) => void;
+  onDelItem: (l: EcLinha) => void;
+  onValidarFornecedor: (cnpj: string) => Promise<string | null>;
+}
 
-                  <div className="px-3 py-2.5">
-                    <Button variant="secondary" size="sm" icon={<IcPlus width={15} height={15} />} onClick={() => addItem(g.nome)}>
-                      Adicionar item ao grupo
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
+function GrupoCard({ g, aberto, verFinanceiro, fornecedores, onToggle, onRenomear, onAddItem, onDelGrupo, onUpdLinha, onDelItem, onValidarFornecedor }: GrupoProps) {
+  const sortable = useSortable({ id: GID(g.nome) });
+  const droppable = useDroppable({ id: CID(g.nome) });
+  const setRefs = (node: HTMLElement | null) => {
+    sortable.setNodeRef(node);
+    droppable.setNodeRef(node);
+  };
+  const style = { transform: CSS.Translate.toString(sortable.transform), transition: sortable.transition };
+  const subtotal = g.itens.reduce((s, l) => s + (l.valorPolobh || 0) + (l.valorCliente || 0), 0);
+
+  return (
+    <div
+      ref={setRefs}
+      style={style}
+      className={cx(
+        "rounded-card border bg-white",
+        sortable.isDragging ? "opacity-40" : "border-border",
+        droppable.isOver && !sortable.isDragging && "ring-2 ring-primary/40 border-primary"
+      )}
+    >
+      <div className={cx("flex items-center gap-2 px-3 py-3", aberto && "border-b border-border-soft")}>
+        <button
+          ref={sortable.setActivatorNodeRef}
+          {...sortable.listeners}
+          {...sortable.attributes}
+          className="cursor-grab active:cursor-grabbing text-ink-3 hover:text-ink shrink-0 touch-none"
+          title="Arraste para reordenar o grupo"
+        >
+          <IcGrip width={20} height={20} />
+        </button>
+        <button onClick={onToggle} className="shrink-0 text-ink-2 hover:text-ink" title={aberto ? "Retrair" : "Expandir"}>
+          <IcChevron width={20} height={20} className={cx("transition-transform duration-200", aberto && "rotate-90")} />
+        </button>
+        <Input className="!h-10 !px-2.5 !text-[15px] !font-bold !uppercase max-w-sm" value={g.nome} onChange={(e) => onRenomear(e.target.value)} />
+        <span className="shrink-0 text-[12px] font-bold text-ink-3 bg-[#F0F1F4] rounded-pill px-2.5 py-1">
+          {g.itens.length} {g.itens.length === 1 ? "item" : "itens"}
+        </span>
+        {verFinanceiro && subtotal > 0 && (
+          <span className="shrink-0 text-[14px] font-display font-bold text-ink-2">{brl(subtotal)}</span>
+        )}
+        <div className="ml-auto flex items-center gap-1 shrink-0">
+          <Button variant="soft" size="sm" icon={<IcPlus width={15} height={15} />} onClick={onAddItem}>
+            Item
+          </Button>
+          <button onClick={onDelGrupo} className="text-ink-3 hover:text-danger p-1.5" title="Remover grupo">
+            <IcTrash width={18} height={18} />
+          </button>
+        </div>
+      </div>
+
+      {aberto && (
+        <div className="overflow-x-auto">
+          <div className="min-w-[980px]">
+            <div className="flex items-center gap-2 px-3 py-2 text-[11px] font-extrabold uppercase tracking-[0.06em] text-ink-3 bg-[#FAFAFB]">
+              <span className="w-5 shrink-0" />
+              <span className="w-44 shrink-0">Item</span>
+              <span className="flex-1 min-w-[240px]">Descrição</span>
+              <span className="w-60 shrink-0">Fornecedor</span>
+              {verFinanceiro && <span className="w-28 shrink-0 text-right">Pólobh</span>}
+              {verFinanceiro && <span className="w-28 shrink-0 text-right">Cliente</span>}
+              <span className="w-24 shrink-0">Aprov.</span>
+              <span className="w-24 shrink-0">OS</span>
+              <span className="w-28 shrink-0">Contrato</span>
+              <span className="w-7 shrink-0" />
+            </div>
+
+            <SortableContext items={g.itens.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+              {g.itens.map((l) => (
+                <ItemRow
+                  key={l.id}
+                  l={l}
+                  verFinanceiro={verFinanceiro}
+                  fornecedores={fornecedores}
+                  onUpd={(patch) => onUpdLinha(l.id, patch)}
+                  onDel={() => onDelItem(l)}
+                  onValidarFornecedor={onValidarFornecedor}
+                />
+              ))}
+            </SortableContext>
+
+            <div className="px-3 py-2.5">
+              <Button variant="secondary" size="sm" icon={<IcPlus width={15} height={15} />} onClick={onAddItem}>
+                Adicionar item ao grupo
+              </Button>
+            </div>
           </div>
-        );
-      })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------ Item ------------------------------ */
+
+interface ItemProps {
+  l: EcLinha;
+  verFinanceiro: boolean;
+  fornecedores: Fornecedor[];
+  onUpd: (patch: Partial<EcLinha>) => void;
+  onDel: () => void;
+  onValidarFornecedor: (cnpj: string) => Promise<string | null>;
+}
+
+function ItemRow({ l, verFinanceiro, fornecedores, onUpd, onDel, onValidarFornecedor }: ItemProps) {
+  const sortable = useSortable({ id: l.id });
+  const style = { transform: CSS.Translate.toString(sortable.transform), transition: sortable.transition };
+
+  return (
+    <div
+      ref={sortable.setNodeRef}
+      style={style}
+      className={cx(
+        "flex items-start gap-2 px-3 py-2.5 border-b border-border-soft bg-white",
+        sortable.isDragging && "opacity-40"
+      )}
+    >
+      <button
+        ref={sortable.setActivatorNodeRef}
+        {...sortable.listeners}
+        {...sortable.attributes}
+        className="cursor-grab active:cursor-grabbing text-ink-3 hover:text-ink shrink-0 mt-2 touch-none"
+        title="Arraste para reordenar / mover de grupo"
+      >
+        <IcGrip width={18} height={18} />
+      </button>
+      <div className="w-44 shrink-0">
+        <Input className="!h-10 !px-2.5 !text-[13.5px]" placeholder="Item" value={l.item} onChange={(e) => onUpd({ item: e.target.value })} />
+      </div>
+      <div className="flex-1 min-w-[240px]">
+        <AutoTextarea className="!text-[13.5px]" placeholder="Descrição" value={l.descricao} onChange={(e) => onUpd({ descricao: e.target.value })} />
+      </div>
+      <div className="w-60 shrink-0">
+        <FornecedorField
+          razao={l.fornecedorRazao}
+          cnpj={l.fornecedorCnpj}
+          contato={l.fornecedorContato}
+          fornecedores={fornecedores}
+          datalistId={DATALIST_ID}
+          onChange={onUpd}
+          onValidar={onValidarFornecedor}
+        />
+      </div>
+      {verFinanceiro && (
+        <div className="w-28 shrink-0">
+          <NumberInput className="!h-10 !px-2.5 !text-[13.5px]" value={l.valorPolobh} onValue={(v) => onUpd({ valorPolobh: v })} />
+        </div>
+      )}
+      {verFinanceiro && (
+        <div className="w-28 shrink-0">
+          <NumberInput className="!h-10 !px-2.5 !text-[13.5px]" value={l.valorCliente} onValue={(v) => onUpd({ valorCliente: v })} />
+        </div>
+      )}
+      <div className="w-24 shrink-0">
+        <Select className="!h-10 !px-2 !text-[13px]" value={l.statusAprovacao} onChange={(e) => onUpd({ statusAprovacao: e.target.value as StatusAprovacao })}>
+          <option>Pendente</option>
+          <option>OK</option>
+        </Select>
+      </div>
+      <div className="w-24 shrink-0">
+        <Select className="!h-10 !px-2 !text-[13px]" value={l.statusOs} onChange={(e) => onUpd({ statusOs: e.target.value as StatusOs })}>
+          <option>Pendente</option>
+          <option>Emitir</option>
+          <option>OK</option>
+        </Select>
+      </div>
+      <div className="w-28 shrink-0">
+        <Input className="!h-10 !px-2.5 !text-[13.5px]" placeholder="Nº/ref." value={l.contrato} onChange={(e) => onUpd({ contrato: e.target.value })} />
+      </div>
+      <button onClick={onDel} className="text-ink-3 hover:text-danger p-1.5 shrink-0 mt-1.5" title="Remover linha">
+        <IcTrash width={18} height={18} />
+      </button>
     </div>
   );
 }
