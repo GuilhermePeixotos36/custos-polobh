@@ -3,8 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { PageShell, Crumb } from "@/components/layout/AppLayout";
 import { Card, Button, Badge, Table, THead, Th, Tr, Td, EmptyState, Avatar, type Tom } from "@/components/ui";
 import { IcPlus, IcSearch } from "@/components/icons";
+import { NotifDot } from "@/components/NotifDot";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
+import { useMinhasPendencias } from "@/store/pendencias";
 import { dataBR, cx } from "@/lib/format";
 import type { StatusProjeto } from "@/data/types";
 
@@ -24,6 +26,7 @@ const FILTROS: { key: "Todos" | StatusProjeto; label: string }[] = [
 
 export function Projetos() {
   const navigate = useNavigate();
+  const { porProjeto } = useMinhasPendencias();
   const { data: projetos, loading } = useAsync(() => repo.projetos.listar(), []);
   const { data: ecs } = useAsync(() => repo.ecs.listar(), []);
   const [filtro, setFiltro] = useState<"Todos" | StatusProjeto>("Ativo");
@@ -98,7 +101,10 @@ export function Projetos() {
                 <Tr key={p.id} onClick={() => navigate(`/projetos/${p.id}`)}>
                   <Td>
                     <div className="flex items-center gap-2.5">
-                      <Avatar nome={p.nome || "P"} size={34} />
+                      <span className="relative shrink-0">
+                        <Avatar nome={p.nome || "P"} size={34} />
+                        <NotifDot n={porProjeto[p.id] ?? 0} title={`${porProjeto[p.id] ?? 0} pendência(s) neste projeto`} />
+                      </span>
                       <div className="font-bold text-ink">{p.nome || "(sem título)"}</div>
                     </div>
                   </Td>

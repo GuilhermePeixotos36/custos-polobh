@@ -1,15 +1,23 @@
-import { Suspense, type ReactNode } from "react";
-import { Navigate, Outlet } from "react-router-dom";
+import { Suspense, useEffect, type ReactNode } from "react";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { TopNav } from "./TopNav";
 import { Topbar } from "./Topbar";
 import { Toaster } from "@/components/ui/Toaster";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useAuth } from "@/store/auth";
+import { usePendencias } from "@/store/pendencias";
 
 /** Casca autenticada: sidebar + área de conteúdo. */
 export function AppLayout() {
   const usuario = useAuth((s) => s.usuario);
   const carregando = useAuth((s) => s.carregando);
+  const carregarPendencias = usePendencias((s) => s.carregar);
+  const { pathname } = useLocation();
+
+  // Mantém as pendências (badges) atualizadas ao navegar entre telas.
+  useEffect(() => {
+    if (usuario) carregarPendencias();
+  }, [usuario, pathname, carregarPendencias]);
 
   // Aguarda a sessão inicial resolver antes de decidir redirecionar.
   if (carregando) {

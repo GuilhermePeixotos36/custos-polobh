@@ -2,13 +2,16 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { NAV } from "./nav";
 import { useAuth, ROTULO_PAPEL } from "@/store/auth";
 import { Avatar, Button } from "@/components/ui";
+import { NotifDot } from "@/components/NotifDot";
 import { IcLogout } from "@/components/icons";
 import { cx } from "@/lib/format";
+import { useMinhasPendencias } from "@/store/pendencias";
 
 /** Barra de navegação superior (substitui a antiga sidebar lateral). */
 export function TopNav() {
   const { usuario, pode, sair } = useAuth();
   const navigate = useNavigate();
+  const { porRecurso } = useMinhasPendencias();
   if (!usuario) return null;
 
   const itens = NAV.filter((i) => pode(i.recurso));
@@ -32,7 +35,10 @@ export function TopNav() {
               )
             }
           >
-            <span className="shrink-0">{i.icon}</span>
+            <span className="shrink-0 relative">
+              {i.icon}
+              <NotifDot n={porRecurso[i.recurso] ?? 0} title={`${porRecurso[i.recurso] ?? 0} pendência(s)`} className="left-auto -right-2 -top-2" />
+            </span>
             <span className="hidden lg:inline">{i.label}</span>
           </NavLink>
         ))}

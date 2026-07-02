@@ -7,8 +7,10 @@ import {
 } from "@/components/ui";
 import { IcChevron, IcPlus, IcBack, IcDownload } from "@/components/icons";
 import { TimelineConsolidada, type ItemConsolidado } from "@/components/Timeline";
+import { NotifDot } from "@/components/NotifDot";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
+import { useMinhasPendencias } from "@/store/pendencias";
 import { gerarCronogramaExcel } from "@/lib/excel";
 import { cx, dataBR, maskCpfCnpjInput, maskTelefone } from "@/lib/format";
 import { toast } from "@/store/toast";
@@ -49,6 +51,7 @@ export function ProjetoDetail() {
   const novo = id === "novo";
   const abaParam = params.get("aba");
   const abaInicial: Aba = ABAS.some((a) => a.key === abaParam) ? (abaParam as Aba) : "dados";
+  const { porAba, porOs, porEc } = useMinhasPendencias();
 
   const { data: existente, loading } = useAsync(() => (novo ? Promise.resolve(undefined) : repo.projetos.obter(id)), [id]);
   const { data: ecsAll } = useAsync(() => repo.ecs.listar(), []);
@@ -82,18 +85,33 @@ export function ProjetoDetail() {
     return [...m.values()];
   }, [ossDoProjeto]);
 
-  // Contratações da EC (Fornecedor + Descritivo) que alimentam o Excel do cronograma.
-  const contratacoes = useMemo(() => {
-    const linhas = ecsDoProjeto
-      .filter((e) => e.status !== "Cancelada")
-      .flatMap((e) => e.linhas);
-    const comForn = linhas.filter((l) => l.fornecedorRazao.trim());
-    const base = comForn.length ? comForn : linhas.filter((l) => l.item || l.descricao);
+  // Linhas do cronograma (uma por etapa da OS, com Data e Horário próprios).
+  // Se ainda não houver etapas cadastradas nas OSs, cai para as contratações da EC.
+  const linhasCronograma = useMemo(() => {
+    const doOs = etapas
+      .filter((e) => e.data || e.horario || e.etapa || e.atividades)
+      .map((e) => ({
+        data: dataBR(e.data),
+        horario: e.horario || "",
+        fornecedor: e.fornecedor || "",
+        descritivo: [e.etapa, e.atividades].filter(Boolean).join(" — "),
+        produtor: "",
+      }));
+    if (doOs.length) {
+      return doOs.sort((a, b) => (a.data || "").localeCompare(b.data || "") || a.horario.localeCompare(b.horario));
+    }
+    // Fallback: contratações da EC (sem data/horário — a equipe preenche).
+    const ecLinhas = ecsDoProjeto.filter((e) => e.status !== "Cancelada").flatMap((e) => e.linhas);
+    const comForn = ecLinhas.filter((l) => l.fornecedorRazao.trim());
+    const base = comForn.length ? comForn : ecLinhas.filter((l) => l.item || l.descricao);
     return base.map((l) => ({
+      data: "",
+      horario: "",
       fornecedor: l.fornecedorRazao,
       descritivo: [l.item, l.descricao].filter(Boolean).join(" — "),
+      produtor: "",
     }));
-  }, [ecsDoProjeto]);
+  }, [etapas, ecsDoProjeto]);
 
   async function baixarCronograma() {
     const info = p.info;
@@ -109,8 +127,7 @@ export function ProjetoDetail() {
         horario: info.horario,
         local: info.local,
         enderecoLocal: info.enderecoLocal,
-        dataGrupo: dataBR(info.evento) || "Data a definir",
-        contratacoes,
+        itens: linhasCronograma,
         nomeArquivo: `Cronograma - ${p.nome || info.titulo || "Projeto"}`,
       });
       toast("Cronograma exportado para Excel.", "success");
@@ -175,12 +192,13 @@ export function ProjetoDetail() {
               disabled={bloqueada}
               onClick={() => setAba(a.key)}
               className={cx(
-                "px-4 h-10 text-[13.5px] font-bold whitespace-nowrap border-b-2 -mb-px transition-colors",
+                "px-4 h-10 text-[13.5px] font-bold whitespace-nowrap border-b-2 -mb-px transition-colors inline-flex items-center gap-1.5",
                 bloqueada ? "text-ink-3/40 cursor-not-allowed border-transparent"
                   : aba === a.key ? "text-primary-dark border-primary" : "text-ink-2 hover:text-ink border-transparent"
               )}
             >
               {a.label}
+              <NotifDot inline n={novo ? 0 : porAba[`${id}:${a.key}`] ?? 0} title="Ações pendentes nesta etapa" />
             </button>
           );
         })}
@@ -257,7 +275,15 @@ export function ProjetoDetail() {
               <tbody>
                 {ecsDoProjeto.map((e) => (
                   <Tr key={e.id} onClick={() => navigate(`/estimativas/${e.id}`)}>
-                    <Td><div className="font-bold text-ink">{e.projeto.titulo || e.numero}</div><div className="text-[12px] text-ink-3">{e.numero}</div></Td>
+                    <Td>
+                      <div className="flex items-center gap-2">
+                        <NotifDot inline n={porEc[e.id] ?? 0} title="Ações pendentes nesta EC" />
+                        <div>
+                          <div className="font-bold text-ink">{e.projeto.titulo || e.numero}</div>
+                          <div className="text-[12px] text-ink-3">{e.numero}</div>
+                        </div>
+                      </div>
+                    </Td>
                     <Td align="center"><Badge tom="neutral">V{String(e.versao).padStart(2, "0")}</Badge></Td>
                     <Td align="center"><Badge tom={tomStatusEc[e.status]}>{e.status}</Badge></Td>
                   </Tr>
@@ -279,7 +305,12 @@ export function ProjetoDetail() {
               <tbody>
                 {ossDoProjeto.map((o) => (
                   <Tr key={o.id} onClick={() => navigate(`/ordens/${o.id}`)}>
-                    <Td className="font-bold">{o.numero}</Td>
+                    <Td className="font-bold">
+                      <span className="inline-flex items-center gap-2">
+                        <NotifDot inline n={porOs[o.id] ?? 0} title="Esta OS tem ação pendente" />
+                        {o.numero}
+                      </span>
+                    </Td>
                     <Td>{o.fornecedor.razaoSocial || "—"}</Td>
                     <Td align="center"><Badge tom={tomStatusOs[o.status]}>{o.status}</Badge></Td>
                   </Tr>

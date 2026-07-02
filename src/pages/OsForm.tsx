@@ -37,6 +37,7 @@ import { brl, dataBR, dataHoraBR, maskCpfCnpjInput, maskTelefone } from "@/lib/f
 import { useAuth } from "@/store/auth";
 import { toast } from "@/store/toast";
 import { confirmar } from "@/store/confirm";
+import { usePendencias } from "@/store/pendencias";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import type {
   DocumentoFiscal,
@@ -215,6 +216,7 @@ export function OsForm() {
       } else {
         toast("OS salva.", "success");
       }
+      usePendencias.getState().carregar(true); // atualiza os badges de pendência
       guard.liberar();
       navigate(`/ordens/${salvo.id}`);
     } catch (e) {
@@ -369,22 +371,28 @@ export function OsForm() {
           </div>
         </Card>
 
-        {/* Cronograma específico */}
+        {/* Cronograma específico — uma etapa por linha, com Data e Horário próprios */}
         <Card padded={false}>
           <div className="p-5 flex items-center justify-between">
-            <CardTitle>Cronograma específico do fornecedor</CardTitle>
+            <CardTitle hint="Cada etapa tem sua própria data e horário. Vira uma linha no Excel do cronograma (Fornecedor = este fornecedor).">
+              Cronograma específico do fornecedor
+            </CardTitle>
             <Button variant="secondary" size="sm" onClick={() => setOs((o) => (o ? { ...o, cronograma: [...o.cronograma, { etapa: "", data: "", horario: "", atividades: "" }] } : o))}>+ Etapa</Button>
           </div>
           <div className="px-5 pb-5 space-y-2">
+            <div className="grid grid-cols-[150px_130px_1fr_1.5fr_auto] gap-2 text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3 px-1">
+              <span>Data</span><span>Horário</span><span>Etapa</span><span>Descritivo da contratação</span><span />
+            </div>
             {os.cronograma.map((c, i) => (
-              <div key={i} className="grid grid-cols-[1fr_140px_120px_1.4fr_auto] gap-2 items-center">
-                <Input className="!h-9" placeholder="Etapa (Montagem…)" value={c.etapa} onChange={(e) => setCron(i, { etapa: e.target.value })} />
+              <div key={i} className="grid grid-cols-[150px_130px_1fr_1.5fr_auto] gap-2 items-center">
                 <Input className="!h-9" type="date" value={c.data} onChange={(e) => setCron(i, { data: e.target.value })} />
-                <Input className="!h-9" placeholder="Horário" value={c.horario} onChange={(e) => setCron(i, { horario: e.target.value })} />
-                <Input className="!h-9" placeholder="Atividades" value={c.atividades} onChange={(e) => setCron(i, { atividades: e.target.value })} />
+                <Input className="!h-9" placeholder="08h às 18h" value={c.horario} onChange={(e) => setCron(i, { horario: e.target.value })} />
+                <Input className="!h-9" placeholder="Montagem, Ensaio…" value={c.etapa} onChange={(e) => setCron(i, { etapa: e.target.value })} />
+                <Input className="!h-9" placeholder="Descritivo da contratação" value={c.atividades} onChange={(e) => setCron(i, { atividades: e.target.value })} />
                 <button className="text-ink-3 hover:text-danger px-2" onClick={() => setOs((o) => (o ? { ...o, cronograma: o.cronograma.filter((_, j) => j !== i) } : o))}>✕</button>
               </div>
             ))}
+            {os.cronograma.length === 0 && <p className="text-[12.5px] text-ink-3 px-1">Nenhuma etapa. Use “+ Etapa” para adicionar.</p>}
           </div>
         </Card>
 
