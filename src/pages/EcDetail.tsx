@@ -29,6 +29,20 @@ import { enviarEcParaAprovacao } from "@/lib/email";
 import { useAuth } from "@/store/auth";
 import { toast } from "@/store/toast";
 import { confirmar } from "@/store/confirm";
+import { cx } from "@/lib/format";
+import type { EcLinha } from "@/data/types";
+
+/** Agrupa as linhas por grupo preservando a ordem de aparição (visão de leitura). */
+function agruparLinhas(linhas: EcLinha[]): { nome: string; itens: EcLinha[] }[] {
+  const ordem: string[] = [];
+  const map = new Map<string, EcLinha[]>();
+  for (const l of linhas) {
+    const g = l.grupo || "GERAL";
+    if (!map.has(g)) { map.set(g, []); ordem.push(g); }
+    map.get(g)!.push(l);
+  }
+  return ordem.map((nome) => ({ nome, itens: map.get(nome)! }));
+}
 
 export function EcDetail() {
   const { id = "" } = useParams();
@@ -37,6 +51,7 @@ export function EcDetail() {
   const { data: ec, loading } = useAsync(() => repo.ecs.obter(id), [id]);
   const { data: oss } = useAsync(() => repo.oss.porEc(id), [id]);
   const [sel, setSel] = useState<Set<string>>(new Set());
+  const [recolhidos, setRecolhidos] = useState<Set<string>>(new Set());
   const [erro, setErro] = useState("");
 
   const t = useMemo(
@@ -62,6 +77,12 @@ export function EcDetail() {
   const linhasSel = ec.linhas.filter((l) => sel.has(l.id));
   const grupos = agruparPorFornecedor(linhasSel);
   const multiFornecedor = grupos.length > 1;
+
+  const gruposLinha = agruparLinhas(ec.linhas);
+  const toggleGrupo = (n: string) =>
+    setRecolhidos((s) => { const x = new Set(s); x.has(n) ? x.delete(n) : x.add(n); return x; });
+  const selecionarGrupo = (itens: EcLinha[], marcar: boolean) =>
+    setSel((s) => { const x = new Set(s); itens.forEach((l) => (marcar ? x.add(l.id) : x.delete(l.id))); return x; });
 
   async function gerarOs() {
     setErro("");
@@ -119,57 +140,94 @@ export function EcDetail() {
         {/* Coluna principal: tabela de custos */}
         <div className="space-y-4">
           <Card padded={false}>
-            <div className="p-5 flex items-center justify-between gap-3 border-b border-border-soft">
-              <CardTitle hint="Selecione linhas do mesmo fornecedor para gerar uma OS consolidada">
-                Linhas de custo
+            <div className="p-5 flex items-center justify-between gap-3 border-b border-border-soft flex-wrap">
+              <CardTitle hint="Mesma organização por grupos da criação. Selecione linhas de um mesmo fornecedor para gerar a OS.">
+                Estimativa de custos
               </CardTitle>
-              <Button
-                size="sm"
-                icon={<IcPlus width={16} height={16} />}
-                onClick={gerarOs}
-                disabled={!pode("oss")}
-              >
-                Gerar OS ({linhasSel.length})
-              </Button>
+              <div className="flex items-center gap-3">
+                <div className="flex gap-2 text-[12px] font-bold text-ink-2">
+                  <button onClick={() => setRecolhidos(new Set())} className="hover:text-ink">Expandir</button>
+                  <span className="text-border">|</span>
+                  <button onClick={() => setRecolhidos(new Set(gruposLinha.map((g) => g.nome)))} className="hover:text-ink">Retrair</button>
+                </div>
+                <Button size="sm" icon={<IcPlus width={16} height={16} />} onClick={gerarOs} disabled={!pode("oss")}>
+                  Gerar OS ({linhasSel.length})
+                </Button>
+              </div>
             </div>
             {erro && <div className="mx-5 mt-3 text-[13px] text-danger bg-danger-soft rounded-btn px-3 py-2">{erro}</div>}
-            <Table>
-              <THead>
-                <Th></Th>
-                <Th>Item / Descrição</Th>
-                <Th>Fornecedor</Th>
-                {verFinanceiro && <Th align="right">Pólobh</Th>}
-                {verFinanceiro && <Th align="right">Cliente</Th>}
-                <Th align="center">Aprov.</Th>
-                <Th align="center">OS</Th>
-              </THead>
-              <tbody>
-                {ec.linhas.map((l) => (
-                  <Tr key={l.id}>
-                    <Td>
+
+            <div className="p-3 space-y-2">
+              {gruposLinha.map((g) => {
+                const aberto = !recolhidos.has(g.nome);
+                const subtotal = g.itens.reduce((s, l) => s + l.valorPolobh + l.valorCliente, 0);
+                const selNoGrupo = g.itens.filter((l) => sel.has(l.id)).length;
+                const todosSel = selNoGrupo === g.itens.length && g.itens.length > 0;
+                return (
+                  <div key={g.nome} className="rounded-card border border-border overflow-hidden">
+                    {/* Cabeçalho do grupo */}
+                    <div className="flex items-center gap-2 px-3 py-2.5 bg-[#FAFAFB]">
                       <input
                         type="checkbox"
-                        checked={sel.has(l.id)}
-                        onChange={() => toggle(l.id)}
-                        className="h-4 w-4 accent-[#F2820D]"
+                        checked={todosSel}
+                        ref={(el) => { if (el) el.indeterminate = selNoGrupo > 0 && !todosSel; }}
+                        onChange={(e) => selecionarGrupo(g.itens, e.target.checked)}
+                        className="h-4 w-4 accent-[#F2820D] shrink-0"
+                        title="Selecionar todas as linhas do grupo"
                       />
-                    </Td>
-                    <Td>
-                      <div className="font-bold text-ink">{l.item || "—"}</div>
-                      <div className="text-[12px] text-ink-2">{l.descricao}</div>
-                      <div className="text-[11px] text-ink-3 mt-0.5">{l.grupo}{l.contrato ? ` · Contrato ${l.contrato}` : ""}</div>
-                    </Td>
-                    <Td className="text-[12.5px]">{l.fornecedorRazao || "—"}</Td>
-                    {verFinanceiro && <Td align="right" className="font-display font-bold">{brl(l.valorPolobh)}</Td>}
-                    {verFinanceiro && <Td align="right" className="font-display font-bold">{brl(l.valorCliente)}</Td>}
-                    <Td align="center"><Badge tom={tomAprovacao[l.statusAprovacao]}>{l.statusAprovacao}</Badge></Td>
-                    <Td align="center"><Badge tom={tomAprovacao[l.statusOs]}>{l.statusOs}</Badge></Td>
-                  </Tr>
-                ))}
-              </tbody>
-            </Table>
+                      <button onClick={() => toggleGrupo(g.nome)} className="text-ink-2 hover:text-ink shrink-0">
+                        <IcChevron width={18} height={18} className={cx("transition-transform", aberto && "rotate-90")} />
+                      </button>
+                      <button onClick={() => toggleGrupo(g.nome)} className="font-display font-bold text-ink text-[14px] text-left flex-1 uppercase">
+                        {g.nome}
+                      </button>
+                      <span className="shrink-0 text-[11px] font-bold text-ink-3 bg-[#EFF0F3] rounded-pill px-2 py-0.5">
+                        {g.itens.length} {g.itens.length === 1 ? "item" : "itens"}
+                      </span>
+                      {verFinanceiro && subtotal > 0 && (
+                        <span className="shrink-0 text-[13px] font-display font-bold text-ink-2">{brl(subtotal)}</span>
+                      )}
+                    </div>
+
+                    {/* Itens do grupo */}
+                    {aberto && (
+                      <div className="divide-y divide-border-soft">
+                        {g.itens.map((l) => (
+                          <label key={l.id} className="flex items-start gap-2.5 px-3 py-2.5 cursor-pointer hover:bg-[#FCFCFD]">
+                            <input
+                              type="checkbox"
+                              checked={sel.has(l.id)}
+                              onChange={() => toggle(l.id)}
+                              className="h-4 w-4 accent-[#F2820D] mt-1 shrink-0"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="font-bold text-ink text-[13.5px]">{l.item || "—"}</div>
+                              {l.descricao && <div className="text-[12.5px] text-ink-2">{l.descricao}</div>}
+                              <div className="text-[11px] text-ink-3 mt-0.5 flex items-center gap-2 flex-wrap">
+                                <span>Fornecedor: {l.fornecedorRazao || "—"}</span>
+                                {l.contrato && <span>· Contrato {l.contrato}</span>}
+                              </div>
+                            </div>
+                            {verFinanceiro && (
+                              <div className="shrink-0 text-right w-24">
+                                <div className="font-display font-bold text-ink text-[13px]">{brl(l.valorPolobh)}</div>
+                                <div className="text-[11px] text-ink-3">Cli. {brl(l.valorCliente)}</div>
+                              </div>
+                            )}
+                            <div className="shrink-0 flex flex-col items-end gap-1">
+                              <Badge tom={tomAprovacao[l.statusAprovacao]}>{l.statusAprovacao}</Badge>
+                              <Badge tom={tomAprovacao[l.statusOs]}>OS {l.statusOs}</Badge>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
             {multiFornecedor && (
-              <div className="m-5 mt-3 text-[12.5px] text-warning bg-warning-soft rounded-btn px-3 py-2">
+              <div className="mx-5 mb-5 text-[12.5px] text-warning bg-warning-soft rounded-btn px-3 py-2">
                 A seleção tem {grupos.length} fornecedores. Uma OS consolida linhas de um único fornecedor.
               </div>
             )}
