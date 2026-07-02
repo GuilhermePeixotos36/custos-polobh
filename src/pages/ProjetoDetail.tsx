@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { PageShell, Crumb } from "@/components/layout/AppLayout";
 import {
   Card, CardTitle, Button, Field, Input, Textarea, Select, Badge,
@@ -43,15 +43,18 @@ const ABAS: { key: Aba; label: string }[] = [
 
 export function ProjetoDetail() {
   const { id = "" } = useParams();
+  const [params] = useSearchParams();
   const navigate = useNavigate();
   const novo = id === "novo";
+  const abaParam = params.get("aba");
+  const abaInicial: Aba = ABAS.some((a) => a.key === abaParam) ? (abaParam as Aba) : "dados";
 
   const { data: existente, loading } = useAsync(() => (novo ? Promise.resolve(undefined) : repo.projetos.obter(id)), [id]);
   const { data: ecsAll } = useAsync(() => repo.ecs.listar(), []);
   const { data: ossAll } = useAsync(() => repo.oss.listar(), []);
 
   const [p, setP] = useState<Projeto>(projetoVazio());
-  const [aba, setAba] = useState<Aba>("dados");
+  const [aba, setAba] = useState<Aba>(abaInicial);
   const [salvando, setSalvando] = useState(false);
   const [tplNova, setTplNova] = useState<"Corporativo" | "Cultural" | "">("Corporativo");
 

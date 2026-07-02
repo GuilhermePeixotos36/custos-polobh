@@ -49,6 +49,8 @@ export function EcDetail() {
 
   const verFinanceiro = pode("financeiro");
   const podeEditar = pode("ecs.editar");
+  // A EC vive dentro do projeto: voltar/breadcrumb apontam para a subguia EC do projeto.
+  const voltarUrl = ec.projetoId ? `/projetos/${ec.projetoId}?aba=ec` : "/projetos";
 
   const toggle = (lid: string) =>
     setSel((s) => {
@@ -79,7 +81,7 @@ export function EcDetail() {
     <PageShell
       breadcrumb={
         <>
-          <button onClick={() => navigate("/estimativas")} className="hover:text-ink">Estimativas</button>
+          <button onClick={() => navigate(voltarUrl)} className="hover:text-ink">{ec.projeto.titulo || "Projeto"}</button>
           <IcChevron width={14} height={14} />
           <Crumb>{ec.numero}</Crumb>
         </>
@@ -102,8 +104,8 @@ export function EcDetail() {
         </div>
       }
     >
-      <button onClick={() => navigate("/estimativas")} className="inline-flex items-center gap-1.5 text-sm text-ink-2 hover:text-ink mb-4 font-semibold">
-        <IcBack width={16} height={16} /> Voltar
+      <button onClick={() => navigate(voltarUrl)} className="inline-flex items-center gap-1.5 text-sm text-ink-2 hover:text-ink mb-4 font-semibold">
+        <IcBack width={16} height={16} /> Voltar ao projeto
       </button>
 
       <div className="flex items-center gap-2 mb-5 flex-wrap">
@@ -320,7 +322,7 @@ export function EcDetail() {
                       }))) return;
                       await repo.ecs.salvar({ ...ec, status: "Arquivada" });
                       toast("EC arquivada (continua consultável).", "info");
-                      navigate("/estimativas");
+                      navigate(voltarUrl);
                     }}>
                     Arquivar EC
                   </Button>
@@ -337,7 +339,7 @@ export function EcDetail() {
                       }))) return;
                       await repo.ecs.salvar({ ...ec, status: "Cancelada" });
                       toast("EC cancelada.", "warning");
-                      navigate("/estimativas");
+                      navigate(voltarUrl);
                     }}>
                     Cancelar EC
                   </Button>

@@ -278,7 +278,7 @@ export function EcForm() {
     <PageShell
       breadcrumb={
         <>
-          <button onClick={() => navigate("/estimativas")} className="hover:text-ink">Estimativas</button>
+          <button onClick={() => navigate(ec.projetoId ? `/projetos/${ec.projetoId}?aba=ec` : "/projetos")} className="hover:text-ink">{ec.projeto.titulo || "Projeto"}</button>
           <IcChevron width={14} height={14} />
           <Crumb>{editando ? "Editar EC" : "Nova EC"}</Crumb>
         </>
