@@ -5,11 +5,12 @@ import {
   Card, CardTitle, Button, Field, Input, Textarea, Select, Badge,
   Table, THead, Th, Tr, Td, EmptyState, tomStatusEc, tomStatusOs, type Tom,
 } from "@/components/ui";
-import { IcChevron, IcPlus, IcBack } from "@/components/icons";
+import { IcChevron, IcPlus, IcBack, IcDownload } from "@/components/icons";
 import { TimelineConsolidada, type ItemConsolidado } from "@/components/Timeline";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
-import { cx, maskCpfCnpjInput, maskTelefone } from "@/lib/format";
+import { gerarCronogramaExcel } from "@/lib/excel";
+import { cx, dataBR, maskCpfCnpjInput, maskTelefone } from "@/lib/format";
 import { toast } from "@/store/toast";
 import type { Cliente, Projeto, ProjetoInfo, StatusProjeto } from "@/data/types";
 
@@ -80,6 +81,43 @@ export function ProjetoDetail() {
     }
     return [...m.values()];
   }, [ossDoProjeto]);
+
+  // Contratações da EC (Fornecedor + Descritivo) que alimentam o Excel do cronograma.
+  const contratacoes = useMemo(() => {
+    const linhas = ecsDoProjeto
+      .filter((e) => e.status !== "Cancelada")
+      .flatMap((e) => e.linhas);
+    const comForn = linhas.filter((l) => l.fornecedorRazao.trim());
+    const base = comForn.length ? comForn : linhas.filter((l) => l.item || l.descricao);
+    return base.map((l) => ({
+      fornecedor: l.fornecedorRazao,
+      descritivo: [l.item, l.descricao].filter(Boolean).join(" — "),
+    }));
+  }, [ecsDoProjeto]);
+
+  async function baixarCronograma() {
+    const info = p.info;
+    const data = info.preEvento && info.posEvento
+      ? `${dataBR(info.preEvento)} a ${dataBR(info.posEvento)}`
+      : dataBR(info.evento);
+    try {
+      await gerarCronogramaExcel({
+        cliente: p.cliente.nome,
+        titulo: info.titulo,
+        modalidade: "",
+        data,
+        horario: info.horario,
+        local: info.local,
+        enderecoLocal: info.enderecoLocal,
+        dataGrupo: dataBR(info.evento) || "Data a definir",
+        contratacoes,
+        nomeArquivo: `Cronograma - ${p.nome || info.titulo || "Projeto"}`,
+      });
+      toast("Cronograma exportado para Excel.", "success");
+    } catch (e) {
+      toast(`Erro ao gerar o cronograma: ${(e as Error).message}`, "danger");
+    }
+  }
 
   const upd = (patch: Partial<Projeto>) => setP((x) => ({ ...x, ...patch }));
   const updCli = (patch: Partial<Cliente>) => setP((x) => ({ ...x, cliente: { ...x.cliente, ...patch } }));
@@ -254,7 +292,16 @@ export function ProjetoDetail() {
 
       {aba === "cronograma" && (
         <Card>
-          <CardTitle hint="Linha do tempo consolidada de todos os fornecedores do projeto">Cronograma consolidado</CardTitle>
+          <CardTitle
+            hint="Linha do tempo consolidada. Baixe o Excel no modelo Pólobh (cabeçalho automático da EC; datas/horários/produtor em branco para a equipe)."
+            action={
+              <Button size="sm" variant="secondary" icon={<IcDownload width={16} height={16} />} onClick={baixarCronograma}>
+                Baixar Excel
+              </Button>
+            }
+          >
+            Cronograma consolidado
+          </CardTitle>
           <TimelineConsolidada itens={etapas} />
         </Card>
       )}

@@ -1,4 +1,5 @@
 import type { Ec, Os } from "@/data/types";
+import type { CronogramaExcelDados } from "./cronograma";
 import { auditar } from "@/store/logs";
 
 /** Geração da EC em Excel (ExcelJS carregado sob demanda). */
@@ -22,6 +23,18 @@ export async function gerarOsExcel(
     acao: "os.excel",
     mensagem: `OS ${os.numero} exportada para Excel${opts?.incluirFinanceiro ? " (com financeiro)" : ""}`,
     alvoId: os.id,
+  });
+  return r;
+}
+
+/** Geração do Cronograma em Excel no modelo Pólobh (ExcelJS sob demanda). */
+export async function gerarCronogramaExcel(dados: CronogramaExcelDados): Promise<void> {
+  const { gerarCronogramaExcel: fn } = await import("./cronograma");
+  const r = await fn(dados);
+  auditar({
+    categoria: "Exportação",
+    acao: "cronograma.excel",
+    mensagem: `Cronograma exportado para Excel (${dados.titulo || dados.nomeArquivo})`,
   });
   return r;
 }
