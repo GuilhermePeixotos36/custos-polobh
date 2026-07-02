@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Input, Textarea, Select, NumberInput, Button } from "@/components/ui";
+import { Input, AutoTextarea, Select, NumberInput, Button } from "@/components/ui";
 import { IcGrip, IcChevron, IcPlus, IcTrash } from "@/components/icons";
 import { FornecedorField } from "@/components/FornecedorField";
 import { brl, cx, onlyDigits, maskCpfCnpjInput } from "@/lib/format";
@@ -74,6 +74,15 @@ type Over =
   | { tipo: "corpo"; nome: string }
   | null;
 
+function overIgual(a: Over, b: Over): boolean {
+  if (a === b) return true;
+  if (!a || !b || a.tipo !== b.tipo) return false;
+  if (a.tipo === "corpo" && b.tipo === "corpo") return a.nome === b.nome;
+  if (a.tipo === "grupo" && b.tipo === "grupo") return a.nome === b.nome && a.pos === b.pos;
+  if (a.tipo === "item" && b.tipo === "item") return a.id === b.id && a.pos === b.pos;
+  return false;
+}
+
 interface Props {
   linhas: EcLinha[];
   onChange: (linhas: EcLinha[]) => void;
@@ -87,7 +96,10 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, onVali
   const [expandido, setExpandido] = useState<Record<string, boolean>>({});
   const dragRef = useRef<Drag>(null);
   const [over, setOver] = useState<Over>(null);
+  const [arrastando, setArrastando] = useState<string | null>(null); // id do item ou nome do grupo em arraste
   const datalistId = "ec-fornecedores-cnpj";
+
+  const setOverSafe = (o: Over) => setOver((prev) => (overIgual(prev, o) ? prev : o));
 
   const isExp = (nome: string) => expandido[nome] ?? false;
   const toggle = (nome: string) => setExpandido((e) => ({ ...e, [nome]: !isExp(nome) }));
@@ -152,7 +164,21 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, onVali
   /* ------- drag & drop ------- */
   const limpar = () => {
     dragRef.current = null;
+    setArrastando(null);
     setOver(null);
+  };
+
+  const iniciarDrag = (e: React.DragEvent, d: NonNullable<Drag>) => {
+    dragRef.current = d;
+    setArrastando(d.tipo === "grupo" ? d.nome : d.id);
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = "move";
+      try {
+        e.dataTransfer.setData("text/plain", d.tipo === "grupo" ? d.nome : d.id);
+      } catch {
+        /* alguns navegadores exigem setData para iniciar o arraste */
+      }
+    }
   };
 
   const metade = (e: React.DragEvent): "antes" | "depois" => {
@@ -213,12 +239,10 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, onVali
       </datalist>
 
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex gap-2">
-          <Button variant="secondary" size="sm" icon={<IcPlus width={16} height={16} />} onClick={addGrupo}>
-            Adicionar grupo
-          </Button>
-        </div>
-        <div className="flex gap-3 text-[12.5px] font-bold text-ink-2">
+        <Button variant="secondary" size="sm" icon={<IcPlus width={16} height={16} />} onClick={addGrupo}>
+          Adicionar grupo
+        </Button>
+        <div className="flex gap-3 text-[13px] font-bold text-ink-2">
           <button onClick={() => expandirTodos(true)} className="hover:text-ink">Expandir todos</button>
           <span className="text-border">|</span>
           <button onClick={() => expandirTodos(false)} className="hover:text-ink">Retrair todos</button>
@@ -237,14 +261,16 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, onVali
         const overGrupoAntes = over?.tipo === "grupo" && over.nome === g.nome && over.pos === "antes";
         const overGrupoDepois = over?.tipo === "grupo" && over.nome === g.nome && over.pos === "depois";
         const overCorpo = over?.tipo === "corpo" && over.nome === g.nome;
+        const grupoArrastado = arrastando === g.nome;
         return (
           <div
             key={g.nome}
             className={cx(
-              "rounded-card border bg-white transition-colors",
-              overCorpo ? "border-primary ring-2 ring-primary/20" : "border-border",
-              overGrupoAntes && "border-t-2 border-t-primary",
-              overGrupoDepois && "border-b-2 border-b-primary"
+              "rounded-card border bg-white transition-[margin,opacity,box-shadow] duration-200 ease-out",
+              overCorpo ? "border-primary ring-2 ring-primary/25 shadow-lg" : "border-border",
+              overGrupoAntes && "mt-9 border-t-[3px] border-t-primary",
+              overGrupoDepois && "mb-9 border-b-[3px] border-b-primary",
+              grupoArrastado && "opacity-50"
             )}
           >
             {/* Cabeçalho do grupo (arrastável + solta grupo/append item) */}
@@ -253,8 +279,9 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, onVali
                 const d = dragRef.current;
                 if (!d) return;
                 e.preventDefault();
-                if (d.tipo === "grupo") setOver({ tipo: "grupo", nome: g.nome, pos: metade(e) });
-                else setOver({ tipo: "corpo", nome: g.nome });
+                if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+                if (d.tipo === "grupo") setOverSafe({ tipo: "grupo", nome: g.nome, pos: metade(e) });
+                else setOverSafe({ tipo: "corpo", nome: g.nome });
               }}
               onDrop={(e) => {
                 e.preventDefault();
@@ -263,53 +290,53 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, onVali
                 else if (d?.tipo === "item") soltarItem(g.nome, null, "depois");
                 limpar();
               }}
-              className="flex items-center gap-2 px-3 py-2.5"
+              className={cx("flex items-center gap-2 px-3 py-3", aberto && "border-b border-border-soft")}
             >
               <span
                 draggable
-                onDragStart={() => (dragRef.current = { tipo: "grupo", nome: g.nome })}
+                onDragStart={(e) => iniciarDrag(e, { tipo: "grupo", nome: g.nome })}
                 onDragEnd={limpar}
-                className="cursor-grab active:cursor-grabbing text-ink-3 hover:text-ink shrink-0"
+                className="cursor-grab active:cursor-grabbing text-ink-3 hover:text-ink shrink-0 select-none"
                 title="Arraste para reordenar o grupo"
               >
-                <IcGrip width={18} height={18} />
+                <IcGrip width={20} height={20} />
               </span>
               <button onClick={() => toggle(g.nome)} className="shrink-0 text-ink-2 hover:text-ink" title={aberto ? "Retrair" : "Expandir"}>
-                <IcChevron width={18} height={18} className={cx("transition-transform", aberto && "rotate-90")} />
+                <IcChevron width={20} height={20} className={cx("transition-transform duration-200", aberto && "rotate-90")} />
               </button>
               <Input
-                className="!h-9 !px-2 !text-[13px] !font-bold !uppercase max-w-xs"
+                className="!h-10 !px-2.5 !text-[15px] !font-bold !uppercase max-w-sm"
                 value={g.nome}
                 onChange={(e) => renomearGrupo(g.nome, e.target.value)}
               />
-              <span className="shrink-0 text-[11px] font-bold text-ink-3 bg-[#F0F1F4] rounded-pill px-2 py-0.5">
+              <span className="shrink-0 text-[12px] font-bold text-ink-3 bg-[#F0F1F4] rounded-pill px-2.5 py-1">
                 {g.itens.length} {g.itens.length === 1 ? "item" : "itens"}
               </span>
               {verFinanceiro && subtotal > 0 && (
-                <span className="shrink-0 text-[12.5px] font-display font-bold text-ink-2">{brl(subtotal)}</span>
+                <span className="shrink-0 text-[14px] font-display font-bold text-ink-2">{brl(subtotal)}</span>
               )}
               <div className="ml-auto flex items-center gap-1 shrink-0">
                 <Button variant="soft" size="sm" icon={<IcPlus width={15} height={15} />} onClick={() => addItem(g.nome)}>
                   Item
                 </Button>
                 <button onClick={() => delGrupo(g)} className="text-ink-3 hover:text-danger p-1.5" title="Remover grupo">
-                  <IcTrash width={16} height={16} />
+                  <IcTrash width={18} height={18} />
                 </button>
               </div>
             </div>
 
             {/* Corpo do grupo (itens) */}
             {aberto && (
-              <div className="border-t border-border-soft overflow-x-auto">
-                <div className="min-w-[900px]">
+              <div className="overflow-x-auto">
+                <div className="min-w-[980px]">
                   {/* legenda de colunas */}
-                  <div className="flex items-center gap-2 px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.06em] text-ink-3 bg-[#FAFAFB]">
+                  <div className="flex items-center gap-2 px-3 py-2 text-[11px] font-extrabold uppercase tracking-[0.06em] text-ink-3 bg-[#FAFAFB]">
                     <span className="w-5 shrink-0" />
-                    <span className="w-40 shrink-0">Item</span>
-                    <span className="flex-1 min-w-[180px]">Descrição</span>
-                    <span className="w-56 shrink-0">Fornecedor</span>
-                    {verFinanceiro && <span className="w-24 shrink-0 text-right">Pólobh</span>}
-                    {verFinanceiro && <span className="w-24 shrink-0 text-right">Cliente</span>}
+                    <span className="w-44 shrink-0">Item</span>
+                    <span className="flex-1 min-w-[240px]">Descrição</span>
+                    <span className="w-60 shrink-0">Fornecedor</span>
+                    {verFinanceiro && <span className="w-28 shrink-0 text-right">Pólobh</span>}
+                    {verFinanceiro && <span className="w-28 shrink-0 text-right">Cliente</span>}
                     <span className="w-24 shrink-0">Aprov.</span>
                     <span className="w-24 shrink-0">OS</span>
                     <span className="w-28 shrink-0">Contrato</span>
@@ -319,6 +346,7 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, onVali
                   {g.itens.map((l) => {
                     const overAntes = over?.tipo === "item" && over.id === l.id && over.pos === "antes";
                     const overDepois = over?.tipo === "item" && over.id === l.id && over.pos === "depois";
+                    const itemArrastado = arrastando === l.id;
                     return (
                       <div
                         key={l.id}
@@ -327,7 +355,8 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, onVali
                           if (d?.tipo !== "item") return;
                           e.preventDefault();
                           e.stopPropagation();
-                          setOver({ tipo: "item", id: l.id, pos: metade(e) });
+                          if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+                          setOverSafe({ tipo: "item", id: l.id, pos: metade(e) });
                         }}
                         onDrop={(e) => {
                           e.preventDefault();
@@ -336,30 +365,31 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, onVali
                           limpar();
                         }}
                         className={cx(
-                          "flex items-start gap-2 px-3 py-2 border-b border-border-soft",
-                          overAntes && "border-t-2 border-t-primary",
-                          overDepois && "border-b-2 border-b-primary"
+                          "flex items-start gap-2 px-3 py-2.5 border-b border-border-soft transition-[margin,opacity] duration-200 ease-out",
+                          overAntes && "mt-12 border-t-[3px] border-t-primary",
+                          overDepois && "mb-12 border-b-[3px] border-b-primary",
+                          itemArrastado && "opacity-40"
                         )}
                       >
                         <span
                           draggable
                           onDragStart={(e) => {
                             e.stopPropagation();
-                            dragRef.current = { tipo: "item", id: l.id };
+                            iniciarDrag(e, { tipo: "item", id: l.id });
                           }}
                           onDragEnd={limpar}
-                          className="cursor-grab active:cursor-grabbing text-ink-3 hover:text-ink shrink-0 mt-1.5"
+                          className="cursor-grab active:cursor-grabbing text-ink-3 hover:text-ink shrink-0 mt-2 select-none"
                           title="Arraste para reordenar / mover de grupo"
                         >
-                          <IcGrip width={16} height={16} />
+                          <IcGrip width={18} height={18} />
                         </span>
-                        <div className="w-40 shrink-0">
-                          <Input className="!h-9 !px-2 !text-[12.5px]" placeholder="Item" value={l.item} onChange={(e) => updLinha(l.id, { item: e.target.value })} />
+                        <div className="w-44 shrink-0">
+                          <Input className="!h-10 !px-2.5 !text-[13.5px]" placeholder="Item" value={l.item} onChange={(e) => updLinha(l.id, { item: e.target.value })} />
                         </div>
-                        <div className="flex-1 min-w-[180px]">
-                          <Textarea className="!min-h-9 !py-1.5 !px-2 !text-[12.5px]" rows={1} placeholder="Descrição" value={l.descricao} onChange={(e) => updLinha(l.id, { descricao: e.target.value })} />
+                        <div className="flex-1 min-w-[240px]">
+                          <AutoTextarea className="!text-[13.5px]" placeholder="Descrição" value={l.descricao} onChange={(e) => updLinha(l.id, { descricao: e.target.value })} />
                         </div>
-                        <div className="w-56 shrink-0">
+                        <div className="w-60 shrink-0">
                           <FornecedorField
                             razao={l.fornecedorRazao}
                             cnpj={l.fornecedorCnpj}
@@ -371,39 +401,39 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, onVali
                           />
                         </div>
                         {verFinanceiro && (
-                          <div className="w-24 shrink-0">
-                            <NumberInput className="!h-9 !px-2 !text-[12.5px]" value={l.valorPolobh} onValue={(v) => updLinha(l.id, { valorPolobh: v })} />
+                          <div className="w-28 shrink-0">
+                            <NumberInput className="!h-10 !px-2.5 !text-[13.5px]" value={l.valorPolobh} onValue={(v) => updLinha(l.id, { valorPolobh: v })} />
                           </div>
                         )}
                         {verFinanceiro && (
-                          <div className="w-24 shrink-0">
-                            <NumberInput className="!h-9 !px-2 !text-[12.5px]" value={l.valorCliente} onValue={(v) => updLinha(l.id, { valorCliente: v })} />
+                          <div className="w-28 shrink-0">
+                            <NumberInput className="!h-10 !px-2.5 !text-[13.5px]" value={l.valorCliente} onValue={(v) => updLinha(l.id, { valorCliente: v })} />
                           </div>
                         )}
                         <div className="w-24 shrink-0">
-                          <Select className="!h-9 !px-2 !text-[12px]" value={l.statusAprovacao} onChange={(e) => updLinha(l.id, { statusAprovacao: e.target.value as StatusAprovacao })}>
+                          <Select className="!h-10 !px-2 !text-[13px]" value={l.statusAprovacao} onChange={(e) => updLinha(l.id, { statusAprovacao: e.target.value as StatusAprovacao })}>
                             <option>Pendente</option>
                             <option>OK</option>
                           </Select>
                         </div>
                         <div className="w-24 shrink-0">
-                          <Select className="!h-9 !px-2 !text-[12px]" value={l.statusOs} onChange={(e) => updLinha(l.id, { statusOs: e.target.value as StatusOs })}>
+                          <Select className="!h-10 !px-2 !text-[13px]" value={l.statusOs} onChange={(e) => updLinha(l.id, { statusOs: e.target.value as StatusOs })}>
                             <option>Pendente</option>
                             <option>Emitir</option>
                             <option>OK</option>
                           </Select>
                         </div>
                         <div className="w-28 shrink-0">
-                          <Input className="!h-9 !px-2 !text-[12.5px]" placeholder="Nº/ref." value={l.contrato} onChange={(e) => updLinha(l.id, { contrato: e.target.value })} />
+                          <Input className="!h-10 !px-2.5 !text-[13.5px]" placeholder="Nº/ref." value={l.contrato} onChange={(e) => updLinha(l.id, { contrato: e.target.value })} />
                         </div>
-                        <button onClick={() => delItem(l)} className="text-ink-3 hover:text-danger p-1.5 shrink-0 mt-1" title="Remover linha">
-                          <IcTrash width={16} height={16} />
+                        <button onClick={() => delItem(l)} className="text-ink-3 hover:text-danger p-1.5 shrink-0 mt-1.5" title="Remover linha">
+                          <IcTrash width={18} height={18} />
                         </button>
                       </div>
                     );
                   })}
 
-                  <div className="px-3 py-2">
+                  <div className="px-3 py-2.5">
                     <Button variant="secondary" size="sm" icon={<IcPlus width={15} height={15} />} onClick={() => addItem(g.nome)}>
                       Adicionar item ao grupo
                     </Button>

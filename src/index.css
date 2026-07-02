@@ -30,6 +30,11 @@ body,
   height: 100%;
 }
 
+/* Escala tipográfica base — sobe todas as classes em rem (text-sm, text-base…). */
+html {
+  font-size: 17px;
+}
+
 body {
   margin: 0;
   background-color: #f3f4f7;
@@ -39,7 +44,7 @@ body {
   background-repeat: no-repeat;
   color: var(--ink);
   font-family: "Plus Jakarta Sans", system-ui, sans-serif;
-  font-size: 15px;
+  font-size: 1rem;
 }
 
 @layer components {

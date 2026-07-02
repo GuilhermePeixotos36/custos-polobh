@@ -4,6 +4,7 @@ import type {
   SelectHTMLAttributes,
   TextareaHTMLAttributes,
 } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { cx } from "@/lib/format";
 
 const fieldBase =
@@ -54,6 +55,41 @@ export function Textarea({
   ...rest
 }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return <textarea className={cx(fieldBase, "py-2.5 min-h-[80px]", className)} {...rest} />;
+}
+
+/**
+ * Textarea que cresce automaticamente para mostrar todo o conteúdo (sem esconder
+ * texto). A altura acompanha o conteúdo já no primeiro render e a cada digitação.
+ */
+export function AutoTextarea({
+  className,
+  value,
+  onChange,
+  ...rest
+}: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const ajustar = () => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    // soma a borda (box-sizing: border-box) para não cortar a última linha
+    const borda = el.offsetHeight - el.clientHeight;
+    el.style.height = `${el.scrollHeight + borda}px`;
+  };
+  useLayoutEffect(ajustar, [value]);
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      rows={1}
+      onChange={(e) => {
+        onChange?.(e);
+        ajustar();
+      }}
+      className={cx(fieldBase, "py-2 resize-none overflow-hidden leading-snug", className)}
+      {...rest}
+    />
+  );
 }
 
 export function Select({
