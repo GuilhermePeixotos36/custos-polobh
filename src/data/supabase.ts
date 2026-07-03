@@ -368,6 +368,7 @@ const ecRepo: EcRepository = {
 
 const logisticaVazia = () => ({ transporteMaterial: "", transporteEquipe: "", hospedagem: "", alimentacao: "", estacionamentoCarga: "", estacionamentoEquipe: "", uniformizacao: "" });
 const infraVazia = () => ({ energia: "", internet: "", pontosEletricos: "", estruturas: "", servicosApoio: "", artLaudos: "" });
+const contratoVazio = () => ({ contratante: "" as const, descritivoServicos: "", informacoesComplementares: "", valorUnitario: 0, valorTotal: 0, descontoNegociado: 0, valorAPagar: 0, dataContrato: "", rubrica: "" });
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapOs(r: any): Os {
@@ -401,6 +402,7 @@ function mapOs(r: any): Os {
     credenciamento: r.credenciamento ?? { prazoLimite: "", linkFormulario: "" },
     orcamento: r.orcamento ?? { valorEc: 0, valorComBvNf: 0, valorSemBvComNf: 0, valorSemBvSemNf: 0, parcelas: [], documentoFiscal: "" },
     financeiro,
+    contrato: r.contrato ?? contratoVazio(),
     criadoEm: r.criado_em,
     atualizadoEm: r.atualizado_em,
   };
@@ -420,6 +422,7 @@ function osRow(os: Os) {
     infraestrutura: os.infraestrutura,
     credenciamento: os.credenciamento,
     orcamento: os.orcamento,
+    contrato: os.contrato,
     // BV na própria OS (gravado por quem tem oss_write, inclui Produção)
     bv: {
       percentual: os.financeiro.bvPercentual || 0,

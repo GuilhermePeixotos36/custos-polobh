@@ -288,6 +288,19 @@ export interface Credenciamento {
   linkFormulario: string;
 }
 
+/** Bloco "Dados para Contrato" da OS (modelo Pólobh). */
+export interface ContratoOs {
+  contratante: "Polobh" | "Cliente" | "";
+  descritivoServicos: string; // parte do descritivo NF, editável
+  informacoesComplementares: string;
+  valorUnitario: number;
+  valorTotal: number;
+  descontoNegociado: number;
+  valorAPagar: number;
+  dataContrato: string; // ISO date
+  rubrica: string;
+}
+
 /* Respostas do formulário público de credenciamento (preenchido pelo fornecedor) */
 export interface CredenciamentoMembro {
   nome: string;
@@ -325,6 +338,7 @@ export interface Os {
   credenciamento: Credenciamento;
   orcamento: Orcamento;
   financeiro: FinanceiroOs;
+  contrato: ContratoOs;
   criadoEm: string;
   atualizadoEm: string;
 }

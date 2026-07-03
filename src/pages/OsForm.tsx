@@ -131,6 +131,7 @@ export function OsForm() {
         credenciamento: { prazoLimite: "", linkFormulario: `https://forms.polobh.com.br/cred/${ec.id}-${seq}` },
         orcamento: { valorEc, valorComBvNf: valorEc, valorSemBvComNf: valorEc, valorSemBvSemNf: valorEc, parcelas: [{ descricao: "Pagamento único", valor: valorEc }], documentoFiscal: "" },
         financeiro: { tomador: "", descritivoNf: "", cnae: "", codigoServico: "", valorUnitario: valorEc, valorTotal: valorEc, descontoNegociado: 0, valorAPagar: valorEc, bvPercentual: 0, bvValor: 0, bvJustificativa: "", acertoFinanceiro: "" },
+        contrato: { contratante: "", descritivoServicos: "", informacoesComplementares: "", valorUnitario: valorEc, valorTotal: valorEc, descontoNegociado: 0, valorAPagar: valorEc, dataContrato: "", rubrica: "" },
         criadoEm: agora,
         atualizadoEm: agora,
       });
@@ -155,6 +156,9 @@ export function OsForm() {
     setOs((o) => (o ? { ...o, fornecedor: { ...o.fornecedor, dadosBancarios: { ...o.fornecedor.dadosBancarios, ...patch } } } : o));
   const updFin = (patch: Partial<Os["financeiro"]>) => setOs((o) => (o ? { ...o, financeiro: { ...o.financeiro, ...patch } } : o));
   const updOrc = (patch: Partial<Os["orcamento"]>) => setOs((o) => (o ? { ...o, orcamento: { ...o.orcamento, ...patch } } : o));
+  const updLog = (patch: Partial<Os["logistica"]>) => setOs((o) => (o ? { ...o, logistica: { ...o.logistica, ...patch } } : o));
+  const updInfra = (patch: Partial<Os["infraestrutura"]>) => setOs((o) => (o ? { ...o, infraestrutura: { ...o.infraestrutura, ...patch } } : o));
+  const updCt = (patch: Partial<Os["contrato"]>) => setOs((o) => (o ? { ...o, contrato: { ...o.contrato, ...patch } } : o));
 
   async function consultar() {
     setCnpjMsg("");
@@ -334,17 +338,27 @@ export function OsForm() {
           }>Fornecedor</CardTitle>
           {cnpjMsg && <div className="mb-3 text-[12.5px] text-info bg-info-soft rounded-btn px-3 py-2">{cnpjMsg}</div>}
           <div className="grid md:grid-cols-2 gap-4">
+            <Field label="Fornecedor (nome fantasia)"><Input value={os.fornecedor.nomeFantasia ?? ""} onChange={(e) => updF({ nomeFantasia: e.target.value })} /></Field>
             <Field label="CNPJ/CPF"><Input value={os.fornecedor.cnpj} onChange={(e) => updF({ cnpj: maskCpfCnpjInput(e.target.value) })} inputMode="numeric" placeholder="00.000.000/0000-00" /></Field>
-            <Field label="Perfil tributário" hint="(auto)"><Input value={os.fornecedor.perfilTributario} onChange={(e) => updF({ perfilTributario: e.target.value })} placeholder="MEI / Simples…" /></Field>
-            <Field label="Razão social" className="md:col-span-2"><Input value={os.fornecedor.razaoSocial} onChange={(e) => updF({ razaoSocial: e.target.value })} /></Field>
+            <Field label="Perfil tributário" hint="(auto do CNPJ)"><Input value={os.fornecedor.perfilTributario} onChange={(e) => updF({ perfilTributario: e.target.value })} placeholder="MEI / Simples…" /></Field>
+            <Field label="Razão social"><Input value={os.fornecedor.razaoSocial} onChange={(e) => updF({ razaoSocial: e.target.value })} /></Field>
             <Field label="Endereço" className="md:col-span-2"><Input value={os.fornecedor.endereco} onChange={(e) => updF({ endereco: e.target.value })} /></Field>
+            <Field label="Inscrição Estadual"><Input value={os.fornecedor.inscricaoEstadual} onChange={(e) => updF({ inscricaoEstadual: e.target.value })} /></Field>
+            <Field label="Inscrição Municipal"><Input value={os.fornecedor.inscricaoMunicipal} onChange={(e) => updF({ inscricaoMunicipal: e.target.value })} /></Field>
+            <Field label="Conta PJ / PF">
+              <Select value={os.fornecedor.dadosBancarios.tipoConta} onChange={(e) => updB({ tipoConta: e.target.value as Fornecedor["dadosBancarios"]["tipoConta"] })}>
+                <option value="">Selecione…</option>
+                <option value="PJ">PJ</option>
+                <option value="PF">PF</option>
+              </Select>
+            </Field>
+            <Field label="Banco"><Input value={os.fornecedor.dadosBancarios.banco} onChange={(e) => updB({ banco: e.target.value })} /></Field>
+            <Field label="Agência"><Input value={os.fornecedor.dadosBancarios.agencia} onChange={(e) => updB({ agencia: e.target.value })} /></Field>
+            <Field label="Conta Corrente"><Input value={os.fornecedor.dadosBancarios.conta} onChange={(e) => updB({ conta: e.target.value })} /></Field>
+            <Field label="Chave Pix"><Input value={os.fornecedor.dadosBancarios.chavePix} onChange={(e) => updB({ chavePix: e.target.value })} /></Field>
             <Field label="Representante"><Input value={os.fornecedor.representante} onChange={(e) => updF({ representante: e.target.value })} /></Field>
             <Field label="Telefone"><Input value={os.fornecedor.telefone} onChange={(e) => updF({ telefone: maskTelefone(e.target.value) })} inputMode="tel" placeholder="(31) 90000-0000" /></Field>
             <Field label="E-mail"><Input value={os.fornecedor.email} onChange={(e) => updF({ email: e.target.value })} /></Field>
-            <Field label="Banco"><Input value={os.fornecedor.dadosBancarios.banco} onChange={(e) => updB({ banco: e.target.value })} /></Field>
-            <Field label="Agência"><Input value={os.fornecedor.dadosBancarios.agencia} onChange={(e) => updB({ agencia: e.target.value })} /></Field>
-            <Field label="Conta"><Input value={os.fornecedor.dadosBancarios.conta} onChange={(e) => updB({ conta: e.target.value })} /></Field>
-            <Field label="Chave Pix"><Input value={os.fornecedor.dadosBancarios.chavePix} onChange={(e) => updB({ chavePix: e.target.value })} /></Field>
           </div>
         </Card>
 
@@ -368,6 +382,32 @@ export function OsForm() {
               )}
             </Field>
             <Field label="Observações" className="md:col-span-2"><Textarea value={os.observacoes} onChange={(e) => setOs((o) => (o ? { ...o, observacoes: e.target.value } : o))} /></Field>
+          </div>
+
+          <div className="mt-5 grid md:grid-cols-2 gap-6">
+            <div>
+              <Eyebrow>Logística do fornecedor</Eyebrow>
+              <div className="mt-2 grid gap-2">
+                <Field label="Transporte Material"><Input className="!h-9" value={os.logistica.transporteMaterial} onChange={(e) => updLog({ transporteMaterial: e.target.value })} /></Field>
+                <Field label="Transporte Equipe"><Input className="!h-9" value={os.logistica.transporteEquipe} onChange={(e) => updLog({ transporteEquipe: e.target.value })} /></Field>
+                <Field label="Hospedagem Equipe"><Input className="!h-9" value={os.logistica.hospedagem} onChange={(e) => updLog({ hospedagem: e.target.value })} /></Field>
+                <Field label="Alimentação Equipe"><Input className="!h-9" value={os.logistica.alimentacao} onChange={(e) => updLog({ alimentacao: e.target.value })} /></Field>
+                <Field label="Estacionamento Carga"><Input className="!h-9" value={os.logistica.estacionamentoCarga} onChange={(e) => updLog({ estacionamentoCarga: e.target.value })} /></Field>
+                <Field label="Estacionamento Equipe"><Input className="!h-9" value={os.logistica.estacionamentoEquipe} onChange={(e) => updLog({ estacionamentoEquipe: e.target.value })} /></Field>
+                <Field label="Uniformização Equipe"><Input className="!h-9" value={os.logistica.uniformizacao} onChange={(e) => updLog({ uniformizacao: e.target.value })} /></Field>
+              </div>
+            </div>
+            <div>
+              <Eyebrow>Infraestrutura</Eyebrow>
+              <div className="mt-2 grid gap-2">
+                <Field label="Energia"><Input className="!h-9" value={os.infraestrutura.energia} onChange={(e) => updInfra({ energia: e.target.value })} /></Field>
+                <Field label="Internet"><Input className="!h-9" value={os.infraestrutura.internet} onChange={(e) => updInfra({ internet: e.target.value })} /></Field>
+                <Field label="Pontos Elétricos"><Input className="!h-9" value={os.infraestrutura.pontosEletricos} onChange={(e) => updInfra({ pontosEletricos: e.target.value })} /></Field>
+                <Field label="Estruturas Diversas"><Input className="!h-9" value={os.infraestrutura.estruturas} onChange={(e) => updInfra({ estruturas: e.target.value })} /></Field>
+                <Field label="Serviços de Apoio"><Input className="!h-9" value={os.infraestrutura.servicosApoio} onChange={(e) => updInfra({ servicosApoio: e.target.value })} /></Field>
+                <Field label="ART, Laudos e Certificações"><Input className="!h-9" value={os.infraestrutura.artLaudos} onChange={(e) => updInfra({ artLaudos: e.target.value })} /></Field>
+              </div>
+            </div>
           </div>
         </Card>
 
@@ -460,7 +500,24 @@ export function OsForm() {
                 </Select>
               </Field>
               <Field label="Valor com BV e NF"><NumberInput value={os.orcamento.valorComBvNf} onValue={(v) => updOrc({ valorComBvNf: v })} /></Field>
-              <Field label="Valor sem BV e sem NF"><NumberInput value={os.orcamento.valorSemBvSemNf} onValue={(v) => updOrc({ valorSemBvSemNf: v })} /></Field>
+              <Field label="Valor sem BV e com NF"><NumberInput value={os.orcamento.valorSemBvComNf} onValue={(v) => updOrc({ valorSemBvComNf: v })} /></Field>
+              <Field label="Valor sem BV e sem NF" className="col-span-2"><NumberInput value={os.orcamento.valorSemBvSemNf} onValue={(v) => updOrc({ valorSemBvSemNf: v })} /></Field>
+            </div>
+            <div className="mt-3">
+              <div className="flex items-center justify-between mb-1.5">
+                <Eyebrow>Prazo de pagamento (parcelas)</Eyebrow>
+                <Button variant="secondary" size="sm" onClick={() => updOrc({ parcelas: [...os.orcamento.parcelas, { descricao: "", valor: 0 }] })}>+ Parcela</Button>
+              </div>
+              <div className="space-y-2">
+                {os.orcamento.parcelas.map((pc, i) => (
+                  <div key={i} className="grid grid-cols-[1fr_130px_auto] gap-2 items-center">
+                    <Input className="!h-9" placeholder={`Descrição da ${i + 1}ª parcela`} value={pc.descricao} onChange={(e) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, descricao: e.target.value } : x)) })} />
+                    <NumberInput className="!h-9" value={pc.valor} onValue={(v) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, valor: v } : x)) })} />
+                    <button className="text-ink-3 hover:text-danger px-2" onClick={() => updOrc({ parcelas: os.orcamento.parcelas.filter((_, j) => j !== i) })}>✕</button>
+                  </div>
+                ))}
+                {os.orcamento.parcelas.length === 0 && <p className="text-[12.5px] text-ink-3">Sem parcelas. Use “+ Parcela”.</p>}
+              </div>
             </div>
           </Card>
         </div>
@@ -494,6 +551,7 @@ export function OsForm() {
 
         {/* Financeiro Pólobh (restrito) */}
         {verFinanceiro ? (
+          <>
           <Card className="border-active-border">
             <CardTitle hint="Bloco restrito — Direção e Administrativo">Financeiro Pólobh</CardTitle>
             <div className="grid md:grid-cols-3 gap-4">
@@ -519,6 +577,7 @@ export function OsForm() {
               </Field>
               <Field label="Código de serviço"><Input value={os.financeiro.codigoServico} onChange={(e) => updFin({ codigoServico: e.target.value })} /></Field>
               <Field label="Descritivo NF" className="md:col-span-3"><Textarea value={os.financeiro.descritivoNf} onChange={(e) => updFin({ descritivoNf: e.target.value })} /></Field>
+              <Field label="Valor unitário"><NumberInput value={os.financeiro.valorUnitario} onValue={(v) => updFin({ valorUnitario: v })} /></Field>
               <Field label="Valor total"><NumberInput value={os.financeiro.valorTotal} onValue={(v) => updFin({ valorTotal: v, valorAPagar: v - os.financeiro.descontoNegociado })} /></Field>
               <Field label="Desconto negociado"><NumberInput value={os.financeiro.descontoNegociado} onValue={(v) => updFin({ descontoNegociado: v, valorAPagar: os.financeiro.valorTotal - v })} /></Field>
               <div className="md:col-span-3 grid grid-cols-3 gap-4">
@@ -526,8 +585,32 @@ export function OsForm() {
                 <Leitura label="BV (%)" v={`${os.financeiro.bvPercentual || 0}%`} />
                 <Leitura label="BV (valor)" v={brl((os.financeiro.valorTotal * os.financeiro.bvPercentual) / 100)} />
               </div>
+              <Field label="Acerto Financeiro" className="md:col-span-3"><Textarea value={os.financeiro.acertoFinanceiro} onChange={(e) => updFin({ acertoFinanceiro: e.target.value })} /></Field>
             </div>
           </Card>
+
+          {/* Dados para Contrato (restrito ao financeiro) */}
+          <Card className="border-active-border">
+            <CardTitle hint="Dados do contrato — cliente/Pólobh vêm da EC conforme o contratante.">Dados para Contrato</CardTitle>
+            <div className="grid md:grid-cols-3 gap-4">
+              <Field label="Contratante">
+                <Select value={os.contrato.contratante} onChange={(e) => updCt({ contratante: e.target.value as Os["contrato"]["contratante"] })}>
+                  <option value="">Selecione…</option>
+                  <option value="Polobh">Pólobh</option>
+                  <option value="Cliente">Cliente</option>
+                </Select>
+              </Field>
+              <Field label="Data do contrato"><Input type="date" value={os.contrato.dataContrato} onChange={(e) => updCt({ dataContrato: e.target.value })} /></Field>
+              <Field label="Rubrica"><Input value={os.contrato.rubrica} onChange={(e) => updCt({ rubrica: e.target.value })} /></Field>
+              <Field label="Descritivo dos serviços e/ou produtos" className="md:col-span-3"><Textarea value={os.contrato.descritivoServicos} onChange={(e) => updCt({ descritivoServicos: e.target.value })} placeholder="Padrão: vem do Descritivo NF — editável" /></Field>
+              <Field label="Informações complementares" className="md:col-span-3"><Textarea value={os.contrato.informacoesComplementares} onChange={(e) => updCt({ informacoesComplementares: e.target.value })} /></Field>
+              <Field label="Valor unitário"><NumberInput value={os.contrato.valorUnitario} onValue={(v) => updCt({ valorUnitario: v })} /></Field>
+              <Field label="Valor total"><NumberInput value={os.contrato.valorTotal} onValue={(v) => updCt({ valorTotal: v, valorAPagar: v - os.contrato.descontoNegociado })} /></Field>
+              <Field label="Desconto negociado"><NumberInput value={os.contrato.descontoNegociado} onValue={(v) => updCt({ descontoNegociado: v, valorAPagar: os.contrato.valorTotal - v })} /></Field>
+              <div className="md:col-span-3"><Leitura label="Valor total a pagar" v={brl(os.contrato.valorAPagar)} /></div>
+            </div>
+          </Card>
+          </>
         ) : (
           <Card>
             <p className="text-sm text-ink-2">O bloco financeiro Pólobh é restrito ao seu perfil.</p>

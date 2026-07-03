@@ -113,6 +113,7 @@ create table if not exists oss (
   infraestrutura jsonb,
   credenciamento jsonb,
   orcamento jsonb,
+  contrato jsonb,   -- bloco "Dados para Contrato" do modelo de OS
   -- financeiro NÃO fica aqui (vazaria p/ qualquer autenticado via RLS de leitura).
   -- Vai em os_financeiro, com RLS restrita por papel. Ver abaixo.
   -- BV fica aqui (editável pela Produção via oss_write); o resto do financeiro não.
