@@ -12,6 +12,19 @@ export interface Usuario {
   papel: Papel;
 }
 
+/** Empresa emissora do grupo Pólobh (dados fiscais usados na OS). */
+export interface EmpresaGrupo {
+  id: string; // slug estável ("polobh", "mf")
+  nome: string;
+  razaoSocial: string;
+  cnpj: string;
+  endereco: string;
+  inscricaoEstadual: string;
+  inscricaoMunicipal: string;
+  padrao: boolean;
+  ordem: number;
+}
+
 /* --------------------------- Trilha de auditoria ------------------------- */
 
 export type LogNivel = "info" | "aviso" | "erro";

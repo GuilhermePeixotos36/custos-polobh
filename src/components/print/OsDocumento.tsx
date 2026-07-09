@@ -1,6 +1,7 @@
 /** OS como documento A4 — visualização em tela + PDF. */
 import type { Ec, Os } from "@/data/types";
 import { brl, dataBR } from "@/lib/format";
+import { empresaPadrao } from "@/store/empresas";
 
 function Secao({ titulo }: { titulo: string }) {
   return (
@@ -137,7 +138,14 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
       {restrito && (
         <>
           <Secao titulo="Financeiro Pólobh (uso interno)" />
-          <LV label="Tomador" valor={os.financeiro.tomador === "Polobh" ? "Pólobh" : os.financeiro.tomador} />
+          <LV
+            label="Tomador"
+            valor={
+              os.financeiro.tomador === "Polobh"
+                ? empresaPadrao()?.razaoSocial || empresaPadrao()?.nome || "Pólobh"
+                : os.financeiro.tomador
+            }
+          />
           <LV label="Descritivo NF" valor={os.financeiro.descritivoNf} />
           <LV label="CNAE / Cód. Serviço" valor={[os.financeiro.cnae, os.financeiro.codigoServico].filter(Boolean).join(" · ")} />
           <LV label="Valor total a pagar" valor={brl(os.financeiro.valorAPagar)} />

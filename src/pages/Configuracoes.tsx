@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { PageShell, Crumb } from "@/components/layout/AppLayout";
-import { Card, CardTitle, Toggle, Badge } from "@/components/ui";
+import { Card, CardTitle, Toggle, Badge, Field, Input } from "@/components/ui";
 import { IcCheck } from "@/components/icons";
 import { PERMISSOES, ROTULO_PAPEL, type Recurso } from "@/store/auth";
+import { useEmpresas } from "@/store/empresas";
+import { toast } from "@/store/toast";
 import { flags } from "@/lib/flags";
+import { cx } from "@/lib/format";
 import type { Papel } from "@/data/types";
 
 const RECURSOS: { key: Recurso; label: string }[] = [
@@ -24,8 +27,10 @@ export function Configuracoes() {
   const [arquivamentoAuto, setArquivamentoAuto] = useState(true);
 
   return (
-    <PageShell breadcrumb={<Crumb>Configurações</Crumb>} title="Configurações" subtitle="Perfis de acesso, retenção de dados e segurança.">
+    <PageShell breadcrumb={<Crumb>Configurações</Crumb>} title="Configurações" subtitle="Empresas de emissão, perfis de acesso, retenção e segurança.">
       <div className="space-y-4">
+        <EmpresasGrupoCard />
+
         <Card padded={false}>
           <div className="p-5"><CardTitle hint="Quem enxerga e edita cada recurso">Matriz de perfis × recursos</CardTitle></div>
           <div className="overflow-x-auto">
@@ -109,5 +114,85 @@ function LinhaFlag({ label, on }: { label: string; on: boolean }) {
       <span className="text-ink">{label}</span>
       <Badge tom={on ? "success" : "neutral"}>{on ? "Ativado" : "Desligado"}</Badge>
     </div>
+  );
+}
+
+/**
+ * Empresas do grupo Pólobh (Pólobh Promoções Eireli / MF Promoções Eireli).
+ * Preenchem os dados fiscais da OS quando o tomador/contratante é a Pólobh.
+ * Fonte: Supabase (tabela empresas_grupo). Edita ao digitar, salva ao sair do campo.
+ */
+function EmpresasGrupoCard() {
+  const { empresas, carregado, editar, persistir, definirPadrao } = useEmpresas();
+
+  const salvar = async (id: string) => {
+    try {
+      await persistir(id);
+    } catch (e) {
+      toast(`Não foi possível salvar: ${(e as Error).message}`, "danger");
+    }
+  };
+
+  return (
+    <Card>
+      <CardTitle hint="Preenchem os dados fiscais da OS quando o tomador ou o contratante é a própria Pólobh">
+        Empresas do grupo (emissão de nota fiscal)
+      </CardTitle>
+
+      {!carregado && empresas.length === 0 ? (
+        <p className="text-ink-3 text-sm">Carregando…</p>
+      ) : (
+        <div className="grid md:grid-cols-2 gap-4">
+          {empresas.map((e) => (
+            <div
+              key={e.id}
+              className={cx(
+                "rounded-card border p-4",
+                e.padrao ? "border-active-border bg-primary-soft/40" : "border-border bg-surface"
+              )}
+            >
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <h4 className="font-display font-bold text-[14px] text-ink">{e.nome}</h4>
+                {e.padrao ? (
+                  <Badge tom="success">Padrão p/ emissão</Badge>
+                ) : (
+                  <button
+                    onClick={async () => { await definirPadrao(e.id); toast(`${e.nome} definida como padrão.`, "success"); }}
+                    className="text-[12px] font-bold text-primary-dark hover:underline"
+                  >
+                    Tornar padrão
+                  </button>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                <Field label="Razão Social">
+                  <Input value={e.razaoSocial} onChange={(ev) => editar(e.id, { razaoSocial: ev.target.value })} onBlur={() => salvar(e.id)} placeholder="Ex.: Pólobh Promoções Eireli" />
+                </Field>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="CNPJ">
+                    <Input value={e.cnpj} onChange={(ev) => editar(e.id, { cnpj: ev.target.value })} onBlur={() => salvar(e.id)} placeholder="00.000.000/0000-00" />
+                  </Field>
+                  <Field label="Inscrição Estadual">
+                    <Input value={e.inscricaoEstadual} onChange={(ev) => editar(e.id, { inscricaoEstadual: ev.target.value })} onBlur={() => salvar(e.id)} />
+                  </Field>
+                </div>
+                <Field label="Endereço">
+                  <Input value={e.endereco} onChange={(ev) => editar(e.id, { endereco: ev.target.value })} onBlur={() => salvar(e.id)} />
+                </Field>
+                <Field label="Inscrição Municipal">
+                  <Input value={e.inscricaoMunicipal} onChange={(ev) => editar(e.id, { inscricaoMunicipal: ev.target.value })} onBlur={() => salvar(e.id)} />
+                </Field>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <p className="text-[12.5px] text-ink-2 mt-3">
+        As alterações são salvas ao sair de cada campo. A empresa <b>padrão</b> é usada na emissão;
+        se o tomador/contratante da OS for a Pólobh, estes dados entram na planilha.
+      </p>
+    </Card>
   );
 }

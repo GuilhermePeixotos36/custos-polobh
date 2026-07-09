@@ -3,7 +3,7 @@
  * interfaces; a implementação concreta é escolhida pela fábrica em ./index.
  * Hoje: mock em memória. Amanhã: Supabase — basta trocar a fábrica.
  */
-import type { Cliente, CredenciamentoResposta, Ec, Fornecedor, Os, Projeto, Usuario } from "./types";
+import type { Cliente, CredenciamentoResposta, Ec, EmpresaGrupo, Fornecedor, Os, Projeto, Usuario } from "./types";
 
 export interface ProjetoRepository {
   listar(): Promise<Projeto[]>;
@@ -49,6 +49,12 @@ export interface AuthRepository {
   usuarios(): Promise<Usuario[]>;
 }
 
+export interface EmpresasRepository {
+  listar(): Promise<EmpresaGrupo[]>;
+  salvar(e: EmpresaGrupo): Promise<EmpresaGrupo>;
+  definirPadrao(id: string): Promise<void>;
+}
+
 export interface Repositorios {
   projetos: ProjetoRepository;
   clientes: ClienteRepository;
@@ -56,4 +62,5 @@ export interface Repositorios {
   ecs: EcRepository;
   oss: OsRepository;
   auth: AuthRepository;
+  empresas: EmpresasRepository;
 }

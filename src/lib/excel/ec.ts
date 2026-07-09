@@ -15,7 +15,10 @@ export async function gerarEcExcel(ec: Ec): Promise<void> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "Sistema Pólobh";
   const ws = wb.addWorksheet("EC", {
-    pageSetup: { paperSize: 9, orientation: "landscape", fitToPage: true, fitToWidth: 1 },
+    pageSetup: {
+      paperSize: 9, orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0,
+      margins: { left: 0.4, right: 0.4, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 },
+    },
     views: [{ showGridLines: false }],
   });
 
@@ -55,7 +58,7 @@ export async function gerarEcExcel(ec: Ec): Promise<void> {
     ws.getCell(`B${r}`).font = { size: 10 };
     r++;
   };
-  meta("Data:", dataBR(ec.atualizadoEm));
+  meta("Data:", dataBR(new Date().toISOString())); // data de geração (modelo usa =HOJE())
   meta("Número EC | Orçamento:", ec.numero);
 
   // ---------- Seção util ----------
@@ -126,6 +129,7 @@ export async function gerarEcExcel(ec: Ec): Promise<void> {
   });
   ws.getRow(hr).height = 30;
   r++;
+  const itemStart = r; // início do intervalo das linhas de custo (p/ fórmulas)
 
   // agrupar por GRUPO
   const grupos = new Map<string, typeof ec.linhas>();
@@ -163,9 +167,11 @@ export async function gerarEcExcel(ec: Ec): Promise<void> {
       r++;
     }
   }
+  const itemEnd = r - 1; // fim do intervalo das linhas de custo
 
   // ---------- Produção ----------
   secao("PRODUÇÃO");
+  const prodStart = r;
   const prod = ec.producao;
   const prodLinhas: [string, string, number][] = [
     ["Despesas operacionais", "Motoboy, cartório, Correios.", prod.despesasOperacionais * prod.qtdDespesas],
@@ -186,42 +192,179 @@ export async function gerarEcExcel(ec: Ec): Promise<void> {
     [`A${r}`, `B${r}`, `C${r}`, `D${r}`].forEach((a) => (ws.getCell(a).border = thin));
     r++;
   }
+  const prodEnd = r - 1; // fim do intervalo de produção (p/ fórmulas)
   void totalProducao;
 
   // ---------- Totais ----------
+  // Fórmulas VIVAS (recalculam se a planilha for editada no Excel), em duas
+  // colunas como o modelo original: C = lado Pólobh · D = lado Cliente.
   r++;
-  const totalRow = (label: string, desc: string, valor: number, destaque = false) => {
-    ws.getCell(`A${r}`).value = label;
-    ws.getCell(`A${r}`).font = { bold: true, size: 10, color: { argb: destaque ? COR.white : COR.ink } };
-    ws.mergeCells(`B${r}:J${r}`);
-    ws.getCell(`B${r}`).value = desc;
-    ws.getCell(`B${r}`).font = { size: 9, color: { argb: destaque ? COR.white : COR.ink2 } };
-    ws.mergeCells(`K${r}:L${r}`);
-    const c = ws.getCell(`K${r}`);
-    c.value = valor;
-    c.numFmt = '"R$" #,##0.00';
-    c.font = { bold: true, size: 10, color: { argb: destaque ? COR.white : COR.ink } };
-    c.alignment = { horizontal: "right" };
-    if (destaque) {
-      [...COLS].forEach((col) => (ws.getCell(`${col}${r}`).fill = fill(COR.primary)));
+  const moeda = '"R$" #,##0.00';
+  const temItens = itemEnd >= itemStart;
+  const fSomaC = temItens
+    ? `SUM(C${itemStart}:C${itemEnd})+SUM(C${prodStart}:C${prodEnd})`
+    : `SUM(C${prodStart}:C${prodEnd})`;
+  const fSomaD = temItens ? `SUM(D${itemStart}:D${itemEnd})` : undefined;
+
+  type Val = { formula?: string; result: number };
+  const totalRow = (
+    label: string,
+    desc: string,
+    cVal: Val,
+    dVal: Val | null,
+    destaque = false
+  ) => {
+    const corTxt = destaque ? COR.white : COR.ink;
+    const a = ws.getCell(`A${r}`);
+    a.value = label;
+    a.font = { bold: true, size: 10, color: { argb: corTxt } };
+    a.alignment = { vertical: "middle" };
+    const b = ws.getCell(`B${r}`);
+    b.value = desc;
+    b.font = { size: 9, color: { argb: destaque ? COR.white : COR.ink2 } };
+    b.alignment = { wrapText: true, vertical: "middle" };
+    const setVal = (ref: string, v: Val) => {
+      const c = ws.getCell(ref);
+      c.value = v.formula
+        ? ({ formula: v.formula, result: v.result } as ExcelJS.CellValue)
+        : v.result;
+      c.numFmt = moeda;
+      c.font = { bold: true, size: 10, color: { argb: corTxt } };
+      c.alignment = { horizontal: "right", vertical: "middle" };
+    };
+    if (dVal === null) {
+      ws.mergeCells(`C${r}:D${r}`);
+      setVal(`C${r}`, cVal);
+    } else {
+      setVal(`C${r}`, cVal);
+      setVal(`D${r}`, dVal);
+    }
+    for (const col of ["A", "B", "C", "D"]) {
+      const c = ws.getCell(`${col}${r}`);
+      c.border = thin;
+      if (destaque) c.fill = fill(COR.primary);
+      else if (col === "A") c.fill = fill(COR.soft);
     }
     r++;
   };
-  totalRow("Soma dos fornecedores", "Σ valor Pólobh + produção", t.somaFornecedores);
-  totalRow("Honorários Pólobh (15%)", "Serviços de organização e planejamento", t.honorariosPolobh);
-  totalRow("Encargos (16,33%)", "Incidentes sobre serviços de terceiros", t.encargos);
-  totalRow("Sub-total Pólobh", "Reembolso + Honorários + Encargos", t.subTotalPolobh);
-  totalRow("Faturamento Terceiros", "Σ valor Cliente", t.faturamentoTerceiros);
-  totalRow("Honorários Cliente (15%)", "Sobre valores faturados ao cliente", t.honorariosCliente);
-  totalRow("Valor total bruto", "Custo total do projeto", t.valorTotalBruto, true);
 
-  // ---------- Rodapé ----------
-  r += 1;
+  const rSoma = r;
+  totalRow(
+    "Soma dos fornecedores", "Serviços de terceiros + produção",
+    { formula: fSomaC, result: t.somaFornecedores },
+    { formula: fSomaD, result: t.somaCliente }
+  );
+  const rHon = r;
+  totalRow(
+    "Pólobh", "Honorários Serviços de Organização e Planejamento (15%)",
+    { formula: `C${rSoma}*0.15`, result: t.honorariosPolobh },
+    { formula: `D${rSoma}*0.15`, result: t.honorariosCliente }
+  );
+  const rEnc = r;
+  totalRow(
+    "Encargos", "Incidentes sobre serviços terceiros contratados através da Pólobh (16,33%)",
+    { formula: `C${rSoma}*0.1633`, result: t.encargos },
+    { result: 0 }
+  );
+  const rSub = r;
+  totalRow(
+    "Sub-total", "Reembolso Serviços terceiros + Honorários Pólobh + Encargos",
+    { formula: `C${rSoma}+C${rHon}+C${rEnc}`, result: t.subTotalPolobh },
+    { formula: `D${rSoma}+D${rHon}`, result: Math.round((t.somaCliente + t.honorariosCliente) * 100) / 100 }
+  );
+  totalRow(
+    "Valor total bruto", "Custo total do projeto",
+    { formula: `C${rSub}+D${rSub}`, result: t.valorTotalBruto },
+    null, true
+  );
+
+  ws.getCell(`A${r}`).value = "Sendo:";
+  ws.getCell(`A${r}`).font = { bold: true, size: 9, italic: true, color: { argb: COR.ink2 } };
+  r++;
+
+  totalRow(
+    "Faturamento Pólobh", "Valor Total Geral NF Pólobh x Cliente",
+    { formula: `C${rSub}+D${rHon}`, result: t.faturamentoPolobh },
+    null
+  );
+  totalRow(
+    "Faturamento Terceiros", "Valor Total Geral NF's Terceiros x Cliente",
+    { formula: `D${rSoma}`, result: t.faturamentoTerceiros },
+    null
+  );
+
+  // ---------- Bloco contratual (aprovação/assinaturas — conforme o modelo) ----------
+  r++;
+  ws.getCell(`A${r}`).value = "Visto Pólobh:";
+  ws.getCell(`A${r}`).font = { bold: true, size: 10 };
+  ws.mergeCells(`B${r}:C${r}`);
+  ws.getCell(`B${r}`).value = ec.responsavel;
+  ws.getCell(`B${r}`).font = { size: 10 };
+  ws.getCell(`D${r}`).value = dataBR(new Date().toISOString());
+  ws.getCell(`D${r}`).font = { size: 10 };
+  r++;
+
+  ws.getCell(`A${r}`).value = "Validade";
+  ws.getCell(`A${r}`).font = { bold: true, size: 10 };
+  ws.mergeCells(`B${r}:L${r}`);
+  ws.getCell(`B${r}`).value = `Esta Estimativa de Custos | Orçamento é válida por ${ec.validadeDias} dias.`;
+  ws.getCell(`B${r}`).font = { size: 10 };
+  r += 2;
+
+  ws.mergeCells(`A${r}:L${r}`);
+  ws.getCell(`A${r}`).value = "INFORMAÇÕES GERAIS:";
+  ws.getCell(`A${r}`).font = { bold: true, size: 10 };
+  r++;
+
+  ws.mergeCells(`A${r}:L${r}`);
+  const legal = ws.getCell(`A${r}`);
+  legal.value =
+    "A aprovação desta proposta, seja por meio de assinatura ou por e-mail, tem força contratual, " +
+    "gera obrigações entre as partes (compatíveis com os descritivos dos serviços e/ou produtos nela relacionados) " +
+    "e pressupõe que o cliente concorda e aceita os termos nela descritos, com os valores devidos à Pólobh " +
+    "(reembolsos, honorários pelos serviços de organização e planejamento e taxa de administração sobre serviços " +
+    "de terceiros) e às empresas contratadas por conta e ordem do cliente para fornecimento de serviços e " +
+    "mercadorias vinculados ao projeto, e promete efetuar o pagamento do valor descrito na linha " +
+    '"Total Geral NF Pólobh x Cliente" no prazo máximo de 30 dias a partir da apresentação da(s) nota(s) ' +
+    "fiscal(is) da Pólobh, que poderão ser emitidas pela Pólobh Promoções Eireli e MF Promoções Eireli, " +
+    "ambas do mesmo grupo empresarial, em conjunto ou separadamente.";
+  legal.font = { size: 8.5, color: { argb: COR.ink } };
+  legal.alignment = { wrapText: true, vertical: "top", horizontal: "justify" };
+  ws.getRow(r).height = 66;
+  r++;
+
   ws.mergeCells(`A${r}:L${r}`);
   ws.getCell(`A${r}`).value =
-    `Validade: ${ec.validadeDias} dias. Esta EC | Orçamento cancela e substitui todas as anteriores referentes ao mesmo projeto.`;
-  ws.getCell(`A${r}`).font = { italic: true, size: 9, color: { argb: COR.ink2 } };
-  ws.getCell(`A${r}`).alignment = { wrapText: true };
+    "Obs.: Esta EC | Orçamento cancela e substitui todas as anteriores referentes ao mesmo projeto | peça que porventura existam.";
+  ws.getCell(`A${r}`).font = { italic: true, size: 9 };
+  r += 2;
+
+  ws.getCell(`A${r}`).value = "Aprovação do Cliente:";
+  ws.getCell(`A${r}`).font = { bold: true, size: 10 };
+  ws.mergeCells(`B${r}:C${r}`);
+  ws.getCell(`B${r}`).border = { bottom: { style: "thin", color: { argb: COR.ink } } };
+  ws.getCell(`D${r}`).value = "____/____/______";
+  ws.getCell(`D${r}`).font = { size: 10 };
+  ws.getRow(r).height = 22;
+  r++;
+
+  ws.mergeCells(`A${r}:L${r}`);
+  ws.getCell(`A${r}`).value = "Identificação do Signatário: Nome e Identidade Funcional";
+  ws.getCell(`A${r}`).font = { size: 9, color: { argb: COR.ink2 } };
+  r++;
+
+  ws.getCell(`A${r}`).value = "Protocolo Financeiro Pólobh:";
+  ws.getCell(`A${r}`).font = { bold: true, size: 10 };
+  ws.getCell(`B${r}`).value = "Assinatura:";
+  ws.getCell(`B${r}`).font = { size: 10 };
+  ws.getCell(`C${r}`).border = { bottom: { style: "thin", color: { argb: COR.ink } } };
+  ws.getCell(`D${r}`).value = "____/____/______";
+  ws.getCell(`D${r}`).font = { size: 10 };
+  ws.getRow(r).height = 22;
+
+  // Impressão: área definida + cabeçalho da tabela repetido em toda página
+  ws.pageSetup.printArea = `A1:L${r}`;
+  ws.pageSetup.printTitlesRow = `${hr}:${hr}`;
 
   const buffer = await wb.xlsx.writeBuffer();
   baixar(buffer as ArrayBuffer, `${nomeArquivo(ec.numero)}.xlsx`);

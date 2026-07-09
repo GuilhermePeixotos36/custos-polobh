@@ -25,6 +25,7 @@ import type {
   AuthRepository,
   ClienteRepository,
   EcRepository,
+  EmpresasRepository,
   FornecedorRepository,
   OsRepository,
   ProjetoRepository,
@@ -34,6 +35,7 @@ import type {
   Cliente,
   Ec,
   EcLinha,
+  EmpresaGrupo,
   Fornecedor,
   Os,
   Projeto,
@@ -587,6 +589,62 @@ const projetoRepo: ProjetoRepository = {
   },
 };
 
+/* -------------------------------- Empresas ------------------------------- */
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapEmpresa(r: any): EmpresaGrupo {
+  return {
+    id: r.id,
+    nome: r.nome ?? "",
+    razaoSocial: r.razao_social ?? "",
+    cnpj: r.cnpj ?? "",
+    endereco: r.endereco ?? "",
+    inscricaoEstadual: r.inscricao_estadual ?? "",
+    inscricaoMunicipal: r.inscricao_municipal ?? "",
+    padrao: !!r.padrao,
+    ordem: r.ordem ?? 0,
+  };
+}
+
+function empresaRow(e: EmpresaGrupo) {
+  return {
+    id: e.id,
+    nome: e.nome,
+    razao_social: e.razaoSocial,
+    cnpj: e.cnpj,
+    endereco: e.endereco,
+    inscricao_estadual: e.inscricaoEstadual,
+    inscricao_municipal: e.inscricaoMunicipal,
+    padrao: e.padrao,
+    ordem: e.ordem,
+    atualizado_em: nowIso(),
+  };
+}
+
+const empresasRepo: EmpresasRepository = {
+  async listar() {
+    const data = ok(await supabase.from("empresas_grupo").select("*").order("ordem"));
+    return (data ?? []).map(mapEmpresa);
+  },
+  async salvar(e) {
+    // id é slug estável ("polobh"/"mf") — upsert por id.
+    const data = ok(await supabase.from("empresas_grupo").upsert(empresaRow(e)).select("*").single())!;
+    const emp = mapEmpresa(data);
+    auditar({
+      categoria: "Configuração",
+      acao: "empresa.atualizar",
+      mensagem: `Dados fiscais da empresa ${emp.nome} atualizados`,
+      alvoId: emp.id,
+    });
+    return emp;
+  },
+  async definirPadrao(id) {
+    ok(await supabase.from("empresas_grupo").update({ padrao: false }).neq("id", id));
+    ok(await supabase.from("empresas_grupo").update({ padrao: true }).eq("id", id));
+    auditar({ categoria: "Configuração", acao: "empresa.padrao", mensagem: `Empresa emissora padrão definida (${id})`, alvoId: id });
+  },
+};
+
 export const supabaseRepositorios: Repositorios = {
   projetos: projetoRepo,
   clientes: clienteRepo,
@@ -594,4 +652,5 @@ export const supabaseRepositorios: Repositorios = {
   ecs: ecRepo,
   oss: osRepo,
   auth: authRepo,
+  empresas: empresasRepo,
 };

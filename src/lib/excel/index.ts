@@ -1,6 +1,7 @@
 import type { Ec, Os } from "@/data/types";
 import type { CronogramaExcelDados } from "./cronograma";
 import { auditar } from "@/store/logs";
+import { empresaPadrao } from "@/store/empresas";
 
 /** Geração da EC em Excel (ExcelJS carregado sob demanda). */
 export async function gerarEcExcel(ec: Ec): Promise<void> {
@@ -17,7 +18,19 @@ export async function gerarOsExcel(
   opts?: { incluirFinanceiro?: boolean }
 ): Promise<void> {
   const { gerarOsExcel: fn } = await import("./os");
-  const r = await fn(os, ec, opts);
+  // empresa emissora (Pólobh Promoções / MF Promoções) vem das Configurações
+  const emp = empresaPadrao();
+  const empresaPolobh = emp
+    ? {
+        nome: emp.nome,
+        razaoSocial: emp.razaoSocial,
+        cnpj: emp.cnpj,
+        endereco: emp.endereco,
+        inscricaoEstadual: emp.inscricaoEstadual,
+        inscricaoMunicipal: emp.inscricaoMunicipal,
+      }
+    : undefined;
+  const r = await fn(os, ec, { ...opts, empresaPolobh });
   auditar({
     categoria: "Exportação",
     acao: "os.excel",

@@ -12,12 +12,23 @@ import { COR, fill, thin, baixar, nomeArquivo, carregarLogo } from "./shared";
 const moeda = '"R$" #,##0.00';
 const CINZA = "FFD9D9D9";
 
+/** Dados fiscais da empresa do grupo Pólobh (configurados em Configurações). */
+export interface EmpresaEmissora {
+  nome: string;
+  razaoSocial: string;
+  cnpj: string;
+  endereco: string;
+  inscricaoEstadual: string;
+  inscricaoMunicipal: string;
+}
+
 export async function gerarOsExcel(
   os: Os,
   ec: Ec,
-  opts: { incluirFinanceiro?: boolean } = {}
+  opts: { incluirFinanceiro?: boolean; empresaPolobh?: EmpresaEmissora } = {}
 ): Promise<void> {
   const incluirFinanceiro = opts.incluirFinanceiro ?? true;
+  const emp = opts.empresaPolobh;
 
   const wb = new ExcelJS.Workbook();
   wb.creator = "Sistema Pólobh";
@@ -59,7 +70,7 @@ export async function gerarOsExcel(
   const linha = (
     label: string,
     valor: string | number | null | undefined,
-    o: { money?: boolean; fixo?: boolean } = {}
+    o: { money?: boolean; fixo?: boolean; formula?: string; numFmt?: string } = {}
   ) => {
     const a = ws.getCell(`A${r}`);
     a.value = label;
@@ -68,7 +79,9 @@ export async function gerarOsExcel(
     a.alignment = { vertical: "top", wrapText: true };
     a.border = thin;
     const b = ws.getCell(`B${r}`);
-    b.value = (valor ?? "") as ExcelJS.CellValue;
+    b.value = o.formula
+      ? ({ formula: o.formula, result: typeof valor === "number" ? valor : undefined } as ExcelJS.CellValue)
+      : ((valor ?? "") as ExcelJS.CellValue);
     b.font = { size: 10, italic: !!o.fixo, color: { argb: COR.ink } };
     b.alignment = { wrapText: true, vertical: "top" };
     b.border = thin;
@@ -76,6 +89,7 @@ export async function gerarOsExcel(
       b.numFmt = moeda;
       b.alignment = { vertical: "top", horizontal: "left" };
     }
+    if (o.numFmt) b.numFmt = o.numFmt;
     r++;
   };
 
@@ -216,42 +230,75 @@ export async function gerarOsExcel(
     const fin = os.financeiro;
     secao("INFORMAÇÕES A SEREM PREENCHIDAS PELO FINANCEIRO DA PÓLOBH");
     sub("DADOS EMISSÃO — RECIBO SIMPLES | FATURA | NOTA FISCAL | FATURA E NOTA FISCAL");
-    const tomadorLabel = fin.tomador === "Polobh" ? "Pólobh" : fin.tomador === "Cliente" ? "Cliente" : "";
+    const tomadorLabel =
+      fin.tomador === "Polobh"
+        ? emp?.nome
+          ? `Pólobh — ${emp.nome}`
+          : "Pólobh"
+        : fin.tomador === "Cliente"
+          ? "Cliente"
+          : "";
     linha("Tomador dos Serviços:", tomadorLabel);
-    const t = fin.tomador === "Cliente" ? cli : null;
-    linha("Razão Social:", t?.razaoSocial ?? "");
-    linha("Endereço:", t?.endereco ?? "");
-    linha("CNPJ/CPF:", t?.cnpjCpf ?? "");
-    linha("Inscrição Estadual:", t?.inscricaoEstadual ?? "");
-    linha("Inscrição Municipal:", t?.inscricaoMunicipal ?? "");
+    // dados fiscais: do cliente (via EC) ou da empresa do grupo Pólobh (Configurações)
+    const tom =
+      fin.tomador === "Cliente"
+        ? { razao: cli.razaoSocial, end: cli.endereco, doc: cli.cnpjCpf, ie: cli.inscricaoEstadual, im: cli.inscricaoMunicipal }
+        : fin.tomador === "Polobh" && emp
+          ? { razao: emp.razaoSocial, end: emp.endereco, doc: emp.cnpj, ie: emp.inscricaoEstadual, im: emp.inscricaoMunicipal }
+          : null;
+    linha("Razão Social:", tom?.razao ?? "");
+    linha("Endereço:", tom?.end ?? "");
+    linha("CNPJ/CPF:", tom?.doc ?? "");
+    linha("Inscrição Estadual:", tom?.ie ?? "");
+    linha("Inscrição Municipal:", tom?.im ?? "");
     linha("Descritivo Nota Fiscal:", fin.descritivoNf);
     if (p.incentivosFiscais) linha("Nome do Projeto Incentivado / Lei / Nº:", p.incentivosFiscais);
     linha("CNAE:", fin.cnae);
     linha("Código de Serviço:", fin.codigoServico);
     linha("Valor unitário:", fin.valorUnitario, { money: true });
+    const rTotF = r;
     linha("Valor total:", fin.valorTotal, { money: true });
+    const rDescF = r;
     linha("Desconto Especial Negociado:", fin.descontoNegociado, { money: true });
-    linha("Valor total a pagar:", fin.valorAPagar, { money: true });
-    linha("BV Pólobh — Percentual:", `${fin.bvPercentual ?? 0}%`);
-    linha("BV Pólobh — Valor:", fin.bvValor, { money: true });
+    // fórmulas vivas: recalculam se a planilha for editada no Excel
+    linha("Valor total a pagar:", (fin.valorTotal || 0) - (fin.descontoNegociado || 0), {
+      money: true, formula: `B${rTotF}-B${rDescF}`,
+    });
+    const rPctF = r;
+    linha("BV Pólobh — Percentual:", fin.bvPercentual ?? 0, { numFmt: '0.##"%"' });
+    linha("BV Pólobh — Valor:", ((fin.valorTotal || 0) * (fin.bvPercentual || 0)) / 100, {
+      money: true, formula: `B${rTotF}*B${rPctF}/100`,
+    });
     linha("Acerto Financeiro:", fin.acertoFinanceiro);
 
     /* ------------------------- DADOS PARA CONTRATO --------------------- */
     const ct = os.contrato;
-    const contr = ct.contratante === "Polobh" ? null : ct.contratante === "Cliente" ? cli : null;
+    const contr =
+      ct.contratante === "Cliente"
+        ? { razao: cli.razaoSocial, end: cli.endereco, doc: cli.cnpjCpf, ie: cli.inscricaoEstadual, im: cli.inscricaoMunicipal }
+        : ct.contratante === "Polobh" && emp
+          ? { razao: emp.razaoSocial, end: emp.endereco, doc: emp.cnpj, ie: emp.inscricaoEstadual, im: emp.inscricaoMunicipal }
+          : null;
     sub("DADOS PARA CONTRATO");
-    linha("Contratante:", ct.contratante === "Polobh" ? "Pólobh" : ct.contratante === "Cliente" ? "Cliente" : "");
-    linha("Razão Social:", contr?.razaoSocial ?? "");
-    linha("Endereço:", contr?.endereco ?? "");
-    linha("CNPJ/CPF:", contr?.cnpjCpf ?? "");
-    linha("Inscrição Estadual:", contr?.inscricaoEstadual ?? "");
-    linha("Inscrição Municipal:", contr?.inscricaoMunicipal ?? "");
+    linha(
+      "Contratante:",
+      ct.contratante === "Polobh" ? (emp?.nome ? `Pólobh — ${emp.nome}` : "Pólobh") : ct.contratante === "Cliente" ? "Cliente" : ""
+    );
+    linha("Razão Social:", contr?.razao ?? "");
+    linha("Endereço:", contr?.end ?? "");
+    linha("CNPJ/CPF:", contr?.doc ?? "");
+    linha("Inscrição Estadual:", contr?.ie ?? "");
+    linha("Inscrição Municipal:", contr?.im ?? "");
     linha("Descritivo dos Serviços e/ou Produtos:", ct.descritivoServicos || fin.descritivoNf || os.descritivo);
     linha("Informações Complementares:", ct.informacoesComplementares);
     linha("Valor unitário:", ct.valorUnitario, { money: true });
+    const rTotC = r;
     linha("Valor total:", ct.valorTotal, { money: true });
+    const rDescC = r;
     linha("Desconto Especial Negociado:", ct.descontoNegociado, { money: true });
-    linha("Valor total a pagar:", ct.valorAPagar, { money: true });
+    linha("Valor total a pagar:", (ct.valorTotal || 0) - (ct.descontoNegociado || 0), {
+      money: true, formula: `B${rTotC}-B${rDescC}`,
+    });
     linha("Forma de Pagamento:", "Forma de pagamento: à vista, no ato da emissão da nota fiscal / fatura", { fixo: true });
     linha("Observações Gerais:", "Estes valores poderão ser revistos em caso de faltas ou execução parcial dos serviços ora contratados.", { fixo: true });
     linha("Data do Contrato:", dataBR(ct.dataContrato));

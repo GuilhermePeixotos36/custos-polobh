@@ -52,10 +52,16 @@ supabase/schema.sql          schema + RLS (aplicar depois)
 
 ## Geração de Excel
 - **EC e OS:** ambas são **remontadas com a marca Pólobh** via ExcelJS (que aplica
-  estilos, ao contrário do SheetJS) — cabeçalho com logo, seções laranja, blocos
-  limpos. A OS segue os **9 blocos** do documento FASE 1 (requisitos da Pólobh) e
-  inclui a tabela de "Itens consolidados da EC". Código em `src/lib/excel/`
-  (`ec.ts`, `os.ts`), desacoplado e fácil de manter.
+  estilos, ao contrário do SheetJS). A OS segue os blocos do "Modelo Novo"
+  (layout RÓTULO | VALOR); a EC segue o modelo original, incluindo os totais em
+  **duas colunas (Pólobh | Cliente)** e o **bloco contratual** (Informações
+  Gerais, aprovação do cliente, protocolo financeiro). Código em `src/lib/excel/`.
+- **Fórmulas vivas:** os totais da EC (soma, 15%, 16,33%, sub-total, total bruto,
+  faturamentos) e os campos calculados da OS (valor a pagar, BV) saem como
+  **fórmulas de Excel** — se a Marisa editar um valor na planilha baixada, tudo
+  recalcula sozinho, como na planilha antiga dela.
+- **Impressão:** área de impressão definida, ajuste à largura da página e
+  cabeçalho da tabela de custos repetido em todas as páginas da EC.
 - O template original da OS (`public/templates/OS_template.xlsx`) e a planilha
   `.xls` da EC ficam em `/reference` apenas como **referência de conteúdo** —
   não são mais preenchidos (eram formulários internos, visualmente pobres).

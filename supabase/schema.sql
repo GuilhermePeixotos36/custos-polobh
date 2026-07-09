@@ -39,6 +39,21 @@ create table if not exists fornecedores (
   criado_em timestamptz default now()
 );
 
+-- Empresas do grupo Pólobh (Pólobh Promoções Eireli / MF Promoções Eireli).
+-- Preenchem os dados fiscais da OS quando tomador/contratante = Pólobh.
+-- Configuradas na tela Configurações. `padrao` marca a empresa usada na emissão.
+create table if not exists empresas_grupo (
+  id text primary key,               -- 'polobh' | 'mf'
+  nome text not null,
+  razao_social text default '',
+  cnpj text default '',
+  endereco text default '',
+  inscricao_estadual text default '',
+  inscricao_municipal text default '',
+  padrao boolean not null default false,
+  atualizado_em timestamptz default now()
+);
+
 -- Projeto: container de tudo (hierarquia project-centric). Dono das ECs.
 create table if not exists projetos (
   id uuid primary key default gen_random_uuid(),
@@ -213,6 +228,14 @@ create policy fornecedores_write on fornecedores for all
   using (papel_atual() in ('Admin','Direcao','Producao','Administrativo'))
   with check (papel_atual() in ('Admin','Direcao','Producao','Administrativo'));
 
+-- Empresas do grupo: leitura para qualquer autenticado (usadas na emissão da OS);
+-- escrita apenas Direção/Admin (dados fiscais da própria Pólobh).
+alter table empresas_grupo enable row level security;
+create policy empresas_grupo_read on empresas_grupo for select using (papel_atual() is not null);
+create policy empresas_grupo_write on empresas_grupo for all
+  using (papel_atual() in ('Admin','Direcao'))
+  with check (papel_atual() in ('Admin','Direcao'));
+
 -- OBS.: o cronograma público (sem login) é servido pela Edge Function
 -- `cronograma-publico` (service role, verify_jwt=false), que devolve apenas os
 -- campos do cronograma a partir de ecs.slug_publico — nunca expõe as tabelas ao anon.
@@ -266,6 +289,33 @@ create table if not exists emails (
 alter table emails enable row level security;
 create policy emails_read on emails for select using (papel_atual() in ('Admin','Direcao','Administrativo'));
 -- escrita só pela service role (Edge Functions) — sem policy de insert para usuários.
+
+-- ============================================================================
+-- Empresas do grupo Pólobh (dados fiscais das emissoras)
+-- Preenchem a OS quando o tomador/contratante é a própria Pólobh.
+-- ============================================================================
+create table if not exists empresas_grupo (
+  id text primary key,               -- slug estável ("polobh", "mf")
+  nome text not null,
+  razao_social text default '',
+  cnpj text default '',
+  endereco text default '',
+  inscricao_estadual text default '',
+  inscricao_municipal text default '',
+  padrao boolean default false,      -- empresa padrão de emissão
+  ordem int default 0,
+  atualizado_em timestamptz default now()
+);
+alter table empresas_grupo enable row level security;
+create policy empresas_grupo_read on empresas_grupo for select
+  using (papel_atual() is not null);
+create policy empresas_grupo_write on empresas_grupo for all
+  using (papel_atual() in ('Admin','Direcao','Administrativo'))
+  with check (papel_atual() in ('Admin','Direcao','Administrativo'));
+insert into empresas_grupo (id, nome, padrao, ordem) values
+  ('polobh', 'Pólobh Promoções Eireli', true, 0),
+  ('mf', 'MF Promoções Eireli', false, 1)
+on conflict (id) do nothing;
 
 -- ============================================================================
 -- Trilha de auditoria (logs do sistema) — visível só ao perfil Admin

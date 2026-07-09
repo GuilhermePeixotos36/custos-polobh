@@ -6,18 +6,25 @@ import { Toaster } from "@/components/ui/Toaster";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useAuth } from "@/store/auth";
 import { usePendencias } from "@/store/pendencias";
+import { useEmpresas } from "@/store/empresas";
 
 /** Casca autenticada: sidebar + área de conteúdo. */
 export function AppLayout() {
   const usuario = useAuth((s) => s.usuario);
   const carregando = useAuth((s) => s.carregando);
   const carregarPendencias = usePendencias((s) => s.carregar);
+  const carregarEmpresas = useEmpresas((s) => s.carregar);
   const { pathname } = useLocation();
 
   // Mantém as pendências (badges) atualizadas ao navegar entre telas.
   useEffect(() => {
     if (usuario) carregarPendencias();
   }, [usuario, pathname, carregarPendencias]);
+
+  // Carrega as empresas do grupo ao entrar na área autenticada (login).
+  useEffect(() => {
+    if (usuario) carregarEmpresas();
+  }, [usuario, carregarEmpresas]);
 
   // Aguarda a sessão inicial resolver antes de decidir redirecionar.
   if (carregando) {
