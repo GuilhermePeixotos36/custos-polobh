@@ -4,7 +4,7 @@ import {
   Card, CardTitle, Button, Field, Input, Select, Table, THead, Th, Tr, Td,
   Badge, EmptyState, Avatar,
 } from "@/components/ui";
-import { IcPlus, IcSearch, IcTrash } from "@/components/icons";
+import { IcSearch, IcTrash } from "@/components/icons";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import { consultarCnpj } from "@/lib/cnpj";
@@ -12,13 +12,6 @@ import { flags } from "@/lib/flags";
 import { maskCpfCnpjInput, maskTelefone } from "@/lib/format";
 import { toast } from "@/store/toast";
 import type { Fornecedor } from "@/data/types";
-
-const vazio = (): Fornecedor => ({
-  id: "", razaoSocial: "", nomeFantasia: "", cnpj: "", perfilTributario: "", endereco: "",
-  inscricaoEstadual: "", inscricaoMunicipal: "",
-  dadosBancarios: { tipoConta: "", banco: "", agencia: "", conta: "", chavePix: "" },
-  representante: "", telefone: "", email: "", contatos: [],
-});
 
 export function Fornecedores() {
   const { data, loading, reload } = useAsync(() => repo.fornecedores.listar(), []);
@@ -66,7 +59,6 @@ export function Fornecedores() {
       breadcrumb={<Crumb>Fornecedores</Crumb>}
       title="Fornecedores"
       subtitle="Consulta e edição. Os fornecedores são registrados automaticamente ao serem usados nas ECs."
-      topAction={<Button size="sm" icon={<IcPlus width={16} height={16} />} onClick={() => { setEdit(vazio()); setMsg(""); setNovoContato(""); }}>Novo fornecedor</Button>}
     >
       <div className="grid lg:grid-cols-[1.5fr_1fr] gap-4 items-start">
         <Card padded={false}>
