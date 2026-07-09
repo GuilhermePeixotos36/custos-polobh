@@ -205,23 +205,40 @@ export function ProjetoDetail() {
       </div>
 
       {aba === "dados" && (
-        <div className="space-y-4 max-w-4xl">
-          <Card>
-            <CardTitle>Cliente</CardTitle>
-            <div className="grid md:grid-cols-2 gap-4">
-              <Field label="CNPJ/CPF"><Input value={p.cliente.cnpjCpf} inputMode="numeric" onChange={(e) => updCli({ cnpjCpf: maskCpfCnpjInput(e.target.value) })} placeholder="00.000.000/0000-00" /></Field>
-              <Field label="Cliente (nome)"><Input value={p.cliente.nome} onChange={(e) => updCli({ nome: e.target.value })} /></Field>
-              <Field label="Razão Social" className="md:col-span-2"><Input value={p.cliente.razaoSocial} onChange={(e) => updCli({ razaoSocial: e.target.value })} /></Field>
-              <Field label="Endereço" className="md:col-span-2"><Input value={p.cliente.endereco} onChange={(e) => updCli({ endereco: e.target.value })} /></Field>
-              <Field label="Representante"><Input value={p.cliente.representante.nome} onChange={(e) => updCli({ representante: { ...p.cliente.representante, nome: e.target.value } })} /></Field>
-              <Field label="E-mail do representante"><Input value={p.cliente.representante.email} onChange={(e) => updCli({ representante: { ...p.cliente.representante, email: e.target.value } })} /></Field>
-            </div>
-          </Card>
+        <div className="space-y-4">
+          <div className="grid xl:grid-cols-2 gap-4 items-start">
+            <Card>
+              <CardTitle>Cliente</CardTitle>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <Field label="CNPJ/CPF"><Input value={p.cliente.cnpjCpf} inputMode="numeric" onChange={(e) => updCli({ cnpjCpf: maskCpfCnpjInput(e.target.value) })} placeholder="00.000.000/0000-00" /></Field>
+                <Field label="Cliente (nome)"><Input value={p.cliente.nome} onChange={(e) => updCli({ nome: e.target.value })} /></Field>
+                <Field label="Razão Social" className="sm:col-span-2"><Input value={p.cliente.razaoSocial} onChange={(e) => updCli({ razaoSocial: e.target.value })} /></Field>
+                <Field label="Endereço" className="sm:col-span-2"><Input value={p.cliente.endereco} onChange={(e) => updCli({ endereco: e.target.value })} /></Field>
+                <Field label="Representante"><Input value={p.cliente.representante.nome} onChange={(e) => updCli({ representante: { ...p.cliente.representante, nome: e.target.value } })} /></Field>
+                <Field label="E-mail do representante"><Input value={p.cliente.representante.email} onChange={(e) => updCli({ representante: { ...p.cliente.representante, email: e.target.value } })} /></Field>
+              </div>
+            </Card>
+
+            <Card>
+              <CardTitle>Documentos & status</CardTitle>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <Field label="Link de documentos do projeto" className="sm:col-span-2"><Input value={p.docsUrl} onChange={(e) => upd({ docsUrl: e.target.value })} placeholder="https://drive.google.com/…" /></Field>
+                <Field label="Status">
+                  <Select value={p.status} onChange={(e) => upd({ status: e.target.value as StatusProjeto })}>
+                    <option value="Ativo">Ativo</option>
+                    <option value="Concluido">Concluído</option>
+                    <option value="Arquivado">Arquivado</option>
+                    <option value="Cancelado">Cancelado</option>
+                  </Select>
+                </Field>
+              </div>
+            </Card>
+          </div>
 
           <Card>
             <CardTitle>Informações do projeto</CardTitle>
-            <div className="grid md:grid-cols-2 gap-4">
-              <Field label="Título do projeto" className="md:col-span-2"><Input value={p.info.titulo} onChange={(e) => updInfo({ titulo: e.target.value })} /></Field>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <Field label="Título do projeto" className="lg:col-span-3"><Input value={p.info.titulo} onChange={(e) => updInfo({ titulo: e.target.value })} /></Field>
               <Field label="Local"><Input value={p.info.local} onChange={(e) => updInfo({ local: e.target.value })} /></Field>
               <Field label="Endereço do local"><Input value={p.info.enderecoLocal} onChange={(e) => updInfo({ enderecoLocal: e.target.value })} /></Field>
               <Field label="Nº de participantes"><Input type="number" value={p.info.participantes ?? ""} onChange={(e) => updInfo({ participantes: e.target.value ? Number(e.target.value) : null })} /></Field>
@@ -232,22 +249,7 @@ export function ProjetoDetail() {
               <Field label="Evento"><Input type="date" value={p.info.evento} onChange={(e) => updInfo({ evento: e.target.value })} /></Field>
               <Field label="Pós-evento"><Input type="date" value={p.info.posEvento} onChange={(e) => updInfo({ posEvento: e.target.value })} /></Field>
               <Field label="Horário"><Input value={p.info.horario} onChange={(e) => updInfo({ horario: e.target.value })} placeholder="08h às 18h" /></Field>
-              <Field label="Roteiro" className="md:col-span-2"><Textarea value={p.info.roteiro} onChange={(e) => updInfo({ roteiro: e.target.value })} /></Field>
-            </div>
-          </Card>
-
-          <Card>
-            <CardTitle>Documentos & status</CardTitle>
-            <div className="grid md:grid-cols-2 gap-4">
-              <Field label="Link de documentos do projeto" className="md:col-span-2"><Input value={p.docsUrl} onChange={(e) => upd({ docsUrl: e.target.value })} placeholder="https://drive.google.com/…" /></Field>
-              <Field label="Status">
-                <Select value={p.status} onChange={(e) => upd({ status: e.target.value as StatusProjeto })}>
-                  <option value="Ativo">Ativo</option>
-                  <option value="Concluido">Concluído</option>
-                  <option value="Arquivado">Arquivado</option>
-                  <option value="Cancelado">Cancelado</option>
-                </Select>
-              </Field>
+              <Field label="Roteiro" className="sm:col-span-2"><Textarea value={p.info.roteiro} onChange={(e) => updInfo({ roteiro: e.target.value })} /></Field>
             </div>
           </Card>
         </div>
