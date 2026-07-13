@@ -113,14 +113,14 @@ const MODULOS: Modulo[] = [
           </Tela>
           <Passos>
             <span>Abra o endereço do sistema e digite seu <b>e-mail</b> e <b>senha</b>.</span>
-            <span>Clique em <b>Entrar no painel</b>. Você cai direto no Dashboard.</span>
+            <span>Clique em <b>Entrar no painel</b>. Você cai direto na tela de <b>Projetos</b>.</span>
             <span>Para sair, use o botão <b>Sair</b> no canto superior direito.</span>
           </Passos>
         </Secao>
         <Secao titulo="O menu lateral">
           <p>À esquerda fica o menu. Os itens visíveis dependem do seu perfil — você só vê o que tem permissão de usar.</p>
           <div className="flex flex-wrap gap-1.5">
-            <Tag tom="primary">Dashboard</Tag><Tag>Estimativas (EC)</Tag><Tag>Ordens de Serviço</Tag>
+            <Tag tom="primary">Projetos</Tag><Tag>Estimativas (EC)</Tag><Tag>Ordens de Serviço</Tag>
             <Tag>Cronogramas</Tag><Tag>Fornecedores</Tag><Tag>Configurações</Tag><Tag>Logs</Tag><Tag>Guia</Tag>
           </div>
           <Dica>Está com dúvida em algum módulo? Volte sempre aqui no <b>Guia</b> e use a busca no topo.</Dica>
@@ -129,22 +129,22 @@ const MODULOS: Modulo[] = [
     ),
   },
   {
-    id: "dashboard",
+    id: "projetos",
     icone: <IcGrid />,
-    titulo: "Dashboard",
-    resumo: "Visão geral: ECs ativas, OSs, faturamento previsto e movimentações.",
-    tags: ["dashboard", "visão geral", "indicadores", "resumo", "faturamento", "gráfico", "início"],
+    titulo: "Projetos",
+    resumo: "Tela inicial: cada projeto reúne cliente, ECs, OSs, cronograma, fornecedores e anexos.",
+    tags: ["projetos", "cliente", "início", "container", "ativos", "arquivados", "anexos"],
     conteudo: (
       <>
         <Secao titulo="O que mostra">
-          <p>É a tela inicial. Reúne os números do momento para você ter o panorama sem abrir cada módulo.</p>
+          <p>É a tela inicial. Tudo começa por um projeto: dentro dele ficam as ECs, OSs, cronograma, fornecedores e anexos.</p>
           <ul className="grid sm:grid-cols-2 gap-2">
-            <li className="rounded-card bg-bg p-3"><b className="text-ink">ECs ativas</b> — estimativas em andamento.</li>
-            <li className="rounded-card bg-bg p-3"><b className="text-ink">Aguardando aprovação</b> — ECs enviadas ao cliente.</li>
-            <li className="rounded-card bg-bg p-3"><b className="text-ink">OSs emitidas</b> — ordens já geradas.</li>
-            <li className="rounded-card bg-bg p-3"><b className="text-ink">Faturamento previsto</b> — soma dos valores aprovados.</li>
+            <li className="rounded-card bg-bg p-3"><b className="text-ink">Filtros</b> — Todos, Ativos e Arquivados.</li>
+            <li className="rounded-card bg-bg p-3"><b className="text-ink">Status em destaque</b> — ao lado do nome do projeto.</li>
+            <li className="rounded-card bg-bg p-3"><b className="text-ink">Anexos</b> — documentos do projeto (PDF, imagem, etc.).</li>
+            <li className="rounded-card bg-bg p-3"><b className="text-ink">EC ativa</b> — apenas uma EC fica ativa por projeto.</li>
           </ul>
-          <Dica>Clique nos cartões e nas listas de movimentações recentes para ir direto ao registro.</Dica>
+          <Dica>Abra um projeto e navegue pelas subguias (Dados Gerais → EC → OS → Cronograma → Fornecedores → Anexos).</Dica>
         </Secao>
       </>
     ),

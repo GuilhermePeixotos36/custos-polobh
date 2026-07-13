@@ -185,3 +185,38 @@ export const IcGrip = (p: P) => (
     <circle cx="15" cy="18" r="1.6" />
   </I>
 );
+export const IcEye = (p: P) => (
+  <I {...p}>
+    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
+    <circle cx="12" cy="12" r="3" />
+  </I>
+);
+export const IcEyeOff = (p: P) => (
+  <I {...p}>
+    <path d="M9.9 4.24A9.1 9.1 0 0 1 12 4c6.5 0 10 7 10 7a13.2 13.2 0 0 1-1.67 2.44" />
+    <path d="M6.6 6.6C3.9 8.2 2 12 2 12s3.5 7 10 7a9.3 9.3 0 0 0 5.4-1.6" />
+    <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+    <path d="M2 2l20 20" />
+  </I>
+);
+export const IcBold = (p: P) => (
+  <I {...p}>
+    <path d="M7 5h6a3.5 3.5 0 0 1 0 7H7z" />
+    <path d="M7 12h7a3.5 3.5 0 0 1 0 7H7z" />
+  </I>
+);
+export const IcList = (p: P) => (
+  <I {...p}>
+    <path d="M9 6h11" />
+    <path d="M9 12h11" />
+    <path d="M9 18h11" />
+    <circle cx="4.5" cy="6" r="1.2" fill="currentColor" stroke="none" />
+    <circle cx="4.5" cy="12" r="1.2" fill="currentColor" stroke="none" />
+    <circle cx="4.5" cy="18" r="1.2" fill="currentColor" stroke="none" />
+  </I>
+);
+export const IcComment = (p: P) => (
+  <I {...p}>
+    <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.9-.9L3 20l1.4-4.1A8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z" />
+  </I>
+);

@@ -1,7 +1,7 @@
 /**
  * Pendências do processo: ações que faltam ser feitas por um determinado papel.
- * Centralizado aqui para alimentar tanto o Dashboard quanto os badges (bolinhas
- * vermelhas) na navegação, na lista de projetos, nas subguias e nos itens de OS.
+ * Centralizado aqui para alimentar os badges (bolinhas vermelhas) na navegação,
+ * na lista de projetos, nas subguias e nos itens de OS.
  *
  * Cada pendência declara QUEM deve agir (papeis) e ONDE ela aparece (recurso da
  * navegação, projeto, subguia, EC e/ou OS). Para adicionar uma nova regra, basta

@@ -10,7 +10,7 @@ import { cx } from "@/lib/format";
 import type { Papel } from "@/data/types";
 
 const RECURSOS: { key: Recurso; label: string }[] = [
-  { key: "dashboard", label: "Dashboard" },
+  { key: "projetos", label: "Projetos" },
   { key: "ecs", label: "ECs (consulta)" },
   { key: "ecs.editar", label: "ECs (editar)" },
   { key: "oss", label: "Ordens de Serviço" },

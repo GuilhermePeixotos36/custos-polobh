@@ -19,11 +19,15 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Input, AutoTextarea, Select, NumberInput, Button } from "@/components/ui";
-import { IcGrip, IcChevron, IcPlus, IcTrash } from "@/components/icons";
+import { IcGrip, IcChevron, IcPlus, IcTrash, IcEye, IcEyeOff, IcSpark } from "@/components/icons";
 import { FornecedorField } from "@/components/FornecedorField";
+import { RichTextField } from "@/components/RichTextField";
+import { ObservacoesButton } from "@/components/ObservacoesPopup";
+import { ResumoPropostaModal } from "@/components/ResumoPropostaModal";
+import { flags } from "@/lib/flags";
 import { brl, cx, onlyDigits, maskCpfCnpjInput } from "@/lib/format";
 import { confirmar } from "@/store/confirm";
-import type { EcLinha, Fornecedor, StatusAprovacao, StatusOs } from "@/data/types";
+import type { EcLinha, Fornecedor, Observacao, StatusAprovacao, StatusOs } from "@/data/types";
 
 interface Grupo {
   nome: string;
@@ -64,6 +68,7 @@ function novaLinhaBase(): EcLinha {
     grupo: "GERAL",
     item: "",
     descricao: "",
+    descricaoCompleta: "",
     valorPolobh: 0,
     valorCliente: 0,
     valorGasto: 0,
@@ -76,7 +81,10 @@ function novaLinhaBase(): EcLinha {
     pedidoCompra: "",
     statusOs: "Pendente",
     contrato: "",
+    contratoStatus: "Pendente",
     observacao: "",
+    observacoes: [],
+    oculto: false,
     ordem: 0,
   };
 }
@@ -97,12 +105,14 @@ interface Props {
   onChange: (linhas: EcLinha[]) => void;
   verFinanceiro: boolean;
   fornecedores: Fornecedor[];
+  /** Nomes dos usuários do sistema (para atribuir observações). */
+  usuarios: string[];
   onValidarFornecedor: (cnpj: string) => Promise<string | null>;
 }
 
 const DATALIST_ID = "ec-fornecedores-cnpj";
 
-export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, onValidarFornecedor }: Props) {
+export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuarios, onValidarFornecedor }: Props) {
   const [grupos, setGrupos] = useState<Grupo[]>(() => agrupar(linhas));
   const [expandido, setExpandido] = useState<Record<string, boolean>>({});
   const [ativo, setAtivo] = useState<{ tipo: "grupo" | "item"; chave: string } | null>(null);
@@ -184,6 +194,12 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, onVali
       return;
     commit(grupos.map((g) => ({ ...g, itens: g.itens.filter((x) => x.id !== l.id) })));
   };
+
+  /** Oculta/reexibe um item. */
+  const setOcultoItem = (id: string, oculto: boolean) => updLinha(id, { oculto });
+  /** Oculta/reexibe o grupo inteiro (todos os itens). */
+  const setOcultoGrupo = (grupoNome: string, oculto: boolean) =>
+    commit(grupos.map((g) => (g.nome === grupoNome ? { ...g, itens: g.itens.map((it) => ({ ...it, oculto })) } : g)));
 
   /* ------------------------- drag & drop ------------------------- */
   const onDragStart = (e: DragStartEvent) => {
@@ -294,12 +310,15 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, onVali
                 aberto={isExp(g.nome)}
                 verFinanceiro={verFinanceiro}
                 fornecedores={fornecedores}
+                usuarios={usuarios}
                 onToggle={() => toggle(g.nome)}
                 onRenomear={(v) => renomearGrupo(g.nome, v)}
                 onAddItem={() => addItem(g.nome)}
                 onDelGrupo={() => delGrupo(g)}
                 onUpdLinha={updLinha}
                 onDelItem={delItem}
+                onOcultoItem={setOcultoItem}
+                onOcultoGrupo={(v) => setOcultoGrupo(g.nome, v)}
                 onValidarFornecedor={onValidarFornecedor}
               />
             ))}
@@ -336,24 +355,35 @@ interface GrupoProps {
   aberto: boolean;
   verFinanceiro: boolean;
   fornecedores: Fornecedor[];
+  usuarios: string[];
   onToggle: () => void;
   onRenomear: (v: string) => void;
   onAddItem: () => void;
   onDelGrupo: () => void;
   onUpdLinha: (id: string, patch: Partial<EcLinha>) => void;
   onDelItem: (l: EcLinha) => void;
+  onOcultoItem: (id: string, oculto: boolean) => void;
+  onOcultoGrupo: (oculto: boolean) => void;
   onValidarFornecedor: (cnpj: string) => Promise<string | null>;
 }
 
-function GrupoCard({ g, aberto, verFinanceiro, fornecedores, onToggle, onRenomear, onAddItem, onDelGrupo, onUpdLinha, onDelItem, onValidarFornecedor }: GrupoProps) {
+function GrupoCard({
+  g, aberto, verFinanceiro, fornecedores, usuarios,
+  onToggle, onRenomear, onAddItem, onDelGrupo, onUpdLinha, onDelItem, onOcultoItem, onOcultoGrupo, onValidarFornecedor,
+}: GrupoProps) {
   const sortable = useSortable({ id: GID(g.nome) });
   const droppable = useDroppable({ id: CID(g.nome) });
+  const [verOcultos, setVerOcultos] = useState(false);
   const setRefs = (node: HTMLElement | null) => {
     sortable.setNodeRef(node);
     droppable.setNodeRef(node);
   };
   const style = { transform: CSS.Translate.toString(sortable.transform), transition: sortable.transition };
-  const subtotal = g.itens.reduce((s, l) => s + (l.valorPolobh || 0) + (l.valorCliente || 0), 0);
+
+  const visiveis = g.itens.filter((l) => !l.oculto);
+  const ocultos = g.itens.filter((l) => l.oculto);
+  const grupoOculto = g.itens.length > 0 && visiveis.length === 0;
+  const subtotal = visiveis.reduce((s, l) => s + (l.valorPolobh || 0) + (l.valorCliente || 0), 0);
 
   return (
     <div
@@ -362,6 +392,7 @@ function GrupoCard({ g, aberto, verFinanceiro, fornecedores, onToggle, onRenomea
       className={cx(
         "rounded-card border bg-white",
         sortable.isDragging ? "opacity-40" : "border-border",
+        grupoOculto && "opacity-70",
         droppable.isOver && !sortable.isDragging && "ring-2 ring-primary/40 border-primary"
       )}
     >
@@ -380,12 +411,20 @@ function GrupoCard({ g, aberto, verFinanceiro, fornecedores, onToggle, onRenomea
         </button>
         <Input className="!h-10 !px-2.5 !text-[15px] !font-bold !uppercase max-w-sm" value={g.nome} onChange={(e) => onRenomear(e.target.value)} />
         <span className="shrink-0 text-[12px] font-bold text-ink-3 bg-[#F0F1F4] rounded-pill px-2.5 py-1">
-          {g.itens.length} {g.itens.length === 1 ? "item" : "itens"}
+          {visiveis.length} {visiveis.length === 1 ? "item" : "itens"}
         </span>
+        {grupoOculto && <span className="shrink-0 text-[11px] font-extrabold text-ink-3 bg-[#F0F1F4] rounded-pill px-2 py-0.5 uppercase">Oculto</span>}
         {verFinanceiro && subtotal > 0 && (
           <span className="shrink-0 text-[14px] font-display font-bold text-ink-2">{brl(subtotal)}</span>
         )}
         <div className="ml-auto flex items-center gap-1 shrink-0">
+          <button
+            onClick={() => onOcultoGrupo(!grupoOculto)}
+            className="text-ink-3 hover:text-primary p-1.5"
+            title={grupoOculto ? "Reexibir grupo" : "Ocultar grupo (mantém guardado)"}
+          >
+            {grupoOculto ? <IcEyeOff width={18} height={18} /> : <IcEye width={18} height={18} />}
+          </button>
           <Button variant="soft" size="sm" icon={<IcPlus width={15} height={15} />} onClick={onAddItem}>
             Item
           </Button>
@@ -396,40 +435,57 @@ function GrupoCard({ g, aberto, verFinanceiro, fornecedores, onToggle, onRenomea
       </div>
 
       {aberto && (
-        <div className="overflow-x-auto">
-          <div className="min-w-[980px]">
-            <div className="flex items-center gap-2 px-3 py-2 text-[11px] font-extrabold uppercase tracking-[0.06em] text-ink-3 bg-[#FAFAFB]">
-              <span className="w-5 shrink-0" />
-              <span className="w-44 shrink-0">Item</span>
-              <span className="flex-1 min-w-[240px]">Descrição</span>
-              <span className="w-60 shrink-0">Fornecedor</span>
-              {verFinanceiro && <span className="w-28 shrink-0 text-right">Pólobh</span>}
-              {verFinanceiro && <span className="w-28 shrink-0 text-right">Cliente</span>}
-              <span className="w-24 shrink-0">Aprov.</span>
-              <span className="w-24 shrink-0">OS</span>
-              <span className="w-28 shrink-0">Contrato</span>
-              <span className="w-7 shrink-0" />
-            </div>
+        <div className="p-3 space-y-2.5">
+          <SortableContext items={visiveis.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+            {visiveis.map((l) => (
+              <ItemRow
+                key={l.id}
+                l={l}
+                verFinanceiro={verFinanceiro}
+                fornecedores={fornecedores}
+                usuarios={usuarios}
+                onUpd={(patch) => onUpdLinha(l.id, patch)}
+                onDel={() => onDelItem(l)}
+                onOcultar={() => onOcultoItem(l.id, true)}
+                onValidarFornecedor={onValidarFornecedor}
+              />
+            ))}
+          </SortableContext>
 
-            <SortableContext items={g.itens.map((i) => i.id)} strategy={verticalListSortingStrategy}>
-              {g.itens.map((l) => (
-                <ItemRow
-                  key={l.id}
-                  l={l}
-                  verFinanceiro={verFinanceiro}
-                  fornecedores={fornecedores}
-                  onUpd={(patch) => onUpdLinha(l.id, patch)}
-                  onDel={() => onDelItem(l)}
-                  onValidarFornecedor={onValidarFornecedor}
-                />
-              ))}
-            </SortableContext>
+          {visiveis.length === 0 && !grupoOculto && (
+            <div className="text-center text-ink-3 text-[13px] py-4">Nenhum item visível neste grupo.</div>
+          )}
 
-            <div className="px-3 py-2.5">
-              <Button variant="secondary" size="sm" icon={<IcPlus width={15} height={15} />} onClick={onAddItem}>
-                Adicionar item ao grupo
-              </Button>
+          {/* Itens ocultos guardados */}
+          {ocultos.length > 0 && (
+            <div className="rounded-btn border border-dashed border-border bg-[#FAFAFB]">
+              <button onClick={() => setVerOcultos((v) => !v)} className="w-full flex items-center gap-2 px-3 py-2 text-[12.5px] font-bold text-ink-2 hover:text-ink">
+                <IcChevron width={16} height={16} className={cx("transition-transform", verOcultos && "rotate-90")} />
+                Itens ocultos ({ocultos.length})
+                <span className="text-ink-3 font-medium">— guardados, fora dos totais e do Excel</span>
+              </button>
+              {verOcultos && (
+                <div className="px-3 pb-2.5 space-y-1.5">
+                  {ocultos.map((l) => (
+                    <div key={l.id} className="flex items-center gap-2 rounded-btn bg-white border border-border-soft px-2.5 py-1.5">
+                      <span className="flex-1 min-w-0 truncate text-[13px] text-ink-2">{l.item || l.descricao || "(item sem título)"}</span>
+                      <button onClick={() => onOcultoItem(l.id, false)} className="text-ink-3 hover:text-primary p-1" title="Reexibir item">
+                        <IcEyeOff width={16} height={16} />
+                      </button>
+                      <button onClick={() => onDelItem(l)} className="text-ink-3 hover:text-danger p-1" title="Remover item">
+                        <IcTrash width={16} height={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
+          )}
+
+          <div className="pt-0.5">
+            <Button variant="secondary" size="sm" icon={<IcPlus width={15} height={15} />} onClick={onAddItem}>
+              Adicionar item ao grupo
+            </Button>
           </div>
         </div>
       )}
@@ -443,79 +499,159 @@ interface ItemProps {
   l: EcLinha;
   verFinanceiro: boolean;
   fornecedores: Fornecedor[];
+  usuarios: string[];
   onUpd: (patch: Partial<EcLinha>) => void;
   onDel: () => void;
+  onOcultar: () => void;
   onValidarFornecedor: (cnpj: string) => Promise<string | null>;
 }
 
-function ItemRow({ l, verFinanceiro, fornecedores, onUpd, onDel, onValidarFornecedor }: ItemProps) {
+function ItemRow({ l, verFinanceiro, fornecedores, usuarios, onUpd, onDel, onOcultar, onValidarFornecedor }: ItemProps) {
   const sortable = useSortable({ id: l.id });
   const style = { transform: CSS.Translate.toString(sortable.transform), transition: sortable.transition };
+  const [resumoAberto, setResumoAberto] = useState(false);
+
+  const inserirResumo = (html: string) => {
+    if (!html) return;
+    onUpd({ descricaoCompleta: l.descricaoCompleta ? `${l.descricaoCompleta}${html}` : html });
+  };
 
   return (
     <div
       ref={sortable.setNodeRef}
       style={style}
       className={cx(
-        "flex items-start gap-2 px-3 py-2.5 border-b border-border-soft bg-white",
+        "rounded-card border border-border bg-white",
         sortable.isDragging && "opacity-40"
       )}
     >
-      <button
-        ref={sortable.setActivatorNodeRef}
-        {...sortable.listeners}
-        {...sortable.attributes}
-        className="cursor-grab active:cursor-grabbing text-ink-3 hover:text-ink shrink-0 mt-2 touch-none"
-        title="Arraste para reordenar / mover de grupo"
-      >
-        <IcGrip width={18} height={18} />
-      </button>
-      <div className="w-44 shrink-0">
-        <Input className="!h-10 !px-2.5 !text-[13.5px]" placeholder="Item" value={l.item} onChange={(e) => onUpd({ item: e.target.value })} />
-      </div>
-      <div className="flex-1 min-w-[240px]">
-        <AutoTextarea className="!text-[13.5px]" placeholder="Descrição" value={l.descricao} onChange={(e) => onUpd({ descricao: e.target.value })} />
-      </div>
-      <div className="w-60 shrink-0">
-        <FornecedorField
-          razao={l.fornecedorRazao}
-          cnpj={l.fornecedorCnpj}
-          contato={l.fornecedorContato}
-          fornecedores={fornecedores}
-          datalistId={DATALIST_ID}
-          onChange={onUpd}
-          onValidar={onValidarFornecedor}
-        />
-      </div>
-      {verFinanceiro && (
-        <div className="w-28 shrink-0">
-          <NumberInput className="!h-10 !px-2.5 !text-[13.5px]" value={l.valorPolobh} onValue={(v) => onUpd({ valorPolobh: v })} />
+      {/* Linha 1: item + descrições + valores */}
+      <div className="flex items-start gap-2 p-2.5">
+        <button
+          ref={sortable.setActivatorNodeRef}
+          {...sortable.listeners}
+          {...sortable.attributes}
+          className="cursor-grab active:cursor-grabbing text-ink-3 hover:text-ink shrink-0 mt-2 touch-none"
+          title="Arraste para reordenar / mover de grupo"
+        >
+          <IcGrip width={18} height={18} />
+        </button>
+
+        <div className="w-52 shrink-0">
+          <Campo label="Item">
+            <Input className="!h-10 !px-2.5 !text-[13.5px] !font-semibold" placeholder="Nome do item" value={l.item} onChange={(e) => onUpd({ item: e.target.value })} />
+          </Campo>
         </div>
-      )}
-      {verFinanceiro && (
-        <div className="w-28 shrink-0">
-          <NumberInput className="!h-10 !px-2.5 !text-[13.5px]" value={l.valorCliente} onValue={(v) => onUpd({ valorCliente: v })} />
+
+        <div className="flex-1 min-w-[280px] grid gap-2">
+          <Campo label="Descrição Financeiro">
+            <AutoTextarea className="!text-[13px]" placeholder="Descrição resumida do item" value={l.descricao} onChange={(e) => onUpd({ descricao: e.target.value })} />
+          </Campo>
+          <Campo label="Descrição Completa">
+            <RichTextField
+              value={l.descricaoCompleta}
+              onChange={(html) => onUpd({ descricaoCompleta: html })}
+              placeholder="Detalhamento completo (bullets, negrito)…"
+              toolbarExtra={
+                flags.resumoIA ? (
+                  <button
+                    type="button"
+                    onClick={() => setResumoAberto(true)}
+                    title="Resumo da Proposta com IA"
+                    className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11.5px] font-extrabold text-primary-dark bg-primary-soft hover:bg-active-border"
+                  >
+                    <IcSpark width={13} height={13} /> Resumo da Proposta
+                  </button>
+                ) : undefined
+              }
+            />
+          </Campo>
         </div>
-      )}
-      <div className="w-24 shrink-0">
-        <Select className="!h-10 !px-2 !text-[13px]" value={l.statusAprovacao} onChange={(e) => onUpd({ statusAprovacao: e.target.value as StatusAprovacao })}>
-          <option>Pendente</option>
-          <option>OK</option>
-        </Select>
+
+        {verFinanceiro && (
+          <div className="shrink-0 flex gap-2">
+            <Campo label="Pólobh" className="w-28">
+              <NumberInput className="!h-10 !px-2.5 !text-[13.5px]" value={l.valorPolobh} onValue={(v) => onUpd({ valorPolobh: v })} />
+            </Campo>
+            <Campo label="Cliente" className="w-28">
+              <NumberInput className="!h-10 !px-2.5 !text-[13.5px]" value={l.valorCliente} onValue={(v) => onUpd({ valorCliente: v })} />
+            </Campo>
+          </div>
+        )}
+
+        <div className="shrink-0 flex flex-col items-center gap-1 pt-5">
+          <button onClick={onOcultar} className="text-ink-3 hover:text-primary p-1.5" title="Ocultar item (mantém guardado)">
+            <IcEye width={18} height={18} />
+          </button>
+          <button onClick={onDel} className="text-ink-3 hover:text-danger p-1.5" title="Remover linha">
+            <IcTrash width={18} height={18} />
+          </button>
+        </div>
       </div>
-      <div className="w-24 shrink-0">
-        <Select className="!h-10 !px-2 !text-[13px]" value={l.statusOs} onChange={(e) => onUpd({ statusOs: e.target.value as StatusOs })}>
-          <option>Pendente</option>
-          <option>Emitir</option>
-          <option>OK</option>
-        </Select>
+
+      {/* Linha 2: metadados */}
+      <div className="flex flex-wrap items-end gap-2 px-2.5 pb-2.5 pt-1 border-t border-border-soft bg-[#FCFCFD] rounded-b-card">
+        <Campo label="Aprovação" className="w-28">
+          <Select className="!h-9 !px-2 !text-[12.5px]" value={l.statusAprovacao} onChange={(e) => onUpd({ statusAprovacao: e.target.value as StatusAprovacao })}>
+            <option>Pendente</option>
+            <option>OK</option>
+          </Select>
+        </Campo>
+        <Campo label="Fornecedor (CNPJ / Razão social)" className="w-[420px] max-w-full">
+          <FornecedorField
+            razao={l.fornecedorRazao}
+            cnpj={l.fornecedorCnpj}
+            fornecedores={fornecedores}
+            datalistId={DATALIST_ID}
+            onChange={onUpd}
+            onValidar={onValidarFornecedor}
+          />
+        </Campo>
+        <Campo label="Fatura ou Nota Fiscal" className="w-36">
+          <Input className="!h-9 !px-2 !text-[12.5px]" value={l.faturaNf} onChange={(e) => onUpd({ faturaNf: e.target.value })} />
+        </Campo>
+        <Campo label="Código de Serviço" className="w-32">
+          <Input className="!h-9 !px-2 !text-[12.5px]" value={l.codigoServico} onChange={(e) => onUpd({ codigoServico: e.target.value })} />
+        </Campo>
+        <Campo label="Pedido de Compra" className="w-32">
+          <Input className="!h-9 !px-2 !text-[12.5px]" value={l.pedidoCompra} onChange={(e) => onUpd({ pedidoCompra: e.target.value })} />
+        </Campo>
+        <Campo label="OS" className="w-24">
+          <Select className="!h-9 !px-2 !text-[12.5px]" value={l.statusOs} onChange={(e) => onUpd({ statusOs: e.target.value as StatusOs })}>
+            <option>Pendente</option>
+            <option>Emitir</option>
+            <option>OK</option>
+          </Select>
+        </Campo>
+        <Campo label="Contrato" className="w-24">
+          <Select className="!h-9 !px-2 !text-[12.5px]" value={l.contratoStatus} onChange={(e) => onUpd({ contratoStatus: e.target.value as StatusAprovacao })}>
+            <option>Pendente</option>
+            <option>OK</option>
+          </Select>
+        </Campo>
+        <Campo label="Contrato (nº)" className="w-28">
+          <Input className="!h-9 !px-2 !text-[12.5px]" placeholder="ref." value={l.contrato} onChange={(e) => onUpd({ contrato: e.target.value })} />
+        </Campo>
+        <div className="pb-0.5">
+          <ObservacoesButton
+            observacoes={l.observacoes}
+            usuarios={usuarios}
+            onChange={(obs: Observacao[]) => onUpd({ observacoes: obs })}
+          />
+        </div>
       </div>
-      <div className="w-28 shrink-0">
-        <Input className="!h-10 !px-2.5 !text-[13.5px]" placeholder="Nº/ref." value={l.contrato} onChange={(e) => onUpd({ contrato: e.target.value })} />
-      </div>
-      <button onClick={onDel} className="text-ink-3 hover:text-danger p-1.5 shrink-0 mt-1.5" title="Remover linha">
-        <IcTrash width={18} height={18} />
-      </button>
+
+      {resumoAberto && <ResumoPropostaModal onInserir={inserirResumo} onClose={() => setResumoAberto(false)} />}
     </div>
+  );
+}
+
+/** Rótulo pequeno acima de um campo. */
+function Campo({ label, className, children }: { label: string; className?: string; children: React.ReactNode }) {
+  return (
+    <label className={cx("block", className)}>
+      <span className="block text-[10.5px] font-extrabold uppercase tracking-[0.05em] text-ink-3 mb-1 truncate">{label}</span>
+      {children}
+    </label>
   );
 }

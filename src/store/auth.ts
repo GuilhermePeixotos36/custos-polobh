@@ -6,7 +6,6 @@ import { auditar, definirAtor } from "@/store/logs";
 import type { User } from "@supabase/supabase-js";
 
 export type Recurso =
-  | "dashboard"
   | "projetos"
   | "ecs"
   | "ecs.editar"
@@ -20,7 +19,6 @@ export type Recurso =
 
 /** Todos os recursos — usado pelo perfil Administrador (acesso total). */
 export const TODOS_RECURSOS: Recurso[] = [
-  "dashboard",
   "projetos",
   "ecs",
   "ecs.editar",
@@ -38,7 +36,7 @@ export const PERMISSOES: Record<Papel, Recurso[]> = {
   // Administrador: superusuário (desenvolvedor/gestor do app). Único com "logs".
   Admin: TODOS_RECURSOS,
   Direcao: [
-    "dashboard",
+    "projetos",
     "ecs",
     "ecs.editar",
     "oss",
@@ -48,9 +46,8 @@ export const PERMISSOES: Record<Papel, Recurso[]> = {
     "configuracoes",
     "guia",
   ],
-  Producao: ["dashboard", "projetos", "ecs", "ecs.editar", "oss", "cronogramas", "fornecedores", "guia"],
+  Producao: ["projetos", "ecs", "ecs.editar", "oss", "cronogramas", "fornecedores", "guia"],
   Administrativo: [
-    "dashboard",
     "projetos",
     "ecs",
     "oss",

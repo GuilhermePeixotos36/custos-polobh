@@ -3,6 +3,7 @@
  * Percentuais fixos: honorários 15%, encargos 16,33%.
  */
 import type { Ec, EcLinha, Producao, Fornecedor } from "@/data/types";
+import { dataBR } from "@/lib/format";
 
 export const HONORARIOS = 0.15;
 export const ENCARGOS = 0.1633;
@@ -37,11 +38,13 @@ export function totalProducao(p: Producao): number {
 }
 
 export function calcularTotais(linhas: EcLinha[], producao: Producao): EcTotais {
+  // Itens ocultos não entram nos totais (ficam guardados, mas fora da conta).
+  const ativas = linhas.filter((l) => !l.oculto);
   const somaLinhasPolobh = r2(
-    linhas.reduce((s, l) => s + (l.valorPolobh || 0), 0)
+    ativas.reduce((s, l) => s + (l.valorPolobh || 0), 0)
   );
   const somaLinhasCliente = r2(
-    linhas.reduce((s, l) => s + (l.valorCliente || 0), 0)
+    ativas.reduce((s, l) => s + (l.valorCliente || 0), 0)
   );
   const somaProducao = totalProducao(producao);
 
@@ -91,6 +94,18 @@ export function numeroEc(
 ): string {
   const v = String(versao).padStart(2, "0");
   return `EC – ${slug(clienteNome)} – ${slug(projetoTitulo)} – V${v}`;
+}
+
+/**
+ * Título automático da EC exibido em destaque no gerenciamento das ECs:
+ * "EC · {Cliente} · {Projeto} · V{NN} · {Data de criação}".
+ */
+export function tituloEc(ec: Ec): string {
+  const v = `V${String(ec.versao).padStart(2, "0")}`;
+  const cliente = ec.cliente?.nome || "Cliente";
+  const projeto = ec.projeto?.titulo || "Projeto";
+  const data = ec.criadoEm ? dataBR(ec.criadoEm) : "";
+  return ["EC", cliente, projeto, v, data].filter(Boolean).join(" · ");
 }
 
 /** Numeração da OS derivada da EC: "{numeroEc} – OS-{NN}". */

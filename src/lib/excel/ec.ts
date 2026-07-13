@@ -7,11 +7,32 @@ import ExcelJS from "exceljs";
 import type { Ec } from "@/data/types";
 import { calcularTotais, totalProducao } from "@/domain/calc";
 import { dataBR } from "@/lib/format";
-import { COR, fill, thin, baixar, nomeArquivo, carregarLogo } from "./shared";
+import { COR, fill, thin, baixar, salvarComPicker, nomeArquivo, carregarLogo } from "./shared";
 
 const COLS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
 
-export async function gerarEcExcel(ec: Ec): Promise<void> {
+/** Altura máxima de linha no Excel (em pontos). */
+const ALTURA_MAX = 409;
+
+/** Converte o HTML do rich-text (Descrição Completa) numa lista de linhas de texto. */
+function htmlParaLinhas(html: string): string[] {
+  if (!html) return [];
+  const txt = html
+    .replace(/<\/(li|p|div|h[1-6])>/gi, "\n")
+    .replace(/<li[^>]*>/gi, "• ")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">");
+  return txt.split(/\n/).map((l) => l.trim()).filter(Boolean);
+}
+
+export async function gerarEcExcel(
+  ec: Ec,
+  opts?: { picker?: boolean }
+): Promise<"salvo" | "cancelado" | "baixado"> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "Sistema Pólobh";
   const ws = wb.addWorksheet("EC", {
@@ -114,9 +135,9 @@ export async function gerarEcExcel(ec: Ec): Promise<void> {
   // ---------- Tabela de custos ----------
   secao("ESTIMATIVA DE CUSTOS");
   const headers = [
-    "Item", "Descrição", "Pólobh", "Cliente", "Status Aprovação",
+    "Item", "Descrição Financeiro", "Pólobh", "Cliente", "Status Aprovação",
     "Fornecedor (Razão Social)", "Fornecedor (CNPJ)", "Fatura ou Nota Fiscal",
-    "Código Serviço", "Pedido de Compra", "OS", "Observação",
+    "Código Serviço", "Pedido de Compra", "OS", "Contrato",
   ];
   const hr = r;
   headers.forEach((h, i) => {
@@ -131,13 +152,51 @@ export async function gerarEcExcel(ec: Ec): Promise<void> {
   r++;
   const itemStart = r; // início do intervalo das linhas de custo (p/ fórmulas)
 
-  // agrupar por GRUPO
+  // agrupar por GRUPO (itens ocultos ficam de fora do Excel)
   const grupos = new Map<string, typeof ec.linhas>();
-  for (const l of [...ec.linhas].sort((a, b) => a.ordem - b.ordem)) {
+  for (const l of [...ec.linhas].filter((l) => !l.oculto).sort((a, b) => a.ordem - b.ordem)) {
     const g = l.grupo || "GERAL";
     if (!grupos.has(g)) grupos.set(g, []);
     grupos.get(g)!.push(l);
   }
+
+  /** Escreve a Descrição Completa (e observações) em linhas extras mescladas A:L,
+   *  quebrando em quantas linhas forem necessárias sem estourar a altura de 409. */
+  const escreverBlocoTexto = (titulo: string, linhasTxt: string[]) => {
+    if (!linhasTxt.length) return;
+    // Estima linhas visuais por texto (largura mesclada A:L ≈ 199 caracteres).
+    const visuais = (s: string) => Math.max(1, Math.ceil(s.length / 190));
+    const LINHAS_ALVO = Math.floor((ALTURA_MAX - 8) / 13); // ~30 linhas visuais por célula
+    let buffer: string[] = [];
+    let acc = 0;
+    const flush = () => {
+      if (!buffer.length) return;
+      ws.mergeCells(`A${r}:L${r}`);
+      const c = ws.getCell(`A${r}`);
+      c.value = buffer.join("\n");
+      c.font = { size: 9, color: { argb: COR.ink2 } };
+      c.alignment = { wrapText: true, vertical: "top" };
+      c.border = thin;
+      ws.getRow(r).height = Math.min(ALTURA_MAX, acc * 13 + 8);
+      r++;
+      buffer = [];
+      acc = 0;
+    };
+    // rótulo do bloco
+    ws.mergeCells(`A${r}:L${r}`);
+    const cab = ws.getCell(`A${r}`);
+    cab.value = titulo;
+    cab.font = { size: 8.5, bold: true, italic: true, color: { argb: COR.ink2 } };
+    cab.border = thin;
+    r++;
+    for (const l of linhasTxt) {
+      const v = visuais(l);
+      if (acc + v > LINHAS_ALVO && buffer.length) flush();
+      buffer.push(l);
+      acc += v;
+    }
+    flush();
+  };
 
   for (const [grupo, linhas] of grupos) {
     ws.mergeCells(`A${r}:L${r}`);
@@ -148,10 +207,11 @@ export async function gerarEcExcel(ec: Ec): Promise<void> {
     gc.border = thin;
     r++;
     for (const l of linhas) {
+      const contratoTxt = `${l.contratoStatus || "Pendente"}${l.contrato ? " · " + l.contrato : ""}`;
       const vals = [
         l.item, l.descricao, l.valorPolobh, l.valorCliente, l.statusAprovacao,
         l.fornecedorRazao, l.fornecedorCnpj, l.faturaNf, l.codigoServico,
-        l.pedidoCompra, l.statusOs, l.observacao,
+        l.pedidoCompra, l.statusOs, contratoTxt,
       ];
       vals.forEach((v, i) => {
         const c = ws.getCell(`${COLS[i]}${r}`);
@@ -165,6 +225,11 @@ export async function gerarEcExcel(ec: Ec): Promise<void> {
         }
       });
       r++;
+      // Descrição Completa em linhas extras (respeitando o limite de altura)
+      escreverBlocoTexto("Descrição Completa:", htmlParaLinhas(l.descricaoCompleta));
+      // Observações do item (texto + pessoa)
+      const obs = (l.observacoes ?? []).filter((o) => o.texto.trim()).map((o) => `• ${o.texto}${o.pessoa ? " — " + o.pessoa : ""}`);
+      escreverBlocoTexto("Observações:", obs);
     }
   }
   const itemEnd = r - 1; // fim do intervalo das linhas de custo
@@ -367,5 +432,9 @@ export async function gerarEcExcel(ec: Ec): Promise<void> {
   ws.pageSetup.printTitlesRow = `${hr}:${hr}`;
 
   const buffer = await wb.xlsx.writeBuffer();
-  baixar(buffer as ArrayBuffer, `${nomeArquivo(ec.numero)}.xlsx`);
+  // Nome do arquivo = código da EC + data de criação (ex.: "EC – ... – V02 - 13-07-2026.xlsx").
+  const nome = `${nomeArquivo(`${ec.numero} - ${dataBR(ec.criadoEm)}`)}.xlsx`;
+  if (opts?.picker) return salvarComPicker(buffer as ArrayBuffer, nome);
+  baixar(buffer as ArrayBuffer, nome);
+  return "baixado";
 }

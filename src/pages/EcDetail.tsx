@@ -21,7 +21,7 @@ import {
 import { IcBack, IcCopy, IcDownload, IcPlus, IcChevron, IcSend } from "@/components/icons";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
-import { calcularTotais, agruparPorFornecedor } from "@/domain/calc";
+import { calcularTotais, agruparPorFornecedor, tituloEc } from "@/domain/calc";
 import { RentabilidadeItens } from "@/components/RentabilidadeItens";
 import { brl, dataBR } from "@/lib/format";
 import { gerarEcExcel } from "@/lib/excel";
@@ -107,8 +107,8 @@ export function EcDetail() {
           <Crumb>{ec.numero}</Crumb>
         </>
       }
-      title={ec.projeto.titulo}
-      subtitle={`${ec.cliente.nome} · ${ec.numero}`}
+      title={ec.projeto.titulo || "Estimativa"}
+      subtitle={tituloEc(ec)}
       topAction={
         <div className="flex gap-2">
           <Button variant="secondary" size="sm" icon={<IcDownload width={16} height={16} />} onClick={() => gerarEcExcel(ec)}>
@@ -130,6 +130,7 @@ export function EcDetail() {
       </button>
 
       <div className="flex items-center gap-2 mb-5 flex-wrap">
+        {ec.ativa ? <Badge tom="success">EC ativa</Badge> : <Badge tom="neutral">Arquivada (não ativa)</Badge>}
         <Badge tom={tomStatusEc[ec.status]}>{ec.status}</Badge>
         <Badge tom="neutral">Versão V{String(ec.versao).padStart(2, "0")}</Badge>
         {ec.canceladaSubstituida && <Badge tom="warning">Cancela e substitui anteriores</Badge>}
@@ -328,6 +329,21 @@ export function EcDetail() {
               <Eyebrow>Ações</Eyebrow>
               <AvisoEmailPendente className="mt-3" />
               <div className="mt-3 grid gap-2">
+                {!ec.ativa && (
+                  <Button variant="primary" size="sm"
+                    onClick={async () => {
+                      if (!(await confirmar({
+                        titulo: "Tornar esta EC a ativa do projeto?",
+                        mensagem: "As demais versões do projeto passam a arquivadas. Só uma EC fica ativa por projeto.",
+                        confirmarTexto: "Tornar ativa",
+                      }))) return;
+                      await repo.ecs.definirAtiva(ec.id);
+                      toast("EC definida como ativa.", "success");
+                      navigate(0);
+                    }}>
+                    Tornar esta EC a ativa
+                  </Button>
+                )}
                 <Button variant="primary" size="sm" icon={<IcSend width={16} height={16} />}
                   onClick={async () => {
                     const destino = ec.cliente.representante.email || ec.cliente.nome;
@@ -378,7 +394,7 @@ export function EcDetail() {
                         mensagem: "A EC sai da lista ativa, mas continua consultável e pode ser duplicada. Arquivar ≠ apagar.",
                         confirmarTexto: "Arquivar",
                       }))) return;
-                      await repo.ecs.salvar({ ...ec, status: "Arquivada" });
+                      await repo.ecs.salvar({ ...ec, status: "Arquivada", ativa: false });
                       toast("EC arquivada (continua consultável).", "info");
                       navigate(voltarUrl);
                     }}>

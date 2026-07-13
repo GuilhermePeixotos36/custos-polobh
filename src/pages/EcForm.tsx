@@ -17,6 +17,7 @@ import { useAsync } from "@/hooks/useAsync";
 import {
   calcularTotais,
   numeroEc,
+  tituloEc,
   producaoPadrao,
 } from "@/domain/calc";
 import { itensDoTemplate } from "@/domain/ecTemplates";
@@ -42,6 +43,7 @@ const novaLinha = (ordem: number): EcLinha => ({
   grupo: "GERAL",
   item: "",
   descricao: "",
+  descricaoCompleta: "",
   valorPolobh: 0,
   valorCliente: 0,
   valorGasto: 0,
@@ -54,7 +56,10 @@ const novaLinha = (ordem: number): EcLinha => ({
   pedidoCompra: "",
   statusOs: "Pendente",
   contrato: "",
+  contratoStatus: "Pendente",
   observacao: "",
+  observacoes: [],
+  oculto: false,
   ordem,
 });
 
@@ -120,6 +125,9 @@ export function EcForm() {
   // Fornecedores registrados — alimentam a lista suspensa por CNPJ na tabela de custos.
   const { data: fornData, reload: reloadForn } = useAsync(() => repo.fornecedores.listar(), []);
   const fornecedores = fornData ?? [];
+  // Usuários do sistema — para atribuir observações dos itens.
+  const { data: usuariosData } = useAsync(() => repo.auth.usuarios(), []);
+  const usuarios = (usuariosData ?? []).map((u) => u.nome).filter(Boolean);
 
   // inicia o formulário e registra a "foto" base para detectar alterações
   const iniciar = (e: Ec) => {
@@ -153,6 +161,7 @@ export function EcForm() {
           template,
           versao: 1,
           status: "Rascunho",
+          ativa: true,
           clienteId: "",
           cliente,
           projeto,
@@ -266,6 +275,14 @@ export function EcForm() {
       await acumularFornecedores(ec!.linhas).catch(() => {});
       toast("Estimativa salva.", "success");
       guard.liberar();
+      // Download automático em Excel: abre o seletor de pasta do Windows.
+      try {
+        toast("Escolha a pasta para salvar a EC em Excel.", "info");
+        const st = await gerarEcExcel(salvo, { picker: true });
+        if (st === "salvo") toast("EC salva em Excel na pasta escolhida.", "success");
+      } catch {
+        /* falha no download não bloqueia o salvamento */
+      }
       navigate(`/estimativas/${salvo.id}`);
     } catch (e) {
       toast(`Erro ao salvar: ${(e as Error).message}`, "danger");
@@ -295,13 +312,15 @@ export function EcForm() {
         </div>
       }
     >
-      {/* Banner numeração */}
+      {/* Banner título automático */}
       <div className="mb-5 rounded-card bg-black text-white px-5 py-4 flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <Eyebrow><span className="text-white/50">Numeração automática</span></Eyebrow>
-          <div className="font-display font-bold text-lg tracking-tight mt-1">{numero}</div>
+        <div className="min-w-0">
+          <Eyebrow><span className="text-white/50">Título automático da EC</span></Eyebrow>
+          <div className="font-display font-bold text-lg tracking-tight mt-1 break-words">{tituloEc({ ...ec, numero })}</div>
+          <div className="text-white/40 text-[12px] mt-0.5">{numero}</div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
+          {!ec.ativa && <span className="text-[11px] font-extrabold uppercase bg-white/10 text-white/70 rounded-pill px-2 py-1">Arquivada</span>}
           <span className="text-white/60 text-[13px]">Versão</span>
           <span className="font-display font-bold text-amber text-lg">V{String(ec.versao).padStart(2, "0")}</span>
         </div>
@@ -364,6 +383,7 @@ export function EcForm() {
               onChange={(linhas) => upd({ linhas })}
               verFinanceiro={verFinanceiro}
               fornecedores={fornecedores}
+              usuarios={usuarios}
               onValidarFornecedor={validarFornecedor}
             />
           </div>

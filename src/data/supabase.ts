@@ -22,6 +22,7 @@ const financeiroVazio = () => ({
   bvPercentual: 0, bvValor: 0, bvJustificativa: "", acertoFinanceiro: "",
 });
 import type {
+  AnexoRepository,
   AuthRepository,
   ClienteRepository,
   EcRepository,
@@ -32,6 +33,7 @@ import type {
   Repositorios,
 } from "./repository";
 import type {
+  Anexo,
   Cliente,
   Ec,
   EcLinha,
@@ -190,6 +192,7 @@ function mapLinha(r: any): EcLinha {
     grupo: r.grupo ?? "",
     item: r.item ?? "",
     descricao: r.descricao ?? "",
+    descricaoCompleta: r.descricao_completa ?? "",
     valorPolobh: Number(r.valor_polobh) || 0,
     valorCliente: Number(r.valor_cliente) || 0,
     valorGasto: Number(r.valor_gasto) || 0,
@@ -202,7 +205,16 @@ function mapLinha(r: any): EcLinha {
     pedidoCompra: r.pedido_compra ?? "",
     statusOs: r.status_os ?? "Pendente",
     contrato: r.contrato ?? "",
+    contratoStatus: r.contrato_status ?? "Pendente",
     observacao: r.observacao ?? "",
+    // migra a observação legada (texto único) para a lista quando ainda não houver
+    observacoes:
+      Array.isArray(r.observacoes) && r.observacoes.length
+        ? r.observacoes
+        : r.observacao
+        ? [{ texto: r.observacao, pessoa: "" }]
+        : [],
+    oculto: !!r.oculto,
     ordem: r.ordem ?? 0,
   };
 }
@@ -213,6 +225,7 @@ function linhaRow(ecId: string, l: EcLinha) {
     grupo: l.grupo,
     item: l.item,
     descricao: l.descricao,
+    descricao_completa: l.descricaoCompleta ?? "",
     valor_polobh: l.valorPolobh,
     valor_cliente: l.valorCliente,
     valor_gasto: l.valorGasto ?? 0,
@@ -225,7 +238,10 @@ function linhaRow(ecId: string, l: EcLinha) {
     pedido_compra: l.pedidoCompra,
     status_os: l.statusOs,
     contrato: l.contrato ?? "",
-    observacao: l.observacao,
+    contrato_status: l.contratoStatus ?? "Pendente",
+    observacao: l.observacao ?? "",
+    observacoes: l.observacoes ?? [],
+    oculto: l.oculto ?? false,
     ordem: l.ordem,
   };
 }
@@ -251,6 +267,7 @@ function mapEc(r: any): Ec {
     criadoEm: r.criado_em,
     atualizadoEm: r.atualizado_em,
     canceladaSubstituida: r.cancelada_substituida ?? false,
+    ativa: r.ativa ?? true,
   };
 }
 
@@ -268,6 +285,7 @@ function ecRow(ec: Ec) {
     versao: ec.versao,
     status: ec.status,
     cancelada_substituida: ec.canceladaSubstituida ?? false,
+    ativa: ec.ativa ?? true,
     atualizado_em: nowIso(),
   };
 }
@@ -313,6 +331,10 @@ const ecRepo: EcRepository = {
       id = novo.id;
     }
     await sincronizarLinhas(id, ec.linhas);
+    // Apenas uma EC ativa por projeto: ao salvar uma ativa, arquiva o "ativa" das irmãs.
+    if (ec.ativa && isUuid(ec.projetoId)) {
+      ok(await supabase.from("ecs").update({ ativa: false }).eq("projeto_id", ec.projetoId).neq("id", id));
+    }
     const salvo = await this.obter(id);
     if (!salvo) throw new Error("Falha ao reler a EC salva.");
     auditar({
@@ -327,6 +349,7 @@ const ecRepo: EcRepository = {
     const orig = await this.obter(id);
     if (!orig) throw new Error("EC não encontrada");
     const agora = nowIso();
+    // Cópia é um rascunho independente e NÃO ativa (não perturba a EC ativa do projeto).
     return this.salvar({
       ...orig,
       id: "",
@@ -334,6 +357,7 @@ const ecRepo: EcRepository = {
       status: "Rascunho",
       numero: numeroEc(orig.cliente.nome, orig.projeto.titulo + " (cópia)", 1),
       canceladaSubstituida: false,
+      ativa: false,
       criadoEm: agora,
       atualizadoEm: agora,
       linhas: orig.linhas.map((l) => ({ ...l, id: "" })),
@@ -342,7 +366,8 @@ const ecRepo: EcRepository = {
   async novaVersao(id) {
     const orig = await this.obter(id);
     if (!orig) throw new Error("EC não encontrada");
-    ok(await supabase.from("ecs").update({ cancelada_substituida: true }).eq("id", id));
+    // A versão anterior é arquivada e deixa de ser a ativa (a nova a substitui).
+    ok(await supabase.from("ecs").update({ cancelada_substituida: true, ativa: false, status: "Arquivada" }).eq("id", id));
     const novaV = orig.versao + 1;
     const agora = nowIso();
     return this.salvar({
@@ -352,10 +377,25 @@ const ecRepo: EcRepository = {
       status: "Rascunho",
       numero: numeroEc(orig.cliente.nome, orig.projeto.titulo, novaV),
       canceladaSubstituida: true,
+      ativa: true,
       criadoEm: agora,
       atualizadoEm: agora,
       linhas: orig.linhas.map((l) => ({ ...l, id: "" })),
     });
+  },
+  async definirAtiva(id) {
+    const ec = await this.obter(id);
+    if (!ec) throw new Error("EC não encontrada");
+    // Arquiva o "ativa" das irmãs do mesmo projeto e reativa esta.
+    if (isUuid(ec.projetoId)) {
+      ok(await supabase.from("ecs").update({ ativa: false }).eq("projeto_id", ec.projetoId).neq("id", id));
+    }
+    const novoStatus = ec.status === "Arquivada" || ec.status === "Cancelada" ? "Rascunho" : ec.status;
+    ok(await supabase.from("ecs").update({ ativa: true, status: novoStatus }).eq("id", id));
+    auditar({ categoria: "EC", acao: "ec.ativar", mensagem: `EC ${ec.numero} definida como ativa`, alvoId: id });
+    const salvo = await this.obter(id);
+    if (!salvo) throw new Error("Falha ao reler a EC.");
+    return salvo;
   },
   async remover(id) {
     const ec = await this.obter(id);
@@ -645,6 +685,63 @@ const empresasRepo: EmpresasRepository = {
   },
 };
 
+/* --------------------------------- Anexos -------------------------------- */
+
+const ANEXOS_BUCKET = "projeto-anexos";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapAnexo(r: any): Anexo {
+  return {
+    id: r.id,
+    projetoId: r.projeto_id,
+    nome: r.nome ?? "",
+    path: r.path ?? "",
+    mime: r.mime ?? "",
+    tamanho: Number(r.tamanho) || 0,
+    criadoEm: r.criado_em,
+  };
+}
+
+/** Remove acentos/caracteres problemáticos do nome do arquivo no bucket. */
+const nomeSeguro = (s: string) =>
+  s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/_+/g, "_");
+
+const anexoRepo: AnexoRepository = {
+  async listar(projetoId) {
+    const data = ok(
+      await supabase.from("projeto_anexos").select("*").eq("projeto_id", projetoId).order("criado_em", { ascending: false })
+    );
+    return (data ?? []).map(mapAnexo);
+  },
+  async enviar(projetoId, file) {
+    const path = `${projetoId}/${Date.now()}-${nomeSeguro(file.name)}`;
+    const up = await supabase.storage.from(ANEXOS_BUCKET).upload(path, file, {
+      contentType: file.type || "application/octet-stream",
+      upsert: false,
+    });
+    if (up.error) throw new Error(up.error.message);
+    const data = ok(
+      await supabase
+        .from("projeto_anexos")
+        .insert({ projeto_id: projetoId, nome: file.name, path, mime: file.type || "", tamanho: file.size })
+        .select("*")
+        .single()
+    )!;
+    auditar({ categoria: "Projeto", acao: "anexo.enviar", mensagem: `Anexo "${file.name}" adicionado ao projeto`, alvoId: projetoId });
+    return mapAnexo(data);
+  },
+  async remover(id, path) {
+    await supabase.storage.from(ANEXOS_BUCKET).remove([path]);
+    ok(await supabase.from("projeto_anexos").delete().eq("id", id));
+    auditar({ nivel: "aviso", categoria: "Projeto", acao: "anexo.remover", mensagem: `Anexo removido`, alvoId: id });
+  },
+  async urlAssinada(path) {
+    const { data, error } = await supabase.storage.from(ANEXOS_BUCKET).createSignedUrl(path, 600);
+    if (error) throw new Error(error.message);
+    return data.signedUrl;
+  },
+};
+
 export const supabaseRepositorios: Repositorios = {
   projetos: projetoRepo,
   clientes: clienteRepo,
@@ -653,4 +750,5 @@ export const supabaseRepositorios: Repositorios = {
   oss: osRepo,
   auth: authRepo,
   empresas: empresasRepo,
+  anexos: anexoRepo,
 };

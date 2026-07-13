@@ -5,16 +5,20 @@ import {
   Card, CardTitle, Button, Field, Input, Textarea, Select, Badge,
   Table, THead, Th, Tr, Td, EmptyState, tomStatusEc, tomStatusOs, type Tom,
 } from "@/components/ui";
-import { IcChevron, IcPlus, IcBack, IcDownload } from "@/components/icons";
+import { IcChevron, IcPlus, IcBack, IcDownload, IcSearch, IcDoc, IcTrash } from "@/components/icons";
 import { TimelineConsolidada, type ItemConsolidado } from "@/components/Timeline";
 import { NotifDot } from "@/components/NotifDot";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import { useMinhasPendencias } from "@/store/pendencias";
 import { gerarCronogramaExcel } from "@/lib/excel";
+import { consultarCnpj } from "@/lib/cnpj";
+import { tituloEc } from "@/domain/calc";
+import { flags } from "@/lib/flags";
 import { cx, dataBR, maskCpfCnpjInput, maskTelefone } from "@/lib/format";
 import { toast } from "@/store/toast";
-import type { Cliente, Projeto, ProjetoInfo, StatusProjeto } from "@/data/types";
+import { confirmar } from "@/store/confirm";
+import type { Anexo, Cliente, Projeto, ProjetoInfo, StatusProjeto } from "@/data/types";
 
 const tomStatusProjeto: Record<StatusProjeto, Tom> = {
   Ativo: "success", Arquivado: "neutral", Concluido: "info", Cancelado: "danger",
@@ -35,13 +39,14 @@ const projetoVazio = (): Projeto => ({
   docsUrl: "", status: "Ativo", criadoEm: "", atualizadoEm: "",
 });
 
-type Aba = "dados" | "ec" | "os" | "cronograma" | "fornecedores";
+type Aba = "dados" | "ec" | "os" | "cronograma" | "fornecedores" | "anexos";
 const ABAS: { key: Aba; label: string }[] = [
   { key: "dados", label: "Dados Gerais" },
   { key: "ec", label: "EC" },
   { key: "os", label: "OS" },
   { key: "cronograma", label: "Cronograma" },
   { key: "fornecedores", label: "Fornecedores" },
+  { key: "anexos", label: "Anexos" },
 ];
 
 export function ProjetoDetail() {
@@ -61,13 +66,21 @@ export function ProjetoDetail() {
   const [aba, setAba] = useState<Aba>(abaInicial);
   const [salvando, setSalvando] = useState(false);
   const [tplNova, setTplNova] = useState<"Corporativo" | "Cultural" | "">("Corporativo");
+  const [cnpjLoading, setCnpjLoading] = useState(false);
+  const [cnpjMsg, setCnpjMsg] = useState("");
 
   useEffect(() => {
     if (novo) setP(projetoVazio());
     else if (existente) setP(structuredClone(existente));
   }, [existente, novo]);
 
-  const ecsDoProjeto = useMemo(() => (ecsAll ?? []).filter((e) => e.projetoId === id), [ecsAll, id]);
+  const ecsDoProjeto = useMemo(
+    () =>
+      (ecsAll ?? [])
+        .filter((e) => e.projetoId === id)
+        .sort((a, b) => Number(b.ativa) - Number(a.ativa) || b.versao - a.versao),
+    [ecsAll, id]
+  );
   const ecIds = useMemo(() => new Set(ecsDoProjeto.map((e) => e.id)), [ecsDoProjeto]);
   const ossDoProjeto = useMemo(() => (ossAll ?? []).filter((o) => ecIds.has(o.ecId)), [ossAll, ecIds]);
 
@@ -140,6 +153,24 @@ export function ProjetoDetail() {
   const updCli = (patch: Partial<Cliente>) => setP((x) => ({ ...x, cliente: { ...x.cliente, ...patch } }));
   const updInfo = (patch: Partial<ProjetoInfo>) => setP((x) => ({ ...x, info: { ...x.info, ...patch }, nome: patch.titulo ?? x.nome }));
 
+  async function consultarCnpjCliente() {
+    setCnpjMsg("");
+    setCnpjLoading(true);
+    try {
+      const d = await consultarCnpj(p.cliente.cnpjCpf);
+      updCli({
+        nome: p.cliente.nome || d.nomeFantasia || d.razaoSocial,
+        razaoSocial: d.razaoSocial,
+        endereco: d.endereco,
+      });
+      setCnpjMsg("Razão social e endereço preenchidos. Complete as inscrições manualmente.");
+    } catch (e) {
+      setCnpjMsg((e as Error).message);
+    } finally {
+      setCnpjLoading(false);
+    }
+  }
+
   async function salvar() {
     setSalvando(true);
     try {
@@ -178,7 +209,9 @@ export function ProjetoDetail() {
 
       {!novo && (
         <div className="flex items-center gap-2 mb-4">
+          <span className="text-[12.5px] font-bold text-ink-3 uppercase tracking-wide">Status do projeto</span>
           <Badge tom={tomStatusProjeto[p.status]}>{p.status}</Badge>
+          {p.cliente?.nome && <span className="text-ink-3 text-[13px]">· {p.cliente.nome}</span>}
         </div>
       )}
 
@@ -208,12 +241,19 @@ export function ProjetoDetail() {
         <div className="space-y-4">
           <div className="grid xl:grid-cols-2 gap-4 items-start">
             <Card>
-              <CardTitle>Cliente</CardTitle>
+              <CardTitle action={
+                <Button variant="soft" size="sm" icon={<IcSearch width={15} height={15} />} onClick={consultarCnpjCliente} disabled={cnpjLoading || !flags.consultaCnpj}>
+                  {cnpjLoading ? "Consultando…" : "Consultar CNPJ"}
+                </Button>
+              }>Cliente</CardTitle>
+              {cnpjMsg && <div className="mb-3 text-[12.5px] text-info bg-info-soft rounded-btn px-3 py-2">{cnpjMsg}</div>}
               <div className="grid sm:grid-cols-2 gap-4">
                 <Field label="CNPJ/CPF"><Input value={p.cliente.cnpjCpf} inputMode="numeric" onChange={(e) => updCli({ cnpjCpf: maskCpfCnpjInput(e.target.value) })} placeholder="00.000.000/0000-00" /></Field>
                 <Field label="Cliente (nome)"><Input value={p.cliente.nome} onChange={(e) => updCli({ nome: e.target.value })} /></Field>
                 <Field label="Razão Social" className="sm:col-span-2"><Input value={p.cliente.razaoSocial} onChange={(e) => updCli({ razaoSocial: e.target.value })} /></Field>
                 <Field label="Endereço" className="sm:col-span-2"><Input value={p.cliente.endereco} onChange={(e) => updCli({ endereco: e.target.value })} /></Field>
+                <Field label="Inscrição Estadual"><Input value={p.cliente.inscricaoEstadual} onChange={(e) => updCli({ inscricaoEstadual: e.target.value })} /></Field>
+                <Field label="Inscrição Municipal"><Input value={p.cliente.inscricaoMunicipal} onChange={(e) => updCli({ inscricaoMunicipal: e.target.value })} /></Field>
                 <Field label="Representante"><Input value={p.cliente.representante.nome} onChange={(e) => updCli({ representante: { ...p.cliente.representante, nome: e.target.value } })} /></Field>
                 <Field label="E-mail do representante"><Input value={p.cliente.representante.email} onChange={(e) => updCli({ representante: { ...p.cliente.representante, email: e.target.value } })} /></Field>
               </div>
@@ -273,7 +313,7 @@ export function ProjetoDetail() {
             <div className="p-6"><EmptyState title="Nenhuma EC" hint="Crie a primeira EC deste projeto." /></div>
           ) : (
             <Table>
-              <THead><Th>Número / Evento</Th><Th align="center">Versão</Th><Th align="center">Status</Th></THead>
+              <THead><Th>Título / EC</Th><Th align="center">Ativa</Th><Th align="center">Versão</Th><Th align="center">Status</Th></THead>
               <tbody>
                 {ecsDoProjeto.map((e) => (
                   <Tr key={e.id} onClick={() => navigate(`/estimativas/${e.id}`)}>
@@ -281,11 +321,12 @@ export function ProjetoDetail() {
                       <div className="flex items-center gap-2">
                         <NotifDot inline n={porEc[e.id] ?? 0} title="Ações pendentes nesta EC" />
                         <div>
-                          <div className="font-bold text-ink">{e.projeto.titulo || e.numero}</div>
+                          <div className={cx("font-bold", e.ativa ? "text-primary-dark" : "text-ink")}>{tituloEc(e)}</div>
                           <div className="text-[12px] text-ink-3">{e.numero}</div>
                         </div>
                       </div>
                     </Td>
+                    <Td align="center">{e.ativa ? <Badge tom="success">Ativa</Badge> : <span className="text-ink-3 text-[12px]">—</span>}</Td>
                     <Td align="center"><Badge tom="neutral">V{String(e.versao).padStart(2, "0")}</Badge></Td>
                     <Td align="center"><Badge tom={tomStatusEc[e.status]}>{e.status}</Badge></Td>
                   </Tr>
@@ -360,6 +401,80 @@ export function ProjetoDetail() {
           )}
         </Card>
       )}
+
+      {aba === "anexos" && <AnexosPanel projetoId={id} />}
     </PageShell>
+  );
+}
+
+/* ------------------------------ Anexos ------------------------------ */
+
+function AnexosPanel({ projetoId }: { projetoId: string }) {
+  const { data: anexos, loading, reload } = useAsync(() => repo.anexos.listar(projetoId), [projetoId]);
+  const [enviando, setEnviando] = useState(false);
+
+  async function enviar(fl: FileList | null) {
+    if (!fl?.length) return;
+    setEnviando(true);
+    try {
+      for (const f of Array.from(fl)) await repo.anexos.enviar(projetoId, f);
+      toast(`${fl.length} anexo(s) adicionado(s).`, "success");
+      await reload();
+    } catch (e) {
+      toast(`Erro ao anexar: ${(e as Error).message}`, "danger");
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  async function baixar(a: Anexo) {
+    try {
+      const url = await repo.anexos.urlAssinada(a.path);
+      window.open(url, "_blank");
+    } catch (e) {
+      toast(`Erro ao abrir: ${(e as Error).message}`, "danger");
+    }
+  }
+
+  async function remover(a: Anexo) {
+    if (!(await confirmar({ titulo: `Remover "${a.nome}"?`, mensagem: "O arquivo será excluído do projeto.", confirmarTexto: "Remover", tom: "danger" }))) return;
+    try {
+      await repo.anexos.remover(a.id, a.path);
+      toast("Anexo removido.", "info");
+      await reload();
+    } catch (e) {
+      toast(`Erro ao remover: ${(e as Error).message}`, "danger");
+    }
+  }
+
+  return (
+    <Card padded={false}>
+      <div className="p-5 flex items-center justify-between gap-3 flex-wrap">
+        <CardTitle hint="Documentos do projeto (PDF, imagem ou outros formatos)">Anexos</CardTitle>
+        <label className={cx("inline-flex items-center gap-1.5 h-9 px-3.5 rounded-btn text-[13px] font-bold cursor-pointer bg-primary-grad text-[#2A1602] shadow-btn", enviando && "opacity-60 pointer-events-none")}>
+          <IcPlus width={16} height={16} /> {enviando ? "Enviando…" : "Anexar"}
+          <input type="file" multiple className="hidden" onChange={(e) => { enviar(e.target.files); e.target.value = ""; }} />
+        </label>
+      </div>
+      {loading ? (
+        <div className="p-6 text-ink-3 text-sm">Carregando…</div>
+      ) : (anexos ?? []).length === 0 ? (
+        <div className="p-6"><EmptyState title="Nenhum anexo" hint="Adicione documentos do projeto (PDF, imagem, etc.)." /></div>
+      ) : (
+        <ul className="divide-y divide-border-soft">
+          {(anexos ?? []).map((a) => (
+            <li key={a.id} className="flex items-center gap-3 px-5 py-3">
+              <span className="text-ink-3 shrink-0"><IcDoc width={20} height={20} /></span>
+              <div className="min-w-0 flex-1">
+                <button onClick={() => baixar(a)} className="font-bold text-ink hover:text-primary-dark text-left truncate block max-w-full">{a.nome}</button>
+                <div className="text-[12px] text-ink-3">{(a.tamanho / 1024).toFixed(0)} KB · {dataBR(a.criadoEm)}</div>
+              </div>
+              <Button variant="secondary" size="sm" icon={<IcDownload width={15} height={15} />} onClick={() => baixar(a)}>Abrir</Button>
+              <button onClick={() => remover(a)} className="text-ink-3 hover:text-danger p-1.5 shrink-0" title="Remover anexo"><IcTrash width={18} height={18} /></button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
   );
 }

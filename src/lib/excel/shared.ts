@@ -27,10 +27,10 @@ export const thin: Partial<ExcelJS.Borders> = {
   right: { style: "thin", color: { argb: COR.border } },
 };
 
+const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
 export function baixar(buffer: ArrayBuffer, nome: string) {
-  const blob = new Blob([buffer], {
-    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  });
+  const blob = new Blob([buffer], { type: XLSX_MIME });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -39,6 +39,38 @@ export function baixar(buffer: ArrayBuffer, nome: string) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+/**
+ * Salva com o seletor de pasta do sistema (File System Access API) — abre o
+ * diálogo do Windows Explorer para o usuário escolher a pasta/nome. Quando o
+ * navegador não suporta (ex.: Firefox), cai no download normal.
+ * Retorna "salvo" | "cancelado" | "baixado".
+ */
+export async function salvarComPicker(buffer: ArrayBuffer, nome: string): Promise<"salvo" | "cancelado" | "baixado"> {
+  const nomeArq = nome.endsWith(".xlsx") ? nome : `${nome}.xlsx`;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const w = window as any;
+  if (typeof w.showSaveFilePicker === "function") {
+    try {
+      const handle = await w.showSaveFilePicker({
+        suggestedName: nomeArq,
+        types: [{ description: "Planilha Excel", accept: { [XLSX_MIME]: [".xlsx"] } }],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(new Blob([buffer], { type: XLSX_MIME }));
+      await writable.close();
+      return "salvo";
+    } catch (e) {
+      // Usuário cancelou o diálogo
+      if ((e as Error)?.name === "AbortError") return "cancelado";
+      // Qualquer outra falha → download normal
+      baixar(buffer, nomeArq);
+      return "baixado";
+    }
+  }
+  baixar(buffer, nomeArq);
+  return "baixado";
 }
 
 /** Nome de arquivo seguro a partir do número do documento. */

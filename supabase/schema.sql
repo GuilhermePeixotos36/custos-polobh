@@ -71,6 +71,32 @@ create policy projetos_write on projetos for all
   using (papel_atual() in ('Admin','Direcao','Producao','Administrativo'))
   with check (papel_atual() in ('Admin','Direcao','Producao','Administrativo'));
 
+-- Anexos do projeto (metadados; os arquivos ficam no bucket 'projeto-anexos')
+create table if not exists projeto_anexos (
+  id uuid primary key default gen_random_uuid(),
+  projeto_id uuid references projetos(id) on delete cascade,
+  nome text not null,
+  path text not null,
+  mime text default '',
+  tamanho bigint default 0,
+  criado_em timestamptz default now()
+);
+create index if not exists projeto_anexos_projeto_idx on projeto_anexos (projeto_id);
+alter table projeto_anexos enable row level security;
+create policy projeto_anexos_read on projeto_anexos for select using (papel_atual() is not null);
+create policy projeto_anexos_write on projeto_anexos for all
+  using (papel_atual() in ('Admin','Direcao','Producao','Administrativo'))
+  with check (papel_atual() in ('Admin','Direcao','Producao','Administrativo'));
+
+-- Bucket privado dos anexos + policies no storage.objects
+insert into storage.buckets (id, name, public) values ('projeto-anexos','projeto-anexos', false)
+on conflict (id) do nothing;
+create policy projeto_anexos_obj_read on storage.objects for select
+  using (bucket_id = 'projeto-anexos' and papel_atual() is not null);
+create policy projeto_anexos_obj_write on storage.objects for all
+  using (bucket_id = 'projeto-anexos' and papel_atual() in ('Admin','Direcao','Producao','Administrativo'))
+  with check (bucket_id = 'projeto-anexos' and papel_atual() in ('Admin','Direcao','Producao','Administrativo'));
+
 create table if not exists ecs (
   id uuid primary key default gen_random_uuid(),
   numero text not null,
@@ -85,6 +111,7 @@ create table if not exists ecs (
   responsavel text,
   validade_dias int default 30,
   versao int not null default 1,
+  ativa boolean not null default true, -- apenas uma EC ativa por projeto (as demais ficam arquivadas)
   status text check (status in ('Rascunho','Aguardando','Aprovada','Reprovada','Cancelada','Arquivada')) default 'Rascunho',
   criado_em timestamptz default now(),
   atualizado_em timestamptz default now()
@@ -95,11 +122,13 @@ create table if not exists ec_linhas (
   ec_id uuid references ecs(id) on delete cascade,
   grupo text,
   item text,
-  descricao text,
+  descricao text,                     -- Descrição Financeiro (resumida)
+  descricao_completa text default '', -- Descrição Completa (rich-text HTML, bullets/negrito)
   valor_polobh numeric default 0,
   valor_cliente numeric default 0,
   valor_gasto numeric default 0,      -- gasto até a data (rentabilidade por item)
   contrato text default '',           -- referência de contrato (modelos da Marisa)
+  contrato_status text default 'Pendente', -- contrato pendente ou não (Pendente|OK)
   status_aprovacao text default 'Pendente',
   fornecedor_razao text,
   fornecedor_cnpj text,
@@ -108,7 +137,9 @@ create table if not exists ec_linhas (
   codigo_servico text,
   pedido_compra text,
   status_os text default 'Pendente',
-  observacao text,
+  observacao text,                    -- legado (texto único); migrado p/ observacoes
+  observacoes jsonb not null default '[]'::jsonb, -- [{texto, pessoa}] comentários do item
+  oculto boolean not null default false, -- item ocultado da EC (some da visão e do Excel; reexibível)
   ordem int
 );
 

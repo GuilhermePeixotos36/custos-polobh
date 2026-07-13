@@ -10,6 +10,7 @@ import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import { useAuth } from "@/store/auth";
 import { auditar } from "@/store/logs";
+import { dataBR } from "@/lib/format";
 import { Button } from "@/components/ui";
 import { IcBack, IcDownload } from "@/components/icons";
 import { EcDocumento } from "@/components/print/EcDocumento";
@@ -20,7 +21,12 @@ export function ImprimirEc() {
   const usuario = useAuth((s) => s.usuario);
   const { data: ec, loading } = useAsync(() => repo.ecs.obter(id), [id]);
   useEffect(() => {
-    if (ec) auditar({ categoria: "Exportação", acao: "ec.imprimir", mensagem: `EC ${ec.numero} aberta para impressão/PDF`, alvoId: ec.id });
+    if (!ec) return;
+    auditar({ categoria: "Exportação", acao: "ec.imprimir", mensagem: `EC ${ec.numero} aberta para impressão/PDF`, alvoId: ec.id });
+    // Nome do PDF salvo = código da EC + data (o navegador usa document.title).
+    const anterior = document.title;
+    document.title = `${ec.numero} - ${dataBR(ec.criadoEm)}`;
+    return () => { document.title = anterior; };
   }, [ec]);
   if (!usuario) return <Navigate to="/login" replace />;
   return (
@@ -38,7 +44,12 @@ export function ImprimirOs() {
   const { data: os, loading } = useAsync(() => repo.oss.obter(id), [id]);
   const { data: ec } = useAsync(() => (os ? repo.ecs.obter(os.ecId) : Promise.resolve(undefined)), [os?.ecId]);
   useEffect(() => {
-    if (os) auditar({ categoria: "Exportação", acao: "os.imprimir", mensagem: `OS ${os.numero} aberta para impressão/PDF`, alvoId: os.id });
+    if (!os) return;
+    auditar({ categoria: "Exportação", acao: "os.imprimir", mensagem: `OS ${os.numero} aberta para impressão/PDF`, alvoId: os.id });
+    // Nome do PDF salvo = código da OS + data.
+    const anterior = document.title;
+    document.title = `${os.numero} - ${dataBR(os.criadoEm)}`;
+    return () => { document.title = anterior; };
   }, [os]);
   if (!usuario) return <Navigate to="/login" replace />;
   const restrito = pode("financeiro") && params.get("financeiro") !== "0";

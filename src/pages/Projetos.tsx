@@ -17,11 +17,11 @@ const tomStatusProjeto: Record<StatusProjeto, Tom> = {
   Cancelado: "danger",
 };
 
-const FILTROS: { key: "Todos" | StatusProjeto; label: string }[] = [
+type FiltroProjeto = "Todos" | "Ativo" | "Arquivado";
+const FILTROS: { key: FiltroProjeto; label: string }[] = [
   { key: "Todos", label: "Todos" },
   { key: "Ativo", label: "Ativos" },
   { key: "Arquivado", label: "Arquivados" },
-  { key: "Concluido", label: "Concluídos" },
 ];
 
 export function Projetos() {
@@ -29,7 +29,7 @@ export function Projetos() {
   const { porProjeto } = useMinhasPendencias();
   const { data: projetos, loading } = useAsync(() => repo.projetos.listar(), []);
   const { data: ecs } = useAsync(() => repo.ecs.listar(), []);
-  const [filtro, setFiltro] = useState<"Todos" | StatusProjeto>("Ativo");
+  const [filtro, setFiltro] = useState<FiltroProjeto>("Ativo");
   const [busca, setBusca] = useState("");
 
   const ecsPorProjeto = useMemo(() => {
@@ -41,7 +41,8 @@ export function Projetos() {
   const lista = useMemo(() => {
     const q = busca.trim().toLowerCase();
     return (projetos ?? [])
-      .filter((p) => filtro === "Todos" || p.status === filtro)
+      // "Arquivados" agrupa tudo que não está Ativo (Arquivado/Concluído/Cancelado).
+      .filter((p) => filtro === "Todos" || (filtro === "Ativo" ? p.status === "Ativo" : p.status !== "Ativo"))
       .filter((p) => !q || `${p.nome} ${p.cliente?.nome ?? ""}`.toLowerCase().includes(q));
   }, [projetos, filtro, busca]);
 

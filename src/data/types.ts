@@ -119,6 +119,15 @@ export type StatusEc =
 export type StatusAprovacao = "Pendente" | "OK";
 export type StatusOs = "Pendente" | "Emitir" | "OK";
 
+/**
+ * Observação de um item da EC. Funciona como um comentário: várias por item,
+ * cada uma com o texto e a pessoa responsável (um usuário do sistema).
+ */
+export interface Observacao {
+  texto: string;
+  pessoa: string; // nome do usuário do sistema atribuído
+}
+
 export interface ProjetoInfo {
   titulo: string;
   local: string;
@@ -139,7 +148,10 @@ export interface EcLinha {
   id: string;
   grupo: string;
   item: string;
+  /** Descrição Financeiro: descrição resumida do item (era o antigo `descricao`). */
   descricao: string;
+  /** Descrição Completa: detalhamento do item em rich-text (HTML com bullets/negrito). */
+  descricaoCompleta: string;
   valorPolobh: number;
   valorCliente: number;
   /** Valor total gasto até a presente data no item (para rentabilidade). */
@@ -154,7 +166,14 @@ export interface EcLinha {
   pedidoCompra: string;
   statusOs: StatusOs;
   contrato: string; // referência de contrato (consta nos modelos da Marisa)
+  /** Contrato pendente ou não (Pendente | OK). */
+  contratoStatus: StatusAprovacao;
+  /** @deprecated Observação legada (texto único). Migrada para `observacoes`. */
   observacao: string;
+  /** Observações do item (comentários com pessoa responsável). */
+  observacoes: Observacao[];
+  /** Item ocultado da EC (fica guardado, some da visão e do Excel; pode reexibir). */
+  oculto: boolean;
   ordem: number;
 }
 
@@ -198,6 +217,17 @@ export interface Projeto {
   atualizadoEm: string;
 }
 
+/** Documento anexado a um projeto (guardado no Storage `projeto-anexos`). */
+export interface Anexo {
+  id: string;
+  projetoId: string;
+  nome: string;
+  path: string; // caminho no bucket
+  mime: string;
+  tamanho: number; // bytes
+  criadoEm: string;
+}
+
 /* --------------------------------- EC ----------------------------------- */
 
 export interface Ec {
@@ -218,6 +248,8 @@ export interface Ec {
   criadoEm: string;
   atualizadoEm: string;
   canceladaSubstituida?: boolean;
+  /** Apenas uma EC fica ativa por projeto; as demais versões ficam arquivadas. */
+  ativa: boolean;
 }
 
 /* --------------------------------- OS ----------------------------------- */
