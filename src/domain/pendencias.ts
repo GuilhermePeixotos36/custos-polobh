@@ -18,6 +18,8 @@ export interface Pendencia {
   titulo: string;
   /** Papéis responsáveis por resolver esta pendência. */
   papeis: Papel[];
+  /** Pessoas especificamente atribuídas, pelo nome cadastrado no sistema. */
+  pessoas?: string[];
   /** Recurso da navegação superior onde ela aparece (hoje sempre "projetos"). */
   recurso: "projetos";
   projetoId?: string;
@@ -61,6 +63,25 @@ export function calcularPendencias(projetos: Projeto[], ecs: Ec[], oss: Os[]): P
 
   for (const ec of ecs) {
     if (!ec.projetoId) continue;
+    for (const linha of ec.linhas) {
+      (linha.observacoes ?? []).forEach((observacao, indice) => {
+        const pessoa = observacao.pessoa.trim();
+        const texto = observacao.texto.trim();
+        if (!pessoa || !texto) return;
+        const resumo = texto.length > 80 ? `${texto.slice(0, 77)}…` : texto;
+        out.push({
+          id: `ec.observacao:${ec.id}:${linha.id}:${observacao.id || indice}`,
+          tipo: "ec.observacao",
+          titulo: `Observação em ${linha.item || linha.grupo}: ${resumo}`,
+          papeis: [],
+          pessoas: [pessoa],
+          recurso: "projetos",
+          projetoId: ec.projetoId,
+          aba: "ec",
+          ecId: ec.id,
+        });
+      });
+    }
     // EC aguardando aprovação → Direção/Admin acompanham o cliente.
     if (ec.status === "Aguardando") {
       out.push({
@@ -123,8 +144,15 @@ export interface PendenciasAgregadas {
   porOs: Record<string, number>;
 }
 
-export function agregarPendencias(itens: Pendencia[], papel: Papel | undefined): PendenciasAgregadas {
-  const meus = papel ? itens.filter((p) => p.papeis.includes(papel)) : [];
+function normalizarPessoa(valor: string): string {
+  return valor.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
+}
+
+export function agregarPendencias(itens: Pendencia[], papel: Papel | undefined, pessoa?: string): PendenciasAgregadas {
+  const nome = pessoa ? normalizarPessoa(pessoa) : "";
+  const meus = papel
+    ? itens.filter((p) => p.papeis.includes(papel) || (!!nome && p.pessoas?.some((n) => normalizarPessoa(n) === nome)))
+    : [];
   const inc = (obj: Record<string, number>, k: string) => (obj[k] = (obj[k] ?? 0) + 1);
   const ag: PendenciasAgregadas = {
     total: meus.length,

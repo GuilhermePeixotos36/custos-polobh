@@ -124,12 +124,32 @@ export type StatusOs = "Pendente" | "Emitir" | "OK";
  * cada uma com o texto e a pessoa responsável (um usuário do sistema).
  */
 export interface Observacao {
+  id?: string;
   texto: string;
   pessoa: string; // nome do usuário do sistema atribuído
 }
 
+export type ModalidadeProjeto = "Corporativo" | "Cultural" | "";
+export type EtapaCronogramaProjeto = "montagem" | "alinhamentos" | "ensaios" | "evento" | "desmontagem";
+
+export interface FaixaCronogramaProjeto {
+  id: string;
+  data: string;
+  inicio: string;
+  fim: string;
+}
+
+export type CronogramaProjeto = Record<EtapaCronogramaProjeto, FaixaCronogramaProjeto[]>;
+
+export interface RoteirosProjeto {
+  preEvento: string;
+  evento: string;
+  posEvento: string;
+}
+
 export interface ProjetoInfo {
   titulo: string;
+  modalidade: ModalidadeProjeto;
   local: string;
   enderecoLocal: string;
   participantes: number | null;
@@ -142,6 +162,8 @@ export interface ProjetoInfo {
   horario: string;
   roteiro: string;
   incentivosFiscais: string;
+  cronograma: CronogramaProjeto;
+  roteiros: RoteirosProjeto;
 }
 
 export interface EcLinha {

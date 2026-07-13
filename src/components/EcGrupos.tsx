@@ -22,7 +22,7 @@ import { Input, AutoTextarea, Select, NumberInput, Button } from "@/components/u
 import { IcGrip, IcChevron, IcPlus, IcTrash, IcEye, IcEyeOff, IcSpark } from "@/components/icons";
 import { FornecedorField } from "@/components/FornecedorField";
 import { RichTextField } from "@/components/RichTextField";
-import { ObservacoesButton } from "@/components/ObservacoesPopup";
+import { ObservacoesInline } from "@/components/ObservacoesPopup";
 import { ResumoPropostaModal } from "@/components/ResumoPropostaModal";
 import { flags } from "@/lib/flags";
 import { brl, cx, onlyDigits, maskCpfCnpjInput } from "@/lib/format";
@@ -108,11 +108,12 @@ interface Props {
   /** Nomes dos usuários do sistema (para atribuir observações). */
   usuarios: string[];
   onValidarFornecedor: (cnpj: string) => Promise<string | null>;
+  onRevisarESalvar: (linhaId: string) => Promise<boolean>;
 }
 
 const DATALIST_ID = "ec-fornecedores-cnpj";
 
-export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuarios, onValidarFornecedor }: Props) {
+export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuarios, onValidarFornecedor, onRevisarESalvar }: Props) {
   const [grupos, setGrupos] = useState<Grupo[]>(() => agrupar(linhas));
   const [expandido, setExpandido] = useState<Record<string, boolean>>({});
   const [ativo, setAtivo] = useState<{ tipo: "grupo" | "item"; chave: string } | null>(null);
@@ -124,8 +125,8 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
   // Re-sincroniza com as linhas externas (ex.: template, nova versão) quando não há arraste.
   useEffect(() => {
     if (arrastandoRef.current) return;
-    const propSig = JSON.stringify(linhas.map((l) => [l.id, l.grupo]));
-    const curSig = JSON.stringify(achatar(grupos).map((l) => [l.id, l.grupo]));
+    const propSig = JSON.stringify(linhas);
+    const curSig = JSON.stringify(achatar(grupos));
     if (propSig !== curSig) setGrupos(agrupar(linhas));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [linhas]);
@@ -320,6 +321,7 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
                 onOcultoItem={setOcultoItem}
                 onOcultoGrupo={(v) => setOcultoGrupo(g.nome, v)}
                 onValidarFornecedor={onValidarFornecedor}
+                onRevisarESalvar={onRevisarESalvar}
               />
             ))}
           </div>
@@ -365,11 +367,12 @@ interface GrupoProps {
   onOcultoItem: (id: string, oculto: boolean) => void;
   onOcultoGrupo: (oculto: boolean) => void;
   onValidarFornecedor: (cnpj: string) => Promise<string | null>;
+  onRevisarESalvar: (linhaId: string) => Promise<boolean>;
 }
 
 function GrupoCard({
   g, aberto, verFinanceiro, fornecedores, usuarios,
-  onToggle, onRenomear, onAddItem, onDelGrupo, onUpdLinha, onDelItem, onOcultoItem, onOcultoGrupo, onValidarFornecedor,
+  onToggle, onRenomear, onAddItem, onDelGrupo, onUpdLinha, onDelItem, onOcultoItem, onOcultoGrupo, onValidarFornecedor, onRevisarESalvar,
 }: GrupoProps) {
   const sortable = useSortable({ id: GID(g.nome) });
   const droppable = useDroppable({ id: CID(g.nome) });
@@ -419,11 +422,13 @@ function GrupoCard({
         )}
         <div className="ml-auto flex items-center gap-1 shrink-0">
           <button
+            type="button"
             onClick={() => onOcultoGrupo(!grupoOculto)}
-            className="text-ink-3 hover:text-primary p-1.5"
+            className="inline-flex items-center gap-1.5 rounded-btn px-2 py-1.5 text-[12px] font-bold text-ink-3 hover:bg-primary-soft hover:text-primary-dark"
             title={grupoOculto ? "Reexibir grupo" : "Ocultar grupo (mantém guardado)"}
           >
-            {grupoOculto ? <IcEyeOff width={18} height={18} /> : <IcEye width={18} height={18} />}
+            {grupoOculto ? <IcEye width={17} height={17} /> : <IcEyeOff width={17} height={17} />}
+            {grupoOculto ? "Reexibir grupo" : "Ocultar grupo"}
           </button>
           <Button variant="soft" size="sm" icon={<IcPlus width={15} height={15} />} onClick={onAddItem}>
             Item
@@ -448,6 +453,7 @@ function GrupoCard({
                 onDel={() => onDelItem(l)}
                 onOcultar={() => onOcultoItem(l.id, true)}
                 onValidarFornecedor={onValidarFornecedor}
+                onRevisarESalvar={onRevisarESalvar}
               />
             ))}
           </SortableContext>
@@ -469,8 +475,8 @@ function GrupoCard({
                   {ocultos.map((l) => (
                     <div key={l.id} className="flex items-center gap-2 rounded-btn bg-white border border-border-soft px-2.5 py-1.5">
                       <span className="flex-1 min-w-0 truncate text-[13px] text-ink-2">{l.item || l.descricao || "(item sem título)"}</span>
-                      <button onClick={() => onOcultoItem(l.id, false)} className="text-ink-3 hover:text-primary p-1" title="Reexibir item">
-                        <IcEyeOff width={16} height={16} />
+                      <button type="button" onClick={() => onOcultoItem(l.id, false)} className="inline-flex items-center gap-1 rounded-btn px-2 py-1 text-[12px] font-bold text-ink-3 hover:bg-primary-soft hover:text-primary-dark" title="Reexibir item">
+                        <IcEye width={16} height={16} /> Reexibir
                       </button>
                       <button onClick={() => onDelItem(l)} className="text-ink-3 hover:text-danger p-1" title="Remover item">
                         <IcTrash width={16} height={16} />
@@ -504,16 +510,34 @@ interface ItemProps {
   onDel: () => void;
   onOcultar: () => void;
   onValidarFornecedor: (cnpj: string) => Promise<string | null>;
+  onRevisarESalvar: (linhaId: string) => Promise<boolean>;
 }
 
-function ItemRow({ l, verFinanceiro, fornecedores, usuarios, onUpd, onDel, onOcultar, onValidarFornecedor }: ItemProps) {
+function ItemRow({ l, verFinanceiro, fornecedores, usuarios, onUpd, onDel, onOcultar, onValidarFornecedor, onRevisarESalvar }: ItemProps) {
   const sortable = useSortable({ id: l.id });
   const style = { transform: CSS.Translate.toString(sortable.transform), transition: sortable.transition };
   const [resumoAberto, setResumoAberto] = useState(false);
+  const [revisando, setRevisando] = useState(false);
 
   const inserirResumo = (html: string) => {
     if (!html) return;
     onUpd({ descricaoCompleta: l.descricaoCompleta ? `${l.descricaoCompleta}${html}` : html });
+  };
+
+  const revisarESalvar = async () => {
+    setRevisando(true);
+    try {
+      const botoesAntes = [...document.querySelectorAll<HTMLButtonElement>("[data-revisar-item]")];
+      const posicaoAtual = botoesAntes.findIndex((botao) => botao.dataset.linhaId === l.id);
+      const ok = await onRevisarESalvar(l.id);
+      if (!ok) return;
+      const botoes = [...document.querySelectorAll<HTMLButtonElement>("[data-revisar-item]")];
+      const proximo = botoes[posicaoAtual + 1];
+      proximo?.scrollIntoView({ behavior: "smooth", block: "center" });
+      proximo?.focus();
+    } finally {
+      setRevisando(false);
+    }
   };
 
   return (
@@ -590,8 +614,8 @@ function ItemRow({ l, verFinanceiro, fornecedores, usuarios, onUpd, onDel, onOcu
         )}
 
         <div className="shrink-0 flex flex-col items-center gap-1 pt-5">
-          <button onClick={onOcultar} className="text-ink-3 hover:text-primary p-1.5" title="Ocultar item (mantém guardado)">
-            <IcEye width={18} height={18} />
+          <button type="button" onClick={onOcultar} className="text-ink-3 hover:text-primary p-1.5" title="Ocultar item (mantém guardado)" aria-label="Ocultar item">
+            <IcEyeOff width={18} height={18} />
           </button>
           <button onClick={onDel} className="text-ink-3 hover:text-danger p-1.5" title="Remover linha">
             <IcTrash width={18} height={18} />
@@ -642,14 +666,25 @@ function ItemRow({ l, verFinanceiro, fornecedores, usuarios, onUpd, onDel, onOcu
         <Campo label="Contrato (nº)" className="w-28">
           <Input className="!h-9 !px-2 !text-[12.5px]" placeholder="ref." value={l.contrato} onChange={(e) => onUpd({ contrato: e.target.value })} />
         </Campo>
-        <div className="pb-0.5">
-          <ObservacoesButton
-            observacoes={l.observacoes}
-            usuarios={usuarios}
-            onChange={(obs: Observacao[]) => onUpd({ observacoes: obs })}
-          />
-        </div>
+        <Button
+          type="button"
+          variant="soft"
+          size="sm"
+          data-revisar-item
+          data-linha-id={l.id}
+          icon={<IcSpark width={15} height={15} />}
+          disabled={revisando}
+          onClick={() => void revisarESalvar()}
+        >
+          {revisando ? "Revisando…" : "Revisar e salvar"}
+        </Button>
       </div>
+
+      <ObservacoesInline
+        observacoes={l.observacoes}
+        usuarios={usuarios}
+        onChange={(obs: Observacao[]) => onUpd({ observacoes: obs })}
+      />
 
       {resumoAberto && <ResumoPropostaModal onInserir={inserirResumo} onClose={() => setResumoAberto(false)} />}
     </div>

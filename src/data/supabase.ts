@@ -6,6 +6,7 @@
  */
 import { supabase } from "@/lib/supabaseClient";
 import { numeroEc } from "@/domain/calc";
+import { normalizarProjetoInfo, sincronizarCamposLegados } from "@/domain/projeto";
 import { onlyDigits } from "@/lib/format";
 import { auditar } from "@/store/logs";
 import { useAuth, PERMISSOES } from "@/store/auth";
@@ -210,9 +211,13 @@ function mapLinha(r: any): EcLinha {
     // migra a observação legada (texto único) para a lista quando ainda não houver
     observacoes:
       Array.isArray(r.observacoes) && r.observacoes.length
-        ? r.observacoes
+        ? r.observacoes.map((observacao: { id?: string; texto?: string; pessoa?: string }, indice: number) => ({
+            id: observacao.id || `obs-${r.id}-${indice}`,
+            texto: observacao.texto ?? "",
+            pessoa: observacao.pessoa ?? "",
+          }))
         : r.observacao
-        ? [{ texto: r.observacao, pessoa: "" }]
+        ? [{ id: `obs-${r.id}-0`, texto: r.observacao, pessoa: "" }]
         : [],
     oculto: !!r.oculto,
     ordem: r.ordem ?? 0,
@@ -259,7 +264,7 @@ function mapEc(r: any): Ec {
     status: r.status,
     clienteId: r.cliente_id ?? "",
     cliente: r.cliente ?? clienteVazio(),
-    projeto: r.projeto,
+    projeto: normalizarProjetoInfo(r.projeto),
     linhas,
     producao: r.producao,
     responsavel: r.responsavel ?? "",
@@ -278,7 +283,7 @@ function ecRow(ec: Ec) {
     template: ec.template || null,
     cliente_id: isUuid(ec.cliente?.id) ? ec.cliente.id : null,
     cliente: ec.cliente,
-    projeto: ec.projeto,
+    projeto: sincronizarCamposLegados(ec.projeto),
     producao: ec.producao,
     responsavel: ec.responsavel,
     validade_dias: ec.validadeDias,
@@ -349,13 +354,15 @@ const ecRepo: EcRepository = {
     const orig = await this.obter(id);
     if (!orig) throw new Error("EC não encontrada");
     const agora = nowIso();
-    // Cópia é um rascunho independente e NÃO ativa (não perturba a EC ativa do projeto).
+    const irmas = orig.projetoId ? (await this.listar()).filter((ec) => ec.projetoId === orig.projetoId) : [];
+    const novaV = Math.max(orig.versao, ...irmas.map((ec) => ec.versao)) + 1;
+    // Cópia é uma nova versão em rascunho e NÃO ativa (não perturba a EC ativa do projeto).
     return this.salvar({
       ...orig,
       id: "",
-      versao: 1,
+      versao: novaV,
       status: "Rascunho",
-      numero: numeroEc(orig.cliente.nome, orig.projeto.titulo + " (cópia)", 1),
+      numero: numeroEc(orig.cliente.nome, orig.projeto.titulo, novaV),
       canceladaSubstituida: false,
       ativa: false,
       criadoEm: agora,
@@ -368,7 +375,8 @@ const ecRepo: EcRepository = {
     if (!orig) throw new Error("EC não encontrada");
     // A versão anterior é arquivada e deixa de ser a ativa (a nova a substitui).
     ok(await supabase.from("ecs").update({ cancelada_substituida: true, ativa: false, status: "Arquivada" }).eq("id", id));
-    const novaV = orig.versao + 1;
+    const irmas = orig.projetoId ? (await this.listar()).filter((ec) => ec.projetoId === orig.projetoId) : [];
+    const novaV = Math.max(orig.versao, ...irmas.map((ec) => ec.versao)) + 1;
     const agora = nowIso();
     return this.salvar({
       ...orig,
@@ -578,7 +586,7 @@ function mapProjeto(r: any): Projeto {
     id: r.id,
     nome: r.nome ?? "",
     cliente: r.cliente ?? clienteVazio(),
-    info: r.projeto ?? {},
+    info: normalizarProjetoInfo(r.projeto),
     docsUrl: r.docs_url ?? "",
     status: r.status ?? "Ativo",
     criadoEm: r.criado_em,
@@ -590,7 +598,7 @@ function projetoRow(p: Projeto) {
   return {
     nome: p.nome || p.info?.titulo || "Projeto",
     cliente: p.cliente,
-    projeto: p.info,
+    projeto: sincronizarCamposLegados(p.info),
     docs_url: p.docsUrl ?? "",
     status: p.status,
     atualizado_em: nowIso(),

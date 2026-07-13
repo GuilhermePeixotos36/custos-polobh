@@ -14,6 +14,24 @@ export interface DadosCnpj {
   cnaes: string[];
   email: string;
   telefone: string;
+  inscricaoEstadual: string;
+  inscricaoMunicipal: string;
+}
+
+interface CnpjWsPublica {
+  estabelecimento?: {
+    estado?: { sigla?: string };
+    inscricoes_estaduais?: Array<{
+      inscricao_estadual?: string;
+      ativo?: boolean;
+      estado?: { sigla?: string };
+    }>;
+  };
+}
+
+interface DadosFiscaisExternos {
+  inscricaoEstadual?: string;
+  inscricaoMunicipal?: string;
 }
 
 interface BrasilApiCnpj {
@@ -97,6 +115,40 @@ export async function consultarCnpj(cnpjRaw: string): Promise<DadosCnpj> {
   }
   const d = (await resp.json()) as BrasilApiCnpj;
 
+  // A BrasilAPI não fornece IE/IM. A API pública CNPJ.ws complementa a IE;
+  // uma integração fiscal municipal pode ser configurada por endpoint próprio.
+  let fiscais: DadosFiscaisExternos = {};
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    const fiscalResp = await fetch(`https://publica.cnpj.ws/cnpj/${cnpj}`, { signal: ctrl.signal });
+    clearTimeout(timer);
+    if (fiscalResp.ok) {
+      const fiscal = (await fiscalResp.json()) as CnpjWsPublica;
+      const inscricoes = fiscal.estabelecimento?.inscricoes_estaduais ?? [];
+      const uf = d.uf || fiscal.estabelecimento?.estado?.sigla;
+      const escolhida = inscricoes.find((i) => i.ativo !== false && i.estado?.sigla === uf)
+        ?? inscricoes.find((i) => i.ativo !== false)
+        ?? inscricoes[0];
+      fiscais.inscricaoEstadual = escolhida?.inscricao_estadual ?? "";
+    }
+  } catch {
+    // Consulta principal continua válida mesmo se a fonte fiscal estiver indisponível.
+  }
+
+  const endpointFiscal = import.meta.env.VITE_CNPJ_FISCAL_ENDPOINT as string | undefined;
+  if (endpointFiscal) {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 8000);
+      const fiscalResp = await fetch(endpointFiscal.replace("{cnpj}", cnpj), { signal: ctrl.signal });
+      clearTimeout(timer);
+      if (fiscalResp.ok) fiscais = { ...fiscais, ...((await fiscalResp.json()) as DadosFiscaisExternos) };
+    } catch {
+      // O usuário ainda pode preencher as inscrições manualmente.
+    }
+  }
+
   const cnaes = [
     d.cnae_fiscal ? `${d.cnae_fiscal} - ${d.cnae_fiscal_descricao}` : "",
     ...(d.cnaes_secundarios ?? []).map((c) => `${c.codigo} - ${c.descricao}`),
@@ -111,5 +163,7 @@ export async function consultarCnpj(cnpjRaw: string): Promise<DadosCnpj> {
     cnaes,
     email: d.email ?? "",
     telefone: d.ddd_telefone_1 ?? "",
+    inscricaoEstadual: fiscais.inscricaoEstadual ?? "",
+    inscricaoMunicipal: fiscais.inscricaoMunicipal ?? "",
   };
 }

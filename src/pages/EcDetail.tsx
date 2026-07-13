@@ -107,8 +107,8 @@ export function EcDetail() {
           <Crumb>{ec.numero}</Crumb>
         </>
       }
-      title={ec.projeto.titulo || "Estimativa"}
-      subtitle={tituloEc(ec)}
+      title={tituloEc(ec)}
+      subtitle={ec.numero}
       topAction={
         <div className="flex gap-2 flex-wrap">
           <Button variant="secondary" size="sm" icon={<IcDownload width={16} height={16} />} onClick={() => gerarEcExcel(ec, { modelo: "financeiro" })}>
@@ -367,7 +367,7 @@ export function EcDetail() {
                   onClick={async () => {
                     if (!(await confirmar({
                       titulo: "Duplicar esta EC?",
-                      mensagem: "Será criada uma nova EC (V01, Rascunho) com os mesmos dados, para você editar.",
+                      mensagem: "Será criada uma nova EC, na próxima versão disponível e em Rascunho, com os mesmos dados para você editar.",
                       confirmarTexto: "Duplicar",
                     }))) return;
                     const n = await repo.ecs.duplicar(ec.id);
@@ -379,7 +379,7 @@ export function EcDetail() {
                 <Button variant="secondary" size="sm"
                   onClick={async () => {
                     if (!(await confirmar({
-                      titulo: `Gerar a versão V${String(ec.versao + 1).padStart(2, "0")}?`,
+                      titulo: "Gerar a próxima versão desta EC?",
                       mensagem: "Uma nova versão será criada e levará a frase \"cancela e substitui todas as anteriores\".",
                       confirmarTexto: "Gerar nova versão",
                     }))) return;
@@ -387,7 +387,7 @@ export function EcDetail() {
                     toast(`Nova versão V${String(n.versao).padStart(2, "0")} criada (cancela e substitui).`, "success");
                     navigate(`/estimativas/${n.id}/editar`);
                   }}>
-                  Gerar nova versão (V{String(ec.versao + 1).padStart(2, "0")})
+                  Gerar nova versão
                 </Button>
                 {!["Arquivada", "Cancelada"].includes(ec.status) && (
                   <Button variant="secondary" size="sm"

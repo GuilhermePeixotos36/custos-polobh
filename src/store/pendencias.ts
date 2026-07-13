@@ -44,5 +44,6 @@ export const usePendencias = create<State>((set, get) => ({
 export function useMinhasPendencias() {
   const itens = usePendencias((s) => s.itens);
   const papel = useAuth((s) => s.usuario?.papel);
-  return useMemo(() => agregarPendencias(itens, papel), [itens, papel]);
+  const pessoa = useAuth((s) => s.usuario?.nome);
+  return useMemo(() => agregarPendencias(itens, papel, pessoa), [itens, papel, pessoa]);
 }

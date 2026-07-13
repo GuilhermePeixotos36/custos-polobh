@@ -2,8 +2,65 @@ import type { Ec, Os } from "@/data/types";
 import type { CronogramaExcelDados } from "./cronograma";
 import { auditar } from "@/store/logs";
 import { empresaPadrao } from "@/store/empresas";
+import { dataBR } from "@/lib/format";
 
 export type ModeloEcExcel = "financeiro" | "completa";
+
+const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+interface ArquivoExcelHandle {
+  createWritable(): Promise<{ write(data: Blob): Promise<void>; close(): Promise<void> }>;
+}
+
+export interface DestinoEcExcel {
+  nome: string;
+  handle?: ArquivoExcelHandle;
+}
+
+function nomeEcExcel(ec: Ec, modelo: ModeloEcExcel): string {
+  const sufixo = modelo === "completa" ? "Completa" : "Financeiro";
+  const seguro = `${ec.numero} - ${sufixo} - ${dataBR(ec.criadoEm)}`
+    .replace(/[\\/:*?"<>|]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+  return `${seguro}.xlsx`;
+}
+
+/** Abre o Explorer antes de qualquer processamento assíncrono, preservando a ativação do clique. */
+export async function escolherDestinoEcExcel(ec: Ec, modelo: ModeloEcExcel = "completa"): Promise<DestinoEcExcel | null> {
+  const nome = nomeEcExcel(ec, modelo);
+  const w = window as Window & {
+    showSaveFilePicker?: (opts: unknown) => Promise<ArquivoExcelHandle>;
+  };
+  if (!w.showSaveFilePicker) return { nome };
+  try {
+    const handle = await w.showSaveFilePicker({
+      suggestedName: nome,
+      types: [{ description: "Planilha Excel", accept: { [XLSX_MIME]: [".xlsx"] } }],
+    });
+    return { nome, handle };
+  } catch (erro) {
+    if ((erro as Error)?.name === "AbortError") return null;
+    return { nome };
+  }
+}
+
+export async function salvarEcExcelNoDestino(
+  ec: Ec,
+  destino: DestinoEcExcel,
+  modelo: ModeloEcExcel = "completa"
+): Promise<"salvo" | "baixado"> {
+  const [{ criarEcExcelBuffer }, { baixar }] = await Promise.all([import("./ec"), import("./shared")]);
+  const { buffer } = await criarEcExcelBuffer(ec, modelo);
+  if (destino.handle) {
+    const writable = await destino.handle.createWritable();
+    await writable.write(new Blob([buffer], { type: XLSX_MIME }));
+    await writable.close();
+    return "salvo";
+  }
+  baixar(buffer, destino.nome);
+  return "baixado";
+}
 
 /** Geração da EC em Excel (ExcelJS carregado sob demanda).
  *  Com `opts.picker`, abre o seletor de pasta do sistema (Windows Explorer). */

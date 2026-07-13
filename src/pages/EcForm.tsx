@@ -21,9 +21,10 @@ import {
   producaoPadrao,
 } from "@/domain/calc";
 import { itensDoTemplate } from "@/domain/ecTemplates";
-import { gerarEcExcel } from "@/lib/excel";
+import { projetoInfoVazio } from "@/domain/projeto";
+import { escolherDestinoEcExcel, gerarEcExcel, salvarEcExcelNoDestino } from "@/lib/excel";
 import { consultarCnpj } from "@/lib/cnpj";
-import { corrigirDescricoes } from "@/lib/correcaoOrtografica";
+import { corrigirDescricoes, corrigirLinhaEc } from "@/lib/correcaoOrtografica";
 import { useAuth } from "@/store/auth";
 import { RentabilidadeItens } from "@/components/RentabilidadeItens";
 import { EcGrupos } from "@/components/EcGrupos";
@@ -94,21 +95,7 @@ const clienteVazio = (): Cliente => ({
   representante: { nome: "", cargo: "", telefones: "", email: "" },
 });
 
-const projetoVazio = (): ProjetoInfo => ({
-  titulo: "",
-  local: "",
-  enderecoLocal: "",
-  participantes: null,
-  produtoraResponsavel: "",
-  telefoneProdutora: "",
-  emailProdutora: "",
-  preEvento: "",
-  evento: "",
-  posEvento: "",
-  horario: "",
-  roteiro: "",
-  incentivosFiscais: "",
-});
+const projetoVazio = projetoInfoVazio;
 
 export function EcForm() {
   const { id } = useParams();
@@ -210,7 +197,7 @@ export function EcForm() {
   async function validarFornecedor(cnpj: string): Promise<string | null> {
     try {
       const d = await consultarCnpj(cnpj);
-      await repo.fornecedores.salvar(fornecedorNovo({ cnpj: d.cnpj, razaoSocial: d.razaoSocial, nomeFantasia: d.nomeFantasia, endereco: d.endereco, perfilTributario: d.perfilTributario, telefone: d.telefone, email: d.email, cnaes: d.cnaes }));
+      await repo.fornecedores.salvar(fornecedorNovo({ cnpj: d.cnpj, razaoSocial: d.razaoSocial, nomeFantasia: d.nomeFantasia, endereco: d.endereco, perfilTributario: d.perfilTributario, telefone: d.telefone, email: d.email, inscricaoEstadual: d.inscricaoEstadual, inscricaoMunicipal: d.inscricaoMunicipal, cnaes: d.cnaes }));
       await reloadForn();
       const nome = d.nomeFantasia || d.razaoSocial;
       toast(`Fornecedor ${nome} registrado no sistema.`, "success");
@@ -255,8 +242,10 @@ export function EcForm() {
         nome: d.nomeFantasia || d.razaoSocial,
         razaoSocial: d.razaoSocial,
         endereco: d.endereco,
+        inscricaoEstadual: d.inscricaoEstadual || ec!.cliente.inscricaoEstadual,
+        inscricaoMunicipal: d.inscricaoMunicipal || ec!.cliente.inscricaoMunicipal,
       });
-      setCnpjMsg("Dados preenchidos pela BrasilAPI.");
+      setCnpjMsg("Dados preenchidos pelas fontes cadastrais e fiscais integradas.");
     } catch (e) {
       setCnpjMsg((e as Error).message);
     } finally {
@@ -264,35 +253,49 @@ export function EcForm() {
     }
   }
 
-  async function salvar() {
+  async function salvar(linhaId?: string): Promise<boolean> {
+    const destino = await escolherDestinoEcExcel({ ...ec!, numero }, "completa");
+    if (!destino) {
+      toast("Salvamento cancelado: escolha um local para a versão Excel da EC.", "warning");
+      return false;
+    }
     setSalvando(true);
     try {
-      const revisao = await corrigirDescricoes(ec!.linhas);
-      const ecRevisada = { ...ec!, linhas: revisao.linhas };
+      let linhasRevisadas: EcLinha[];
+      let revisaoCompleta: boolean;
+      if (linhaId) {
+        const revisao = await corrigirLinhaEc(ec!.linhas.find((linha) => linha.id === linhaId) ?? ec!.linhas[0]);
+        linhasRevisadas = ec!.linhas.map((linha) => linha.id === linhaId ? revisao.linha : linha);
+        revisaoCompleta = revisao.revisaoCompleta;
+      } else {
+        const revisao = await corrigirDescricoes(ec!.linhas);
+        linhasRevisadas = revisao.linhas;
+        revisaoCompleta = revisao.revisaoCompleta;
+      }
+      const ecRevisada = { ...ec!, linhas: linhasRevisadas };
       setEc(ecRevisada);
       const salvo = await repo.ecs.salvar({
         ...ecRevisada,
         numero,
         responsavel: ecRevisada.responsavel || ecRevisada.projeto.produtoraResponsavel,
       });
+      setEc(salvo);
       // Registra/atualiza os fornecedores citados e acumula seus contatos.
       await acumularFornecedores(ecRevisada.linhas).catch(() => {});
-      toast("Estimativa salva.", "success");
-      if (!revisao.revisaoCompleta) {
+      setBaseline(JSON.stringify(salvo));
+      if (!revisaoCompleta) {
         toast("Maiúsculas corrigidas; a revisão ortográfica online estava indisponível.", "info");
       }
-      guard.liberar();
-      // Download automático em Excel: abre o seletor de pasta do Windows.
-      try {
-        toast("Escolha a pasta para salvar a EC em Excel.", "info");
-        const st = await gerarEcExcel(salvo, { picker: true, modelo: "completa" });
-        if (st === "salvo") toast("EC salva em Excel na pasta escolhida.", "success");
-      } catch {
-        /* falha no download não bloqueia o salvamento */
+      const st = await salvarEcExcelNoDestino(salvo, destino, "completa");
+      toast(st === "salvo" ? "EC revisada, salva e exportada para Excel." : "EC revisada e salva; o Excel foi baixado.", "success");
+      if (!linhaId) {
+        guard.liberar();
+        navigate(`/estimativas/${salvo.id}`);
       }
-      navigate(`/estimativas/${salvo.id}`);
+      return true;
     } catch (e) {
       toast(`Erro ao salvar: ${(e as Error).message}`, "danger");
+      return false;
     } finally {
       setSalvando(false);
     }
@@ -316,7 +319,7 @@ export function EcForm() {
           <Button variant="secondary" size="sm" icon={<IcDownload width={16} height={16} />} onClick={() => gerarEcExcel({ ...ec, numero }, { modelo: "completa" })}>
             Excel Completa
           </Button>
-          <Button size="sm" onClick={salvar} disabled={salvando}>
+          <Button size="sm" onClick={() => void salvar()} disabled={salvando}>
             {salvando ? "Salvando…" : "Salvar"}
           </Button>
         </div>
@@ -391,10 +394,11 @@ export function EcForm() {
             <EcGrupos
               linhas={ec.linhas}
               onChange={(linhas) => upd({ linhas })}
-              verFinanceiro={verFinanceiro}
+              verFinanceiro
               fornecedores={fornecedores}
               usuarios={usuarios}
               onValidarFornecedor={validarFornecedor}
+              onRevisarESalvar={(linhaId) => salvar(linhaId)}
             />
           </div>
         </Card>

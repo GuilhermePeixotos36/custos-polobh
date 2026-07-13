@@ -72,13 +72,15 @@ supabase/schema.sql          schema + RLS (aplicar depois)
 - ExcelJS é carregado **sob demanda** (code-splitting) — não pesa no load inicial.
 
 ## Integrações (prontas)
-- **Consulta de CNPJ:** BrasilAPI (`/api/cnpj/v1/{cnpj}`), pública e sem chave.
-  Ligada por padrão (`VITE_FEATURE_CNPJ`). Erros tratados → edição manual.
+- **Consulta de CNPJ:** BrasilAPI para dados cadastrais e CNPJ.ws para Inscrição
+  Estadual, ambas públicas e sem chave. Ligada por padrão (`VITE_FEATURE_CNPJ`).
+  Para uma fonte contratada que também forneça Inscrição Municipal, configure
+  `VITE_CNPJ_FISCAL_ENDPOINT` com uma URL contendo `{cnpj}`. Erros mantêm a edição manual.
 - **Descritivo por IA:** `src/lib/ai.ts`, **desligado** (`VITE_FEATURE_IA=false`).
   Ao ativar, apontar `VITE_AI_ENDPOINT` para uma **Edge Function** (a chave de API
   fica no servidor — nunca no frontend).
-- **Correção das descrições da EC:** ao salvar, revisa ortografia, pontuação e
-  maiúsculas via `corrigir-descricoes-ec`, preservando parágrafos, valores e
+- **Correção das descrições e roteiros:** ao salvar ECs e projetos, revisa ortografia,
+  pontuação e maiúsculas via `corrigir-descricoes-ec`, preservando HTML, parágrafos, valores e
   termos técnicos. Publicar com
   `supabase functions deploy corrigir-descricoes-ec --project-ref <ref>`; usa o
   mesmo segredo `OPENROUTER_API_KEY` da função de resumo de proposta.

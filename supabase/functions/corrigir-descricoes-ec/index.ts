@@ -15,7 +15,8 @@ const MODEL = Deno.env.get("OPENROUTER_MODEL") || "google/gemini-2.5-flash";
 const PROMPT = `Você é um revisor de português brasileiro. Corrija somente ortografia,
 acentuação, concordância, pontuação e maiúsculas iniciais nas descrições recebidas.
 Preserve rigorosamente IDs, nomes próprios, siglas, marcas, códigos, números, valores,
-unidades, URLs, conteúdo técnico e todas as quebras de linha/parágrafos. Não resuma,
+unidades, URLs, conteúdo técnico, tags HTML e todas as quebras de linha/parágrafos. Se
+o texto contiver HTML, preserve rigorosamente todas as tags e altere apenas o texto. Não resuma,
 não acrescente informação e não mude o sentido. Retorne apenas JSON válido no formato:
 {"descricoes":[{"id":"id original","descricao":"texto corrigido"}]}.`;
 

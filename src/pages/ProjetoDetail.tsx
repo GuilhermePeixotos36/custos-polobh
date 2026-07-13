@@ -3,9 +3,10 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { PageShell, Crumb } from "@/components/layout/AppLayout";
 import {
   Card, CardTitle, Button, Field, Input, Textarea, Select, Badge,
-  Table, THead, Th, Tr, Td, EmptyState, tomStatusEc, tomStatusOs, type Tom,
+  Table, THead, Th, Tr, Td, EmptyState, tomStatusOs, type Tom,
 } from "@/components/ui";
-import { IcChevron, IcPlus, IcBack, IcDownload, IcSearch } from "@/components/icons";
+import { IcChevron, IcPlus, IcBack, IcDownload, IcSearch, IcTrash } from "@/components/icons";
+import { RichTextField } from "@/components/RichTextField";
 import { TimelineConsolidada, type ItemConsolidado } from "@/components/Timeline";
 import { NotifDot } from "@/components/NotifDot";
 import { repo } from "@/data";
@@ -14,10 +15,12 @@ import { useMinhasPendencias } from "@/store/pendencias";
 import { gerarCronogramaExcel } from "@/lib/excel";
 import { consultarCnpj } from "@/lib/cnpj";
 import { tituloEc } from "@/domain/calc";
+import { ETAPAS_CRONOGRAMA, novaFaixaCronograma, projetoInfoVazio, sincronizarCamposLegados } from "@/domain/projeto";
 import { flags } from "@/lib/flags";
 import { cx, dataBR, maskCpfCnpjInput, maskTelefone } from "@/lib/format";
 import { toast } from "@/store/toast";
-import type { Cliente, Projeto, ProjetoInfo, StatusProjeto } from "@/data/types";
+import { corrigirRoteirosProjeto } from "@/lib/correcaoOrtografica";
+import type { Cliente, EtapaCronogramaProjeto, FaixaCronogramaProjeto, Projeto, ProjetoInfo, StatusProjeto } from "@/data/types";
 
 const tomStatusProjeto: Record<StatusProjeto, Tom> = {
   Ativo: "success", Arquivado: "neutral", Concluido: "info", Cancelado: "danger",
@@ -28,13 +31,8 @@ const clienteVazio = (): Cliente => ({
   inscricaoEstadual: "", inscricaoMunicipal: "",
   representante: { nome: "", cargo: "", telefones: "", email: "" },
 });
-const infoVazio = (): ProjetoInfo => ({
-  titulo: "", local: "", enderecoLocal: "", participantes: null,
-  produtoraResponsavel: "", telefoneProdutora: "", emailProdutora: "",
-  preEvento: "", evento: "", posEvento: "", horario: "", roteiro: "", incentivosFiscais: "",
-});
 const projetoVazio = (): Projeto => ({
-  id: "", nome: "", cliente: clienteVazio(), info: infoVazio(),
+  id: "", nome: "", cliente: clienteVazio(), info: projetoInfoVazio(),
   docsUrl: "", status: "Ativo", criadoEm: "", atualizadoEm: "",
 });
 
@@ -64,6 +62,7 @@ export function ProjetoDetail() {
   const [aba, setAba] = useState<Aba>(abaInicial);
   const [salvando, setSalvando] = useState(false);
   const [tplNova, setTplNova] = useState<"Corporativo" | "Cultural" | "">("Corporativo");
+  const [filtroEc, setFiltroEc] = useState<"todas" | "ativas" | "arquivadas">("todas");
   const [cnpjLoading, setCnpjLoading] = useState(false);
   const [cnpjMsg, setCnpjMsg] = useState("");
 
@@ -78,6 +77,10 @@ export function ProjetoDetail() {
         .filter((e) => e.projetoId === id)
         .sort((a, b) => Number(b.ativa) - Number(a.ativa) || b.versao - a.versao),
     [ecsAll, id]
+  );
+  const ecsFiltradas = useMemo(
+    () => ecsDoProjeto.filter((ec) => filtroEc === "todas" || (filtroEc === "ativas" ? ec.ativa : !ec.ativa)),
+    [ecsDoProjeto, filtroEc]
   );
   const ecIds = useMemo(() => new Set(ecsDoProjeto.map((e) => e.id)), [ecsDoProjeto]);
   const ossDoProjeto = useMemo(() => (ossAll ?? []).filter((o) => ecIds.has(o.ecId)), [ossAll, ecIds]);
@@ -133,7 +136,7 @@ export function ProjetoDetail() {
       await gerarCronogramaExcel({
         cliente: p.cliente.nome,
         titulo: info.titulo,
-        modalidade: "",
+        modalidade: info.modalidade,
         data,
         horario: info.horario,
         local: info.local,
@@ -150,6 +153,10 @@ export function ProjetoDetail() {
   const upd = (patch: Partial<Projeto>) => setP((x) => ({ ...x, ...patch }));
   const updCli = (patch: Partial<Cliente>) => setP((x) => ({ ...x, cliente: { ...x.cliente, ...patch } }));
   const updInfo = (patch: Partial<ProjetoInfo>) => setP((x) => ({ ...x, info: { ...x.info, ...patch }, nome: patch.titulo ?? x.nome }));
+  const updCronograma = (etapa: EtapaCronogramaProjeto, faixas: FaixaCronogramaProjeto[]) =>
+    updInfo({ cronograma: { ...p.info.cronograma, [etapa]: faixas } });
+  const updFaixa = (etapa: EtapaCronogramaProjeto, idFaixa: string, patch: Partial<FaixaCronogramaProjeto>) =>
+    updCronograma(etapa, p.info.cronograma[etapa].map((faixa) => faixa.id === idFaixa ? { ...faixa, ...patch } : faixa));
 
   async function consultarCnpjCliente() {
     setCnpjMsg("");
@@ -160,8 +167,13 @@ export function ProjetoDetail() {
         nome: p.cliente.nome || d.nomeFantasia || d.razaoSocial,
         razaoSocial: d.razaoSocial,
         endereco: d.endereco,
+        inscricaoEstadual: d.inscricaoEstadual || p.cliente.inscricaoEstadual,
+        inscricaoMunicipal: d.inscricaoMunicipal || p.cliente.inscricaoMunicipal,
       });
-      setCnpjMsg("Razão social e endereço preenchidos. Complete as inscrições manualmente.");
+      const preenchidas = [d.inscricaoEstadual && "IE", d.inscricaoMunicipal && "IM"].filter(Boolean).join(" e ");
+      setCnpjMsg(preenchidas
+        ? `Dados cadastrais e ${preenchidas} preenchidos automaticamente.`
+        : "Dados cadastrais preenchidos. IE/IM não foram encontradas nas fontes integradas e permanecem editáveis.");
     } catch (e) {
       setCnpjMsg((e as Error).message);
     } finally {
@@ -172,8 +184,13 @@ export function ProjetoDetail() {
   async function salvar() {
     setSalvando(true);
     try {
-      const salvo = await repo.projetos.salvar({ ...p, nome: p.info.titulo || p.nome || "Projeto" });
-      toast("Projeto salvo.", "success");
+      const revisao = await corrigirRoteirosProjeto(p.info.roteiros);
+      const info = sincronizarCamposLegados({ ...p.info, roteiros: revisao.roteiros });
+      const salvo = await repo.projetos.salvar({ ...p, info, nome: info.titulo || p.nome || "Projeto" });
+      setP(salvo);
+      toast(revisao.revisaoCompleta
+        ? "Projeto salvo e roteiros revisados automaticamente."
+        : "Projeto salvo. A correção básica foi aplicada; a revisão por IA está indisponível no momento.", "success");
       navigate(`/projetos/${salvo.id}`);
     } catch (e) {
       toast(`Erro ao salvar: ${(e as Error).message}`, "danger");
@@ -244,8 +261,25 @@ export function ProjetoDetail() {
                 <Field label="Razão Social" className="sm:col-span-2"><Input value={p.cliente.razaoSocial} onChange={(e) => updCli({ razaoSocial: e.target.value })} /></Field>
                 <Field label="Endereço" className="sm:col-span-2"><Input value={p.cliente.endereco} onChange={(e) => updCli({ endereco: e.target.value })} /></Field>
                 <Field label="Inscrição Estadual"><Input value={p.cliente.inscricaoEstadual} onChange={(e) => updCli({ inscricaoEstadual: e.target.value })} /></Field>
-                <Field label="Inscrição Municipal"><Input value={p.cliente.inscricaoMunicipal} onChange={(e) => updCli({ inscricaoMunicipal: e.target.value })} /></Field>
+                <Field label="Inscrição Municipal">
+                  <div className="flex gap-2">
+                    <Input value={p.cliente.inscricaoMunicipal} onChange={(e) => updCli({ inscricaoMunicipal: e.target.value })} />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="shrink-0"
+                      title="Consultar Inscrição Municipal no portal da Prefeitura de Belo Horizonte"
+                      aria-label="Consultar Inscrição Municipal na Prefeitura de Belo Horizonte"
+                      icon={<IcSearch width={15} height={15} />}
+                      onClick={() => window.open("https://mobiliarioonline.pbh.gov.br/mobiliario-cadastro-publico/f/t/emiteficwebsel", "_blank", "noopener,noreferrer")}
+                    >
+                      Consultar na PBH
+                    </Button>
+                  </div>
+                </Field>
                 <Field label="Representante"><Input value={p.cliente.representante.nome} onChange={(e) => updCli({ representante: { ...p.cliente.representante, nome: e.target.value } })} /></Field>
+                <Field label="Telefone do representante"><Input value={p.cliente.representante.telefones} inputMode="tel" onChange={(e) => updCli({ representante: { ...p.cliente.representante, telefones: maskTelefone(e.target.value) } })} /></Field>
                 <Field label="E-mail do representante"><Input value={p.cliente.representante.email} onChange={(e) => updCli({ representante: { ...p.cliente.representante, email: e.target.value } })} /></Field>
               </div>
             </Card>
@@ -269,17 +303,55 @@ export function ProjetoDetail() {
             <CardTitle>Informações do projeto</CardTitle>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <Field label="Título do projeto" className="lg:col-span-3"><Input value={p.info.titulo} onChange={(e) => updInfo({ titulo: e.target.value })} /></Field>
+              <Field label="Modalidade">
+                <Select value={p.info.modalidade} onChange={(e) => updInfo({ modalidade: e.target.value as ProjetoInfo["modalidade"] })}>
+                  <option value="">Selecione</option>
+                  <option value="Cultural">Cultural</option>
+                  <option value="Corporativo">Corporativo</option>
+                </Select>
+              </Field>
               <Field label="Local"><Input value={p.info.local} onChange={(e) => updInfo({ local: e.target.value })} /></Field>
               <Field label="Endereço do local"><Input value={p.info.enderecoLocal} onChange={(e) => updInfo({ enderecoLocal: e.target.value })} /></Field>
               <Field label="Nº de participantes"><Input type="number" value={p.info.participantes ?? ""} onChange={(e) => updInfo({ participantes: e.target.value ? Number(e.target.value) : null })} /></Field>
-              <Field label="Produtora responsável"><Input value={p.info.produtoraResponsavel} onChange={(e) => updInfo({ produtoraResponsavel: e.target.value })} /></Field>
-              <Field label="Telefone produtora"><Input value={p.info.telefoneProdutora} inputMode="tel" onChange={(e) => updInfo({ telefoneProdutora: maskTelefone(e.target.value) })} /></Field>
-              <Field label="E-mail produtora"><Input value={p.info.emailProdutora} onChange={(e) => updInfo({ emailProdutora: e.target.value })} /></Field>
-              <Field label="Pré-evento"><Input type="date" value={p.info.preEvento} onChange={(e) => updInfo({ preEvento: e.target.value })} /></Field>
-              <Field label="Evento"><Input type="date" value={p.info.evento} onChange={(e) => updInfo({ evento: e.target.value })} /></Field>
-              <Field label="Pós-evento"><Input type="date" value={p.info.posEvento} onChange={(e) => updInfo({ posEvento: e.target.value })} /></Field>
-              <Field label="Horário"><Input value={p.info.horario} onChange={(e) => updInfo({ horario: e.target.value })} placeholder="08h às 18h" /></Field>
-              <Field label="Roteiro" className="sm:col-span-2"><Textarea value={p.info.roteiro} onChange={(e) => updInfo({ roteiro: e.target.value })} /></Field>
+              <Field label="Nome da produtora responsável"><Input value={p.info.produtoraResponsavel} onChange={(e) => updInfo({ produtoraResponsavel: e.target.value })} /></Field>
+              <Field label="Telefone da produtora responsável"><Input value={p.info.telefoneProdutora} inputMode="tel" onChange={(e) => updInfo({ telefoneProdutora: maskTelefone(e.target.value) })} /></Field>
+              <Field label="E-mail da produtora responsável"><Input type="email" value={p.info.emailProdutora} onChange={(e) => updInfo({ emailProdutora: e.target.value })} /></Field>
+              <Field label="Incentivos Fiscais" className="sm:col-span-2 lg:col-span-3"><Textarea value={p.info.incentivosFiscais} onChange={(e) => updInfo({ incentivosFiscais: e.target.value })} /></Field>
+            </div>
+          </Card>
+
+          <Card>
+            <CardTitle hint="Cada etapa pode ter uma ou mais datas, com horários de início e fim.">Cronograma</CardTitle>
+            <div className="space-y-5">
+              {ETAPAS_CRONOGRAMA.map(({ key, label }) => (
+                <section key={key} aria-labelledby={`cronograma-${key}`} className="rounded-btn border border-border-soft p-3 sm:p-4">
+                  <h3 id={`cronograma-${key}`} className="mb-3 text-sm font-bold text-ink">{label}</h3>
+                  <div className="space-y-2">
+                    {p.info.cronograma[key].map((faixa) => (
+                      <div key={faixa.id} className="grid grid-cols-1 sm:grid-cols-[minmax(150px,1fr)_minmax(120px,.7fr)_minmax(120px,.7fr)_auto] gap-2 items-end">
+                        <Field label="Data"><Input type="date" value={faixa.data} onChange={(e) => updFaixa(key, faixa.id, { data: e.target.value })} /></Field>
+                        <Field label="Início"><Input type="time" value={faixa.inicio} onChange={(e) => updFaixa(key, faixa.id, { inicio: e.target.value })} /></Field>
+                        <Field label="Fim"><Input type="time" value={faixa.fim} onChange={(e) => updFaixa(key, faixa.id, { fim: e.target.value })} /></Field>
+                        <div className="flex gap-1 pb-0.5">
+                          <Button type="button" variant="soft" size="sm" aria-label={`Adicionar data em ${label}`} icon={<IcPlus width={15} height={15} />} onClick={() => updCronograma(key, [...p.info.cronograma[key], novaFaixaCronograma()])}>Adicionar</Button>
+                          {p.info.cronograma[key].length > 1 && (
+                            <Button type="button" variant="text" size="sm" aria-label={`Excluir data de ${label}`} icon={<IcTrash width={15} height={15} />} onClick={() => updCronograma(key, p.info.cronograma[key].filter((item) => item.id !== faixa.id))} />
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          </Card>
+
+          <Card>
+            <CardTitle hint="Os textos aceitam parágrafos, negrito e listas. A revisão ortográfica é aplicada ao salvar.">Roteiro</CardTitle>
+            <div className="grid lg:grid-cols-3 gap-4">
+              <Field label="Pré Evento"><RichTextField value={p.info.roteiros.preEvento} onChange={(preEvento) => updInfo({ roteiros: { ...p.info.roteiros, preEvento } })} placeholder="Descreva o roteiro de pré-evento…" /></Field>
+              <Field label="Evento"><RichTextField value={p.info.roteiros.evento} onChange={(evento) => updInfo({ roteiros: { ...p.info.roteiros, evento } })} placeholder="Descreva o roteiro do evento…" /></Field>
+              <Field label="Pós Evento"><RichTextField value={p.info.roteiros.posEvento} onChange={(posEvento) => updInfo({ roteiros: { ...p.info.roteiros, posEvento } })} placeholder="Descreva o roteiro de pós-evento…" /></Field>
             </div>
           </Card>
         </div>
@@ -299,13 +371,35 @@ export function ProjetoDetail() {
               <Button size="sm" icon={<IcPlus width={16} height={16} />} onClick={() => navigate(`/estimativas/nova?projeto=${id}${tplNova ? `&template=${tplNova}` : ""}`)}>Nova EC</Button>
             </div>
           </div>
+          <div className="px-5 pb-4 flex items-center gap-1 border-b border-border-soft" role="group" aria-label="Filtrar estimativas">
+            {([
+              ["todas", "Todas"],
+              ["ativas", "Ativas"],
+              ["arquivadas", "Arquivadas"],
+            ] as const).map(([valor, rotulo]) => (
+              <button
+                key={valor}
+                type="button"
+                aria-pressed={filtroEc === valor}
+                onClick={() => setFiltroEc(valor)}
+                className={cx(
+                  "h-8 rounded-pill px-3 text-[12.5px] font-bold transition-colors",
+                  filtroEc === valor ? "bg-primary-soft text-primary-dark" : "text-ink-2 hover:bg-[#F1F2F5] hover:text-ink"
+                )}
+              >
+                {rotulo}
+              </button>
+            ))}
+          </div>
           {ecsDoProjeto.length === 0 ? (
             <div className="p-6"><EmptyState title="Nenhuma EC" hint="Crie a primeira EC deste projeto." /></div>
+          ) : ecsFiltradas.length === 0 ? (
+            <div className="p-6"><EmptyState title="Nenhuma EC neste filtro" hint="Selecione outro filtro para visualizar as demais estimativas." /></div>
           ) : (
             <Table>
-              <THead><Th>Título / EC</Th><Th align="center">Ativa</Th><Th align="center">Versão</Th><Th align="center">Status</Th></THead>
+              <THead><Th>Título da EC</Th><Th align="center">Status</Th></THead>
               <tbody>
-                {ecsDoProjeto.map((e) => (
+                {ecsFiltradas.map((e) => (
                   <Tr key={e.id} onClick={() => navigate(`/estimativas/${e.id}`)}>
                     <Td>
                       <div className="flex items-center gap-2">
@@ -316,9 +410,7 @@ export function ProjetoDetail() {
                         </div>
                       </div>
                     </Td>
-                    <Td align="center">{e.ativa ? <Badge tom="success">Ativa</Badge> : <span className="text-ink-3 text-[12px]">—</span>}</Td>
-                    <Td align="center"><Badge tom="neutral">V{String(e.versao).padStart(2, "0")}</Badge></Td>
-                    <Td align="center"><Badge tom={tomStatusEc[e.status]}>{e.status}</Badge></Td>
+                    <Td align="center"><Badge tom={e.ativa ? "success" : "neutral"}>{e.ativa ? "Ativa" : "Arquivada"}</Badge></Td>
                   </Tr>
                 ))}
               </tbody>
