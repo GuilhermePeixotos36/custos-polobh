@@ -150,7 +150,6 @@ export function ProjetoDetail() {
     }
   }
 
-  const upd = (patch: Partial<Projeto>) => setP((x) => ({ ...x, ...patch }));
   const updCli = (patch: Partial<Cliente>) => setP((x) => ({ ...x, cliente: { ...x.cliente, ...patch } }));
   const updInfo = (patch: Partial<ProjetoInfo>) => setP((x) => ({ ...x, info: { ...x.info, ...patch }, nome: patch.titulo ?? x.nome }));
   const updCronograma = (etapa: EtapaCronogramaProjeto, faixas: FaixaCronogramaProjeto[]) =>
@@ -247,8 +246,7 @@ export function ProjetoDetail() {
 
       {aba === "dados" && (
         <div className="space-y-4">
-          <div className="grid xl:grid-cols-2 gap-4 items-start">
-            <Card>
+          <Card>
               <CardTitle action={
                 <Button variant="soft" size="sm" icon={<IcSearch width={15} height={15} />} onClick={consultarCnpjCliente} disabled={cnpjLoading || !flags.consultaCnpj}>
                   {cnpjLoading ? "Consultando…" : "Consultar CNPJ"}
@@ -282,22 +280,7 @@ export function ProjetoDetail() {
                 <Field label="Telefone do representante"><Input value={p.cliente.representante.telefones} inputMode="tel" onChange={(e) => updCli({ representante: { ...p.cliente.representante, telefones: maskTelefone(e.target.value) } })} /></Field>
                 <Field label="E-mail do representante"><Input value={p.cliente.representante.email} onChange={(e) => updCli({ representante: { ...p.cliente.representante, email: e.target.value } })} /></Field>
               </div>
-            </Card>
-
-            <Card>
-              <CardTitle>Status do projeto</CardTitle>
-              <div className="max-w-sm">
-                <Field label="Status">
-                  <Select value={p.status} onChange={(e) => upd({ status: e.target.value as StatusProjeto })}>
-                    <option value="Ativo">Ativo</option>
-                    <option value="Concluido">Concluído</option>
-                    <option value="Arquivado">Arquivado</option>
-                    <option value="Cancelado">Cancelado</option>
-                  </Select>
-                </Field>
-              </div>
-            </Card>
-          </div>
+          </Card>
 
           <Card>
             <CardTitle>Informações do projeto</CardTitle>
