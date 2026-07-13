@@ -30,6 +30,7 @@ import { confirmar } from "@/store/confirm";
 import type { EcLinha, Fornecedor, Observacao, StatusAprovacao, StatusOs } from "@/data/types";
 
 interface Grupo {
+  id: string;
   nome: string;
   itens: EcLinha[];
 }
@@ -45,7 +46,16 @@ function agrupar(linhas: EcLinha[]): Grupo[] {
     }
     map.get(l.grupo)!.push(l);
   }
-  return ordem.map((nome) => ({ nome, itens: map.get(nome)! }));
+  return ordem.map((nome, indice) => {
+    const itens = map.get(nome)!;
+    return {
+      // O nome do grupo é editável e não pode ser usado como identidade do
+      // componente: isso desmontava o card (e seus inputs) a cada caractere.
+      id: `grupo-${itens[0]?.id || indice}`,
+      nome,
+      itens,
+    };
+  });
 }
 
 /** Achata os grupos de volta num array de linhas, reatribuindo grupo e ordem. */
@@ -55,10 +65,13 @@ function achatar(grupos: Grupo[]): EcLinha[] {
   return out;
 }
 
-const GID = (nome: string) => `G:${nome}`; // id sortable do grupo
-const CID = (nome: string) => `C:${nome}`; // id droppable (container) do grupo
+const GID = (id: string) => `G:${id}`; // id sortable estável do grupo
+const CID = (id: string) => `C:${id}`; // id droppable estável do grupo
 const ehGrupoId = (id: string) => id.startsWith("G:") || id.startsWith("C:");
-const nomeDoId = (id: string) => id.slice(2);
+const chaveDoId = (id: string) => id.slice(2);
+
+const grupoDoId = (grupos: Grupo[], id: string) =>
+  grupos.find((grupo) => grupo.id === chaveDoId(id));
 
 let seq = 0;
 function novaLinhaBase(): EcLinha {
@@ -133,9 +146,9 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
-  const isExp = (nome: string) => expandido[nome] ?? false;
-  const toggle = (nome: string) => setExpandido((e) => ({ ...e, [nome]: !isExp(nome) }));
-  const expandirTodos = (v: boolean) => setExpandido(Object.fromEntries(grupos.map((g) => [g.nome, v])));
+  const isExp = (id: string) => expandido[id] ?? false;
+  const toggle = (id: string) => setExpandido((e) => ({ ...e, [id]: !(e[id] ?? false) }));
+  const expandirTodos = (v: boolean) => setExpandido(Object.fromEntries(grupos.map((g) => [g.id, v])));
 
   /* ------- edição (atualiza estado local e propaga) ------- */
   const commit = (next: Grupo[]) => {
@@ -149,21 +162,20 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
 
   const renomearGrupo = (nomeAntigo: string, novo: string) => {
     commit(grupos.map((g) => (g.nome === nomeAntigo ? { ...g, nome: novo } : g)));
-    setExpandido((e) => {
-      const { [nomeAntigo]: v, ...resto } = e;
-      return { ...resto, [novo]: v ?? false };
-    });
   };
 
   const addItem = (grupoNome: string) => {
     commit(grupos.map((g) => (g.nome === grupoNome ? { ...g, itens: [...g.itens, { ...novaLinhaBase(), grupo: grupoNome }] } : g)));
-    setExpandido((e) => ({ ...e, [grupoNome]: true }));
+    const grupoId = grupos.find((g) => g.nome === grupoNome)?.id;
+    if (grupoId) setExpandido((e) => ({ ...e, [grupoId]: true }));
   };
 
   const addGrupo = () => {
     const nome = nomeGrupoUnico("NOVO GRUPO", grupos);
-    commit([...grupos, { nome, itens: [{ ...novaLinhaBase(), grupo: nome }] }]);
-    setExpandido((e) => ({ ...e, [nome]: true }));
+    const linha = { ...novaLinhaBase(), grupo: nome };
+    const id = `grupo-${linha.id}`;
+    commit([...grupos, { id, nome, itens: [linha] }]);
+    setExpandido((e) => ({ ...e, [id]: true }));
   };
 
   const delGrupo = async (g: Grupo) => {
@@ -206,7 +218,7 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
   const onDragStart = (e: DragStartEvent) => {
     arrastandoRef.current = true;
     const id = String(e.active.id);
-    if (ehGrupoId(id)) setAtivo({ tipo: "grupo", chave: nomeDoId(id) });
+    if (ehGrupoId(id)) setAtivo({ tipo: "grupo", chave: chaveDoId(id) });
     else setAtivo({ tipo: "item", chave: id });
   };
 
@@ -217,9 +229,9 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
     const overId = String(e.over.id);
     const atual = gruposRef.current;
     const from = containerDoItem(atual, activeId);
-    const to = ehGrupoId(overId) ? nomeDoId(overId) : containerDoItem(atual, overId);
+    const to = ehGrupoId(overId) ? grupoDoId(atual, overId)?.nome : containerDoItem(atual, overId);
     if (!from || !to || from === to) return;
-    const gs = atual.map((g) => ({ nome: g.nome, itens: [...g.itens] }));
+    const gs = atual.map((g) => ({ id: g.id, nome: g.nome, itens: [...g.itens] }));
     const gf = gs.find((g) => g.nome === from);
     const gt = gs.find((g) => g.nome === to);
     if (!gf || !gt) return;
@@ -245,10 +257,10 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
     }
     // Reordenar grupos
     if (ehGrupoId(activeId)) {
-      const fromNome = nomeDoId(activeId);
-      const toNome = ehGrupoId(overId) ? nomeDoId(overId) : containerDoItem(atual, overId);
-      if (toNome && fromNome !== toNome) {
-        const oldIndex = atual.findIndex((g) => g.nome === fromNome);
+      const fromGrupo = grupoDoId(atual, activeId);
+      const toNome = ehGrupoId(overId) ? grupoDoId(atual, overId)?.nome : containerDoItem(atual, overId);
+      if (toNome && fromGrupo && fromGrupo.nome !== toNome) {
+        const oldIndex = atual.findIndex((g) => g.id === fromGrupo.id);
         const newIndex = atual.findIndex((g) => g.nome === toNome);
         commit(arrayMove(atual, oldIndex, newIndex));
         return;
@@ -258,7 +270,7 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
     }
     // Reordenar item dentro do mesmo grupo (cross-group já ocorreu no onDragOver)
     const cont = containerDoItem(atual, activeId);
-    const alvoCont = ehGrupoId(overId) ? nomeDoId(overId) : containerDoItem(atual, overId);
+    const alvoCont = ehGrupoId(overId) ? grupoDoId(atual, overId)?.nome : containerDoItem(atual, overId);
     if (cont && alvoCont && cont === alvoCont && !ehGrupoId(overId)) {
       const g = atual.find((x) => x.nome === cont)!;
       const oldIndex = g.itens.findIndex((x) => x.id === activeId);
@@ -272,7 +284,7 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
   };
 
   const itemAtivo = ativo?.tipo === "item" ? grupos.flatMap((g) => g.itens).find((i) => i.id === ativo.chave) : undefined;
-  const grupoAtivo = ativo?.tipo === "grupo" ? grupos.find((g) => g.nome === ativo.chave) : undefined;
+  const grupoAtivo = ativo?.tipo === "grupo" ? grupos.find((g) => g.id === ativo.chave) : undefined;
 
   return (
     <div className="space-y-3">
@@ -302,17 +314,17 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
       )}
 
       <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd}>
-        <SortableContext items={grupos.map((g) => GID(g.nome))} strategy={verticalListSortingStrategy}>
+        <SortableContext items={grupos.map((g) => GID(g.id))} strategy={verticalListSortingStrategy}>
           <div className="space-y-3">
             {grupos.map((g) => (
               <GrupoCard
-                key={g.nome}
+                key={g.id}
                 g={g}
-                aberto={isExp(g.nome)}
+                aberto={isExp(g.id)}
                 verFinanceiro={verFinanceiro}
                 fornecedores={fornecedores}
                 usuarios={usuarios}
-                onToggle={() => toggle(g.nome)}
+                onToggle={() => toggle(g.id)}
                 onRenomear={(v) => renomearGrupo(g.nome, v)}
                 onAddItem={() => addItem(g.nome)}
                 onDelGrupo={() => delGrupo(g)}
@@ -374,8 +386,8 @@ function GrupoCard({
   g, aberto, verFinanceiro, fornecedores, usuarios,
   onToggle, onRenomear, onAddItem, onDelGrupo, onUpdLinha, onDelItem, onOcultoItem, onOcultoGrupo, onValidarFornecedor, onRevisarESalvar,
 }: GrupoProps) {
-  const sortable = useSortable({ id: GID(g.nome) });
-  const droppable = useDroppable({ id: CID(g.nome) });
+  const sortable = useSortable({ id: GID(g.id) });
+  const droppable = useDroppable({ id: CID(g.id) });
   const [verOcultos, setVerOcultos] = useState(false);
   const setRefs = (node: HTMLElement | null) => {
     sortable.setNodeRef(node);
