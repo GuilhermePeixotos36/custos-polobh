@@ -5,7 +5,7 @@ import {
   Card, CardTitle, Button, Field, Input, Textarea, Select, Badge,
   Table, THead, Th, Tr, Td, EmptyState, tomStatusEc, tomStatusOs, type Tom,
 } from "@/components/ui";
-import { IcChevron, IcPlus, IcBack, IcDownload, IcSearch, IcDoc, IcTrash } from "@/components/icons";
+import { IcChevron, IcPlus, IcBack, IcDownload, IcSearch } from "@/components/icons";
 import { TimelineConsolidada, type ItemConsolidado } from "@/components/Timeline";
 import { NotifDot } from "@/components/NotifDot";
 import { repo } from "@/data";
@@ -17,8 +17,7 @@ import { tituloEc } from "@/domain/calc";
 import { flags } from "@/lib/flags";
 import { cx, dataBR, maskCpfCnpjInput, maskTelefone } from "@/lib/format";
 import { toast } from "@/store/toast";
-import { confirmar } from "@/store/confirm";
-import type { Anexo, Cliente, Projeto, ProjetoInfo, StatusProjeto } from "@/data/types";
+import type { Cliente, Projeto, ProjetoInfo, StatusProjeto } from "@/data/types";
 
 const tomStatusProjeto: Record<StatusProjeto, Tom> = {
   Ativo: "success", Arquivado: "neutral", Concluido: "info", Cancelado: "danger",
@@ -39,14 +38,13 @@ const projetoVazio = (): Projeto => ({
   docsUrl: "", status: "Ativo", criadoEm: "", atualizadoEm: "",
 });
 
-type Aba = "dados" | "ec" | "os" | "cronograma" | "fornecedores" | "anexos";
+type Aba = "dados" | "ec" | "os" | "cronograma" | "fornecedores";
 const ABAS: { key: Aba; label: string }[] = [
   { key: "dados", label: "Dados Gerais" },
   { key: "ec", label: "EC" },
   { key: "os", label: "OS" },
   { key: "cronograma", label: "Cronograma" },
   { key: "fornecedores", label: "Fornecedores" },
-  { key: "anexos", label: "Anexos" },
 ];
 
 export function ProjetoDetail() {
@@ -253,9 +251,8 @@ export function ProjetoDetail() {
             </Card>
 
             <Card>
-              <CardTitle>Documentos & status</CardTitle>
-              <div className="grid sm:grid-cols-2 gap-4">
-                <Field label="Link de documentos do projeto" className="sm:col-span-2"><Input value={p.docsUrl} onChange={(e) => upd({ docsUrl: e.target.value })} placeholder="https://drive.google.com/…" /></Field>
+              <CardTitle>Status do projeto</CardTitle>
+              <div className="max-w-sm">
                 <Field label="Status">
                   <Select value={p.status} onChange={(e) => upd({ status: e.target.value as StatusProjeto })}>
                     <option value="Ativo">Ativo</option>
@@ -394,80 +391,6 @@ export function ProjetoDetail() {
           )}
         </Card>
       )}
-
-      {aba === "anexos" && <AnexosPanel projetoId={id} />}
     </PageShell>
-  );
-}
-
-/* ------------------------------ Anexos ------------------------------ */
-
-function AnexosPanel({ projetoId }: { projetoId: string }) {
-  const { data: anexos, loading, reload } = useAsync(() => repo.anexos.listar(projetoId), [projetoId]);
-  const [enviando, setEnviando] = useState(false);
-
-  async function enviar(fl: FileList | null) {
-    if (!fl?.length) return;
-    setEnviando(true);
-    try {
-      for (const f of Array.from(fl)) await repo.anexos.enviar(projetoId, f);
-      toast(`${fl.length} anexo(s) adicionado(s).`, "success");
-      await reload();
-    } catch (e) {
-      toast(`Erro ao anexar: ${(e as Error).message}`, "danger");
-    } finally {
-      setEnviando(false);
-    }
-  }
-
-  async function baixar(a: Anexo) {
-    try {
-      const url = await repo.anexos.urlAssinada(a.path);
-      window.open(url, "_blank");
-    } catch (e) {
-      toast(`Erro ao abrir: ${(e as Error).message}`, "danger");
-    }
-  }
-
-  async function remover(a: Anexo) {
-    if (!(await confirmar({ titulo: `Remover "${a.nome}"?`, mensagem: "O arquivo será excluído do projeto.", confirmarTexto: "Remover", tom: "danger" }))) return;
-    try {
-      await repo.anexos.remover(a.id, a.path);
-      toast("Anexo removido.", "info");
-      await reload();
-    } catch (e) {
-      toast(`Erro ao remover: ${(e as Error).message}`, "danger");
-    }
-  }
-
-  return (
-    <Card padded={false}>
-      <div className="p-5 flex items-center justify-between gap-3 flex-wrap">
-        <CardTitle hint="Documentos do projeto (PDF, imagem ou outros formatos)">Anexos</CardTitle>
-        <label className={cx("inline-flex items-center gap-1.5 h-9 px-3.5 rounded-btn text-[13px] font-bold cursor-pointer bg-primary-grad text-[#2A1602] shadow-btn", enviando && "opacity-60 pointer-events-none")}>
-          <IcPlus width={16} height={16} /> {enviando ? "Enviando…" : "Anexar"}
-          <input type="file" multiple className="hidden" onChange={(e) => { enviar(e.target.files); e.target.value = ""; }} />
-        </label>
-      </div>
-      {loading ? (
-        <div className="p-6 text-ink-3 text-sm">Carregando…</div>
-      ) : (anexos ?? []).length === 0 ? (
-        <div className="p-6"><EmptyState title="Nenhum anexo" hint="Adicione documentos do projeto (PDF, imagem, etc.)." /></div>
-      ) : (
-        <ul className="divide-y divide-border-soft">
-          {(anexos ?? []).map((a) => (
-            <li key={a.id} className="flex items-center gap-3 px-5 py-3">
-              <span className="text-ink-3 shrink-0"><IcDoc width={20} height={20} /></span>
-              <div className="min-w-0 flex-1">
-                <button onClick={() => baixar(a)} className="font-bold text-ink hover:text-primary-dark text-left truncate block max-w-full">{a.nome}</button>
-                <div className="text-[12px] text-ink-3">{(a.tamanho / 1024).toFixed(0)} KB · {dataBR(a.criadoEm)}</div>
-              </div>
-              <Button variant="secondary" size="sm" icon={<IcDownload width={15} height={15} />} onClick={() => baixar(a)}>Abrir</Button>
-              <button onClick={() => remover(a)} className="text-ink-3 hover:text-danger p-1.5 shrink-0" title="Remover anexo"><IcTrash width={18} height={18} /></button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Card>
   );
 }
