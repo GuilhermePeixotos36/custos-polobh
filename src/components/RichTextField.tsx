@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
 import { IcBold, IcList } from "@/components/icons";
 import { cx } from "@/lib/format";
 
@@ -39,6 +39,19 @@ export function RichTextField({ value, onChange, placeholder, toolbarExtra, clas
     emit();
   };
 
+  const onKeyDown = (evento: KeyboardEvent<HTMLDivElement>) => {
+    if (evento.key !== "Tab") return;
+    const selecao = window.getSelection();
+    const noInicial = selecao?.anchorNode;
+    const elemento = noInicial instanceof Element ? noInicial : noInicial?.parentElement;
+    const itemLista = elemento?.closest("li");
+    if (!itemLista || !ref.current?.contains(itemLista)) return;
+
+    evento.preventDefault();
+    document.execCommand(evento.shiftKey ? "outdent" : "indent", false);
+    emit();
+  };
+
   const vazio = !value || value === "<br>";
 
   return (
@@ -72,6 +85,7 @@ export function RichTextField({ value, onChange, placeholder, toolbarExtra, clas
           autoCapitalize="sentences"
           autoCorrect="on"
           onFocus={() => document.execCommand("defaultParagraphSeparator", false, "p")}
+          onKeyDown={onKeyDown}
           suppressContentEditableWarning
           onInput={emit}
           onBlur={emit}

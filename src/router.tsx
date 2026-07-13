@@ -1,25 +1,27 @@
-import { lazy, Suspense, type ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { RequireRecurso } from "@/components/layout/RequireRecurso";
 import { Login } from "@/pages/Login";
+import { ErroAplicacao } from "@/pages/ErroAplicacao";
+import { lazyComRecuperacao } from "@/lib/lazyComRecuperacao";
 
 // Páginas carregadas sob demanda (code-splitting) — reduz o bundle inicial.
-const Projetos = lazy(() => import("@/pages/Projetos").then((m) => ({ default: m.Projetos })));
-const ProjetoDetail = lazy(() => import("@/pages/ProjetoDetail").then((m) => ({ default: m.ProjetoDetail })));
-const EcForm = lazy(() => import("@/pages/EcForm").then((m) => ({ default: m.EcForm })));
-const EcDetail = lazy(() => import("@/pages/EcDetail").then((m) => ({ default: m.EcDetail })));
-const OsForm = lazy(() => import("@/pages/OsForm").then((m) => ({ default: m.OsForm })));
-const OsList = lazy(() => import("@/pages/OsList").then((m) => ({ default: m.OsList })));
-const Cronogramas = lazy(() => import("@/pages/Cronogramas").then((m) => ({ default: m.Cronogramas })));
-const CronogramaPublico = lazy(() => import("@/pages/CronogramaPublico").then((m) => ({ default: m.CronogramaPublico })));
-const CredenciamentoPublico = lazy(() => import("@/pages/CredenciamentoPublico").then((m) => ({ default: m.CredenciamentoPublico })));
-const ImprimirEc = lazy(() => import("@/pages/Imprimir").then((m) => ({ default: m.ImprimirEc })));
-const ImprimirOs = lazy(() => import("@/pages/Imprimir").then((m) => ({ default: m.ImprimirOs })));
-const Fornecedores = lazy(() => import("@/pages/Fornecedores").then((m) => ({ default: m.Fornecedores })));
-const Configuracoes = lazy(() => import("@/pages/Configuracoes").then((m) => ({ default: m.Configuracoes })));
-const Logs = lazy(() => import("@/pages/Logs").then((m) => ({ default: m.Logs })));
-const Guia = lazy(() => import("@/pages/Guia").then((m) => ({ default: m.Guia })));
+const Projetos = lazyComRecuperacao(() => import("@/pages/Projetos").then((m) => ({ default: m.Projetos })));
+const ProjetoDetail = lazyComRecuperacao(() => import("@/pages/ProjetoDetail").then((m) => ({ default: m.ProjetoDetail })));
+const EcForm = lazyComRecuperacao(() => import("@/pages/EcForm").then((m) => ({ default: m.EcForm })));
+const EcDetail = lazyComRecuperacao(() => import("@/pages/EcDetail").then((m) => ({ default: m.EcDetail })));
+const OsForm = lazyComRecuperacao(() => import("@/pages/OsForm").then((m) => ({ default: m.OsForm })));
+const OsList = lazyComRecuperacao(() => import("@/pages/OsList").then((m) => ({ default: m.OsList })));
+const Cronogramas = lazyComRecuperacao(() => import("@/pages/Cronogramas").then((m) => ({ default: m.Cronogramas })));
+const CronogramaPublico = lazyComRecuperacao(() => import("@/pages/CronogramaPublico").then((m) => ({ default: m.CronogramaPublico })));
+const CredenciamentoPublico = lazyComRecuperacao(() => import("@/pages/CredenciamentoPublico").then((m) => ({ default: m.CredenciamentoPublico })));
+const ImprimirEc = lazyComRecuperacao(() => import("@/pages/Imprimir").then((m) => ({ default: m.ImprimirEc })));
+const ImprimirOs = lazyComRecuperacao(() => import("@/pages/Imprimir").then((m) => ({ default: m.ImprimirOs })));
+const Fornecedores = lazyComRecuperacao(() => import("@/pages/Fornecedores").then((m) => ({ default: m.Fornecedores })));
+const Configuracoes = lazyComRecuperacao(() => import("@/pages/Configuracoes").then((m) => ({ default: m.Configuracoes })));
+const Logs = lazyComRecuperacao(() => import("@/pages/Logs").then((m) => ({ default: m.Logs })));
+const Guia = lazyComRecuperacao(() => import("@/pages/Guia").then((m) => ({ default: m.Guia })));
 
 /** Suspense para rotas públicas (fora da casca autenticada). */
 function P({ children }: { children: ReactNode }) {
@@ -27,14 +29,15 @@ function P({ children }: { children: ReactNode }) {
 }
 
 export const router = createBrowserRouter([
-  { path: "/login", element: <Login /> },
-  { path: "/cronograma/:slug", element: <P><CronogramaPublico /></P> }, // público (sem login)
-  { path: "/credenciamento/:token", element: <P><CredenciamentoPublico /></P> }, // público (sem login)
-  { path: "/estimativas/:id/imprimir", element: <P><ImprimirEc /></P> },
-  { path: "/ordens/:id/imprimir", element: <P><ImprimirOs /></P> },
+  { path: "/login", element: <Login />, errorElement: <ErroAplicacao /> },
+  { path: "/cronograma/:slug", element: <P><CronogramaPublico /></P>, errorElement: <ErroAplicacao /> }, // público (sem login)
+  { path: "/credenciamento/:token", element: <P><CredenciamentoPublico /></P>, errorElement: <ErroAplicacao /> }, // público (sem login)
+  { path: "/estimativas/:id/imprimir", element: <P><ImprimirEc /></P>, errorElement: <ErroAplicacao /> },
+  { path: "/ordens/:id/imprimir", element: <P><ImprimirOs /></P>, errorElement: <ErroAplicacao /> },
   {
     path: "/",
     element: <AppLayout />,
+    errorElement: <ErroAplicacao />,
     children: [
       { index: true, element: <Navigate to="/projetos" replace /> },
       { path: "projetos", element: <RequireRecurso r="projetos"><Projetos /></RequireRecurso> },
