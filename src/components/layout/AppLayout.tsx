@@ -50,12 +50,14 @@ export function AppLayout() {
 export function PageShell({
   breadcrumb,
   title,
+  titleAdornment,
   subtitle,
   topAction,
   children,
 }: {
   breadcrumb: ReactNode;
   title: string;
+  titleAdornment?: ReactNode;
   subtitle?: string;
   topAction?: ReactNode;
   children: ReactNode;
@@ -66,9 +68,12 @@ export function PageShell({
       <main className="flex-1 px-[40px] py-[30px] max-w-[1720px] w-full mx-auto">
         <div className="mb-6 flex items-end justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="font-display font-bold text-[30px] tracking-[-0.7px] text-ink leading-none">
-              {title}
-            </h1>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="font-display font-bold text-[30px] tracking-[-0.7px] text-ink leading-none">
+                {title}
+              </h1>
+              {titleAdornment}
+            </div>
             {subtitle && <p className="text-ink-2 text-[15px] mt-2">{subtitle}</p>}
           </div>
         </div>

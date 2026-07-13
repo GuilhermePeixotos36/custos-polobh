@@ -197,6 +197,7 @@ export function ProjetoDetail() {
         </>
       }
       title={novo ? "Novo projeto" : p.nome || "Projeto"}
+      titleAdornment={!novo ? <Badge tom={tomStatusProjeto[p.status]}>{p.status}</Badge> : undefined}
       topAction={
         (aba === "dados" || novo) && (
           <Button size="sm" onClick={salvar} disabled={salvando}>{salvando ? "Salvando…" : "Salvar projeto"}</Button>
@@ -206,14 +207,6 @@ export function ProjetoDetail() {
       <button onClick={() => navigate("/projetos")} className="inline-flex items-center gap-1.5 text-sm text-ink-2 hover:text-ink mb-4 font-semibold">
         <IcBack width={16} height={16} /> Voltar
       </button>
-
-      {!novo && (
-        <div className="flex items-center gap-2 mb-4">
-          <span className="text-[12.5px] font-bold text-ink-3 uppercase tracking-wide">Status do projeto</span>
-          <Badge tom={tomStatusProjeto[p.status]}>{p.status}</Badge>
-          {p.cliente?.nome && <span className="text-ink-3 text-[13px]">· {p.cliente.nome}</span>}
-        </div>
-      )}
 
       {/* Subguias */}
       <div className="flex gap-1 border-b border-border mb-5 overflow-x-auto">

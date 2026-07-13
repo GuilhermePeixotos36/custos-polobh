@@ -3,16 +3,20 @@ import type { CronogramaExcelDados } from "./cronograma";
 import { auditar } from "@/store/logs";
 import { empresaPadrao } from "@/store/empresas";
 
+export type ModeloEcExcel = "financeiro" | "completa";
+
 /** Geração da EC em Excel (ExcelJS carregado sob demanda).
  *  Com `opts.picker`, abre o seletor de pasta do sistema (Windows Explorer). */
 export async function gerarEcExcel(
   ec: Ec,
-  opts?: { picker?: boolean }
+  opts?: { picker?: boolean; modelo?: ModeloEcExcel }
 ): Promise<"salvo" | "cancelado" | "baixado"> {
   const { gerarEcExcel: fn } = await import("./ec");
   const r = await fn(ec, opts);
-  if (r !== "cancelado")
-    auditar({ categoria: "Exportação", acao: "ec.excel", mensagem: `EC ${ec.numero} exportada para Excel`, alvoId: ec.id });
+  if (r !== "cancelado") {
+    const modelo = opts?.modelo === "financeiro" ? "financeiro" : "completo";
+    auditar({ categoria: "Exportação", acao: "ec.excel", mensagem: `EC ${ec.numero} exportada para Excel (${modelo})`, alvoId: ec.id });
+  }
   return r;
 }
 

@@ -77,6 +77,11 @@ supabase/schema.sql          schema + RLS (aplicar depois)
 - **Descritivo por IA:** `src/lib/ai.ts`, **desligado** (`VITE_FEATURE_IA=false`).
   Ao ativar, apontar `VITE_AI_ENDPOINT` para uma **Edge Function** (a chave de API
   fica no servidor — nunca no frontend).
+- **Correção das descrições da EC:** ao salvar, revisa ortografia, pontuação e
+  maiúsculas via `corrigir-descricoes-ec`, preservando parágrafos, valores e
+  termos técnicos. Publicar com
+  `supabase functions deploy corrigir-descricoes-ec --project-ref <ref>`; usa o
+  mesmo segredo `OPENROUTER_API_KEY` da função de resumo de proposta.
 
 ## E-mails automáticos (Brevo) — pronto para plugar
 O app já tem a camada de e-mail (`src/lib/email/`) e dispara nos eventos da Pólobh:

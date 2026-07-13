@@ -110,9 +110,12 @@ export function EcDetail() {
       title={ec.projeto.titulo || "Estimativa"}
       subtitle={tituloEc(ec)}
       topAction={
-        <div className="flex gap-2">
-          <Button variant="secondary" size="sm" icon={<IcDownload width={16} height={16} />} onClick={() => gerarEcExcel(ec)}>
-            Gerar Excel
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="secondary" size="sm" icon={<IcDownload width={16} height={16} />} onClick={() => gerarEcExcel(ec, { modelo: "financeiro" })}>
+            Excel Financeiro
+          </Button>
+          <Button variant="secondary" size="sm" icon={<IcDownload width={16} height={16} />} onClick={() => gerarEcExcel(ec, { modelo: "completa" })}>
+            Excel Completa
           </Button>
           <Button variant="secondary" size="sm" onClick={() => navigate(`/estimativas/${ec.id}/imprimir`)}>
             Ver / PDF
@@ -203,7 +206,7 @@ export function EcDetail() {
                             />
                             <div className="flex-1 min-w-0">
                               <div className="font-bold text-ink text-[13.5px]">{l.item || "—"}</div>
-                              {l.descricao && <div className="text-[12.5px] text-ink-2">{l.descricao}</div>}
+                              {l.descricao && <div className="text-[12.5px] text-ink-2 whitespace-pre-wrap">{l.descricao}</div>}
                               <div className="text-[11px] text-ink-3 mt-0.5 flex items-center gap-2 flex-wrap">
                                 <span>Fornecedor: {l.fornecedorRazao || "—"}</span>
                                 {l.contrato && <span>· Contrato {l.contrato}</span>}

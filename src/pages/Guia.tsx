@@ -184,7 +184,7 @@ const MODULOS: Modulo[] = [
             <span>Na EC, em <b>Ações</b>, use <b>Enviar ao cliente para aprovação</b> — a EC vai para o status <Tag tom="warning">Aguardando</Tag>.</span>
             <span><b>Gerar nova versão (V02…)</b> cria uma cópia que “cancela e substitui” a anterior — use quando o escopo muda.</span>
             <span><b>Duplicar EC</b> cria uma nova estimativa (V01, Rascunho) a partir desta.</span>
-            <span><b>Gerar Excel</b> exporta a EC formatada com a marca Pólobh.</span>
+            <span><b>Excel Financeiro</b> exporta somente itens e valores; <b>Excel Completa</b> inclui todos os dados e as descrições completas.</span>
           </Passos>
           <Atencao>Arquivar e Cancelar <b>não apagam</b> a EC — ela continua consultável. Nada é excluído de fato.</Atencao>
         </Secao>

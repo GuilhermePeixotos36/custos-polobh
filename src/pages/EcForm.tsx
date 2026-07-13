@@ -23,6 +23,7 @@ import {
 import { itensDoTemplate } from "@/domain/ecTemplates";
 import { gerarEcExcel } from "@/lib/excel";
 import { consultarCnpj } from "@/lib/cnpj";
+import { corrigirDescricoes } from "@/lib/correcaoOrtografica";
 import { useAuth } from "@/store/auth";
 import { RentabilidadeItens } from "@/components/RentabilidadeItens";
 import { EcGrupos } from "@/components/EcGrupos";
@@ -266,19 +267,25 @@ export function EcForm() {
   async function salvar() {
     setSalvando(true);
     try {
+      const revisao = await corrigirDescricoes(ec!.linhas);
+      const ecRevisada = { ...ec!, linhas: revisao.linhas };
+      setEc(ecRevisada);
       const salvo = await repo.ecs.salvar({
-        ...ec!,
+        ...ecRevisada,
         numero,
-        responsavel: ec!.responsavel || ec!.projeto.produtoraResponsavel,
+        responsavel: ecRevisada.responsavel || ecRevisada.projeto.produtoraResponsavel,
       });
       // Registra/atualiza os fornecedores citados e acumula seus contatos.
-      await acumularFornecedores(ec!.linhas).catch(() => {});
+      await acumularFornecedores(ecRevisada.linhas).catch(() => {});
       toast("Estimativa salva.", "success");
+      if (!revisao.revisaoCompleta) {
+        toast("Maiúsculas corrigidas; a revisão ortográfica online estava indisponível.", "info");
+      }
       guard.liberar();
       // Download automático em Excel: abre o seletor de pasta do Windows.
       try {
         toast("Escolha a pasta para salvar a EC em Excel.", "info");
-        const st = await gerarEcExcel(salvo, { picker: true });
+        const st = await gerarEcExcel(salvo, { picker: true, modelo: "completa" });
         if (st === "salvo") toast("EC salva em Excel na pasta escolhida.", "success");
       } catch {
         /* falha no download não bloqueia o salvamento */
@@ -302,9 +309,12 @@ export function EcForm() {
       }
       title={editando ? "Editar Estimativa" : "Nova Estimativa"}
       topAction={
-        <div className="flex gap-2">
-          <Button variant="secondary" size="sm" icon={<IcDownload width={16} height={16} />} onClick={() => gerarEcExcel({ ...ec, numero })}>
-            Gerar Excel
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="secondary" size="sm" icon={<IcDownload width={16} height={16} />} onClick={() => gerarEcExcel({ ...ec, numero }, { modelo: "financeiro" })}>
+            Excel Financeiro
+          </Button>
+          <Button variant="secondary" size="sm" icon={<IcDownload width={16} height={16} />} onClick={() => gerarEcExcel({ ...ec, numero }, { modelo: "completa" })}>
+            Excel Completa
           </Button>
           <Button size="sm" onClick={salvar} disabled={salvando}>
             {salvando ? "Salvando…" : "Salvar"}

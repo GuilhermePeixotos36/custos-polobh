@@ -545,7 +545,17 @@ function ItemRow({ l, verFinanceiro, fornecedores, usuarios, onUpd, onDel, onOcu
 
         <div className="flex-1 min-w-[280px] grid gap-2">
           <Campo label="Descrição Financeiro">
-            <AutoTextarea className="!text-[13px]" placeholder="Descrição resumida do item" value={l.descricao} onChange={(e) => onUpd({ descricao: e.target.value })} />
+            <AutoTextarea
+              className="!text-[13px] whitespace-pre-wrap"
+              placeholder="Descrição do item — use Enter para criar parágrafos"
+              value={l.descricao}
+              rows={3}
+              lang="pt-BR"
+              spellCheck
+              autoCapitalize="sentences"
+              autoCorrect="on"
+              onChange={(e) => onUpd({ descricao: e.target.value })}
+            />
           </Campo>
           <Campo label="Descrição Completa">
             <RichTextField

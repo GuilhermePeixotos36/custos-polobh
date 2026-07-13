@@ -14,11 +14,14 @@ const COLS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
 /** Altura máxima de linha no Excel (em pontos). */
 const ALTURA_MAX = 409;
 
+export type ModeloEcExcel = "financeiro" | "completa";
+
 /** Converte o HTML do rich-text (Descrição Completa) numa lista de linhas de texto. */
 function htmlParaLinhas(html: string): string[] {
   if (!html) return [];
   const txt = html
-    .replace(/<\/(li|p|div|h[1-6])>/gi, "\n")
+    .replace(/<\/li>/gi, "\n")
+    .replace(/<\/(p|div|h[1-6])>/gi, "\n\n")
     .replace(/<li[^>]*>/gi, "• ")
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<[^>]+>/g, "")
@@ -26,13 +29,18 @@ function htmlParaLinhas(html: string): string[] {
     .replace(/&amp;/gi, "&")
     .replace(/&lt;/gi, "<")
     .replace(/&gt;/gi, ">");
-  return txt.split(/\n/).map((l) => l.trim()).filter(Boolean);
+  const linhas = txt.split(/\n/).map((l) => l.trim());
+  while (linhas[0] === "") linhas.shift();
+  while (linhas.at(-1) === "") linhas.pop();
+  return linhas;
 }
 
-export async function gerarEcExcel(
+export async function criarEcExcelBuffer(
   ec: Ec,
-  opts?: { picker?: boolean }
-): Promise<"salvo" | "cancelado" | "baixado"> {
+  modelo: ModeloEcExcel = "completa"
+): Promise<{ buffer: ArrayBuffer; nome: string }> {
+  const completa = modelo === "completa";
+  const ultimaColuna = completa ? "L" : "D";
   const wb = new ExcelJS.Workbook();
   wb.creator = "Sistema Pólobh";
   const ws = wb.addWorksheet("EC", {
@@ -44,7 +52,9 @@ export async function gerarEcExcel(
   });
 
   // larguras (Item, Descrição largo, valores, etc.)
-  const widths = [16, 34, 13, 13, 14, 20, 18, 12, 13, 14, 10, 22];
+  const widths = completa
+    ? [16, 34, 13, 13, 14, 20, 18, 12, 13, 14, 10, 22]
+    : [22, 22, 16, 16];
   widths.forEach((w, i) => (ws.getColumn(i + 1).width = w));
 
   const t = calcularTotais(ec.linhas, ec.producao);
@@ -52,12 +62,12 @@ export async function gerarEcExcel(
 
   // ---------- Cabeçalho / logo ----------
   ws.mergeCells(`A${r}:B${r + 1}`);
-  ws.mergeCells(`C${r}:L${r + 1}`);
+  ws.mergeCells(`C${r}:${ultimaColuna}${r + 1}`);
   const titulo = ws.getCell(`C${r}`);
   titulo.value = "Estimativa de Custos | Proposta Comercial";
   titulo.font = { name: "Calibri", size: 16, bold: true, color: { argb: COR.white } };
   titulo.alignment = { vertical: "middle", horizontal: "center" };
-  for (const c of COLS.slice(2)) ws.getCell(`${c}${r}`).fill = fill(COR.black);
+  for (const c of COLS.slice(2, completa ? 12 : 4)) ws.getCell(`${c}${r}`).fill = fill(COR.black);
   ws.getCell(`A${r}`).fill = fill(COR.black);
   ws.getCell(`B${r}`).fill = fill(COR.black);
   ws.getRow(r).height = 26;
@@ -74,7 +84,7 @@ export async function gerarEcExcel(
   const meta = (label: string, valor: string) => {
     ws.getCell(`A${r}`).value = label;
     ws.getCell(`A${r}`).font = { bold: true, size: 10 };
-    ws.mergeCells(`B${r}:L${r}`);
+    ws.mergeCells(`B${r}:${ultimaColuna}${r}`);
     ws.getCell(`B${r}`).value = valor;
     ws.getCell(`B${r}`).font = { size: 10 };
     r++;
@@ -84,7 +94,7 @@ export async function gerarEcExcel(
 
   // ---------- Seção util ----------
   const secao = (txt: string) => {
-    ws.mergeCells(`A${r}:L${r}`);
+    ws.mergeCells(`A${r}:${ultimaColuna}${r}`);
     const c = ws.getCell(`A${r}`);
     c.value = txt;
     c.font = { bold: true, size: 11, color: { argb: COR.white } };
@@ -97,7 +107,7 @@ export async function gerarEcExcel(
     ws.getCell(`A${r}`).value = label;
     ws.getCell(`A${r}`).font = { bold: true, size: 10 };
     ws.getCell(`A${r}`).fill = fill(COR.soft);
-    ws.mergeCells(`B${r}:L${r}`);
+    ws.mergeCells(`B${r}:${ultimaColuna}${r}`);
     ws.getCell(`B${r}`).value = valor;
     ws.getCell(`B${r}`).font = { size: 10 };
     ws.getCell(`B${r}`).alignment = { wrapText: true, vertical: "top" };
@@ -134,14 +144,18 @@ export async function gerarEcExcel(
 
   // ---------- Tabela de custos ----------
   secao("ESTIMATIVA DE CUSTOS");
-  const headers = [
-    "Item", "Descrição Financeiro", "Pólobh", "Cliente", "Status Aprovação",
-    "Fornecedor (Razão Social)", "Fornecedor (CNPJ)", "Fatura ou Nota Fiscal",
-    "Código Serviço", "Pedido de Compra", "OS", "Contrato",
-  ];
   const hr = r;
-  headers.forEach((h, i) => {
-    const c = ws.getCell(`${COLS[i]}${hr}`);
+  const headers: [string, string][] = completa
+    ? [
+        ["A", "Item"], ["B", "Descrição Financeiro"], ["C", "Pólobh"], ["D", "Cliente"],
+        ["E", "Status Aprovação"], ["F", "Fornecedor (Razão Social)"], ["G", "Fornecedor (CNPJ)"],
+        ["H", "Fatura ou Nota Fiscal"], ["I", "Código Serviço"], ["J", "Pedido de Compra"],
+        ["K", "OS"], ["L", "Contrato"],
+      ]
+    : [["A", "Item"], ["C", "Pólobh"], ["D", "Cliente"]];
+  if (!completa) ws.mergeCells(`A${hr}:B${hr}`);
+  headers.forEach(([col, h]) => {
+    const c = ws.getCell(`${col}${hr}`);
     c.value = h;
     c.font = { bold: true, size: 9, color: { argb: COR.white } };
     c.fill = fill(COR.black);
@@ -199,7 +213,7 @@ export async function gerarEcExcel(
   };
 
   for (const [grupo, linhas] of grupos) {
-    ws.mergeCells(`A${r}:L${r}`);
+    ws.mergeCells(`A${r}:${ultimaColuna}${r}`);
     const gc = ws.getCell(`A${r}`);
     gc.value = grupo;
     gc.font = { bold: true, size: 10, color: { argb: COR.ink } };
@@ -207,29 +221,44 @@ export async function gerarEcExcel(
     gc.border = thin;
     r++;
     for (const l of linhas) {
-      const contratoTxt = `${l.contratoStatus || "Pendente"}${l.contrato ? " · " + l.contrato : ""}`;
-      const vals = [
-        l.item, l.descricao, l.valorPolobh, l.valorCliente, l.statusAprovacao,
-        l.fornecedorRazao, l.fornecedorCnpj, l.faturaNf, l.codigoServico,
-        l.pedidoCompra, l.statusOs, contratoTxt,
-      ];
-      vals.forEach((v, i) => {
-        const c = ws.getCell(`${COLS[i]}${r}`);
-        c.value = v as any;
-        c.font = { size: 9 };
-        c.border = thin;
-        c.alignment = { wrapText: true, vertical: "top" };
-        if (i === 2 || i === 3) {
+      if (completa) {
+        const contratoTxt = `${l.contratoStatus || "Pendente"}${l.contrato ? " · " + l.contrato : ""}`;
+        const vals = [
+          l.item, l.descricao, l.valorPolobh, l.valorCliente, l.statusAprovacao,
+          l.fornecedorRazao, l.fornecedorCnpj, l.faturaNf, l.codigoServico,
+          l.pedidoCompra, l.statusOs, contratoTxt,
+        ];
+        vals.forEach((v, i) => {
+          const c = ws.getCell(`${COLS[i]}${r}`);
+          c.value = v as ExcelJS.CellValue;
+          c.font = { size: 9 };
+          c.border = thin;
+          c.alignment = { wrapText: true, vertical: "top" };
+          if (i === 2 || i === 3) {
+            c.numFmt = '"R$" #,##0.00';
+            c.alignment = { horizontal: "right" };
+          }
+        });
+      } else {
+        ws.mergeCells(`A${r}:B${r}`);
+        ws.getCell(`A${r}`).value = l.item;
+        ws.getCell(`A${r}`).font = { size: 9 };
+        ws.getCell(`A${r}`).alignment = { wrapText: true, vertical: "top" };
+        for (const [col, valor] of [["C", l.valorPolobh], ["D", l.valorCliente]] as const) {
+          const c = ws.getCell(`${col}${r}`);
+          c.value = valor;
+          c.font = { size: 9 };
           c.numFmt = '"R$" #,##0.00';
           c.alignment = { horizontal: "right" };
         }
-      });
+        for (const col of ["A", "B", "C", "D"]) ws.getCell(`${col}${r}`).border = thin;
+      }
       r++;
-      // Descrição Completa em linhas extras (respeitando o limite de altura)
-      escreverBlocoTexto("Descrição Completa:", htmlParaLinhas(l.descricaoCompleta));
-      // Observações do item (texto + pessoa)
-      const obs = (l.observacoes ?? []).filter((o) => o.texto.trim()).map((o) => `• ${o.texto}${o.pessoa ? " — " + o.pessoa : ""}`);
-      escreverBlocoTexto("Observações:", obs);
+      if (completa) {
+        escreverBlocoTexto("Descrição Completa:", htmlParaLinhas(l.descricaoCompleta));
+        const obs = (l.observacoes ?? []).filter((o) => o.texto.trim()).map((o) => `• ${o.texto}${o.pessoa ? " — " + o.pessoa : ""}`);
+        escreverBlocoTexto("Observações:", obs);
+      }
     }
   }
   const itemEnd = r - 1; // fim do intervalo das linhas de custo
@@ -245,11 +274,16 @@ export async function gerarEcExcel(
     ["Alimentação", `BH R$ ${prod.alimentacaoBH}/dia · Viagem R$ ${prod.alimentacaoViagem}`, prod.alimentacaoBH * prod.qtdAlimentacaoBH + prod.alimentacaoViagem * prod.qtdAlimentacaoViagem],
   ];
   for (const [nome, desc, val] of prodLinhas) {
-    ws.getCell(`A${r}`).value = nome;
-    ws.getCell(`A${r}`).font = { bold: true, size: 9 };
-    ws.mergeCells(`B${r}:B${r}`);
-    ws.getCell(`B${r}`).value = desc;
-    ws.getCell(`B${r}`).font = { size: 9 };
+    if (completa) {
+      ws.getCell(`A${r}`).value = nome;
+      ws.getCell(`A${r}`).font = { bold: true, size: 9 };
+      ws.getCell(`B${r}`).value = desc;
+      ws.getCell(`B${r}`).font = { size: 9 };
+    } else {
+      ws.mergeCells(`A${r}:B${r}`);
+      ws.getCell(`A${r}`).value = nome;
+      ws.getCell(`A${r}`).font = { bold: true, size: 9 };
+    }
     const c = ws.getCell(`C${r}`);
     c.value = val;
     c.numFmt = '"R$" #,##0.00';
@@ -280,14 +314,17 @@ export async function gerarEcExcel(
     destaque = false
   ) => {
     const corTxt = destaque ? COR.white : COR.ink;
+    if (!completa) ws.mergeCells(`A${r}:B${r}`);
     const a = ws.getCell(`A${r}`);
     a.value = label;
     a.font = { bold: true, size: 10, color: { argb: corTxt } };
     a.alignment = { vertical: "middle" };
-    const b = ws.getCell(`B${r}`);
-    b.value = desc;
-    b.font = { size: 9, color: { argb: destaque ? COR.white : COR.ink2 } };
-    b.alignment = { wrapText: true, vertical: "middle" };
+    if (completa) {
+      const b = ws.getCell(`B${r}`);
+      b.value = desc;
+      b.font = { size: 9, color: { argb: destaque ? COR.white : COR.ink2 } };
+      b.alignment = { wrapText: true, vertical: "middle" };
+    }
     const setVal = (ref: string, v: Val) => {
       const c = ws.getCell(ref);
       c.value = v.formula
@@ -371,17 +408,17 @@ export async function gerarEcExcel(
 
   ws.getCell(`A${r}`).value = "Validade";
   ws.getCell(`A${r}`).font = { bold: true, size: 10 };
-  ws.mergeCells(`B${r}:L${r}`);
+  ws.mergeCells(`B${r}:${ultimaColuna}${r}`);
   ws.getCell(`B${r}`).value = `Esta Estimativa de Custos | Orçamento é válida por ${ec.validadeDias} dias.`;
   ws.getCell(`B${r}`).font = { size: 10 };
   r += 2;
 
-  ws.mergeCells(`A${r}:L${r}`);
+  ws.mergeCells(`A${r}:${ultimaColuna}${r}`);
   ws.getCell(`A${r}`).value = "INFORMAÇÕES GERAIS:";
   ws.getCell(`A${r}`).font = { bold: true, size: 10 };
   r++;
 
-  ws.mergeCells(`A${r}:L${r}`);
+  ws.mergeCells(`A${r}:${ultimaColuna}${r}`);
   const legal = ws.getCell(`A${r}`);
   legal.value =
     "A aprovação desta proposta, seja por meio de assinatura ou por e-mail, tem força contratual, " +
@@ -398,7 +435,7 @@ export async function gerarEcExcel(
   ws.getRow(r).height = 66;
   r++;
 
-  ws.mergeCells(`A${r}:L${r}`);
+  ws.mergeCells(`A${r}:${ultimaColuna}${r}`);
   ws.getCell(`A${r}`).value =
     "Obs.: Esta EC | Orçamento cancela e substitui todas as anteriores referentes ao mesmo projeto | peça que porventura existam.";
   ws.getCell(`A${r}`).font = { italic: true, size: 9 };
@@ -413,7 +450,7 @@ export async function gerarEcExcel(
   ws.getRow(r).height = 22;
   r++;
 
-  ws.mergeCells(`A${r}:L${r}`);
+  ws.mergeCells(`A${r}:${ultimaColuna}${r}`);
   ws.getCell(`A${r}`).value = "Identificação do Signatário: Nome e Identidade Funcional";
   ws.getCell(`A${r}`).font = { size: 9, color: { argb: COR.ink2 } };
   r++;
@@ -428,13 +465,22 @@ export async function gerarEcExcel(
   ws.getRow(r).height = 22;
 
   // Impressão: área definida + cabeçalho da tabela repetido em toda página
-  ws.pageSetup.printArea = `A1:L${r}`;
+  ws.pageSetup.printArea = `A1:${ultimaColuna}${r}`;
   ws.pageSetup.printTitlesRow = `${hr}:${hr}`;
 
   const buffer = await wb.xlsx.writeBuffer();
   // Nome do arquivo = código da EC + data de criação (ex.: "EC – ... – V02 - 13-07-2026.xlsx").
-  const nome = `${nomeArquivo(`${ec.numero} - ${dataBR(ec.criadoEm)}`)}.xlsx`;
+  const sufixoModelo = completa ? "Completa" : "Financeiro";
+  const nome = `${nomeArquivo(`${ec.numero} - ${sufixoModelo} - ${dataBR(ec.criadoEm)}`)}.xlsx`;
+  return { buffer: buffer as ArrayBuffer, nome };
+}
+
+export async function gerarEcExcel(
+  ec: Ec,
+  opts?: { picker?: boolean; modelo?: ModeloEcExcel }
+): Promise<"salvo" | "cancelado" | "baixado"> {
+  const { buffer, nome } = await criarEcExcelBuffer(ec, opts?.modelo);
   if (opts?.picker) return salvarComPicker(buffer as ArrayBuffer, nome);
-  baixar(buffer as ArrayBuffer, nome);
+  baixar(buffer, nome);
   return "baixado";
 }

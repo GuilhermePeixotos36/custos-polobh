@@ -96,7 +96,7 @@ export function EcDocumento({ ec }: { ec: Ec }) {
               {linhas.map((l) => (
                 <tr key={l.id} className="border-b border-border-soft doc-avoid-break">
                   <td className="px-2 py-1.5 align-top font-semibold">{l.item}</td>
-                  <td className="px-2 py-1.5 align-top">{l.descricao}</td>
+                  <td className="px-2 py-1.5 align-top whitespace-pre-wrap">{l.descricao}</td>
                   <td className="px-2 py-1.5 align-top text-ink-2">{l.fornecedorRazao}</td>
                   <td className="px-2 py-1.5 align-top text-right">{brl(l.valorPolobh)}</td>
                   <td className="px-2 py-1.5 align-top text-right">{brl(l.valorCliente)}</td>
