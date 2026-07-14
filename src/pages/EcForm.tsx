@@ -22,7 +22,7 @@ import {
 } from "@/domain/calc";
 import { itensDoTemplate } from "@/domain/ecTemplates";
 import { projetoInfoVazio } from "@/domain/projeto";
-import { escolherDestinoEcExcel, gerarEcExcel, salvarEcExcelNoDestino } from "@/lib/excel";
+import { escolherDestinoEcExcel, gerarEcExcel, salvarEcExcelNoDestino, type DestinoEcExcel } from "@/lib/excel";
 import { consultarCnpj } from "@/lib/cnpj";
 import { corrigirDescricoes, corrigirLinhaEc } from "@/lib/correcaoOrtografica";
 import { useAuth } from "@/store/auth";
@@ -254,10 +254,18 @@ export function EcForm() {
   }
 
   async function salvar(linhaId?: string): Promise<boolean> {
-    const destino = await escolherDestinoEcExcel({ ...ec!, numero }, "completa");
-    if (!destino) {
-      toast("Salvamento cancelado: escolha um local para a versão Excel da EC.", "warning");
-      return false;
+    // Só o salvamento GERAL da EC (botão de cima, sem linhaId) exporta o Excel e
+    // abre o seletor de pasta. O "Revisar e salvar" de um item apenas revisa a
+    // ortografia daquela linha e persiste os dados — sem gerar Excel.
+    const exportarExcel = !linhaId;
+    let destino: DestinoEcExcel | null = null;
+    if (exportarExcel) {
+      // Abre o Explorer já no clique (preserva a ativação do gesto do usuário).
+      destino = await escolherDestinoEcExcel({ ...ec!, numero }, "completa");
+      if (!destino) {
+        toast("Salvamento cancelado: escolha um local para a versão Excel da EC.", "warning");
+        return false;
+      }
     }
     setSalvando(true);
     try {
@@ -286,11 +294,14 @@ export function EcForm() {
       if (!revisaoCompleta) {
         toast("Maiúsculas corrigidas; a revisão ortográfica online estava indisponível.", "info");
       }
-      const st = await salvarEcExcelNoDestino(salvo, destino, "completa");
-      toast(st === "salvo" ? "EC revisada, salva e exportada para Excel." : "EC revisada e salva; o Excel foi baixado.", "success");
-      if (!linhaId) {
+      if (exportarExcel && destino) {
+        const st = await salvarEcExcelNoDestino(salvo, destino, "completa");
+        toast(st === "salvo" ? "EC salva e exportada para Excel." : "EC salva; o Excel foi baixado.", "success");
         guard.liberar();
         navigate(`/estimativas/${salvo.id}`);
+      } else {
+        // Item revisado e salvo — permanece na edição para continuar o trabalho.
+        toast("Item revisado e salvo.", "success");
       }
       return true;
     } catch (e) {
