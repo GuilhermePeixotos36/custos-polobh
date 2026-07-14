@@ -26,12 +26,14 @@ export const usePendencias = create<State>((set, get) => ({
     if (!force && Date.now() - ultimoLoad < 4000) return; // evita recargas em rajada
     set({ carregando: true });
     try {
-      const [projetos, ecs, oss] = await Promise.all([
+      const [projetos, ecs, oss, usuarios] = await Promise.all([
         repo.projetos.listar(),
         repo.ecs.listar(),
         repo.oss.listar(),
+        repo.auth.usuarios(),
       ]);
-      set({ itens: calcularPendencias(projetos, ecs, oss), ultimoLoad: Date.now() });
+      const nomes = usuarios.map((u) => u.nome).filter(Boolean);
+      set({ itens: calcularPendencias(projetos, ecs, oss, nomes), ultimoLoad: Date.now() });
     } catch {
       /* silencioso: os badges são auxiliares, não devem quebrar a tela */
     } finally {

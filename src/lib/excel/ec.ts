@@ -256,7 +256,7 @@ export async function criarEcExcelBuffer(
       r++;
       if (completa) {
         escreverBlocoTexto("Descrição Completa:", htmlParaLinhas(l.descricaoCompleta));
-        const obs = (l.observacoes ?? []).filter((o) => o.texto.trim()).map((o) => `• ${o.texto}${o.pessoa ? " — " + o.pessoa : ""}`);
+        const obs = (l.observacoes ?? []).filter((o) => o.texto.trim()).map((o) => `• ${o.texto}${o.autorNome ? " — " + o.autorNome : ""}`);
         escreverBlocoTexto("Observações:", obs);
       }
     }

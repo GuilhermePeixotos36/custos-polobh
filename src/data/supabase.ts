@@ -208,16 +208,20 @@ function mapLinha(r: any): EcLinha {
     contrato: r.contrato ?? "",
     contratoStatus: r.contrato_status ?? "Pendente",
     observacao: r.observacao ?? "",
-    // migra a observação legada (texto único) para a lista quando ainda não houver
+    // migra a observação legada (texto único, ou o antigo campo "pessoa" atribuído) para o formato de autor.
     observacoes:
       Array.isArray(r.observacoes) && r.observacoes.length
-        ? r.observacoes.map((observacao: { id?: string; texto?: string; pessoa?: string }, indice: number) => ({
-            id: observacao.id || `obs-${r.id}-${indice}`,
-            texto: observacao.texto ?? "",
-            pessoa: observacao.pessoa ?? "",
-          }))
+        ? r.observacoes.map(
+            (o: { id?: string; texto?: string; pessoa?: string; autorId?: string; autorNome?: string; criadoEm?: string }, indice: number) => ({
+              id: o.id || `obs-${r.id}-${indice}`,
+              texto: o.texto ?? "",
+              autorId: o.autorId ?? "",
+              autorNome: o.autorNome ?? o.pessoa ?? "",
+              criadoEm: o.criadoEm ?? nowIso(),
+            })
+          )
         : r.observacao
-        ? [{ id: `obs-${r.id}-0`, texto: r.observacao, pessoa: "" }]
+        ? [{ id: `obs-${r.id}-0`, texto: r.observacao, autorId: "", autorNome: "", criadoEm: nowIso() }]
         : [],
     oculto: !!r.oculto,
     ordem: r.ordem ?? 0,

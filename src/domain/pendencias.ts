@@ -8,6 +8,7 @@
  * empurrar mais objetos em `calcularPendencias`.
  */
 import type { Ec, Os, Papel, Projeto } from "@/data/types";
+import { extrairMencoes } from "@/domain/mencoes";
 
 /** Chave da subguia dentro do detalhe do projeto (espelha ProjetoDetail). */
 export type AbaProjeto = "dados" | "ec" | "os" | "cronograma" | "fornecedores";
@@ -33,7 +34,7 @@ const EMITE_OS: Papel[] = ["Admin", "Direcao", "Administrativo"];
 const ACOMPANHA_EC: Papel[] = ["Admin", "Direcao"];
 const CRIA_EC: Papel[] = ["Admin", "Direcao", "Producao"];
 
-export function calcularPendencias(projetos: Projeto[], ecs: Ec[], oss: Os[]): Pendencia[] {
+export function calcularPendencias(projetos: Projeto[], ecs: Ec[], oss: Os[], usuarios: string[] = []): Pendencia[] {
   const ecPorId = new Map(ecs.map((e) => [e.id, e]));
   const ecsAtivasPorProjeto = new Map<string, number>();
   for (const e of ecs) {
@@ -65,16 +66,18 @@ export function calcularPendencias(projetos: Projeto[], ecs: Ec[], oss: Os[]): P
     if (!ec.projetoId) continue;
     for (const linha of ec.linhas) {
       (linha.observacoes ?? []).forEach((observacao, indice) => {
-        const pessoa = observacao.pessoa.trim();
         const texto = observacao.texto.trim();
-        if (!pessoa || !texto) return;
+        if (!texto) return;
+        // Notifica quem foi @mencionado no texto do comentário (substitui a antiga "pessoa" atribuída).
+        const mencionados = extrairMencoes(texto, usuarios);
+        if (!mencionados.length) return;
         const resumo = texto.length > 80 ? `${texto.slice(0, 77)}…` : texto;
         out.push({
           id: `ec.observacao:${ec.id}:${linha.id}:${observacao.id || indice}`,
           tipo: "ec.observacao",
-          titulo: `Observação em ${linha.item || linha.grupo}: ${resumo}`,
+          titulo: `Você foi mencionado em ${linha.item || linha.grupo}: ${resumo}`,
           papeis: [],
-          pessoas: [pessoa],
+          pessoas: mencionados,
           recurso: "projetos",
           projetoId: ec.projetoId,
           aba: "ec",

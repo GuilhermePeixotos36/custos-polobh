@@ -19,14 +19,13 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Input, AutoTextarea, Select, NumberInput, Button } from "@/components/ui";
-import { IcGrip, IcChevron, IcPlus, IcTrash, IcEye, IcEyeOff, IcSpark } from "@/components/icons";
+import { IcGrip, IcChevron, IcPlus, IcEye, IcEyeOff, IcSpark } from "@/components/icons";
 import { FornecedorField } from "@/components/FornecedorField";
 import { RichTextField } from "@/components/RichTextField";
-import { ObservacoesInline } from "@/components/ObservacoesPopup";
+import { ObservacoesThread } from "@/components/ObservacoesPopup";
 import { ResumoPropostaModal } from "@/components/ResumoPropostaModal";
 import { flags } from "@/lib/flags";
 import { brl, cx, onlyDigits, maskCpfCnpjInput } from "@/lib/format";
-import { confirmar } from "@/store/confirm";
 import type { EcLinha, Fornecedor, Observacao, StatusAprovacao, StatusOs } from "@/data/types";
 
 interface Grupo {
@@ -178,36 +177,6 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
     setExpandido((e) => ({ ...e, [id]: true }));
   };
 
-  const delGrupo = async (g: Grupo) => {
-    const temConteudo = g.itens.some((l) => l.item || l.descricao || l.valorPolobh || l.valorCliente || l.fornecedorRazao);
-    if (
-      temConteudo &&
-      !(await confirmar({
-        titulo: `Remover o grupo "${g.nome}"?`,
-        mensagem: `As ${g.itens.length} linha(s) deste grupo serão excluídas da estimativa.`,
-        confirmarTexto: "Remover grupo",
-        tom: "danger",
-      }))
-    )
-      return;
-    commit(grupos.filter((x) => x.nome !== g.nome));
-  };
-
-  const delItem = async (l: EcLinha) => {
-    const temConteudo = l.item || l.descricao || l.valorPolobh || l.valorCliente || l.fornecedorRazao;
-    if (
-      temConteudo &&
-      !(await confirmar({
-        titulo: "Remover esta linha de custo?",
-        mensagem: l.item || l.descricao || "Esta linha será excluída da estimativa.",
-        confirmarTexto: "Remover",
-        tom: "danger",
-      }))
-    )
-      return;
-    commit(grupos.map((g) => ({ ...g, itens: g.itens.filter((x) => x.id !== l.id) })));
-  };
-
   /** Oculta/reexibe um item. */
   const setOcultoItem = (id: string, oculto: boolean) => updLinha(id, { oculto });
   /** Oculta/reexibe o grupo inteiro (todos os itens). */
@@ -327,9 +296,7 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
                 onToggle={() => toggle(g.id)}
                 onRenomear={(v) => renomearGrupo(g.nome, v)}
                 onAddItem={() => addItem(g.nome)}
-                onDelGrupo={() => delGrupo(g)}
                 onUpdLinha={updLinha}
-                onDelItem={delItem}
                 onOcultoItem={setOcultoItem}
                 onOcultoGrupo={(v) => setOcultoGrupo(g.nome, v)}
                 onValidarFornecedor={onValidarFornecedor}
@@ -373,9 +340,7 @@ interface GrupoProps {
   onToggle: () => void;
   onRenomear: (v: string) => void;
   onAddItem: () => void;
-  onDelGrupo: () => void;
   onUpdLinha: (id: string, patch: Partial<EcLinha>) => void;
-  onDelItem: (l: EcLinha) => void;
   onOcultoItem: (id: string, oculto: boolean) => void;
   onOcultoGrupo: (oculto: boolean) => void;
   onValidarFornecedor: (cnpj: string) => Promise<string | null>;
@@ -384,7 +349,7 @@ interface GrupoProps {
 
 function GrupoCard({
   g, aberto, verFinanceiro, fornecedores, usuarios,
-  onToggle, onRenomear, onAddItem, onDelGrupo, onUpdLinha, onDelItem, onOcultoItem, onOcultoGrupo, onValidarFornecedor, onRevisarESalvar,
+  onToggle, onRenomear, onAddItem, onUpdLinha, onOcultoItem, onOcultoGrupo, onValidarFornecedor, onRevisarESalvar,
 }: GrupoProps) {
   const sortable = useSortable({ id: GID(g.id) });
   const droppable = useDroppable({ id: CID(g.id) });
@@ -445,9 +410,6 @@ function GrupoCard({
           <Button variant="soft" size="sm" icon={<IcPlus width={15} height={15} />} onClick={onAddItem}>
             Item
           </Button>
-          <button onClick={onDelGrupo} className="text-ink-3 hover:text-danger p-1.5" title="Remover grupo">
-            <IcTrash width={18} height={18} />
-          </button>
         </div>
       </div>
 
@@ -462,7 +424,6 @@ function GrupoCard({
                 fornecedores={fornecedores}
                 usuarios={usuarios}
                 onUpd={(patch) => onUpdLinha(l.id, patch)}
-                onDel={() => onDelItem(l)}
                 onOcultar={() => onOcultoItem(l.id, true)}
                 onValidarFornecedor={onValidarFornecedor}
                 onRevisarESalvar={onRevisarESalvar}
@@ -490,9 +451,6 @@ function GrupoCard({
                       <button type="button" onClick={() => onOcultoItem(l.id, false)} className="inline-flex items-center gap-1 rounded-btn px-2 py-1 text-[12px] font-bold text-ink-3 hover:bg-primary-soft hover:text-primary-dark" title="Reexibir item">
                         <IcEye width={16} height={16} /> Reexibir
                       </button>
-                      <button onClick={() => onDelItem(l)} className="text-ink-3 hover:text-danger p-1" title="Remover item">
-                        <IcTrash width={16} height={16} />
-                      </button>
                     </div>
                   ))}
                 </div>
@@ -519,13 +477,12 @@ interface ItemProps {
   fornecedores: Fornecedor[];
   usuarios: string[];
   onUpd: (patch: Partial<EcLinha>) => void;
-  onDel: () => void;
   onOcultar: () => void;
   onValidarFornecedor: (cnpj: string) => Promise<string | null>;
   onRevisarESalvar: (linhaId: string) => Promise<boolean>;
 }
 
-function ItemRow({ l, verFinanceiro, fornecedores, usuarios, onUpd, onDel, onOcultar, onValidarFornecedor, onRevisarESalvar }: ItemProps) {
+function ItemRow({ l, verFinanceiro, fornecedores, usuarios, onUpd, onOcultar, onValidarFornecedor, onRevisarESalvar }: ItemProps) {
   const sortable = useSortable({ id: l.id });
   const style = { transform: CSS.Translate.toString(sortable.transform), transition: sortable.transition };
   const [resumoAberto, setResumoAberto] = useState(false);
@@ -629,9 +586,6 @@ function ItemRow({ l, verFinanceiro, fornecedores, usuarios, onUpd, onDel, onOcu
           <button type="button" onClick={onOcultar} className="text-ink-3 hover:text-primary p-1.5" title="Ocultar item (mantém guardado)" aria-label="Ocultar item">
             <IcEyeOff width={18} height={18} />
           </button>
-          <button onClick={onDel} className="text-ink-3 hover:text-danger p-1.5" title="Remover linha">
-            <IcTrash width={18} height={18} />
-          </button>
         </div>
       </div>
 
@@ -692,7 +646,7 @@ function ItemRow({ l, verFinanceiro, fornecedores, usuarios, onUpd, onDel, onOcu
         </Button>
       </div>
 
-      <ObservacoesInline
+      <ObservacoesThread
         observacoes={l.observacoes}
         usuarios={usuarios}
         onChange={(obs: Observacao[]) => onUpd({ observacoes: obs })}

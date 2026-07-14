@@ -1,253 +1,377 @@
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
-import { AutoTextarea, Select, Button } from "@/components/ui";
-import { IcComment, IcTrash, IcPlus } from "@/components/icons";
-import { cx } from "@/lib/format";
+import { Button } from "@/components/ui";
+import { IcComment, IcChevron, IcPencil, IcTrash, IcSend } from "@/components/icons";
+import { cx, dataHoraBR } from "@/lib/format";
+import { regexMencoes } from "@/domain/mencoes";
+import { useAuth } from "@/store/auth";
 import type { Observacao } from "@/data/types";
 
 interface Props {
   observacoes: Observacao[];
-  usuarios: string[]; // nomes dos usuários do sistema (para atribuir)
+  usuarios: string[]; // nomes dos usuários do sistema (para @mencionar)
   onChange: (obs: Observacao[]) => void;
 }
 
-const novaObservacao = (): Observacao => ({
-  id: globalThis.crypto?.randomUUID?.() ?? `obs-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-  texto: "",
-  pessoa: "",
-});
+const novoId = () => globalThis.crypto?.randomUUID?.() ?? `obs-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-/** Linha completa abaixo do item; a edição acontece num modal amplo e central. */
-export function ObservacoesInline({ observacoes, usuarios, onChange }: Props) {
-  const [aberto, setAberto] = useState(false);
-  const preenchidas = observacoes.filter((observacao) => observacao.texto.trim());
-  const pessoas = [...new Set(preenchidas.map((observacao) => observacao.pessoa).filter(Boolean))];
-
-  return (
-    <>
-      <section className="border-t border-border-soft bg-primary-soft/30 px-3 py-3" aria-label="Observações e responsáveis do item">
-        <div className="flex items-center gap-3">
-          <div className="flex min-w-0 flex-1 items-start gap-2">
-            <IcComment width={17} height={17} className="mt-0.5 shrink-0 text-primary-dark" />
-            <div className="min-w-0">
-              <div className="text-[12px] font-extrabold uppercase tracking-[0.04em] text-ink-2">
-                Observações por pessoa {preenchidas.length > 0 && `(${preenchidas.length})`}
-              </div>
-              <p className="mt-0.5 truncate text-[12.5px] text-ink-3">
-                {preenchidas.length === 0
-                  ? "Nenhuma observação atribuída."
-                  : `${preenchidas[0].texto}${pessoas.length ? ` — ${pessoas.join(", ")}` : ""}`}
-              </p>
-            </div>
-          </div>
-          <Button variant={preenchidas.length ? "soft" : "secondary"} size="sm" icon={<IcComment width={14} height={14} />} onClick={() => setAberto(true)}>
-            {preenchidas.length ? "Ver e editar" : "Adicionar observação"}
-          </Button>
-        </div>
-      </section>
-      {aberto && (
-        <ObservacoesModal
-          observacoes={observacoes}
-          usuarios={usuarios}
-          onChange={onChange}
-          onClose={() => setAberto(false)}
-        />
-      )}
-    </>
-  );
-}
-
-function ObservacoesModal({ observacoes, usuarios, onChange, onClose }: Props & { onClose: () => void }) {
-  useEffect(() => {
-    const fecharComEsc = (evento: KeyboardEvent) => evento.key === "Escape" && onClose();
-    document.addEventListener("keydown", fecharComEsc);
-    return () => document.removeEventListener("keydown", fecharComEsc);
-  }, [onClose]);
-
-  const upd = (i: number, patch: Partial<Observacao>) =>
-    onChange(observacoes.map((observacao, indice) => indice === i ? { ...observacao, ...patch } : observacao));
-  const del = (i: number) => onChange(observacoes.filter((_, indice) => indice !== i));
-
-  return createPortal(
-    <div className="fixed inset-0 z-[80] grid place-items-center bg-black/45 p-4" onMouseDown={onClose}>
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="titulo-modal-observacoes"
-        className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-card-lg border border-border bg-white shadow-modal animate-[fadein_.12s_ease-out]"
-        onMouseDown={(evento) => evento.stopPropagation()}
-      >
-        <header className="flex items-center justify-between gap-3 border-b border-border-soft px-5 py-4">
-          <div>
-            <h2 id="titulo-modal-observacoes" className="flex items-center gap-2 font-display text-lg font-bold text-ink">
-              <IcComment width={19} height={19} /> Observações do item
-            </h2>
-            <p className="mt-0.5 text-[12.5px] text-ink-3">Cadastre vários textos e atribua cada pendência a uma pessoa.</p>
-          </div>
-          <Button variant="text" size="sm" onClick={onClose}>Fechar</Button>
-        </header>
-
-        <div className="flex-1 space-y-3 overflow-y-auto p-5">
-          {observacoes.length === 0 && (
-            <div className="rounded-btn border border-dashed border-border p-6 text-center text-sm text-ink-3">
-              Nenhuma observação cadastrada.
-            </div>
-          )}
-          {observacoes.map((observacao, indice) => (
-            <div key={observacao.id || `observacao-${indice}`} className="grid grid-cols-1 gap-3 rounded-card border border-border-soft bg-[#FCFCFD] p-4 md:grid-cols-[minmax(320px,1fr)_260px_auto] md:items-end">
-              <label>
-                <span className="mb-1 block text-[10.5px] font-extrabold uppercase tracking-[0.05em] text-ink-3">Texto da observação</span>
-                <AutoTextarea rows={4} value={observacao.texto} placeholder="Descreva a pendência ou orientação…" onChange={(evento) => upd(indice, { texto: evento.target.value })} />
-              </label>
-              <label>
-                <span className="mb-1 block text-[10.5px] font-extrabold uppercase tracking-[0.05em] text-ink-3">Pessoa responsável</span>
-                <Select value={observacao.pessoa} onChange={(evento) => upd(indice, { pessoa: evento.target.value })}>
-                  <option value="">Selecione um usuário</option>
-                  {usuarios.map((usuario) => <option key={usuario} value={usuario}>{usuario}</option>)}
-                  {observacao.pessoa && !usuarios.includes(observacao.pessoa) && <option value={observacao.pessoa}>{observacao.pessoa}</option>}
-                </Select>
-              </label>
-              <Button type="button" variant="text" size="sm" aria-label="Remover observação" title="Remover observação" icon={<IcTrash width={17} height={17} />} onClick={() => del(indice)} />
-            </div>
-          ))}
-        </div>
-
-        <footer className="flex items-center justify-between gap-3 border-t border-border-soft bg-[#FAFAFB] px-5 py-4">
-          <Button variant="secondary" size="sm" icon={<IcPlus width={15} height={15} />} onClick={() => onChange([...observacoes, novaObservacao()])}>
-            Nova observação
-          </Button>
-          <Button size="sm" onClick={onClose}>Concluir</Button>
-        </footer>
-      </div>
-    </div>,
-    document.body
-  );
+/** Divide o texto em partes normais e menções @Nome destacadas. */
+function renderComMencoes(texto: string, usuarios: string[]) {
+  const re = regexMencoes(usuarios);
+  if (!re) return texto;
+  const partes: React.ReactNode[] = [];
+  let ultimo = 0;
+  let m: RegExpExecArray | null;
+  let chave = 0;
+  while ((m = re.exec(texto))) {
+    if (m.index > ultimo) partes.push(texto.slice(ultimo, m.index));
+    partes.push(
+      <span key={chave++} className="font-bold text-primary-dark">
+        {m[0]}
+      </span>
+    );
+    ultimo = m.index + m[0].length;
+  }
+  if (ultimo < texto.length) partes.push(texto.slice(ultimo));
+  return partes;
 }
 
 /**
- * Botão de comentário que abre um pop-up com as observações do item.
- * Permite múltiplas observações, cada uma com texto e pessoa responsável
- * (um usuário do sistema). Mantém a tela limpa — só o contador aparece.
+ * Feed de observações (comentários) de um item, estilo chat: uma seta à
+ * esquerda expande/retrai a lista; o balão só serve para adicionar um
+ * comentário novo. Cada um só edita/exclui o próprio comentário.
  */
-export function ObservacoesButton({ observacoes, usuarios, onChange }: Props) {
+export function ObservacoesThread({ observacoes, usuarios, onChange }: Props) {
+  const usuarioAtual = useAuth((s) => s.usuario);
   const [aberto, setAberto] = useState(false);
-  const btnRef = useRef<HTMLButtonElement>(null);
-  const n = observacoes.filter((o) => o.texto.trim()).length;
+  const [compor, setCompor] = useState<{ modo: "novo" } | { modo: "editar"; id: string } | null>(null);
+
+  const validas = observacoes.filter((o) => o.texto.trim());
+  const n = validas.length;
+
+  const adicionar = (texto: string) => {
+    const nova: Observacao = {
+      id: novoId(),
+      texto,
+      autorId: usuarioAtual?.id ?? "",
+      autorNome: usuarioAtual?.nome ?? "Você",
+      criadoEm: new Date().toISOString(),
+    };
+    onChange([...observacoes, nova]);
+    setAberto(true);
+    setCompor(null);
+  };
+
+  const editar = (id: string, texto: string) => {
+    onChange(observacoes.map((o) => (o.id === id ? { ...o, texto } : o)));
+    setCompor(null);
+  };
+
+  const excluir = (id: string) => {
+    onChange(observacoes.filter((o) => o.id !== id));
+  };
+
+  const emEdicao = compor?.modo === "editar" ? observacoes.find((o) => o.id === compor.id) : undefined;
 
   return (
-    <>
-      <button
-        ref={btnRef}
-        type="button"
-        onClick={() => setAberto((v) => !v)}
-        title="Observações do item"
-        className={cx(
-          "relative inline-flex items-center gap-1.5 h-9 px-2.5 rounded-btn border-[1.5px] text-[12px] font-bold input-focus",
-          n > 0 ? "border-primary/50 bg-primary-soft text-primary-dark" : "border-[#E2E3E8] bg-surface text-ink-2 hover:text-ink"
+    <div className="border-t border-border-soft px-3 py-2.5">
+      <div className="flex items-center gap-2">
+        {n > 0 && (
+          <button
+            type="button"
+            onClick={() => setAberto((v) => !v)}
+            className="shrink-0 text-ink-2 hover:text-ink"
+            title={aberto ? "Retrair observações" : "Expandir observações"}
+            aria-label={aberto ? "Retrair observações" : "Expandir observações"}
+          >
+            <IcChevron width={16} height={16} className={cx("transition-transform duration-200", aberto && "rotate-90")} />
+          </button>
         )}
-      >
-        <IcComment width={15} height={15} />
-        Observação
-        {n > 0 && <span className="ml-0.5 rounded-pill bg-primary text-white text-[10px] font-extrabold px-1.5 py-0.5 leading-none">{n}</span>}
-      </button>
-      {aberto && (
-        <ObsPopup
-          anchor={btnRef.current}
-          observacoes={observacoes}
+        <span className="text-[12px] font-semibold text-ink-3">
+          {n > 0 ? `${n} observaç${n > 1 ? "ões" : "ão"}` : "Nenhuma observação"}
+        </span>
+        <button
+          type="button"
+          onClick={() => setCompor({ modo: "novo" })}
+          className="ml-auto inline-flex items-center gap-1.5 h-8 px-2.5 rounded-btn border-[1.5px] border-[#E2E3E8] bg-surface text-[12px] font-bold text-ink-2 hover:text-ink hover:border-primary/50 input-focus"
+          title="Adicionar observação"
+        >
+          <IcComment width={14} height={14} /> Comentar
+        </button>
+      </div>
+
+      {aberto && n > 0 && (
+        <div className="mt-2.5 space-y-3">
+          {validas.map((o) => (
+            <ComentarioLinha
+              key={o.id}
+              o={o}
+              usuarios={usuarios}
+              souAutor={!!usuarioAtual && o.autorId === usuarioAtual.id}
+              onEditar={() => setCompor({ modo: "editar", id: o.id })}
+              onExcluir={() => excluir(o.id)}
+            />
+          ))}
+        </div>
+      )}
+
+      {compor && (
+        <Composer
+          key={compor.modo === "editar" ? compor.id : "novo"}
+          valorInicial={emEdicao?.texto ?? ""}
           usuarios={usuarios}
-          onChange={onChange}
-          onClose={() => setAberto(false)}
+          onEnviar={(texto) => (compor.modo === "editar" ? editar(compor.id, texto) : adicionar(texto))}
+          onCancelar={() => setCompor(null)}
         />
       )}
-    </>
+    </div>
   );
 }
 
-function ObsPopup({
-  anchor,
-  observacoes,
+/* ---------------------------- Linha do comentário --------------------------- */
+
+function ComentarioLinha({
+  o,
   usuarios,
-  onChange,
-  onClose,
+  souAutor,
+  onEditar,
+  onExcluir,
 }: {
-  anchor: HTMLElement | null;
-  observacoes: Observacao[];
+  o: Observacao;
   usuarios: string[];
-  onChange: (obs: Observacao[]) => void;
-  onClose: () => void;
+  souAutor: boolean;
+  onEditar: () => void;
+  onExcluir: () => void;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const onDoc = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (ref.current && !ref.current.contains(t) && anchor && !anchor.contains(t)) onClose();
-    };
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [anchor, onClose]);
-
-  const upd = (i: number, patch: Partial<Observacao>) =>
-    onChange(observacoes.map((o, idx) => (idx === i ? { ...o, ...patch } : o)));
-  const add = () => onChange([...observacoes, novaObservacao()]);
-  const del = (i: number) => onChange(observacoes.filter((_, idx) => idx !== i));
-
-  const rect = anchor?.getBoundingClientRect();
-  const largura = 340;
-  const style: React.CSSProperties = {
-    position: "fixed",
-    width: largura,
-    top: rect ? Math.min(rect.bottom + 6, window.innerHeight - 320) : 120,
-    left: rect ? Math.max(8, Math.min(rect.left, window.innerWidth - largura - 8)) : 120,
-    zIndex: 60,
-  };
-
-  return createPortal(
-    <div ref={ref} style={style} className="bg-white rounded-card border border-border shadow-2xl p-3.5 space-y-3 animate-[fadein_.12s_ease-out] max-h-[70vh] overflow-y-auto">
-      <div className="text-[12.5px] font-bold text-ink flex items-center gap-1.5">
-        <IcComment width={15} height={15} /> Observações do item
-      </div>
-
-      {observacoes.length === 0 && (
-        <p className="text-[12px] text-ink-3">Nenhuma observação. Adicione uma e atribua a uma pessoa.</p>
-      )}
-
-      {observacoes.map((o, i) => (
-        <div key={i} className="rounded-btn border border-border-soft p-2 space-y-1.5 bg-[#FCFCFD]">
-          <AutoTextarea
-            className="!text-[12.5px]"
-            placeholder="Escreva a observação…"
-            value={o.texto}
-            onChange={(e) => upd(i, { texto: e.target.value })}
-          />
-          <div className="flex items-center gap-1.5">
-            <Select className="!h-8 !text-[12px]" value={o.pessoa} onChange={(e) => upd(i, { pessoa: e.target.value })}>
-              <option value="">Atribuir a…</option>
-              {usuarios.map((u) => (
-                <option key={u} value={u}>{u}</option>
-              ))}
-              {/* mantém o valor mesmo que a pessoa não esteja mais na lista */}
-              {o.pessoa && !usuarios.includes(o.pessoa) && <option value={o.pessoa}>{o.pessoa}</option>}
-            </Select>
-            <button type="button" onClick={() => del(i)} title="Remover observação" className="text-ink-3 hover:text-danger p-1.5 shrink-0">
-              <IcTrash width={16} height={16} />
+  return (
+    <div className="group">
+      <div className="flex items-baseline gap-2">
+        <span className="text-[12.5px] font-bold text-ink">{o.autorNome || "Usuário"}</span>
+        <span className="text-[11px] text-ink-3">{dataHoraBR(o.criadoEm)}</span>
+        {souAutor && (
+          <span className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button type="button" onClick={onEditar} className="text-ink-3 hover:text-primary p-1" title="Editar observação" aria-label="Editar observação">
+              <IcPencil width={14} height={14} />
             </button>
-          </div>
-        </div>
-      ))}
-
-      <div className="flex justify-between pt-0.5">
-        <Button variant="secondary" size="sm" icon={<IcPlus width={15} height={15} />} onClick={add}>
-          Nova observação
-        </Button>
-        <Button size="sm" onClick={onClose}>Concluir</Button>
+            <button type="button" onClick={onExcluir} className="text-ink-3 hover:text-danger p-1" title="Excluir observação" aria-label="Excluir observação">
+              <IcTrash width={14} height={14} />
+            </button>
+          </span>
+        )}
       </div>
-    </div>,
-    document.body
+      <p className="text-[13px] text-ink-2 whitespace-pre-wrap leading-snug mt-0.5">{renderComMencoes(o.texto, usuarios)}</p>
+    </div>
+  );
+}
+
+/* -------------------------- Caixa de compor/editar -------------------------- */
+
+/** Posição (relativa ao textarea) do caret numa dada posição de texto — técnica do "div espelho". */
+function posicaoDoCaret(el: HTMLTextAreaElement, posicao: number): { top: number; left: number; height: number } {
+  const div = document.createElement("div");
+  const estilo = window.getComputedStyle(el);
+  const propriedades = [
+    "boxSizing", "width", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
+    "borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth", "borderStyle",
+    "fontSize", "fontFamily", "fontWeight", "fontStyle", "letterSpacing", "lineHeight",
+    "textAlign", "textTransform", "wordSpacing", "textIndent",
+  ] as const;
+  propriedades.forEach((p) => {
+    (div.style as unknown as Record<string, string>)[p] = estilo[p as keyof CSSStyleDeclaration] as string;
+  });
+  div.style.position = "absolute";
+  div.style.visibility = "hidden";
+  div.style.whiteSpace = "pre-wrap";
+  div.style.wordWrap = "break-word";
+  div.style.top = "0";
+  div.style.left = "-9999px";
+  div.style.height = "auto";
+
+  div.appendChild(document.createTextNode(el.value.slice(0, posicao)));
+  const marcador = document.createElement("span");
+  marcador.textContent = el.value.slice(posicao) || ".";
+  div.appendChild(marcador);
+  document.body.appendChild(div);
+
+  const top = marcador.offsetTop + parseInt(estilo.borderTopWidth || "0", 10);
+  const left = marcador.offsetLeft;
+  const height = marcador.offsetHeight || parseInt(estilo.lineHeight || "16", 10);
+  document.body.removeChild(div);
+  return { top, left, height };
+}
+
+interface MencaoAtiva {
+  query: string;
+  inicio: number; // posição do "@" no texto
+}
+
+function Composer({
+  valorInicial,
+  usuarios,
+  onEnviar,
+  onCancelar,
+}: {
+  valorInicial: string;
+  usuarios: string[];
+  onEnviar: (texto: string) => void;
+  onCancelar: () => void;
+}) {
+  const [texto, setTexto] = useState(valorInicial);
+  const [mencao, setMencao] = useState<MencaoAtiva | null>(null);
+  const [posDropdown, setPosDropdown] = useState<{ top: number; left: number } | null>(null);
+  const [indiceAtivo, setIndiceAtivo] = useState(0);
+  const taRef = useRef<HTMLTextAreaElement>(null);
+
+  useLayoutEffect(() => {
+    const el = taRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const borda = el.offsetHeight - el.clientHeight;
+    el.style.height = `${el.scrollHeight + borda}px`;
+  }, [texto]);
+
+  const sugestoes = useMemo(() => {
+    if (!mencao) return [];
+    const q = mencao.query.toLowerCase();
+    return usuarios.filter((u) => u.toLowerCase().includes(q)).slice(0, 6);
+  }, [mencao, usuarios]);
+
+  function detectarMencao(valor: string, cursor: number) {
+    const antes = valor.slice(0, cursor);
+    const idx = antes.lastIndexOf("@");
+    if (idx === -1) {
+      setMencao(null);
+      return;
+    }
+    const trecho = antes.slice(idx + 1);
+    if (trecho.includes("\n") || trecho.includes("@") || trecho.length > 40) {
+      setMencao(null);
+      return;
+    }
+    setMencao({ query: trecho, inicio: idx });
+    setIndiceAtivo(0);
+    if (taRef.current) {
+      const coords = posicaoDoCaret(taRef.current, cursor);
+      const rect = taRef.current.getBoundingClientRect();
+      const largura = 240;
+      setPosDropdown({
+        top: Math.min(rect.top + coords.top + coords.height - taRef.current.scrollTop + 4, window.innerHeight - 200),
+        left: Math.max(8, Math.min(rect.left + coords.left, window.innerWidth - largura - 8)),
+      });
+    }
+  }
+
+  function selecionarMencao(nome: string) {
+    if (!mencao || !taRef.current) return;
+    const cursor = taRef.current.selectionStart;
+    const antes = texto.slice(0, mencao.inicio);
+    const depois = texto.slice(cursor);
+    const novoTexto = `${antes}@${nome} ${depois}`;
+    setTexto(novoTexto);
+    setMencao(null);
+    const novaPos = antes.length + nome.length + 2;
+    requestAnimationFrame(() => {
+      taRef.current?.setSelectionRange(novaPos, novaPos);
+      taRef.current?.focus();
+    });
+  }
+
+  function enviar() {
+    const t = texto.trim();
+    if (!t) return;
+    onEnviar(t);
+  }
+
+  function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (mencao && sugestoes.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setIndiceAtivo((i) => (i + 1) % sugestoes.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setIndiceAtivo((i) => (i - 1 + sugestoes.length) % sugestoes.length);
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        selecionarMencao(sugestoes[indiceAtivo]);
+        return;
+      }
+      if (e.key === "Escape") {
+        setMencao(null);
+        return;
+      }
+    }
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      enviar();
+    }
+    if (e.key === "Escape" && !mencao) {
+      onCancelar();
+    }
+  }
+
+  return (
+    <div className="mt-2.5 rounded-btn border-[1.5px] border-[#E2E3E8] bg-surface p-2 focus-within:border-primary/60">
+      <textarea
+        ref={taRef}
+        autoFocus
+        rows={2}
+        lang="pt-BR"
+        spellCheck
+        autoCapitalize="sentences"
+        autoCorrect="on"
+        placeholder="Escreva uma observação… use @ para mencionar alguém"
+        className="w-full resize-none bg-transparent text-[13px] text-ink outline-none placeholder:text-ink-3 leading-relaxed"
+        value={texto}
+        onChange={(e) => {
+          setTexto(e.target.value);
+          detectarMencao(e.target.value, e.target.selectionStart ?? e.target.value.length);
+        }}
+        onKeyDown={onKeyDown}
+        onKeyUp={(e) => {
+          if (mencao && ["ArrowUp", "ArrowDown", "Enter", "Tab", "Escape"].includes(e.key)) return;
+          detectarMencao(e.currentTarget.value, e.currentTarget.selectionStart ?? 0);
+        }}
+        onClick={(e) => detectarMencao(e.currentTarget.value, e.currentTarget.selectionStart ?? 0)}
+        onBlur={() => setTimeout(() => setMencao(null), 150)} // dá tempo do clique na sugestão registrar
+      />
+      <div className="flex justify-end gap-2 mt-1.5">
+        <Button type="button" variant="text" size="sm" onClick={onCancelar}>
+          Cancelar
+        </Button>
+        <Button type="button" size="sm" icon={<IcSend width={14} height={14} />} onClick={enviar} disabled={!texto.trim()}>
+          Comentar
+        </Button>
+      </div>
+
+      {mencao && sugestoes.length > 0 && posDropdown &&
+        createPortal(
+          <div
+            style={{ position: "fixed", top: posDropdown.top, left: posDropdown.left, zIndex: 90, width: 240 }}
+            className="rounded-btn border border-border bg-white shadow-2xl py-1 max-h-52 overflow-y-auto"
+          >
+            {sugestoes.map((u, i) => (
+              <button
+                key={u}
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault(); // não perde o foco do textarea antes do clique
+                  selecionarMencao(u);
+                }}
+                className={cx(
+                  "w-full text-left px-3 py-1.5 text-[13px] truncate",
+                  i === indiceAtivo ? "bg-primary-soft text-primary-dark font-bold" : "text-ink hover:bg-[#FAFAFB]"
+                )}
+              >
+                {u}
+              </button>
+            ))}
+          </div>,
+          document.body
+        )}
+    </div>
   );
 }

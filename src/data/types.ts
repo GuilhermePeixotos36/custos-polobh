@@ -120,13 +120,16 @@ export type StatusAprovacao = "Pendente" | "OK";
 export type StatusOs = "Pendente" | "Emitir" | "OK";
 
 /**
- * Observação de um item da EC. Funciona como um comentário: várias por item,
- * cada uma com o texto e a pessoa responsável (um usuário do sistema).
+ * Observação (comentário) de um item da EC — feed estilo chat. Cada uma tem o
+ * autor (usuário que escreveu) e pode @mencionar outros usuários no texto.
+ * Só o autor pode editar/excluir a própria observação.
  */
 export interface Observacao {
-  id?: string;
+  id: string;
   texto: string;
-  pessoa: string; // nome do usuário do sistema atribuído
+  autorId: string;
+  autorNome: string;
+  criadoEm: string; // ISO 8601
 }
 
 export type ModalidadeProjeto = "Corporativo" | "Cultural" | "";
