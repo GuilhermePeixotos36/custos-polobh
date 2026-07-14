@@ -28,15 +28,8 @@ export function Projetos() {
   const navigate = useNavigate();
   const { porProjeto } = useMinhasPendencias();
   const { data: projetos, loading } = useAsync(() => repo.projetos.listar(), []);
-  const { data: ecs } = useAsync(() => repo.ecs.listar(), []);
   const [filtro, setFiltro] = useState<FiltroProjeto>("Ativo");
   const [busca, setBusca] = useState("");
-
-  const ecsPorProjeto = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const e of ecs ?? []) m.set(e.projetoId, (m.get(e.projetoId) ?? 0) + 1);
-    return m;
-  }, [ecs]);
 
   const lista = useMemo(() => {
     const q = busca.trim().toLowerCase();
@@ -93,7 +86,6 @@ export function Projetos() {
             <THead>
               <Th>Projeto</Th>
               <Th>Cliente</Th>
-              <Th align="center">ECs</Th>
               <Th align="center">Status</Th>
               <Th>Criado</Th>
             </THead>
@@ -110,7 +102,6 @@ export function Projetos() {
                     </div>
                   </Td>
                   <Td className="text-ink-2">{p.cliente?.nome || "—"}</Td>
-                  <Td align="center"><Badge tom="neutral">{ecsPorProjeto.get(p.id) ?? 0}</Badge></Td>
                   <Td align="center"><Badge tom={tomStatusProjeto[p.status]}>{p.status}</Badge></Td>
                   <Td className="text-[12.5px] text-ink-2">{dataBR(p.criadoEm)}</Td>
                 </Tr>
