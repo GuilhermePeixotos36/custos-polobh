@@ -60,6 +60,9 @@ Deno.serve(async (req) => {
           { role: "user", content: conteudo },
         ],
         temperature: 0,
+        // Limita a saída: sem isso o modelo pede o default (~65k tokens) e a conta
+        // OpenRouter recusa por saldo (erro 402). A revisão é sempre curta.
+        max_tokens: 8000,
         response_format: { type: "json_object" },
       }),
     });
