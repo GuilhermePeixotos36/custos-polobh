@@ -132,3 +132,50 @@ export function NumberInput({
     />
   );
 }
+
+/**
+ * Input de valor monetário (R$) — máscara progressiva ao digitar (os dígitos
+ * viram centavos, padrão dos campos de valor no Brasil): digitar "150" mostra
+ * "R$ 1,50"; "15000" mostra "R$ 150,00". Sempre exibe formatado.
+ */
+export function CurrencyInput({
+  value,
+  onValue,
+  className,
+  ...rest
+}: Omit<InputHTMLAttributes<HTMLInputElement>, "onChange" | "value"> & {
+  value: number;
+  onValue: (n: number) => void;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  const centavos = Math.round((Number.isFinite(value) ? value : 0) * 100);
+  const exibido = (centavos / 100).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 2,
+  });
+
+  // mantém o cursor no fim (não faz sentido "editar o meio" de um valor mascarado)
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (el && document.activeElement === el) {
+      const fim = el.value.length;
+      el.setSelectionRange(fim, fim);
+    }
+  });
+
+  return (
+    <input
+      ref={ref}
+      type="text"
+      inputMode="numeric"
+      className={cx(fieldBase, "h-11 text-right", className)}
+      value={exibido}
+      onChange={(e) => {
+        const digitos = e.target.value.replace(/\D/g, "");
+        onValue(digitos ? parseInt(digitos, 10) / 100 : 0);
+      }}
+      {...rest}
+    />
+  );
+}

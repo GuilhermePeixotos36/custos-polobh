@@ -103,6 +103,9 @@ Deno.serve(async (req) => {
       model: MODEL,
       messages: [{ role: "user", content: partes }],
       temperature: 0.2,
+      // Resumo é sempre curto (lista de tópicos) — limita para não estourar
+      // o crédito da conta OpenRouter (alguns modelos pedem 60k+ por padrão).
+      max_tokens: 2000,
     };
     if (usaPdf) bodyReq.plugins = [{ id: "file-parser", pdf: { engine: "pdf-text" } }];
 

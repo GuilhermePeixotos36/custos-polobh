@@ -18,7 +18,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Input, AutoTextarea, Select, NumberInput, Button } from "@/components/ui";
+import { Input, AutoTextarea, Select, CurrencyInput, Button } from "@/components/ui";
 import { IcGrip, IcChevron, IcPlus, IcEye, IcEyeOff, IcSpark } from "@/components/icons";
 import { FornecedorField } from "@/components/FornecedorField";
 import { RichTextField } from "@/components/RichTextField";
@@ -573,11 +573,11 @@ function ItemRow({ l, verFinanceiro, fornecedores, usuarios, onUpd, onOcultar, o
 
         {verFinanceiro && (
           <div className="shrink-0 flex gap-2">
-            <Campo label="Pólobh" className="w-28">
-              <NumberInput className="!h-10 !px-2.5 !text-[13.5px]" value={l.valorPolobh} onValue={(v) => onUpd({ valorPolobh: v })} />
+            <Campo label="Pólobh" className="w-32">
+              <CurrencyInput className="!h-10 !px-2.5 !text-[13.5px]" value={l.valorPolobh} onValue={(v) => onUpd({ valorPolobh: v })} />
             </Campo>
-            <Campo label="Cliente" className="w-28">
-              <NumberInput className="!h-10 !px-2.5 !text-[13.5px]" value={l.valorCliente} onValue={(v) => onUpd({ valorCliente: v })} />
+            <Campo label="Cliente" className="w-32">
+              <CurrencyInput className="!h-10 !px-2.5 !text-[13.5px]" value={l.valorCliente} onValue={(v) => onUpd({ valorCliente: v })} />
             </Campo>
           </div>
         )}
