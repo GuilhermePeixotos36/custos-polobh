@@ -5,6 +5,7 @@
  * A chave da IA fica só no servidor — aqui nunca.
  */
 import { supabase } from "@/lib/supabaseClient";
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
 export interface ResumoResultado {
   ok: boolean;
@@ -24,6 +25,39 @@ function fileParaDataUrl(file: File): Promise<string> {
     r.onerror = () => reject(new Error(`Falha ao ler ${file.name}`));
     r.readAsDataURL(file);
   });
+}
+
+/**
+ * Converte as páginas do PDF em imagens PNG no navegador (até `maxPaginas`).
+ * O OpenRouter exige saldo mínimo na conta para requisições que mandam o
+ * arquivo em si — como imagem, a leitura usa a visão do modelo normalmente,
+ * sem essa exigência (e sem custo de OCR).
+ */
+async function pdfParaImagens(file: File, maxPaginas = 4): Promise<{ mime: string; dataUrl: string }[]> {
+  const pdfjsLib = await import("pdfjs-dist");
+  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+
+  const buf = await file.arrayBuffer();
+  // disableWorker: evita depender do Web Worker (observamos instabilidade de
+  // comunicação com ele neste bundler); PDFs de orçamento são pequenos
+  // (1-4 páginas), então rodar no thread principal não pesa perceptivelmente.
+  // Não está no .d.ts desta versão, mas é lido em runtime pela lib.
+  const opts = { data: buf, disableWorker: true } as Parameters<typeof pdfjsLib.getDocument>[0];
+  const pdf = await pdfjsLib.getDocument(opts).promise;
+  const imagens: { mime: string; dataUrl: string }[] = [];
+  const n = Math.min(pdf.numPages, maxPaginas);
+  for (let i = 1; i <= n; i++) {
+    const page = await pdf.getPage(i);
+    const viewport = page.getViewport({ scale: 1.6 });
+    const canvas = document.createElement("canvas");
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) continue;
+    await page.render({ canvas, canvasContext: ctx, viewport }).promise;
+    imagens.push({ mime: "image/png", dataUrl: canvas.toDataURL("image/png") });
+  }
+  return imagens;
 }
 
 /** Extrai o texto de uma planilha (Excel/CSV) usando ExcelJS (já é dependência). */
@@ -54,14 +88,16 @@ async function excelParaTexto(file: File): Promise<string> {
 export async function resumirProposta(entrada: { files: File[]; link?: string }): Promise<ResumoResultado> {
   try {
     const imagens: { mime: string; dataUrl: string }[] = [];
-    const pdfs: { filename: string; dataUrl: string }[] = [];
     const textos: string[] = [];
 
     for (const f of entrada.files) {
       if (IMG_RE.test(f.type)) {
         imagens.push({ mime: f.type, dataUrl: await fileParaDataUrl(f) });
       } else if (isPdf(f)) {
-        pdfs.push({ filename: f.name, dataUrl: await fileParaDataUrl(f) });
+        // PDF vira imagem (uma por página) no navegador — evita a exigência de
+        // saldo mínimo do OpenRouter para requisições que mandam o arquivo.
+        const paginas = await pdfParaImagens(f).catch(() => []);
+        imagens.push(...paginas);
       } else if (isExcel(f)) {
         const t = await excelParaTexto(f).catch(() => "");
         if (t) textos.push(`Planilha ${f.name}:\n${t}`);
@@ -73,7 +109,7 @@ export async function resumirProposta(entrada: { files: File[]; link?: string })
     }
 
     const { data, error } = await supabase.functions.invoke("resumo-proposta", {
-      body: { imagens, pdfs, textos, link: entrada.link?.trim() || undefined },
+      body: { imagens, textos, link: entrada.link?.trim() || undefined },
     });
     if (error) {
       // A função devolve JSON de erro com status != 2xx → vem em error.context

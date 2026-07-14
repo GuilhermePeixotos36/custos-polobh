@@ -10,8 +10,12 @@
  * Body (JSON):
  *   {
  *     textos?:  string[],                        // texto já extraído (Excel/link)
- *     imagens?: { mime: string, dataUrl: string }[],   // data URLs base64
- *     pdfs?:    { filename: string, dataUrl: string }[], // data URLs base64
+ *     imagens?: { mime: string, dataUrl: string }[],   // data URLs base64 — PDF
+ *                                                       // também chega aqui (o
+ *                                                       // cliente converte página
+ *                                                       // por página antes de enviar,
+ *                                                       // evitando a exigência de
+ *                                                       // saldo do OpenRouter p/ arquivos)
  *     link?:    string                           // URL buscada no servidor
  *   }
  * Resposta: { ok: true, resumo: string } | { ok:false, erro:string }
@@ -35,7 +39,6 @@ const MODEL = Deno.env.get("OPENROUTER_MODEL") || "google/gemini-2.5-flash";
 interface Payload {
   textos?: string[];
   imagens?: { mime: string; dataUrl: string }[];
-  pdfs?: { filename: string; dataUrl: string }[];
   link?: string;
 }
 
@@ -70,14 +73,6 @@ Deno.serve(async (req) => {
         temConteudo = true;
       }
     }
-    let usaPdf = false;
-    for (const pdf of p.pdfs ?? []) {
-      if (pdf?.dataUrl) {
-        partes.push({ type: "file", file: { filename: pdf.filename || "orcamento.pdf", file_data: pdf.dataUrl } });
-        usaPdf = true;
-        temConteudo = true;
-      }
-    }
     // Link: busca no servidor. Imagem vira vision; o resto vira texto (HTML limpo).
     if (p.link && /^https?:\/\//i.test(p.link)) {
       try {
@@ -107,7 +102,6 @@ Deno.serve(async (req) => {
       // o crédito da conta OpenRouter (alguns modelos pedem 60k+ por padrão).
       max_tokens: 2000,
     };
-    if (usaPdf) bodyReq.plugins = [{ id: "file-parser", pdf: { engine: "pdf-text" } }];
 
     const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
