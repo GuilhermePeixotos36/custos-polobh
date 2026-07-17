@@ -12,6 +12,10 @@ export const COR = {
   borderSoft: "FFEEEFF2",
   zebra: "FFFAFAFB",
   ink2: "FF6A6E78",
+  // Cinzas do padrão da EC original Pólobh (no lugar das barras pretas).
+  headerGray: "FF595959", // cabeçalhos (título geral e cabeçalho da tabela) — texto branco
+  groupGray: "FFD9D9D9",  // barras de nome de grupo — texto escuro em destaque
+  gridLine: "FFBFBFBF",   // linhas da grade (mais visível que a borda suave)
 };
 
 export const fill = (argb: string): ExcelJS.Fill => ({
@@ -25,6 +29,14 @@ export const thin: Partial<ExcelJS.Borders> = {
   left: { style: "thin", color: { argb: COR.border } },
   bottom: { style: "thin", color: { argb: COR.border } },
   right: { style: "thin", color: { argb: COR.border } },
+};
+
+/** Grade visível (separa colunas e linhas) — padrão da EC original Pólobh. */
+export const grade: Partial<ExcelJS.Borders> = {
+  top: { style: "thin", color: { argb: COR.gridLine } },
+  left: { style: "thin", color: { argb: COR.gridLine } },
+  bottom: { style: "thin", color: { argb: COR.gridLine } },
+  right: { style: "thin", color: { argb: COR.gridLine } },
 };
 
 const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";

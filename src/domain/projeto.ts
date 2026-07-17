@@ -38,6 +38,9 @@ export const roteirosProjetoVazio = (): RoteirosProjeto => ({ preEvento: "", eve
 export function projetoInfoVazio(): ProjetoInfo {
   return {
     titulo: "",
+    clienteAbreviado: "",
+    nomeProjeto: "",
+    anoProjeto: "",
     modalidade: "",
     local: "",
     enderecoLocal: "",
@@ -52,7 +55,9 @@ export function projetoInfoVazio(): ProjetoInfo {
     roteiro: "",
     incentivosFiscais: "",
     cronograma: cronogramaProjetoVazio(),
+    etapasOcultas: [],
     roteiros: roteirosProjetoVazio(),
+    roteirosOcultos: [],
   };
 }
 
@@ -67,13 +72,42 @@ function normalizarFaixas(valor: unknown, dataLegada = "", horarioLegado = ""): 
   return [{ ...novaFaixaCronograma(), data: dataLegada, inicio, fim }];
 }
 
+/** Título do projeto sempre montado a partir das 3 partes (mantém em sincronia telas, prints e exportações). */
+export function compoeTituloProjeto(clienteAbreviado: string, nomeProjeto: string, anoProjeto: string): string {
+  return [clienteAbreviado, nomeProjeto, anoProjeto].filter((parte) => parte.trim()).join(" – ");
+}
+
+/**
+ * Projetos antigos só têm o título em texto livre (sem cliente/nome/ano separados).
+ * Tenta extrair automaticamente: ano = último token de 4 dígitos plausível (19xx/20xx);
+ * o restante, se tiver um separador (-, –, |, :, •), vira cliente + nome; sem separador,
+ * fica tudo em "nome" e o cliente é deixado em branco para revisão manual.
+ */
+function migrarTituloLegado(titulo: string): Pick<ProjetoInfo, "clienteAbreviado" | "nomeProjeto" | "anoProjeto"> {
+  const t = (titulo || "").trim();
+  if (!t) return { clienteAbreviado: "", nomeProjeto: "", anoProjeto: "" };
+  const anos = t.match(/(?:19|20)\d{2}(?!\d)/g);
+  const anoProjeto = anos ? anos[anos.length - 1] : "";
+  const semAno = anoProjeto
+    ? t.replace(new RegExp(`\\s*[-–—:|•]?\\s*${anoProjeto}\\s*[-–—:|•]?\\s*$`), "").trim()
+    : t;
+  const partes = semAno.split(/\s*[-–—:|•]\s*/).filter(Boolean);
+  if (partes.length >= 2) {
+    return { clienteAbreviado: partes[0], nomeProjeto: partes.slice(1).join(" – "), anoProjeto };
+  }
+  return { clienteAbreviado: "", nomeProjeto: semAno, anoProjeto };
+}
+
 export function normalizarProjetoInfo(valor: unknown): ProjetoInfo {
   const base = projetoInfoVazio();
   const raw = (valor && typeof valor === "object" ? valor : {}) as Partial<ProjetoInfo>;
   const cron = (raw.cronograma ?? {}) as Partial<CronogramaProjeto>;
+  const semCamposNovos = !raw.clienteAbreviado && !raw.nomeProjeto && !raw.anoProjeto;
+  const migrado = semCamposNovos && raw.titulo ? migrarTituloLegado(raw.titulo) : null;
   return {
     ...base,
     ...raw,
+    ...(migrado ?? {}),
     modalidade: raw.modalidade === "Cultural" || raw.modalidade === "Corporativo" ? raw.modalidade : "",
     cronograma: {
       montagem: normalizarFaixas(cron.montagem, raw.preEvento),

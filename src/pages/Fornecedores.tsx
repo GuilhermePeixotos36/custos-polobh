@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { PageShell, Crumb } from "@/components/layout/AppLayout";
 import {
-  Card, CardTitle, Button, Field, Input, Select, Table, THead, Th, Tr, Td,
+  Card, CardTitle, Button, Field, Input, TelefoneInput, Select, Table, THead, Th, Tr, Td,
   Badge, EmptyState, Avatar,
 } from "@/components/ui";
 import { IcSearch, IcTrash } from "@/components/icons";
@@ -9,7 +9,7 @@ import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import { consultarCnpj } from "@/lib/cnpj";
 import { flags } from "@/lib/flags";
-import { maskCpfCnpjInput, maskTelefone } from "@/lib/format";
+import { maskCpfCnpjInput } from "@/lib/format";
 import { toast } from "@/store/toast";
 import type { Fornecedor } from "@/data/types";
 
@@ -118,7 +118,7 @@ export function Fornecedores() {
               </Field>
               <Field label="Endereço"><Input value={edit.endereco} onChange={(e) => setEdit({ ...edit, endereco: e.target.value })} /></Field>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Telefone"><Input value={edit.telefone} onChange={(e) => setEdit({ ...edit, telefone: maskTelefone(e.target.value) })} inputMode="tel" placeholder="(31) 90000-0000" /></Field>
+                <Field label="Telefone"><TelefoneInput value={edit.telefone} onChange={(v) => setEdit({ ...edit, telefone: v })} /></Field>
                 <Field label="E-mail"><Input value={edit.email} onChange={(e) => setEdit({ ...edit, email: e.target.value })} /></Field>
               </div>
               {edit.cnaes && edit.cnaes.length > 0 && (

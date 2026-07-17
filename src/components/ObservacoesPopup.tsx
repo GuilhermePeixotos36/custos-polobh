@@ -96,7 +96,7 @@ export function ObservacoesThread({ observacoes, usuarios, onChange }: Props) {
           className="ml-auto inline-flex items-center gap-1.5 h-8 px-2.5 rounded-btn border-[1.5px] border-[#E2E3E8] bg-surface text-[12px] font-bold text-ink-2 hover:text-ink hover:border-primary/50 input-focus"
           title="Adicionar observação"
         >
-          <IcComment width={14} height={14} /> Comentar
+          <IcComment width={14} height={14} /> Observações
         </button>
       </div>
 

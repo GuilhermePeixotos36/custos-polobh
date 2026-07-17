@@ -16,22 +16,25 @@ import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import {
   calcularTotais,
+  gastoPorLinhaViaOSs,
   numeroEc,
   tituloEc,
   producaoPadrao,
+  honorariosPadrao,
+  encargosPadrao,
 } from "@/domain/calc";
 import { itensDoTemplate } from "@/domain/ecTemplates";
 import { projetoInfoVazio } from "@/domain/projeto";
 import { escolherDestinoEcExcel, gerarEcExcel, salvarEcExcelNoDestino, type DestinoEcExcel } from "@/lib/excel";
 import { consultarCnpj } from "@/lib/cnpj";
-import { corrigirDescricoes, corrigirLinhaEc } from "@/lib/correcaoOrtografica";
+import { corrigirDescricoesLocal, corrigirLinhaEc } from "@/lib/correcaoOrtografica";
 import { useAuth } from "@/store/auth";
 import { RentabilidadeItens } from "@/components/RentabilidadeItens";
 import { EcGrupos } from "@/components/EcGrupos";
 import { flags } from "@/lib/flags";
 import { toast } from "@/store/toast";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
-import { brl, maskCpfCnpjInput, onlyDigits } from "@/lib/format";
+import { brl, cx, maskCpfCnpjInput, onlyDigits } from "@/lib/format";
 import type {
   Cliente,
   Ec,
@@ -57,7 +60,6 @@ const novaLinha = (ordem: number): EcLinha => ({
   codigoServico: "",
   pedidoCompra: "",
   statusOs: "Pendente",
-  contrato: "",
   contratoStatus: "Pendente",
   observacao: "",
   observacoes: [],
@@ -116,6 +118,8 @@ export function EcForm() {
   // Usuários do sistema — para atribuir observações dos itens.
   const { data: usuariosData } = useAsync(() => repo.auth.usuarios(), []);
   const usuarios = (usuariosData ?? []).map((u) => u.nome).filter(Boolean);
+  // OS's desta EC — alimentam automaticamente o "Gasto" da rentabilidade por item.
+  const { data: ossData } = useAsync(() => (id ? repo.oss.porEc(id) : Promise.resolve([])), [id]);
 
   // inicia o formulário e registra a "foto" base para detectar alterações
   const iniciar = (e: Ec) => {
@@ -155,6 +159,8 @@ export function EcForm() {
           projeto,
           linhas: linhasIniciais,
           producao: producaoPadrao(),
+          honorarios: honorariosPadrao(),
+          encargos: encargosPadrao(),
           responsavel: projeto.produtoraResponsavel || "",
           validadeDias: 30,
           criadoEm: agora,
@@ -173,8 +179,12 @@ export function EcForm() {
   }, [existente, editando]);
 
   const t = useMemo(
-    () => (ec ? calcularTotais(ec.linhas, ec.producao) : null),
+    () => (ec ? calcularTotais(ec.linhas, ec.producao, ec.honorarios, ec.encargos) : null),
     [ec]
+  );
+  const gastoPorLinha = useMemo(
+    () => (ec ? gastoPorLinhaViaOSs(ec.linhas, ossData ?? []) : {}),
+    [ec, ossData]
   );
 
   const sujo = !!ec && baseline !== "" && JSON.stringify(ec) !== baseline;
@@ -276,9 +286,10 @@ export function EcForm() {
         linhasRevisadas = ec!.linhas.map((linha) => linha.id === linhaId ? revisao.linha : linha);
         revisaoCompleta = revisao.revisaoCompleta;
       } else {
-        const revisao = await corrigirDescricoes(ec!.linhas);
-        linhasRevisadas = revisao.linhas;
-        revisaoCompleta = revisao.revisaoCompleta;
+        // Salvamento geral: só correção local (rápida). A revisão por IA fica no
+        // "Revisar e salvar" de cada item, para não travar o salvamento da EC inteira.
+        linhasRevisadas = corrigirDescricoesLocal(ec!.linhas);
+        revisaoCompleta = true;
       }
       const ecRevisada = { ...ec!, linhas: linhasRevisadas };
       setEc(ecRevisada);
@@ -414,12 +425,14 @@ export function EcForm() {
           </div>
         </Card>
 
-        {/* Produção + Totais */}
-        <div className="grid lg:grid-cols-[1.4fr_1fr] gap-4 items-start">
-          <Card>
-            <CardTitle hint="Valores padrão editáveis. Informe as quantidades.">Produção</CardTitle>
-            <ProducaoEditor ec={ec} setEc={setEc} />
-          </Card>
+        {/* Produção (só Corporativo — no Cultural os mesmos custos já vêm como itens do grupo Equipe Produção) + Totais */}
+        <div className={cx("grid gap-4 items-start", ec.template !== "Cultural" && "lg:grid-cols-[1.4fr_1fr]")}>
+          {ec.template !== "Cultural" && (
+            <Card>
+              <CardTitle hint="Valores padrão editáveis. Informe as quantidades.">Produção</CardTitle>
+              <ProducaoEditor ec={ec} setEc={setEc} />
+            </Card>
+          )}
           <Card>
             <CardTitle>Totais ao vivo</CardTitle>
             <dl className="space-y-2 text-sm">
@@ -441,14 +454,11 @@ export function EcForm() {
         {verFinanceiro && (
           <Card padded={false}>
             <div className="p-5">
-              <CardTitle hint="Lance o valor gasto em cada item; a rentabilidade (A−B)/A é calculada automaticamente.">
+              <CardTitle hint="O gasto vem automaticamente do valor a pagar das OS's (rateado por item). Não precisa digitar.">
                 Rentabilidade por item
               </CardTitle>
             </div>
-            <RentabilidadeItens
-              linhas={ec.linhas}
-              onGasto={(id, v) => upd({ linhas: ec.linhas.map((l) => (l.id === id ? { ...l, valorGasto: v } : l)) })}
-            />
+            <RentabilidadeItens linhas={ec.linhas} gastoPorLinha={gastoPorLinha} />
           </Card>
         )}
       </div>

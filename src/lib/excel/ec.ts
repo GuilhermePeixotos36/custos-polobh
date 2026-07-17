@@ -6,8 +6,8 @@
 import ExcelJS from "exceljs";
 import type { Ec } from "@/data/types";
 import { calcularTotais, totalProducao } from "@/domain/calc";
-import { dataBR } from "@/lib/format";
-import { COR, fill, thin, baixar, salvarComPicker, nomeArquivo, carregarLogo } from "./shared";
+import { dataBR, dataBRCurta } from "@/lib/format";
+import { COR, fill, thin, grade, baixar, salvarComPicker, nomeArquivo, carregarLogo } from "./shared";
 
 const COLS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
 
@@ -57,7 +57,7 @@ export async function criarEcExcelBuffer(
     : [22, 22, 16, 16];
   widths.forEach((w, i) => (ws.getColumn(i + 1).width = w));
 
-  const t = calcularTotais(ec.linhas, ec.producao);
+  const t = calcularTotais(ec.linhas, ec.producao, ec.honorarios, ec.encargos);
   let r = 1;
 
   // ---------- Cabeçalho / logo ----------
@@ -67,9 +67,9 @@ export async function criarEcExcelBuffer(
   titulo.value = "Estimativa de Custos | Proposta Comercial";
   titulo.font = { name: "Calibri", size: 16, bold: true, color: { argb: COR.white } };
   titulo.alignment = { vertical: "middle", horizontal: "center" };
-  for (const c of COLS.slice(2, completa ? 12 : 4)) ws.getCell(`${c}${r}`).fill = fill(COR.black);
-  ws.getCell(`A${r}`).fill = fill(COR.black);
-  ws.getCell(`B${r}`).fill = fill(COR.black);
+  for (const c of COLS.slice(2, completa ? 12 : 4)) ws.getCell(`${c}${r}`).fill = fill(COR.headerGray);
+  ws.getCell(`A${r}`).fill = fill(COR.headerGray);
+  ws.getCell(`B${r}`).fill = fill(COR.headerGray);
   ws.getRow(r).height = 26;
   ws.getRow(r + 1).height = 26;
 
@@ -158,9 +158,9 @@ export async function criarEcExcelBuffer(
     const c = ws.getCell(`${col}${hr}`);
     c.value = h;
     c.font = { bold: true, size: 9, color: { argb: COR.white } };
-    c.fill = fill(COR.black);
+    c.fill = fill(COR.headerGray);
     c.alignment = { wrapText: true, vertical: "middle", horizontal: "center" };
-    c.border = thin;
+    c.border = grade;
   });
   ws.getRow(hr).height = 30;
   r++;
@@ -216,23 +216,27 @@ export async function criarEcExcelBuffer(
     ws.mergeCells(`A${r}:${ultimaColuna}${r}`);
     const gc = ws.getCell(`A${r}`);
     gc.value = grupo;
-    gc.font = { bold: true, size: 10, color: { argb: COR.ink } };
-    gc.fill = fill(COR.soft);
-    gc.border = thin;
+    gc.font = { bold: true, size: 10.5, color: { argb: COR.ink } };
+    gc.fill = fill(COR.groupGray);
+    // grade em toda a faixa do grupo (todas as colunas), não só na célula A
+    for (const col of COLS.slice(0, completa ? 12 : 4)) {
+      const cc = ws.getCell(`${col}${r}`);
+      cc.border = grade;
+      cc.fill = fill(COR.groupGray);
+    }
     r++;
     for (const l of linhas) {
       if (completa) {
-        const contratoTxt = `${l.contratoStatus || "Pendente"}${l.contrato ? " · " + l.contrato : ""}`;
         const vals = [
           l.item, l.descricao, l.valorPolobh, l.valorCliente, l.statusAprovacao,
           l.fornecedorRazao, l.fornecedorCnpj, l.faturaNf, l.codigoServico,
-          l.pedidoCompra, l.statusOs, contratoTxt,
+          l.pedidoCompra, l.statusOs, l.contratoStatus,
         ];
         vals.forEach((v, i) => {
           const c = ws.getCell(`${COLS[i]}${r}`);
           c.value = v as ExcelJS.CellValue;
           c.font = { size: 9 };
-          c.border = thin;
+          c.border = grade;
           c.alignment = { wrapText: true, vertical: "top" };
           if (i === 2 || i === 3) {
             c.numFmt = '"R$" #,##0.00';
@@ -251,7 +255,7 @@ export async function criarEcExcelBuffer(
           c.numFmt = '"R$" #,##0.00';
           c.alignment = { horizontal: "right" };
         }
-        for (const col of ["A", "B", "C", "D"]) ws.getCell(`${col}${r}`).border = thin;
+        for (const col of ["A", "B", "C", "D"]) ws.getCell(`${col}${r}`).border = grade;
       }
       r++;
       if (completa) {
@@ -288,7 +292,7 @@ export async function criarEcExcelBuffer(
     c.value = val;
     c.numFmt = '"R$" #,##0.00';
     c.font = { size: 9 };
-    [`A${r}`, `B${r}`, `C${r}`, `D${r}`].forEach((a) => (ws.getCell(a).border = thin));
+    [`A${r}`, `B${r}`, `C${r}`, `D${r}`].forEach((a) => (ws.getCell(a).border = grade));
     r++;
   }
   const prodEnd = r - 1; // fim do intervalo de produção (p/ fórmulas)
@@ -343,7 +347,7 @@ export async function criarEcExcelBuffer(
     }
     for (const col of ["A", "B", "C", "D"]) {
       const c = ws.getCell(`${col}${r}`);
-      c.border = thin;
+      c.border = grade;
       if (destaque) c.fill = fill(COR.primary);
       else if (col === "A") c.fill = fill(COR.soft);
     }
@@ -356,16 +360,21 @@ export async function criarEcExcelBuffer(
     { formula: fSomaC, result: t.somaFornecedores },
     { formula: fSomaD, result: t.somaCliente }
   );
+  const pctTxt = (v: number) => `${(v * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`;
+  const hon = ec.honorarios;
+  const enc = ec.encargos;
   const rHon = r;
   totalRow(
-    "Pólobh", "Honorários Serviços de Organização e Planejamento (15%)",
-    { formula: `C${rSoma}*0.15`, result: t.honorariosPolobh },
-    { formula: `D${rSoma}*0.15`, result: t.honorariosCliente }
+    "Pólobh",
+    `Honorários Serviços de Organização e Planejamento (${hon.modo === "fixo" ? "valor fixo" : pctTxt(hon.valor)})`,
+    hon.modo === "fixo" ? { result: t.honorariosPolobh } : { formula: `C${rSoma}*${hon.valor}`, result: t.honorariosPolobh },
+    hon.modo === "fixo" ? { result: t.honorariosCliente } : { formula: `D${rSoma}*${hon.valor}`, result: t.honorariosCliente }
   );
   const rEnc = r;
   totalRow(
-    "Encargos", "Incidentes sobre serviços terceiros contratados através da Pólobh (16,33%)",
-    { formula: `C${rSoma}*0.1633`, result: t.encargos },
+    "Encargos",
+    `Incidentes sobre serviços terceiros contratados através da Pólobh (${enc.modo === "fixo" ? "valor fixo" : pctTxt(enc.valor)})`,
+    enc.modo === "fixo" ? { result: t.encargos } : { formula: `C${rSoma}*${enc.valor}`, result: t.encargos },
     { result: 0 }
   );
   const rSub = r;
@@ -469,9 +478,14 @@ export async function criarEcExcelBuffer(
   ws.pageSetup.printTitlesRow = `${hr}:${hr}`;
 
   const buffer = await wb.xlsx.writeBuffer();
-  // Nome do arquivo = código da EC + data de criação (ex.: "EC – ... – V02 - 13-07-2026.xlsx").
+  // Nome do arquivo no padrão pedido: "{Título do Projeto} {NN} Em {DD/MM/AA}"
+  // (NN = versão com 2 dígitos, sem "V" nem pontos). Usa o título COMPLETO do
+  // projeto (não o número da EC, que é abreviado e "comia" parte do título).
   const sufixoModelo = completa ? "Completa" : "Financeiro";
-  const nome = `${nomeArquivo(`${ec.numero} - ${sufixoModelo} - ${dataBR(ec.criadoEm)}`)}.xlsx`;
+  const versao2 = String(ec.versao).padStart(2, "0");
+  const dataEmissao = dataBRCurta(ec.criadoEm); // DD/MM/AA
+  const tituloBase = ec.projeto.titulo || ec.numero || "EC";
+  const nome = `${nomeArquivo(`${tituloBase} ${versao2} Em ${dataEmissao} - ${sufixoModelo}`)}.xlsx`;
   return { buffer: buffer as ArrayBuffer, nome };
 }
 

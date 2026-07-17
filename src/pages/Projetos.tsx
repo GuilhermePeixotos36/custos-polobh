@@ -7,7 +7,7 @@ import { NotifDot } from "@/components/NotifDot";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import { useMinhasPendencias } from "@/store/pendencias";
-import { dataBR, cx } from "@/lib/format";
+import { cx } from "@/lib/format";
 import type { StatusProjeto } from "@/data/types";
 
 const tomStatusProjeto: Record<StatusProjeto, Tom> = {
@@ -84,14 +84,14 @@ export function Projetos() {
         ) : (
           <Table>
             <THead>
-              <Th>Projeto</Th>
               <Th>Cliente</Th>
+              <Th>Projeto</Th>
               <Th align="center">Status</Th>
-              <Th>Criado</Th>
             </THead>
             <tbody>
               {lista.map((p) => (
                 <Tr key={p.id} onClick={() => navigate(`/projetos/${p.id}`)}>
+                  <Td className="text-ink-2">{p.cliente?.nome || "—"}</Td>
                   <Td>
                     <div className="flex items-center gap-2.5">
                       <span className="relative shrink-0">
@@ -101,9 +101,7 @@ export function Projetos() {
                       <div className="font-bold text-ink">{p.nome || "(sem título)"}</div>
                     </div>
                   </Td>
-                  <Td className="text-ink-2">{p.cliente?.nome || "—"}</Td>
                   <Td align="center"><Badge tom={tomStatusProjeto[p.status]}>{p.status}</Badge></Td>
-                  <Td className="text-[12.5px] text-ink-2">{dataBR(p.criadoEm)}</Td>
                 </Tr>
               ))}
             </tbody>

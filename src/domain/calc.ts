@@ -2,11 +2,19 @@
  * Cálculos da EC (seção 4 do brief) e helpers de numeração/consolidação.
  * Percentuais fixos: honorários 15%, encargos 16,33%.
  */
-import type { Ec, EcLinha, Producao, Fornecedor } from "@/data/types";
+import type { Ec, EcLinha, Producao, Fornecedor, Os, TaxaConfig } from "@/data/types";
 import { dataBR } from "@/lib/format";
 
 export const HONORARIOS = 0.15;
 export const ENCARGOS = 0.1633;
+
+export const honorariosPadrao = (): TaxaConfig => ({ modo: "percentual", valor: HONORARIOS });
+export const encargosPadrao = (): TaxaConfig => ({ modo: "percentual", valor: ENCARGOS });
+
+/** Valor de uma taxa: se fixo, o próprio valor; se percentual, base × fração. */
+export function valorTaxa(cfg: TaxaConfig, base: number): number {
+  return cfg.modo === "fixo" ? (cfg.valor || 0) : base * (cfg.valor || 0);
+}
 
 export interface EcTotais {
   somaLinhasPolobh: number;
@@ -37,7 +45,12 @@ export function totalProducao(p: Producao): number {
   );
 }
 
-export function calcularTotais(linhas: EcLinha[], producao: Producao): EcTotais {
+export function calcularTotais(
+  linhas: EcLinha[],
+  producao: Producao,
+  honorariosCfg: TaxaConfig = honorariosPadrao(),
+  encargosCfg: TaxaConfig = encargosPadrao()
+): EcTotais {
   // Itens ocultos não entram nos totais (ficam guardados, mas fora da conta).
   const ativas = linhas.filter((l) => !l.oculto);
   const somaLinhasPolobh = r2(
@@ -51,9 +64,12 @@ export function calcularTotais(linhas: EcLinha[], producao: Producao): EcTotais 
   const somaFornecedores = r2(somaLinhasPolobh + somaProducao);
   const somaCliente = somaLinhasCliente;
 
-  const honorariosPolobh = r2(somaFornecedores * HONORARIOS);
-  const honorariosCliente = r2(somaCliente * HONORARIOS);
-  const encargos = r2(somaFornecedores * ENCARGOS);
+  const honorariosPolobh = r2(valorTaxa(honorariosCfg, somaFornecedores));
+  // Honorários sobre o lado Cliente só fazem sentido no modo percentual.
+  const honorariosCliente = r2(
+    honorariosCfg.modo === "percentual" ? somaCliente * (honorariosCfg.valor || 0) : 0
+  );
+  const encargos = r2(valorTaxa(encargosCfg, somaFornecedores));
 
   const subTotalPolobh = r2(somaFornecedores + honorariosPolobh + encargos);
   const valorTotalBruto = r2(subTotalPolobh + somaCliente + honorariosCliente);
@@ -93,7 +109,8 @@ export function numeroEc(
   versao: number
 ): string {
   const v = String(versao).padStart(2, "0");
-  return `EC – ${slug(clienteNome)} – ${slug(projetoTitulo)} – V${v}`;
+  // título do projeto com folga maior (evita "comer" parte do título no número).
+  return `EC – ${slug(clienteNome)} – ${slug(projetoTitulo, 60)} – V${v}`;
 }
 
 /**
@@ -148,6 +165,28 @@ export function rentabilidadeItem(l: {
   const estimado = r2((l.valorPolobh || 0) + (l.valorCliente || 0));
   const gasto = r2(l.valorGasto || 0);
   return { estimado, gasto, percent: estimado > 0 ? (estimado - gasto) / estimado : null };
+}
+
+/**
+ * Gasto por linha da EC derivado das OS's: o "valor a pagar" (líquido, já com BV e
+ * desconto) de cada OS é rateado entre as linhas que ela consolida, na proporção do
+ * valor Pólobh de cada linha (rateio igual quando a soma dos valores é zero).
+ * Assim o "Gasto" da rentabilidade sai automático, sem digitação manual.
+ */
+export function gastoPorLinhaViaOSs(linhas: EcLinha[], oss: Os[]): Record<string, number> {
+  const valorPolobh = new Map(linhas.map((l) => [l.id, l.valorPolobh || 0]));
+  const acc: Record<string, number> = {};
+  for (const os of oss) {
+    const ids = (os.ecLinhaIds ?? []).filter((id) => valorPolobh.has(id));
+    if (!ids.length) continue;
+    const pago = os.financeiro?.valorAPagar || 0;
+    const soma = ids.reduce((s, id) => s + (valorPolobh.get(id) || 0), 0);
+    for (const id of ids) {
+      const peso = soma > 0 ? (valorPolobh.get(id) || 0) / soma : 1 / ids.length;
+      acc[id] = r2((acc[id] || 0) + pago * peso);
+    }
+  }
+  return acc;
 }
 
 /** Rentabilidade agregada de uma lista de itens. */

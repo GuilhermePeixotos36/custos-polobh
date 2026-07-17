@@ -5,7 +5,7 @@ import type {
   TextareaHTMLAttributes,
 } from "react";
 import { useLayoutEffect, useRef } from "react";
-import { cx } from "@/lib/format";
+import { cx, maskTelefone, onlyDigits } from "@/lib/format";
 
 const fieldBase =
   "w-full bg-surface border-[1.5px] border-[#E2E3E8] rounded-btn px-3.5 text-sm text-ink placeholder:text-ink-3 input-focus disabled:bg-[#F7F8FA] disabled:text-ink-2";
@@ -46,8 +46,70 @@ export function Field({
   );
 }
 
-export function Input({ className, ...rest }: InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={cx(fieldBase, "h-11", className)} {...rest} />;
+const DATA_ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+export function Input({ className, type, onChange, value, ...rest }: InputHTMLAttributes<HTMLInputElement>) {
+  if (type === "date") {
+    return (
+      <input
+        type="date"
+        min="1900-01-01"
+        max="2100-12-31"
+        className={cx(fieldBase, "h-11", className)}
+        value={value}
+        onChange={(e) => {
+          const v = e.target.value;
+          // navegadores aceitam ano com mais de 4 dígitos ao digitar (ex.: "22226");
+          // rejeita e restaura o último valor válido no próprio input do DOM.
+          if (v !== "" && (!DATA_ISO_RE.test(v) || Number(v.slice(0, 4)) > 2100)) {
+            e.target.value = typeof value === "string" ? value : "";
+            return;
+          }
+          onChange?.(e);
+        }}
+        {...rest}
+      />
+    );
+  }
+  return <input className={cx(fieldBase, "h-11", className)} type={type} onChange={onChange} value={value} {...rest} />;
+}
+
+/** Telefone em dois campos (DDD + número), mas guarda/emite uma única string mascarada — como antes. */
+export function TelefoneInput({
+  value,
+  onChange,
+  className,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  className?: string;
+}) {
+  const digitos = onlyDigits(value).slice(0, 11);
+  const ddd = digitos.slice(0, 2);
+  const numero = digitos.slice(2);
+  const numeroFormatado =
+    numero.length <= 4 ? numero
+      : numero.length <= 8 ? numero.replace(/^(\d{4})(\d)/, "$1-$2")
+      : numero.replace(/^(\d{5})(\d)/, "$1-$2");
+
+  return (
+    <div className={cx("flex gap-2", className)}>
+      <input
+        className={cx(fieldBase, "h-11 w-[4.5rem] text-center")}
+        inputMode="numeric"
+        placeholder="DDD"
+        value={ddd}
+        onChange={(e) => onChange(maskTelefone(onlyDigits(e.target.value).slice(0, 2) + numero))}
+      />
+      <input
+        className={cx(fieldBase, "h-11 flex-1")}
+        inputMode="tel"
+        placeholder="90000-0000"
+        value={numeroFormatado}
+        onChange={(e) => onChange(maskTelefone(ddd + onlyDigits(e.target.value).slice(0, 9)))}
+      />
+    </div>
+  );
 }
 
 export function Textarea({

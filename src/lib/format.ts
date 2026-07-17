@@ -21,6 +21,14 @@ export const dataBR = (iso: string | null | undefined): string => {
   return d.toLocaleDateString("pt-BR");
 };
 
+/** Data curta dd/mm/aa (ano com 2 dígitos) — usada no nome dos arquivos de EC. */
+export const dataBRCurta = (iso: string | null | undefined): string => {
+  if (!iso) return "";
+  const d = iso.length <= 10 ? new Date(iso + "T00:00:00") : new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
+};
+
 export const pct = (v: number): string =>
   `${(v * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`;
 

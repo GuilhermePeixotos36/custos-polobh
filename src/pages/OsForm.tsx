@@ -7,6 +7,7 @@ import {
   Button,
   Field,
   Input,
+  TelefoneInput,
   Textarea,
   Select,
   NumberInput,
@@ -33,7 +34,7 @@ import { consultarCnpj } from "@/lib/cnpj";
 import { gerarDescritivo } from "@/lib/ai";
 import { dispararOsPorEmail, enviarCredenciamento } from "@/lib/email";
 import { flags } from "@/lib/flags";
-import { brl, dataBR, dataHoraBR, maskCpfCnpjInput, maskTelefone } from "@/lib/format";
+import { brl, dataBR, dataHoraBR, maskCpfCnpjInput } from "@/lib/format";
 import { useAuth } from "@/store/auth";
 import { toast } from "@/store/toast";
 import { confirmar } from "@/store/confirm";
@@ -357,7 +358,7 @@ export function OsForm() {
             <Field label="Conta Corrente"><Input value={os.fornecedor.dadosBancarios.conta} onChange={(e) => updB({ conta: e.target.value })} /></Field>
             <Field label="Chave Pix"><Input value={os.fornecedor.dadosBancarios.chavePix} onChange={(e) => updB({ chavePix: e.target.value })} /></Field>
             <Field label="Representante"><Input value={os.fornecedor.representante} onChange={(e) => updF({ representante: e.target.value })} /></Field>
-            <Field label="Telefone"><Input value={os.fornecedor.telefone} onChange={(e) => updF({ telefone: maskTelefone(e.target.value) })} inputMode="tel" placeholder="(31) 90000-0000" /></Field>
+            <Field label="Telefone"><TelefoneInput value={os.fornecedor.telefone} onChange={(v) => updF({ telefone: v })} /></Field>
             <Field label="E-mail"><Input value={os.fornecedor.email} onChange={(e) => updF({ email: e.target.value })} /></Field>
           </div>
         </Card>

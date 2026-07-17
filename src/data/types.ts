@@ -117,7 +117,8 @@ export type StatusEc =
   | "Arquivada";
 
 export type StatusAprovacao = "Pendente" | "OK";
-export type StatusOs = "Pendente" | "Emitir" | "OK";
+export type StatusOs = "Pendente" | "Emitir" | "OK" | "Não se Aplica";
+export type DocumentoPg = "" | "Fatura" | "Nota Fiscal" | "Fatura e Nota Fiscal" | "Recibo Simples" | "Não se aplica";
 
 /**
  * Observação (comentário) de um item da EC — feed estilo chat. Cada uma tem o
@@ -151,7 +152,11 @@ export interface RoteirosProjeto {
 }
 
 export interface ProjetoInfo {
+  /** Composto automaticamente a partir de clienteAbreviado + nomeProjeto + anoProjeto. */
   titulo: string;
+  clienteAbreviado: string;
+  nomeProjeto: string;
+  anoProjeto: string;
   modalidade: ModalidadeProjeto;
   local: string;
   enderecoLocal: string;
@@ -166,7 +171,11 @@ export interface ProjetoInfo {
   roteiro: string;
   incentivosFiscais: string;
   cronograma: CronogramaProjeto;
+  /** Etapas do cronograma ocultadas pelo usuário (ficam recolhidas, mas os dados não são perdidos). */
+  etapasOcultas: EtapaCronogramaProjeto[];
   roteiros: RoteirosProjeto;
+  /** Seções do roteiro ocultadas pelo usuário (ficam recolhidas, mas os dados não são perdidos). */
+  roteirosOcultos: (keyof RoteirosProjeto)[];
 }
 
 export interface EcLinha {
@@ -186,13 +195,12 @@ export interface EcLinha {
   fornecedorCnpj: string;
   /** Contato do fornecedor informado nesta linha (acumula no cadastro do fornecedor). */
   fornecedorContato: string;
-  faturaNf: string;
+  faturaNf: DocumentoPg;
   codigoServico: string;
   pedidoCompra: string;
   statusOs: StatusOs;
-  contrato: string; // referência de contrato (consta nos modelos da Marisa)
-  /** Contrato pendente ou não (Pendente | OK). */
-  contratoStatus: StatusAprovacao;
+  /** Contrato: Pendente | Emitir | OK | Não se Aplica. */
+  contratoStatus: StatusOs;
   /** @deprecated Observação legada (texto único). Migrada para `observacoes`. */
   observacao: string;
   /** Observações do item (comentários com pessoa responsável). */
@@ -255,6 +263,12 @@ export interface Anexo {
 
 /* --------------------------------- EC ----------------------------------- */
 
+/** Configuração de uma taxa da EC: percentual (fração, ex.: 0,15) ou valor fixo em R$. */
+export interface TaxaConfig {
+  modo: "percentual" | "fixo";
+  valor: number;
+}
+
 export interface Ec {
   id: string;
   numero: string; // "EC – Cliente – Projeto – V01"
@@ -268,6 +282,10 @@ export interface Ec {
   projeto: ProjetoInfo;
   linhas: EcLinha[];
   producao: Producao;
+  /** Honorários Pólobh — % sobre a soma dos fornecedores ou valor fixo (padrão 15%). */
+  honorarios: TaxaConfig;
+  /** Encargos — % sobre a soma dos fornecedores ou valor fixo (padrão 16,33%). */
+  encargos: TaxaConfig;
   responsavel: string; // produtora responsável / visto Pólobh
   validadeDias: number;
   criadoEm: string;

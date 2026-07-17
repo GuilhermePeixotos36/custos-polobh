@@ -26,7 +26,35 @@ import { ObservacoesThread } from "@/components/ObservacoesPopup";
 import { ResumoPropostaModal } from "@/components/ResumoPropostaModal";
 import { flags } from "@/lib/flags";
 import { brl, cx, onlyDigits, maskCpfCnpjInput } from "@/lib/format";
-import type { EcLinha, Fornecedor, Observacao, StatusAprovacao, StatusOs } from "@/data/types";
+import type { DocumentoPg, EcLinha, Fornecedor, Observacao, StatusAprovacao, StatusOs } from "@/data/types";
+
+const OPCOES_STATUS_TEXTO = ["Pendente", "Não se Aplica"];
+
+/** Select (Pendente/Não se Aplica) com opção "Outro" que libera um campo de texto livre. */
+function SelectComTexto({ value, onChange, className }: { value: string; onChange: (v: string) => void; className?: string }) {
+  const personalizado = value !== "" && !OPCOES_STATUS_TEXTO.includes(value);
+  const selecao = personalizado ? "outro" : value;
+  return (
+    <div className="flex flex-col gap-1">
+      <Select
+        className={cx("!h-9 !px-2 !text-[12.5px]", className)}
+        value={selecao}
+        onChange={(e) => {
+          const v = e.target.value;
+          onChange(v === "outro" ? (personalizado ? value : "") : v);
+        }}
+      >
+        <option value="">Selecione…</option>
+        <option value="Pendente">Pendente</option>
+        <option value="Não se Aplica">Não se Aplica</option>
+        <option value="outro">Outro (preencher)</option>
+      </Select>
+      {selecao === "outro" && (
+        <Input className={cx("!h-9 !px-2 !text-[12.5px]", className)} value={value} onChange={(e) => onChange(e.target.value)} placeholder="Especifique" />
+      )}
+    </div>
+  );
+}
 
 interface Grupo {
   id: string;
@@ -92,7 +120,6 @@ function novaLinhaBase(): EcLinha {
     codigoServico: "",
     pedidoCompra: "",
     statusOs: "Pendente",
-    contrato: "",
     contratoStatus: "Pendente",
     observacao: "",
     observacoes: [],
@@ -182,6 +209,13 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
   /** Oculta/reexibe o grupo inteiro (todos os itens). */
   const setOcultoGrupo = (grupoNome: string, oculto: boolean) =>
     commit(grupos.map((g) => (g.nome === grupoNome ? { ...g, itens: g.itens.map((it) => ({ ...it, oculto })) } : g)));
+  /** Considera "não preenchido/alterado": sem custo, sem fornecedor e sem observações. */
+  const naoPreenchido = (it: EcLinha) =>
+    !it.oculto && it.valorPolobh === 0 && it.valorCliente === 0 && !it.fornecedorRazao.trim() && !it.fornecedorCnpj.trim() && it.observacoes.length === 0;
+  const qtdNaoPreenchidos = grupos.reduce((n, g) => n + g.itens.filter(naoPreenchido).length, 0);
+  /** Oculta de uma vez todos os itens ainda não preenchidos/alterados, em todos os grupos. */
+  const ocultarNaoPreenchidos = () =>
+    commit(grupos.map((g) => ({ ...g, itens: g.itens.map((it) => (naoPreenchido(it) ? { ...it, oculto: true } : it)) })));
 
   /* ------------------------- drag & drop ------------------------- */
   const onDragStart = (e: DragStartEvent) => {
@@ -269,7 +303,15 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
         <Button variant="secondary" size="sm" icon={<IcPlus width={16} height={16} />} onClick={addGrupo}>
           Adicionar grupo
         </Button>
-        <div className="flex gap-3 text-[13px] font-bold text-ink-2">
+        <div className="flex items-center gap-3 text-[13px] font-bold text-ink-2">
+          {qtdNaoPreenchidos > 0 && (
+            <>
+              <button onClick={ocultarNaoPreenchidos} className="hover:text-ink" title="Oculta de uma vez todos os itens sem custo, fornecedor ou observações">
+                Ocultar não preenchidos ({qtdNaoPreenchidos})
+              </button>
+              <span className="text-border">|</span>
+            </>
+          )}
           <button onClick={() => expandirTodos(true)} className="hover:text-ink">Expandir todos</button>
           <span className="text-border">|</span>
           <button onClick={() => expandirTodos(false)} className="hover:text-ink">Retrair todos</button>
@@ -607,30 +649,37 @@ function ItemRow({ l, verFinanceiro, fornecedores, usuarios, onUpd, onOcultar, o
             onValidar={onValidarFornecedor}
           />
         </Campo>
-        <Campo label="Fatura ou Nota Fiscal" className="w-36">
-          <Input className="!h-9 !px-2 !text-[12.5px]" value={l.faturaNf} onChange={(e) => onUpd({ faturaNf: e.target.value })} />
+        <Campo label="Documento PG" className="w-36">
+          <Select className="!h-9 !px-2 !text-[12.5px]" value={l.faturaNf} onChange={(e) => onUpd({ faturaNf: e.target.value as DocumentoPg })}>
+            <option value="">Selecione…</option>
+            <option value="Fatura">Fatura</option>
+            <option value="Nota Fiscal">Nota Fiscal</option>
+            <option value="Fatura e Nota Fiscal">Fatura e Nota Fiscal</option>
+            <option value="Recibo Simples">Recibo Simples</option>
+            <option value="Não se aplica">Não se aplica</option>
+          </Select>
         </Campo>
-        <Campo label="Código de Serviço" className="w-32">
-          <Input className="!h-9 !px-2 !text-[12.5px]" value={l.codigoServico} onChange={(e) => onUpd({ codigoServico: e.target.value })} />
+        <Campo label="Código de Serviço" className="w-36">
+          <SelectComTexto value={l.codigoServico} onChange={(v) => onUpd({ codigoServico: v })} />
         </Campo>
-        <Campo label="Pedido de Compra" className="w-32">
-          <Input className="!h-9 !px-2 !text-[12.5px]" value={l.pedidoCompra} onChange={(e) => onUpd({ pedidoCompra: e.target.value })} />
+        <Campo label="Pedido de Compra" className="w-36">
+          <SelectComTexto value={l.pedidoCompra} onChange={(v) => onUpd({ pedidoCompra: v })} />
         </Campo>
-        <Campo label="OS" className="w-24">
+        <Campo label="OS" className="w-28">
           <Select className="!h-9 !px-2 !text-[12.5px]" value={l.statusOs} onChange={(e) => onUpd({ statusOs: e.target.value as StatusOs })}>
             <option>Pendente</option>
             <option>Emitir</option>
             <option>OK</option>
+            <option>Não se Aplica</option>
           </Select>
         </Campo>
-        <Campo label="Contrato" className="w-24">
-          <Select className="!h-9 !px-2 !text-[12.5px]" value={l.contratoStatus} onChange={(e) => onUpd({ contratoStatus: e.target.value as StatusAprovacao })}>
+        <Campo label="Contrato" className="w-28">
+          <Select className="!h-9 !px-2 !text-[12.5px]" value={l.contratoStatus} onChange={(e) => onUpd({ contratoStatus: e.target.value as StatusOs })}>
             <option>Pendente</option>
+            <option>Emitir</option>
             <option>OK</option>
+            <option>Não se Aplica</option>
           </Select>
-        </Campo>
-        <Campo label="Contrato (nº)" className="w-28">
-          <Input className="!h-9 !px-2 !text-[12.5px]" placeholder="ref." value={l.contrato} onChange={(e) => onUpd({ contrato: e.target.value })} />
         </Campo>
         <Button
           type="button"

@@ -5,7 +5,7 @@
  * coluna→objeto é direto. Snapshots embutidos: `ecs.cliente` e `oss.fornecedor`.
  */
 import { supabase } from "@/lib/supabaseClient";
-import { numeroEc } from "@/domain/calc";
+import { numeroEc, producaoPadrao, honorariosPadrao, encargosPadrao } from "@/domain/calc";
 import { normalizarProjetoInfo, sincronizarCamposLegados } from "@/domain/projeto";
 import { onlyDigits } from "@/lib/format";
 import { auditar } from "@/store/logs";
@@ -41,6 +41,7 @@ import type {
   EmpresaGrupo,
   Fornecedor,
   Os,
+  Producao,
   Projeto,
   Representante,
   Usuario,
@@ -186,6 +187,18 @@ const fornecedorRepo: FornecedorRepository = {
 
 /* ----------------------------------- EC ---------------------------------- */
 
+/** Lê só os campos conhecidos de Produção do jsonb (ignora as taxas embutidas). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function extrairProducao(raw: any): Producao {
+  const base = producaoPadrao();
+  if (!raw || typeof raw !== "object") return base;
+  const out = { ...base };
+  for (const k of Object.keys(base) as (keyof Producao)[]) {
+    if (typeof raw[k] === "number") out[k] = raw[k];
+  }
+  return out;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapLinha(r: any): EcLinha {
   return {
@@ -205,7 +218,6 @@ function mapLinha(r: any): EcLinha {
     codigoServico: r.codigo_servico ?? "",
     pedidoCompra: r.pedido_compra ?? "",
     statusOs: r.status_os ?? "Pendente",
-    contrato: r.contrato ?? "",
     contratoStatus: r.contrato_status ?? "Pendente",
     observacao: r.observacao ?? "",
     // migra a observação legada (texto único, ou o antigo campo "pessoa" atribuído) para o formato de autor.
@@ -246,7 +258,6 @@ function linhaRow(ecId: string, l: EcLinha) {
     codigo_servico: l.codigoServico,
     pedido_compra: l.pedidoCompra,
     status_os: l.statusOs,
-    contrato: l.contrato ?? "",
     contrato_status: l.contratoStatus ?? "Pendente",
     observacao: l.observacao ?? "",
     observacoes: l.observacoes ?? [],
@@ -270,7 +281,11 @@ function mapEc(r: any): Ec {
     cliente: r.cliente ?? clienteVazio(),
     projeto: normalizarProjetoInfo(r.projeto),
     linhas,
-    producao: r.producao,
+    // As taxas (honorários/encargos) ficam embutidas no jsonb `producao` para não
+    // exigir coluna nova; aqui separamos de volta em campos de primeiro nível.
+    producao: extrairProducao(r.producao),
+    honorarios: r.producao?.honorarios ?? honorariosPadrao(),
+    encargos: r.producao?.encargos ?? encargosPadrao(),
     responsavel: r.responsavel ?? "",
     validadeDias: r.validade_dias ?? 30,
     criadoEm: r.criado_em,
@@ -288,7 +303,8 @@ function ecRow(ec: Ec) {
     cliente_id: isUuid(ec.cliente?.id) ? ec.cliente.id : null,
     cliente: ec.cliente,
     projeto: sincronizarCamposLegados(ec.projeto),
-    producao: ec.producao,
+    // Embute as taxas no jsonb `producao` (o mapEc separa de volta na leitura).
+    producao: { ...ec.producao, honorarios: ec.honorarios, encargos: ec.encargos },
     responsavel: ec.responsavel,
     validade_dias: ec.validadeDias,
     versao: ec.versao,

@@ -111,3 +111,16 @@ export async function corrigirLinhaEc(linha: EcLinha): Promise<{ linha: EcLinha;
   const resultado = await corrigirDescricoes([linha]);
   return { linha: resultado.linhas[0], revisaoCompleta: resultado.revisaoCompleta };
 }
+
+/**
+ * Correção apenas local (maiúsculas), sem chamada de rede — usada no salvamento
+ * GERAL da EC para não travar o fluxo com a Edge Function em dezenas de linhas.
+ * A revisão online por IA continua disponível no "Revisar e salvar" de cada item.
+ */
+export function corrigirDescricoesLocal(linhas: EcLinha[]): EcLinha[] {
+  return linhas.map((linha) => ({
+    ...linha,
+    descricao: corrigirMaiusculas(linha.descricao),
+    descricaoCompleta: corrigirMaiusculasHtml(linha.descricaoCompleta),
+  }));
+}

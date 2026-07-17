@@ -21,7 +21,7 @@ import {
 import { IcBack, IcCopy, IcDownload, IcPlus, IcChevron, IcSend } from "@/components/icons";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
-import { calcularTotais, agruparPorFornecedor, tituloEc } from "@/domain/calc";
+import { calcularTotais, agruparPorFornecedor, gastoPorLinhaViaOSs, tituloEc } from "@/domain/calc";
 import { RentabilidadeItens } from "@/components/RentabilidadeItens";
 import { brl, dataBR } from "@/lib/format";
 import { gerarEcExcel } from "@/lib/excel";
@@ -55,8 +55,12 @@ export function EcDetail() {
   const [erro, setErro] = useState("");
 
   const t = useMemo(
-    () => (ec ? calcularTotais(ec.linhas, ec.producao) : null),
+    () => (ec ? calcularTotais(ec.linhas, ec.producao, ec.honorarios, ec.encargos) : null),
     [ec]
+  );
+  const gastoPorLinha = useMemo(
+    () => (ec ? gastoPorLinhaViaOSs(ec.linhas, oss ?? []) : {}),
+    [ec, oss]
   );
 
   if (loading) return <PageShell breadcrumb={<Crumb>EC</Crumb>} title="Carregando…">{null}</PageShell>;
@@ -209,7 +213,6 @@ export function EcDetail() {
                               {l.descricao && <div className="text-[12.5px] text-ink-2 whitespace-pre-wrap">{l.descricao}</div>}
                               <div className="text-[11px] text-ink-3 mt-0.5 flex items-center gap-2 flex-wrap">
                                 <span>Fornecedor: {l.fornecedorRazao || "—"}</span>
-                                {l.contrato && <span>· Contrato {l.contrato}</span>}
                               </div>
                             </div>
                             {verFinanceiro && (
@@ -240,8 +243,8 @@ export function EcDetail() {
           {/* Rentabilidade por item (restrito ao financeiro) */}
           {verFinanceiro && (
             <Card padded={false}>
-              <div className="p-5"><CardTitle hint="A = estimado na EC · B = gasto até hoje · C = (A−B)/A">Rentabilidade por item</CardTitle></div>
-              <RentabilidadeItens linhas={ec.linhas} />
+              <div className="p-5"><CardTitle hint="A = estimado na EC · B = gasto (valor a pagar das OS's, rateado) · C = (A−B)/A">Rentabilidade por item</CardTitle></div>
+              <RentabilidadeItens linhas={ec.linhas} gastoPorLinha={gastoPorLinha} />
             </Card>
           )}
 

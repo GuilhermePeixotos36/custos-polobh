@@ -53,4 +53,5 @@ export const tomAprovacao: Record<string, Tom> = {
   Pendente: "warning",
   OK: "success",
   Emitir: "info",
+  "Não se Aplica": "neutral",
 };

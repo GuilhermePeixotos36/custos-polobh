@@ -2,10 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { PageShell, Crumb } from "@/components/layout/AppLayout";
 import {
-  Card, CardTitle, Button, Field, Input, Textarea, Select, Badge,
+  Card, CardTitle, Button, Field, Input, Label, TelefoneInput, Textarea, Select, Badge,
   Table, THead, Th, Tr, Td, EmptyState, tomStatusOs, type Tom,
 } from "@/components/ui";
-import { IcChevron, IcPlus, IcBack, IcDownload, IcSearch, IcTrash } from "@/components/icons";
+import { IcChevron, IcPlus, IcBack, IcDownload, IcSearch, IcTrash, IcEye, IcEyeOff } from "@/components/icons";
 import { RichTextField } from "@/components/RichTextField";
 import { TimelineConsolidada, type ItemConsolidado } from "@/components/Timeline";
 import { NotifDot } from "@/components/NotifDot";
@@ -15,9 +15,9 @@ import { useMinhasPendencias } from "@/store/pendencias";
 import { gerarCronogramaExcel } from "@/lib/excel";
 import { consultarCnpj } from "@/lib/cnpj";
 import { tituloEc } from "@/domain/calc";
-import { ETAPAS_CRONOGRAMA, novaFaixaCronograma, projetoInfoVazio, sincronizarCamposLegados } from "@/domain/projeto";
+import { ETAPAS_CRONOGRAMA, compoeTituloProjeto, novaFaixaCronograma, projetoInfoVazio, sincronizarCamposLegados } from "@/domain/projeto";
 import { flags } from "@/lib/flags";
-import { cx, dataBR, maskCpfCnpjInput, maskTelefone } from "@/lib/format";
+import { cx, dataBR, maskCpfCnpjInput, maskDoc, onlyDigits } from "@/lib/format";
 import { toast } from "@/store/toast";
 import { corrigirRoteirosProjeto } from "@/lib/correcaoOrtografica";
 import type { Cliente, EtapaCronogramaProjeto, FaixaCronogramaProjeto, Projeto, ProjetoInfo, StatusProjeto } from "@/data/types";
@@ -57,14 +57,15 @@ export function ProjetoDetail() {
   const { data: existente, loading } = useAsync(() => (novo ? Promise.resolve(undefined) : repo.projetos.obter(id)), [id]);
   const { data: ecsAll } = useAsync(() => repo.ecs.listar(), []);
   const { data: ossAll } = useAsync(() => repo.oss.listar(), []);
+  const { data: clientesAll } = useAsync(() => repo.clientes.listar(), []);
 
   const [p, setP] = useState<Projeto>(projetoVazio());
   const [aba, setAba] = useState<Aba>(abaInicial);
   const [salvando, setSalvando] = useState(false);
-  const [tplNova, setTplNova] = useState<"Corporativo" | "Cultural" | "">("Corporativo");
   const [filtroEc, setFiltroEc] = useState<"todas" | "ativas" | "arquivadas">("todas");
   const [cnpjLoading, setCnpjLoading] = useState(false);
   const [cnpjMsg, setCnpjMsg] = useState("");
+  const [cnpjFoco, setCnpjFoco] = useState(false);
 
   useEffect(() => {
     if (novo) setP(projetoVazio());
@@ -151,11 +152,48 @@ export function ProjetoDetail() {
   }
 
   const updCli = (patch: Partial<Cliente>) => setP((x) => ({ ...x, cliente: { ...x.cliente, ...patch } }));
+
+  // Autocomplete de cliente pelo CNPJ/CPF: sugere cadastros já arquivados cujo
+  // número começa com o que foi digitado (ex.: digitar "0" já filtra os que começam com 0).
+  const cnpjDigitado = onlyDigits(p.cliente.cnpjCpf);
+  const sugestoesCliente = useMemo(() => {
+    if (!cnpjDigitado) return [];
+    return (clientesAll ?? [])
+      .filter((c) => {
+        const d = onlyDigits(c.cnpjCpf);
+        return d.startsWith(cnpjDigitado) && d !== cnpjDigitado;
+      })
+      .slice(0, 8);
+  }, [clientesAll, cnpjDigitado]);
+
+  function selecionarClienteArquivado(c: Cliente) {
+    updCli(c);
+    setCnpjFoco(false);
+    setCnpjMsg("");
+  }
   const updInfo = (patch: Partial<ProjetoInfo>) => setP((x) => ({ ...x, info: { ...x.info, ...patch }, nome: patch.titulo ?? x.nome }));
+  const updTituloParte = (patch: Partial<Pick<ProjetoInfo, "clienteAbreviado" | "nomeProjeto" | "anoProjeto">>) => {
+    const clienteAbreviado = patch.clienteAbreviado ?? p.info.clienteAbreviado;
+    const nomeProjeto = patch.nomeProjeto ?? p.info.nomeProjeto;
+    const anoProjeto = patch.anoProjeto ?? p.info.anoProjeto;
+    updInfo({ ...patch, titulo: compoeTituloProjeto(clienteAbreviado, nomeProjeto, anoProjeto) });
+  };
   const updCronograma = (etapa: EtapaCronogramaProjeto, faixas: FaixaCronogramaProjeto[]) =>
     updInfo({ cronograma: { ...p.info.cronograma, [etapa]: faixas } });
   const updFaixa = (etapa: EtapaCronogramaProjeto, idFaixa: string, patch: Partial<FaixaCronogramaProjeto>) =>
     updCronograma(etapa, p.info.cronograma[etapa].map((faixa) => faixa.id === idFaixa ? { ...faixa, ...patch } : faixa));
+  const toggleEtapaOculta = (etapa: EtapaCronogramaProjeto) =>
+    updInfo({
+      etapasOcultas: p.info.etapasOcultas.includes(etapa)
+        ? p.info.etapasOcultas.filter((e) => e !== etapa)
+        : [...p.info.etapasOcultas, etapa],
+    });
+  const toggleRoteiroOculto = (secao: keyof ProjetoInfo["roteiros"]) =>
+    updInfo({
+      roteirosOcultos: p.info.roteirosOcultos.includes(secao)
+        ? p.info.roteirosOcultos.filter((s) => s !== secao)
+        : [...p.info.roteirosOcultos, secao],
+    });
 
   async function consultarCnpjCliente() {
     setCnpjMsg("");
@@ -180,12 +218,44 @@ export function ProjetoDetail() {
     }
   }
 
+  /** Arquiva os dados do cliente no cadastro central (deduplicado por CNPJ/CPF) para reaproveitar em projetos futuros. */
+  async function arquivarCliente(cliente: Cliente): Promise<Cliente> {
+    const digitos = onlyDigits(cliente.cnpjCpf);
+    if (!digitos) return cliente;
+    const existenteArquivado = (clientesAll ?? []).find((c) => onlyDigits(c.cnpjCpf) === digitos);
+    try {
+      return await repo.clientes.salvar({ ...cliente, id: existenteArquivado?.id || "" });
+    } catch {
+      // arquivamento é best-effort: se falhar, o projeto ainda é salvo com o snapshot do cliente.
+      return cliente;
+    }
+  }
+
+  const camposObrigatoriosFaltando = (): string[] => {
+    const faltando: string[] = [];
+    if (!p.info.clienteAbreviado.trim()) faltando.push("Cliente (abreviação)");
+    if (!p.info.nomeProjeto.trim()) faltando.push("Nome do projeto");
+    if (!p.info.anoProjeto.trim()) faltando.push("Ano");
+    if (!p.cliente.nome.trim()) faltando.push("Cliente (nome)");
+    if (!p.cliente.cnpjCpf.trim()) faltando.push("CNPJ/CPF");
+    if (!p.info.modalidade) faltando.push("Modalidade");
+    if (!p.info.local.trim()) faltando.push("Local");
+    if (!p.info.cronograma.evento.some((f) => f.data.trim())) faltando.push("Data do evento (cronograma)");
+    return faltando;
+  };
+
   async function salvar() {
+    const faltando = camposObrigatoriosFaltando();
+    if (faltando.length) {
+      toast(`Preencha os campos obrigatórios: ${faltando.join(", ")}.`, "danger");
+      return;
+    }
     setSalvando(true);
     try {
       const revisao = await corrigirRoteirosProjeto(p.info.roteiros);
       const info = sincronizarCamposLegados({ ...p.info, roteiros: revisao.roteiros });
-      const salvo = await repo.projetos.salvar({ ...p, info, nome: info.titulo || p.nome || "Projeto" });
+      const cliente = await arquivarCliente(p.cliente);
+      const salvo = await repo.projetos.salvar({ ...p, cliente, info, nome: info.titulo || p.nome || "Projeto" });
       setP(salvo);
       toast(revisao.revisaoCompleta
         ? "Projeto salvo e roteiros revisados automaticamente."
@@ -254,7 +324,35 @@ export function ProjetoDetail() {
               }>Cliente</CardTitle>
               {cnpjMsg && <div className="mb-3 text-[12.5px] text-info bg-info-soft rounded-btn px-3 py-2">{cnpjMsg}</div>}
               <div className="grid sm:grid-cols-2 gap-4">
-                <Field label="CNPJ/CPF"><Input value={p.cliente.cnpjCpf} inputMode="numeric" onChange={(e) => updCli({ cnpjCpf: maskCpfCnpjInput(e.target.value) })} placeholder="00.000.000/0000-00" /></Field>
+                <Field label="CNPJ/CPF">
+                  <div className="relative">
+                    <Input
+                      value={p.cliente.cnpjCpf}
+                      inputMode="numeric"
+                      autoComplete="off"
+                      onChange={(e) => updCli({ cnpjCpf: maskCpfCnpjInput(e.target.value) })}
+                      onFocus={() => setCnpjFoco(true)}
+                      onBlur={() => setTimeout(() => setCnpjFoco(false), 150)}
+                      placeholder="00.000.000/0000-00"
+                    />
+                    {cnpjFoco && sugestoesCliente.length > 0 && (
+                      <div className="absolute z-10 mt-1 w-full max-h-56 overflow-auto rounded-btn border border-border-soft bg-surface shadow-lg">
+                        {sugestoesCliente.map((c) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            className="w-full text-left px-3.5 py-2 text-sm hover:bg-bg border-b border-border-soft last:border-b-0"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => selecionarClienteArquivado(c)}
+                          >
+                            <div className="font-bold text-ink">{maskDoc(c.cnpjCpf)}</div>
+                            <div className="text-ink-2 text-[12.5px]">{c.nome || c.razaoSocial}</div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </Field>
                 <Field label="Cliente (nome)"><Input value={p.cliente.nome} onChange={(e) => updCli({ nome: e.target.value })} /></Field>
                 <Field label="Razão Social" className="sm:col-span-2"><Input value={p.cliente.razaoSocial} onChange={(e) => updCli({ razaoSocial: e.target.value })} /></Field>
                 <Field label="Endereço" className="sm:col-span-2"><Input value={p.cliente.endereco} onChange={(e) => updCli({ endereco: e.target.value })} /></Field>
@@ -277,7 +375,7 @@ export function ProjetoDetail() {
                   </div>
                 </Field>
                 <Field label="Representante"><Input value={p.cliente.representante.nome} onChange={(e) => updCli({ representante: { ...p.cliente.representante, nome: e.target.value } })} /></Field>
-                <Field label="Telefone do representante"><Input value={p.cliente.representante.telefones} inputMode="tel" onChange={(e) => updCli({ representante: { ...p.cliente.representante, telefones: maskTelefone(e.target.value) } })} /></Field>
+                <Field label="Telefone do representante"><TelefoneInput value={p.cliente.representante.telefones} onChange={(v) => updCli({ representante: { ...p.cliente.representante, telefones: v } })} /></Field>
                 <Field label="E-mail do representante"><Input value={p.cliente.representante.email} onChange={(e) => updCli({ representante: { ...p.cliente.representante, email: e.target.value } })} /></Field>
               </div>
           </Card>
@@ -285,7 +383,9 @@ export function ProjetoDetail() {
           <Card>
             <CardTitle>Informações do projeto</CardTitle>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <Field label="Título do projeto" className="lg:col-span-3"><Input value={p.info.titulo} onChange={(e) => updInfo({ titulo: e.target.value })} /></Field>
+              <Field label="Cliente (abreviação)"><Input value={p.info.clienteAbreviado} onChange={(e) => updTituloParte({ clienteAbreviado: e.target.value })} placeholder="Ex.: ACME" /></Field>
+              <Field label="Nome do projeto"><Input value={p.info.nomeProjeto} onChange={(e) => updTituloParte({ nomeProjeto: e.target.value })} /></Field>
+              <Field label="Ano"><Input value={p.info.anoProjeto} inputMode="numeric" onChange={(e) => updTituloParte({ anoProjeto: onlyDigits(e.target.value).slice(0, 4) })} placeholder="2026" /></Field>
               <Field label="Modalidade">
                 <Select value={p.info.modalidade} onChange={(e) => updInfo({ modalidade: e.target.value as ProjetoInfo["modalidade"] })}>
                   <option value="">Selecione</option>
@@ -297,44 +397,94 @@ export function ProjetoDetail() {
               <Field label="Endereço do local"><Input value={p.info.enderecoLocal} onChange={(e) => updInfo({ enderecoLocal: e.target.value })} /></Field>
               <Field label="Nº de participantes"><Input type="number" value={p.info.participantes ?? ""} onChange={(e) => updInfo({ participantes: e.target.value ? Number(e.target.value) : null })} /></Field>
               <Field label="Nome da produtora responsável"><Input value={p.info.produtoraResponsavel} onChange={(e) => updInfo({ produtoraResponsavel: e.target.value })} /></Field>
-              <Field label="Telefone da produtora responsável"><Input value={p.info.telefoneProdutora} inputMode="tel" onChange={(e) => updInfo({ telefoneProdutora: maskTelefone(e.target.value) })} /></Field>
+              <Field label="Telefone da produtora responsável"><TelefoneInput value={p.info.telefoneProdutora} onChange={(v) => updInfo({ telefoneProdutora: v })} /></Field>
               <Field label="E-mail da produtora responsável"><Input type="email" value={p.info.emailProdutora} onChange={(e) => updInfo({ emailProdutora: e.target.value })} /></Field>
-              <Field label="Incentivos Fiscais" className="sm:col-span-2 lg:col-span-3"><Textarea value={p.info.incentivosFiscais} onChange={(e) => updInfo({ incentivosFiscais: e.target.value })} /></Field>
+              {p.info.modalidade !== "Corporativo" && (
+                <Field label="Incentivos Fiscais" className="sm:col-span-2 lg:col-span-3"><Textarea value={p.info.incentivosFiscais} onChange={(e) => updInfo({ incentivosFiscais: e.target.value })} /></Field>
+              )}
             </div>
           </Card>
 
           <Card>
             <CardTitle hint="Cada etapa pode ter uma ou mais datas, com horários de início e fim.">Cronograma</CardTitle>
             <div className="space-y-5">
-              {ETAPAS_CRONOGRAMA.map(({ key, label }) => (
-                <section key={key} aria-labelledby={`cronograma-${key}`} className="rounded-btn border border-border-soft p-3 sm:p-4">
-                  <h3 id={`cronograma-${key}`} className="mb-3 text-sm font-bold text-ink">{label}</h3>
-                  <div className="space-y-2">
-                    {p.info.cronograma[key].map((faixa) => (
-                      <div key={faixa.id} className="grid grid-cols-1 sm:grid-cols-[minmax(150px,1fr)_minmax(120px,.7fr)_minmax(120px,.7fr)_auto] gap-2 items-end">
-                        <Field label="Data"><Input type="date" value={faixa.data} onChange={(e) => updFaixa(key, faixa.id, { data: e.target.value })} /></Field>
-                        <Field label="Início"><Input type="time" value={faixa.inicio} onChange={(e) => updFaixa(key, faixa.id, { inicio: e.target.value })} /></Field>
-                        <Field label="Fim"><Input type="time" value={faixa.fim} onChange={(e) => updFaixa(key, faixa.id, { fim: e.target.value })} /></Field>
-                        <div className="flex gap-1 pb-0.5">
-                          <Button type="button" variant="soft" size="sm" aria-label={`Adicionar data em ${label}`} icon={<IcPlus width={15} height={15} />} onClick={() => updCronograma(key, [...p.info.cronograma[key], novaFaixaCronograma()])}>Adicionar</Button>
-                          {p.info.cronograma[key].length > 1 && (
-                            <Button type="button" variant="text" size="sm" aria-label={`Excluir data de ${label}`} icon={<IcTrash width={15} height={15} />} onClick={() => updCronograma(key, p.info.cronograma[key].filter((item) => item.id !== faixa.id))} />
-                          )}
-                        </div>
+              {ETAPAS_CRONOGRAMA.map(({ key, label }) => {
+                const oculta = p.info.etapasOcultas.includes(key);
+                return (
+                  <section key={key} aria-labelledby={`cronograma-${key}`} className="rounded-btn border border-border-soft p-3 sm:p-4">
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                      <h3 id={`cronograma-${key}`} className="text-sm font-bold text-ink">{label}</h3>
+                      <Button
+                        type="button"
+                        variant="text"
+                        size="sm"
+                        aria-label={oculta ? `Reexibir ${label}` : `Ocultar ${label}`}
+                        title={oculta ? "Reexibir etapa" : "Ocultar etapa"}
+                        icon={oculta ? <IcEye width={15} height={15} /> : <IcEyeOff width={15} height={15} />}
+                        onClick={() => toggleEtapaOculta(key)}
+                      >
+                        {oculta ? "Reexibir" : "Ocultar"}
+                      </Button>
+                    </div>
+                    {!oculta && (
+                      <div className="space-y-2">
+                        {p.info.cronograma[key].map((faixa) => (
+                          <div key={faixa.id} className="grid grid-cols-1 sm:grid-cols-[minmax(150px,1fr)_minmax(120px,.7fr)_minmax(120px,.7fr)_auto] gap-2 items-end">
+                            <Field label="Data"><Input type="date" value={faixa.data} onChange={(e) => updFaixa(key, faixa.id, { data: e.target.value })} /></Field>
+                            <Field label="Início"><Input type="time" value={faixa.inicio} onChange={(e) => updFaixa(key, faixa.id, { inicio: e.target.value })} /></Field>
+                            <Field label="Fim"><Input type="time" value={faixa.fim} onChange={(e) => updFaixa(key, faixa.id, { fim: e.target.value })} /></Field>
+                            <div className="flex gap-1 pb-0.5">
+                              <Button type="button" variant="soft" size="sm" aria-label={`Adicionar data em ${label}`} icon={<IcPlus width={15} height={15} />} onClick={() => updCronograma(key, [...p.info.cronograma[key], novaFaixaCronograma()])}>Adicionar</Button>
+                              {p.info.cronograma[key].length > 1 && (
+                                <Button type="button" variant="text" size="sm" aria-label={`Excluir data de ${label}`} icon={<IcTrash width={15} height={15} />} onClick={() => updCronograma(key, p.info.cronograma[key].filter((item) => item.id !== faixa.id))} />
+                              )}
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </section>
-              ))}
+                    )}
+                  </section>
+                );
+              })}
             </div>
           </Card>
 
           <Card>
             <CardTitle hint="Os textos aceitam parágrafos, negrito e listas. A revisão ortográfica é aplicada ao salvar.">Roteiro</CardTitle>
-            <div className="grid lg:grid-cols-3 gap-4">
-              <Field label="Pré Evento"><RichTextField value={p.info.roteiros.preEvento} onChange={(preEvento) => updInfo({ roteiros: { ...p.info.roteiros, preEvento } })} placeholder="Descreva o roteiro de pré-evento…" /></Field>
-              <Field label="Evento"><RichTextField value={p.info.roteiros.evento} onChange={(evento) => updInfo({ roteiros: { ...p.info.roteiros, evento } })} placeholder="Descreva o roteiro do evento…" /></Field>
-              <Field label="Pós Evento"><RichTextField value={p.info.roteiros.posEvento} onChange={(posEvento) => updInfo({ roteiros: { ...p.info.roteiros, posEvento } })} placeholder="Descreva o roteiro de pós-evento…" /></Field>
+            <div className="space-y-4">
+              {([
+                { key: "preEvento", label: "Pré Evento", placeholder: "Descreva o roteiro de pré-evento…" },
+                { key: "evento", label: "Evento", placeholder: "Descreva o roteiro do evento…" },
+                { key: "posEvento", label: "Pós Evento", placeholder: "Descreva o roteiro de pós-evento…" },
+              ] as const).map(({ key, label, placeholder }) => {
+                const oculto = p.info.roteirosOcultos.includes(key);
+                return (
+                  <div key={key}>
+                    <div className="mb-1.5 flex items-center justify-between gap-2">
+                      <Label>{label}</Label>
+                      <Button
+                        type="button"
+                        variant="text"
+                        size="sm"
+                        aria-label={oculto ? `Reexibir ${label}` : `Ocultar ${label}`}
+                        title={oculto ? "Reexibir seção" : "Ocultar seção"}
+                        icon={oculto ? <IcEye width={15} height={15} /> : <IcEyeOff width={15} height={15} />}
+                        onClick={() => toggleRoteiroOculto(key)}
+                      >
+                        {oculto ? "Reexibir" : "Ocultar"}
+                      </Button>
+                    </div>
+                    {!oculto && (
+                      <RichTextField
+                        className="[&_[contenteditable]]:min-h-[220px]"
+                        value={p.info.roteiros[key]}
+                        onChange={(v) => updInfo({ roteiros: { ...p.info.roteiros, [key]: v } })}
+                        placeholder={placeholder}
+                      />
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </Card>
         </div>
@@ -345,13 +495,21 @@ export function ProjetoDetail() {
           <div className="p-5 flex items-center justify-between gap-3 flex-wrap">
             <CardTitle hint="Estimativas de custo deste projeto (incluindo versões)">Estimativas (EC)</CardTitle>
             <div className="flex items-center gap-2">
-              <span className="text-[12.5px] text-ink-3 font-semibold">Modelo</span>
-              <Select className="!h-9 !w-40 !text-[13px]" value={tplNova} onChange={(e) => setTplNova(e.target.value as typeof tplNova)}>
-                <option value="Corporativo">Corporativo</option>
-                <option value="Cultural">Cultural</option>
-                <option value="">Em branco</option>
-              </Select>
-              <Button size="sm" icon={<IcPlus width={16} height={16} />} onClick={() => navigate(`/estimativas/nova?projeto=${id}${tplNova ? `&template=${tplNova}` : ""}`)}>Nova EC</Button>
+              <Button
+                size="sm"
+                icon={<IcPlus width={16} height={16} />}
+                title={p.info.modalidade ? `Usa o modelo ${p.info.modalidade} (definido em Dados Gerais)` : "Defina a Modalidade em Dados Gerais para carregar um modelo automaticamente"}
+                onClick={() => navigate(`/estimativas/nova?projeto=${id}${p.info.modalidade ? `&template=${p.info.modalidade}` : ""}`)}
+              >
+                Nova EC
+              </Button>
+              <Button
+                size="sm"
+                variant="text"
+                onClick={() => navigate(`/estimativas/nova?projeto=${id}`)}
+              >
+                EC em branco
+              </Button>
             </div>
           </div>
           <div className="px-5 pb-4 flex items-center gap-1 border-b border-border-soft" role="group" aria-label="Filtrar estimativas">
