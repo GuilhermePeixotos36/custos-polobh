@@ -5,7 +5,7 @@
  */
 import ExcelJS from "exceljs";
 import type { Ec } from "@/data/types";
-import { calcularTotais, totalProducao } from "@/domain/calc";
+import { calcularTotais } from "@/domain/calc";
 import { dataBR, dataBRCurta } from "@/lib/format";
 import { COR, fill, thin, grade, baixar, salvarComPicker, nomeArquivo, carregarLogo } from "./shared";
 
@@ -266,37 +266,7 @@ export async function criarEcExcelBuffer(
     }
   }
   const itemEnd = r - 1; // fim do intervalo das linhas de custo
-
-  // ---------- Produção ----------
-  secao("PRODUÇÃO");
-  const prodStart = r;
-  const prod = ec.producao;
-  const prodLinhas: [string, string, number][] = [
-    ["Despesas operacionais", "Motoboy, cartório, Correios.", prod.despesasOperacionais * prod.qtdDespesas],
-    ["Equipe", `Diária BH R$ ${prod.equipeBH} · Viagem R$ ${prod.equipeViagem}`, prod.equipeBH * prod.qtdEquipeBH + prod.equipeViagem * prod.qtdEquipeViagem],
-    ["Transporte", `BH R$ ${prod.transporteBH}/dia · Viagem R$ ${prod.transporteViagem}/dia`, prod.transporteBH * prod.qtdTransporteBH + prod.transporteViagem * prod.qtdTransporteViagem],
-    ["Alimentação", `BH R$ ${prod.alimentacaoBH}/dia · Viagem R$ ${prod.alimentacaoViagem}`, prod.alimentacaoBH * prod.qtdAlimentacaoBH + prod.alimentacaoViagem * prod.qtdAlimentacaoViagem],
-  ];
-  for (const [nome, desc, val] of prodLinhas) {
-    if (completa) {
-      ws.getCell(`A${r}`).value = nome;
-      ws.getCell(`A${r}`).font = { bold: true, size: 9 };
-      ws.getCell(`B${r}`).value = desc;
-      ws.getCell(`B${r}`).font = { size: 9 };
-    } else {
-      ws.mergeCells(`A${r}:B${r}`);
-      ws.getCell(`A${r}`).value = nome;
-      ws.getCell(`A${r}`).font = { bold: true, size: 9 };
-    }
-    const c = ws.getCell(`C${r}`);
-    c.value = val;
-    c.numFmt = '"R$" #,##0.00';
-    c.font = { size: 9 };
-    [`A${r}`, `B${r}`, `C${r}`, `D${r}`].forEach((a) => (ws.getCell(a).border = grade));
-    r++;
-  }
-  const prodEnd = r - 1; // fim do intervalo de produção (p/ fórmulas)
-  void totalProducao;
+  // Produção agora é um grupo normal de itens (não há mais o bloco fixo separado).
 
   // ---------- Totais ----------
   // Fórmulas VIVAS (recalculam se a planilha for editada no Excel), em duas
@@ -304,9 +274,7 @@ export async function criarEcExcelBuffer(
   r++;
   const moeda = '"R$" #,##0.00';
   const temItens = itemEnd >= itemStart;
-  const fSomaC = temItens
-    ? `SUM(C${itemStart}:C${itemEnd})+SUM(C${prodStart}:C${prodEnd})`
-    : `SUM(C${prodStart}:C${prodEnd})`;
+  const fSomaC = temItens ? `SUM(C${itemStart}:C${itemEnd})` : "0";
   const fSomaD = temItens ? `SUM(D${itemStart}:D${itemEnd})` : undefined;
 
   type Val = { formula?: string; result: number };

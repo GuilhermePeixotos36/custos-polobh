@@ -22,7 +22,7 @@ function LV({ label, valor }: { label: string; valor?: string | number | null })
 }
 
 export function EcDocumento({ ec }: { ec: Ec }) {
-  const t = calcularTotais(ec.linhas, ec.producao);
+  const t = calcularTotais(ec.linhas, ec.producao, ec.honorarios, ec.encargos);
   const cli = ec.cliente;
   const p = ec.projeto;
 
@@ -104,14 +104,6 @@ export function EcDocumento({ ec }: { ec: Ec }) {
               ))}
             </Fragment>
           ))}
-          {t.somaProducao > 0 && (
-            <tr className="border-b border-border-soft">
-              <td className="px-2 py-1.5 font-semibold">Produção</td>
-              <td className="px-2 py-1.5 text-ink-2" colSpan={2}>Despesas operacionais, equipe, transporte e alimentação</td>
-              <td className="px-2 py-1.5 text-right">{brl(t.somaProducao)}</td>
-              <td className="px-2 py-1.5 text-right">{brl(0)}</td>
-            </tr>
-          )}
         </tbody>
       </table>
 

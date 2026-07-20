@@ -5,7 +5,7 @@
  * coluna→objeto é direto. Snapshots embutidos: `ecs.cliente` e `oss.fornecedor`.
  */
 import { supabase } from "@/lib/supabaseClient";
-import { numeroEc, producaoPadrao, honorariosPadrao, encargosPadrao } from "@/domain/calc";
+import { numeroEc, producaoPadrao, producaoZerada, linhasProducaoLegado, honorariosPadrao, encargosPadrao } from "@/domain/calc";
 import { normalizarProjetoInfo, sincronizarCamposLegados } from "@/domain/projeto";
 import { onlyDigits } from "@/lib/format";
 import { auditar } from "@/store/logs";
@@ -279,9 +279,29 @@ function linhaRow(ecId: string, l: EcLinha) {
   };
 }
 
+/** Linha de custo completa a partir de campos mínimos (usada na migração da Produção legada). */
+function linhaMigrada(o: { id: string; grupo: string; item: string; descricao: string; valorPolobh: number; ordem: number }): EcLinha {
+  return {
+    id: o.id, grupo: o.grupo, item: o.item, descricao: o.descricao, descricaoCompleta: "",
+    valorPolobh: o.valorPolobh, valorCliente: 0, valorGasto: 0,
+    statusAprovacao: "Pendente", fornecedorRazao: "", fornecedorCnpj: "", fornecedorContato: "",
+    faturaNf: "", codigoServico: "", pedidoCompra: "", statusOs: "Pendente", contratoStatus: "Pendente",
+    observacao: "", observacoes: [], oculto: false, ordem: o.ordem,
+  };
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapEc(r: any): Ec {
   const linhas = (r.linhas ?? []).map(mapLinha).sort((a: EcLinha, b: EcLinha) => a.ordem - b.ordem);
+  // Migração: o bloco fixo de Produção foi descontinuado. Se a EC salva ainda tiver
+  // valores nele, viram linhas do grupo EQUIPE PRODUÇÃO (total idêntico) e o bloco é zerado.
+  const migradas = linhasProducaoLegado(extrairProducao(r.producao));
+  if (migradas.length) {
+    const baseOrdem = linhas.reduce((m: number, l: EcLinha) => Math.max(m, l.ordem), 0);
+    migradas.forEach((mg, i) =>
+      linhas.push(linhaMigrada({ id: `prodmig-${r.id}-${i}`, grupo: "EQUIPE PRODUÇÃO", item: mg.item, descricao: mg.descricao, valorPolobh: mg.valorPolobh, ordem: baseOrdem + 1 + i }))
+    );
+  }
   return {
     id: r.id,
     numero: r.numero,
@@ -294,9 +314,8 @@ function mapEc(r: any): Ec {
     cliente: r.cliente ?? clienteVazio(),
     projeto: normalizarProjetoInfo(r.projeto),
     linhas,
-    // As taxas (honorários/encargos) ficam embutidas no jsonb `producao` para não
-    // exigir coluna nova; aqui separamos de volta em campos de primeiro nível.
-    producao: extrairProducao(r.producao),
+    // Produção fixa descontinuada → sempre zerada (os custos vivem em linhas do grupo).
+    producao: producaoZerada(),
     honorarios: r.producao?.honorarios ?? honorariosPadrao(),
     encargos: r.producao?.encargos ?? encargosPadrao(),
     responsavel: r.responsavel ?? "",

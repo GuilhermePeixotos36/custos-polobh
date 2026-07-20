@@ -21,7 +21,7 @@ import {
   gastoPorLinhaViaOSs,
   numeroEc,
   tituloEc,
-  producaoPadrao,
+  producaoZerada,
   honorariosPadrao,
   encargosPadrao,
 } from "@/domain/calc";
@@ -162,7 +162,7 @@ export function EcForm() {
           cliente,
           projeto,
           linhas: linhasIniciais,
-          producao: producaoPadrao(),
+          producao: producaoZerada(),
           honorarios: honorariosPadrao(),
           encargos: encargosPadrao(),
           responsavel: projeto.produtoraResponsavel || "",
@@ -449,14 +449,6 @@ export function EcForm() {
           </div>
         </Card>
 
-        {/* Produção (só Corporativo — no Cultural os mesmos custos já vêm como itens do grupo Equipe Produção) */}
-        {ec.template !== "Cultural" && (
-          <Card>
-            <CardTitle hint="Valores padrão editáveis. Informe as quantidades.">Produção</CardTitle>
-            <ProducaoEditor ec={ec} setEc={setEc} />
-          </Card>
-        )}
-
         {/* Rentabilidade por item (restrito ao financeiro) */}
         {verFinanceiro && (
           <Card padded={false}>
@@ -586,38 +578,3 @@ function ResumoLinha({ desc, polobh, cliente, strong }: { desc: string; polobh: 
   );
 }
 
-function ProducaoEditor({ ec, setEc }: { ec: Ec; setEc: React.Dispatch<React.SetStateAction<Ec | null>> }) {
-  const p = ec.producao;
-  const updP = (patch: Partial<typeof p>) =>
-    setEc((e) => (e ? { ...e, producao: { ...e.producao, ...patch } } : e));
-
-  const linhas: { nome: string; valorKey: keyof typeof p; qtdKey: keyof typeof p }[] = [
-    { nome: "Despesas operacionais", valorKey: "despesasOperacionais", qtdKey: "qtdDespesas" },
-    { nome: "Equipe — diária BH", valorKey: "equipeBH", qtdKey: "qtdEquipeBH" },
-    { nome: "Equipe — diária Viagem", valorKey: "equipeViagem", qtdKey: "qtdEquipeViagem" },
-    { nome: "Transporte BH /dia", valorKey: "transporteBH", qtdKey: "qtdTransporteBH" },
-    { nome: "Transporte Viagem /dia", valorKey: "transporteViagem", qtdKey: "qtdTransporteViagem" },
-    { nome: "Alimentação BH /dia", valorKey: "alimentacaoBH", qtdKey: "qtdAlimentacaoBH" },
-    { nome: "Alimentação Viagem", valorKey: "alimentacaoViagem", qtdKey: "qtdAlimentacaoViagem" },
-  ];
-
-  return (
-    <div className="space-y-2">
-      <div className="grid grid-cols-[1fr_90px_70px_90px] gap-2 text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3 px-1">
-        <span>Item</span><span className="text-right">Valor</span><span className="text-right">Qtd</span><span className="text-right">Subtotal</span>
-      </div>
-      {linhas.map((row) => {
-        const valor = p[row.valorKey] as number;
-        const qtd = p[row.qtdKey] as number;
-        return (
-          <div key={row.nome} className="grid grid-cols-[1fr_90px_70px_90px] gap-2 items-center">
-            <span className="text-[12.5px] text-ink">{row.nome}</span>
-            <NumberInput className="!h-9 !px-2 !text-[12.5px]" value={valor} onValue={(v) => updP({ [row.valorKey]: v } as Partial<typeof p>)} />
-            <NumberInput className="!h-9 !px-2 !text-[12.5px]" value={qtd} onValue={(v) => updP({ [row.qtdKey]: v } as Partial<typeof p>)} />
-            <span className="text-right text-[12.5px] font-display font-bold text-ink">{brl(valor * qtd)}</span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}

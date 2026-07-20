@@ -148,6 +148,29 @@ export const producaoPadrao = (): Producao => ({
   qtdAlimentacaoViagem: 0,
 });
 
+/** Produção zerada — o bloco fixo foi descontinuado; os custos ficam no grupo EQUIPE PRODUÇÃO. */
+export const producaoZerada = (): Producao => ({
+  despesasOperacionais: 0, equipeBH: 0, equipeViagem: 0, transporteBH: 0, transporteViagem: 0,
+  alimentacaoBH: 0, alimentacaoViagem: 0,
+  qtdDespesas: 0, qtdEquipeBH: 0, qtdEquipeViagem: 0, qtdTransporteBH: 0, qtdTransporteViagem: 0,
+  qtdAlimentacaoBH: 0, qtdAlimentacaoViagem: 0,
+});
+
+/**
+ * Converte o antigo bloco fixo de Produção em linhas de custo (grupo EQUIPE PRODUÇÃO),
+ * preservando os valores de ECs já salvas quando o card fixo foi removido. Retorna
+ * só as linhas com valor > 0. O total é idêntico ao antigo `totalProducao`.
+ */
+export function linhasProducaoLegado(p: Producao): { item: string; descricao: string; valorPolobh: number }[] {
+  const linhas = [
+    { item: "Despesas operacionais", descricao: "Motoboy, cartório, Correios — Taxa Fixa Pólobh.", valorPolobh: r2(p.despesasOperacionais * p.qtdDespesas) },
+    { item: "Equipe", descricao: "Diárias da equipe de produção.", valorPolobh: r2(p.equipeBH * p.qtdEquipeBH + p.equipeViagem * p.qtdEquipeViagem) },
+    { item: "Transporte", descricao: "Transporte da equipe de produção.", valorPolobh: r2(p.transporteBH * p.qtdTransporteBH + p.transporteViagem * p.qtdTransporteViagem) },
+    { item: "Alimentação", descricao: "Alimentação da equipe de produção.", valorPolobh: r2(p.alimentacaoBH * p.qtdAlimentacaoBH + p.alimentacaoViagem * p.qtdAlimentacaoViagem) },
+  ];
+  return linhas.filter((l) => l.valorPolobh > 0);
+}
+
 /* ------------------------- Rentabilidade ------------------------- */
 
 export interface RentabilidadeItem {
