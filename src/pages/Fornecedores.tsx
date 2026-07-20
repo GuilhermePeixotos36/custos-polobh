@@ -108,15 +108,15 @@ export function Fornecedores() {
             {msg && <div className="mb-3 text-[12.5px] text-info bg-info-soft rounded-btn px-3 py-2">{msg}</div>}
             <div className="grid gap-3">
               <Field label="CNPJ/CPF"><Input value={edit.cnpj} onChange={(e) => setEdit({ ...edit, cnpj: maskCpfCnpjInput(e.target.value) })} inputMode="numeric" placeholder="00.000.000/0000-00" /></Field>
-              <Field label="Razão social"><Input value={edit.razaoSocial} onChange={(e) => setEdit({ ...edit, razaoSocial: e.target.value })} /></Field>
-              <Field label="Nome fantasia"><Input value={edit.nomeFantasia} onChange={(e) => setEdit({ ...edit, nomeFantasia: e.target.value })} /></Field>
+              <Field label="Razão social"><Input formato="titulo-empresa" value={edit.razaoSocial} onChange={(e) => setEdit({ ...edit, razaoSocial: e.target.value })} /></Field>
+              <Field label="Nome fantasia"><Input formato="titulo" value={edit.nomeFantasia} onChange={(e) => setEdit({ ...edit, nomeFantasia: e.target.value })} /></Field>
               <Field label="Perfil tributário">
                 <Select value={edit.perfilTributario} onChange={(e) => setEdit({ ...edit, perfilTributario: e.target.value })}>
                   <option value="">Selecione…</option>
                   <option>MEI</option><option>Simples Nacional</option><option>Lucro Presumido/Real</option>
                 </Select>
               </Field>
-              <Field label="Endereço"><Input value={edit.endereco} onChange={(e) => setEdit({ ...edit, endereco: e.target.value })} /></Field>
+              <Field label="Endereço"><Input formato="titulo" value={edit.endereco} onChange={(e) => setEdit({ ...edit, endereco: e.target.value })} /></Field>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Telefone"><TelefoneInput value={edit.telefone} onChange={(v) => setEdit({ ...edit, telefone: v })} /></Field>
                 <Field label="E-mail"><Input value={edit.email} onChange={(e) => setEdit({ ...edit, email: e.target.value })} /></Field>

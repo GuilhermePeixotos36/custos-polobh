@@ -68,16 +68,20 @@ export function calcularPendencias(projetos: Projeto[], ecs: Ec[], oss: Os[], us
       (linha.observacoes ?? []).forEach((observacao, indice) => {
         const texto = observacao.texto.trim();
         if (!texto) return;
-        // Notifica quem foi @mencionado no texto do comentário (substitui a antiga "pessoa" atribuída).
-        const mencionados = extrairMencoes(texto, usuarios);
-        if (!mencionados.length) return;
+        // Observação resolvida deixa de ser pendência (fica só no histórico).
+        if (observacao.resolvida) return;
+        // Endereçada a uma pessoa: pelo responsável escolhido e/ou por @menção no texto.
+        const destinatarios = new Set<string>();
+        if (observacao.responsavelNome?.trim()) destinatarios.add(observacao.responsavelNome.trim());
+        for (const m of extrairMencoes(texto, usuarios)) destinatarios.add(m);
+        if (!destinatarios.size) return;
         const resumo = texto.length > 80 ? `${texto.slice(0, 77)}…` : texto;
         out.push({
           id: `ec.observacao:${ec.id}:${linha.id}:${observacao.id || indice}`,
           tipo: "ec.observacao",
-          titulo: `Você foi mencionado em ${linha.item || linha.grupo}: ${resumo}`,
+          titulo: `Observação para você em ${linha.item || linha.grupo}: ${resumo}`,
           papeis: [],
-          pessoas: mencionados,
+          pessoas: [...destinatarios],
           recurso: "projetos",
           projetoId: ec.projetoId,
           aba: "ec",

@@ -353,9 +353,9 @@ export function ProjetoDetail() {
                     )}
                   </div>
                 </Field>
-                <Field label="Cliente (nome)"><Input value={p.cliente.nome} onChange={(e) => updCli({ nome: e.target.value })} /></Field>
-                <Field label="Razão Social" className="sm:col-span-2"><Input value={p.cliente.razaoSocial} onChange={(e) => updCli({ razaoSocial: e.target.value })} /></Field>
-                <Field label="Endereço" className="sm:col-span-2"><Input value={p.cliente.endereco} onChange={(e) => updCli({ endereco: e.target.value })} /></Field>
+                <Field label="Cliente (nome)"><Input formato="titulo" value={p.cliente.nome} onChange={(e) => updCli({ nome: e.target.value })} /></Field>
+                <Field label="Razão Social" className="sm:col-span-2"><Input formato="titulo-empresa" value={p.cliente.razaoSocial} onChange={(e) => updCli({ razaoSocial: e.target.value })} /></Field>
+                <Field label="Endereço" className="sm:col-span-2"><Input formato="titulo" value={p.cliente.endereco} onChange={(e) => updCli({ endereco: e.target.value })} /></Field>
                 <Field label="Inscrição Estadual"><Input value={p.cliente.inscricaoEstadual} onChange={(e) => updCli({ inscricaoEstadual: e.target.value })} /></Field>
                 <Field label="Inscrição Municipal">
                   <div className="flex gap-2">
@@ -374,7 +374,7 @@ export function ProjetoDetail() {
                     </Button>
                   </div>
                 </Field>
-                <Field label="Representante"><Input value={p.cliente.representante.nome} onChange={(e) => updCli({ representante: { ...p.cliente.representante, nome: e.target.value } })} /></Field>
+                <Field label="Representante"><Input formato="titulo" value={p.cliente.representante.nome} onChange={(e) => updCli({ representante: { ...p.cliente.representante, nome: e.target.value } })} /></Field>
                 <Field label="Telefone do representante"><TelefoneInput value={p.cliente.representante.telefones} onChange={(v) => updCli({ representante: { ...p.cliente.representante, telefones: v } })} /></Field>
                 <Field label="E-mail do representante"><Input value={p.cliente.representante.email} onChange={(e) => updCli({ representante: { ...p.cliente.representante, email: e.target.value } })} /></Field>
               </div>
@@ -384,7 +384,7 @@ export function ProjetoDetail() {
             <CardTitle>Informações do projeto</CardTitle>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <Field label="Cliente (abreviação)"><Input value={p.info.clienteAbreviado} onChange={(e) => updTituloParte({ clienteAbreviado: e.target.value })} placeholder="Ex.: ACME" /></Field>
-              <Field label="Nome do projeto"><Input value={p.info.nomeProjeto} onChange={(e) => updTituloParte({ nomeProjeto: e.target.value })} /></Field>
+              <Field label="Nome do projeto"><Input formato="titulo" value={p.info.nomeProjeto} onChange={(e) => updTituloParte({ nomeProjeto: e.target.value })} /></Field>
               <Field label="Ano"><Input value={p.info.anoProjeto} inputMode="numeric" onChange={(e) => updTituloParte({ anoProjeto: onlyDigits(e.target.value).slice(0, 4) })} placeholder="2026" /></Field>
               <Field label="Modalidade">
                 <Select value={p.info.modalidade} onChange={(e) => updInfo({ modalidade: e.target.value as ProjetoInfo["modalidade"] })}>
@@ -393,10 +393,10 @@ export function ProjetoDetail() {
                   <option value="Corporativo">Corporativo</option>
                 </Select>
               </Field>
-              <Field label="Local"><Input value={p.info.local} onChange={(e) => updInfo({ local: e.target.value })} /></Field>
-              <Field label="Endereço do local"><Input value={p.info.enderecoLocal} onChange={(e) => updInfo({ enderecoLocal: e.target.value })} /></Field>
+              <Field label="Local"><Input formato="titulo" value={p.info.local} onChange={(e) => updInfo({ local: e.target.value })} /></Field>
+              <Field label="Endereço do local"><Input formato="titulo" value={p.info.enderecoLocal} onChange={(e) => updInfo({ enderecoLocal: e.target.value })} /></Field>
               <Field label="Nº de participantes"><Input type="number" value={p.info.participantes ?? ""} onChange={(e) => updInfo({ participantes: e.target.value ? Number(e.target.value) : null })} /></Field>
-              <Field label="Nome da produtora responsável"><Input value={p.info.produtoraResponsavel} onChange={(e) => updInfo({ produtoraResponsavel: e.target.value })} /></Field>
+              <Field label="Nome da produtora responsável"><Input formato="titulo" value={p.info.produtoraResponsavel} onChange={(e) => updInfo({ produtoraResponsavel: e.target.value })} /></Field>
               <Field label="Telefone da produtora responsável"><TelefoneInput value={p.info.telefoneProdutora} onChange={(v) => updInfo({ telefoneProdutora: v })} /></Field>
               <Field label="E-mail da produtora responsável"><Input type="email" value={p.info.emailProdutora} onChange={(e) => updInfo({ emailProdutora: e.target.value })} /></Field>
               {p.info.modalidade !== "Corporativo" && (

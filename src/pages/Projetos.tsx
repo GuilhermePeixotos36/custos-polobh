@@ -58,7 +58,7 @@ export function Projetos() {
               onClick={() => setFiltro(f.key)}
               className={cx(
                 "h-9 px-3.5 rounded-btn text-[13px] font-bold border-[1.5px] transition-colors",
-                filtro === f.key ? "bg-primary-soft border-active-border text-primary-dark" : "bg-surface border-[#E2E3E8] text-ink-2 hover:text-ink"
+                filtro === f.key ? "bg-primary-soft border-active-border text-primary-dark" : "bg-surface border-[#D6D9E0] text-ink-2 hover:text-ink"
               )}
             >
               {f.label}
@@ -68,7 +68,7 @@ export function Projetos() {
         <div className="relative min-w-[220px]">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-3"><IcSearch width={16} height={16} /></span>
           <input
-            className="w-full h-10 bg-surface border-[1.5px] border-[#E2E3E8] rounded-btn pl-9 pr-3 text-sm text-ink placeholder:text-ink-3 input-focus"
+            className="w-full h-10 bg-surface border-[1.5px] border-[#BFC4CE] rounded-btn pl-9 pr-3 text-sm text-ink placeholder:text-ink-3 input-focus"
             placeholder="Buscar projeto ou cliente…"
             value={busca}
             onChange={(e) => setBusca(e.target.value)}

@@ -4,7 +4,7 @@ export default {
   theme: {
     extend: {
       colors: {
-        ink: { DEFAULT: "#15161A", 2: "#6A6E78", 3: "#A0A4AC" },
+        ink: { DEFAULT: "#15161A", 2: "#585C66", 3: "#7E838D" },
         black: "#0B0B0D",
         primary: {
           DEFAULT: "#F2820D",
@@ -14,9 +14,9 @@ export default {
         amber: "#FBB040",
         "active-border": "#F6DEC0",
         graphite: "#3A3C44",
-        bg: "#F5F6F8",
+        bg: "#E8EAEE",
         surface: "#FFFFFF",
-        border: { DEFAULT: "#E7E8EC", soft: "#EEEFF2" },
+        border: { DEFAULT: "#D6D9E0", soft: "#E4E6EC" },
         success: { DEFAULT: "#0E7C50", soft: "#E4F6EE" },
         warning: { DEFAULT: "#9A6B0E", soft: "#FBF1DA" },
         danger: { DEFAULT: "#C13438", soft: "#FBE7E7" },

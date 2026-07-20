@@ -95,3 +95,46 @@ export const iniciais = (nome: string): string =>
 
 export const cx = (...parts: Array<string | false | null | undefined>): string =>
   parts.filter(Boolean).join(" ");
+
+/** Colapsa espaços repetidos e apara as pontas (padroniza a formatação de um campo). */
+export const colapsarEspacos = (s: string): string => (s || "").replace(/\s+/g, " ").trim();
+
+// Conectores que ficam em minúscula no meio de nomes próprios (pt-BR).
+const CONECTORES = new Set(["de", "da", "das", "do", "dos", "e", "di", "du", "del", "la", "las", "los", "y", "à", "às"]);
+// Siglas/tipos societários que devem permanecer em maiúsculas na Razão Social.
+const SIGLAS = new Set(["LTDA", "EIRELI", "ME", "EPP", "MEI", "CIA", "S.A.", "S/A", "SA", "LLC", "LTD", "EPC", "SS", "SCP"]);
+
+const capitalizarPalavra = (p: string): string =>
+  p
+    .split("-")
+    .map((parte) => (parte ? parte.charAt(0).toLocaleUpperCase("pt-BR") + parte.slice(1) : parte))
+    .join("-");
+
+/**
+ * "Primeira Letra de Cada Palavra em Maiúscula" (Title Case pt-BR): capitaliza cada
+ * palavra, mantém conectores (de, da, do…) minúsculos no meio e, com `preservarSiglas`,
+ * mantém siglas societárias (LTDA, ME, EIRELI…) em maiúsculas — para Razão Social.
+ */
+export function tituloProprio(texto: string, opts: { preservarSiglas?: boolean } = {}): string {
+  const limpo = colapsarEspacos(texto);
+  if (!limpo) return "";
+  return limpo
+    .split(" ")
+    .map((palavra, i) => {
+      if (opts.preservarSiglas && SIGLAS.has(palavra.toUpperCase())) return palavra.toUpperCase();
+      const lower = palavra.toLocaleLowerCase("pt-BR");
+      if (i > 0 && CONECTORES.has(lower)) return lower;
+      return capitalizarPalavra(lower);
+    })
+    .join(" ");
+}
+
+/** Maiúscula no início de frases (após . ! ?), preservando o resto — padroniza títulos/textos curtos. */
+export function capitalizarFrase(texto: string): string {
+  const limpo = colapsarEspacos(texto);
+  if (!limpo) return "";
+  return limpo.replace(
+    /(^|[.!?]\s+)([a-záàâãéêíóôõúüç])/gu,
+    (_m, inicio: string, letra: string) => `${inicio}${letra.toLocaleUpperCase("pt-BR")}`
+  );
+}

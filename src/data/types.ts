@@ -120,9 +120,19 @@ export type StatusAprovacao = "Pendente" | "OK";
 export type StatusOs = "Pendente" | "Emitir" | "OK" | "Não se Aplica";
 export type DocumentoPg = "" | "Fatura" | "Nota Fiscal" | "Fatura e Nota Fiscal" | "Recibo Simples" | "Não se aplica";
 
+/** Resposta a uma observação (thread) — mantém a discussão até a pendência ser resolvida. */
+export interface RespostaObservacao {
+  id: string;
+  texto: string;
+  autorId: string;
+  autorNome: string;
+  criadoEm: string; // ISO 8601
+}
+
 /**
  * Observação (comentário) de um item da EC — feed estilo chat. Cada uma tem o
- * autor (usuário que escreveu) e pode @mencionar outros usuários no texto.
+ * autor (usuário que escreveu) e pode ser endereçada a um responsável (usuário do
+ * sistema). Enquanto aberta (não resolvida), é uma PENDÊNCIA daquele responsável.
  * Só o autor pode editar/excluir a própria observação.
  */
 export interface Observacao {
@@ -131,6 +141,14 @@ export interface Observacao {
   autorId: string;
   autorNome: string;
   criadoEm: string; // ISO 8601
+  /** Usuário a quem a observação está endereçada (gera a pendência dele). */
+  responsavelNome?: string;
+  /** Resolvida = a pendência foi encerrada (fica no histórico, pode ser excluída). */
+  resolvida?: boolean;
+  resolvidoPorNome?: string;
+  resolvidoEm?: string;
+  /** Thread de respostas dos usuários. */
+  respostas?: RespostaObservacao[];
 }
 
 export type ModalidadeProjeto = "Corporativo" | "Cultural" | "";

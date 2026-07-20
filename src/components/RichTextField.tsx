@@ -55,7 +55,7 @@ export function RichTextField({ value, onChange, placeholder, toolbarExtra, clas
   const vazio = !value || value === "<br>";
 
   return (
-    <div className={cx("rounded-btn border-[1.5px] border-[#E2E3E8] bg-surface overflow-hidden focus-within:border-primary/60", className)}>
+    <div className={cx("rounded-btn border-[1.5px] border-[#BFC4CE] bg-surface overflow-hidden focus-within:border-primary/60", className)}>
       <div className="flex flex-wrap items-center gap-0.5 px-1.5 py-1 border-b border-border-soft bg-[#FAFAFB]">
         <ToolBtn title="Parágrafo" onClick={() => cmd("formatBlock", "p")}><span className="text-[11px] font-extrabold">¶</span></ToolBtn>
         <ToolBtn title="Negrito" onClick={() => cmd("bold")}><IcBold width={15} height={15} /></ToolBtn>

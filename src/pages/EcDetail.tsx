@@ -124,7 +124,7 @@ export function EcDetail() {
           <Button variant="secondary" size="sm" onClick={() => navigate(`/estimativas/${ec.id}/imprimir`)}>
             Ver / PDF
           </Button>
-          {podeEditar && (
+          {podeEditar && ec.status === "Rascunho" && (
             <Button size="sm" onClick={() => navigate(`/estimativas/${ec.id}/editar`)}>
               Editar EC
             </Button>
@@ -290,11 +290,11 @@ export function EcDetail() {
               <CardTitle>Totais</CardTitle>
               <dl className="space-y-2 text-sm">
                 <Row label="Soma fornecedores" v={brl(t.somaFornecedores)} />
-                <Row label="Honorários Pólobh (15%)" v={brl(t.honorariosPolobh)} />
-                <Row label="Encargos (16,33%)" v={brl(t.encargos)} />
+                <Row label={`Honorários Pólobh (${rotuloTaxa(ec.honorarios)})`} v={brl(t.honorariosPolobh)} />
+                <Row label={`Encargos (${rotuloTaxa(ec.encargos)})`} v={brl(t.encargos)} />
                 <Row label="Sub-total Pólobh" v={brl(t.subTotalPolobh)} strong />
                 <Row label="Faturamento terceiros" v={brl(t.faturamentoTerceiros)} />
-                <Row label="Honorários cliente (15%)" v={brl(t.honorariosCliente)} />
+                <Row label={`Honorários cliente (${rotuloTaxa(ec.honorarios)})`} v={brl(t.honorariosCliente)} />
                 <div className="h-px bg-border-soft my-1" />
                 <div className="flex items-center justify-between bg-primary-soft rounded-btn px-3 py-2.5">
                   <span className="font-bold text-ink">Valor total bruto</span>
@@ -431,6 +431,13 @@ export function EcDetail() {
       </div>
     </PageShell>
   );
+}
+
+/** Rótulo curto de uma taxa: "15%" (percentual) ou "valor fixo". */
+function rotuloTaxa(cfg: { modo: "percentual" | "fixo"; valor: number }): string {
+  return cfg.modo === "fixo"
+    ? "valor fixo"
+    : `${(cfg.valor * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`;
 }
 
 function Row({ label, v, strong }: { label: string; v: string; strong?: boolean }) {

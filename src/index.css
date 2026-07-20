@@ -4,8 +4,8 @@
 
 :root {
   --ink: #15161a;
-  --ink-2: #6a6e78;
-  --ink-3: #a0a4ac;
+  --ink-2: #585c66;
+  --ink-3: #7e838d;
   --black: #0b0b0d;
   --primary: #f2820d;
   --primary-dark: #e36f0a;
@@ -13,10 +13,10 @@
   --primary-soft: #fdf1e3;
   --active-border: #f6dec0;
   --graphite: #3a3c44;
-  --bg: #f5f6f8;
+  --bg: #e8eaee;
   --surface: #ffffff;
-  --border: #e7e8ec;
-  --border-soft: #eeeff2;
+  --border: #d6d9e0;
+  --border-soft: #e4e6ec;
 }
 
 * {
@@ -37,10 +37,10 @@ html {
 
 body {
   margin: 0;
-  background-color: #f3f4f7;
+  background-color: #e8eaee;
   background-image:
-    radial-gradient(1100px 620px at 100% -12%, rgba(251, 176, 64, 0.13), transparent 60%),
-    radial-gradient(900px 600px at -12% 112%, rgba(242, 130, 13, 0.07), transparent 55%);
+    radial-gradient(1100px 620px at 100% -12%, rgba(251, 176, 64, 0.12), transparent 60%),
+    radial-gradient(900px 600px at -12% 112%, rgba(242, 130, 13, 0.06), transparent 55%);
   background-repeat: no-repeat;
   color: var(--ink);
   font-family: "Plus Jakarta Sans", system-ui, sans-serif;

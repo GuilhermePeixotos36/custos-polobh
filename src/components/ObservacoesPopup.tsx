@@ -1,15 +1,15 @@
 import { useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
-import { Button } from "@/components/ui";
+import { Button, Select } from "@/components/ui";
 import { IcComment, IcChevron, IcPencil, IcTrash, IcSend } from "@/components/icons";
 import { cx, dataHoraBR } from "@/lib/format";
 import { regexMencoes } from "@/domain/mencoes";
 import { useAuth } from "@/store/auth";
-import type { Observacao } from "@/data/types";
+import type { Observacao, RespostaObservacao } from "@/data/types";
 
 interface Props {
   observacoes: Observacao[];
-  usuarios: string[]; // nomes dos usuários do sistema (para @mencionar)
+  usuarios: string[]; // nomes dos usuários do sistema (para @mencionar / atribuir)
   onChange: (obs: Observacao[]) => void;
 }
 
@@ -41,21 +41,32 @@ function renderComMencoes(texto: string, usuarios: string[]) {
  * esquerda expande/retrai a lista; o balão só serve para adicionar um
  * comentário novo. Cada um só edita/exclui o próprio comentário.
  */
+type ComporState =
+  | { modo: "novo" }
+  | { modo: "editar"; id: string }
+  | { modo: "responder"; id: string }
+  | null;
+
 export function ObservacoesThread({ observacoes, usuarios, onChange }: Props) {
   const usuarioAtual = useAuth((s) => s.usuario);
+  const nomeAtual = usuarioAtual?.nome ?? "";
   const [aberto, setAberto] = useState(false);
-  const [compor, setCompor] = useState<{ modo: "novo" } | { modo: "editar"; id: string } | null>(null);
+  const [compor, setCompor] = useState<ComporState>(null);
 
   const validas = observacoes.filter((o) => o.texto.trim());
   const n = validas.length;
+  const abertas = validas.filter((o) => !o.resolvida).length;
 
-  const adicionar = (texto: string) => {
+  const adicionar = (texto: string, responsavelNome?: string) => {
     const nova: Observacao = {
       id: novoId(),
       texto,
       autorId: usuarioAtual?.id ?? "",
       autorNome: usuarioAtual?.nome ?? "Você",
       criadoEm: new Date().toISOString(),
+      responsavelNome: responsavelNome || "",
+      resolvida: false,
+      respostas: [],
     };
     onChange([...observacoes, nova]);
     setAberto(true);
@@ -65,6 +76,33 @@ export function ObservacoesThread({ observacoes, usuarios, onChange }: Props) {
   const editar = (id: string, texto: string) => {
     onChange(observacoes.map((o) => (o.id === id ? { ...o, texto } : o)));
     setCompor(null);
+  };
+
+  const responder = (id: string, texto: string) => {
+    const resp: RespostaObservacao = {
+      id: novoId(),
+      texto,
+      autorId: usuarioAtual?.id ?? "",
+      autorNome: usuarioAtual?.nome ?? "Você",
+      criadoEm: new Date().toISOString(),
+    };
+    onChange(observacoes.map((o) => (o.id === id ? { ...o, respostas: [...(o.respostas ?? []), resp] } : o)));
+    setCompor(null);
+  };
+
+  const alternarResolvida = (id: string, resolvida: boolean) => {
+    onChange(
+      observacoes.map((o) =>
+        o.id === id
+          ? {
+              ...o,
+              resolvida,
+              resolvidoPorNome: resolvida ? nomeAtual : "",
+              resolvidoEm: resolvida ? new Date().toISOString() : "",
+            }
+          : o
+      )
+    );
   };
 
   const excluir = (id: string) => {
@@ -88,12 +126,12 @@ export function ObservacoesThread({ observacoes, usuarios, onChange }: Props) {
           </button>
         )}
         <span className="text-[12px] font-semibold text-ink-3">
-          {n > 0 ? `${n} observaç${n > 1 ? "ões" : "ão"}` : "Nenhuma observação"}
+          {n > 0 ? `${n} observaç${n > 1 ? "ões" : "ão"}${abertas > 0 ? ` · ${abertas} aberta${abertas > 1 ? "s" : ""}` : " · resolvidas"}` : "Nenhuma observação"}
         </span>
         <button
           type="button"
-          onClick={() => setCompor({ modo: "novo" })}
-          className="ml-auto inline-flex items-center gap-1.5 h-8 px-2.5 rounded-btn border-[1.5px] border-[#E2E3E8] bg-surface text-[12px] font-bold text-ink-2 hover:text-ink hover:border-primary/50 input-focus"
+          onClick={() => { setCompor({ modo: "novo" }); setAberto(true); }}
+          className="ml-auto inline-flex items-center gap-1.5 h-8 px-2.5 rounded-btn border-[1.5px] border-[#D6D9E0] bg-surface text-[12px] font-bold text-ink-2 hover:text-ink hover:border-primary/50 input-focus"
           title="Adicionar observação"
         >
           <IcComment width={14} height={14} /> Observações
@@ -108,19 +146,36 @@ export function ObservacoesThread({ observacoes, usuarios, onChange }: Props) {
               o={o}
               usuarios={usuarios}
               souAutor={!!usuarioAtual && o.autorId === usuarioAtual.id}
+              podeResolver={!!usuarioAtual && (o.autorId === usuarioAtual.id || (!!o.responsavelNome && o.responsavelNome === nomeAtual))}
+              respondendo={compor?.modo === "responder" && compor.id === o.id}
+              onResponder={() => setCompor({ modo: "responder", id: o.id })}
               onEditar={() => setCompor({ modo: "editar", id: o.id })}
               onExcluir={() => excluir(o.id)}
+              onResolver={() => alternarResolvida(o.id, !o.resolvida)}
+              composer={
+                compor?.modo === "responder" && compor.id === o.id ? (
+                  <Composer
+                    key={`resp-${o.id}`}
+                    valorInicial=""
+                    usuarios={usuarios}
+                    rotuloEnviar="Responder"
+                    onEnviar={(texto) => responder(o.id, texto)}
+                    onCancelar={() => setCompor(null)}
+                  />
+                ) : null
+              }
             />
           ))}
         </div>
       )}
 
-      {compor && (
+      {(compor?.modo === "novo" || compor?.modo === "editar") && (
         <Composer
           key={compor.modo === "editar" ? compor.id : "novo"}
           valorInicial={emEdicao?.texto ?? ""}
           usuarios={usuarios}
-          onEnviar={(texto) => (compor.modo === "editar" ? editar(compor.id, texto) : adicionar(texto))}
+          comResponsavel={compor.modo === "novo"}
+          onEnviar={(texto, responsavel) => (compor.modo === "editar" ? editar(compor.id, texto) : adicionar(texto, responsavel))}
           onCancelar={() => setCompor(null)}
         />
       )}
@@ -134,32 +189,79 @@ function ComentarioLinha({
   o,
   usuarios,
   souAutor,
+  podeResolver,
+  respondendo,
+  onResponder,
   onEditar,
   onExcluir,
+  onResolver,
+  composer,
 }: {
   o: Observacao;
   usuarios: string[];
   souAutor: boolean;
+  podeResolver: boolean;
+  respondendo: boolean;
+  onResponder: () => void;
   onEditar: () => void;
   onExcluir: () => void;
+  onResolver: () => void;
+  composer: React.ReactNode;
 }) {
+  const respostas = o.respostas ?? [];
   return (
-    <div className="group">
-      <div className="flex items-baseline gap-2">
+    <div className={cx("group rounded-btn border px-2.5 py-2", o.resolvida ? "border-border-soft bg-[#FAFAFB] opacity-80" : "border-border-soft")}>
+      <div className="flex items-baseline gap-2 flex-wrap">
         <span className="text-[12.5px] font-bold text-ink">{o.autorNome || "Usuário"}</span>
+        {o.responsavelNome && (
+          <span className="text-[11px] font-bold text-primary-dark bg-primary-soft rounded-full px-2 py-0.5">Para: {o.responsavelNome}</span>
+        )}
+        {o.resolvida && (
+          <span className="text-[11px] font-bold text-success bg-success-soft rounded-full px-2 py-0.5">
+            Resolvida{o.resolvidoPorNome ? ` por ${o.resolvidoPorNome}` : ""}
+          </span>
+        )}
         <span className="text-[11px] text-ink-3">{dataHoraBR(o.criadoEm)}</span>
-        {souAutor && (
-          <span className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <span className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button type="button" onClick={onResponder} className="text-[11px] font-bold text-ink-3 hover:text-primary px-1.5 py-1" title="Responder">
+            Responder
+          </button>
+          {podeResolver && (
+            <button type="button" onClick={onResolver} className="text-[11px] font-bold text-ink-3 hover:text-success px-1.5 py-1" title={o.resolvida ? "Reabrir observação" : "Marcar como resolvida"}>
+              {o.resolvida ? "Reabrir" : "Resolver"}
+            </button>
+          )}
+          {souAutor && (
             <button type="button" onClick={onEditar} className="text-ink-3 hover:text-primary p-1" title="Editar observação" aria-label="Editar observação">
               <IcPencil width={14} height={14} />
             </button>
+          )}
+          {souAutor && (
             <button type="button" onClick={onExcluir} className="text-ink-3 hover:text-danger p-1" title="Excluir observação" aria-label="Excluir observação">
               <IcTrash width={14} height={14} />
             </button>
-          </span>
-        )}
+          )}
+        </span>
       </div>
-      <p className="text-[13px] text-ink-2 whitespace-pre-wrap leading-snug mt-0.5">{renderComMencoes(o.texto, usuarios)}</p>
+      <p className={cx("text-[13px] whitespace-pre-wrap leading-snug mt-0.5", o.resolvida ? "text-ink-3 line-through" : "text-ink-2")}>
+        {renderComMencoes(o.texto, usuarios)}
+      </p>
+
+      {respostas.length > 0 && (
+        <div className="mt-2 space-y-1.5 border-l-2 border-border-soft pl-2.5">
+          {respostas.map((r) => (
+            <div key={r.id}>
+              <div className="flex items-baseline gap-2">
+                <span className="text-[12px] font-bold text-ink">{r.autorNome || "Usuário"}</span>
+                <span className="text-[10.5px] text-ink-3">{dataHoraBR(r.criadoEm)}</span>
+              </div>
+              <p className="text-[12.5px] text-ink-2 whitespace-pre-wrap leading-snug">{renderComMencoes(r.texto, usuarios)}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {respondendo && <div className="mt-1.5">{composer}</div>}
     </div>
   );
 }
@@ -210,13 +312,18 @@ function Composer({
   usuarios,
   onEnviar,
   onCancelar,
+  comResponsavel = false,
+  rotuloEnviar = "Comentar",
 }: {
   valorInicial: string;
   usuarios: string[];
-  onEnviar: (texto: string) => void;
+  onEnviar: (texto: string, responsavelNome?: string) => void;
   onCancelar: () => void;
+  comResponsavel?: boolean;
+  rotuloEnviar?: string;
 }) {
   const [texto, setTexto] = useState(valorInicial);
+  const [responsavel, setResponsavel] = useState("");
   const [mencao, setMencao] = useState<MencaoAtiva | null>(null);
   const [posDropdown, setPosDropdown] = useState<{ top: number; left: number } | null>(null);
   const [indiceAtivo, setIndiceAtivo] = useState(0);
@@ -279,7 +386,7 @@ function Composer({
   function enviar() {
     const t = texto.trim();
     if (!t) return;
-    onEnviar(t);
+    onEnviar(t, comResponsavel ? responsavel : undefined);
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
@@ -314,7 +421,18 @@ function Composer({
   }
 
   return (
-    <div className="mt-2.5 rounded-btn border-[1.5px] border-[#E2E3E8] bg-surface p-2 focus-within:border-primary/60">
+    <div className="mt-2.5 rounded-btn border-[1.5px] border-[#BFC4CE] bg-surface p-2 focus-within:border-primary/60">
+      {comResponsavel && (
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-[11.5px] font-bold text-ink-2 shrink-0">Responsável:</span>
+          <Select className="!h-8 !text-[12.5px] flex-1" value={responsavel} onChange={(e) => setResponsavel(e.target.value)}>
+            <option value="">— Ninguém (observação geral) —</option>
+            {usuarios.map((u) => (
+              <option key={u} value={u}>{u}</option>
+            ))}
+          </Select>
+        </div>
+      )}
       <textarea
         ref={taRef}
         autoFocus
@@ -343,7 +461,7 @@ function Composer({
           Cancelar
         </Button>
         <Button type="button" size="sm" icon={<IcSend width={14} height={14} />} onClick={enviar} disabled={!texto.trim()}>
-          Comentar
+          {rotuloEnviar}
         </Button>
       </div>
 

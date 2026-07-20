@@ -9,6 +9,8 @@ import {
   Input,
   Textarea,
   NumberInput,
+  CurrencyInput,
+  Select,
   Eyebrow,
 } from "@/components/ui";
 import { IcDownload, IcSearch, IcChevron } from "@/components/icons";
@@ -41,7 +43,9 @@ import type {
   EcLinha,
   Fornecedor,
   ProjetoInfo,
+  TaxaConfig,
 } from "@/data/types";
+import type { EcTotais } from "@/domain/calc";
 
 const novaLinha = (ordem: number): EcLinha => ({
   id: `nl-${Date.now()}-${ordem}-${Math.random().toString(36).slice(2, 6)}`,
@@ -192,6 +196,26 @@ export function EcForm() {
 
   if (!ec || !t) {
     return <PageShell breadcrumb={<Crumb>EC</Crumb>} title="Carregando…">{null}</PageShell>;
+  }
+
+  // Trava de edição: uma EC só é editável enquanto Rascunho. Depois de finalizada
+  // (enviada/aprovada/arquivada), gera-se uma nova versão a partir do detalhe.
+  if (editando && ec.status !== "Rascunho") {
+    return (
+      <PageShell breadcrumb={<Crumb>EC</Crumb>} title="Edição bloqueada">
+        <Card>
+          <CardTitle>Esta EC não pode mais ser editada</CardTitle>
+          <p className="mt-2 text-sm text-ink-2">
+            A EC <b>{ec.numero}</b> está com status <b>{ec.status}</b>. ECs finalizadas ficam
+            preservadas — para alterar algo, gere uma nova versão (02, 03…) a partir do detalhe,
+            que arquiva esta e abre uma cópia em Rascunho.
+          </p>
+          <div className="mt-4 flex gap-2">
+            <Button size="sm" onClick={() => navigate(`/estimativas/${ec.id}`)}>Ver EC / gerar nova versão</Button>
+          </div>
+        </Card>
+      </PageShell>
+    );
   }
 
   const upd = (patch: Partial<Ec>) => setEc((e) => (e ? { ...e, ...patch } : e));
@@ -376,12 +400,12 @@ export function EcForm() {
           {cnpjMsg && <div className="mb-3 text-[12.5px] text-info bg-info-soft rounded-btn px-3 py-2">{cnpjMsg}</div>}
           <div className="grid md:grid-cols-2 gap-4">
             <Field label="CNPJ/CPF"><Input value={ec.cliente.cnpjCpf} onChange={(e) => updCli({ cnpjCpf: maskCpfCnpjInput(e.target.value) })} inputMode="numeric" placeholder="00.000.000/0000-00" /></Field>
-            <Field label="Cliente (nome)"><Input value={ec.cliente.nome} onChange={(e) => updCli({ nome: e.target.value })} /></Field>
-            <Field label="Razão Social" className="md:col-span-2"><Input value={ec.cliente.razaoSocial} onChange={(e) => updCli({ razaoSocial: e.target.value })} /></Field>
-            <Field label="Endereço" className="md:col-span-2"><Input value={ec.cliente.endereco} onChange={(e) => updCli({ endereco: e.target.value })} /></Field>
+            <Field label="Cliente (nome)"><Input formato="titulo" value={ec.cliente.nome} onChange={(e) => updCli({ nome: e.target.value })} /></Field>
+            <Field label="Razão Social" className="md:col-span-2"><Input formato="titulo-empresa" value={ec.cliente.razaoSocial} onChange={(e) => updCli({ razaoSocial: e.target.value })} /></Field>
+            <Field label="Endereço" className="md:col-span-2"><Input formato="titulo" value={ec.cliente.endereco} onChange={(e) => updCli({ endereco: e.target.value })} /></Field>
             <Field label="Inscrição Estadual"><Input value={ec.cliente.inscricaoEstadual} onChange={(e) => updCli({ inscricaoEstadual: e.target.value })} /></Field>
             <Field label="Inscrição Municipal"><Input value={ec.cliente.inscricaoMunicipal} onChange={(e) => updCli({ inscricaoMunicipal: e.target.value })} /></Field>
-            <Field label="Representante"><Input value={ec.cliente.representante.nome} onChange={(e) => updCli({ representante: { ...ec.cliente.representante, nome: e.target.value } })} /></Field>
+            <Field label="Representante"><Input formato="titulo" value={ec.cliente.representante.nome} onChange={(e) => updCli({ representante: { ...ec.cliente.representante, nome: e.target.value } })} /></Field>
             <Field label="E-mail do representante"><Input value={ec.cliente.representante.email} onChange={(e) => updCli({ representante: { ...ec.cliente.representante, email: e.target.value } })} /></Field>
           </div>
         </Card>
@@ -391,10 +415,10 @@ export function EcForm() {
           <CardTitle>Projeto</CardTitle>
           <div className="grid md:grid-cols-2 gap-4">
             <Field label="Título do evento" className="md:col-span-2"><Input value={ec.projeto.titulo} onChange={(e) => updProj({ titulo: e.target.value })} /></Field>
-            <Field label="Local"><Input value={ec.projeto.local} onChange={(e) => updProj({ local: e.target.value })} /></Field>
-            <Field label="Endereço do local"><Input value={ec.projeto.enderecoLocal} onChange={(e) => updProj({ enderecoLocal: e.target.value })} /></Field>
+            <Field label="Local"><Input formato="titulo" value={ec.projeto.local} onChange={(e) => updProj({ local: e.target.value })} /></Field>
+            <Field label="Endereço do local"><Input formato="titulo" value={ec.projeto.enderecoLocal} onChange={(e) => updProj({ enderecoLocal: e.target.value })} /></Field>
             <Field label="Nº de participantes"><Input type="number" value={ec.projeto.participantes ?? ""} onChange={(e) => updProj({ participantes: e.target.value ? Number(e.target.value) : null })} /></Field>
-            <Field label="Produtora responsável"><Input value={ec.projeto.produtoraResponsavel} onChange={(e) => updProj({ produtoraResponsavel: e.target.value })} /></Field>
+            <Field label="Produtora responsável"><Input formato="titulo" value={ec.projeto.produtoraResponsavel} onChange={(e) => updProj({ produtoraResponsavel: e.target.value })} /></Field>
             <Field label="Pré-evento"><Input type="date" value={ec.projeto.preEvento} onChange={(e) => updProj({ preEvento: e.target.value })} /></Field>
             <Field label="Evento"><Input type="date" value={ec.projeto.evento} onChange={(e) => updProj({ evento: e.target.value })} /></Field>
             <Field label="Pós-evento"><Input type="date" value={ec.projeto.posEvento} onChange={(e) => updProj({ posEvento: e.target.value })} /></Field>
@@ -425,30 +449,13 @@ export function EcForm() {
           </div>
         </Card>
 
-        {/* Produção (só Corporativo — no Cultural os mesmos custos já vêm como itens do grupo Equipe Produção) + Totais */}
-        <div className={cx("grid gap-4 items-start", ec.template !== "Cultural" && "lg:grid-cols-[1.4fr_1fr]")}>
-          {ec.template !== "Cultural" && (
-            <Card>
-              <CardTitle hint="Valores padrão editáveis. Informe as quantidades.">Produção</CardTitle>
-              <ProducaoEditor ec={ec} setEc={setEc} />
-            </Card>
-          )}
+        {/* Produção (só Corporativo — no Cultural os mesmos custos já vêm como itens do grupo Equipe Produção) */}
+        {ec.template !== "Cultural" && (
           <Card>
-            <CardTitle>Totais ao vivo</CardTitle>
-            <dl className="space-y-2 text-sm">
-              <LinhaTotal label="Soma fornecedores" v={brl(t.somaFornecedores)} />
-              <LinhaTotal label="Honorários Pólobh (15%)" v={brl(t.honorariosPolobh)} />
-              <LinhaTotal label="Encargos (16,33%)" v={brl(t.encargos)} />
-              <LinhaTotal label="Sub-total Pólobh" v={brl(t.subTotalPolobh)} strong />
-              <LinhaTotal label="Faturamento terceiros" v={brl(t.faturamentoTerceiros)} />
-              <LinhaTotal label="Honorários cliente (15%)" v={brl(t.honorariosCliente)} />
-              <div className="flex items-center justify-between bg-primary-soft rounded-btn px-3 py-2.5 mt-2">
-                <span className="font-bold text-ink">Valor total bruto</span>
-                <span className="font-display font-bold text-primary-dark">{brl(t.valorTotalBruto)}</span>
-              </div>
-            </dl>
+            <CardTitle hint="Valores padrão editáveis. Informe as quantidades.">Produção</CardTitle>
+            <ProducaoEditor ec={ec} setEc={setEc} />
           </Card>
-        </div>
+        )}
 
         {/* Rentabilidade por item (restrito ao financeiro) */}
         {verFinanceiro && (
@@ -461,17 +468,121 @@ export function EcForm() {
             <RentabilidadeItens linhas={ec.linhas} gastoPorLinha={gastoPorLinha} />
           </Card>
         )}
+
+        {/* Resumo dos Custos — no rodapé da EC, como nas ECs originais da Pólobh */}
+        <Card padded={false}>
+          <div className="p-5 pb-3"><CardTitle hint="Os percentuais de Honorários e Encargos são editáveis (percentual ou valor fixo).">Resumo dos Custos</CardTitle></div>
+          <ResumoCustos
+            t={t}
+            honorarios={ec.honorarios}
+            encargos={ec.encargos}
+            onHonorarios={(honorarios) => upd({ honorarios })}
+            onEncargos={(encargos) => upd({ encargos })}
+          />
+        </Card>
       </div>
     </PageShell>
   );
 }
 
-function LinhaTotal({ label, v, strong }: { label: string; v: string; strong?: boolean }) {
+/** Editor de uma taxa: alterna entre percentual (%) e valor fixo (R$). */
+function TaxaEditor({ cfg, onChange }: { cfg: TaxaConfig; onChange: (c: TaxaConfig) => void }) {
   return (
-    <div className="flex items-center justify-between">
-      <span className="text-ink-2">{label}</span>
-      <span className={strong ? "font-display font-bold text-ink" : "font-semibold text-ink"}>{v}</span>
+    <div className="inline-flex items-center gap-1.5">
+      <Select
+        className="!h-8 !w-[68px] !px-2 !text-[12px]"
+        value={cfg.modo}
+        onChange={(e) => onChange({ modo: e.target.value as TaxaConfig["modo"], valor: cfg.modo === (e.target.value as TaxaConfig["modo"]) ? cfg.valor : 0 })}
+      >
+        <option value="percentual">%</option>
+        <option value="fixo">R$</option>
+      </Select>
+      {cfg.modo === "percentual" ? (
+        <div className="relative">
+          <NumberInput
+            className="!h-8 !w-24 !px-2 !pr-6 !text-[12px] text-right"
+            value={Math.round((cfg.valor || 0) * 10000) / 100}
+            onValue={(v) => onChange({ modo: "percentual", valor: (v || 0) / 100 })}
+          />
+          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[12px] text-ink-3">%</span>
+        </div>
+      ) : (
+        <CurrencyInput className="!h-8 !w-32 !px-2 !text-[12px]" value={cfg.valor || 0} onValue={(v) => onChange({ modo: "fixo", valor: v })} />
+      )}
     </div>
+  );
+}
+
+/** Tabela "Resumo dos Custos" (Pólobh × Cliente), espelhando a EC original. */
+function ResumoCustos({
+  t,
+  honorarios,
+  encargos,
+  onHonorarios,
+  onEncargos,
+}: {
+  t: EcTotais;
+  honorarios: TaxaConfig;
+  encargos: TaxaConfig;
+  onHonorarios: (c: TaxaConfig) => void;
+  onEncargos: (c: TaxaConfig) => void;
+}) {
+  const subTotalCliente = Math.round((t.somaCliente + t.honorariosCliente) * 100) / 100;
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm border-t border-border">
+        <thead>
+          <tr className="text-left bg-[#FAFAFB] border-b border-border">
+            <th className="px-4 py-2 text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Descrição</th>
+            <th className="px-4 py-2 text-right text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Pólobh</th>
+            <th className="px-4 py-2 text-right text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Cliente</th>
+          </tr>
+        </thead>
+        <tbody>
+          <ResumoLinha desc="Soma dos fornecedores" polobh={t.somaFornecedores} cliente={t.somaCliente} />
+          <tr className="border-b border-border-soft">
+            <td className="px-4 py-2.5">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <span className="font-semibold text-ink">Honorários Pólobh (Organização e Planejamento)</span>
+                <TaxaEditor cfg={honorarios} onChange={onHonorarios} />
+              </div>
+            </td>
+            <td className="px-4 py-2.5 text-right font-display font-bold text-ink whitespace-nowrap">{brl(t.honorariosPolobh)}</td>
+            <td className="px-4 py-2.5 text-right font-semibold text-ink whitespace-nowrap">{brl(t.honorariosCliente)}</td>
+          </tr>
+          <tr className="border-b border-border-soft">
+            <td className="px-4 py-2.5">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <span className="font-semibold text-ink">Encargos (sobre serviços de terceiros)</span>
+                <TaxaEditor cfg={encargos} onChange={onEncargos} />
+              </div>
+            </td>
+            <td className="px-4 py-2.5 text-right font-display font-bold text-ink whitespace-nowrap">{brl(t.encargos)}</td>
+            <td className="px-4 py-2.5 text-right text-ink-3">—</td>
+          </tr>
+          <ResumoLinha desc="Sub-total" polobh={t.subTotalPolobh} cliente={subTotalCliente} strong />
+          <tr className="bg-primary-soft">
+            <td className="px-4 py-3 font-bold text-ink">Valor total bruto — custo total do projeto</td>
+            <td className="px-4 py-3 text-right font-display font-bold text-primary-dark whitespace-nowrap" colSpan={2}>{brl(t.valorTotalBruto)}</td>
+          </tr>
+          <tr>
+            <td className="px-4 pt-3 pb-1 text-[11.5px] font-bold italic text-ink-3" colSpan={3}>Sendo:</td>
+          </tr>
+          <ResumoLinha desc="Faturamento Pólobh — NF Pólobh × Cliente" polobh={t.faturamentoPolobh} />
+          <ResumoLinha desc="Faturamento Terceiros — NF's Terceiros × Cliente" polobh={t.faturamentoTerceiros} />
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ResumoLinha({ desc, polobh, cliente, strong }: { desc: string; polobh: number; cliente?: number; strong?: boolean }) {
+  return (
+    <tr className="border-b border-border-soft">
+      <td className={cx("px-4 py-2.5", strong ? "font-bold text-ink" : "font-semibold text-ink")}>{desc}</td>
+      <td className={cx("px-4 py-2.5 text-right whitespace-nowrap font-display", strong ? "font-bold text-ink" : "font-bold text-ink")}>{brl(polobh)}</td>
+      <td className="px-4 py-2.5 text-right whitespace-nowrap text-ink-2">{cliente === undefined ? "" : brl(cliente)}</td>
+    </tr>
   );
 }
 

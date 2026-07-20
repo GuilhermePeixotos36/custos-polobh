@@ -1,14 +1,16 @@
 import type {
+  ChangeEvent,
+  FocusEvent,
   InputHTMLAttributes,
   ReactNode,
   SelectHTMLAttributes,
   TextareaHTMLAttributes,
 } from "react";
 import { useLayoutEffect, useRef } from "react";
-import { cx, maskTelefone, onlyDigits } from "@/lib/format";
+import { cx, maskTelefone, onlyDigits, colapsarEspacos, tituloProprio, capitalizarFrase } from "@/lib/format";
 
 const fieldBase =
-  "w-full bg-surface border-[1.5px] border-[#E2E3E8] rounded-btn px-3.5 text-sm text-ink placeholder:text-ink-3 input-focus disabled:bg-[#F7F8FA] disabled:text-ink-2";
+  "w-full bg-surface border-[1.5px] border-[#BFC4CE] rounded-btn px-3.5 text-sm text-ink placeholder:text-ink-3 input-focus disabled:bg-[#EDEEF1] disabled:text-ink-2";
 
 export function Label({
   children,
@@ -48,7 +50,31 @@ export function Field({
 
 const DATA_ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-export function Input({ className, type, onChange, value, ...rest }: InputHTMLAttributes<HTMLInputElement>) {
+/**
+ * Formatação aplicada ao SAIR do campo (blur), padronizando a informação:
+ * - "titulo": Primeira Letra de Cada Palavra Maiúscula (nomes, endereços)
+ * - "titulo-empresa": idem, preservando siglas (LTDA, ME…) — para Razão Social
+ * - "frase": maiúscula no início das frases (títulos/textos curtos)
+ * Sem `formato`, o blur ainda apara espaços repetidos (colapsarEspacos).
+ */
+export type FormatoCampo = "titulo" | "titulo-empresa" | "frase";
+
+type InputProps = InputHTMLAttributes<HTMLInputElement> & { formato?: FormatoCampo };
+
+function aplicarFormato(v: string, formato?: FormatoCampo): string {
+  switch (formato) {
+    case "titulo":
+      return tituloProprio(v);
+    case "titulo-empresa":
+      return tituloProprio(v, { preservarSiglas: true });
+    case "frase":
+      return capitalizarFrase(v);
+    default:
+      return colapsarEspacos(v);
+  }
+}
+
+export function Input({ className, type, onChange, value, onBlur, formato, ...rest }: InputProps) {
   if (type === "date") {
     return (
       <input
@@ -71,7 +97,18 @@ export function Input({ className, type, onChange, value, ...rest }: InputHTMLAt
       />
     );
   }
-  return <input className={cx(fieldBase, "h-11", className)} type={type} onChange={onChange} value={value} {...rest} />;
+  // Ao sair de um campo de texto, padroniza a formatação (espaços + capitalização).
+  const semFormatacao = type === "email" || type === "password" || type === "url" || type === "number";
+  const handleBlur = (e: FocusEvent<HTMLInputElement>) => {
+    if (!semFormatacao && typeof value === "string" && onChange) {
+      const novo = aplicarFormato(value, formato);
+      if (novo !== value) {
+        onChange({ ...e, target: { ...e.target, value: novo } } as unknown as ChangeEvent<HTMLInputElement>);
+      }
+    }
+    onBlur?.(e);
+  };
+  return <input className={cx(fieldBase, "h-11", className)} type={type} onChange={onChange} value={value} onBlur={handleBlur} {...rest} />;
 }
 
 /** Telefone em dois campos (DDD + número), mas guarda/emite uma única string mascarada — como antes. */

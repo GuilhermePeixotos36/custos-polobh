@@ -339,11 +339,11 @@ export function OsForm() {
           }>Fornecedor</CardTitle>
           {cnpjMsg && <div className="mb-3 text-[12.5px] text-info bg-info-soft rounded-btn px-3 py-2">{cnpjMsg}</div>}
           <div className="grid md:grid-cols-2 gap-4">
-            <Field label="Fornecedor (nome fantasia)"><Input value={os.fornecedor.nomeFantasia ?? ""} onChange={(e) => updF({ nomeFantasia: e.target.value })} /></Field>
+            <Field label="Fornecedor (nome fantasia)"><Input formato="titulo" value={os.fornecedor.nomeFantasia ?? ""} onChange={(e) => updF({ nomeFantasia: e.target.value })} /></Field>
             <Field label="CNPJ/CPF"><Input value={os.fornecedor.cnpj} onChange={(e) => updF({ cnpj: maskCpfCnpjInput(e.target.value) })} inputMode="numeric" placeholder="00.000.000/0000-00" /></Field>
             <Field label="Perfil tributário" hint="(auto do CNPJ)"><Input value={os.fornecedor.perfilTributario} onChange={(e) => updF({ perfilTributario: e.target.value })} placeholder="MEI / Simples…" /></Field>
-            <Field label="Razão social"><Input value={os.fornecedor.razaoSocial} onChange={(e) => updF({ razaoSocial: e.target.value })} /></Field>
-            <Field label="Endereço" className="md:col-span-2"><Input value={os.fornecedor.endereco} onChange={(e) => updF({ endereco: e.target.value })} /></Field>
+            <Field label="Razão social"><Input formato="titulo-empresa" value={os.fornecedor.razaoSocial} onChange={(e) => updF({ razaoSocial: e.target.value })} /></Field>
+            <Field label="Endereço" className="md:col-span-2"><Input formato="titulo" value={os.fornecedor.endereco} onChange={(e) => updF({ endereco: e.target.value })} /></Field>
             <Field label="Inscrição Estadual"><Input value={os.fornecedor.inscricaoEstadual} onChange={(e) => updF({ inscricaoEstadual: e.target.value })} /></Field>
             <Field label="Inscrição Municipal"><Input value={os.fornecedor.inscricaoMunicipal} onChange={(e) => updF({ inscricaoMunicipal: e.target.value })} /></Field>
             <Field label="Conta PJ / PF">
@@ -357,7 +357,7 @@ export function OsForm() {
             <Field label="Agência"><Input value={os.fornecedor.dadosBancarios.agencia} onChange={(e) => updB({ agencia: e.target.value })} /></Field>
             <Field label="Conta Corrente"><Input value={os.fornecedor.dadosBancarios.conta} onChange={(e) => updB({ conta: e.target.value })} /></Field>
             <Field label="Chave Pix"><Input value={os.fornecedor.dadosBancarios.chavePix} onChange={(e) => updB({ chavePix: e.target.value })} /></Field>
-            <Field label="Representante"><Input value={os.fornecedor.representante} onChange={(e) => updF({ representante: e.target.value })} /></Field>
+            <Field label="Representante"><Input formato="titulo" value={os.fornecedor.representante} onChange={(e) => updF({ representante: e.target.value })} /></Field>
             <Field label="Telefone"><TelefoneInput value={os.fornecedor.telefone} onChange={(v) => updF({ telefone: v })} /></Field>
             <Field label="E-mail"><Input value={os.fornecedor.email} onChange={(e) => updF({ email: e.target.value })} /></Field>
           </div>

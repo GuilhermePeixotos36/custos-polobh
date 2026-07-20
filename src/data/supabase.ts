@@ -223,17 +223,30 @@ function mapLinha(r: any): EcLinha {
     // migra a observação legada (texto único, ou o antigo campo "pessoa" atribuído) para o formato de autor.
     observacoes:
       Array.isArray(r.observacoes) && r.observacoes.length
-        ? r.observacoes.map(
-            (o: { id?: string; texto?: string; pessoa?: string; autorId?: string; autorNome?: string; criadoEm?: string }, indice: number) => ({
-              id: o.id || `obs-${r.id}-${indice}`,
-              texto: o.texto ?? "",
-              autorId: o.autorId ?? "",
-              autorNome: o.autorNome ?? o.pessoa ?? "",
-              criadoEm: o.criadoEm ?? nowIso(),
-            })
-          )
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ? r.observacoes.map((o: any, indice: number) => ({
+            id: o.id || `obs-${r.id}-${indice}`,
+            texto: o.texto ?? "",
+            autorId: o.autorId ?? "",
+            autorNome: o.autorNome ?? o.pessoa ?? "",
+            criadoEm: o.criadoEm ?? nowIso(),
+            responsavelNome: o.responsavelNome ?? o.pessoa ?? "",
+            resolvida: !!o.resolvida,
+            resolvidoPorNome: o.resolvidoPorNome ?? "",
+            resolvidoEm: o.resolvidoEm ?? "",
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            respostas: Array.isArray(o.respostas)
+              ? o.respostas.map((rr: any, j: number) => ({
+                  id: rr.id || `resp-${r.id}-${indice}-${j}`,
+                  texto: rr.texto ?? "",
+                  autorId: rr.autorId ?? "",
+                  autorNome: rr.autorNome ?? "",
+                  criadoEm: rr.criadoEm ?? nowIso(),
+                }))
+              : [],
+          }))
         : r.observacao
-        ? [{ id: `obs-${r.id}-0`, texto: r.observacao, autorId: "", autorNome: "", criadoEm: nowIso() }]
+        ? [{ id: `obs-${r.id}-0`, texto: r.observacao, autorId: "", autorNome: "", criadoEm: nowIso(), respostas: [] }]
         : [],
     oculto: !!r.oculto,
     ordem: r.ordem ?? 0,

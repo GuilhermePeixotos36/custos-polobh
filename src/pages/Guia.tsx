@@ -399,7 +399,7 @@ export function Guia() {
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
           placeholder="Buscar módulo ou assunto (ex.: BV, CNPJ, credenciamento, link público…)"
-          className="w-full h-12 bg-surface border-[1.5px] border-[#E2E3E8] rounded-card pl-11 pr-3.5 text-sm text-ink placeholder:text-ink-3 input-focus"
+          className="w-full h-12 bg-surface border-[1.5px] border-[#BFC4CE] rounded-card pl-11 pr-3.5 text-sm text-ink placeholder:text-ink-3 input-focus"
         />
       </div>
 
