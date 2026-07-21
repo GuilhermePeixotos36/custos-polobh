@@ -87,6 +87,24 @@ export function cnpjValido(cnpjRaw: string): boolean {
   return c.endsWith(`${d1}${d2}`);
 }
 
+export function cpfValido(cpfRaw: string): boolean {
+  const cpf = onlyDigits(cpfRaw);
+  if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
+  const digito = (base: string, pesoInicial: number) => {
+    const soma = base.split("").reduce((total, n, i) => total + Number(n) * (pesoInicial - i), 0);
+    const resto = (soma * 10) % 11;
+    return resto === 10 ? 0 : resto;
+  };
+  const d1 = digito(cpf.slice(0, 9), 10);
+  const d2 = digito(cpf.slice(0, 9) + d1, 11);
+  return cpf.endsWith(`${d1}${d2}`);
+}
+
+export const documentoFiscalValido = (valor: string): boolean => {
+  const d = onlyDigits(valor);
+  return d.length === 14 ? cnpjValido(d) : d.length === 11 ? cpfValido(d) : false;
+};
+
 export async function consultarCnpj(cnpjRaw: string): Promise<DadosCnpj> {
   const cnpj = onlyDigits(cnpjRaw);
   if (cnpj.length !== 14) {

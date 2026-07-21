@@ -268,17 +268,6 @@ export interface Projeto {
   atualizadoEm: string;
 }
 
-/** Documento anexado a um projeto (guardado no Storage `projeto-anexos`). */
-export interface Anexo {
-  id: string;
-  projetoId: string;
-  nome: string;
-  path: string; // caminho no bucket
-  mime: string;
-  tamanho: number; // bytes
-  criadoEm: string;
-}
-
 /* --------------------------------- EC ----------------------------------- */
 
 /** Configuração de uma taxa da EC: percentual (fração, ex.: 0,15) ou valor fixo em R$. */

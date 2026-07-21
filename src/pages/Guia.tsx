@@ -132,19 +132,18 @@ const MODULOS: Modulo[] = [
     id: "projetos",
     icone: <IcGrid />,
     titulo: "Projetos",
-    resumo: "Tela inicial: cada projeto reúne cliente, ECs, OSs, cronograma, fornecedores e anexos.",
-    tags: ["projetos", "cliente", "início", "container", "ativos", "arquivados", "anexos"],
+    resumo: "Tela inicial: cada projeto reúne cliente, ECs, OSs, cronograma e fornecedores.",
+    tags: ["projetos", "cliente", "início", "container", "ativos", "arquivados"],
     conteudo: (
       <>
         <Secao titulo="O que mostra">
-          <p>É a tela inicial. Tudo começa por um projeto: dentro dele ficam as ECs, OSs, cronograma, fornecedores e anexos.</p>
+          <p>É a tela inicial. Tudo começa por um projeto: dentro dele ficam as ECs, OSs, cronograma e fornecedores.</p>
           <ul className="grid sm:grid-cols-2 gap-2">
             <li className="rounded-card bg-bg p-3"><b className="text-ink">Filtros</b> — Todos, Ativos e Arquivados.</li>
             <li className="rounded-card bg-bg p-3"><b className="text-ink">Status em destaque</b> — ao lado do nome do projeto.</li>
-            <li className="rounded-card bg-bg p-3"><b className="text-ink">Anexos</b> — documentos do projeto (PDF, imagem, etc.).</li>
             <li className="rounded-card bg-bg p-3"><b className="text-ink">EC ativa</b> — apenas uma EC fica ativa por projeto.</li>
           </ul>
-          <Dica>Abra um projeto e navegue pelas subguias (Dados Gerais → EC → OS → Cronograma → Fornecedores → Anexos).</Dica>
+          <Dica>Abra um projeto e navegue pelas subguias (Dados Gerais → EC → OS → Cronograma → Fornecedores).</Dica>
         </Secao>
       </>
     ),

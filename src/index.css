@@ -90,6 +90,13 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Ações de observação ficam sempre visíveis em touch; mouse pode revelá-las no hover. */
+.acoes-observacao { opacity: 1; }
+@media (hover: hover) and (pointer: fine) {
+  .acoes-observacao { opacity: 0; }
+  .group:hover .acoes-observacao { opacity: 1; }
+}
+
 /* ---- Documento A4 (visualização em tela + fonte do PDF) ---- */
 .doc-sheet {
   width: 210mm;

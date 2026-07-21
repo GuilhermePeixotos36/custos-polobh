@@ -1,3 +1,6 @@
+import { autorizar, respostaAutorizacao } from "../_shared/auth.ts";
+import { base64, buscarPublico } from "../_shared/fetch-publico.ts";
+
 /**
  * Edge Function: resumo-proposta
  * Recebe orçamentos de fornecedores (imagens JPG/PNG, PDF, texto extraído de
@@ -54,6 +57,7 @@ Deno.serve(async (req) => {
     new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
   try {
+    await autorizar(req, ["Admin", "Direcao", "Producao"]);
     const apiKey = Deno.env.get("OPENROUTER_API_KEY");
     if (!apiKey) return json({ ok: false, erro: "OPENROUTER_API_KEY não configurada na função." }, 500);
 
@@ -61,14 +65,14 @@ Deno.serve(async (req) => {
     const partes: Parte[] = [{ type: "text", text: PROMPT }];
     let temConteudo = false;
 
-    for (const t of p.textos ?? []) {
+    for (const t of (p.textos ?? []).slice(0, 12)) {
       if (t && t.trim()) {
         partes.push({ type: "text", text: "Conteúdo do orçamento:\n" + t.trim().slice(0, 60000) });
         temConteudo = true;
       }
     }
-    for (const img of p.imagens ?? []) {
-      if (img?.dataUrl) {
+    for (const img of (p.imagens ?? []).slice(0, 8)) {
+      if (img?.dataUrl && img.dataUrl.length <= 7_000_000 && /^data:image\/(png|jpe?g|webp);base64,/i.test(img.dataUrl)) {
         partes.push({ type: "image_url", image_url: { url: img.dataUrl } });
         temConteudo = true;
       }
@@ -76,14 +80,11 @@ Deno.serve(async (req) => {
     // Link: busca no servidor. Imagem vira vision; o resto vira texto (HTML limpo).
     if (p.link && /^https?:\/\//i.test(p.link)) {
       try {
-        const r = await fetch(p.link);
-        const ct = r.headers.get("content-type") || "";
+        const { bytes, contentType: ct } = await buscarPublico(p.link);
         if (ct.startsWith("image/")) {
-          const buf = new Uint8Array(await r.arrayBuffer());
-          const b64 = btoa(String.fromCharCode(...buf));
-          partes.push({ type: "image_url", image_url: { url: `data:${ct};base64,${b64}` } });
+          partes.push({ type: "image_url", image_url: { url: `data:${ct};base64,${base64(bytes)}` } });
         } else {
-          const txt = (await r.text()).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 60000);
+          const txt = new TextDecoder().decode(bytes).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 60000);
           if (txt) partes.push({ type: "text", text: "Conteúdo da página:\n" + txt });
         }
         temConteudo = true;
@@ -122,6 +123,8 @@ Deno.serve(async (req) => {
 
     return json({ ok: true, resumo });
   } catch (e) {
+    const resposta = respostaAutorizacao(e, cors);
+    if (resposta) return resposta;
     return json({ ok: false, erro: String((e as Error).message) }, 500);
   }
 });

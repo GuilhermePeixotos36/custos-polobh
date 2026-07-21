@@ -6,8 +6,7 @@ baixo custo (mira o plano gratuito do Supabase).
 
 ## Stack
 - **Frontend:** Vite + React + TypeScript + Tailwind CSS, `react-router-dom`, `zustand`.
-- **Dados:** camada de repositório (`src/data/`) — hoje **mock em memória**, pronta
-  para Supabase (Postgres + Auth + Storage) trocando só a fábrica.
+- **Dados:** Supabase/Postgres com RLS e camada de repositório em `src/data/`.
 - **Excel:** ExcelJS (aplica estilos, ao contrário do SheetJS).
 - **Hospedagem alvo:** Vercel (frontend) + Supabase (dados).
 
@@ -18,7 +17,7 @@ npm run dev      # http://localhost:5173
 npm run build    # build de produção
 npm run lint     # tsc --noEmit
 ```
-No login (modo demo) escolha o perfil: **Direção**, **Produção** ou **Administrativo**.
+O login usa Supabase Auth e as permissões do perfil cadastrado.
 
 ## Estrutura
 ```
@@ -28,12 +27,13 @@ public/
 src/
   components/ui/             design system (Button, Badge, Card, Field, Table…)
   components/layout/         Sidebar, Topbar, AppLayout, nav, guarda por recurso
-  data/                      types, repository (interfaces), mock, seed, fábrica
+  data/                      types, repository e implementação Supabase
   domain/calc.ts             cálculos da EC, numeração, consolidação EC→OS
   lib/                       format, cnpj (BrasilAPI), ai (flag), flags, excel/
   pages/                     telas (Login, Dashboard, EC*, OS*, Cronogramas…)
   store/auth.ts              perfil + matriz de permissões
-supabase/schema.sql          schema + RLS (aplicar depois)
+supabase/schema.sql          schema completo + RLS
+supabase/migrations/         atualizações incrementais do banco
 ```
 
 ## Perfis de acesso
@@ -103,15 +103,13 @@ servidor. Enquanto `VITE_FEATURE_EMAIL=false` (ou sem endpoint), os envios são
 2. `supabase functions deploy send-email` e `supabase functions deploy lembretes-cronograma`.
 3. `supabase secrets set BREVO_API_KEY=... BREVO_SENDER_EMAIL=contato@polobh.com.br BREVO_SENDER_NAME="Pólobh Eventos"`
    (validar o remetente/domínio no Brevo).
-4. No `.env`: `VITE_FEATURE_EMAIL=true` e `VITE_EMAIL_ENDPOINT=https://<ref>.functions.supabase.co/send-email`.
-5. Agendar o lembrete via `pg_cron` (bloco comentado em `supabase/schema.sql`).
+4. No `.env`: `VITE_FEATURE_EMAIL=true`; a sessão Supabase autentica a chamada automaticamente.
+5. Criar `CRON_SECRET`, configurá-lo nos secrets da função e enviá-lo no header `x-cron-secret` do `pg_cron`.
 
-## Plugar o Supabase depois
-1. Criar projeto no Supabase e aplicar `supabase/schema.sql` (tabelas + RLS).
-2. Criar `src/data/supabase.ts` implementando as interfaces de `src/data/repository.ts`.
-3. Em `src/data/index.ts`, retornar a impl. Supabase quando `VITE_DATA_SOURCE=supabase`.
-4. Preencher `.env` a partir de `.env.example`.
-O restante do app não muda — fala só com as interfaces de repositório.
+## Banco Supabase
+1. Aplicar as migrations de `supabase/migrations/` na ordem.
+2. Em uma instalação nova, aplicar `supabase/schema.sql`.
+3. Preencher `.env` a partir de `.env.example` e publicar as Edge Functions.
 
 ## Retenção (baixo custo)
 Guardamos **dados estruturados** e regeneramos Excel/PDF sob demanda. Projetos

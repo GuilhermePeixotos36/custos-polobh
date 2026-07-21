@@ -2,7 +2,7 @@ import type { Ec, Os } from "@/data/types";
 import type { CronogramaExcelDados } from "./cronograma";
 import { auditar } from "@/store/logs";
 import { empresaPadrao } from "@/store/empresas";
-import { dataBR } from "@/lib/format";
+import { nomeEcExcel } from "./nomeEc";
 
 export type ModeloEcExcel = "financeiro" | "completa";
 
@@ -15,15 +15,6 @@ interface ArquivoExcelHandle {
 export interface DestinoEcExcel {
   nome: string;
   handle?: ArquivoExcelHandle;
-}
-
-function nomeEcExcel(ec: Ec, modelo: ModeloEcExcel): string {
-  const sufixo = modelo === "completa" ? "Completa" : "Financeiro";
-  const seguro = `${ec.numero} - ${sufixo} - ${dataBR(ec.criadoEm)}`
-    .replace(/[\\/:*?"<>|]/g, "-")
-    .replace(/\s+/g, " ")
-    .trim();
-  return `${seguro}.xlsx`;
 }
 
 /** Abre o Explorer antes de qualquer processamento assíncrono, preservando a ativação do clique. */

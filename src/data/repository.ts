@@ -3,21 +3,13 @@
  * interfaces; a implementação concreta é escolhida pela fábrica em ./index.
  * Hoje: mock em memória. Amanhã: Supabase — basta trocar a fábrica.
  */
-import type { Anexo, Cliente, CredenciamentoResposta, Ec, EmpresaGrupo, Fornecedor, Os, Projeto, Usuario } from "./types";
+import type { Cliente, CredenciamentoResposta, Ec, EmpresaGrupo, Fornecedor, Os, Projeto, Usuario } from "./types";
 
 export interface ProjetoRepository {
   listar(): Promise<Projeto[]>;
   obter(id: string): Promise<Projeto | undefined>;
   salvar(p: Projeto): Promise<Projeto>;
   remover(id: string): Promise<void>;
-}
-
-export interface AnexoRepository {
-  listar(projetoId: string): Promise<Anexo[]>;
-  enviar(projetoId: string, file: File): Promise<Anexo>;
-  remover(id: string, path: string): Promise<void>;
-  /** URL assinada temporária para baixar/abrir o anexo. */
-  urlAssinada(path: string): Promise<string>;
 }
 
 export interface ClienteRepository {
@@ -67,7 +59,6 @@ export interface EmpresasRepository {
 
 export interface Repositorios {
   projetos: ProjetoRepository;
-  anexos: AnexoRepository;
   clientes: ClienteRepository;
   fornecedores: FornecedorRepository;
   ecs: EcRepository;

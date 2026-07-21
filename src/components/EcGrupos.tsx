@@ -32,8 +32,12 @@ const OPCOES_STATUS_TEXTO = ["Pendente", "Não se Aplica"];
 
 /** Select (Pendente/Não se Aplica) com opção "Outro" que libera um campo de texto livre. */
 function SelectComTexto({ value, onChange, className }: { value: string; onChange: (v: string) => void; className?: string }) {
+  const [modoOutro, setModoOutro] = useState(false);
   const personalizado = value !== "" && !OPCOES_STATUS_TEXTO.includes(value);
-  const selecao = personalizado ? "outro" : value;
+  const selecao = modoOutro || personalizado ? "outro" : value;
+  useEffect(() => {
+    if (value && OPCOES_STATUS_TEXTO.includes(value)) setModoOutro(false);
+  }, [value]);
   return (
     <div className="flex flex-col gap-1">
       <Select
@@ -41,7 +45,13 @@ function SelectComTexto({ value, onChange, className }: { value: string; onChang
         value={selecao}
         onChange={(e) => {
           const v = e.target.value;
-          onChange(v === "outro" ? (personalizado ? value : "") : v);
+          if (v === "outro") {
+            setModoOutro(true);
+            if (!personalizado) onChange("");
+          } else {
+            setModoOutro(false);
+            onChange(v);
+          }
         }}
       >
         <option value="">Selecione…</option>
@@ -50,7 +60,7 @@ function SelectComTexto({ value, onChange, className }: { value: string; onChang
         <option value="outro">Outro (preencher)</option>
       </Select>
       {selecao === "outro" && (
-        <Input className={cx("!h-9 !px-2 !text-[12.5px]", className)} value={value} onChange={(e) => onChange(e.target.value)} placeholder="Especifique" />
+        <Input autoFocus className={cx("!h-9 !px-2 !text-[12.5px]", className)} value={value} onChange={(e) => onChange(e.target.value)} placeholder="Especifique" />
       )}
     </div>
   );
@@ -561,7 +571,7 @@ function ItemRow({ l, verFinanceiro, fornecedores, usuarios, onUpd, onOcultar, o
       )}
     >
       {/* Linha 1: item + descrições + valores */}
-      <div className="flex items-start gap-2 p-2.5">
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] xl:grid-cols-[auto_13rem_minmax(280px,1fr)_auto_auto] items-start gap-2 p-2.5 min-w-0">
         <button
           ref={sortable.setActivatorNodeRef}
           {...sortable.listeners}
@@ -572,13 +582,13 @@ function ItemRow({ l, verFinanceiro, fornecedores, usuarios, onUpd, onOcultar, o
           <IcGrip width={18} height={18} />
         </button>
 
-        <div className="w-52 shrink-0">
+        <div className="min-w-0">
           <Campo label="Item">
             <Input className="!h-10 !px-2.5 !text-[13.5px] !font-semibold" placeholder="Nome do item" value={l.item} onChange={(e) => onUpd({ item: e.target.value })} />
           </Campo>
         </div>
 
-        <div className="flex-1 min-w-[280px] grid gap-2">
+        <div className="col-start-2 xl:col-start-auto min-w-0 grid gap-2">
           <Campo label="Descrição Financeiro">
             <AutoTextarea
               className="!text-[13px] whitespace-pre-wrap"
@@ -614,17 +624,17 @@ function ItemRow({ l, verFinanceiro, fornecedores, usuarios, onUpd, onOcultar, o
         </div>
 
         {verFinanceiro && (
-          <div className="shrink-0 flex gap-2">
-            <Campo label="Pólobh" className="w-32">
+          <div className="col-start-2 xl:col-start-auto grid grid-cols-2 gap-2 min-w-0">
+            <Campo label="Pólobh" className="w-full xl:w-32">
               <CurrencyInput className="!h-10 !px-2.5 !text-[13.5px]" value={l.valorPolobh} onValue={(v) => onUpd({ valorPolobh: v })} />
             </Campo>
-            <Campo label="Cliente" className="w-32">
+            <Campo label="Cliente" className="w-full xl:w-32">
               <CurrencyInput className="!h-10 !px-2.5 !text-[13.5px]" value={l.valorCliente} onValue={(v) => onUpd({ valorCliente: v })} />
             </Campo>
           </div>
         )}
 
-        <div className="shrink-0 flex flex-col items-center gap-1 pt-5">
+        <div className="col-start-2 xl:col-start-auto flex xl:flex-col items-center justify-end gap-1 xl:pt-5">
           <button type="button" onClick={onOcultar} className="text-ink-3 hover:text-primary p-1.5" title="Ocultar item (mantém guardado)" aria-label="Ocultar item">
             <IcEyeOff width={18} height={18} />
           </button>
@@ -632,14 +642,14 @@ function ItemRow({ l, verFinanceiro, fornecedores, usuarios, onUpd, onOcultar, o
       </div>
 
       {/* Linha 2: metadados */}
-      <div className="flex flex-wrap items-end gap-2 px-2.5 pb-2.5 pt-1 border-t border-border-soft bg-[#FCFCFD] rounded-b-card">
-        <Campo label="Aprovação" className="w-28">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 items-end gap-2 px-2.5 pb-2.5 pt-1 border-t border-border-soft bg-[#FCFCFD] rounded-b-card min-w-0">
+        <Campo label="Aprovação" className="w-full">
           <Select className="!h-9 !px-2 !text-[12.5px]" value={l.statusAprovacao} onChange={(e) => onUpd({ statusAprovacao: e.target.value as StatusAprovacao })}>
             <option>Pendente</option>
             <option>OK</option>
           </Select>
         </Campo>
-        <Campo label="Fornecedor (CNPJ / Razão social)" className="w-[420px] max-w-full">
+        <Campo label="Fornecedor (CNPJ / Razão social)" className="sm:col-span-2 xl:col-span-2 w-full min-w-0">
           <FornecedorField
             razao={l.fornecedorRazao}
             cnpj={l.fornecedorCnpj}
@@ -649,7 +659,7 @@ function ItemRow({ l, verFinanceiro, fornecedores, usuarios, onUpd, onOcultar, o
             onValidar={onValidarFornecedor}
           />
         </Campo>
-        <Campo label="Documento PG" className="w-36">
+        <Campo label="Documento PG" className="w-full">
           <Select className="!h-9 !px-2 !text-[12.5px]" value={l.faturaNf} onChange={(e) => onUpd({ faturaNf: e.target.value as DocumentoPg })}>
             <option value="">Selecione…</option>
             <option value="Fatura">Fatura</option>
@@ -659,13 +669,13 @@ function ItemRow({ l, verFinanceiro, fornecedores, usuarios, onUpd, onOcultar, o
             <option value="Não se aplica">Não se aplica</option>
           </Select>
         </Campo>
-        <Campo label="Código de Serviço" className="w-36">
+        <Campo label="Código de Serviço" className="w-full">
           <SelectComTexto value={l.codigoServico} onChange={(v) => onUpd({ codigoServico: v })} />
         </Campo>
-        <Campo label="Pedido de Compra" className="w-36">
+        <Campo label="Pedido de Compra" className="w-full">
           <SelectComTexto value={l.pedidoCompra} onChange={(v) => onUpd({ pedidoCompra: v })} />
         </Campo>
-        <Campo label="OS" className="w-28">
+        <Campo label="OS" className="w-full">
           <Select className="!h-9 !px-2 !text-[12.5px]" value={l.statusOs} onChange={(e) => onUpd({ statusOs: e.target.value as StatusOs })}>
             <option>Pendente</option>
             <option>Emitir</option>
@@ -673,7 +683,7 @@ function ItemRow({ l, verFinanceiro, fornecedores, usuarios, onUpd, onOcultar, o
             <option>Não se Aplica</option>
           </Select>
         </Campo>
-        <Campo label="Contrato" className="w-28">
+        <Campo label="Contrato" className="w-full">
           <Select className="!h-9 !px-2 !text-[12.5px]" value={l.contratoStatus} onChange={(e) => onUpd({ contratoStatus: e.target.value as StatusOs })}>
             <option>Pendente</option>
             <option>Emitir</option>

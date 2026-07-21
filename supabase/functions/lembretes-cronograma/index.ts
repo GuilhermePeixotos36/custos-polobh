@@ -24,8 +24,14 @@ function maisDiasUteis(base: Date, n: number): Date {
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const dataBR = (s: string) => (s ? new Date(s + "T00:00:00").toLocaleDateString("pt-BR") : "");
+const h = (v: unknown) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
+  if (req.method !== "POST") return new Response(JSON.stringify({ erro: "Method not allowed" }), { status: 405, headers: { "Content-Type": "application/json" } });
+  const segredo = Deno.env.get("CRON_SECRET") ?? "";
+  if (!segredo || req.headers.get("x-cron-secret") !== segredo) {
+    return new Response(JSON.stringify({ erro: "Não autorizado" }), { status: 401, headers: { "Content-Type": "application/json" } });
+  }
   const url = Deno.env.get("SUPABASE_URL")!;
   const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const sb = createClient(url, key);
@@ -46,24 +52,34 @@ Deno.serve(async () => {
     for (const os of oss ?? []) {
       const f = os.fornecedor ?? {};
       if (!f.email) continue;
+      // A restrição única no banco transforma cada lembrete diário em uma operação idempotente.
+      const { data: reserva, error: reservaErro } = await sb.from("emails").insert({
+        assunto: `Lembrete de cronograma — ${ec.projeto?.titulo ?? ""}`,
+        destinatarios: [f.email],
+        status: "processando",
+        tipo: "lembrete_cronograma",
+        referencia_id: os.id,
+        data_referencia: alvo,
+      }).select("id").maybeSingle();
+      if (reservaErro?.code === "23505" || !reserva) continue;
+      if (reservaErro) throw reservaErro;
       const proj = ec.projeto ?? {};
       const etapas = (os.cronograma ?? [])
-        .map((c: any) => `<li><b>${c.etapa}:</b> ${dataBR(c.data)} ${c.horario} — ${c.atividades}</li>`)
+        .map((c: any) => `<li><b>${h(c.etapa)}:</b> ${h(dataBR(c.data))} ${h(c.horario)} — ${h(c.atividades)}</li>`)
         .join("");
-      await enviarPeloBrevo({
-        para: [{ email: f.email, nome: f.razaoSocial }],
-        assunto: `Lembrete de cronograma — ${proj.titulo}`,
-        html: `<p>Olá, ${f.razaoSocial || "fornecedor"}.</p>
-          <p>Lembrete do cronograma do projeto <b>${proj.titulo}</b>, em <b>${dataBR(proj.evento)}</b>, local <b>${proj.local}</b>.</p>
-          <ul>${etapas || "<li>Sem etapas cadastradas.</li>"}</ul>`,
-      });
-      await sb.from("emails").insert({
-        assunto: `Lembrete de cronograma — ${proj.titulo}`,
-        destinatarios: [f.email],
-        status: "enviado",
-        tipo: "lembrete_cronograma",
-      });
-      enviados++;
+      try {
+        const envio = await enviarPeloBrevo({
+          para: [{ email: f.email, nome: f.razaoSocial }],
+          assunto: `Lembrete de cronograma — ${proj.titulo}`,
+          html: `<p>Olá, ${h(f.razaoSocial || "fornecedor")}.</p>
+            <p>Lembrete do cronograma do projeto <b>${h(proj.titulo)}</b>, em <b>${h(dataBR(proj.evento))}</b>, local <b>${h(proj.local)}</b>.</p>
+            <ul>${etapas || "<li>Sem etapas cadastradas.</li>"}</ul>`,
+        });
+        await sb.from("emails").update({ status: "enviado", provider_id: envio.messageId ?? null }).eq("id", reserva.id);
+        enviados++;
+      } catch (erro) {
+        await sb.from("emails").update({ status: "erro", erro: String((erro as Error).message) }).eq("id", reserva.id);
+      }
     }
   }
 

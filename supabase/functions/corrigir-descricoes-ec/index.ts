@@ -1,3 +1,5 @@
+import { autorizar, respostaAutorizacao } from "../_shared/auth.ts";
+
 /**
  * Revisa as descrições financeiras dos itens de uma EC com a mesma chave
  * OpenRouter já usada pelas demais funções de IA do projeto.
@@ -36,16 +38,20 @@ Deno.serve(async (req) => {
     });
 
   try {
+    await autorizar(req, ["Admin", "Direcao", "Producao"]);
     const apiKey = Deno.env.get("OPENROUTER_API_KEY");
     if (!apiKey) return json({ ok: false, erro: "OPENROUTER_API_KEY não configurada." }, 500);
 
     const payload = (await req.json()) as { descricoes?: DescricaoEntrada[] };
     const descricoes = (payload.descricoes ?? [])
-      .filter((item) => typeof item?.id === "string" && typeof item?.descricao === "string")
-      .slice(0, 500);
+      .filter((item) => typeof item?.id === "string" && item.id.length <= 100 && typeof item?.descricao === "string");
     if (!descricoes.length) return json({ ok: true, descricoes: [] });
+    if (descricoes.length > 30 || descricoes.some((item) => item.descricao.length > 40_000)) {
+      return json({ ok: false, erro: "Lote de revisão acima do limite permitido." }, 413);
+    }
 
-    const conteudo = JSON.stringify({ descricoes }).slice(0, 100_000);
+    const conteudo = JSON.stringify({ descricoes });
+    if (conteudo.length > 45_000) return json({ ok: false, erro: "Lote de revisão acima do limite permitido." }, 413);
     const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -62,7 +68,7 @@ Deno.serve(async (req) => {
         temperature: 0,
         // Limita a saída: sem isso o modelo pede o default (~65k tokens) e a conta
         // OpenRouter recusa por saldo (erro 402). A revisão é sempre curta.
-        max_tokens: 8000,
+        max_tokens: 12000,
         response_format: { type: "json_object" },
       }),
     });
@@ -81,6 +87,8 @@ Deno.serve(async (req) => {
     );
     return json({ ok: true, descricoes: resultado });
   } catch (erro) {
+    const resposta = respostaAutorizacao(erro, cors);
+    if (resposta) return resposta;
     return json({ ok: false, erro: String((erro as Error).message) }, 500);
   }
 });

@@ -14,6 +14,17 @@ export interface MensagemEmail {
 
 const REMETENTE_NOME = "Pólobh Eventos";
 
+const h = (valor: unknown): string => String(valor ?? "")
+  .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+  .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+
+const urlHttp = (valor: string): string => {
+  try {
+    const u = new URL(valor);
+    return ["http:", "https:"].includes(u.protocol) ? h(u.toString()) : "#";
+  } catch { return "#"; }
+};
+
 function wrap(titulo: string, corpoHtml: string): string {
   return `
   <div style="font-family:Arial,Helvetica,sans-serif;color:#15161A;max-width:560px;margin:0 auto">
@@ -34,17 +45,17 @@ function wrap(titulo: string, corpoHtml: string): string {
 /** OS disparada ao fornecedor. */
 export function emailDispararOs(os: Os, ec: Ec): MensagemEmail {
   const corpo = `
-    <p>Olá, ${os.fornecedor.representante || os.fornecedor.razaoSocial || "fornecedor"}.</p>
-    <p>Segue a <b>Ordem de Serviço ${os.numero}</b> referente ao projeto
-       <b>${ec.projeto.titulo}</b> (${ec.cliente.nome}).</p>
+    <p>Olá, ${h(os.fornecedor.representante || os.fornecedor.razaoSocial || "fornecedor")}.</p>
+    <p>Segue a <b>Ordem de Serviço ${h(os.numero)}</b> referente ao projeto
+       <b>${h(ec.projeto.titulo)}</b> (${h(ec.cliente.nome)}).</p>
     <ul style="font-size:14px;line-height:1.6">
-      <li><b>Evento:</b> ${dataBR(ec.projeto.evento)} · ${ec.projeto.horario}</li>
-      <li><b>Local:</b> ${ec.projeto.local}</li>
-      <li><b>Modalidade:</b> ${os.modalidade || "—"}</li>
+      <li><b>Evento:</b> ${h(dataBR(ec.projeto.evento))} · ${h(ec.projeto.horario)}</li>
+      <li><b>Local:</b> ${h(ec.projeto.local)}</li>
+      <li><b>Modalidade:</b> ${h(os.modalidade || "—")}</li>
     </ul>
-    <p style="font-size:14px"><b>Descritivo:</b><br>${(os.descritivo || "").replace(/\n/g, "<br>")}</p>
+    <p style="font-size:14px"><b>Descritivo:</b><br>${h(os.descritivo || "").replace(/\n/g, "<br>")}</p>
     <p style="font-size:14px">Por favor, confirme o recebimento e realize o credenciamento da equipe pelo link:
-       <a href="${os.credenciamento.linkFormulario}">${os.credenciamento.linkFormulario}</a>
+       <a href="${urlHttp(os.credenciamento.linkFormulario)}">${h(os.credenciamento.linkFormulario)}</a>
        ${os.credenciamento.prazoLimite ? `(prazo: ${dataBR(os.credenciamento.prazoLimite)})` : ""}.</p>`;
   return {
     para: os.fornecedor.email ? [{ email: os.fornecedor.email, nome: os.fornecedor.razaoSocial }] : [],
@@ -56,10 +67,10 @@ export function emailDispararOs(os: Os, ec: Ec): MensagemEmail {
 /** Link de credenciamento ao fornecedor. */
 export function emailCredenciamento(os: Os, ec: Ec): MensagemEmail {
   const corpo = `
-    <p>Olá, ${os.fornecedor.razaoSocial || "fornecedor"}.</p>
-    <p>Para o projeto <b>${ec.projeto.titulo}</b>, acesse o formulário de credenciamento
+    <p>Olá, ${h(os.fornecedor.razaoSocial || "fornecedor")}.</p>
+    <p>Para o projeto <b>${h(ec.projeto.titulo)}</b>, acesse o formulário de credenciamento
        e cadastre os dados de profissionais e veículos da sua equipe:</p>
-    <p><a href="${os.credenciamento.linkFormulario}"
+    <p><a href="${urlHttp(os.credenciamento.linkFormulario)}"
         style="display:inline-block;background:#F2820D;color:#2A1602;font-weight:700;
         padding:10px 18px;border-radius:10px;text-decoration:none">Abrir credenciamento</a></p>
     ${os.credenciamento.prazoLimite ? `<p style="font-size:14px"><b>Prazo limite:</b> ${dataBR(os.credenciamento.prazoLimite)}</p>` : ""}`;
@@ -74,12 +85,12 @@ export function emailCredenciamento(os: Os, ec: Ec): MensagemEmail {
 export function emailLembreteCronograma(os: Os, ec: Ec): MensagemEmail {
   const etapas = [...os.cronograma]
     .sort((a, b) => (a.data || "").localeCompare(b.data || ""))
-    .map((c) => `<li><b>${c.etapa || "Etapa"}:</b> ${dataBR(c.data)} ${c.horario} — ${c.atividades}</li>`)
+    .map((c) => `<li><b>${h(c.etapa || "Etapa")}:</b> ${h(dataBR(c.data))} ${h(c.horario)} — ${h(c.atividades)}</li>`)
     .join("");
   const corpo = `
-    <p>Olá, ${os.fornecedor.razaoSocial || "fornecedor"}.</p>
-    <p>Lembrete do cronograma do projeto <b>${ec.projeto.titulo}</b>, que acontece em
-       <b>${dataBR(ec.projeto.evento)}</b> no local <b>${ec.projeto.local}</b>.</p>
+    <p>Olá, ${h(os.fornecedor.razaoSocial || "fornecedor")}.</p>
+    <p>Lembrete do cronograma do projeto <b>${h(ec.projeto.titulo)}</b>, que acontece em
+       <b>${h(dataBR(ec.projeto.evento))}</b> no local <b>${h(ec.projeto.local)}</b>.</p>
     <ul style="font-size:14px;line-height:1.6">${etapas || "<li>Sem etapas cadastradas.</li>"}</ul>
     <p style="font-size:14px">Qualquer dúvida, responda este e-mail.</p>`;
   return {
@@ -93,9 +104,9 @@ export function emailLembreteCronograma(os: Os, ec: Ec): MensagemEmail {
 export function emailEcParaAprovacao(ec: Ec): MensagemEmail {
   const rep = ec.cliente.representante;
   const corpo = `
-    <p>Olá, ${rep.nome || ec.cliente.nome}.</p>
-    <p>Segue para aprovação a Estimativa de Custos <b>${ec.numero}</b> referente ao projeto
-       <b>${ec.projeto.titulo}</b>.</p>
+    <p>Olá, ${h(rep.nome || ec.cliente.nome)}.</p>
+    <p>Segue para aprovação a Estimativa de Custos <b>${h(ec.numero)}</b> referente ao projeto
+       <b>${h(ec.projeto.titulo)}</b>.</p>
     <p style="font-size:14px">A aprovação pode ser feita por resposta a este e-mail e tem força contratual,
        conforme os termos da proposta. Validade: ${ec.validadeDias} dias.</p>`;
   return {

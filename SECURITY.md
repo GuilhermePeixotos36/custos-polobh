@@ -59,34 +59,28 @@ Revisão de autorização em nível de objeto/campo (acesso por id direto na API
   para não exporem RPC pública.
 - Sem chaves secretas no front (só a `anon`, pública por design). IA/e-mail
   ficam atrás de Edge Functions.
-- Sem `eval`/`innerHTML`/`dangerouslySetInnerHTML` (sem vetor de XSS).
+- O editor rico sanitiza uma lista restrita de tags antes de atribuir ou persistir HTML;
+  os modelos de e-mail escapam dados dinâmicos e aceitam somente links HTTP(S).
 - Rotas de impressão exigem login e respeitam o bloco financeiro.
 
 ## Pendências recomendadas
 
 1. **Proteção contra senhas vazadas** (Supabase Auth advisor `WARN`): habilitar
-   em *Authentication → Policies* (HaveIBeenPwned). Trocar a senha de teste
-   `Polobh@2026` dos usuários seed antes de uso real.
-2. **Cronograma público** (`/cronograma/:ecId`): ✅ servido pela Edge Function
+   em *Authentication → Policies* (HaveIBeenPwned) e exigir senhas fortes.
+2. **Cronograma público** (`/cronograma/:slug`): ✅ servido pela Edge Function
    `cronograma-publico` (service role, `verify_jwt=false`), que devolve **apenas**
    título/local/data do projeto, nome do cliente e, por bloco, fornecedor +
-   status + cronograma — nunca financeiro/bancário. Pendência menor: trocar o
-   `ecId` sequencial por um slug/token não adivinhável no link compartilhado.
+   status + cronograma — nunca financeiro/bancário. O link usa slug aleatório,
+   não o ID sequencial da EC.
 3. **`emails`**: escrita apenas pela service role (Edge Functions); leitura
    restrita a Admin/Direção/Administrativo (já configurado).
-4. **Cabeçalhos de segurança** no deploy: CSP, `X-Content-Type-Options`,
-   `Referrer-Policy`, HSTS.
-5. **Dependências**: `npm audit` no CI; manter pacotes atualizados.
+4. **Cabeçalhos de segurança**: CSP, anti-frame, `nosniff`, política de referência
+   e permissões estão configurados em `vercel.json`; HSTS é fornecido pela Vercel.
+5. **Dependências**: manter `npm audit` no CI e sem vulnerabilidades conhecidas.
 
-## Usuários de teste (criados no Auth)
+## Usuários e senhas
 
-| E-mail | Perfil | Senha |
-|---|---|---|
-| admin@polobh.com.br | Administrador | `Polobh@2026` |
-| marisa@polobh.com.br | Direção | `Polobh@2026` |
-| producao@polobh.com.br | Produção | `Polobh@2026` |
-| financeiro@polobh.com.br | Administrativo | `Polobh@2026` |
-
-> Troque essas senhas (ou recrie os usuários) antes de colocar em produção.
+Credenciais não são documentadas no repositório. Crie usuários pelo Supabase Auth,
+atribua o papel no perfil e distribua senhas por um canal seguro.
 
 O schema completo (idempotente) está em `supabase/schema.sql`.

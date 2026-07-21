@@ -6,8 +6,9 @@
 import ExcelJS from "exceljs";
 import type { Ec } from "@/data/types";
 import { calcularTotais } from "@/domain/calc";
-import { dataBR, dataBRCurta } from "@/lib/format";
-import { COR, fill, thin, grade, baixar, salvarComPicker, nomeArquivo, carregarLogo } from "./shared";
+import { dataBR } from "@/lib/format";
+import { COR, fill, thin, grade, baixar, salvarComPicker, carregarLogo } from "./shared";
+import { nomeEcExcel } from "./nomeEc";
 
 const COLS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
 
@@ -149,7 +150,7 @@ export async function criarEcExcelBuffer(
     ? [
         ["A", "Item"], ["B", "Descrição Financeiro"], ["C", "Pólobh"], ["D", "Cliente"],
         ["E", "Status Aprovação"], ["F", "Fornecedor (Razão Social)"], ["G", "Fornecedor (CNPJ)"],
-        ["H", "Fatura ou Nota Fiscal"], ["I", "Código Serviço"], ["J", "Pedido de Compra"],
+        ["H", "Documento PG"], ["I", "Código Serviço"], ["J", "Pedido de Compra"],
         ["K", "OS"], ["L", "Contrato"],
       ]
     : [["A", "Item"], ["C", "Pólobh"], ["D", "Cliente"]];
@@ -449,11 +450,7 @@ export async function criarEcExcelBuffer(
   // Nome do arquivo no padrão pedido: "{Título do Projeto} {NN} Em {DD/MM/AA}"
   // (NN = versão com 2 dígitos, sem "V" nem pontos). Usa o título COMPLETO do
   // projeto (não o número da EC, que é abreviado e "comia" parte do título).
-  const sufixoModelo = completa ? "Completa" : "Financeiro";
-  const versao2 = String(ec.versao).padStart(2, "0");
-  const dataEmissao = dataBRCurta(ec.criadoEm); // DD/MM/AA
-  const tituloBase = ec.projeto.titulo || ec.numero || "EC";
-  const nome = `${nomeArquivo(`${tituloBase} ${versao2} Em ${dataEmissao} - ${sufixoModelo}`)}.xlsx`;
+  const nome = nomeEcExcel(ec, completa ? "completa" : "financeiro");
   return { buffer: buffer as ArrayBuffer, nome };
 }
 

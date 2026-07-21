@@ -222,7 +222,7 @@ function ComentarioLinha({
           </span>
         )}
         <span className="text-[11px] text-ink-3">{dataHoraBR(o.criadoEm)}</span>
-        <span className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <span className="acoes-observacao ml-auto flex items-center gap-1 transition-opacity focus-within:opacity-100">
           <button type="button" onClick={onResponder} className="text-[11px] font-bold text-ink-3 hover:text-primary px-1.5 py-1" title="Responder">
             Responder
           </button>

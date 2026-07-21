@@ -11,6 +11,12 @@ import { cx, maskTelefone, onlyDigits, colapsarEspacos, tituloProprio, capitaliz
 
 const fieldBase =
   "w-full bg-surface border-[1.5px] border-[#BFC4CE] rounded-btn px-3.5 text-sm text-ink placeholder:text-ink-3 input-focus disabled:bg-[#EDEEF1] disabled:text-ink-2";
+const dataIsoValida = (v: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const ano = Number(v.slice(0, 4));
+  const d = new Date(`${v}T00:00:00`);
+  return ano >= 1900 && ano <= 2100 && !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v;
+};
 
 export function Label({
   children,
@@ -87,7 +93,7 @@ export function Input({ className, type, onChange, value, onBlur, formato, ...re
           const v = e.target.value;
           // navegadores aceitam ano com mais de 4 dígitos ao digitar (ex.: "22226");
           // rejeita e restaura o último valor válido no próprio input do DOM.
-          if (v !== "" && (!DATA_ISO_RE.test(v) || Number(v.slice(0, 4)) > 2100)) {
+          if (v !== "" && (!DATA_ISO_RE.test(v) || !dataIsoValida(v))) {
             e.target.value = typeof value === "string" ? value : "";
             return;
           }
@@ -121,6 +127,7 @@ export function TelefoneInput({
   onChange: (v: string) => void;
   className?: string;
 }) {
+  const numeroRef = useRef<HTMLInputElement>(null);
   const digitos = onlyDigits(value).slice(0, 11);
   const ddd = digitos.slice(0, 2);
   const numero = digitos.slice(2);
@@ -130,17 +137,24 @@ export function TelefoneInput({
       : numero.replace(/^(\d{5})(\d)/, "$1-$2");
 
   return (
-    <div className={cx("flex gap-2", className)}>
+    <div className={cx("grid grid-cols-[4.5rem_minmax(0,1fr)] gap-2 min-w-0", className)}>
       <input
-        className={cx(fieldBase, "h-11 w-[4.5rem] text-center")}
+        className={cx(fieldBase, "h-11 !w-[4.5rem] !px-2 text-center")}
         inputMode="numeric"
+        maxLength={2}
         placeholder="DDD"
         value={ddd}
-        onChange={(e) => onChange(maskTelefone(onlyDigits(e.target.value).slice(0, 2) + numero))}
+        onChange={(e) => {
+          const novoDdd = onlyDigits(e.target.value).slice(0, 2);
+          onChange(maskTelefone(novoDdd + numero));
+          if (novoDdd.length === 2) requestAnimationFrame(() => numeroRef.current?.focus());
+        }}
       />
       <input
-        className={cx(fieldBase, "h-11 flex-1")}
+        ref={numeroRef}
+        className={cx(fieldBase, "h-11 !w-auto min-w-0")}
         inputMode="tel"
+        maxLength={10}
         placeholder="90000-0000"
         value={numeroFormatado}
         onChange={(e) => onChange(maskTelefone(ddd + onlyDigits(e.target.value).slice(0, 9)))}

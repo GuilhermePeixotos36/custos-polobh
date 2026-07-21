@@ -9,6 +9,7 @@
  */
 import type { Ec, Os, Papel, Projeto } from "@/data/types";
 import { extrairMencoes } from "@/domain/mencoes";
+import { statusProjetoAutomatico } from "@/domain/statusProjeto";
 
 /** Chave da subguia dentro do detalhe do projeto (espelha ProjetoDetail). */
 export type AbaProjeto = "dados" | "ec" | "os" | "cronograma" | "fornecedores";
@@ -123,7 +124,7 @@ export function calcularPendencias(projetos: Projeto[], ecs: Ec[], oss: Os[], us
 
   // Projeto ativo sem nenhuma EC → Produção precisa criar a estimativa.
   for (const p of projetos) {
-    if (p.status !== "Ativo") continue;
+    if (statusProjetoAutomatico(p, ecs) !== "Ativo") continue;
     if ((ecsAtivasPorProjeto.get(p.id) ?? 0) > 0) continue;
     out.push({
       id: `projeto.semEc:${p.id}`,

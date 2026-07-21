@@ -13,13 +13,14 @@ import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import { useMinhasPendencias } from "@/store/pendencias";
 import { gerarCronogramaExcel } from "@/lib/excel";
-import { consultarCnpj } from "@/lib/cnpj";
+import { consultarCnpj, documentoFiscalValido } from "@/lib/cnpj";
 import { tituloEc } from "@/domain/calc";
 import { ETAPAS_CRONOGRAMA, compoeTituloProjeto, novaFaixaCronograma, projetoInfoVazio, sincronizarCamposLegados } from "@/domain/projeto";
 import { flags } from "@/lib/flags";
 import { cx, dataBR, maskCpfCnpjInput, maskDoc, onlyDigits } from "@/lib/format";
 import { toast } from "@/store/toast";
 import { corrigirRoteirosProjeto } from "@/lib/correcaoOrtografica";
+import { statusProjetoAutomatico } from "@/domain/statusProjeto";
 import type { Cliente, EtapaCronogramaProjeto, FaixaCronogramaProjeto, Projeto, ProjetoInfo, StatusProjeto } from "@/data/types";
 
 const tomStatusProjeto: Record<StatusProjeto, Tom> = {
@@ -85,6 +86,7 @@ export function ProjetoDetail() {
   );
   const ecIds = useMemo(() => new Set(ecsDoProjeto.map((e) => e.id)), [ecsDoProjeto]);
   const ossDoProjeto = useMemo(() => (ossAll ?? []).filter((o) => ecIds.has(o.ecId)), [ossAll, ecIds]);
+  const statusExibido = useMemo(() => statusProjetoAutomatico(p, ecsDoProjeto), [p, ecsDoProjeto]);
 
   const etapas = useMemo<ItemConsolidado[]>(
     () => ossDoProjeto.flatMap((o) => o.cronograma.map((c) => ({ ...c, fornecedor: o.fornecedor.razaoSocial || "Fornecedor" }))),
@@ -225,9 +227,8 @@ export function ProjetoDetail() {
     const existenteArquivado = (clientesAll ?? []).find((c) => onlyDigits(c.cnpjCpf) === digitos);
     try {
       return await repo.clientes.salvar({ ...cliente, id: existenteArquivado?.id || "" });
-    } catch {
-      // arquivamento é best-effort: se falhar, o projeto ainda é salvo com o snapshot do cliente.
-      return cliente;
+    } catch (erro) {
+      throw new Error(`Não foi possível arquivar os dados do cliente: ${(erro as Error).message}`);
     }
   }
 
@@ -235,9 +236,9 @@ export function ProjetoDetail() {
     const faltando: string[] = [];
     if (!p.info.clienteAbreviado.trim()) faltando.push("Cliente (abreviação)");
     if (!p.info.nomeProjeto.trim()) faltando.push("Nome do projeto");
-    if (!p.info.anoProjeto.trim()) faltando.push("Ano");
+    if (!/^(19\d{2}|20\d{2}|2100)$/.test(p.info.anoProjeto.trim())) faltando.push("Ano (1900 a 2100)");
     if (!p.cliente.nome.trim()) faltando.push("Cliente (nome)");
-    if (!p.cliente.cnpjCpf.trim()) faltando.push("CNPJ/CPF");
+    if (!documentoFiscalValido(p.cliente.cnpjCpf)) faltando.push("CNPJ/CPF válido");
     if (!p.info.modalidade) faltando.push("Modalidade");
     if (!p.info.local.trim()) faltando.push("Local");
     if (!p.info.cronograma.evento.some((f) => f.data.trim())) faltando.push("Data do evento (cronograma)");
@@ -281,7 +282,7 @@ export function ProjetoDetail() {
         </>
       }
       title={novo ? "Novo projeto" : p.nome || "Projeto"}
-      titleAdornment={!novo ? <Badge tom={tomStatusProjeto[p.status]}>{p.status}</Badge> : undefined}
+      titleAdornment={!novo ? <Badge tom={tomStatusProjeto[statusExibido]}>{statusExibido}</Badge> : undefined}
       topAction={
         (aba === "dados" || novo) && (
           <Button size="sm" onClick={salvar} disabled={salvando}>{salvando ? "Salvando…" : "Salvar projeto"}</Button>
@@ -399,7 +400,7 @@ export function ProjetoDetail() {
               <Field label="Nome da produtora responsável"><Input formato="titulo" value={p.info.produtoraResponsavel} onChange={(e) => updInfo({ produtoraResponsavel: e.target.value })} /></Field>
               <Field label="Telefone da produtora responsável"><TelefoneInput value={p.info.telefoneProdutora} onChange={(v) => updInfo({ telefoneProdutora: v })} /></Field>
               <Field label="E-mail da produtora responsável"><Input type="email" value={p.info.emailProdutora} onChange={(e) => updInfo({ emailProdutora: e.target.value })} /></Field>
-              {p.info.modalidade !== "Corporativo" && (
+              {p.info.modalidade === "Cultural" && (
                 <Field label="Incentivos Fiscais" className="sm:col-span-2 lg:col-span-3"><Textarea value={p.info.incentivosFiscais} onChange={(e) => updInfo({ incentivosFiscais: e.target.value })} /></Field>
               )}
             </div>

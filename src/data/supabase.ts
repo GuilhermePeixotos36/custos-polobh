@@ -23,7 +23,6 @@ const financeiroVazio = () => ({
   bvPercentual: 0, bvValor: 0, bvJustificativa: "", acertoFinanceiro: "",
 });
 import type {
-  AnexoRepository,
   AuthRepository,
   ClienteRepository,
   EcRepository,
@@ -34,7 +33,6 @@ import type {
   Repositorios,
 } from "./repository";
 import type {
-  Anexo,
   Cliente,
   Ec,
   EcLinha,
@@ -255,6 +253,7 @@ function mapLinha(r: any): EcLinha {
 
 function linhaRow(ecId: string, l: EcLinha) {
   return {
+    id: l.id,
     ec_id: ecId,
     grupo: l.grupo,
     item: l.item,
@@ -343,27 +342,9 @@ function ecRow(ec: Ec) {
     status: ec.status,
     cancelada_substituida: ec.canceladaSubstituida ?? false,
     ativa: ec.ativa ?? true,
+    criado_em: ec.criadoEm || nowIso(),
     atualizado_em: nowIso(),
   };
-}
-
-async function sincronizarLinhas(ecId: string, linhas: EcLinha[]) {
-  const existentes = ok(await supabase.from("ec_linhas").select("id").eq("ec_id", ecId)) ?? [];
-  const idsExistentes = new Set(existentes.map((r: { id: string }) => r.id));
-  const manter = new Set<string>();
-
-  for (const l of linhas) {
-    if (isUuid(l.id) && idsExistentes.has(l.id)) {
-      ok(await supabase.from("ec_linhas").update(linhaRow(ecId, l)).eq("id", l.id).select("id").single());
-      manter.add(l.id);
-    } else {
-      const novo = ok(await supabase.from("ec_linhas").insert(linhaRow(ecId, l)).select("id").single())!;
-      manter.add(novo.id);
-    }
-  }
-
-  const remover = [...idsExistentes].filter((id) => !manter.has(id as string));
-  if (remover.length) ok(await supabase.from("ec_linhas").delete().in("id", remover));
 }
 
 const SELECT_EC = "*, linhas:ec_linhas(*)";
@@ -379,19 +360,16 @@ const ecRepo: EcRepository = {
   },
   async salvar(ec) {
     const atualizando = isUuid(ec.id);
-    let id: string;
-    if (atualizando) {
-      ok(await supabase.from("ecs").update(ecRow(ec)).eq("id", ec.id).select("id").single());
-      id = ec.id;
-    } else {
-      const novo = ok(await supabase.from("ecs").insert(ecRow(ec)).select("id").single())!;
-      id = novo.id;
-    }
-    await sincronizarLinhas(id, ec.linhas);
-    // Apenas uma EC ativa por projeto: ao salvar uma ativa, arquiva o "ativa" das irmãs.
-    if (ec.ativa && isUuid(ec.projetoId)) {
-      ok(await supabase.from("ecs").update({ ativa: false }).eq("projeto_id", ec.projetoId).neq("id", id));
-    }
+    const linhas = ec.linhas.map((linha) => ({
+      ...linha,
+      id: isUuid(linha.id) ? linha.id : globalThis.crypto.randomUUID(),
+    }));
+    const data = ok(await supabase.rpc("salvar_ec_completa", {
+      p_ec_id: atualizando ? ec.id : null,
+      p_ec: ecRow(ec),
+      p_linhas: linhas.map((linha) => linhaRow(atualizando ? ec.id : "", linha)),
+    }));
+    const id = data as string;
     const salvo = await this.obter(id);
     if (!salvo) throw new Error("Falha ao reler a EC salva.");
     auditar({
@@ -425,33 +403,15 @@ const ecRepo: EcRepository = {
   async novaVersao(id) {
     const orig = await this.obter(id);
     if (!orig) throw new Error("EC não encontrada");
-    // A versão anterior é arquivada e deixa de ser a ativa (a nova a substitui).
-    ok(await supabase.from("ecs").update({ cancelada_substituida: true, ativa: false, status: "Arquivada" }).eq("id", id));
-    const irmas = orig.projetoId ? (await this.listar()).filter((ec) => ec.projetoId === orig.projetoId) : [];
-    const novaV = Math.max(orig.versao, ...irmas.map((ec) => ec.versao)) + 1;
-    const agora = nowIso();
-    return this.salvar({
-      ...orig,
-      id: "",
-      versao: novaV,
-      status: "Rascunho",
-      numero: numeroEc(orig.cliente.nome, orig.projeto.titulo, novaV),
-      canceladaSubstituida: true,
-      ativa: true,
-      criadoEm: agora,
-      atualizadoEm: agora,
-      linhas: orig.linhas.map((l) => ({ ...l, id: "" })),
-    });
+    const novoId = ok(await supabase.rpc("nova_versao_ec", { p_ec_id: id })) as string;
+    const nova = await this.obter(novoId);
+    if (!nova) throw new Error("Falha ao reler a nova versão.");
+    return nova;
   },
   async definirAtiva(id) {
     const ec = await this.obter(id);
     if (!ec) throw new Error("EC não encontrada");
-    // Arquiva o "ativa" das irmãs do mesmo projeto e reativa esta.
-    if (isUuid(ec.projetoId)) {
-      ok(await supabase.from("ecs").update({ ativa: false }).eq("projeto_id", ec.projetoId).neq("id", id));
-    }
-    const novoStatus = ec.status === "Arquivada" || ec.status === "Cancelada" ? "Rascunho" : ec.status;
-    ok(await supabase.from("ecs").update({ ativa: true, status: novoStatus }).eq("id", id));
+    ok(await supabase.rpc("definir_ec_ativa", { p_ec_id: id }));
     auditar({ categoria: "EC", acao: "ec.ativar", mensagem: `EC ${ec.numero} definida como ativa`, alvoId: id });
     const salvo = await this.obter(id);
     if (!salvo) throw new Error("Falha ao reler a EC.");
@@ -745,63 +705,6 @@ const empresasRepo: EmpresasRepository = {
   },
 };
 
-/* --------------------------------- Anexos -------------------------------- */
-
-const ANEXOS_BUCKET = "projeto-anexos";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapAnexo(r: any): Anexo {
-  return {
-    id: r.id,
-    projetoId: r.projeto_id,
-    nome: r.nome ?? "",
-    path: r.path ?? "",
-    mime: r.mime ?? "",
-    tamanho: Number(r.tamanho) || 0,
-    criadoEm: r.criado_em,
-  };
-}
-
-/** Remove acentos/caracteres problemáticos do nome do arquivo no bucket. */
-const nomeSeguro = (s: string) =>
-  s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/_+/g, "_");
-
-const anexoRepo: AnexoRepository = {
-  async listar(projetoId) {
-    const data = ok(
-      await supabase.from("projeto_anexos").select("*").eq("projeto_id", projetoId).order("criado_em", { ascending: false })
-    );
-    return (data ?? []).map(mapAnexo);
-  },
-  async enviar(projetoId, file) {
-    const path = `${projetoId}/${Date.now()}-${nomeSeguro(file.name)}`;
-    const up = await supabase.storage.from(ANEXOS_BUCKET).upload(path, file, {
-      contentType: file.type || "application/octet-stream",
-      upsert: false,
-    });
-    if (up.error) throw new Error(up.error.message);
-    const data = ok(
-      await supabase
-        .from("projeto_anexos")
-        .insert({ projeto_id: projetoId, nome: file.name, path, mime: file.type || "", tamanho: file.size })
-        .select("*")
-        .single()
-    )!;
-    auditar({ categoria: "Projeto", acao: "anexo.enviar", mensagem: `Anexo "${file.name}" adicionado ao projeto`, alvoId: projetoId });
-    return mapAnexo(data);
-  },
-  async remover(id, path) {
-    await supabase.storage.from(ANEXOS_BUCKET).remove([path]);
-    ok(await supabase.from("projeto_anexos").delete().eq("id", id));
-    auditar({ nivel: "aviso", categoria: "Projeto", acao: "anexo.remover", mensagem: `Anexo removido`, alvoId: id });
-  },
-  async urlAssinada(path) {
-    const { data, error } = await supabase.storage.from(ANEXOS_BUCKET).createSignedUrl(path, 600);
-    if (error) throw new Error(error.message);
-    return data.signedUrl;
-  },
-};
-
 export const supabaseRepositorios: Repositorios = {
   projetos: projetoRepo,
   clientes: clienteRepo,
@@ -810,5 +713,4 @@ export const supabaseRepositorios: Repositorios = {
   oss: osRepo,
   auth: authRepo,
   empresas: empresasRepo,
-  anexos: anexoRepo,
 };

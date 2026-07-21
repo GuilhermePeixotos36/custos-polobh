@@ -53,6 +53,7 @@ export function EcDetail() {
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [recolhidos, setRecolhidos] = useState<Set<string>>(new Set());
   const [erro, setErro] = useState("");
+  const [busy, setBusy] = useState(false);
 
   const t = useMemo(
     () => (ec ? calcularTotais(ec.linhas, ec.producao, ec.honorarios, ec.encargos) : null),
@@ -351,18 +352,26 @@ export function EcDetail() {
                   </Button>
                 )}
                 <Button variant="primary" size="sm" icon={<IcSend width={16} height={16} />}
+                  disabled={busy}
                   onClick={async () => {
-                    const destino = ec.cliente.representante.email || ec.cliente.nome;
+                    const destino = ec.cliente.representante.email;
+                    if (!destino) { toast("Cadastre o e-mail do representante do cliente antes de enviar.", "warning"); return; }
                     if (!(await confirmar({
                       titulo: "Enviar EC para aprovação?",
                       mensagem: `A EC será marcada como "Aguardando" e um e-mail será enviado para ${destino}.`,
                       confirmarTexto: "Enviar",
                     }))) return;
-                    await repo.ecs.salvar({ ...ec, status: "Aguardando" });
-                    const r = await enviarEcParaAprovacao(ec);
-                    if (!r.ok) toast(`EC marcada como aguardando, mas o e-mail não saiu: ${r.motivo}`, "warning");
-                    else if (r.simulado) toast(`E-mail de aprovação simulado (Brevo não configurado) para ${r.destinatarios.join(", ") || "—"}.`, "info");
-                    else toast(`EC enviada para aprovação de ${r.destinatarios.join(", ")}.`, "success");
+                    setBusy(true);
+                    try {
+                      const r = await enviarEcParaAprovacao(ec);
+                      if (!r.ok) { toast(`O e-mail não saiu e a EC permaneceu no status atual: ${r.motivo}`, "warning"); return; }
+                      if (r.simulado) { toast(`Envio simulado para ${r.destinatarios.join(", ") || "—"}; o status não foi alterado.`, "info"); return; }
+                      await repo.ecs.salvar({ ...ec, status: "Aguardando" });
+                      toast(`EC enviada para aprovação de ${r.destinatarios.join(", ")}.`, "success");
+                      navigate(0);
+                    } catch (e) {
+                      toast(`Não foi possível concluir o envio: ${(e as Error).message}`, "danger");
+                    } finally { setBusy(false); }
                   }}>
                   Enviar ao cliente para aprovação
                 </Button>

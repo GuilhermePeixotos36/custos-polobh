@@ -29,7 +29,7 @@ import { itensDoTemplate } from "@/domain/ecTemplates";
 import { projetoInfoVazio } from "@/domain/projeto";
 import { escolherDestinoEcExcel, gerarEcExcel, salvarEcExcelNoDestino, type DestinoEcExcel } from "@/lib/excel";
 import { consultarCnpj } from "@/lib/cnpj";
-import { corrigirDescricoesLocal, corrigirLinhaEc } from "@/lib/correcaoOrtografica";
+import { corrigirDescricoes, corrigirLinhaEc } from "@/lib/correcaoOrtografica";
 import { useAuth } from "@/store/auth";
 import { RentabilidadeItens } from "@/components/RentabilidadeItens";
 import { EcGrupos } from "@/components/EcGrupos";
@@ -288,9 +288,8 @@ export function EcForm() {
   }
 
   async function salvar(linhaId?: string): Promise<boolean> {
-    // Só o salvamento GERAL da EC (botão de cima, sem linhaId) exporta o Excel e
-    // abre o seletor de pasta. O "Revisar e salvar" de um item apenas revisa a
-    // ortografia daquela linha e persiste os dados — sem gerar Excel.
+    // O salvamento geral revisa todos os textos e exporta o Excel; o botão do item
+    // revisa apenas aquela linha e persiste sem abrir o seletor de arquivo.
     const exportarExcel = !linhaId;
     let destino: DestinoEcExcel | null = null;
     if (exportarExcel) {
@@ -310,10 +309,9 @@ export function EcForm() {
         linhasRevisadas = ec!.linhas.map((linha) => linha.id === linhaId ? revisao.linha : linha);
         revisaoCompleta = revisao.revisaoCompleta;
       } else {
-        // Salvamento geral: só correção local (rápida). A revisão por IA fica no
-        // "Revisar e salvar" de cada item, para não travar o salvamento da EC inteira.
-        linhasRevisadas = corrigirDescricoesLocal(ec!.linhas);
-        revisaoCompleta = true;
+        const revisao = await corrigirDescricoes(ec!.linhas);
+        linhasRevisadas = revisao.linhas;
+        revisaoCompleta = revisao.revisaoCompleta;
       }
       const ecRevisada = { ...ec!, linhas: linhasRevisadas };
       setEc(ecRevisada);
@@ -577,4 +575,3 @@ function ResumoLinha({ desc, polobh, cliente, strong }: { desc: string; polobh: 
     </tr>
   );
 }
-

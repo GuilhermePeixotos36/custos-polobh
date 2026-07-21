@@ -8,6 +8,7 @@ import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import { useMinhasPendencias } from "@/store/pendencias";
 import { cx } from "@/lib/format";
+import { statusProjetoAutomatico } from "@/domain/statusProjeto";
 import type { StatusProjeto } from "@/data/types";
 
 const tomStatusProjeto: Record<StatusProjeto, Tom> = {
@@ -27,17 +28,20 @@ const FILTROS: { key: FiltroProjeto; label: string }[] = [
 export function Projetos() {
   const navigate = useNavigate();
   const { porProjeto } = useMinhasPendencias();
-  const { data: projetos, loading } = useAsync(() => repo.projetos.listar(), []);
+  const { data, loading } = useAsync(async () => {
+    const [projetos, ecs] = await Promise.all([repo.projetos.listar(), repo.ecs.listar()]);
+    return { projetos, ecs };
+  }, []);
   const [filtro, setFiltro] = useState<FiltroProjeto>("Ativo");
   const [busca, setBusca] = useState("");
 
   const lista = useMemo(() => {
     const q = busca.trim().toLowerCase();
-    return (projetos ?? [])
+    return (data?.projetos ?? []).map((p) => ({ ...p, status: statusProjetoAutomatico(p, data?.ecs ?? []) }))
       // "Arquivados" agrupa tudo que não está Ativo (Arquivado/Concluído/Cancelado).
       .filter((p) => filtro === "Todos" || (filtro === "Ativo" ? p.status === "Ativo" : p.status !== "Ativo"))
       .filter((p) => !q || `${p.nome} ${p.cliente?.nome ?? ""}`.toLowerCase().includes(q));
-  }, [projetos, filtro, busca]);
+  }, [data, filtro, busca]);
 
   return (
     <PageShell

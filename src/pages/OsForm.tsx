@@ -206,18 +206,22 @@ export function OsForm() {
       const linkCred = os!.slugCredenciamento
         ? `${location.origin}/credenciamento/${os!.slugCredenciamento}`
         : os!.credenciamento.linkFormulario;
-      const salvo = await repo.oss.salvar({
+      let salvo = await repo.oss.salvar({
         ...os!,
-        status: status ?? os!.status,
+        status: status === "Disparada" ? os!.status : (status ?? os!.status),
         credenciamento: { ...os!.credenciamento, linkFormulario: linkCred },
         financeiro: { ...os!.financeiro, bvValor },
       });
       iniciar(salvo);
       if (status === "Disparada") {
         const r = await dispararOsPorEmail(salvo, ecCtx!);
-        if (!r.ok) toast(`OS salva, mas o e-mail não saiu: ${r.motivo}`, "warning");
-        else if (r.simulado) toast(`OS disparada. E-mail simulado (Brevo não configurado) para ${r.destinatarios.join(", ") || "—"}.`, "info");
-        else toast(`OS disparada e e-mail enviado para ${r.destinatarios.join(", ")}.`, "success");
+        if (!r.ok) toast(`OS salva no status anterior; o e-mail não saiu: ${r.motivo}`, "warning");
+        else if (r.simulado) toast(`E-mail simulado para ${r.destinatarios.join(", ") || "—"}; a OS não foi marcada como disparada.`, "info");
+        else {
+          salvo = await repo.oss.salvar({ ...salvo, status: "Disparada" });
+          iniciar(salvo);
+          toast(`OS disparada e e-mail enviado para ${r.destinatarios.join(", ")}.`, "success");
+        }
       } else {
         toast("OS salva.", "success");
       }

@@ -1,6 +1,7 @@
-import { useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useRef, type ClipboardEvent, type KeyboardEvent, type ReactNode } from "react";
 import { IcBold, IcList } from "@/components/icons";
 import { cx } from "@/lib/format";
+import { sanitizarHtmlEditor } from "@/lib/sanitizeHtml";
 
 interface Props {
   value: string; // HTML
@@ -23,13 +24,16 @@ export function RichTextField({ value, onChange, placeholder, toolbarExtra, clas
     const el = ref.current;
     if (!el) return;
     if (document.activeElement === el) return;
-    if (el.innerHTML !== (value || "")) el.innerHTML = value || "";
+    const seguro = sanitizarHtmlEditor(value || "");
+    if (el.innerHTML !== seguro) el.innerHTML = seguro;
   }, [value]);
 
   const emit = () => {
     const el = ref.current;
     if (!el) return;
-    const html = el.innerHTML === "<br>" ? "" : el.innerHTML;
+    const atual = el.innerHTML === "<br>" ? "" : el.innerHTML;
+    const html = sanitizarHtmlEditor(atual);
+    if (el.innerHTML !== html) el.innerHTML = html;
     onChange(html);
   };
 
@@ -49,6 +53,15 @@ export function RichTextField({ value, onChange, placeholder, toolbarExtra, clas
 
     evento.preventDefault();
     document.execCommand(evento.shiftKey ? "outdent" : "indent", false);
+    emit();
+  };
+
+  const onPaste = (evento: ClipboardEvent<HTMLDivElement>) => {
+    evento.preventDefault();
+    const html = evento.clipboardData.getData("text/html");
+    const texto = evento.clipboardData.getData("text/plain");
+    const conteudo = html ? sanitizarHtmlEditor(html) : texto.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>");
+    document.execCommand("insertHTML", false, conteudo);
     emit();
   };
 
@@ -86,6 +99,7 @@ export function RichTextField({ value, onChange, placeholder, toolbarExtra, clas
           autoCorrect="on"
           onFocus={() => document.execCommand("defaultParagraphSeparator", false, "p")}
           onKeyDown={onKeyDown}
+          onPaste={onPaste}
           suppressContentEditableWarning
           onInput={emit}
           onBlur={emit}

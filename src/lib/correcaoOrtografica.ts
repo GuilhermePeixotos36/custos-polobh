@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabaseClient";
 import type { EcLinha } from "@/data/types";
 import type { RoteirosProjeto } from "@/data/types";
+import { sanitizarHtmlEditor } from "@/lib/sanitizeHtml";
 
 interface DescricaoCorrigida {
   id: string;
@@ -38,7 +39,7 @@ export function corrigirMaiusculas(texto: string): string {
 
 /** Corrige somente nós de texto, preservando as tags geradas pelo editor. */
 export function corrigirMaiusculasHtml(html: string): string {
-  return html.split(/(<[^>]+>)/g).map((parte) => parte.startsWith("<") ? parte : corrigirMaiusculas(parte)).join("");
+  return sanitizarHtmlEditor(html).split(/(<[^>]+>)/g).map((parte) => parte.startsWith("<") ? parte : corrigirMaiusculas(parte)).join("");
 }
 
 async function corrigirTextos(
@@ -47,25 +48,39 @@ async function corrigirTextos(
 ): Promise<{ textos: Map<string, string>; revisaoCompleta: boolean }> {
   const locais = textos.map((item) => ({ ...item, descricao: fallback(item.descricao, item.id) }));
   if (!locais.length) return { textos: new Map(), revisaoCompleta: true };
-  try {
-    const { data, error } = await supabase.functions.invoke("corrigir-descricoes-ec", { body: { descricoes: locais } });
-    const resposta = data as RespostaCorrecao;
-    if (error || !resposta?.ok || !Array.isArray(resposta.descricoes)) {
-      return { textos: new Map(locais.map((item) => [item.id, item.descricao])), revisaoCompleta: false };
-    }
-    const ids = new Set(locais.map((item) => item.id));
-    const revisados = new Map(
-      resposta.descricoes
-        .filter((item) => ids.has(item?.id) && typeof item.descricao === "string" && item.descricao.trim())
-        .map((item) => [item.id, fallback(item.descricao, item.id)] as const)
-    );
-    return {
-      textos: new Map(locais.map((item) => [item.id, revisados.get(item.id) ?? item.descricao])),
-      revisaoCompleta: revisados.size === locais.length,
-    };
-  } catch {
-    return { textos: new Map(locais.map((item) => [item.id, item.descricao])), revisaoCompleta: false };
+  // ECs corporativas têm centenas de textos. Lotes evitam truncar o JSON da IA;
+  // três chamadas por rodada equilibram tempo de espera e limite do provedor.
+  const lotes: DescricaoCorrigida[][] = [];
+  for (const item of locais) {
+    const atual = lotes.at(-1);
+    const tamanho = atual?.reduce((total, entrada) => total + entrada.descricao.length, 0) ?? 0;
+    if (!atual || atual.length >= 30 || tamanho + item.descricao.length > 32_000) lotes.push([item]);
+    else atual.push(item);
   }
+  const revisados = new Map<string, string>();
+  let revisaoCompleta = true;
+  for (let inicio = 0; inicio < lotes.length; inicio += 3) {
+    const respostas = await Promise.all(lotes.slice(inicio, inicio + 3).map(async (lote) => {
+      try {
+        const { data, error } = await supabase.functions.invoke("corrigir-descricoes-ec", { body: { descricoes: lote } });
+        const resposta = data as RespostaCorrecao;
+        return !error && resposta?.ok && Array.isArray(resposta.descricoes) ? resposta.descricoes : null;
+      } catch { return null; }
+    }));
+    respostas.forEach((resposta, indice) => {
+      const lote = lotes[inicio + indice];
+      if (!resposta) { revisaoCompleta = false; return; }
+      const ids = new Set(lote.map((item) => item.id));
+      resposta
+        .filter((item) => ids.has(item?.id) && typeof item.descricao === "string" && item.descricao.trim())
+        .forEach((item) => revisados.set(item.id, fallback(item.descricao, item.id)));
+      if (lote.some((item) => !revisados.has(item.id))) revisaoCompleta = false;
+    });
+  }
+  return {
+    textos: new Map(locais.map((item) => [item.id, revisados.get(item.id) ?? item.descricao])),
+    revisaoCompleta,
+  };
 }
 
 export async function corrigirRoteirosProjeto(roteiros: RoteirosProjeto): Promise<ResultadoCorrecaoRoteiros> {
@@ -110,17 +125,4 @@ export async function corrigirDescricoes(linhas: EcLinha[]): Promise<ResultadoCo
 export async function corrigirLinhaEc(linha: EcLinha): Promise<{ linha: EcLinha; revisaoCompleta: boolean }> {
   const resultado = await corrigirDescricoes([linha]);
   return { linha: resultado.linhas[0], revisaoCompleta: resultado.revisaoCompleta };
-}
-
-/**
- * Correção apenas local (maiúsculas), sem chamada de rede — usada no salvamento
- * GERAL da EC para não travar o fluxo com a Edge Function em dezenas de linhas.
- * A revisão online por IA continua disponível no "Revisar e salvar" de cada item.
- */
-export function corrigirDescricoesLocal(linhas: EcLinha[]): EcLinha[] {
-  return linhas.map((linha) => ({
-    ...linha,
-    descricao: corrigirMaiusculas(linha.descricao),
-    descricaoCompleta: corrigirMaiusculasHtml(linha.descricaoCompleta),
-  }));
 }
