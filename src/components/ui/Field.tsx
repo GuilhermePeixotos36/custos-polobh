@@ -11,6 +11,8 @@ import { cx, maskTelefone, onlyDigits, colapsarEspacos, tituloProprio, capitaliz
 
 const fieldBase =
   "w-full bg-surface border-[1.5px] border-[#BFC4CE] rounded-btn px-3.5 text-sm text-ink placeholder:text-ink-3 input-focus disabled:bg-[#EDEEF1] disabled:text-ink-2";
+/** Destaque de campo obrigatório não preenchido: contorno + preenchimento vermelhos. */
+const fieldErro = "!border-danger !bg-danger-soft";
 const dataIsoValida = (v: string) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
   const ano = Number(v.slice(0, 4));
@@ -65,7 +67,7 @@ const DATA_ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
  */
 export type FormatoCampo = "titulo" | "titulo-empresa" | "frase";
 
-type InputProps = InputHTMLAttributes<HTMLInputElement> & { formato?: FormatoCampo };
+type InputProps = InputHTMLAttributes<HTMLInputElement> & { formato?: FormatoCampo; erro?: boolean };
 
 function aplicarFormato(v: string, formato?: FormatoCampo): string {
   switch (formato) {
@@ -80,14 +82,14 @@ function aplicarFormato(v: string, formato?: FormatoCampo): string {
   }
 }
 
-export function Input({ className, type, onChange, value, onBlur, formato, ...rest }: InputProps) {
+export function Input({ className, type, onChange, value, onBlur, formato, erro, ...rest }: InputProps) {
   if (type === "date") {
     return (
       <input
         type="date"
         min="1900-01-01"
         max="2100-12-31"
-        className={cx(fieldBase, "h-11", className)}
+        className={cx(fieldBase, "h-11", erro && fieldErro, className)}
         value={value}
         onChange={(e) => {
           const v = e.target.value;
@@ -114,7 +116,7 @@ export function Input({ className, type, onChange, value, onBlur, formato, ...re
     }
     onBlur?.(e);
   };
-  return <input className={cx(fieldBase, "h-11", className)} type={type} onChange={onChange} value={value} onBlur={handleBlur} {...rest} />;
+  return <input className={cx(fieldBase, "h-11", erro && fieldErro, className)} type={type} onChange={onChange} value={value} onBlur={handleBlur} {...rest} />;
 }
 
 /** Telefone em dois campos (DDD + número), mas guarda/emite uma única string mascarada — como antes. */
@@ -208,10 +210,11 @@ export function AutoTextarea({
 export function Select({
   className,
   children,
+  erro,
   ...rest
-}: SelectHTMLAttributes<HTMLSelectElement>) {
+}: SelectHTMLAttributes<HTMLSelectElement> & { erro?: boolean }) {
   return (
-    <select className={cx(fieldBase, "h-11 pr-8 appearance-none bg-no-repeat", className)}
+    <select className={cx(fieldBase, "h-11 pr-8 appearance-none bg-no-repeat", erro && fieldErro, className)}
       style={{
         backgroundImage:
           "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236A6E78' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")",

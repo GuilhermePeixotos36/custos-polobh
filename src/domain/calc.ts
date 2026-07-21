@@ -3,7 +3,7 @@
  * Percentuais fixos: honorários 15%, encargos 16,33%.
  */
 import type { Ec, EcLinha, Producao, Fornecedor, Os, TaxaConfig } from "@/data/types";
-import { dataBR } from "@/lib/format";
+import { dataBRCurta } from "@/lib/format";
 
 export const HONORARIOS = 0.15;
 export const ENCARGOS = 0.1633;
@@ -114,15 +114,14 @@ export function numeroEc(
 }
 
 /**
- * Título automático da EC exibido em destaque no gerenciamento das ECs:
- * "EC · {Cliente} · {Projeto} · V{NN} · {Data de criação}".
+ * Título automático da EC exibido em destaque no app — mesmo padrão do nome do
+ * arquivo Excel: "{Título do Projeto} {NN} Em {DD/MM/AA}".
  */
 export function tituloEc(ec: Ec): string {
-  const v = `V${String(ec.versao).padStart(2, "0")}`;
-  const cliente = ec.cliente?.nome || "Cliente";
-  const projeto = ec.projeto?.titulo || "Projeto";
-  const data = ec.criadoEm ? dataBR(ec.criadoEm) : "";
-  return ["EC", cliente, projeto, v, data].filter(Boolean).join(" · ");
+  const versao = String(ec.versao).padStart(2, "0");
+  const titulo = ec.projeto?.titulo || ec.numero || "EC";
+  const data = ec.criadoEm ? dataBRCurta(ec.criadoEm) : "";
+  return [titulo, versao, data ? `Em ${data}` : ""].filter(Boolean).join(" ");
 }
 
 /** Numeração da OS derivada da EC: "{numeroEc} – OS-{NN}". */

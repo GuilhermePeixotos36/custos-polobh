@@ -545,7 +545,7 @@ export function OsForm() {
                 value={os.financeiro.bvJustificativa ?? ""}
                 onChange={(e) => updFin({ bvJustificativa: e.target.value })}
                 placeholder="Registre o motivo quando não houver BV ou for abaixo de 15% (ex.: condição negociada com o fornecedor)."
-                className={bvJustifFaltando ? "!border-danger" : ""}
+                className={bvJustifFaltando ? "!border-danger !bg-danger-soft" : ""}
               />
               {bvJustifFaltando && (
                 <p className="mt-1 text-[12px] font-semibold text-danger">Obrigatória: o BV está {os.financeiro.bvPercentual <= 0 ? "zerado" : "abaixo de 15%"}.</p>

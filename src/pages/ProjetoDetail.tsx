@@ -67,6 +67,7 @@ export function ProjetoDetail() {
   const [cnpjLoading, setCnpjLoading] = useState(false);
   const [cnpjMsg, setCnpjMsg] = useState("");
   const [cnpjFoco, setCnpjFoco] = useState(false);
+  const [tentouSalvar, setTentouSalvar] = useState(false);
 
   useEffect(() => {
     if (novo) setP(projetoVazio());
@@ -232,23 +233,29 @@ export function ProjetoDetail() {
     }
   }
 
-  const camposObrigatoriosFaltando = (): string[] => {
-    const faltando: string[] = [];
-    if (!p.info.clienteAbreviado.trim()) faltando.push("Cliente (abreviação)");
-    if (!p.info.nomeProjeto.trim()) faltando.push("Nome do projeto");
-    if (!/^(19\d{2}|20\d{2}|2100)$/.test(p.info.anoProjeto.trim())) faltando.push("Ano (1900 a 2100)");
-    if (!p.cliente.nome.trim()) faltando.push("Cliente (nome)");
-    if (!documentoFiscalValido(p.cliente.cnpjCpf)) faltando.push("CNPJ/CPF válido");
-    if (!p.info.modalidade) faltando.push("Modalidade");
-    if (!p.info.local.trim()) faltando.push("Local");
-    if (!p.info.cronograma.evento.some((f) => f.data.trim())) faltando.push("Data do evento (cronograma)");
+  const camposObrigatoriosFaltando = (): { chave: string; label: string }[] => {
+    const faltando: { chave: string; label: string }[] = [];
+    if (!p.info.clienteAbreviado.trim()) faltando.push({ chave: "clienteAbreviado", label: "Cliente (abreviação)" });
+    if (!p.info.nomeProjeto.trim()) faltando.push({ chave: "nomeProjeto", label: "Nome do projeto" });
+    if (!/^(19\d{2}|20\d{2}|2100)$/.test(p.info.anoProjeto.trim())) faltando.push({ chave: "anoProjeto", label: "Ano (1900 a 2100)" });
+    if (!p.cliente.nome.trim()) faltando.push({ chave: "clienteNome", label: "Cliente (nome)" });
+    if (!documentoFiscalValido(p.cliente.cnpjCpf)) faltando.push({ chave: "cnpjCpf", label: "CNPJ/CPF válido" });
+    if (!p.info.modalidade) faltando.push({ chave: "modalidade", label: "Modalidade" });
+    if (!p.info.local.trim()) faltando.push({ chave: "local", label: "Local" });
+    if (!p.info.cronograma.evento.some((f) => f.data.trim())) faltando.push({ chave: "cronogramaEvento", label: "Data do evento (cronograma)" });
     return faltando;
   };
+
+  // Derivado a cada render: assim que um campo apontado é corrigido, o destaque
+  // vermelho some sozinho — não precisa tentar salvar de novo para "limpar".
+  const faltandoAtual = camposObrigatoriosFaltando();
+  const chavesComErro = new Set(tentouSalvar ? faltandoAtual.map((f) => f.chave) : []);
 
   async function salvar() {
     const faltando = camposObrigatoriosFaltando();
     if (faltando.length) {
-      toast(`Preencha os campos obrigatórios: ${faltando.join(", ")}.`, "danger");
+      setTentouSalvar(true);
+      toast(`Preencha os campos obrigatórios: ${faltando.map((f) => f.label).join(", ")}.`, "danger");
       return;
     }
     setSalvando(true);
@@ -331,6 +338,7 @@ export function ProjetoDetail() {
                       value={p.cliente.cnpjCpf}
                       inputMode="numeric"
                       autoComplete="off"
+                      erro={chavesComErro.has("cnpjCpf")}
                       onChange={(e) => updCli({ cnpjCpf: maskCpfCnpjInput(e.target.value) })}
                       onFocus={() => setCnpjFoco(true)}
                       onBlur={() => setTimeout(() => setCnpjFoco(false), 150)}
@@ -354,7 +362,7 @@ export function ProjetoDetail() {
                     )}
                   </div>
                 </Field>
-                <Field label="Cliente (nome)"><Input formato="titulo" value={p.cliente.nome} onChange={(e) => updCli({ nome: e.target.value })} /></Field>
+                <Field label="Cliente (nome)"><Input formato="titulo" erro={chavesComErro.has("clienteNome")} value={p.cliente.nome} onChange={(e) => updCli({ nome: e.target.value })} /></Field>
                 <Field label="Razão Social" className="sm:col-span-2"><Input formato="titulo-empresa" value={p.cliente.razaoSocial} onChange={(e) => updCli({ razaoSocial: e.target.value })} /></Field>
                 <Field label="Endereço" className="sm:col-span-2"><Input formato="titulo" value={p.cliente.endereco} onChange={(e) => updCli({ endereco: e.target.value })} /></Field>
                 <Field label="Inscrição Estadual"><Input value={p.cliente.inscricaoEstadual} onChange={(e) => updCli({ inscricaoEstadual: e.target.value })} /></Field>
@@ -384,17 +392,17 @@ export function ProjetoDetail() {
           <Card>
             <CardTitle>Informações do projeto</CardTitle>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <Field label="Cliente (abreviação)"><Input value={p.info.clienteAbreviado} onChange={(e) => updTituloParte({ clienteAbreviado: e.target.value })} placeholder="Ex.: ACME" /></Field>
-              <Field label="Nome do projeto"><Input formato="titulo" value={p.info.nomeProjeto} onChange={(e) => updTituloParte({ nomeProjeto: e.target.value })} /></Field>
-              <Field label="Ano"><Input value={p.info.anoProjeto} inputMode="numeric" onChange={(e) => updTituloParte({ anoProjeto: onlyDigits(e.target.value).slice(0, 4) })} placeholder="2026" /></Field>
+              <Field label="Cliente (abreviação)"><Input erro={chavesComErro.has("clienteAbreviado")} value={p.info.clienteAbreviado} onChange={(e) => updTituloParte({ clienteAbreviado: e.target.value })} placeholder="Ex.: ACME" /></Field>
+              <Field label="Nome do projeto"><Input formato="titulo" erro={chavesComErro.has("nomeProjeto")} value={p.info.nomeProjeto} onChange={(e) => updTituloParte({ nomeProjeto: e.target.value })} /></Field>
+              <Field label="Ano"><Input erro={chavesComErro.has("anoProjeto")} value={p.info.anoProjeto} inputMode="numeric" onChange={(e) => updTituloParte({ anoProjeto: onlyDigits(e.target.value).slice(0, 4) })} placeholder="2026" /></Field>
               <Field label="Modalidade">
-                <Select value={p.info.modalidade} onChange={(e) => updInfo({ modalidade: e.target.value as ProjetoInfo["modalidade"] })}>
+                <Select erro={chavesComErro.has("modalidade")} value={p.info.modalidade} onChange={(e) => updInfo({ modalidade: e.target.value as ProjetoInfo["modalidade"] })}>
                   <option value="">Selecione</option>
                   <option value="Cultural">Cultural</option>
                   <option value="Corporativo">Corporativo</option>
                 </Select>
               </Field>
-              <Field label="Local"><Input formato="titulo" value={p.info.local} onChange={(e) => updInfo({ local: e.target.value })} /></Field>
+              <Field label="Local"><Input formato="titulo" erro={chavesComErro.has("local")} value={p.info.local} onChange={(e) => updInfo({ local: e.target.value })} /></Field>
               <Field label="Endereço do local"><Input formato="titulo" value={p.info.enderecoLocal} onChange={(e) => updInfo({ enderecoLocal: e.target.value })} /></Field>
               <Field label="Nº de participantes"><Input type="number" value={p.info.participantes ?? ""} onChange={(e) => updInfo({ participantes: e.target.value ? Number(e.target.value) : null })} /></Field>
               <Field label="Nome da produtora responsável"><Input formato="titulo" value={p.info.produtoraResponsavel} onChange={(e) => updInfo({ produtoraResponsavel: e.target.value })} /></Field>
@@ -431,7 +439,7 @@ export function ProjetoDetail() {
                       <div className="space-y-2">
                         {p.info.cronograma[key].map((faixa) => (
                           <div key={faixa.id} className="grid grid-cols-1 sm:grid-cols-[minmax(150px,1fr)_minmax(120px,.7fr)_minmax(120px,.7fr)_auto] gap-2 items-end">
-                            <Field label="Data"><Input type="date" value={faixa.data} onChange={(e) => updFaixa(key, faixa.id, { data: e.target.value })} /></Field>
+                            <Field label="Data"><Input type="date" erro={key === "evento" && chavesComErro.has("cronogramaEvento") && !faixa.data.trim()} value={faixa.data} onChange={(e) => updFaixa(key, faixa.id, { data: e.target.value })} /></Field>
                             <Field label="Início"><Input type="time" value={faixa.inicio} onChange={(e) => updFaixa(key, faixa.id, { inicio: e.target.value })} /></Field>
                             <Field label="Fim"><Input type="time" value={faixa.fim} onChange={(e) => updFaixa(key, faixa.id, { fim: e.target.value })} /></Field>
                             <div className="flex gap-1 pb-0.5">
