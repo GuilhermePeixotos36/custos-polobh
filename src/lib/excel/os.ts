@@ -7,10 +7,9 @@
 import ExcelJS from "exceljs";
 import type { Ec, Os } from "@/data/types";
 import { dataBR } from "@/lib/format";
-import { COR, fill, thin, baixar, nomeArquivo, carregarLogo } from "./shared";
+import { COR, fill, grade, baixar, nomeArquivo, carregarLogo } from "./shared";
 
 const moeda = '"R$" #,##0.00';
-const CINZA = "FFD9D9D9";
 
 /** Dados fiscais da empresa do grupo Pólobh (configurados em Configurações). */
 export interface EmpresaEmissora {
@@ -51,7 +50,7 @@ export async function criarOsExcelBuffer(
     const c = ws.getCell(`A${r}`);
     c.value = txt;
     c.font = { bold: true, size: 11, color: { argb: COR.white } };
-    c.fill = fill(COR.black);
+    c.fill = fill(COR.primary);
     c.alignment = { vertical: "middle", horizontal: "center" };
     ws.getRow(r).height = 22;
     r++;
@@ -62,9 +61,9 @@ export async function criarOsExcelBuffer(
     const c = ws.getCell(`A${r}`);
     c.value = txt;
     c.font = { bold: true, size: 10, color: { argb: COR.ink } };
-    c.fill = fill(CINZA);
+    c.fill = fill(COR.groupGray);
     c.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
-    c.border = thin;
+    c.border = grade;
     r++;
   };
 
@@ -78,14 +77,14 @@ export async function criarOsExcelBuffer(
     a.font = { bold: true, size: 10 };
     a.fill = fill(COR.soft);
     a.alignment = { vertical: "top", wrapText: true };
-    a.border = thin;
+    a.border = grade;
     const b = ws.getCell(`B${r}`);
     b.value = o.formula
       ? ({ formula: o.formula, result: typeof valor === "number" ? valor : undefined } as ExcelJS.CellValue)
       : ((valor ?? "") as ExcelJS.CellValue);
     b.font = { size: 10, italic: !!o.fixo, color: { argb: COR.ink } };
     b.alignment = { wrapText: true, vertical: "top" };
-    b.border = thin;
+    b.border = grade;
     if (o.money && typeof valor === "number") {
       b.numFmt = moeda;
       b.alignment = { vertical: "top", horizontal: "left" };
@@ -101,8 +100,8 @@ export async function criarOsExcelBuffer(
   tit.font = { name: "Calibri", size: 16, bold: true, color: { argb: COR.white } };
   tit.alignment = { vertical: "middle", horizontal: "center" };
   ["A", "B"].forEach((c) => {
-    ws.getCell(`${c}${r}`).fill = fill(COR.black);
-    ws.getCell(`${c}${r + 1}`).fill = fill(COR.black);
+    ws.getCell(`${c}${r}`).fill = fill(COR.headerGray);
+    ws.getCell(`${c}${r + 1}`).fill = fill(COR.headerGray);
   });
   ws.getRow(r).height = 26;
   ws.getRow(r + 1).height = 26;

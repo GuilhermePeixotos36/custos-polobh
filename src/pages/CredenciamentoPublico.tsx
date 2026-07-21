@@ -62,10 +62,10 @@ export function CredenciamentoPublico() {
 
   return (
     <div className="min-h-screen bg-bg">
-      <header className="bg-black text-white">
-        <div className="max-w-2xl mx-auto px-6 py-7 flex items-center gap-3">
-          <img src="/polobh-logo.png" className="h-8 w-auto object-contain" alt="Pólobh" style={{ filter: "brightness(0) invert(1)" }} />
-          <div className="text-white/55 text-[12px] font-semibold">Credenciamento de fornecedor</div>
+      <header className="bg-surface border-b-2 border-primary">
+        <div className="max-w-2xl mx-auto px-6 py-5 flex items-center gap-3">
+          <img src="/polobh-logo.png" className="h-8 w-auto object-contain" alt="Pólobh" />
+          <div className="text-ink-3 text-[12px] font-semibold">Credenciamento de fornecedor</div>
         </div>
       </header>
 
