@@ -11,6 +11,7 @@
  * para construir e testar todo o fluxo antes de plugar o Brevo.
  */
 import { flags } from "@/lib/flags";
+import { supabase } from "@/lib/supabaseClient";
 import type { Ec, Os } from "@/data/types";
 import {
   emailCredenciamento,
@@ -29,9 +30,11 @@ export interface ResultadoEmail {
   destinatarios: string[];
 }
 
-const endpoint = () => import.meta.env.VITE_EMAIL_ENDPOINT as string | undefined;
-
-/** Envia uma mensagem já montada. Não lança — devolve o resultado. */
+/**
+ * Envia uma mensagem já montada pela Edge Function `send-email` (que fala com o
+ * Brevo). Usa `supabase.functions.invoke`, então o header de autenticação vai
+ * automático (sessão do usuário / anon key). Não lança — devolve o resultado.
+ */
 export async function enviarEmail(msg: MensagemEmail): Promise<ResultadoEmail> {
   const destinatarios = msg.para.map((p) => p.email);
 
@@ -39,26 +42,30 @@ export async function enviarEmail(msg: MensagemEmail): Promise<ResultadoEmail> {
     return { ok: false, simulado: true, motivo: "Sem e-mail de destino.", destinatarios };
   }
 
-  // Modo simulação: flag desligada ou endpoint ausente.
-  if (!flags.email || !endpoint()) {
+  // Modo simulação: enquanto a flag estiver desligada, nada sai (útil em dev/testes).
+  if (!flags.email) {
     console.info("[email:simulado]", { assunto: msg.assunto, para: destinatarios });
     return {
       ok: true,
       simulado: true,
-      motivo: "Aguardando conexão com o e-mail da Pólobh (Brevo) — envio simulado, nada saiu.",
+      motivo: "Envio de e-mail desligado (VITE_FEATURE_EMAIL=false) — simulado, nada saiu.",
       destinatarios,
     };
   }
 
   try {
-    const resp = await fetch(endpoint()!, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(msg),
-    });
-    if (!resp.ok) {
-      const texto = await resp.text().catch(() => "");
-      return { ok: false, simulado: false, motivo: `Falha no envio (${resp.status}). ${texto}`.trim(), destinatarios };
+    const { data, error } = await supabase.functions.invoke("send-email", { body: msg });
+    if (error) {
+      // tenta extrair a mensagem de erro devolvida pela função (corpo JSON)
+      let detalhe = error.message;
+      try {
+        const corpo = await (error as unknown as { context?: Response }).context?.json();
+        if (corpo?.erro) detalhe = corpo.erro;
+      } catch { /* mantém error.message */ }
+      return { ok: false, simulado: false, motivo: detalhe, destinatarios };
+    }
+    if (data && (data as { ok?: boolean }).ok === false) {
+      return { ok: false, simulado: false, motivo: (data as { erro?: string }).erro ?? "Falha no envio.", destinatarios };
     }
     return { ok: true, simulado: false, destinatarios };
   } catch (e) {

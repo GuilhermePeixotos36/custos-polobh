@@ -22,8 +22,17 @@ export async function enviarPeloBrevo(msg: EmailBrevo): Promise<{ messageId?: st
   const apiKey = Deno.env.get("BREVO_API_KEY");
   if (!apiKey) throw new Error("BREVO_API_KEY não configurada.");
 
-  const remetenteEmail = Deno.env.get("BREVO_SENDER_EMAIL") ?? "contato@polobh.com.br";
+  // Remetente autenticado no domínio da Pólobh (registrado pelo TI).
+  const remetenteEmail = Deno.env.get("BREVO_SENDER_EMAIL") ?? "noreply@polobh.com.br";
   const remetenteNome = Deno.env.get("BREVO_SENDER_NAME") ?? "Pólobh Eventos";
+  // Como o envio sai de "noreply@", as respostas são direcionadas a uma caixa real
+  // (BREVO_REPLY_TO) — a menos que a mensagem já especifique um "responderPara".
+  const replyToPadrao = Deno.env.get("BREVO_REPLY_TO");
+  const replyTo = msg.responderPara
+    ? { email: msg.responderPara.email, name: msg.responderPara.nome }
+    : replyToPadrao
+    ? { email: replyToPadrao, name: remetenteNome }
+    : undefined;
 
   const resp = await fetch(BREVO_URL, {
     method: "POST",
@@ -35,9 +44,7 @@ export async function enviarPeloBrevo(msg: EmailBrevo): Promise<{ messageId?: st
     body: JSON.stringify({
       sender: { email: remetenteEmail, name: remetenteNome },
       to: msg.para.map((d) => ({ email: d.email, name: d.nome })),
-      replyTo: msg.responderPara
-        ? { email: msg.responderPara.email, name: msg.responderPara.nome }
-        : undefined,
+      replyTo,
       subject: msg.assunto,
       htmlContent: msg.html,
     }),
