@@ -5,11 +5,19 @@
 import type { Ec, Os } from "@/data/types";
 import { dataBR } from "@/lib/format";
 
+export interface AnexoEmail {
+  nome: string;
+  /** Conteúdo em base64 (sem o prefixo "data:...;base64,"). */
+  conteudoBase64: string;
+}
+
 export interface MensagemEmail {
   para: { email: string; nome?: string }[];
   assunto: string;
   html: string;
   responderPara?: { email: string; nome?: string };
+  /** Anexos (hoje: a planilha Excel referente à ação que disparou o e-mail). */
+  anexos?: AnexoEmail[];
 }
 
 const REMETENTE_NOME = "Pólobh Eventos";

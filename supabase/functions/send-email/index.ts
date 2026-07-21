@@ -3,9 +3,9 @@ import { autorizar, respostaAutorizacao } from "../_shared/auth.ts";
 /**
  * Edge Function: send-email
  *
- * Recebe a mensagem { para, assunto, html, responderPara? }, envia pelo Brevo e
- * registra na tabela `emails` (best-effort). A chave BREVO_API_KEY fica só aqui,
- * no servidor — nunca vai para o navegador.
+ * Recebe a mensagem { para, assunto, html, responderPara?, anexos? }, envia pelo
+ * Brevo e registra na tabela `emails` (best-effort). A chave BREVO_API_KEY fica
+ * só aqui, no servidor — nunca vai para o navegador.
  *
  * Deploy (CLI): supabase functions deploy send-email
  *
@@ -20,11 +20,16 @@ interface Destinatario {
   email: string;
   nome?: string;
 }
+interface AnexoEmail {
+  nome: string;
+  conteudoBase64: string;
+}
 interface EmailBrevo {
   para: Destinatario[];
   assunto: string;
   html: string;
   responderPara?: Destinatario;
+  anexos?: AnexoEmail[];
 }
 
 const cors = {
@@ -38,8 +43,29 @@ const json = (body: unknown, status = 200) =>
 
 const BREVO_URL = "https://api.brevo.com/v3/smtp/email";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const BASE64_RE = /^[A-Za-z0-9+/]+=*$/;
+// Brevo recusa e-mails grandes; limitamos por anexo e no total para nunca chegar perto do teto.
+const MAX_ANEXO_BASE64 = 8_000_000; // ~6 MB de arquivo por anexo
+const MAX_ANEXOS_BASE64_TOTAL = 12_000_000; // ~9 MB somando todos os anexos
 
 function payloadValido(msg: EmailBrevo): boolean {
+  const anexosValidos =
+    msg.anexos === undefined ||
+    (Array.isArray(msg.anexos) &&
+      msg.anexos.length <= 3 &&
+      msg.anexos.every(
+        (a) =>
+          Boolean(a) &&
+          typeof a.nome === "string" &&
+          a.nome.length > 0 &&
+          a.nome.length <= 150 &&
+          typeof a.conteudoBase64 === "string" &&
+          a.conteudoBase64.length > 0 &&
+          a.conteudoBase64.length <= MAX_ANEXO_BASE64 &&
+          BASE64_RE.test(a.conteudoBase64)
+      ) &&
+      msg.anexos.reduce((soma, a) => soma + a.conteudoBase64.length, 0) <= MAX_ANEXOS_BASE64_TOTAL);
+
   return Boolean(
     Array.isArray(msg?.para) &&
     msg.para.length > 0 &&
@@ -51,7 +77,8 @@ function payloadValido(msg: EmailBrevo): boolean {
     typeof msg.html === "string" &&
     msg.html.length > 0 &&
     msg.html.length <= 200_000 &&
-    (!msg.responderPara || EMAIL_RE.test(msg.responderPara.email))
+    (!msg.responderPara || EMAIL_RE.test(msg.responderPara.email)) &&
+    anexosValidos
   );
 }
 
@@ -78,6 +105,9 @@ async function enviarPeloBrevo(msg: EmailBrevo): Promise<{ messageId?: string }>
       replyTo,
       subject: msg.assunto,
       htmlContent: msg.html,
+      attachment: msg.anexos?.length
+        ? msg.anexos.map((a) => ({ name: a.nome, content: a.conteudoBase64 }))
+        : undefined,
     }),
   });
 
@@ -127,7 +157,7 @@ Deno.serve(async (req) => {
   }
 
   if (!payloadValido(msg)) {
-    return json({ ok: false, erro: "Payload de e-mail inválido ou acima dos limites permitidos." }, 400);
+    return json({ ok: false, erro: "Payload de e-mail inválido ou acima dos limites permitidos (o anexo pode estar grande demais)." }, 400);
   }
 
   try {

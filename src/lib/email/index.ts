@@ -12,16 +12,29 @@
  */
 import { flags } from "@/lib/flags";
 import { supabase } from "@/lib/supabaseClient";
+import { criarOsExcelBuffer } from "@/lib/excel/os";
+import { criarEcExcelBuffer } from "@/lib/excel/ec";
 import type { Ec, Os } from "@/data/types";
 import {
   emailCredenciamento,
   emailDispararOs,
   emailEcParaAprovacao,
   emailLembreteCronograma,
+  type AnexoEmail,
   type MensagemEmail,
 } from "./templates";
 
 export type { MensagemEmail } from "./templates";
+
+/** ArrayBuffer -> base64 (sem depender de FileReader, funciona também fora do DOM). */
+function bufferParaBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binario = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binario += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(binario);
+}
 
 export interface ResultadoEmail {
   ok: boolean;
@@ -74,9 +87,51 @@ export async function enviarEmail(msg: MensagemEmail): Promise<ResultadoEmail> {
 }
 
 /* ----------------------- Helpers de alto nível ----------------------- */
-/* Cada um monta a mensagem do evento e delega para enviarEmail.        */
+/* Cada um monta a mensagem do evento, anexa a planilha do escopo certo (se */
+/* houver) e delega para enviarEmail. Geração do anexo é best-effort: se     */
+/* falhar, o e-mail ainda assim sai, só sem o arquivo.                       */
 
-export const dispararOsPorEmail = (os: Os, ec: Ec) => enviarEmail(emailDispararOs(os, ec));
+/** Anexo da OS — SEM o bloco financeiro (BV/desconto negociado são internos da Pólobh, não vão ao fornecedor). */
+async function anexoOs(os: Os, ec: Ec): Promise<AnexoEmail | undefined> {
+  try {
+    const { buffer, nome } = await criarOsExcelBuffer(os, ec, { incluirFinanceiro: false });
+    return { nome, conteudoBase64: bufferParaBase64(buffer) };
+  } catch {
+    return undefined; // segue sem anexo em vez de bloquear o envio
+  }
+}
+
+/** Anexo da EC — modelo "financeiro" (só Item/Pólobh/Cliente): o modelo "completa" traz CNPJ de
+ *  fornecedores e status internos de OS/Contrato, que não devem ir para o cliente. */
+async function anexoEc(ec: Ec): Promise<AnexoEmail | undefined> {
+  try {
+    const { buffer, nome } = await criarEcExcelBuffer(ec, "financeiro");
+    return { nome, conteudoBase64: bufferParaBase64(buffer) };
+  } catch {
+    return undefined;
+  }
+}
+
+export async function dispararOsPorEmail(os: Os, ec: Ec) {
+  const msg = emailDispararOs(os, ec);
+  const anexo = await anexoOs(os, ec);
+  if (anexo) msg.anexos = [anexo];
+  return enviarEmail(msg);
+}
+
+/** Credenciamento é só um link de formulário — sem planilha associada a este disparo. */
 export const enviarCredenciamento = (os: Os, ec: Ec) => enviarEmail(emailCredenciamento(os, ec));
-export const enviarLembreteCronograma = (os: Os, ec: Ec) => enviarEmail(emailLembreteCronograma(os, ec));
-export const enviarEcParaAprovacao = (ec: Ec) => enviarEmail(emailEcParaAprovacao(ec));
+
+export async function enviarLembreteCronograma(os: Os, ec: Ec) {
+  const msg = emailLembreteCronograma(os, ec);
+  const anexo = await anexoOs(os, ec);
+  if (anexo) msg.anexos = [anexo];
+  return enviarEmail(msg);
+}
+
+export async function enviarEcParaAprovacao(ec: Ec) {
+  const msg = emailEcParaAprovacao(ec);
+  const anexo = await anexoEc(ec);
+  if (anexo) msg.anexos = [anexo];
+  return enviarEmail(msg);
+}

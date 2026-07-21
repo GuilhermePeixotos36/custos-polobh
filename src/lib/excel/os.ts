@@ -22,11 +22,12 @@ export interface EmpresaEmissora {
   inscricaoMunicipal: string;
 }
 
-export async function gerarOsExcel(
+/** Monta o buffer da OS em Excel sem baixar (usado no download normal e no anexo de e-mail). */
+export async function criarOsExcelBuffer(
   os: Os,
   ec: Ec,
   opts: { incluirFinanceiro?: boolean; empresaPolobh?: EmpresaEmissora } = {}
-): Promise<void> {
+): Promise<{ buffer: ArrayBuffer; nome: string }> {
   const incluirFinanceiro = opts.incluirFinanceiro ?? true;
   const emp = opts.empresaPolobh;
 
@@ -308,5 +309,14 @@ export async function gerarOsExcel(
   ws.pageSetup.printArea = `A1:B${r - 1}`;
 
   const buffer = await wb.xlsx.writeBuffer();
-  baixar(buffer as ArrayBuffer, `${nomeArquivo(os.numero)}.xlsx`);
+  return { buffer: buffer as ArrayBuffer, nome: `${nomeArquivo(os.numero)}.xlsx` };
+}
+
+export async function gerarOsExcel(
+  os: Os,
+  ec: Ec,
+  opts: { incluirFinanceiro?: boolean; empresaPolobh?: EmpresaEmissora } = {}
+): Promise<void> {
+  const { buffer, nome } = await criarOsExcelBuffer(os, ec, opts);
+  baixar(buffer, nome);
 }
