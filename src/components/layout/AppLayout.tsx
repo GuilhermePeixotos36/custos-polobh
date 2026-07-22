@@ -1,7 +1,6 @@
 import { Suspense, useEffect, type ReactNode } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { TopNav } from "./TopNav";
-import { Topbar } from "./Topbar";
 import { Toaster } from "@/components/ui/Toaster";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useAuth } from "@/store/auth";
@@ -46,7 +45,8 @@ export function AppLayout() {
   );
 }
 
-/** Cabeçalho de página + área de conteúdo padronizada (topbar 66px + padding). */
+/** Cabeçalho de página + área de conteúdo padronizada. Breadcrumb e ação ficam
+ *  direto sobre o cinza da página — não existe mais uma barra branca separada. */
 export function PageShell({
   breadcrumb,
   title,
@@ -63,23 +63,24 @@ export function PageShell({
   children: ReactNode;
 }) {
   return (
-    <>
-      <Topbar breadcrumb={breadcrumb} action={topAction} />
-      <main className="flex-1 px-[40px] py-[30px] max-w-[1720px] w-full mx-auto">
-        <div className="mb-6 flex items-end justify-between gap-4 flex-wrap">
-          <div>
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <h1 className="font-display font-bold text-[30px] tracking-[-0.7px] text-ink leading-none">
-                {title}
-              </h1>
-              {titleAdornment}
-            </div>
-            {subtitle && <p className="text-ink-2 text-[15px] mt-2">{subtitle}</p>}
+    <main className="flex-1 px-[40px] py-[30px] max-w-[1720px] w-full mx-auto">
+      <div className="mb-2 flex items-center gap-2 text-sm text-ink-2 font-semibold min-w-0">
+        {breadcrumb}
+      </div>
+      <div className="mb-6 flex items-end justify-between gap-4 flex-wrap">
+        <div>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h1 className="font-display font-bold text-[30px] tracking-[-0.7px] text-ink leading-none">
+              {title}
+            </h1>
+            {titleAdornment}
           </div>
+          {subtitle && <p className="text-ink-2 text-[15px] mt-2">{subtitle}</p>}
         </div>
-        {children}
-      </main>
-    </>
+        {topAction && <div className="flex items-center gap-2.5 shrink-0">{topAction}</div>}
+      </div>
+      {children}
+    </main>
   );
 }
 
