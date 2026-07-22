@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { PageShell, Crumb } from "@/components/layout/AppLayout";
+import { PageShell } from "@/components/layout/AppLayout";
 import { Card, Badge, Table, THead, Th, Tr, Td, Input, EmptyState, tomStatusOs } from "@/components/ui";
 import { IcSearch } from "@/components/icons";
 import { repo } from "@/data";
@@ -22,7 +22,7 @@ export function OsList() {
   }, [data, busca]);
 
   return (
-    <PageShell breadcrumb={<Crumb>Ordens de Serviço</Crumb>} title="Ordens de Serviço" subtitle="OSs geradas a partir das estimativas, consolidadas por fornecedor.">
+    <PageShell title="Ordens de Serviço" subtitle="OSs geradas a partir das estimativas, consolidadas por fornecedor.">
       <Card padded={false}>
         <div className="p-4 border-b border-border-soft">
           <div className="relative max-w-md">

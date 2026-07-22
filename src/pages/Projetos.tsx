@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { PageShell, Crumb } from "@/components/layout/AppLayout";
+import { PageShell } from "@/components/layout/AppLayout";
 import { Card, Button, Badge, Table, THead, Th, Tr, Td, EmptyState, Avatar, type Tom } from "@/components/ui";
 import { IcPlus, IcSearch } from "@/components/icons";
 import { NotifDot } from "@/components/NotifDot";
@@ -45,7 +45,6 @@ export function Projetos() {
 
   return (
     <PageShell
-      breadcrumb={<Crumb>Projetos</Crumb>}
       title="Projetos"
       subtitle="Tudo começa por um projeto: cliente, EC, OS, cronograma e fornecedores."
       topAction={

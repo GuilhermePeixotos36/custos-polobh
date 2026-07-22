@@ -195,14 +195,14 @@ export function EcForm() {
   const guard = useUnsavedGuard(sujo);
 
   if (!ec || !t) {
-    return <PageShell breadcrumb={<Crumb>EC</Crumb>} title="Carregando…">{null}</PageShell>;
+    return <PageShell title="Carregando…">{null}</PageShell>;
   }
 
   // Trava de edição: uma EC só é editável enquanto Rascunho. Depois de finalizada
   // (enviada/aprovada/arquivada), gera-se uma nova versão a partir do detalhe.
   if (editando && ec.status !== "Rascunho") {
     return (
-      <PageShell breadcrumb={<Crumb>EC</Crumb>} title="Edição bloqueada">
+      <PageShell title="Edição bloqueada">
         <Card>
           <CardTitle>Esta EC não pode mais ser editada</CardTitle>
           <p className="mt-2 text-sm text-ink-2">

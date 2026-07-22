@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { PageShell, Crumb } from "@/components/layout/AppLayout";
+import { PageShell } from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui";
 import {
   IcSearch, IcGrid, IcDoc, IcClipboard, IcCalendar, IcUsers, IcGear,
@@ -387,7 +387,6 @@ export function Guia() {
 
   return (
     <PageShell
-      breadcrumb={<Crumb>Guia do app</Crumb>}
       title="Guia do aplicativo"
       subtitle="Documentação completa e didática de cada módulo. Pesquise para ir direto ao ponto."
     >

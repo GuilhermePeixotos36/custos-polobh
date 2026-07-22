@@ -143,7 +143,7 @@ export function OsForm() {
   const sujo = !!os && baseline !== "" && JSON.stringify(os) !== baseline;
   const guard = useUnsavedGuard(sujo);
 
-  if (!os || !ecCtx) return <PageShell breadcrumb={<Crumb>OS</Crumb>} title="Carregando…">{null}</PageShell>;
+  if (!os || !ecCtx) return <PageShell title="Carregando…">{null}</PageShell>;
 
   // Linhas da EC que esta OS consolida (mesmo fornecedor).
   const linhasConsolidadas = ecCtx.linhas.filter((l) => os.ecLinhaIds.includes(l.id));

@@ -276,8 +276,8 @@ export function ProjetoDetail() {
     }
   }
 
-  if (loading) return <PageShell breadcrumb={<Crumb>Projeto</Crumb>} title="Carregando…">{null}</PageShell>;
-  if (!novo && !existente) return <PageShell breadcrumb={<Crumb>Projeto</Crumb>} title="Projeto não encontrado">{null}</PageShell>;
+  if (loading) return <PageShell title="Carregando…">{null}</PageShell>;
+  if (!novo && !existente) return <PageShell title="Projeto não encontrado">{null}</PageShell>;
 
   return (
     <PageShell

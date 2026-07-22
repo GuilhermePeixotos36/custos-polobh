@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { PageShell, Crumb } from "@/components/layout/AppLayout";
+import { PageShell } from "@/components/layout/AppLayout";
 import { Card, Badge, Input, Select, Button, Table, THead, Th, Tr, Td, EmptyState, type Tom } from "@/components/ui";
 import { IcDownload, IcSearch } from "@/components/icons";
 import { supabase } from "@/lib/supabaseClient";
@@ -80,7 +80,6 @@ export function Logs() {
 
   return (
     <PageShell
-      breadcrumb={<Crumb>Logs do sistema</Crumb>}
       title="Logs do sistema"
       subtitle="Trilha de auditoria de acessos, alterações e eventos do aplicativo."
     >

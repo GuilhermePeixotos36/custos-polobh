@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { PageShell, Crumb } from "@/components/layout/AppLayout";
+import { PageShell } from "@/components/layout/AppLayout";
 import { Card, CardTitle, Toggle, Badge, Field, Input } from "@/components/ui";
 import { IcCheck } from "@/components/icons";
 import { PERMISSOES, ROTULO_PAPEL, type Recurso } from "@/store/auth";
@@ -26,7 +26,7 @@ export function Configuracoes() {
   const [arquivamentoAuto, setArquivamentoAuto] = useState(true);
 
   return (
-    <PageShell breadcrumb={<Crumb>Configurações</Crumb>} title="Configurações" subtitle="Empresas de emissão, perfis de acesso e retenção de dados.">
+    <PageShell title="Configurações" subtitle="Empresas de emissão, perfis de acesso e retenção de dados.">
       <div className="space-y-4">
         <EmpresasGrupoCard />
 

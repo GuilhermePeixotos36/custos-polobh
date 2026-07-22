@@ -55,7 +55,7 @@ export function PageShell({
   topAction,
   children,
 }: {
-  breadcrumb: ReactNode;
+  breadcrumb?: ReactNode;
   title: string;
   titleAdornment?: ReactNode;
   subtitle?: string;
@@ -64,9 +64,11 @@ export function PageShell({
 }) {
   return (
     <main className="flex-1 px-[40px] py-[30px] max-w-[1720px] w-full mx-auto">
-      <div className="mb-2 flex items-center gap-2 text-sm text-ink-2 font-semibold min-w-0">
-        {breadcrumb}
-      </div>
+      {breadcrumb && (
+        <div className="mb-2 flex items-center gap-2 text-sm text-ink-2 font-semibold min-w-0">
+          {breadcrumb}
+        </div>
+      )}
       <div className="mb-6 flex items-end justify-between gap-4 flex-wrap">
         <div>
           <div className="flex items-center gap-2.5 flex-wrap">

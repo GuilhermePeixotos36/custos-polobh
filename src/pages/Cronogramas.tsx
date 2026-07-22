@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { PageShell, Crumb } from "@/components/layout/AppLayout";
+import { PageShell } from "@/components/layout/AppLayout";
 import { Card, CardTitle, Button, Select, Badge, EmptyState, tomStatusOs } from "@/components/ui";
 import { IcLink, IcCalendar } from "@/components/icons";
 import { repo } from "@/data";
@@ -32,7 +32,6 @@ export function Cronogramas() {
 
   return (
     <PageShell
-      breadcrumb={<Crumb>Cronogramas</Crumb>}
       title="Cronogramas consolidados"
       subtitle="Linha do tempo do projeto por fornecedor, com link público para envio."
       topAction={

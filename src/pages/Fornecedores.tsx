@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { PageShell, Crumb } from "@/components/layout/AppLayout";
+import { PageShell } from "@/components/layout/AppLayout";
 import {
   Card, CardTitle, Button, Field, Input, TelefoneInput, Select, Table, THead, Th, Tr, Td,
   Badge, EmptyState, Avatar,
@@ -56,7 +56,6 @@ export function Fornecedores() {
 
   return (
     <PageShell
-      breadcrumb={<Crumb>Fornecedores</Crumb>}
       title="Fornecedores"
       subtitle="Consulta e edição. Os fornecedores são registrados automaticamente ao serem usados nas ECs."
     >

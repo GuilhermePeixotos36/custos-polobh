@@ -64,8 +64,8 @@ export function EcDetail() {
     [ec, oss]
   );
 
-  if (loading) return <PageShell breadcrumb={<Crumb>EC</Crumb>} title="Carregando…">{null}</PageShell>;
-  if (!ec) return <PageShell breadcrumb={<Crumb>EC</Crumb>} title="EC não encontrada">{null}</PageShell>;
+  if (loading) return <PageShell title="Carregando…">{null}</PageShell>;
+  if (!ec) return <PageShell title="EC não encontrada">{null}</PageShell>;
 
   const verFinanceiro = pode("financeiro");
   const podeEditar = pode("ecs.editar");
