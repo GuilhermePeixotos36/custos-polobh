@@ -90,16 +90,12 @@ export function ObservacoesThread({ observacoes, usuarios, onChange }: Props) {
     setCompor(null);
   };
 
-  const alternarResolvida = (id: string, resolvida: boolean) => {
+  /** Marca como resolvida — sem opção de reabrir (decisão do fluxo). O texto pode ser editado pelo autor. */
+  const resolver = (id: string) => {
     onChange(
       observacoes.map((o) =>
         o.id === id
-          ? {
-              ...o,
-              resolvida,
-              resolvidoPorNome: resolvida ? nomeAtual : "",
-              resolvidoEm: resolvida ? new Date().toISOString() : "",
-            }
+          ? { ...o, resolvida: true, resolvidoPorNome: nomeAtual, resolvidoEm: new Date().toISOString() }
           : o
       )
     );
@@ -146,12 +142,12 @@ export function ObservacoesThread({ observacoes, usuarios, onChange }: Props) {
               o={o}
               usuarios={usuarios}
               souAutor={!!usuarioAtual && o.autorId === usuarioAtual.id}
-              podeResolver={!!usuarioAtual && (o.autorId === usuarioAtual.id || (!!o.responsavelNome && o.responsavelNome === nomeAtual))}
+              podeResolver={!!usuarioAtual && !o.resolvida && (o.autorId === usuarioAtual.id || (!!o.responsavelNome && o.responsavelNome === nomeAtual))}
               respondendo={compor?.modo === "responder" && compor.id === o.id}
               onResponder={() => setCompor({ modo: "responder", id: o.id })}
               onEditar={() => setCompor({ modo: "editar", id: o.id })}
               onExcluir={() => excluir(o.id)}
-              onResolver={() => alternarResolvida(o.id, !o.resolvida)}
+              onResolver={() => resolver(o.id)}
               composer={
                 compor?.modo === "responder" && compor.id === o.id ? (
                   <Composer
@@ -227,8 +223,8 @@ function ComentarioLinha({
             Responder
           </button>
           {podeResolver && (
-            <button type="button" onClick={onResolver} className="text-[11px] font-bold text-ink-3 hover:text-success px-1.5 py-1" title={o.resolvida ? "Reabrir observação" : "Marcar como resolvida"}>
-              {o.resolvida ? "Reabrir" : "Resolver"}
+            <button type="button" onClick={onResolver} className="text-[11px] font-bold text-ink-3 hover:text-success px-1.5 py-1" title="Marcar como resolvida (não pode ser reaberta)">
+              Resolver
             </button>
           )}
           {souAutor && (

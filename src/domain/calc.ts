@@ -11,6 +11,10 @@ export const ENCARGOS = 0.1633;
 export const honorariosPadrao = (): TaxaConfig => ({ modo: "percentual", valor: HONORARIOS });
 export const encargosPadrao = (): TaxaConfig => ({ modo: "percentual", valor: ENCARGOS });
 
+/** Rótulos padrão do resumo de custos (usados quando a EC não tem rótulo personalizado). */
+export const ROTULO_HONORARIOS_PADRAO = "Honorários Pólobh (Organização e Planejamento)";
+export const ROTULO_ENCARGOS_PADRAO = "Encargos (sobre serviços de terceiros)";
+
 /** Valor de uma taxa: se fixo, o próprio valor; se percentual, base × fração. */
 export function valorTaxa(cfg: TaxaConfig, base: number): number {
   return cfg.modo === "fixo" ? (cfg.valor || 0) : base * (cfg.valor || 0);
@@ -114,14 +118,15 @@ export function numeroEc(
 }
 
 /**
- * Título automático da EC exibido em destaque no app — mesmo padrão do nome do
- * arquivo Excel: "{Título do Projeto} {NN} Em {DD/MM/AA}".
+ * Título automático da EC exibido em destaque no app e base do nome do arquivo
+ * Excel — padrão: "EC – {Título do Projeto} ({NN}) em {DD/MM/AA}".
  */
 export function tituloEc(ec: Ec): string {
   const versao = String(ec.versao).padStart(2, "0");
   const titulo = ec.projeto?.titulo || ec.numero || "EC";
   const data = ec.criadoEm ? dataBRCurta(ec.criadoEm) : "";
-  return [titulo, versao, data ? `Em ${data}` : ""].filter(Boolean).join(" ");
+  const base = `EC – ${titulo} (${versao})`;
+  return data ? `${base} em ${data}` : base;
 }
 
 /** Numeração da OS derivada da EC: "{numeroEc} – OS-{NN}". */

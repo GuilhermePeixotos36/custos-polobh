@@ -16,7 +16,15 @@ export const COR = {
   headerGray: "FF595959", // cabeçalhos (título geral e cabeçalho da tabela) — texto branco
   groupGray: "FFD9D9D9",  // barras de nome de grupo — texto escuro em destaque
   gridLine: "FFBFBFBF",   // linhas da grade (mais visível que a borda suave)
+  // Extraídas da EC original da Pólobh (reference/*.xlt) — usadas no lib/excel/ec.ts.
+  sectionGray: "FFC0C0C0", // barras CLIENTE / PROJETO / nome do grupo (cinza real do modelo)
+  gold: "FFFFCC00",        // destaque ESTIMATIVA DE CUSTOS e Valor Total Bruto
+  statusBlue: "FF99CCFF",  // colunas de status/documentação (Status, Fornecedor, Documento PG, Código, Pedido)
 };
+
+/** Fontes da EC original da Pólobh (Excel usa fonte substituta automaticamente se não instalada). */
+export const FONT_BOLD = "Futura PT Bold";
+export const FONT_LIGHT = "Futura PT Light";
 
 export const fill = (argb: string): ExcelJS.Fill => ({
   type: "pattern",

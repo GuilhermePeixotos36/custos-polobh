@@ -5,15 +5,18 @@
  */
 import ExcelJS from "exceljs";
 import type { Ec } from "@/data/types";
-import { calcularTotais } from "@/domain/calc";
+import { calcularTotais, tituloEc } from "@/domain/calc";
 import { dataBR } from "@/lib/format";
-import { COR, fill, thin, grade, baixar, salvarComPicker, carregarLogo } from "./shared";
+import { COR, fill, thin, grade, baixar, salvarComPicker, carregarLogo, FONT_BOLD, FONT_LIGHT } from "./shared";
 import { nomeEcExcel } from "./nomeEc";
+
+/** Colunas de fornecedor/documentação com destaque azul-claro no modelo original da Pólobh. */
+const COLS_DESTAQUE = new Set(["E", "F", "G", "H", "I", "J"]);
 
 const COLS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
 
-/** Altura máxima de linha no Excel (em pontos). */
-const ALTURA_MAX = 409;
+/** Altura máxima de linha no Excel (em pontos) — limite real do formato .xlsx. */
+const ALTURA_MAX = 409.5;
 
 export type ModeloEcExcel = "financeiro" | "completa";
 
@@ -52,27 +55,29 @@ export async function criarEcExcelBuffer(
     views: [{ showGridLines: false }],
   });
 
-  // larguras (Item, Descrição largo, valores, etc.)
+  // larguras — mesmas proporções da EC original da Pólobh (Item 25, Descrição ~60, demais ~17).
   const widths = completa
-    ? [16, 34, 13, 13, 14, 20, 18, 12, 13, 14, 10, 22]
-    : [22, 22, 16, 16];
+    ? [25, 58, 14, 17, 17, 17, 17, 17, 17, 17, 17, 17]
+    : [26, 30, 16, 16];
   widths.forEach((w, i) => (ws.getColumn(i + 1).width = w));
 
   const t = calcularTotais(ec.linhas, ec.producao, ec.honorarios, ec.encargos);
   let r = 1;
 
   // ---------- Cabeçalho / logo ----------
+  // Sem fundo colorido (a EC original da Pólobh não tem barra atrás do título).
   ws.mergeCells(`A${r}:B${r + 1}`);
   ws.mergeCells(`C${r}:${ultimaColuna}${r + 1}`);
   const titulo = ws.getCell(`C${r}`);
-  titulo.value = "Estimativa de Custos | Proposta Comercial";
-  titulo.font = { name: "Calibri", size: 16, bold: true, color: { argb: COR.white } };
-  titulo.alignment = { vertical: "middle", horizontal: "center" };
-  for (const c of COLS.slice(2, completa ? 12 : 4)) ws.getCell(`${c}${r}`).fill = fill(COR.headerGray);
-  ws.getCell(`A${r}`).fill = fill(COR.headerGray);
-  ws.getCell(`B${r}`).fill = fill(COR.headerGray);
-  ws.getRow(r).height = 26;
-  ws.getRow(r + 1).height = 26;
+  titulo.value = {
+    richText: [
+      { text: `${tituloEc(ec)}\n`, font: { name: FONT_BOLD, size: 16, color: { argb: COR.ink } } },
+      { text: "Estimativa de Custos | Proposta Comercial", font: { name: FONT_LIGHT, size: 10, color: { argb: COR.ink2 } } },
+    ],
+  };
+  titulo.alignment = { vertical: "middle", horizontal: "right", wrapText: true };
+  ws.getRow(r).height = 30;
+  ws.getRow(r + 1).height = 30;
 
   const logo = await carregarLogo();
   if (logo) {
@@ -84,33 +89,35 @@ export async function criarEcExcelBuffer(
   // ---------- Meta ----------
   const meta = (label: string, valor: string) => {
     ws.getCell(`A${r}`).value = label;
-    ws.getCell(`A${r}`).font = { bold: true, size: 10 };
+    ws.getCell(`A${r}`).font = { name: FONT_LIGHT, bold: true, size: 10 };
     ws.mergeCells(`B${r}:${ultimaColuna}${r}`);
     ws.getCell(`B${r}`).value = valor;
-    ws.getCell(`B${r}`).font = { size: 10 };
+    ws.getCell(`B${r}`).font = { name: FONT_LIGHT, size: 10 };
     r++;
   };
   meta("Data:", dataBR(new Date().toISOString())); // data de geração (modelo usa =HOJE())
-  meta("Número EC | Orçamento:", ec.numero);
+  // Título completo (não o número técnico abreviado) — era aqui que o título do
+  // projeto aparecia cortado, pois numeroEc() trunca cliente/projeto para caber no ID técnico.
+  meta("Número EC | Orçamento:", tituloEc(ec));
 
   // ---------- Seção util ----------
-  const secao = (txt: string) => {
+  // "gray" = CLIENTE/PROJETO (cinza do modelo original); "gold" = ESTIMATIVA DE CUSTOS (destaque âmbar).
+  const secao = (txt: string, variante: "gray" | "gold" = "gray") => {
     ws.mergeCells(`A${r}:${ultimaColuna}${r}`);
     const c = ws.getCell(`A${r}`);
     c.value = txt;
-    c.font = { bold: true, size: 11, color: { argb: COR.white } };
-    c.fill = fill(COR.primary);
+    c.font = { name: FONT_LIGHT, bold: true, size: 11, color: { argb: COR.ink } };
+    c.fill = fill(variante === "gold" ? COR.gold : COR.sectionGray);
     c.alignment = { vertical: "middle" };
-    ws.getRow(r).height = 20;
+    ws.getRow(r).height = variante === "gold" ? 16 : 24;
     r++;
   };
   const linhaLV = (label: string, valor: string) => {
     ws.getCell(`A${r}`).value = label;
-    ws.getCell(`A${r}`).font = { bold: true, size: 10 };
-    ws.getCell(`A${r}`).fill = fill(COR.soft);
+    ws.getCell(`A${r}`).font = { name: FONT_LIGHT, bold: true, size: 10 };
     ws.mergeCells(`B${r}:${ultimaColuna}${r}`);
     ws.getCell(`B${r}`).value = valor;
-    ws.getCell(`B${r}`).font = { size: 10 };
+    ws.getCell(`B${r}`).font = { name: FONT_LIGHT, size: 10 };
     ws.getCell(`B${r}`).alignment = { wrapText: true, vertical: "top" };
     r++;
   };
@@ -144,7 +151,7 @@ export async function criarEcExcelBuffer(
   linhaLV("Roteiro:", p.roteiro);
 
   // ---------- Tabela de custos ----------
-  secao("ESTIMATIVA DE CUSTOS");
+  secao("ESTIMATIVA DE CUSTOS", "gold");
   const hr = r;
   const headers: [string, string][] = completa
     ? [
@@ -158,8 +165,9 @@ export async function criarEcExcelBuffer(
   headers.forEach(([col, h]) => {
     const c = ws.getCell(`${col}${hr}`);
     c.value = h;
-    c.font = { bold: true, size: 9, color: { argb: COR.white } };
-    c.fill = fill(COR.headerGray);
+    c.font = { name: FONT_LIGHT, bold: true, size: 9, color: { argb: COR.ink } };
+    // Fundo azul-claro só nas colunas de fornecedor/documentação (padrão da EC original).
+    if (completa && COLS_DESTAQUE.has(col)) c.fill = fill(COR.statusBlue);
     c.alignment = { wrapText: true, vertical: "middle", horizontal: "center" };
     c.border = grade;
   });
@@ -189,7 +197,7 @@ export async function criarEcExcelBuffer(
       ws.mergeCells(`A${r}:L${r}`);
       const c = ws.getCell(`A${r}`);
       c.value = buffer.join("\n");
-      c.font = { size: 9, color: { argb: COR.ink2 } };
+      c.font = { name: FONT_LIGHT, size: 9, color: { argb: COR.ink2 } };
       c.alignment = { wrapText: true, vertical: "top" };
       c.border = thin;
       ws.getRow(r).height = Math.min(ALTURA_MAX, acc * 13 + 8);
@@ -201,7 +209,7 @@ export async function criarEcExcelBuffer(
     ws.mergeCells(`A${r}:L${r}`);
     const cab = ws.getCell(`A${r}`);
     cab.value = titulo;
-    cab.font = { size: 8.5, bold: true, italic: true, color: { argb: COR.ink2 } };
+    cab.font = { name: FONT_LIGHT, size: 8.5, bold: true, italic: true, color: { argb: COR.ink2 } };
     cab.border = thin;
     r++;
     for (const l of linhasTxt) {
@@ -217,13 +225,13 @@ export async function criarEcExcelBuffer(
     ws.mergeCells(`A${r}:${ultimaColuna}${r}`);
     const gc = ws.getCell(`A${r}`);
     gc.value = grupo;
-    gc.font = { bold: true, size: 10.5, color: { argb: COR.ink } };
-    gc.fill = fill(COR.groupGray);
+    gc.font = { name: FONT_LIGHT, bold: true, size: 10.5, color: { argb: COR.ink } };
+    gc.fill = fill(COR.sectionGray);
     // grade em toda a faixa do grupo (todas as colunas), não só na célula A
     for (const col of COLS.slice(0, completa ? 12 : 4)) {
       const cc = ws.getCell(`${col}${r}`);
       cc.border = grade;
-      cc.fill = fill(COR.groupGray);
+      cc.fill = fill(COR.sectionGray);
     }
     r++;
     for (const l of linhas) {
@@ -234,25 +242,28 @@ export async function criarEcExcelBuffer(
           l.pedidoCompra, l.statusOs, l.contratoStatus,
         ];
         vals.forEach((v, i) => {
-          const c = ws.getCell(`${COLS[i]}${r}`);
+          const col = COLS[i];
+          const c = ws.getCell(`${col}${r}`);
           c.value = v as ExcelJS.CellValue;
-          c.font = { size: 9 };
+          c.font = { name: FONT_LIGHT, size: 9 };
           c.border = grade;
           c.alignment = { wrapText: true, vertical: "top" };
           if (i === 2 || i === 3) {
             c.numFmt = '"R$" #,##0.00';
             c.alignment = { horizontal: "right" };
           }
+          // Fundo azul-claro nas colunas de fornecedor/documentação (padrão da EC original).
+          if (COLS_DESTAQUE.has(col)) c.fill = fill(COR.statusBlue);
         });
       } else {
         ws.mergeCells(`A${r}:B${r}`);
         ws.getCell(`A${r}`).value = l.item;
-        ws.getCell(`A${r}`).font = { size: 9 };
+        ws.getCell(`A${r}`).font = { name: FONT_LIGHT, size: 9 };
         ws.getCell(`A${r}`).alignment = { wrapText: true, vertical: "top" };
         for (const [col, valor] of [["C", l.valorPolobh], ["D", l.valorCliente]] as const) {
           const c = ws.getCell(`${col}${r}`);
           c.value = valor;
-          c.font = { size: 9 };
+          c.font = { name: FONT_LIGHT, size: 9 };
           c.numFmt = '"R$" #,##0.00';
           c.alignment = { horizontal: "right" };
         }
@@ -286,16 +297,17 @@ export async function criarEcExcelBuffer(
     dVal: Val | null,
     destaque = false
   ) => {
-    const corTxt = destaque ? COR.white : COR.ink;
+    // Destaque (Valor Total Bruto) usa o dourado do modelo original — texto escuro (não branco).
+    const corTxt = COR.ink;
     if (!completa) ws.mergeCells(`A${r}:B${r}`);
     const a = ws.getCell(`A${r}`);
     a.value = label;
-    a.font = { bold: true, size: 10, color: { argb: corTxt } };
+    a.font = { name: FONT_LIGHT, bold: true, size: 10, color: { argb: corTxt } };
     a.alignment = { vertical: "middle" };
     if (completa) {
       const b = ws.getCell(`B${r}`);
       b.value = desc;
-      b.font = { size: 9, color: { argb: destaque ? COR.white : COR.ink2 } };
+      b.font = { name: FONT_LIGHT, size: 9, color: { argb: COR.ink2 } };
       b.alignment = { wrapText: true, vertical: "middle" };
     }
     const setVal = (ref: string, v: Val) => {
@@ -304,7 +316,7 @@ export async function criarEcExcelBuffer(
         ? ({ formula: v.formula, result: v.result } as ExcelJS.CellValue)
         : v.result;
       c.numFmt = moeda;
-      c.font = { bold: true, size: 10, color: { argb: corTxt } };
+      c.font = { name: FONT_LIGHT, bold: true, size: 10, color: { argb: corTxt } };
       c.alignment = { horizontal: "right", vertical: "middle" };
     };
     if (dVal === null) {
@@ -314,11 +326,12 @@ export async function criarEcExcelBuffer(
       setVal(`C${r}`, cVal);
       setVal(`D${r}`, dVal);
     }
+    // Só o Valor Total Bruto recebe destaque (dourado); as demais linhas ficam sem preenchimento,
+    // como na EC original da Pólobh.
     for (const col of ["A", "B", "C", "D"]) {
       const c = ws.getCell(`${col}${r}`);
       c.border = grade;
-      if (destaque) c.fill = fill(COR.primary);
-      else if (col === "A") c.fill = fill(COR.soft);
+      if (destaque) c.fill = fill(COR.gold);
     }
     r++;
   };
@@ -335,14 +348,14 @@ export async function criarEcExcelBuffer(
   const rHon = r;
   totalRow(
     "Pólobh",
-    `Honorários Serviços de Organização e Planejamento (${hon.modo === "fixo" ? "valor fixo" : pctTxt(hon.valor)})`,
+    `${ec.honorariosRotulo?.trim() || "Honorários Serviços de Organização e Planejamento"} (${hon.modo === "fixo" ? "valor fixo" : pctTxt(hon.valor)})`,
     hon.modo === "fixo" ? { result: t.honorariosPolobh } : { formula: `C${rSoma}*${hon.valor}`, result: t.honorariosPolobh },
     hon.modo === "fixo" ? { result: t.honorariosCliente } : { formula: `D${rSoma}*${hon.valor}`, result: t.honorariosCliente }
   );
   const rEnc = r;
   totalRow(
     "Encargos",
-    `Incidentes sobre serviços terceiros contratados através da Pólobh (${enc.modo === "fixo" ? "valor fixo" : pctTxt(enc.valor)})`,
+    `${ec.encargosRotulo?.trim() || "Incidentes sobre serviços terceiros contratados através da Pólobh"} (${enc.modo === "fixo" ? "valor fixo" : pctTxt(enc.valor)})`,
     enc.modo === "fixo" ? { result: t.encargos } : { formula: `C${rSoma}*${enc.valor}`, result: t.encargos },
     { result: 0 }
   );
@@ -359,7 +372,7 @@ export async function criarEcExcelBuffer(
   );
 
   ws.getCell(`A${r}`).value = "Sendo:";
-  ws.getCell(`A${r}`).font = { bold: true, size: 9, italic: true, color: { argb: COR.ink2 } };
+  ws.getCell(`A${r}`).font = { name: FONT_LIGHT, bold: true, size: 9, italic: true, color: { argb: COR.ink2 } };
   r++;
 
   totalRow(
@@ -376,24 +389,24 @@ export async function criarEcExcelBuffer(
   // ---------- Bloco contratual (aprovação/assinaturas — conforme o modelo) ----------
   r++;
   ws.getCell(`A${r}`).value = "Visto Pólobh:";
-  ws.getCell(`A${r}`).font = { bold: true, size: 10 };
+  ws.getCell(`A${r}`).font = { name: FONT_LIGHT, bold: true, size: 10 };
   ws.mergeCells(`B${r}:C${r}`);
   ws.getCell(`B${r}`).value = ec.responsavel;
-  ws.getCell(`B${r}`).font = { size: 10 };
+  ws.getCell(`B${r}`).font = { name: FONT_LIGHT, size: 10 };
   ws.getCell(`D${r}`).value = dataBR(new Date().toISOString());
-  ws.getCell(`D${r}`).font = { size: 10 };
+  ws.getCell(`D${r}`).font = { name: FONT_LIGHT, size: 10 };
   r++;
 
   ws.getCell(`A${r}`).value = "Validade";
-  ws.getCell(`A${r}`).font = { bold: true, size: 10 };
+  ws.getCell(`A${r}`).font = { name: FONT_LIGHT, bold: true, size: 10 };
   ws.mergeCells(`B${r}:${ultimaColuna}${r}`);
   ws.getCell(`B${r}`).value = `Esta Estimativa de Custos | Orçamento é válida por ${ec.validadeDias} dias.`;
-  ws.getCell(`B${r}`).font = { size: 10 };
+  ws.getCell(`B${r}`).font = { name: FONT_LIGHT, size: 10 };
   r += 2;
 
   ws.mergeCells(`A${r}:${ultimaColuna}${r}`);
   ws.getCell(`A${r}`).value = "INFORMAÇÕES GERAIS:";
-  ws.getCell(`A${r}`).font = { bold: true, size: 10 };
+  ws.getCell(`A${r}`).font = { name: FONT_LIGHT, bold: true, size: 10 };
   r++;
 
   ws.mergeCells(`A${r}:${ultimaColuna}${r}`);
@@ -408,7 +421,7 @@ export async function criarEcExcelBuffer(
     '"Total Geral NF Pólobh x Cliente" no prazo máximo de 30 dias a partir da apresentação da(s) nota(s) ' +
     "fiscal(is) da Pólobh, que poderão ser emitidas pela Pólobh Promoções Eireli e MF Promoções Eireli, " +
     "ambas do mesmo grupo empresarial, em conjunto ou separadamente.";
-  legal.font = { size: 8.5, color: { argb: COR.ink } };
+  legal.font = { name: FONT_LIGHT, size: 8.5, color: { argb: COR.ink } };
   legal.alignment = { wrapText: true, vertical: "top", horizontal: "justify" };
   ws.getRow(r).height = 66;
   r++;
@@ -416,30 +429,30 @@ export async function criarEcExcelBuffer(
   ws.mergeCells(`A${r}:${ultimaColuna}${r}`);
   ws.getCell(`A${r}`).value =
     "Obs.: Esta EC | Orçamento cancela e substitui todas as anteriores referentes ao mesmo projeto | peça que porventura existam.";
-  ws.getCell(`A${r}`).font = { italic: true, size: 9 };
+  ws.getCell(`A${r}`).font = { name: FONT_LIGHT, italic: true, size: 9 };
   r += 2;
 
   ws.getCell(`A${r}`).value = "Aprovação do Cliente:";
-  ws.getCell(`A${r}`).font = { bold: true, size: 10 };
+  ws.getCell(`A${r}`).font = { name: FONT_LIGHT, bold: true, size: 10 };
   ws.mergeCells(`B${r}:C${r}`);
   ws.getCell(`B${r}`).border = { bottom: { style: "thin", color: { argb: COR.ink } } };
   ws.getCell(`D${r}`).value = "____/____/______";
-  ws.getCell(`D${r}`).font = { size: 10 };
+  ws.getCell(`D${r}`).font = { name: FONT_LIGHT, size: 10 };
   ws.getRow(r).height = 22;
   r++;
 
   ws.mergeCells(`A${r}:${ultimaColuna}${r}`);
   ws.getCell(`A${r}`).value = "Identificação do Signatário: Nome e Identidade Funcional";
-  ws.getCell(`A${r}`).font = { size: 9, color: { argb: COR.ink2 } };
+  ws.getCell(`A${r}`).font = { name: FONT_LIGHT, size: 9, color: { argb: COR.ink2 } };
   r++;
 
   ws.getCell(`A${r}`).value = "Protocolo Financeiro Pólobh:";
-  ws.getCell(`A${r}`).font = { bold: true, size: 10 };
+  ws.getCell(`A${r}`).font = { name: FONT_LIGHT, bold: true, size: 10 };
   ws.getCell(`B${r}`).value = "Assinatura:";
-  ws.getCell(`B${r}`).font = { size: 10 };
+  ws.getCell(`B${r}`).font = { name: FONT_LIGHT, size: 10 };
   ws.getCell(`C${r}`).border = { bottom: { style: "thin", color: { argb: COR.ink } } };
   ws.getCell(`D${r}`).value = "____/____/______";
-  ws.getCell(`D${r}`).font = { size: 10 };
+  ws.getCell(`D${r}`).font = { name: FONT_LIGHT, size: 10 };
   ws.getRow(r).height = 22;
 
   // Impressão: área definida + cabeçalho da tabela repetido em toda página

@@ -24,8 +24,9 @@ import { FornecedorField } from "@/components/FornecedorField";
 import { RichTextField } from "@/components/RichTextField";
 import { ObservacoesThread } from "@/components/ObservacoesPopup";
 import { ResumoPropostaModal } from "@/components/ResumoPropostaModal";
+import { NotifDot } from "@/components/NotifDot";
 import { flags } from "@/lib/flags";
-import { brl, cx, onlyDigits, maskCpfCnpjInput } from "@/lib/format";
+import { brl, cx } from "@/lib/format";
 import type { DocumentoPg, EcLinha, Fornecedor, Observacao, StatusAprovacao, StatusOs } from "@/data/types";
 
 const OPCOES_STATUS_TEXTO = ["Pendente", "Não se Aplica"];
@@ -157,12 +158,9 @@ interface Props {
   /** Nomes dos usuários do sistema (para atribuir observações). */
   usuarios: string[];
   onValidarFornecedor: (cnpj: string) => Promise<string | null>;
-  onRevisarESalvar: (linhaId: string) => Promise<boolean>;
 }
 
-const DATALIST_ID = "ec-fornecedores-cnpj";
-
-export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuarios, onValidarFornecedor, onRevisarESalvar }: Props) {
+export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuarios, onValidarFornecedor }: Props) {
   const [grupos, setGrupos] = useState<Grupo[]>(() => agrupar(linhas));
   const [expandido, setExpandido] = useState<Record<string, boolean>>({});
   const [ativo, setAtivo] = useState<{ tipo: "grupo" | "item"; chave: string } | null>(null);
@@ -301,14 +299,6 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
 
   return (
     <div className="space-y-3">
-      <datalist id={DATALIST_ID}>
-        {fornecedores.map((f) => (
-          <option key={f.id} value={maskCpfCnpjInput(onlyDigits(f.cnpj))}>
-            {f.nomeFantasia || f.razaoSocial}
-          </option>
-        ))}
-      </datalist>
-
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <Button variant="secondary" size="sm" icon={<IcPlus width={16} height={16} />} onClick={addGrupo}>
           Adicionar grupo
@@ -351,9 +341,7 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
                 onUpdLinha={updLinha}
                 onOcultoItem={setOcultoItem}
                 onOcultoGrupo={(v) => setOcultoGrupo(g.nome, v)}
-                onValidarFornecedor={onValidarFornecedor}
-                onRevisarESalvar={onRevisarESalvar}
-              />
+                onValidarFornecedor={onValidarFornecedor}              />
             ))}
           </div>
         </SortableContext>
@@ -396,12 +384,11 @@ interface GrupoProps {
   onOcultoItem: (id: string, oculto: boolean) => void;
   onOcultoGrupo: (oculto: boolean) => void;
   onValidarFornecedor: (cnpj: string) => Promise<string | null>;
-  onRevisarESalvar: (linhaId: string) => Promise<boolean>;
 }
 
 function GrupoCard({
   g, aberto, verFinanceiro, fornecedores, usuarios,
-  onToggle, onRenomear, onAddItem, onUpdLinha, onOcultoItem, onOcultoGrupo, onValidarFornecedor, onRevisarESalvar,
+  onToggle, onRenomear, onAddItem, onUpdLinha, onOcultoItem, onOcultoGrupo, onValidarFornecedor,
 }: GrupoProps) {
   const sortable = useSortable({ id: GID(g.id) });
   const droppable = useDroppable({ id: CID(g.id) });
@@ -477,9 +464,7 @@ function GrupoCard({
                 usuarios={usuarios}
                 onUpd={(patch) => onUpdLinha(l.id, patch)}
                 onOcultar={() => onOcultoItem(l.id, true)}
-                onValidarFornecedor={onValidarFornecedor}
-                onRevisarESalvar={onRevisarESalvar}
-              />
+                onValidarFornecedor={onValidarFornecedor}              />
             ))}
           </SortableContext>
 
@@ -531,34 +516,18 @@ interface ItemProps {
   onUpd: (patch: Partial<EcLinha>) => void;
   onOcultar: () => void;
   onValidarFornecedor: (cnpj: string) => Promise<string | null>;
-  onRevisarESalvar: (linhaId: string) => Promise<boolean>;
 }
 
-function ItemRow({ l, verFinanceiro, fornecedores, usuarios, onUpd, onOcultar, onValidarFornecedor, onRevisarESalvar }: ItemProps) {
+function ItemRow({ l, verFinanceiro, fornecedores, usuarios, onUpd, onOcultar, onValidarFornecedor }: ItemProps) {
   const sortable = useSortable({ id: l.id });
   const style = { transform: CSS.Translate.toString(sortable.transform), transition: sortable.transition };
   const [resumoAberto, setResumoAberto] = useState(false);
-  const [revisando, setRevisando] = useState(false);
+  // Pendências do item = observações direcionadas ainda não resolvidas (badge vermelho).
+  const pendencias = (l.observacoes ?? []).filter((o) => !o.resolvida && o.texto.trim()).length;
 
   const inserirResumo = (html: string) => {
     if (!html) return;
     onUpd({ descricaoCompleta: l.descricaoCompleta ? `${l.descricaoCompleta}${html}` : html });
-  };
-
-  const revisarESalvar = async () => {
-    setRevisando(true);
-    try {
-      const botoesAntes = [...document.querySelectorAll<HTMLButtonElement>("[data-revisar-item]")];
-      const posicaoAtual = botoesAntes.findIndex((botao) => botao.dataset.linhaId === l.id);
-      const ok = await onRevisarESalvar(l.id);
-      if (!ok) return;
-      const botoes = [...document.querySelectorAll<HTMLButtonElement>("[data-revisar-item]")];
-      const proximo = botoes[posicaoAtual + 1];
-      proximo?.scrollIntoView({ behavior: "smooth", block: "center" });
-      proximo?.focus();
-    } finally {
-      setRevisando(false);
-    }
   };
 
   return (
@@ -576,9 +545,10 @@ function ItemRow({ l, verFinanceiro, fornecedores, usuarios, onUpd, onOcultar, o
           ref={sortable.setActivatorNodeRef}
           {...sortable.listeners}
           {...sortable.attributes}
-          className="cursor-grab active:cursor-grabbing text-ink-3 hover:text-ink shrink-0 mt-2 touch-none"
+          className="relative cursor-grab active:cursor-grabbing text-ink-3 hover:text-ink shrink-0 mt-2 touch-none"
           title="Arraste para reordenar / mover de grupo"
         >
+          <NotifDot n={pendencias} title={`${pendencias} pendência(s) neste item`} />
           <IcGrip width={18} height={18} />
         </button>
 
@@ -654,7 +624,6 @@ function ItemRow({ l, verFinanceiro, fornecedores, usuarios, onUpd, onOcultar, o
             razao={l.fornecedorRazao}
             cnpj={l.fornecedorCnpj}
             fornecedores={fornecedores}
-            datalistId={DATALIST_ID}
             onChange={onUpd}
             onValidar={onValidarFornecedor}
           />
@@ -679,6 +648,7 @@ function ItemRow({ l, verFinanceiro, fornecedores, usuarios, onUpd, onOcultar, o
           <Select className="!h-9 !px-2 !text-[12.5px]" value={l.statusOs} onChange={(e) => onUpd({ statusOs: e.target.value as StatusOs })}>
             <option>Pendente</option>
             <option>Emitir</option>
+            <option>Emitir Nova Versão</option>
             <option>OK</option>
             <option>Não se Aplica</option>
           </Select>
@@ -691,18 +661,6 @@ function ItemRow({ l, verFinanceiro, fornecedores, usuarios, onUpd, onOcultar, o
             <option>Não se Aplica</option>
           </Select>
         </Campo>
-        <Button
-          type="button"
-          variant="soft"
-          size="sm"
-          data-revisar-item
-          data-linha-id={l.id}
-          icon={<IcSpark width={15} height={15} />}
-          disabled={revisando}
-          onClick={() => void revisarESalvar()}
-        >
-          {revisando ? "Revisando…" : "Revisar e salvar"}
-        </Button>
       </div>
 
       <ObservacoesThread

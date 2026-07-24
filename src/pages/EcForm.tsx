@@ -24,15 +24,18 @@ import {
   producaoZerada,
   honorariosPadrao,
   encargosPadrao,
+  ROTULO_HONORARIOS_PADRAO,
+  ROTULO_ENCARGOS_PADRAO,
 } from "@/domain/calc";
 import { itensDoTemplate } from "@/domain/ecTemplates";
 import { projetoInfoVazio } from "@/domain/projeto";
-import { escolherDestinoEcExcel, gerarEcExcel, salvarEcExcelNoDestino, type DestinoEcExcel } from "@/lib/excel";
+import { gerarEcExcel } from "@/lib/excel";
 import { consultarCnpj } from "@/lib/cnpj";
-import { corrigirDescricoes, corrigirLinhaEc } from "@/lib/correcaoOrtografica";
+import { corrigirMaiusculas, corrigirMaiusculasHtml } from "@/lib/correcaoOrtografica";
 import { useAuth } from "@/store/auth";
 import { RentabilidadeItens } from "@/components/RentabilidadeItens";
 import { EcGrupos } from "@/components/EcGrupos";
+import { EcSubGuias, type SubGuiaEc } from "@/components/EcSubGuias";
 import { flags } from "@/lib/flags";
 import { toast } from "@/store/toast";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
@@ -116,6 +119,7 @@ export function EcForm() {
   const [cnpjLoading, setCnpjLoading] = useState(false);
   const [cnpjMsg, setCnpjMsg] = useState("");
   const [salvando, setSalvando] = useState(false);
+  const [subaba, setSubaba] = useState<SubGuiaEc>("ec");
   // Fornecedores registrados — alimentam a lista suspensa por CNPJ na tabela de custos.
   const { data: fornData, reload: reloadForn } = useAsync(() => repo.fornecedores.listar(), []);
   const fornecedores = fornData ?? [];
@@ -192,7 +196,7 @@ export function EcForm() {
   );
 
   const sujo = !!ec && baseline !== "" && JSON.stringify(ec) !== baseline;
-  const guard = useUnsavedGuard(sujo);
+  useUnsavedGuard(sujo);
 
   if (!ec || !t) {
     return <PageShell title="Carregando…">{null}</PageShell>;
@@ -287,55 +291,38 @@ export function EcForm() {
     }
   }
 
-  async function salvar(linhaId?: string): Promise<boolean> {
-    // O salvamento geral revisa todos os textos e exporta o Excel; o botão do item
-    // revisa apenas aquela linha e persiste sem abrir o seletor de arquivo.
-    const exportarExcel = !linhaId;
-    let destino: DestinoEcExcel | null = null;
-    if (exportarExcel) {
-      // Abre o Explorer já no clique (preserva a ativação do gesto do usuário).
-      destino = await escolherDestinoEcExcel({ ...ec!, numero }, "completa");
-      if (!destino) {
-        toast("Salvamento cancelado: escolha um local para a versão Excel da EC.", "warning");
-        return false;
-      }
-    }
+  /** Revisar (sem IA): padroniza formatação dos textos — maiúsculas de início de frase e espaçamento. */
+  function revisar() {
+    setEc((e) =>
+      e
+        ? {
+            ...e,
+            linhas: e.linhas.map((linha) => ({
+              ...linha,
+              item: corrigirMaiusculas(linha.item),
+              descricao: corrigirMaiusculas(linha.descricao),
+              descricaoCompleta: corrigirMaiusculasHtml(linha.descricaoCompleta),
+            })),
+          }
+        : e
+    );
+    toast("Textos padronizados (maiúsculas e espaçamento). Confira e salve.", "info");
+  }
+
+  /** Salvar (rápido): apenas persiste a EC. Sem IA e sem exportar Excel (use os botões de Excel). */
+  async function salvar(): Promise<boolean> {
     setSalvando(true);
     try {
-      let linhasRevisadas: EcLinha[];
-      let revisaoCompleta: boolean;
-      if (linhaId) {
-        const revisao = await corrigirLinhaEc(ec!.linhas.find((linha) => linha.id === linhaId) ?? ec!.linhas[0]);
-        linhasRevisadas = ec!.linhas.map((linha) => linha.id === linhaId ? revisao.linha : linha);
-        revisaoCompleta = revisao.revisaoCompleta;
-      } else {
-        const revisao = await corrigirDescricoes(ec!.linhas);
-        linhasRevisadas = revisao.linhas;
-        revisaoCompleta = revisao.revisaoCompleta;
-      }
-      const ecRevisada = { ...ec!, linhas: linhasRevisadas };
-      setEc(ecRevisada);
       const salvo = await repo.ecs.salvar({
-        ...ecRevisada,
+        ...ec!,
         numero,
-        responsavel: ecRevisada.responsavel || ecRevisada.projeto.produtoraResponsavel,
+        responsavel: ec!.responsavel || ec!.projeto.produtoraResponsavel,
       });
       setEc(salvo);
       // Registra/atualiza os fornecedores citados e acumula seus contatos.
-      await acumularFornecedores(ecRevisada.linhas).catch(() => {});
+      await acumularFornecedores(ec!.linhas).catch(() => {});
       setBaseline(JSON.stringify(salvo));
-      if (!revisaoCompleta) {
-        toast("Maiúsculas corrigidas; a revisão ortográfica online estava indisponível.", "info");
-      }
-      if (exportarExcel && destino) {
-        const st = await salvarEcExcelNoDestino(salvo, destino, "completa");
-        toast(st === "salvo" ? "EC salva e exportada para Excel." : "EC salva; o Excel foi baixado.", "success");
-        guard.liberar();
-        navigate(`/estimativas/${salvo.id}`);
-      } else {
-        // Item revisado e salvo — permanece na edição para continuar o trabalho.
-        toast("Item revisado e salvo.", "success");
-      }
+      toast("EC salva.", "success");
       return true;
     } catch (e) {
       toast(`Erro ao salvar: ${(e as Error).message}`, "danger");
@@ -344,6 +331,30 @@ export function EcForm() {
       setSalvando(false);
     }
   }
+
+  const rentabilidadeCard = verFinanceiro ? (
+    <Card padded={false}>
+      <div className="p-5"><CardTitle>Rentabilidade por item</CardTitle></div>
+      <RentabilidadeItens linhas={ec.linhas} gastoPorLinha={gastoPorLinha} />
+    </Card>
+  ) : null;
+
+  const resumoCard = (
+    <Card padded={false}>
+      <div className="p-5 pb-3"><CardTitle>Resumo dos Custos</CardTitle></div>
+      <ResumoCustos
+        t={t}
+        honorarios={ec.honorarios}
+        encargos={ec.encargos}
+        honorariosRotulo={ec.honorariosRotulo}
+        encargosRotulo={ec.encargosRotulo}
+        onHonorarios={(honorarios) => upd({ honorarios })}
+        onEncargos={(encargos) => upd({ encargos })}
+        onHonorariosRotulo={(honorariosRotulo) => upd({ honorariosRotulo })}
+        onEncargosRotulo={(encargosRotulo) => upd({ encargosRotulo })}
+      />
+    </Card>
+  );
 
   return (
     <PageShell
@@ -362,6 +373,9 @@ export function EcForm() {
           </Button>
           <Button variant="secondary" size="sm" icon={<IcDownload width={16} height={16} />} onClick={() => gerarEcExcel({ ...ec, numero }, { modelo: "completa" })}>
             Excel Completa
+          </Button>
+          <Button variant="secondary" size="sm" onClick={revisar} disabled={salvando} title="Padroniza a formatação dos textos (sem IA)">
+            Revisar
           </Button>
           <Button size="sm" onClick={() => void salvar()} disabled={salvando}>
             {salvando ? "Salvando…" : "Salvar"}
@@ -383,6 +397,12 @@ export function EcForm() {
         </div>
       </div>
 
+      <EcSubGuias atual={subaba} onChange={setSubaba} temResumo={verFinanceiro} temRentabilidade={verFinanceiro} />
+
+      {verFinanceiro && subaba === "resumo" && <div className="space-y-4">{resumoCard}</div>}
+      {verFinanceiro && subaba === "rentabilidade" && <div className="space-y-4">{rentabilidadeCard}</div>}
+
+      {subaba === "ec" && (
       <div className="space-y-4">
         {/* Cliente e Projeto só aparecem em EC avulsa; dentro de um Projeto os dados
             ficam na aba "Dados Gerais" e não são reeditados aqui. */}
@@ -438,39 +458,18 @@ export function EcForm() {
             <EcGrupos
               linhas={ec.linhas}
               onChange={(linhas) => upd({ linhas })}
-              verFinanceiro
+              verFinanceiro={verFinanceiro}
               fornecedores={fornecedores}
               usuarios={usuarios}
               onValidarFornecedor={validarFornecedor}
-              onRevisarESalvar={(linhaId) => salvar(linhaId)}
             />
           </div>
         </Card>
 
-        {/* Rentabilidade por item (restrito ao financeiro) */}
-        {verFinanceiro && (
-          <Card padded={false}>
-            <div className="p-5">
-              <CardTitle hint="O gasto vem automaticamente do valor a pagar das OS's (rateado por item). Não precisa digitar.">
-                Rentabilidade por item
-              </CardTitle>
-            </div>
-            <RentabilidadeItens linhas={ec.linhas} gastoPorLinha={gastoPorLinha} />
-          </Card>
-        )}
-
-        {/* Resumo dos Custos — no rodapé da EC, como nas ECs originais da Pólobh */}
-        <Card padded={false}>
-          <div className="p-5 pb-3"><CardTitle hint="Os percentuais de Honorários e Encargos são editáveis (percentual ou valor fixo).">Resumo dos Custos</CardTitle></div>
-          <ResumoCustos
-            t={t}
-            honorarios={ec.honorarios}
-            encargos={ec.encargos}
-            onHonorarios={(honorarios) => upd({ honorarios })}
-            onEncargos={(encargos) => upd({ encargos })}
-          />
-        </Card>
+        {/* Totais (Resumo dos Custos) permanece como último bloco da guia geral da EC — só financeiro */}
+        {verFinanceiro && resumoCard}
       </div>
+      )}
     </PageShell>
   );
 }
@@ -508,15 +507,25 @@ function ResumoCustos({
   t,
   honorarios,
   encargos,
+  honorariosRotulo,
+  encargosRotulo,
   onHonorarios,
   onEncargos,
+  onHonorariosRotulo,
+  onEncargosRotulo,
 }: {
   t: EcTotais;
   honorarios: TaxaConfig;
   encargos: TaxaConfig;
+  honorariosRotulo?: string;
+  encargosRotulo?: string;
   onHonorarios: (c: TaxaConfig) => void;
   onEncargos: (c: TaxaConfig) => void;
+  onHonorariosRotulo: (v: string) => void;
+  onEncargosRotulo: (v: string) => void;
 }) {
+  const rotuloClasse =
+    "font-semibold text-ink bg-transparent outline-none border-b border-dashed border-transparent hover:border-border focus:border-primary-dark min-w-0 flex-1 mr-2";
   const subTotalCliente = Math.round((t.somaCliente + t.honorariosCliente) * 100) / 100;
   return (
     <div className="overflow-x-auto">
@@ -533,17 +542,17 @@ function ResumoCustos({
           <tr className="border-b border-border-soft">
             <td className="px-4 py-2.5">
               <div className="flex items-center justify-between gap-3 flex-wrap">
-                <span className="font-semibold text-ink">Honorários Pólobh (Organização e Planejamento)</span>
+                <input className={rotuloClasse} value={honorariosRotulo ?? ""} placeholder={ROTULO_HONORARIOS_PADRAO} onChange={(e) => onHonorariosRotulo(e.target.value)} title="Rótulo editável — aparece também na planilha" />
                 <TaxaEditor cfg={honorarios} onChange={onHonorarios} />
               </div>
             </td>
             <td className="px-4 py-2.5 text-right font-display font-bold text-ink whitespace-nowrap">{brl(t.honorariosPolobh)}</td>
-            <td className="px-4 py-2.5 text-right font-semibold text-ink whitespace-nowrap">{brl(t.honorariosCliente)}</td>
+            <td className="px-4 py-2.5 text-right font-display font-bold text-ink whitespace-nowrap">{brl(t.honorariosCliente)}</td>
           </tr>
           <tr className="border-b border-border-soft">
             <td className="px-4 py-2.5">
               <div className="flex items-center justify-between gap-3 flex-wrap">
-                <span className="font-semibold text-ink">Encargos (sobre serviços de terceiros)</span>
+                <input className={rotuloClasse} value={encargosRotulo ?? ""} placeholder={ROTULO_ENCARGOS_PADRAO} onChange={(e) => onEncargosRotulo(e.target.value)} title="Rótulo editável — aparece também na planilha" />
                 <TaxaEditor cfg={encargos} onChange={onEncargos} />
               </div>
             </td>
@@ -552,7 +561,7 @@ function ResumoCustos({
           </tr>
           <ResumoLinha desc="Sub-total" polobh={t.subTotalPolobh} cliente={subTotalCliente} strong />
           <tr className="bg-primary-soft">
-            <td className="px-4 py-3 font-bold text-ink">Valor total bruto — custo total do projeto</td>
+            <td className="px-4 py-3 font-bold text-ink">Valor Total Bruto (Custo Total do Projeto)</td>
             <td className="px-4 py-3 text-right font-display font-bold text-primary-dark whitespace-nowrap" colSpan={2}>{brl(t.valorTotalBruto)}</td>
           </tr>
           <tr>
@@ -570,8 +579,8 @@ function ResumoLinha({ desc, polobh, cliente, strong }: { desc: string; polobh: 
   return (
     <tr className="border-b border-border-soft">
       <td className={cx("px-4 py-2.5", strong ? "font-bold text-ink" : "font-semibold text-ink")}>{desc}</td>
-      <td className={cx("px-4 py-2.5 text-right whitespace-nowrap font-display", strong ? "font-bold text-ink" : "font-bold text-ink")}>{brl(polobh)}</td>
-      <td className="px-4 py-2.5 text-right whitespace-nowrap text-ink-2">{cliente === undefined ? "" : brl(cliente)}</td>
+      <td className="px-4 py-2.5 text-right whitespace-nowrap font-display font-bold text-ink">{brl(polobh)}</td>
+      <td className="px-4 py-2.5 text-right whitespace-nowrap font-display font-bold text-ink">{cliente === undefined ? "" : brl(cliente)}</td>
     </tr>
   );
 }

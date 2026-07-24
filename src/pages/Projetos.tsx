@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { PageShell } from "@/components/layout/AppLayout";
 import { Card, Button, Badge, Table, THead, Th, Tr, Td, EmptyState, Avatar, type Tom } from "@/components/ui";
@@ -25,6 +25,9 @@ const FILTROS: { key: FiltroProjeto; label: string }[] = [
   { key: "Arquivado", label: "Arquivados" },
 ];
 
+type OrdemColuna = "cliente" | "projeto" | "status";
+type DirOrdem = "asc" | "desc";
+
 export function Projetos() {
   const navigate = useNavigate();
   const { porProjeto } = useMinhasPendencias();
@@ -34,14 +37,22 @@ export function Projetos() {
   }, []);
   const [filtro, setFiltro] = useState<FiltroProjeto>("Ativo");
   const [busca, setBusca] = useState("");
+  const [ordem, setOrdem] = useState<{ col: OrdemColuna; dir: DirOrdem }>({ col: "cliente", dir: "asc" });
+
+  const ordenarPor = (col: OrdemColuna) =>
+    setOrdem((o) => (o.col === col ? { col, dir: o.dir === "asc" ? "desc" : "asc" } : { col, dir: "asc" }));
 
   const lista = useMemo(() => {
     const q = busca.trim().toLowerCase();
-    return (data?.projetos ?? []).map((p) => ({ ...p, status: statusProjetoAutomatico(p, data?.ecs ?? []) }))
+    const arr = (data?.projetos ?? []).map((p) => ({ ...p, status: statusProjetoAutomatico(p, data?.ecs ?? []) }))
       // "Arquivados" agrupa tudo que não está Ativo (Arquivado/Concluído/Cancelado).
       .filter((p) => filtro === "Todos" || (filtro === "Ativo" ? p.status === "Ativo" : p.status !== "Ativo"))
       .filter((p) => !q || `${p.nome} ${p.cliente?.nome ?? ""}`.toLowerCase().includes(q));
-  }, [data, filtro, busca]);
+    const valor = (p: (typeof arr)[number]) =>
+      ordem.col === "cliente" ? p.cliente?.nome ?? "" : ordem.col === "projeto" ? p.nome ?? "" : p.status;
+    arr.sort((a, b) => valor(a).localeCompare(valor(b), "pt-BR", { sensitivity: "base" }) * (ordem.dir === "asc" ? 1 : -1));
+    return arr;
+  }, [data, filtro, busca, ordem]);
 
   return (
     <PageShell
@@ -87,14 +98,14 @@ export function Projetos() {
         ) : (
           <Table>
             <THead>
-              <Th>Cliente</Th>
-              <Th>Projeto</Th>
-              <Th align="center">Status</Th>
+              <ThOrdenavel col="cliente" ordem={ordem} onSort={ordenarPor}>Cliente</ThOrdenavel>
+              <ThOrdenavel col="projeto" ordem={ordem} onSort={ordenarPor}>Projeto</ThOrdenavel>
+              <ThOrdenavel col="status" align="center" ordem={ordem} onSort={ordenarPor}>Status</ThOrdenavel>
             </THead>
             <tbody>
               {lista.map((p) => (
                 <Tr key={p.id} onClick={() => navigate(`/projetos/${p.id}`)}>
-                  <Td className="text-ink-2">{p.cliente?.nome || "—"}</Td>
+                  <Td className="text-ink font-medium">{p.cliente?.nome || "—"}</Td>
                   <Td>
                     <div className="flex items-center gap-2.5">
                       <span className="relative shrink-0">
@@ -112,5 +123,38 @@ export function Projetos() {
         )}
       </Card>
     </PageShell>
+  );
+}
+
+function ThOrdenavel({
+  col,
+  children,
+  align = "left",
+  ordem,
+  onSort,
+}: {
+  col: OrdemColuna;
+  children: ReactNode;
+  align?: "left" | "center" | "right";
+  ordem: { col: OrdemColuna; dir: DirOrdem };
+  onSort: (col: OrdemColuna) => void;
+}) {
+  const ativo = ordem.col === col;
+  return (
+    <Th align={align}>
+      <button
+        type="button"
+        onClick={() => onSort(col)}
+        className={cx(
+          "inline-flex items-center gap-1 uppercase tracking-[0.08em] hover:text-ink-2 transition-colors",
+          align === "center" && "justify-center w-full"
+        )}
+      >
+        {children}
+        <span className={cx("text-[9px] leading-none", ativo ? "text-ink-2" : "text-ink-3/40")}>
+          {ativo ? (ordem.dir === "asc" ? "▲" : "▼") : "▲"}
+        </span>
+      </button>
+    </Th>
   );
 }

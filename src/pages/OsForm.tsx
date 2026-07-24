@@ -22,6 +22,7 @@ import {
   AvisoEmailPendente,
 } from "@/components/ui";
 import { IcDownload, IcSearch, IcSend, IcChevron, IcSpark, IcLink } from "@/components/icons";
+import { ObservacoesThread } from "@/components/ObservacoesPopup";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import {
@@ -67,6 +68,9 @@ export function OsForm() {
 
   const { data: osExistente } = useAsync(() => (id ? repo.oss.obter(id) : Promise.resolve(undefined)), [id]);
   const { data: credResp } = useAsync(() => (id ? repo.oss.credenciamentos(id) : Promise.resolve([])), [id]);
+  // Usuários do sistema — para atribuir/mencionar em Observações.
+  const { data: usuariosData } = useAsync(() => repo.auth.usuarios(), []);
+  const usuarios = (usuariosData ?? []).map((u) => u.nome).filter(Boolean);
   const { data: ec } = useAsync<Ec | undefined>(
     () => {
       if (ecId) return repo.ecs.obter(ecId);
@@ -128,7 +132,7 @@ export function OsForm() {
         cronograma: [{ etapa: "Evento", data: ec.projeto.evento, horario: ec.projeto.horario, atividades: "" }],
         logistica: { transporteMaterial: "", transporteEquipe: "", hospedagem: "", alimentacao: "", estacionamentoCarga: "", estacionamentoEquipe: "", uniformizacao: "" },
         infraestrutura: { energia: "", internet: "", pontosEletricos: "", estruturas: "", servicosApoio: "", artLaudos: "" },
-        observacoes: "",
+        observacoes: [],
         credenciamento: { prazoLimite: "", linkFormulario: `https://forms.polobh.com.br/cred/${ec.id}-${seq}` },
         orcamento: { valorEc, valorComBvNf: valorEc, valorSemBvComNf: valorEc, valorSemBvSemNf: valorEc, parcelas: [{ descricao: "Pagamento único", valor: valorEc }], documentoFiscal: "" },
         financeiro: { tomador: "", descritivoNf: "", cnae: "", codigoServico: "", valorUnitario: valorEc, valorTotal: valorEc, descontoNegociado: 0, valorAPagar: valorEc, bvPercentual: 0, bvValor: 0, bvJustificativa: "", acertoFinanceiro: "" },
@@ -386,7 +390,14 @@ export function OsForm() {
                 </button>
               )}
             </Field>
-            <Field label="Observações" className="md:col-span-2"><Textarea value={os.observacoes} onChange={(e) => setOs((o) => (o ? { ...o, observacoes: e.target.value } : o))} /></Field>
+          </div>
+
+          <div className="mt-2 -mx-1">
+            <ObservacoesThread
+              observacoes={os.observacoes}
+              usuarios={usuarios}
+              onChange={(observacoes) => setOs((o) => (o ? { ...o, observacoes } : o))}
+            />
           </div>
 
           <div className="mt-5 grid md:grid-cols-2 gap-6">

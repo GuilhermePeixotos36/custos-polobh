@@ -199,7 +199,11 @@ export async function criarOsExcelBuffer(
   ] as [string, string][]).forEach(([nome, val], i) =>
     linha(i === 0 ? "Infraestrutura:" : "", `${nome}: ${val || "____"}`)
   );
-  linha("Observações Gerais:", os.observacoes);
+  const obsTexto = (os.observacoes ?? [])
+    .filter((o) => o.texto.trim())
+    .map((o) => `${o.texto}${o.autorNome ? " — " + o.autorNome : ""}${o.resolvida ? " (resolvida)" : ""}`)
+    .join("\n");
+  linha("Observações Gerais:", obsTexto);
 
   /* ---------------------------- CREDENCIAMENTO ------------------------- */
   secao("CREDENCIAMENTO");

@@ -9,8 +9,6 @@ interface Props {
   razao: string;
   cnpj: string;
   fornecedores: Fornecedor[];
-  /** id de um <datalist> compartilhado (renderizado uma vez pelo pai). */
-  datalistId: string;
   onChange: (patch: { fornecedorRazao?: string; fornecedorCnpj?: string }) => void;
   /** Consulta o CNPJ na API e registra o fornecedor no sistema. Retorna a razão social ou null. */
   onValidar: (cnpj: string) => Promise<string | null>;
@@ -18,12 +16,12 @@ interface Props {
 
 /**
  * Campo de fornecedor da linha da EC — CNPJ e Razão social lado a lado.
- * - Ao digitar o CNPJ, a lista suspensa mostra os fornecedores já registrados
- *   e, ao escolher, traz o nome automaticamente.
+ * - Ao digitar o CNPJ completo de um fornecedor já cadastrado, a razão social é
+ *   preenchida automaticamente (autocomplete, sem lista suspensa).
  * - Se o CNPJ é válido mas ainda não existe no sistema, aparece "Validar" que
  *   chama a API do CNPJ e registra o fornecedor.
  */
-export function FornecedorField({ razao, cnpj, fornecedores, datalistId, onChange, onValidar }: Props) {
+export function FornecedorField({ razao, cnpj, fornecedores, onChange, onValidar }: Props) {
   const [validando, setValidando] = useState(false);
   const digits = onlyDigits(cnpj);
 
@@ -58,7 +56,6 @@ export function FornecedorField({ razao, cnpj, fornecedores, datalistId, onChang
     <div className="flex items-center gap-1.5">
       <div className="flex items-center gap-1 flex-1 min-w-0">
         <Input
-          list={datalistId}
           className="!h-9 !px-2 !text-[12.5px]"
           placeholder="CNPJ do fornecedor"
           inputMode="numeric"

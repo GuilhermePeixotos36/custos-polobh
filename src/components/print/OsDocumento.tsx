@@ -93,7 +93,15 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
       <LV label="Modalidade" valor={os.modalidade} />
       <LV label="Descritivo" valor={os.descritivo} />
       <LV label="Entrega" valor={os.entrega} />
-      {os.observacoes && <LV label="Observações" valor={os.observacoes} />}
+      {(os.observacoes ?? []).some((o) => o.texto.trim()) && (
+        <LV
+          label="Observações"
+          valor={os.observacoes
+            .filter((o) => o.texto.trim())
+            .map((o) => `${o.texto}${o.autorNome ? " — " + o.autorNome : ""}${o.resolvida ? " (resolvida)" : ""}`)
+            .join("\n")}
+        />
+      )}
 
       <Secao titulo="Cronograma Específico do Fornecedor" />
       <table className="w-full text-[11px] border-collapse">

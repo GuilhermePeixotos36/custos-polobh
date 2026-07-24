@@ -117,7 +117,7 @@ export type StatusEc =
   | "Arquivada";
 
 export type StatusAprovacao = "Pendente" | "OK";
-export type StatusOs = "Pendente" | "Emitir" | "OK" | "Não se Aplica";
+export type StatusOs = "Pendente" | "Emitir" | "Emitir Nova Versão" | "OK" | "Não se Aplica";
 export type DocumentoPg = "" | "Fatura" | "Nota Fiscal" | "Fatura e Nota Fiscal" | "Recibo Simples" | "Não se aplica";
 
 /** Resposta a uma observação (thread) — mantém a discussão até a pendência ser resolvida. */
@@ -293,6 +293,10 @@ export interface Ec {
   honorarios: TaxaConfig;
   /** Encargos — % sobre a soma dos fornecedores ou valor fixo (padrão 16,33%). */
   encargos: TaxaConfig;
+  /** Rótulo editável de Honorários no resumo/planilha (vazio = usa o padrão). */
+  honorariosRotulo?: string;
+  /** Rótulo editável de Encargos no resumo/planilha (vazio = usa o padrão). */
+  encargosRotulo?: string;
   responsavel: string; // produtora responsável / visto Pólobh
   validadeDias: number;
   criadoEm: string;
@@ -429,7 +433,8 @@ export interface Os {
   cronograma: CronogramaItem[];
   logistica: Logistica;
   infraestrutura: Infraestrutura;
-  observacoes: string;
+  /** Observações da OS (thread com menções — mesmo padrão dos itens da EC). */
+  observacoes: Observacao[];
   credenciamento: Credenciamento;
   orcamento: Orcamento;
   financeiro: FinanceiroOs;

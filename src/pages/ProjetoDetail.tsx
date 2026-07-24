@@ -14,14 +14,15 @@ import { useAsync } from "@/hooks/useAsync";
 import { useMinhasPendencias } from "@/store/pendencias";
 import { gerarCronogramaExcel } from "@/lib/excel";
 import { consultarCnpj, documentoFiscalValido } from "@/lib/cnpj";
-import { tituloEc } from "@/domain/calc";
+import { numeroEc, tituloEc } from "@/domain/calc";
 import { ETAPAS_CRONOGRAMA, compoeTituloProjeto, novaFaixaCronograma, projetoInfoVazio, sincronizarCamposLegados } from "@/domain/projeto";
 import { flags } from "@/lib/flags";
 import { cx, dataBR, maskCpfCnpjInput, maskDoc, onlyDigits } from "@/lib/format";
 import { toast } from "@/store/toast";
+import { confirmar } from "@/store/confirm";
 import { corrigirRoteirosProjeto } from "@/lib/correcaoOrtografica";
 import { statusProjetoAutomatico } from "@/domain/statusProjeto";
-import type { Cliente, EtapaCronogramaProjeto, FaixaCronogramaProjeto, Projeto, ProjetoInfo, StatusProjeto } from "@/data/types";
+import type { Cliente, Ec, EcLinha, EtapaCronogramaProjeto, FaixaCronogramaProjeto, Projeto, ProjetoInfo, StatusProjeto } from "@/data/types";
 
 const tomStatusProjeto: Record<StatusProjeto, Tom> = {
   Ativo: "success", Arquivado: "neutral", Concluido: "info", Cancelado: "danger",
@@ -68,6 +69,11 @@ export function ProjetoDetail() {
   const [cnpjMsg, setCnpjMsg] = useState("");
   const [cnpjFoco, setCnpjFoco] = useState(false);
   const [tentouSalvar, setTentouSalvar] = useState(false);
+  // Importar EC de outro projeto (copia itens/valores para este projeto como rascunho).
+  const [importOpen, setImportOpen] = useState(false);
+  const [impProjetoId, setImpProjetoId] = useState("");
+  const [impEcId, setImpEcId] = useState("");
+  const [importando, setImportando] = useState(false);
 
   useEffect(() => {
     if (novo) setP(projetoVazio());
@@ -88,6 +94,19 @@ export function ProjetoDetail() {
   const ecIds = useMemo(() => new Set(ecsDoProjeto.map((e) => e.id)), [ecsDoProjeto]);
   const ossDoProjeto = useMemo(() => (ossAll ?? []).filter((o) => ecIds.has(o.ecId)), [ossAll, ecIds]);
   const statusExibido = useMemo(() => statusProjetoAutomatico(p, ecsDoProjeto), [p, ecsDoProjeto]);
+  // Projetos de origem para importação (derivados das ECs existentes, exceto o atual).
+  const projetosOrigem = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const e of ecsAll ?? []) {
+      if (!e.projetoId || e.projetoId === id) continue;
+      if (!map.has(e.projetoId)) map.set(e.projetoId, `${e.cliente?.nome || "—"} — ${e.projeto?.titulo || e.numero}`);
+    }
+    return [...map].map(([projetoId, rotulo]) => ({ projetoId, rotulo })).sort((a, b) => a.rotulo.localeCompare(b.rotulo, "pt-BR"));
+  }, [ecsAll, id]);
+  const ecsOrigem = useMemo(
+    () => (ecsAll ?? []).filter((e) => e.projetoId === impProjetoId).sort((a, b) => Number(b.ativa) - Number(a.ativa) || b.versao - a.versao),
+    [ecsAll, impProjetoId]
+  );
 
   const etapas = useMemo<ItemConsolidado[]>(
     () => ossDoProjeto.flatMap((o) => o.cronograma.map((c) => ({ ...c, fornecedor: o.fornecedor.razaoSocial || "Fornecedor" }))),
@@ -235,7 +254,7 @@ export function ProjetoDetail() {
 
   const camposObrigatoriosFaltando = (): { chave: string; label: string }[] => {
     const faltando: { chave: string; label: string }[] = [];
-    if (!p.info.clienteAbreviado.trim()) faltando.push({ chave: "clienteAbreviado", label: "Cliente (abreviação)" });
+    if (!p.info.clienteAbreviado.trim()) faltando.push({ chave: "clienteAbreviado", label: "Cliente (apelido)" });
     if (!p.info.nomeProjeto.trim()) faltando.push({ chave: "nomeProjeto", label: "Nome do projeto" });
     if (!/^(19\d{2}|20\d{2}|2100)$/.test(p.info.anoProjeto.trim())) faltando.push({ chave: "anoProjeto", label: "Ano (1900 a 2100)" });
     if (!p.cliente.nome.trim()) faltando.push({ chave: "clienteNome", label: "Cliente (nome)" });
@@ -279,6 +298,75 @@ export function ProjetoDetail() {
   if (loading) return <PageShell title="Carregando…">{null}</PageShell>;
   if (!novo && !existente) return <PageShell title="Projeto não encontrado">{null}</PageShell>;
 
+  /**
+   * Arquivamento manual do projeto: só permite se não houver OS pendente de emissão
+   * (Rascunho). Ao arquivar, também arquiva a EC ativa — o que leva o status automático
+   * do projeto a "Arquivado".
+   */
+  async function arquivarProjeto() {
+    const pendentes = ossDoProjeto.filter((o) => o.status === "Rascunho");
+    if (pendentes.length) {
+      toast(`Há ${pendentes.length} OS não emitida(s). Emita ou cancele todas antes de arquivar o projeto.`, "warning");
+      return;
+    }
+    if (!(await confirmar({
+      titulo: "Arquivar este projeto?",
+      mensagem: "A EC ativa será arquivada e o projeto sai dos ativos. As OSs já emitidas/canceladas são preservadas.",
+      confirmarTexto: "Arquivar projeto",
+    }))) return;
+    const ativa = ecsDoProjeto.find((e) => e.ativa);
+    if (ativa) await repo.ecs.salvar({ ...ativa, status: "Arquivada", ativa: false });
+    toast("Projeto arquivado.", "success");
+    navigate(0);
+  }
+
+  async function importarEc() {
+    const origem = (ecsAll ?? []).find((e) => e.id === impEcId);
+    if (!origem) { toast("Selecione a EC de origem.", "warning"); return; }
+    setImportando(true);
+    try {
+      const irmas = (ecsAll ?? []).filter((e) => e.projetoId === id);
+      const versao = irmas.length ? Math.max(...irmas.map((e) => e.versao)) + 1 : 1;
+      const agora = new Date().toISOString();
+      // Copia a estrutura de custos, mas zera pendências/status para começar limpo no novo projeto.
+      const linhas: EcLinha[] = origem.linhas.map((l) => ({
+        ...l,
+        id: "",
+        observacao: "",
+        observacoes: [],
+        valorGasto: 0,
+        statusAprovacao: "Pendente",
+        statusOs: "Pendente",
+        contratoStatus: "Pendente",
+      }));
+      const nova: Ec = {
+        ...origem,
+        id: "",
+        projetoId: id,
+        clienteId: p.cliente.id,
+        cliente: p.cliente,
+        projeto: p.info,
+        versao,
+        status: "Rascunho",
+        ativa: false,
+        numero: numeroEc(p.cliente.nome || "Cliente", p.info.titulo || "Projeto", versao),
+        slugPublico: "",
+        canceladaSubstituida: false,
+        criadoEm: agora,
+        atualizadoEm: agora,
+        linhas,
+      };
+      const salvo = await repo.ecs.salvar(nova);
+      toast(`EC importada de "${origem.projeto?.titulo || origem.numero}" como rascunho.`, "success");
+      setImportOpen(false);
+      navigate(`/estimativas/${salvo.id}/editar`);
+    } catch (e) {
+      toast(`Não foi possível importar: ${(e as Error).message}`, "danger");
+    } finally {
+      setImportando(false);
+    }
+  }
+
   return (
     <PageShell
       breadcrumb={
@@ -292,7 +380,12 @@ export function ProjetoDetail() {
       titleAdornment={!novo ? <Badge tom={tomStatusProjeto[statusExibido]}>{statusExibido}</Badge> : undefined}
       topAction={
         (aba === "dados" || novo) && (
-          <Button size="sm" onClick={salvar} disabled={salvando}>{salvando ? "Salvando…" : "Salvar projeto"}</Button>
+          <div className="flex gap-2">
+            {!novo && statusExibido !== "Arquivado" && (
+              <Button variant="secondary" size="sm" onClick={arquivarProjeto}>Arquivar projeto</Button>
+            )}
+            <Button size="sm" onClick={salvar} disabled={salvando}>{salvando ? "Salvando…" : "Salvar projeto"}</Button>
+          </div>
         )
       }
     >
@@ -392,7 +485,7 @@ export function ProjetoDetail() {
           <Card>
             <CardTitle>Informações do projeto</CardTitle>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <Field label="Cliente (abreviação)"><Input erro={chavesComErro.has("clienteAbreviado")} value={p.info.clienteAbreviado} onChange={(e) => updTituloParte({ clienteAbreviado: e.target.value })} placeholder="Ex.: ACME" /></Field>
+              <Field label="Cliente (apelido)"><Input erro={chavesComErro.has("clienteAbreviado")} value={p.info.clienteAbreviado} onChange={(e) => updTituloParte({ clienteAbreviado: e.target.value })} placeholder="Ex.: ACME" /></Field>
               <Field label="Nome do projeto"><Input formato="titulo" erro={chavesComErro.has("nomeProjeto")} value={p.info.nomeProjeto} onChange={(e) => updTituloParte({ nomeProjeto: e.target.value })} /></Field>
               <Field label="Ano"><Input erro={chavesComErro.has("anoProjeto")} value={p.info.anoProjeto} inputMode="numeric" onChange={(e) => updTituloParte({ anoProjeto: onlyDigits(e.target.value).slice(0, 4) })} placeholder="2026" /></Field>
               <Field label="Modalidade">
@@ -519,6 +612,13 @@ export function ProjetoDetail() {
               >
                 EC em branco
               </Button>
+              <Button
+                size="sm"
+                variant="text"
+                onClick={() => { setImpProjetoId(""); setImpEcId(""); setImportOpen(true); }}
+              >
+                Importar EC
+              </Button>
             </div>
           </div>
           <div className="px-5 pb-4 flex items-center gap-1 border-b border-border-soft" role="group" aria-label="Filtrar estimativas">
@@ -567,6 +667,42 @@ export function ProjetoDetail() {
             </Table>
           )}
         </Card>
+      )}
+
+      {importOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setImportOpen(false)}>
+          <div className="w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
+            <Card>
+              <CardTitle hint="Copia os itens e valores de uma EC de outro projeto para este, como um novo rascunho.">
+                Importar EC de outro projeto
+              </CardTitle>
+              <div className="mt-4 grid gap-4">
+                <Field label="Projeto de origem">
+                  <Select value={impProjetoId} onChange={(e) => { setImpProjetoId(e.target.value); setImpEcId(""); }}>
+                    <option value="">Selecione…</option>
+                    {projetosOrigem.map((o) => (
+                      <option key={o.projetoId} value={o.projetoId}>{o.rotulo}</option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="EC (ativa ou arquivada)">
+                  <Select value={impEcId} onChange={(e) => setImpEcId(e.target.value)} disabled={!impProjetoId}>
+                    <option value="">Selecione…</option>
+                    {ecsOrigem.map((e) => (
+                      <option key={e.id} value={e.id}>{tituloEc(e)} — {e.ativa ? "Ativa" : "Arquivada"}</option>
+                    ))}
+                  </Select>
+                </Field>
+              </div>
+              <div className="mt-5 flex justify-end gap-2">
+                <Button variant="secondary" size="sm" onClick={() => setImportOpen(false)}>Cancelar</Button>
+                <Button size="sm" onClick={importarEc} disabled={!impEcId || importando}>
+                  {importando ? "Importando…" : "Importar EC"}
+                </Button>
+              </div>
+            </Card>
+          </div>
+        </div>
       )}
 
       {aba === "os" && (

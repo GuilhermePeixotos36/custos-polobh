@@ -317,6 +317,8 @@ function mapEc(r: any): Ec {
     producao: producaoZerada(),
     honorarios: r.producao?.honorarios ?? honorariosPadrao(),
     encargos: r.producao?.encargos ?? encargosPadrao(),
+    honorariosRotulo: r.producao?.honorariosRotulo || undefined,
+    encargosRotulo: r.producao?.encargosRotulo || undefined,
     responsavel: r.responsavel ?? "",
     validadeDias: r.validade_dias ?? 30,
     criadoEm: r.criado_em,
@@ -334,8 +336,8 @@ function ecRow(ec: Ec) {
     cliente_id: isUuid(ec.cliente?.id) ? ec.cliente.id : null,
     cliente: ec.cliente,
     projeto: sincronizarCamposLegados(ec.projeto),
-    // Embute as taxas no jsonb `producao` (o mapEc separa de volta na leitura).
-    producao: { ...ec.producao, honorarios: ec.honorarios, encargos: ec.encargos },
+    // Embute as taxas e seus rótulos no jsonb `producao` (o mapEc separa de volta na leitura).
+    producao: { ...ec.producao, honorarios: ec.honorarios, encargos: ec.encargos, honorariosRotulo: ec.honorariosRotulo ?? "", encargosRotulo: ec.encargosRotulo ?? "" },
     responsavel: ec.responsavel,
     validade_dias: ec.validadeDias,
     versao: ec.versao,
@@ -460,7 +462,7 @@ function mapOs(r: any): Os {
     cronograma: r.cronograma ?? [],
     logistica: r.logistica ?? logisticaVazia(),
     infraestrutura: r.infraestrutura ?? infraVazia(),
-    observacoes: r.observacoes ?? "",
+    observacoes: r.observacoes ?? [],
     credenciamento: r.credenciamento ?? { prazoLimite: "", linkFormulario: "" },
     orcamento: r.orcamento ?? { valorEc: 0, valorComBvNf: 0, valorSemBvComNf: 0, valorSemBvSemNf: 0, parcelas: [], documentoFiscal: "" },
     financeiro,

@@ -1,11 +1,17 @@
 /**
- * Pendências do processo: ações que faltam ser feitas por um determinado papel.
+ * Pendências do processo: ações que faltam ser feitas por uma PESSOA específica.
  * Centralizado aqui para alimentar os badges (bolinhas vermelhas) na navegação,
- * na lista de projetos, nas subguias e nos itens de OS.
+ * na lista de projetos, nas subguias e nos itens de EC/OS.
  *
- * Cada pendência declara QUEM deve agir (papeis) e ONDE ela aparece (recurso da
- * navegação, projeto, subguia, EC e/ou OS). Para adicionar uma nova regra, basta
- * empurrar mais objetos em `calcularPendencias`.
+ * Modelo (jul/2026): a cadeia de pendências nasce no Produtor Responsável definido
+ * no Projeto (fica com a pendência de preencher a EC) e nas observações direcionadas
+ * a alguém nos itens da EC e nas OSs (@menção ou responsável escolhido). O único
+ * ponto que ainda é por PAPEL (não por pessoa fixa) é "Emitir OS", função do
+ * financeiro — não há mais fluxo de aprovação do cliente (removido).
+ *
+ * Cada pendência declara QUEM deve agir (papeis e/ou pessoas) e ONDE ela aparece
+ * (recurso da navegação, projeto, subguia, EC e/ou OS). Para adicionar uma nova
+ * regra, basta empurrar mais objetos em `calcularPendencias`.
  */
 import type { Ec, Os, Papel, Projeto } from "@/data/types";
 import { extrairMencoes } from "@/domain/mencoes";
@@ -30,10 +36,8 @@ export interface Pendencia {
   osId?: string;
 }
 
-// Quem emite a OS (financeiro) e quem aprova/cria — mapeamento de responsabilidade.
+// Emitir OS é função do financeiro — único ponto ainda roteado por papel (não por pessoa fixa).
 const EMITE_OS: Papel[] = ["Admin", "Direcao", "Administrativo"];
-const ACOMPANHA_EC: Papel[] = ["Admin", "Direcao"];
-const CRIA_EC: Papel[] = ["Admin", "Direcao", "Producao"];
 
 export function calcularPendencias(projetos: Projeto[], ecs: Ec[], oss: Os[], usuarios: string[] = []): Pendencia[] {
   const ecPorId = new Map(ecs.map((e) => [e.id, e]));
@@ -60,6 +64,33 @@ export function calcularPendencias(projetos: Projeto[], ecs: Ec[], oss: Os[], us
       aba: "os",
       ecId: os.ecId,
       osId: os.id,
+    });
+  }
+
+  // Observações da OS direcionadas a alguém → pendência dessa pessoa (mesma regra da EC).
+  for (const os of oss) {
+    const ec = ecPorId.get(os.ecId);
+    if (!ec?.projetoId) continue;
+    (os.observacoes ?? []).forEach((observacao, indice) => {
+      const texto = observacao.texto.trim();
+      if (!texto || observacao.resolvida) return;
+      const destinatarios = new Set<string>();
+      if (observacao.responsavelNome?.trim()) destinatarios.add(observacao.responsavelNome.trim());
+      for (const m of extrairMencoes(texto, usuarios)) destinatarios.add(m);
+      if (!destinatarios.size) return;
+      const resumo = texto.length > 80 ? `${texto.slice(0, 77)}…` : texto;
+      out.push({
+        id: `os.observacao:${os.id}:${observacao.id || indice}`,
+        tipo: "os.observacao",
+        titulo: `Observação para você na OS ${os.numero}: ${resumo}`,
+        papeis: [],
+        pessoas: [...destinatarios],
+        recurso: "projetos",
+        projetoId: ec.projetoId,
+        aba: "os",
+        ecId: os.ecId,
+        osId: os.id,
+      });
     });
   }
 
@@ -90,29 +121,16 @@ export function calcularPendencias(projetos: Projeto[], ecs: Ec[], oss: Os[], us
         });
       });
     }
-    // EC aguardando aprovação → Direção/Admin acompanham o cliente.
-    if (ec.status === "Aguardando") {
-      out.push({
-        id: `ec.aprovar:${ec.id}`,
-        tipo: "ec.aprovar",
-        titulo: `EC aguardando aprovação: ${ec.projeto.titulo || ec.numero}`,
-        papeis: ACOMPANHA_EC,
-        recurso: "projetos",
-        projetoId: ec.projetoId,
-        aba: "ec",
-        ecId: ec.id,
-      });
-    }
-    // Linha aprovada marcada para emitir OS, mas sem OS gerada → Produção gera a OS.
+    // Linha marcada para emitir OS ("Emitir"/"Emitir Nova Versão") → o financeiro precisa
+    // apertar "Emitir OS" no topo da EC (o botão cria as OSs e marca as linhas como OK).
     if (!["Cancelada", "Arquivada"].includes(ec.status)) {
-      const temLinhaEmitir = ec.linhas.some((l) => l.statusOs === "Emitir");
-      const temOs = oss.some((o) => o.ecId === ec.id);
-      if (temLinhaEmitir && !temOs) {
+      const temLinhaParaEmitir = ec.linhas.some((l) => l.statusOs === "Emitir" || l.statusOs === "Emitir Nova Versão");
+      if (temLinhaParaEmitir) {
         out.push({
-          id: `ec.gerarOs:${ec.id}`,
-          tipo: "ec.gerarOs",
-          titulo: `Gerar OS a partir da EC: ${ec.projeto.titulo || ec.numero}`,
-          papeis: CRIA_EC,
+          id: `ec.emitirOs:${ec.id}`,
+          tipo: "ec.emitirOs",
+          titulo: `Emitir OS a partir da EC: ${ec.projeto.titulo || ec.numero}`,
+          papeis: EMITE_OS,
           recurso: "projetos",
           projetoId: ec.projetoId,
           aba: "ec",
@@ -122,15 +140,18 @@ export function calcularPendencias(projetos: Projeto[], ecs: Ec[], oss: Os[], us
     }
   }
 
-  // Projeto ativo sem nenhuma EC → Produção precisa criar a estimativa.
+  // Projeto ativo sem nenhuma EC → pendência do Produtor Responsável definido no projeto.
   for (const p of projetos) {
     if (statusProjetoAutomatico(p, ecs) !== "Ativo") continue;
     if ((ecsAtivasPorProjeto.get(p.id) ?? 0) > 0) continue;
+    const responsavel = p.info.produtoraResponsavel?.trim();
+    if (!responsavel) continue; // sem responsável definido, não há para quem endereçar
     out.push({
       id: `projeto.semEc:${p.id}`,
       tipo: "projeto.semEc",
       titulo: `Projeto sem estimativa: ${p.nome || "Projeto"}`,
-      papeis: CRIA_EC,
+      papeis: [],
+      pessoas: [responsavel],
       recurso: "projetos",
       projetoId: p.id,
       aba: "ec",
