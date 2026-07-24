@@ -82,7 +82,7 @@ export const useAuth = create<AuthState>((set, get) => {
   async function carregarPerfil(user: User) {
     const { data, error } = await supabase
       .from("perfis")
-      .select("nome, papel")
+      .select("nome, papel, telefone")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -96,6 +96,7 @@ export const useAuth = create<AuthState>((set, get) => {
       id: user.id,
       nome: data.nome ?? user.email ?? "Usuário",
       email: user.email ?? "",
+      telefone: data.telefone ?? "",
       papel: data.papel as Papel,
     };
     definirAtor({ id: user.id, nome: usuario.nome, papel: usuario.papel });

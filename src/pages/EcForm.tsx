@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { PageShell, Crumb } from "@/components/layout/AppLayout";
+import { PageShell } from "@/components/layout/AppLayout";
 import {
   Card,
   CardTitle,
+  Badge,
   Button,
   Field,
   Input,
@@ -11,9 +12,8 @@ import {
   NumberInput,
   CurrencyInput,
   Select,
-  Eyebrow,
 } from "@/components/ui";
-import { IcDownload, IcSearch, IcChevron } from "@/components/icons";
+import { IcDownload, IcSearch, IcBack } from "@/components/icons";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import {
@@ -119,6 +119,7 @@ export function EcForm() {
   const [cnpjLoading, setCnpjLoading] = useState(false);
   const [cnpjMsg, setCnpjMsg] = useState("");
   const [salvando, setSalvando] = useState(false);
+  const [mostrarSalvo, setMostrarSalvo] = useState(false);
   const [subaba, setSubaba] = useState<SubGuiaEc>("ec");
   // Fornecedores registrados — alimentam a lista suspensa por CNPJ na tabela de custos.
   const { data: fornData, reload: reloadForn } = useAsync(() => repo.fornecedores.listar(), []);
@@ -202,15 +203,16 @@ export function EcForm() {
     return <PageShell title="Carregando…">{null}</PageShell>;
   }
 
-  // Trava de edição: uma EC só é editável enquanto Rascunho. Depois de finalizada
-  // (enviada/aprovada/arquivada), gera-se uma nova versão a partir do detalhe.
-  if (editando && ec.status !== "Rascunho") {
+  // Trava de edição: uma EC só é editável enquanto for a versão ativa do projeto e não
+  // estiver cancelada. Arquivada (superseded por nova versão) ou cancelada ficam bloqueadas —
+  // para alterar algo, gera-se uma nova versão a partir do detalhe.
+  if (editando && (!ec.ativa || ec.status === "Cancelada")) {
     return (
       <PageShell title="Edição bloqueada">
         <Card>
           <CardTitle>Esta EC não pode mais ser editada</CardTitle>
           <p className="mt-2 text-sm text-ink-2">
-            A EC <b>{ec.numero}</b> está com status <b>{ec.status}</b>. ECs finalizadas ficam
+            A EC <b>{ec.numero}</b> está {ec.status === "Cancelada" ? "cancelada" : "arquivada (não é a versão ativa do projeto)"}. ECs finalizadas ficam
             preservadas — para alterar algo, gere uma nova versão (02, 03…) a partir do detalhe,
             que arquiva esta e abre uma cópia em Rascunho.
           </p>
@@ -309,7 +311,11 @@ export function EcForm() {
     toast("Textos padronizados (maiúsculas e espaçamento). Confira e salve.", "info");
   }
 
-  /** Salvar (rápido): apenas persiste a EC. Sem IA e sem exportar Excel (use os botões de Excel). */
+  /**
+   * Salvar (rápido): apenas persiste a EC. Sem IA e sem exportar Excel (use os botões de Excel).
+   * Ao concluir, o botão mostra "Salvo" (esmaecido) por um instante e o usuário é levado
+   * para a tela de visualização da EC.
+   */
   async function salvar(): Promise<boolean> {
     setSalvando(true);
     try {
@@ -322,13 +328,14 @@ export function EcForm() {
       // Registra/atualiza os fornecedores citados e acumula seus contatos.
       await acumularFornecedores(ec!.linhas).catch(() => {});
       setBaseline(JSON.stringify(salvo));
-      toast("EC salva.", "success");
+      setSalvando(false);
+      setMostrarSalvo(true);
+      setTimeout(() => navigate(`/estimativas/${salvo.id}`), 700);
       return true;
     } catch (e) {
       toast(`Erro ao salvar: ${(e as Error).message}`, "danger");
-      return false;
-    } finally {
       setSalvando(false);
+      return false;
     }
   }
 
@@ -356,17 +363,21 @@ export function EcForm() {
     </Card>
   );
 
+  const voltarUrl = ec.projetoId ? `/projetos/${ec.projetoId}?aba=ec` : "/projetos";
+  // Mesmo critério do EcDetail: dentro do editor a EC está sempre ativa (edição só é
+  // permitida enquanto for a versão ativa), então o badge aqui é só por paridade visual.
+  const statusBadge = ec.status === "Cancelada"
+    ? <Badge tom="danger">Cancelada</Badge>
+    : ec.ativa
+      ? <Badge tom="success">Ativa</Badge>
+      : <Badge tom="neutral">Arquivada</Badge>;
+
   return (
-    <PageShell
-      breadcrumb={
-        <>
-          <button onClick={() => navigate(ec.projetoId ? `/projetos/${ec.projetoId}?aba=ec` : "/projetos")} className="hover:text-ink">{ec.projeto.titulo || "Projeto"}</button>
-          <IcChevron width={14} height={14} />
-          <Crumb>{editando ? "Editar EC" : "Nova EC"}</Crumb>
-        </>
-      }
-      title={editando ? "Editar Estimativa" : "Nova Estimativa"}
-      topAction={
+    <PageShell title={tituloEc({ ...ec, numero })} titleAdornment={statusBadge}>
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+        <button onClick={() => navigate(voltarUrl)} className="inline-flex items-center gap-1.5 text-sm text-ink-2 hover:text-ink font-semibold">
+          <IcBack width={16} height={16} /> Voltar ao projeto
+        </button>
         <div className="flex gap-2 flex-wrap">
           <Button variant="secondary" size="sm" icon={<IcDownload width={16} height={16} />} onClick={() => gerarEcExcel({ ...ec, numero }, { modelo: "financeiro" })}>
             Excel Financeiro
@@ -377,23 +388,9 @@ export function EcForm() {
           <Button variant="secondary" size="sm" onClick={revisar} disabled={salvando} title="Padroniza a formatação dos textos (sem IA)">
             Revisar
           </Button>
-          <Button size="sm" onClick={() => void salvar()} disabled={salvando}>
-            {salvando ? "Salvando…" : "Salvar"}
+          <Button size="sm" onClick={() => void salvar()} disabled={salvando || mostrarSalvo}>
+            {salvando ? "Salvando…" : mostrarSalvo ? "Salvo" : "Salvar"}
           </Button>
-        </div>
-      }
-    >
-      {/* Banner título automático */}
-      <div className="mb-5 rounded-card bg-black text-white px-5 py-4 flex items-center justify-between flex-wrap gap-3">
-        <div className="min-w-0">
-          <Eyebrow><span className="text-white/50">Título automático da EC</span></Eyebrow>
-          <div className="font-display font-bold text-lg tracking-tight mt-1 break-words">{tituloEc({ ...ec, numero })}</div>
-          <div className="text-white/40 text-[12px] mt-0.5">{numero}</div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {!ec.ativa && <span className="text-[11px] font-extrabold uppercase bg-white/10 text-white/70 rounded-pill px-2 py-1">Arquivada</span>}
-          <span className="text-white/60 text-[13px]">Versão</span>
-          <span className="font-display font-bold text-amber text-lg">V{String(ec.versao).padStart(2, "0")}</span>
         </div>
       </div>
 
@@ -567,20 +564,39 @@ function ResumoCustos({
           <tr>
             <td className="px-4 pt-3 pb-1 text-[11.5px] font-bold italic text-ink-3" colSpan={3}>Sendo:</td>
           </tr>
-          <ResumoLinha desc="Faturamento Pólobh — NF Pólobh × Cliente" polobh={t.faturamentoPolobh} />
-          <ResumoLinha desc="Faturamento Terceiros — NF's Terceiros × Cliente" polobh={t.faturamentoTerceiros} />
+          <ResumoLinha desc="Faturamento Pólobh — NF Pólobh × Cliente" polobh={t.faturamentoPolobh} colSpanValor />
+          <ResumoLinha desc="Faturamento Terceiros — NF's Terceiros × Cliente" polobh={t.faturamentoTerceiros} colSpanValor />
         </tbody>
       </table>
     </div>
   );
 }
 
-function ResumoLinha({ desc, polobh, cliente, strong }: { desc: string; polobh: number; cliente?: number; strong?: boolean }) {
+function ResumoLinha({
+  desc,
+  polobh,
+  cliente,
+  strong,
+  colSpanValor,
+}: {
+  desc: string;
+  polobh: number;
+  cliente?: number;
+  strong?: boolean;
+  /** Valor único mesclando as duas colunas (Pólobh+Cliente) — alinha à direita com o Valor Total Bruto. */
+  colSpanValor?: boolean;
+}) {
   return (
     <tr className="border-b border-border-soft">
       <td className={cx("px-4 py-2.5", strong ? "font-bold text-ink" : "font-semibold text-ink")}>{desc}</td>
-      <td className="px-4 py-2.5 text-right whitespace-nowrap font-display font-bold text-ink">{brl(polobh)}</td>
-      <td className="px-4 py-2.5 text-right whitespace-nowrap font-display font-bold text-ink">{cliente === undefined ? "" : brl(cliente)}</td>
+      {colSpanValor ? (
+        <td className="px-4 py-2.5 text-right whitespace-nowrap font-display font-bold text-ink" colSpan={2}>{brl(polobh)}</td>
+      ) : (
+        <>
+          <td className="px-4 py-2.5 text-right whitespace-nowrap font-display font-bold text-ink">{brl(polobh)}</td>
+          <td className="px-4 py-2.5 text-right whitespace-nowrap font-display font-bold text-ink">{cliente === undefined ? "" : brl(cliente)}</td>
+        </>
+      )}
     </tr>
   );
 }

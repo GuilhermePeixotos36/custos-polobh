@@ -217,13 +217,21 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
   /** Oculta/reexibe o grupo inteiro (todos os itens). */
   const setOcultoGrupo = (grupoNome: string, oculto: boolean) =>
     commit(grupos.map((g) => (g.nome === grupoNome ? { ...g, itens: g.itens.map((it) => ({ ...it, oculto })) } : g)));
-  /** Considera "não preenchido/alterado": sem custo, sem fornecedor e sem observações. */
-  const naoPreenchido = (it: EcLinha) =>
-    !it.oculto && it.valorPolobh === 0 && it.valorCliente === 0 && !it.fornecedorRazao.trim() && !it.fornecedorCnpj.trim() && it.observacoes.length === 0;
+  /** Sem custo, sem fornecedor e sem observações (independente de estar oculto ou não). */
+  const semConteudo = (it: EcLinha) =>
+    it.valorPolobh === 0 && it.valorCliente === 0 && !it.fornecedorRazao.trim() && !it.fornecedorCnpj.trim() && it.observacoes.length === 0;
+  /** Não preenchido/alterado E visível — candidato a ocultar em massa. */
+  const naoPreenchido = (it: EcLinha) => !it.oculto && semConteudo(it);
   const qtdNaoPreenchidos = grupos.reduce((n, g) => n + g.itens.filter(naoPreenchido).length, 0);
   /** Oculta de uma vez todos os itens ainda não preenchidos/alterados, em todos os grupos. */
   const ocultarNaoPreenchidos = () =>
     commit(grupos.map((g) => ({ ...g, itens: g.itens.map((it) => (naoPreenchido(it) ? { ...it, oculto: true } : it)) })));
+  /** Oculto e ainda não preenchido — candidato a reexibir em massa. */
+  const ocultoNaoPreenchido = (it: EcLinha) => it.oculto && semConteudo(it);
+  const qtdOcultosNaoPreenchidos = grupos.reduce((n, g) => n + g.itens.filter(ocultoNaoPreenchido).length, 0);
+  /** Reexibe de uma vez todos os itens ocultos que ainda estão sem custo, fornecedor ou observações. */
+  const reexibirNaoPreenchidos = () =>
+    commit(grupos.map((g) => ({ ...g, itens: g.itens.map((it) => (ocultoNaoPreenchido(it) ? { ...it, oculto: false } : it)) })));
 
   /* ------------------------- drag & drop ------------------------- */
   const onDragStart = (e: DragStartEvent) => {
@@ -308,6 +316,14 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
             <>
               <button onClick={ocultarNaoPreenchidos} className="hover:text-ink" title="Oculta de uma vez todos os itens sem custo, fornecedor ou observações">
                 Ocultar não preenchidos ({qtdNaoPreenchidos})
+              </button>
+              <span className="text-border">|</span>
+            </>
+          )}
+          {qtdOcultosNaoPreenchidos > 0 && (
+            <>
+              <button onClick={reexibirNaoPreenchidos} className="hover:text-ink" title="Reexibe de uma vez todos os itens ocultos que ainda estão sem custo, fornecedor ou observações">
+                Reexibir não preenchidos ({qtdOcultosNaoPreenchidos})
               </button>
               <span className="text-border">|</span>
             </>
@@ -440,11 +456,11 @@ function GrupoCard({
           <button
             type="button"
             onClick={() => onOcultoGrupo(!grupoOculto)}
-            className="inline-flex items-center gap-1.5 rounded-btn px-2 py-1.5 text-[12px] font-bold text-ink-3 hover:bg-primary-soft hover:text-primary-dark"
+            className="inline-flex items-center rounded-btn p-1.5 text-ink-3 hover:bg-primary-soft hover:text-primary-dark"
             title={grupoOculto ? "Reexibir grupo" : "Ocultar grupo (mantém guardado)"}
+            aria-label={grupoOculto ? "Reexibir grupo" : "Ocultar grupo"}
           >
             {grupoOculto ? <IcEye width={17} height={17} /> : <IcEyeOff width={17} height={17} />}
-            {grupoOculto ? "Reexibir grupo" : "Ocultar grupo"}
           </button>
           <Button variant="soft" size="sm" icon={<IcPlus width={15} height={15} />} onClick={onAddItem}>
             Item

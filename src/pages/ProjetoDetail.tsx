@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { PageShell, Crumb } from "@/components/layout/AppLayout";
+import { PageShell } from "@/components/layout/AppLayout";
 import {
   Card, CardTitle, Button, Field, Input, Label, TelefoneInput, Textarea, Select, Badge,
   Table, THead, Th, Tr, Td, EmptyState, tomStatusOs, type Tom,
 } from "@/components/ui";
-import { IcChevron, IcPlus, IcBack, IcDownload, IcSearch, IcTrash, IcEye, IcEyeOff } from "@/components/icons";
+import { IcPlus, IcBack, IcDownload, IcSearch, IcTrash, IcEye, IcEyeOff, IcDoc, IcCopy } from "@/components/icons";
 import { RichTextField } from "@/components/RichTextField";
 import { TimelineConsolidada, type ItemConsolidado } from "@/components/Timeline";
 import { NotifDot } from "@/components/NotifDot";
@@ -60,6 +60,19 @@ export function ProjetoDetail() {
   const { data: ecsAll } = useAsync(() => repo.ecs.listar(), []);
   const { data: ossAll } = useAsync(() => repo.oss.listar(), []);
   const { data: clientesAll } = useAsync(() => repo.clientes.listar(), []);
+  // Usuários elegíveis a Produtor Responsável (papéis Produção e Direção).
+  const { data: usuariosAll } = useAsync(() => repo.auth.usuarios(), []);
+  const produtoresResponsaveis = useMemo(
+    () => (usuariosAll ?? []).filter((u) => u.papel === "Producao" || u.papel === "Direcao"),
+    [usuariosAll]
+  );
+  // Lista completa (com e-mail real) — só carrega para quem tem permissão de configurações;
+  // se não tiver (ex.: Produção), falha em silêncio e o e-mail continua manual.
+  const { data: usuariosCompletosData } = useAsync(() => repo.auth.usuariosCompletos().catch(() => null), []);
+  const produtoresCompletos = useMemo(
+    () => usuariosCompletosData?.filter((u) => u.papel === "Producao" || u.papel === "Direcao") ?? null,
+    [usuariosCompletosData]
+  );
 
   const [p, setP] = useState<Projeto>(projetoVazio());
   const [aba, setAba] = useState<Aba>(abaInicial);
@@ -369,29 +382,22 @@ export function ProjetoDetail() {
 
   return (
     <PageShell
-      breadcrumb={
-        <>
-          <button onClick={() => navigate("/projetos")} className="hover:text-ink">Projetos</button>
-          <IcChevron width={14} height={14} />
-          <Crumb>{novo ? "Novo projeto" : p.nome || "Projeto"}</Crumb>
-        </>
-      }
       title={novo ? "Novo projeto" : p.nome || "Projeto"}
       titleAdornment={!novo ? <Badge tom={tomStatusProjeto[statusExibido]}>{statusExibido}</Badge> : undefined}
-      topAction={
-        (aba === "dados" || novo) && (
+    >
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+        <button onClick={() => navigate("/projetos")} className="inline-flex items-center gap-1.5 text-sm text-ink-2 hover:text-ink font-semibold">
+          <IcBack width={16} height={16} /> Voltar
+        </button>
+        {(aba === "dados" || novo) && (
           <div className="flex gap-2">
             {!novo && statusExibido !== "Arquivado" && (
               <Button variant="secondary" size="sm" onClick={arquivarProjeto}>Arquivar projeto</Button>
             )}
             <Button size="sm" onClick={salvar} disabled={salvando}>{salvando ? "Salvando…" : "Salvar projeto"}</Button>
           </div>
-        )
-      }
-    >
-      <button onClick={() => navigate("/projetos")} className="inline-flex items-center gap-1.5 text-sm text-ink-2 hover:text-ink mb-4 font-semibold">
-        <IcBack width={16} height={16} /> Voltar
-      </button>
+        )}
+      </div>
 
       {/* Subguias */}
       <div className="flex gap-1 border-b border-border mb-5 overflow-x-auto">
@@ -498,7 +504,32 @@ export function ProjetoDetail() {
               <Field label="Local"><Input formato="titulo" erro={chavesComErro.has("local")} value={p.info.local} onChange={(e) => updInfo({ local: e.target.value })} /></Field>
               <Field label="Endereço do local"><Input formato="titulo" value={p.info.enderecoLocal} onChange={(e) => updInfo({ enderecoLocal: e.target.value })} /></Field>
               <Field label="Nº de participantes"><Input type="number" value={p.info.participantes ?? ""} onChange={(e) => updInfo({ participantes: e.target.value ? Number(e.target.value) : null })} /></Field>
-              <Field label="Nome da produtora responsável"><Input formato="titulo" value={p.info.produtoraResponsavel} onChange={(e) => updInfo({ produtoraResponsavel: e.target.value })} /></Field>
+              <Field label="Produtor Responsável">
+                <Select
+                  value={p.info.produtoraResponsavel}
+                  onChange={(e) => {
+                    const nome = e.target.value;
+                    // Telefone vem sempre do cadastro; e-mail só quando a lista completa carregou
+                    // (exige permissão de configurações) — senão o campo de e-mail fica manual.
+                    const leve = produtoresResponsaveis.find((u) => u.nome === nome);
+                    const completo = produtoresCompletos?.find((u) => u.nome === nome);
+                    updInfo({
+                      produtoraResponsavel: nome,
+                      telefoneProdutora: leve?.telefone || p.info.telefoneProdutora,
+                      emailProdutora: completo?.email || p.info.emailProdutora,
+                    });
+                  }}
+                >
+                  <option value="">Selecione…</option>
+                  {produtoresResponsaveis.map((u) => (
+                    <option key={u.id} value={u.nome}>{u.nome}</option>
+                  ))}
+                  {/* Preserva um valor legado que não corresponda a nenhum usuário atual (dado antigo/renomeado). */}
+                  {p.info.produtoraResponsavel && !produtoresResponsaveis.some((u) => u.nome === p.info.produtoraResponsavel) && (
+                    <option value={p.info.produtoraResponsavel}>{p.info.produtoraResponsavel} (não cadastrado)</option>
+                  )}
+                </Select>
+              </Field>
               <Field label="Telefone da produtora responsável"><TelefoneInput value={p.info.telefoneProdutora} onChange={(v) => updInfo({ telefoneProdutora: v })} /></Field>
               <Field label="E-mail da produtora responsável"><Input type="email" value={p.info.emailProdutora} onChange={(e) => updInfo({ emailProdutora: e.target.value })} /></Field>
               {p.info.modalidade === "Cultural" && (
@@ -607,14 +638,16 @@ export function ProjetoDetail() {
               </Button>
               <Button
                 size="sm"
-                variant="text"
+                variant="secondary"
+                icon={<IcDoc width={16} height={16} />}
                 onClick={() => navigate(`/estimativas/nova?projeto=${id}`)}
               >
                 EC em branco
               </Button>
               <Button
                 size="sm"
-                variant="text"
+                variant="secondary"
+                icon={<IcCopy width={16} height={16} />}
                 onClick={() => { setImpProjetoId(""); setImpEcId(""); setImportOpen(true); }}
               >
                 Importar EC
@@ -654,10 +687,7 @@ export function ProjetoDetail() {
                     <Td>
                       <div className="flex items-center gap-2">
                         <NotifDot inline n={porEc[e.id] ?? 0} title="Ações pendentes nesta EC" />
-                        <div>
-                          <div className={cx("font-bold", e.ativa ? "text-primary-dark" : "text-ink")}>{tituloEc(e)}</div>
-                          <div className="text-[12px] text-ink-3">{e.numero}</div>
-                        </div>
+                        <div className={cx("font-bold", e.ativa ? "text-primary-dark" : "text-ink")}>{tituloEc(e)}</div>
                       </div>
                     </Td>
                     <Td align="center"><Badge tom={e.ativa ? "success" : "neutral"}>{e.ativa ? "Ativa" : "Arquivada"}</Badge></Td>

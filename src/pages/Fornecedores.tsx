@@ -9,7 +9,7 @@ import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import { consultarCnpj } from "@/lib/cnpj";
 import { flags } from "@/lib/flags";
-import { maskCpfCnpjInput } from "@/lib/format";
+import { cx, maskCpfCnpjInput } from "@/lib/format";
 import { toast } from "@/store/toast";
 import type { Fornecedor } from "@/data/types";
 
@@ -59,7 +59,7 @@ export function Fornecedores() {
       title="Fornecedores"
       subtitle="Consulta e edição. Os fornecedores são registrados automaticamente ao serem usados nas ECs."
     >
-      <div className="grid lg:grid-cols-[1.5fr_1fr] gap-4 items-start">
+      <div className={cx(edit ? "grid lg:grid-cols-[1.5fr_1fr] gap-4 items-start" : "max-w-5xl mx-auto")}>
         <Card padded={false}>
           <div className="p-4 border-b border-border-soft">
             <div className="relative max-w-md">

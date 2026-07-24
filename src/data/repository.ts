@@ -3,7 +3,7 @@
  * interfaces; a implementação concreta é escolhida pela fábrica em ./index.
  * Hoje: mock em memória. Amanhã: Supabase — basta trocar a fábrica.
  */
-import type { Cliente, CredenciamentoResposta, Ec, EmpresaGrupo, Fornecedor, Os, Projeto, Usuario } from "./types";
+import type { Cliente, CredenciamentoResposta, Ec, EmpresaGrupo, Fornecedor, Os, Papel, Projeto, Usuario } from "./types";
 
 export interface ProjetoRepository {
   listar(): Promise<Projeto[]>;
@@ -48,7 +48,14 @@ export interface OsRepository {
 }
 
 export interface AuthRepository {
+  /** Lista leve (nome/papel/telefone), usada em @menções, seleção de responsável etc. Sem e-mail real. */
   usuarios(): Promise<Usuario[]>;
+  /** Lista completa (com e-mail real do login) — só para quem gerencia usuários, em Configurações. */
+  usuariosCompletos(): Promise<Usuario[]>;
+  /** Convida um novo usuário por e-mail e cria o perfil correspondente. */
+  criarUsuario(dados: { email: string; nome: string; papel: Papel; telefone: string }): Promise<Usuario>;
+  /** Atualiza nome/telefone/papel/e-mail de um usuário existente. */
+  atualizarUsuario(dados: { id: string; nome?: string; telefone?: string; papel?: Papel; email?: string }): Promise<Usuario>;
 }
 
 export interface EmpresasRepository {

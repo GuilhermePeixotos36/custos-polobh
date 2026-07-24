@@ -578,18 +578,37 @@ const osRepo: OsRepository = {
 
 /* ---------------------------------- Auth --------------------------------- */
 
+/** Chama a Edge Function `gerenciar-usuarios` (roda com chave de serviço — cria login/edita e-mail). */
+async function gerenciarUsuarios(body: Record<string, unknown>): Promise<Usuario> {
+  const { data, error } = await supabase.functions.invoke("gerenciar-usuarios", { body });
+  if (error) throw new Error((error as { message?: string }).message ?? "Falha ao chamar gerenciar-usuarios.");
+  const resposta = data as { ok: boolean; erro?: string; usuario?: Usuario };
+  if (!resposta?.ok) throw new Error(resposta?.erro ?? "Não foi possível concluir a operação.");
+  return resposta.usuario!;
+}
+
 const authRepo: AuthRepository = {
   async usuarios() {
-    const data = ok(await supabase.from("perfis").select("id, nome, papel").order("nome"));
+    const data = ok(await supabase.from("perfis").select("id, nome, papel, telefone").order("nome"));
     return (data ?? []).map(
-      (r: { id: string; nome: string | null; papel: Usuario["papel"] }): Usuario => ({
+      (r: { id: string; nome: string | null; papel: Usuario["papel"]; telefone: string | null }): Usuario => ({
         id: r.id,
         nome: r.nome ?? "",
         email: "",
+        telefone: r.telefone ?? "",
         papel: r.papel,
       })
     );
   },
+  async usuariosCompletos() {
+    const { data, error } = await supabase.functions.invoke("gerenciar-usuarios", { body: { acao: "listar" } });
+    if (error) throw new Error((error as { message?: string }).message ?? "Falha ao listar usuários.");
+    const resposta = data as { ok: boolean; erro?: string; usuarios?: Usuario[] };
+    if (!resposta?.ok) throw new Error(resposta?.erro ?? "Não foi possível listar os usuários.");
+    return resposta.usuarios ?? [];
+  },
+  criarUsuario: (dados) => gerenciarUsuarios({ acao: "criar", ...dados }),
+  atualizarUsuario: (dados) => gerenciarUsuarios({ acao: "atualizar", ...dados }),
 };
 
 /* --------------------------------- Projeto ------------------------------- */
