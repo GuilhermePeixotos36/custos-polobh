@@ -30,38 +30,94 @@ import { brl, cx } from "@/lib/format";
 import type { DocumentoPg, EcLinha, Fornecedor, Observacao, StatusAprovacao, StatusOs } from "@/data/types";
 
 const OPCOES_STATUS_TEXTO = ["Pendente", "Não se Aplica"];
+const OPCOES_SELECT_TEXTO = [
+  { valor: "Pendente", rotulo: "Pendente" },
+  { valor: "Não se Aplica", rotulo: "Não se Aplica" },
+  { valor: "outro", rotulo: "Outro (preencher)" },
+];
+// Mesma seta usada no <Select> padrão (ver ui/Field.tsx), reaproveitada aqui como imagem de fundo.
+const SETA_SELECT_ESTILO = {
+  backgroundImage:
+    "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236A6E78' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")",
+  backgroundPosition: "right 8px center",
+};
 
-/** Select (Pendente/Não se Aplica) com opção "Outro" que libera um campo de texto livre. */
+/**
+ * Select (Pendente/Não se Aplica) com opção "Outro" que transforma o próprio campo
+ * em texto livre (fundo cinza), em vez de abrir um segundo campo abaixo. A seta
+ * continua clicável para reabrir a lista e trocar de opção.
+ */
 function SelectComTexto({ value, onChange, className }: { value: string; onChange: (v: string) => void; className?: string }) {
   const [modoOutro, setModoOutro] = useState(false);
+  const [menuAberto, setMenuAberto] = useState(false);
   const personalizado = value !== "" && !OPCOES_STATUS_TEXTO.includes(value);
-  const selecao = modoOutro || personalizado ? "outro" : value;
+  const emOutro = modoOutro || personalizado;
+
   useEffect(() => {
     if (value && OPCOES_STATUS_TEXTO.includes(value)) setModoOutro(false);
   }, [value]);
+
+  function escolher(opcao: string) {
+    setMenuAberto(false);
+    if (opcao === "outro") {
+      setModoOutro(true);
+      if (!personalizado) onChange("");
+    } else {
+      setModoOutro(false);
+      onChange(opcao);
+    }
+  }
+
   return (
-    <div className="flex flex-col gap-1">
-      <Select
-        className={cx("!h-9 !px-2 !text-[12.5px]", className)}
-        value={selecao}
-        onChange={(e) => {
-          const v = e.target.value;
-          if (v === "outro") {
-            setModoOutro(true);
-            if (!personalizado) onChange("");
-          } else {
-            setModoOutro(false);
-            onChange(v);
-          }
-        }}
-      >
-        <option value="">Selecione…</option>
-        <option value="Pendente">Pendente</option>
-        <option value="Não se Aplica">Não se Aplica</option>
-        <option value="outro">Outro (preencher)</option>
-      </Select>
-      {selecao === "outro" && (
-        <Input autoFocus className={cx("!h-9 !px-2 !text-[12.5px]", className)} value={value} onChange={(e) => onChange(e.target.value)} placeholder="Especifique" />
+    <div className="relative">
+      {emOutro ? (
+        <Input
+          autoFocus={modoOutro && !personalizado}
+          className={cx("!h-9 !pl-2 !pr-7 !text-[12.5px] !bg-[#EDEEF1]", className)}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Outro (preencher)"
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={() => setMenuAberto((v) => !v)}
+          style={SETA_SELECT_ESTILO}
+          className={cx(
+            "!h-9 w-full appearance-none bg-no-repeat bg-surface border-[1.5px] border-[#BFC4CE] rounded-btn pl-2 pr-7 text-[12.5px] text-left truncate",
+            value ? "text-ink" : "text-ink-3",
+            className,
+          )}
+        >
+          {value || "Selecione…"}
+        </button>
+      )}
+      {emOutro && (
+        <button
+          type="button"
+          onClick={() => setMenuAberto((v) => !v)}
+          style={SETA_SELECT_ESTILO}
+          aria-label="Alterar opção"
+          title="Clique para escolher outra opção"
+          className="absolute right-0 top-0 h-9 w-7 bg-no-repeat"
+        />
+      )}
+      {menuAberto && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setMenuAberto(false)} />
+          <div className="absolute left-0 right-0 mt-1 z-50 min-w-[140px] rounded-btn border border-border bg-white shadow-2xl py-1">
+            {OPCOES_SELECT_TEXTO.map((o) => (
+              <button
+                key={o.valor}
+                type="button"
+                onClick={() => escolher(o.valor)}
+                className="block w-full text-left px-3 py-1.5 text-[12.5px] text-ink hover:bg-primary-soft"
+              >
+                {o.rotulo}
+              </button>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
@@ -628,14 +684,14 @@ function ItemRow({ l, verFinanceiro, fornecedores, usuarios, onUpd, onOcultar, o
       </div>
 
       {/* Linha 2: metadados */}
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 items-end gap-2 px-2.5 pb-2.5 pt-1 border-t border-border-soft bg-[#FCFCFD] rounded-b-card min-w-0">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-[0.7fr_2.6fr_1fr_1fr_1fr_1fr_0.7fr] items-end gap-2 px-2.5 pb-2.5 pt-1 border-t border-border-soft bg-[#FCFCFD] rounded-b-card min-w-0">
         <Campo label="Aprovação" className="w-full">
           <Select className="!h-9 !px-2 !text-[12.5px]" value={l.statusAprovacao} onChange={(e) => onUpd({ statusAprovacao: e.target.value as StatusAprovacao })}>
             <option>Pendente</option>
             <option>OK</option>
           </Select>
         </Campo>
-        <Campo label="Fornecedor (CNPJ / Razão social)" className="sm:col-span-2 xl:col-span-2 w-full min-w-0">
+        <Campo label="Fornecedor (CNPJ / Razão social)" className="sm:col-span-2 xl:col-span-1 w-full min-w-0" obrigatorio>
           <FornecedorField
             razao={l.fornecedorRazao}
             cnpj={l.fornecedorCnpj}
@@ -644,7 +700,7 @@ function ItemRow({ l, verFinanceiro, fornecedores, usuarios, onUpd, onOcultar, o
             onValidar={onValidarFornecedor}
           />
         </Campo>
-        <Campo label="Documento PG" className="w-full">
+        <Campo label="Documento PG" className="w-full" obrigatorio>
           <Select className="!h-9 !px-2 !text-[12.5px]" value={l.faturaNf} onChange={(e) => onUpd({ faturaNf: e.target.value as DocumentoPg })}>
             <option value="">Selecione…</option>
             <option value="Fatura">Fatura</option>
@@ -654,10 +710,10 @@ function ItemRow({ l, verFinanceiro, fornecedores, usuarios, onUpd, onOcultar, o
             <option value="Não se aplica">Não se aplica</option>
           </Select>
         </Campo>
-        <Campo label="Código de Serviço" className="w-full">
+        <Campo label="Código de Serviço" className="w-full" obrigatorio>
           <SelectComTexto value={l.codigoServico} onChange={(v) => onUpd({ codigoServico: v })} />
         </Campo>
-        <Campo label="Pedido de Compra" className="w-full">
+        <Campo label="Pedido de Compra" className="w-full" obrigatorio>
           <SelectComTexto value={l.pedidoCompra} onChange={(v) => onUpd({ pedidoCompra: v })} />
         </Campo>
         <Campo label="OS" className="w-full">
@@ -690,11 +746,14 @@ function ItemRow({ l, verFinanceiro, fornecedores, usuarios, onUpd, onOcultar, o
   );
 }
 
-/** Rótulo pequeno acima de um campo. */
-function Campo({ label, className, children }: { label: string; className?: string; children: React.ReactNode }) {
+/** Rótulo pequeno acima de um campo. `obrigatorio` marca com * vermelho (obrigatório só na emissão da OS). */
+function Campo({ label, className, children, obrigatorio }: { label: string; className?: string; children: React.ReactNode; obrigatorio?: boolean }) {
   return (
     <label className={cx("block", className)}>
-      <span className="block text-[10.5px] font-extrabold uppercase tracking-[0.05em] text-ink-3 mb-1 truncate">{label}</span>
+      <span className="block text-[10.5px] font-extrabold uppercase tracking-[0.05em] text-ink-3 mb-1 truncate">
+        {label}
+        {obrigatorio && <span className="text-danger" title="Obrigatório para emitir a OS"> *</span>}
+      </span>
       {children}
     </label>
   );

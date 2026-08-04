@@ -370,6 +370,12 @@ export interface Orcamento {
 export interface FinanceiroOs {
   tomador: "Polobh" | "Cliente" | "";
   descritivoNf: string;
+  /** Nome do projeto incentivado (aparece no descritivo da NF e no contrato). */
+  projetoIncentivado?: string;
+  /** Lei de incentivo à cultura aplicável (ex.: Lei Rouanet / Lei Municipal). */
+  leiIncentivo?: string;
+  /** Número do projeto incentivado (usado no texto padrão do contrato). */
+  numeroProjetoIncentivado?: string;
   cnae: string;
   codigoServico: string;
   valorUnitario: number;
@@ -397,6 +403,10 @@ export interface ContratoOs {
   valorTotal: number;
   descontoNegociado: number;
   valorAPagar: number;
+  /** Forma de pagamento (ex.: "À vista, no ato da emissão da nota fiscal"). */
+  formaPagamento?: string;
+  /** Observações gerais do contrato. */
+  observacoesGerais?: string;
   dataContrato: string; // ISO date
   rubrica: string;
 }

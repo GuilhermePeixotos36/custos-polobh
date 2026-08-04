@@ -7,6 +7,7 @@
 import ExcelJS from "exceljs";
 import type { Ec, Os } from "@/data/types";
 import { dataBR } from "@/lib/format";
+import { textoObjetoContrato, FORMA_PAGAMENTO_PADRAO, OBS_CONTRATO_PADRAO } from "@/domain/calc";
 import { COR, fill, grade, baixar, nomeArquivo, carregarLogo } from "./shared";
 
 const moeda = '"R$" #,##0.00';
@@ -49,8 +50,10 @@ export async function criarOsExcelBuffer(
     ws.mergeCells(`A${r}:B${r}`);
     const c = ws.getCell(`A${r}`);
     c.value = txt;
-    c.font = { bold: true, size: 11, color: { argb: COR.white } };
-    c.fill = fill(COR.primary);
+    // Cinza das barras de seção do modelo original Pólobh (mesmo usado na EC),
+    // com texto escuro. Tela e PDF seguem exatamente estas cores.
+    c.font = { bold: true, size: 11, color: { argb: COR.ink } };
+    c.fill = fill(COR.sectionGray);
     c.alignment = { vertical: "middle", horizontal: "center" };
     ws.getRow(r).height = 22;
     r++;
@@ -75,7 +78,7 @@ export async function criarOsExcelBuffer(
     const a = ws.getCell(`A${r}`);
     a.value = label;
     a.font = { bold: true, size: 10 };
-    a.fill = fill(COR.soft);
+    a.fill = fill(COR.rotuloGray);
     a.alignment = { vertical: "top", wrapText: true };
     a.border = grade;
     const b = ws.getCell(`B${r}`);
@@ -256,7 +259,14 @@ export async function criarOsExcelBuffer(
     linha("Inscrição Estadual:", tom?.ie ?? "");
     linha("Inscrição Municipal:", tom?.im ?? "");
     linha("Descritivo Nota Fiscal:", fin.descritivoNf);
-    if (p.incentivosFiscais) linha("Nome do Projeto Incentivado / Lei / Nº:", p.incentivosFiscais);
+    // Projeto incentivado: usa os campos da OS; OSs antigas caem no texto único da EC.
+    if (fin.projetoIncentivado || fin.leiIncentivo || fin.numeroProjetoIncentivado) {
+      linha("Nome do Projeto Incentivado:", fin.projetoIncentivado);
+      linha("Lei de Incentivo à Cultura:", fin.leiIncentivo);
+      linha("Nº do Projeto Incentivado:", fin.numeroProjetoIncentivado);
+    } else if (p.incentivosFiscais) {
+      linha("Nome do Projeto Incentivado / Lei / Nº:", p.incentivosFiscais);
+    }
     linha("CNAE:", fin.cnae);
     linha("Código de Serviço:", fin.codigoServico);
     linha("Valor unitário:", fin.valorUnitario, { money: true });
@@ -293,6 +303,7 @@ export async function criarOsExcelBuffer(
     linha("CNPJ/CPF:", contr?.doc ?? "");
     linha("Inscrição Estadual:", contr?.ie ?? "");
     linha("Inscrição Municipal:", contr?.im ?? "");
+    linha("Objeto do Contrato:", textoObjetoContrato(fin), { fixo: true });
     linha("Descritivo dos Serviços e/ou Produtos:", ct.descritivoServicos || fin.descritivoNf || os.descritivo);
     linha("Informações Complementares:", ct.informacoesComplementares);
     linha("Valor unitário:", ct.valorUnitario, { money: true });
@@ -303,8 +314,9 @@ export async function criarOsExcelBuffer(
     linha("Valor total a pagar:", (ct.valorTotal || 0) - (ct.descontoNegociado || 0), {
       money: true, formula: `B${rTotC}-B${rDescC}`,
     });
-    linha("Forma de Pagamento:", "Forma de pagamento: à vista, no ato da emissão da nota fiscal / fatura", { fixo: true });
-    linha("Observações Gerais:", "Estes valores poderão ser revistos em caso de faltas ou execução parcial dos serviços ora contratados.", { fixo: true });
+    // Editáveis na OS; o texto padrão do modelo entra só quando o campo está vazio.
+    linha("Forma de Pagamento:", ct.formaPagamento || FORMA_PAGAMENTO_PADRAO, { fixo: !ct.formaPagamento });
+    linha("Observações Gerais:", ct.observacoesGerais || OBS_CONTRATO_PADRAO, { fixo: !ct.observacoesGerais });
     linha("Data do Contrato:", dataBR(ct.dataContrato));
     linha("Rubrica:", ct.rubrica);
   }

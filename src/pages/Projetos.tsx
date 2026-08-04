@@ -57,7 +57,6 @@ export function Projetos() {
   return (
     <PageShell
       title="Projetos"
-      subtitle="Tudo começa por um projeto: cliente, EC, OS, cronograma e fornecedores."
       topAction={
         <Button size="sm" icon={<IcPlus width={16} height={16} />} onClick={() => navigate("/projetos/novo")}>
           Novo projeto

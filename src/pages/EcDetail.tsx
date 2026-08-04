@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { PageShell } from "@/components/layout/AppLayout";
 import {
@@ -19,16 +19,18 @@ import {
 import { IcBack, IcDownload, IcChevron, IcCopy } from "@/components/icons";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
-import { calcularTotais, agruparPorFornecedor, descritivoConsolidado, gastoPorLinhaViaOSs, numeroOs, tituloEc } from "@/domain/calc";
+import { calcularTotais, agruparPorFornecedor, descritivoConsolidado, gastoPorLinhaViaOSs, numeroOs, tituloEc, ROTULO_HONORARIOS_PADRAO, ROTULO_ENCARGOS_PADRAO } from "@/domain/calc";
 import { RentabilidadeItens } from "@/components/RentabilidadeItens";
 import { EcSubGuias, type SubGuiaEc } from "@/components/EcSubGuias";
+import { ObservacoesThread } from "@/components/ObservacoesPopup";
+import { sanitizarHtmlEditor } from "@/lib/sanitizeHtml";
 import { brl, dataBR, onlyDigits } from "@/lib/format";
 import { gerarEcExcel } from "@/lib/excel";
 import { useAuth } from "@/store/auth";
 import { toast } from "@/store/toast";
 import { confirmar } from "@/store/confirm";
 import { cx } from "@/lib/format";
-import type { Ec, EcLinha, Fornecedor, Os } from "@/data/types";
+import type { Ec, EcLinha, Fornecedor, Observacao, Os } from "@/data/types";
 
 /** Agrupa as linhas por grupo preservando a ordem de aparição (visão de leitura). */
 function agruparLinhas(linhas: EcLinha[]): { nome: string; itens: EcLinha[] }[] {
@@ -46,8 +48,12 @@ export function EcDetail() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
   const pode = useAuth((s) => s.pode);
+  const papel = useAuth((s) => s.usuario?.papel);
   const { data: ec, loading } = useAsync(() => repo.ecs.obter(id), [id]);
   const { data: oss } = useAsync(() => repo.oss.porEc(id), [id]);
+  // Usuários do sistema — para exibir/atribuir observações dos itens.
+  const { data: usuariosData } = useAsync(() => repo.auth.usuarios(), []);
+  const usuarios = (usuariosData ?? []).map((u) => u.nome).filter(Boolean);
   const [recolhidos, setRecolhidos] = useState<Set<string>>(new Set());
   const [erro, setErro] = useState("");
   const [subaba, setSubaba] = useState<SubGuiaEc>("ec");
@@ -67,12 +73,26 @@ export function EcDetail() {
 
   const verFinanceiro = pode("financeiro");
   const podeEditar = pode("ecs.editar");
+  // Administrativo (financeiro) só precisa da Descrição Financeira; os demais papéis
+  // (Admin, Direção, Produção) veem a Descrição Completa também.
+  const veDescricaoCompleta = papel !== "Administrativo";
   // A EC vive dentro do projeto: voltar/breadcrumb apontam para a subguia EC do projeto.
   const voltarUrl = ec.projetoId ? `/projetos/${ec.projetoId}?aba=ec` : "/projetos";
 
   const gruposLinha = agruparLinhas(ec.linhas);
   const toggleGrupo = (n: string) =>
     setRecolhidos((s) => { const x = new Set(s); x.has(n) ? x.delete(n) : x.add(n); return x; });
+
+  /** Observações são editáveis mesmo na tela de leitura — persiste na hora. */
+  async function salvarObservacoes(linhaId: string, observacoes: Observacao[]) {
+    const linhas = ec!.linhas.map((l) => (l.id === linhaId ? { ...l, observacoes } : l));
+    try {
+      await repo.ecs.salvar({ ...ec!, linhas });
+      navigate(0);
+    } catch (e) {
+      toast(`Não foi possível salvar a observação: ${(e as Error).message}`, "danger");
+    }
+  }
 
   async function tornarAtiva() {
     // EC arquivada: mantém a antiga intacta e cria uma NOVA versão (número +1, data atual)
@@ -207,24 +227,49 @@ export function EcDetail() {
               {aberto && (
                 <div className="divide-y divide-border-soft">
                   {g.itens.map((l) => (
-                    <div key={l.id} className="flex items-start gap-2.5 px-3 py-2.5 hover:bg-[#FCFCFD]">
-                      <div className="flex-1 min-w-0">
-                        <div className="font-bold text-ink text-[13.5px]">{l.item || "—"}</div>
-                        {l.descricao && <div className="text-[12.5px] text-ink-2 whitespace-pre-wrap">{l.descricao}</div>}
-                        <div className="text-[11px] text-ink-3 mt-0.5 flex items-center gap-2 flex-wrap">
-                          <span>Fornecedor: {l.fornecedorRazao || "—"}</span>
+                    <div key={l.id} className="px-3 py-3 hover:bg-[#FCFCFD]">
+                      <div className="flex items-start gap-2.5">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-bold text-ink text-[13.5px]">{l.item || "—"}</div>
+                          {l.descricao && <div className="text-[12.5px] text-ink-2 whitespace-pre-wrap mt-0.5">{l.descricao}</div>}
+                          {veDescricaoCompleta && l.descricaoCompleta && (
+                            <div
+                              className="text-[12.5px] text-ink-2 mt-1.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
+                              dangerouslySetInnerHTML={{ __html: sanitizarHtmlEditor(l.descricaoCompleta) }}
+                            />
+                          )}
                         </div>
+                        {verFinanceiro && (
+                          <div className="shrink-0 flex items-start gap-3">
+                            <InfoCampo label="Pólobh" className="min-w-[76px] text-right">
+                              <span className="font-display font-bold text-ink text-[13px]">{brl(l.valorPolobh)}</span>
+                            </InfoCampo>
+                            <InfoCampo label="Cliente" className="min-w-[76px] text-right">
+                              <span className="font-display font-bold text-ink text-[13px]">{brl(l.valorCliente)}</span>
+                            </InfoCampo>
+                          </div>
+                        )}
                       </div>
-                      {verFinanceiro && (
-                        <div className="shrink-0 text-right w-24">
-                          <div className="font-display font-bold text-ink text-[13px]">{brl(l.valorPolobh)}</div>
-                          <div className="text-[11px] text-ink-3">Cli. {brl(l.valorCliente)}</div>
-                        </div>
-                      )}
-                      <div className="shrink-0 flex flex-col items-end gap-1">
-                        <Badge tom={tomAprovacao[l.statusAprovacao]}>{l.statusAprovacao}</Badge>
-                        <Badge tom={tomAprovacao[l.statusOs]}>OS {l.statusOs}</Badge>
+
+                      {/* Metadados do item — mesmos campos do editor, em modo leitura */}
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-[0.7fr_2.6fr_1fr_1fr_1fr_1fr_0.7fr] gap-x-3 gap-y-2 mt-2.5 pt-2.5 border-t border-border-soft">
+                        <InfoCampo label="Aprovação"><Badge tom={tomAprovacao[l.statusAprovacao]}>{l.statusAprovacao}</Badge></InfoCampo>
+                        <InfoCampo label="Fornecedor" className="col-span-2 xl:col-span-1">
+                          <div className="text-[12.5px] text-ink truncate">{l.fornecedorRazao || "—"}</div>
+                          {l.fornecedorCnpj && <div className="text-[11px] text-ink-3">{l.fornecedorCnpj}</div>}
+                        </InfoCampo>
+                        <InfoCampo label="Documento PG">{l.faturaNf || "—"}</InfoCampo>
+                        <InfoCampo label="Código de Serviço">{l.codigoServico || "—"}</InfoCampo>
+                        <InfoCampo label="Pedido de Compra">{l.pedidoCompra || "—"}</InfoCampo>
+                        <InfoCampo label="OS"><Badge tom={tomAprovacao[l.statusOs]}>{l.statusOs}</Badge></InfoCampo>
+                        <InfoCampo label="Contrato"><Badge tom={tomAprovacao[l.contratoStatus]}>{l.contratoStatus}</Badge></InfoCampo>
                       </div>
+
+                      <ObservacoesThread
+                        observacoes={l.observacoes}
+                        usuarios={usuarios}
+                        onChange={(obs) => salvarObservacoes(l.id, obs)}
+                      />
                     </div>
                   ))}
                 </div>
@@ -277,23 +322,44 @@ export function EcDetail() {
     </Card>
   );
 
+  const subTotalCliente = t ? Math.round((t.somaCliente + t.honorariosCliente) * 100) / 100 : 0;
   const totaisCard = t ? (
-    <Card>
-      <CardTitle>Totais</CardTitle>
-      <dl className="space-y-2 text-sm">
-        <Row label="Soma fornecedores" v={brl(t.somaFornecedores)} />
-        <Row label={`Honorários Pólobh (${rotuloTaxa(ec.honorarios)})`} v={brl(t.honorariosPolobh)} />
-        <Row label={`Encargos (${rotuloTaxa(ec.encargos)})`} v={brl(t.encargos)} />
-        <Row label="Sub-total Pólobh" v={brl(t.subTotalPolobh)} strong />
-        <Row label="Faturamento terceiros" v={brl(t.faturamentoTerceiros)} />
-        <Row label={`Honorários cliente (${rotuloTaxa(ec.honorarios)})`} v={brl(t.honorariosCliente)} />
-        <div className="h-px bg-border-soft my-1" />
-        <div className="flex items-center justify-between bg-primary-soft rounded-btn px-3 py-2.5">
-          <span className="font-bold text-ink">Valor Total Bruto (Custo Total do Projeto)</span>
-          <span className="font-display font-bold text-primary-dark">{brl(t.valorTotalBruto)}</span>
-        </div>
-        <Row label="Faturamento Pólobh" v={brl(t.faturamentoPolobh)} strong />
-      </dl>
+    <Card padded={false}>
+      <div className="p-5 pb-3"><CardTitle>Resumo dos Custos</CardTitle></div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm border-t border-border">
+          <thead>
+            <tr className="text-left bg-[#FAFAFB] border-b border-border">
+              <th className="px-4 py-2 text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Descrição</th>
+              <th className="px-4 py-2 text-right text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Pólobh</th>
+              <th className="px-4 py-2 text-right text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Cliente</th>
+            </tr>
+          </thead>
+          <tbody>
+            <LinhaResumo desc="Soma dos fornecedores" polobh={t.somaFornecedores} cliente={t.somaCliente} />
+            <LinhaResumo
+              desc={`${ec.honorariosRotulo || ROTULO_HONORARIOS_PADRAO} (${rotuloTaxa(ec.honorarios)})`}
+              polobh={t.honorariosPolobh}
+              cliente={t.honorariosCliente}
+            />
+            <tr className="border-b border-border-soft">
+              <td className="px-4 py-2.5 font-semibold text-ink">{ec.encargosRotulo || ROTULO_ENCARGOS_PADRAO} ({rotuloTaxa(ec.encargos)})</td>
+              <td className="px-4 py-2.5 text-right font-display font-bold text-ink whitespace-nowrap">{brl(t.encargos)}</td>
+              <td className="px-4 py-2.5 text-right text-ink-3">—</td>
+            </tr>
+            <LinhaResumo desc="Sub-total" polobh={t.subTotalPolobh} cliente={subTotalCliente} strong />
+            <tr className="bg-primary-soft">
+              <td className="px-4 py-3 font-bold text-ink">Valor Total Bruto (Custo Total do Projeto)</td>
+              <td className="px-4 py-3 text-right font-display font-bold text-primary-dark whitespace-nowrap" colSpan={2}>{brl(t.valorTotalBruto)}</td>
+            </tr>
+            <tr>
+              <td className="px-4 pt-3 pb-1 text-[11.5px] font-bold italic text-ink-3" colSpan={3}>Sendo:</td>
+            </tr>
+            <LinhaResumo desc="Faturamento Pólobh — NF Pólobh × Cliente" polobh={t.faturamentoPolobh} colSpanValor />
+            <LinhaResumo desc="Faturamento Terceiros — NF's Terceiros × Cliente" polobh={t.faturamentoTerceiros} colSpanValor />
+          </tbody>
+        </table>
+      </div>
     </Card>
   ) : null;
 
@@ -371,7 +437,7 @@ export function EcDetail() {
       )}
 
       {verFinanceiro && subaba === "resumo" && (
-        <div className="space-y-4 max-w-xl">{totaisCard}</div>
+        <div className="space-y-4">{totaisCard}</div>
       )}
       {verFinanceiro && subaba === "rentabilidade" && (
         <div className="space-y-4">{rentabilidadeCard}</div>
@@ -461,12 +527,42 @@ function montarOsEmissao(ecAtual: Ec, linhas: EcLinha[], seq: number, fornCadast
   };
 }
 
-function Row({ label, v, strong }: { label: string; v: string; strong?: boolean }) {
+/** Rótulo + valor somente leitura — espelha o "Campo" do editor, sem input. */
+function InfoCampo({ label, className, children }: { label: string; className?: string; children: ReactNode }) {
   return (
-    <div className="flex items-center justify-between">
-      <span className="text-ink-2">{label}</span>
-      <span className={strong ? "font-display font-bold text-ink" : "font-semibold text-ink"}>{v}</span>
+    <div className={className}>
+      <span className="block text-[10.5px] font-extrabold uppercase tracking-[0.05em] text-ink-3 mb-1 truncate">{label}</span>
+      {children}
     </div>
+  );
+}
+
+/** Linha da tabela "Resumo dos Custos" — mesmo desenho da versão editável (EcForm), em modo leitura. */
+function LinhaResumo({
+  desc,
+  polobh,
+  cliente,
+  strong,
+  colSpanValor,
+}: {
+  desc: string;
+  polobh: number;
+  cliente?: number;
+  strong?: boolean;
+  colSpanValor?: boolean;
+}) {
+  return (
+    <tr className="border-b border-border-soft">
+      <td className={cx("px-4 py-2.5", strong ? "font-bold text-ink" : "font-semibold text-ink")}>{desc}</td>
+      {colSpanValor ? (
+        <td className="px-4 py-2.5 text-right whitespace-nowrap font-display font-bold text-ink" colSpan={2}>{brl(polobh)}</td>
+      ) : (
+        <>
+          <td className="px-4 py-2.5 text-right whitespace-nowrap font-display font-bold text-ink">{brl(polobh)}</td>
+          <td className="px-4 py-2.5 text-right whitespace-nowrap font-display font-bold text-ink">{cliente === undefined ? "" : brl(cliente)}</td>
+        </>
+      )}
+    </tr>
   );
 }
 

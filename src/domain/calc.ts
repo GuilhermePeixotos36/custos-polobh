@@ -266,3 +266,25 @@ export function descritivoConsolidado(linhas: EcLinha[]): string {
 export function fornecedorBaseDaLinha(l: EcLinha): Partial<Fornecedor> {
   return { razaoSocial: l.fornecedorRazao, cnpj: l.fornecedorCnpj };
 }
+
+/* ------------------------- Textos padrão da OS -------------------------- */
+/**
+ * Textos fixos do "Modelo Novo" em Excel. Entram como padrão ao criar a OS e
+ * seguem editáveis; o gerador de Excel usa o valor da OS e cai nestes só quando
+ * o campo estiver vazio (OSs antigas, anteriores aos campos editáveis).
+ */
+export const LEI_INCENTIVO_PADRAO = "Lei de Incentivo à Cultura";
+export const FORMA_PAGAMENTO_PADRAO = "À vista, no ato da emissão da nota fiscal / fatura";
+export const OBS_CONTRATO_PADRAO =
+  "Estes valores poderão ser revistos em caso de faltas ou execução parcial dos serviços ora contratados.";
+
+/**
+ * Objeto do contrato — montado a partir dos dados de faturamento da OS.
+ * Usado tanto na tela quanto no Excel, para não divergirem.
+ */
+export function textoObjetoContrato(fin: Os["financeiro"]): string {
+  const projeto = fin.projetoIncentivado?.trim() || "[projeto incentivado]";
+  const lei = fin.leiIncentivo?.trim() || LEI_INCENTIVO_PADRAO;
+  const numero = fin.numeroProjetoIncentivado?.trim() || "[número do projeto incentivado]";
+  return `O objeto do presente é a viabilização do projeto ${projeto}, idealizado pela CONTRATANTE e aprovado pela ${lei} sob o número ${numero}, sendo:`;
+}

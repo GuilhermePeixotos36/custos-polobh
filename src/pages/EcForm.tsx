@@ -388,6 +388,13 @@ export function EcForm() {
           <Button variant="secondary" size="sm" onClick={revisar} disabled={salvando} title="Padroniza a formatação dos textos (sem IA)">
             Revisar
           </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => navigate(editando ? `/estimativas/${ec.id}` : voltarUrl)}
+          >
+            Cancelar
+          </Button>
           <Button size="sm" onClick={() => void salvar()} disabled={salvando || mostrarSalvo}>
             {salvando ? "Salvando…" : mostrarSalvo ? "Salvo" : "Salvar"}
           </Button>

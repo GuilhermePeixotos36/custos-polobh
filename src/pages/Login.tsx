@@ -54,7 +54,7 @@ export function Login() {
           </Button>
         </form>
 
-        <p className="text-center text-ink-3 text-[11.5px] mt-6">© Pólobh Eventos · guardiã da simplicidade</p>
+        <p className="text-center text-ink-3 text-[11.5px] mt-6">© Pólobh Eventos</p>
       </div>
     </div>
   );

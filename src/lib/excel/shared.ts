@@ -18,6 +18,7 @@ export const COR = {
   gridLine: "FFBFBFBF",   // linhas da grade (mais visível que a borda suave)
   // Extraídas da EC original da Pólobh (reference/*.xlt) — usadas no lib/excel/ec.ts.
   sectionGray: "FFC0C0C0", // barras CLIENTE / PROJETO / nome do grupo (cinza real do modelo)
+  rotuloGray: "FFF2F2F2",  // fundo da coluna de rótulos nas linhas "RÓTULO | VALOR" da OS
   gold: "FFFFCC00",        // destaque ESTIMATIVA DE CUSTOS e Valor Total Bruto
   statusBlue: "FF99CCFF",  // colunas de status/documentação (Status, Fornecedor, Documento PG, Código, Pedido)
 };
