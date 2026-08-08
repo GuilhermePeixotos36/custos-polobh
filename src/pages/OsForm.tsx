@@ -65,6 +65,10 @@ const fornecedorVazio = (razao = "", cnpj = ""): Fornecedor => ({
  */
 const STATUS_CONTROLE_EC = ["pendente", "não se aplica", "nao se aplica"];
 
+/** Id curto para chave de lista (React) — parcelas e etapas do cronograma. */
+const novoId = () =>
+  globalThis.crypto?.randomUUID?.() ?? `it-${Math.random().toString(36).slice(2)}`;
+
 /** Primeiro valor de verdade da lista (ignora vazios e os status de controle da EC). */
 const primeiroPreenchido = (vals: (string | undefined | null)[]): string =>
   vals.find((v) => v && v.trim() && !STATUS_CONTROLE_EC.includes(v.trim().toLowerCase()))?.trim() ?? "";
@@ -107,6 +111,7 @@ function cronogramaDoProjeto(ec: Ec): Os["cronograma"] {
     for (const f of ec.projeto.cronograma?.[key] ?? []) {
       if (!f.data && !f.inicio && !f.fim) continue;
       itens.push({
+        id: novoId(),
         etapa: label,
         data: f.data,
         horario: [f.inicio, f.fim].filter(Boolean).join(" às "),
@@ -116,7 +121,7 @@ function cronogramaDoProjeto(ec: Ec): Os["cronograma"] {
   }
   return itens.length
     ? itens
-    : [{ etapa: "Evento", data: ec.projeto.evento, horario: ec.projeto.horario, atividades: "" }];
+    : [{ id: novoId(), etapa: "Evento", data: ec.projeto.evento, horario: ec.projeto.horario, atividades: "" }];
 }
 
 /**
@@ -148,11 +153,16 @@ function aplicarAutoPreenchimento(os: Os, ec: Ec): Os {
   return {
     ...os,
     descritivo,
-    cronograma:
-      os.cronograma.length && !cronogramaPadraoAntigo ? os.cronograma : cronogramaDoProjeto(ec),
+    // Backfill de id nas etapas/parcelas antigas: dá chave estável para a lista
+    // editável (sem isso, remover uma linha do meio rouba o foco da seguinte).
+    cronograma: (os.cronograma.length && !cronogramaPadraoAntigo
+      ? os.cronograma
+      : cronogramaDoProjeto(ec)
+    ).map((c) => (c.id ? c : { ...c, id: novoId() })),
     orcamento: {
       ...os.orcamento,
       documentoFiscal: os.orcamento.documentoFiscal || docFiscalEc,
+      parcelas: os.orcamento.parcelas.map((p) => (p.id ? p : { ...p, id: novoId() })),
     },
     financeiro: {
       ...os.financeiro,
@@ -421,7 +431,13 @@ export function OsForm() {
     }
     setBusy(true);
     try {
-      const bvValor = (os!.financeiro.valorTotal * os!.financeiro.bvPercentual) / 100;
+      // O BV é gravado na própria OS (a Produção negocia), mas depende do
+      // `valorTotal`, que mora no bloco restrito. Para quem não vê o financeiro
+      // a RLS devolve zero — recalcular aqui gravaria BV = R$ 0,00 por cima do
+      // valor real. Nesse caso preservamos o que já está salvo.
+      const bvValor = verFinanceiro
+        ? (os!.financeiro.valorTotal * os!.financeiro.bvPercentual) / 100
+        : os!.financeiro.bvValor;
       // mantém o link de credenciamento coerente com o token da OS (p/ e-mail/impressão)
       const linkCred = os!.slugCredenciamento
         ? `${location.origin}/credenciamento/${os!.slugCredenciamento}`
@@ -653,7 +669,7 @@ export function OsForm() {
           <LinhaOs
             label="Cronograma do Fornecedor"
             acao={
-              <Button variant="secondary" size="sm" onClick={() => setOs((o) => (o ? { ...o, cronograma: [...o.cronograma, { etapa: "", data: "", horario: "", atividades: "" }] } : o))}>+ Etapa</Button>
+              <Button variant="secondary" size="sm" onClick={() => setOs((o) => (o ? { ...o, cronograma: [...o.cronograma, { id: novoId(), etapa: "", data: "", horario: "", atividades: "" }] } : o))}>+ Etapa</Button>
             }
           >
             <div className="py-1.5 space-y-2">
@@ -661,7 +677,7 @@ export function OsForm() {
                 <span>Data</span><span>Horário</span><span>Etapa</span><span>Descritivo da contratação</span><span />
               </div>
               {os.cronograma.map((c, i) => (
-                <div key={i} className="grid grid-cols-[150px_130px_1fr_1.5fr_auto] gap-2 items-center">
+                <div key={c.id ?? i} className="grid grid-cols-[150px_130px_1fr_1.5fr_auto] gap-2 items-center">
                   <Input className="!h-9" type="date" value={c.data} onChange={(e) => setCron(i, { data: e.target.value })} />
                   <Input className="!h-9" placeholder="08h às 18h" value={c.horario} onChange={(e) => setCron(i, { horario: e.target.value })} />
                   <Input className="!h-9" placeholder="Montagem, Ensaio…" value={c.etapa} onChange={(e) => setCron(i, { etapa: e.target.value })} />
@@ -773,12 +789,12 @@ export function OsForm() {
               label="Prazo de Pagamento"
               hint="(parcelas)"
               acao={
-                <Button variant="secondary" size="sm" onClick={() => updOrc({ parcelas: [...os.orcamento.parcelas, { descricao: "", valor: 0 }] })}>+ Parcela</Button>
+                <Button variant="secondary" size="sm" onClick={() => updOrc({ parcelas: [...os.orcamento.parcelas, { id: novoId(), descricao: "", valor: 0 }] })}>+ Parcela</Button>
               }
             >
               <div className="py-1.5 space-y-2">
                 {os.orcamento.parcelas.map((pc, i) => (
-                  <div key={i} className="grid grid-cols-[1fr_150px_auto] gap-2 items-center">
+                  <div key={pc.id ?? i} className="grid grid-cols-[1fr_150px_auto] gap-2 items-center">
                     <Input className="!h-9" placeholder={`Descrição da ${i + 1}ª parcela`} value={pc.descricao} onChange={(e) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, descricao: e.target.value } : x)) })} />
                     <NumberInput className="!h-9" value={pc.valor} onValue={(v) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, valor: v } : x)) })} />
                     <button className="text-ink-3 hover:text-danger px-2" title="Remover parcela" onClick={() => updOrc({ parcelas: os.orcamento.parcelas.filter((_, j) => j !== i) })}>✕</button>

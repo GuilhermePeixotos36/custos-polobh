@@ -258,7 +258,11 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
           <LV label="Desconto Especial Negociado" valor={brl(os.financeiro.descontoNegociado)} />
           <LV label="Valor total a pagar" valor={brl(os.financeiro.valorAPagar)} />
           <LV label="BV Pólobh — Percentual" valor={`${os.financeiro.bvPercentual || 0}%`} />
-          <LV label="BV Pólobh — Valor" valor={brl(os.financeiro.bvValor)} />
+          {/* Recalculado, como no Excel — não depende do valor gravado. */}
+          <LV
+            label="BV Pólobh — Valor"
+            valor={brl(((os.financeiro.valorTotal || 0) * (os.financeiro.bvPercentual || 0)) / 100)}
+          />
           <LV label="Acerto Financeiro" valor={os.financeiro.acertoFinanceiro} />
 
           <SubSecao titulo="Dados para Contrato" />

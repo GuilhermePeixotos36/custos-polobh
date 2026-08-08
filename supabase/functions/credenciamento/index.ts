@@ -25,6 +25,9 @@ function json(body: unknown, status = 200) {
 
 const str = (v: unknown, max = 200) => (typeof v === "string" ? v.slice(0, max) : "");
 
+/** Teto de envios por OS — o fornecedor pode reenviar corrigindo, mas não inundar. */
+const MAX_ENVIOS_POR_OS = 20;
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
@@ -98,6 +101,20 @@ Deno.serve(async (req) => {
         return json({ error: "Informe ao menos um membro da equipe ou um veículo." }, 400);
       }
 
+      // Teto de envios por OS: sem isso, quem tivesse o link podia inserir sem
+      // limite e inundar a tabela e a tela de "Credenciamentos recebidos".
+      const { count, error: contErr } = await supabase
+        .from("credenciamentos")
+        .select("id", { count: "exact", head: true })
+        .eq("os_id", (os as { id: string }).id);
+      if (contErr) throw contErr;
+      if ((count ?? 0) >= MAX_ENVIOS_POR_OS) {
+        return json(
+          { error: "Este credenciamento já recebeu o número máximo de envios. Fale com a produção." },
+          429
+        );
+      }
+
       const { error: insErr } = await supabase.from("credenciamentos").insert({
         os_id: (os as { id: string }).id,
         equipe,
@@ -110,6 +127,9 @@ Deno.serve(async (req) => {
 
     return json({ error: "método não suportado" }, 405);
   } catch (e) {
-    return json({ error: e instanceof Error ? e.message : String(e) }, 500);
+    // Formulário público: o detalhe do erro fica no log, nunca na resposta —
+    // devolver e.message expunha nome de tabela/constraint a um anônimo.
+    console.error("[credenciamento]", e instanceof Error ? e.message : String(e));
+    return json({ error: "Não foi possível concluir. Tente novamente em instantes." }, 500);
   }
 });

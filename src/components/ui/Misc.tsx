@@ -87,6 +87,37 @@ export function AvisoEmailPendente({ className }: { className?: string }) {
   );
 }
 
+/**
+ * Falha de carregamento — some com o "lista vazia parece que não tem dados".
+ * Sempre que uma tela usa `useAsync`, mostre isto quando `error` vier
+ * preenchido, em vez de cair no estado vazio.
+ */
+export function AvisoErro({
+  erro,
+  oQue,
+  onTentarDeNovo,
+}: {
+  erro: string;
+  oQue?: string;
+  onTentarDeNovo?: () => void;
+}) {
+  return (
+    <div className="m-5 rounded-btn bg-danger-soft text-danger px-4 py-3 flex items-start justify-between gap-4">
+      <div className="min-w-0">
+        <p className="font-bold text-[13.5px]">
+          Não foi possível carregar {oQue ?? "os dados"}.
+        </p>
+        <p className="text-[12.5px] opacity-90 break-words">{erro}</p>
+      </div>
+      {onTentarDeNovo && (
+        <button onClick={onTentarDeNovo} className="shrink-0 font-bold underline text-[13px]">
+          Tentar de novo
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function EmptyState({
   title,
   hint,

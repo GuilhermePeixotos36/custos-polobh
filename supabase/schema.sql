@@ -1,6 +1,16 @@
 -- ============================================================================
 -- Pólobh — Schema Supabase (Postgres). Aplicar quando for plugar o backend.
 -- Inclui tabelas, RLS habilitada e policies por papel (perfis.papel).
+--
+-- COMO PROVISIONAR UM AMBIENTE NOVO
+--   1. Rode este arquivo (baseline).
+--   2. Rode tudo em supabase/migrations/ em ordem de nome.
+--
+-- As migrações são as donas de qualquer mudança posterior a 21/07/2026 — elas
+-- redefinem objetos daqui (por exemplo `salvar_ec_completa`, que ganhou trava
+-- otimista e guarda de valores). Nada deve ser aplicado direto no painel do
+-- Supabase sem virar migração: foi assim que a coluna `perfis.telefone` e a
+-- função `gerenciar-usuarios` ficaram só em produção, fora do repositório.
 -- ============================================================================
 
 -- Perfis de usuário (liga ao auth.users do Supabase)
@@ -8,6 +18,7 @@ create table if not exists perfis (
   id uuid primary key references auth.users(id) on delete cascade,
   nome text,
   papel text check (papel in ('Admin','Direcao','Producao','Administrativo')) not null,
+  telefone text not null default '', -- contato do usuário (produtora responsável)
   criado_em timestamptz default now()
 );
 

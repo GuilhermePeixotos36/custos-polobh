@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { PageShell } from "@/components/layout/AppLayout";
-import { Card, Badge, Table, THead, Th, Tr, Td, Input, EmptyState, tomStatusOs } from "@/components/ui";
+import { Card, Badge, Table, THead, Th, Tr, Td, Input, EmptyState, AvisoErro, tomStatusOs } from "@/components/ui";
 import { IcSearch } from "@/components/icons";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
@@ -11,7 +11,7 @@ import { useAuth } from "@/store/auth";
 export function OsList() {
   const navigate = useNavigate();
   const verFinanceiro = useAuth((s) => s.pode("financeiro"));
-  const { data, loading } = useAsync(() => repo.oss.listar(), []);
+  const { data, loading, error, reload } = useAsync(() => repo.oss.listar(), [], { oQue: "as OSs" });
   const [busca, setBusca] = useState("");
 
   const lista = useMemo(() => {
@@ -30,7 +30,9 @@ export function OsList() {
             <Input className="!h-10 pl-9" placeholder="Buscar por número, fornecedor, EC…" value={busca} onChange={(e) => setBusca(e.target.value)} />
           </div>
         </div>
-        {loading ? (
+        {error ? (
+          <AvisoErro erro={error} oQue="as OSs" onTentarDeNovo={reload} />
+        ) : loading ? (
           <div className="p-8 text-ink-3 text-sm">Carregando…</div>
         ) : lista.length === 0 ? (
           <EmptyState title="Nenhuma OS" hint="Gere OSs a partir das linhas de uma EC." />

@@ -118,6 +118,34 @@ async function enviarPeloBrevo(msg: EmailBrevo): Promise<{ messageId?: string }>
   return await resp.json();
 }
 
+/**
+ * Destinatários que não pertencem a ninguém conhecido pelo sistema (M-04).
+ *
+ * Sem isso, qualquer usuário logado — de qualquer papel — podia disparar HTML
+ * arbitrário para endereço arbitrário saindo do domínio da Pólobh. A checagem
+ * roda no servidor via `emails_conhecidos`, que varre fornecedores, contatos de
+ * cliente e usuários do app.
+ *
+ * Falha fechada de propósito: se não der para verificar, o envio é recusado.
+ * Lança para o chamador transformar em resposta de erro.
+ */
+async function destinatariosDesconhecidos(emails: string[]): Promise<string[]> {
+  const url = Deno.env.get("SUPABASE_URL");
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !key) throw new Error("Verificação de destinatários indisponível.");
+
+  const resp = await fetch(`${url}/rest/v1/rpc/emails_conhecidos`, {
+    method: "POST",
+    headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ p_emails: emails }),
+  });
+  if (!resp.ok) throw new Error("Verificação de destinatários indisponível.");
+
+  const conhecidos = ((await resp.json()) ?? []) as string[];
+  const set = new Set(conhecidos.map((e) => e.toLowerCase().trim()));
+  return emails.filter((e) => !set.has(e.toLowerCase().trim()));
+}
+
 /** Registra o envio na tabela `emails` (best-effort, via PostgREST — não bloqueia). */
 async function registrarLog(row: Record<string, unknown>): Promise<void> {
   const url = Deno.env.get("SUPABASE_URL");
@@ -158,6 +186,24 @@ Deno.serve(async (req) => {
 
   if (!payloadValido(msg)) {
     return json({ ok: false, erro: "Payload de e-mail inválido ou acima dos limites permitidos (o anexo pode estar grande demais)." }, 400);
+  }
+
+  // Só envia para quem o sistema conhece (fornecedor, contato de cliente ou usuário).
+  try {
+    const fora = await destinatariosDesconhecidos(msg.para.map((p) => p.email));
+    if (fora.length) {
+      return json(
+        {
+          ok: false,
+          erro:
+            `Destinatário não reconhecido: ${fora.join(", ")}. ` +
+            "Só é possível enviar para fornecedores, contatos de cliente ou usuários do sistema.",
+        },
+        403
+      );
+    }
+  } catch {
+    return json({ ok: false, erro: "Não foi possível validar os destinatários. Envio cancelado." }, 503);
   }
 
   try {

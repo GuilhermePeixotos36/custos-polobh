@@ -8,9 +8,18 @@ function estiloSeguro(valor: string): string {
     .join("; ");
 }
 
+/** Escapa tudo — usado quando não há como sanitizar de verdade. */
+function escaparTudo(html: string): string {
+  return html.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 /** Mantém somente a formatação suportada pelo editor e remove scripts/eventos/URLs. */
 export function sanitizarHtmlEditor(html: string): string {
-  if (!html || typeof DOMParser === "undefined") return html || "";
+  if (!html) return "";
+  // Sem DOM (SSR, worker, geração de documento fora do navegador) não dá para
+  // sanitizar: escapa em vez de devolver o HTML cru. Falha fechada — antes isso
+  // deixava passar conteúdo não sanitizado se a função fosse reaproveitada.
+  if (typeof DOMParser === "undefined") return escaparTudo(html);
   const doc = new DOMParser().parseFromString(`<div id="raiz">${html}</div>`, "text/html");
   const raiz = doc.getElementById("raiz");
   if (!raiz) return "";

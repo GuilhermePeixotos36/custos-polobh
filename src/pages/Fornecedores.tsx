@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { PageShell } from "@/components/layout/AppLayout";
 import {
   Card, CardTitle, Button, Field, Input, TelefoneInput, Select, Table, THead, Th, Tr, Td,
-  Badge, EmptyState, Avatar,
+  Badge, EmptyState, AvisoErro, Avatar,
 } from "@/components/ui";
 import { IcSearch, IcTrash } from "@/components/icons";
 import { repo } from "@/data";
@@ -14,7 +14,7 @@ import { toast } from "@/store/toast";
 import type { Fornecedor } from "@/data/types";
 
 export function Fornecedores() {
-  const { data, loading, reload } = useAsync(() => repo.fornecedores.listar(), []);
+  const { data, loading, error, reload } = useAsync(() => repo.fornecedores.listar(), [], { oQue: "os fornecedores" });
   const [busca, setBusca] = useState("");
   const [edit, setEdit] = useState<Fornecedor | null>(null);
   const [msg, setMsg] = useState("");
@@ -67,7 +67,7 @@ export function Fornecedores() {
               <Input className="!h-10 pl-9" placeholder="Buscar fornecedor…" value={busca} onChange={(e) => setBusca(e.target.value)} />
             </div>
           </div>
-          {loading ? <div className="p-8 text-ink-3 text-sm">Carregando…</div> : lista.length === 0 ? (
+          {error ? <AvisoErro erro={error} oQue="os fornecedores" onTentarDeNovo={reload} /> : loading ? <div className="p-8 text-ink-3 text-sm">Carregando…</div> : lista.length === 0 ? (
             <EmptyState title="Nenhum fornecedor" />
           ) : (
             <Table>

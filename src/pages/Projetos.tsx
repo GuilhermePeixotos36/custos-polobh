@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { PageShell } from "@/components/layout/AppLayout";
-import { Card, Button, Badge, Table, THead, Th, Tr, Td, EmptyState, Avatar, type Tom } from "@/components/ui";
+import { Card, Button, Badge, Table, THead, Th, Tr, Td, EmptyState, AvisoErro, Avatar, type Tom } from "@/components/ui";
 import { IcPlus, IcSearch } from "@/components/icons";
 import { NotifDot } from "@/components/NotifDot";
 import { repo } from "@/data";
@@ -31,10 +31,10 @@ type DirOrdem = "asc" | "desc";
 export function Projetos() {
   const navigate = useNavigate();
   const { porProjeto } = useMinhasPendencias();
-  const { data, loading } = useAsync(async () => {
+  const { data, loading, error, reload } = useAsync(async () => {
     const [projetos, ecs] = await Promise.all([repo.projetos.listar(), repo.ecs.listar()]);
     return { projetos, ecs };
-  }, []);
+  }, [], { oQue: "os projetos" });
   const [filtro, setFiltro] = useState<FiltroProjeto>("Ativo");
   const [busca, setBusca] = useState("");
   const [ordem, setOrdem] = useState<{ col: OrdemColuna; dir: DirOrdem }>({ col: "cliente", dir: "asc" });
@@ -90,7 +90,9 @@ export function Projetos() {
       </div>
 
       <Card padded={false}>
-        {loading ? (
+        {error ? (
+          <AvisoErro erro={error} oQue="os projetos" onTentarDeNovo={reload} />
+        ) : loading ? (
           <div className="p-8 text-ink-3 text-sm">Carregando…</div>
         ) : lista.length === 0 ? (
           <div className="p-8"><EmptyState title="Nenhum projeto" hint="Crie o primeiro projeto para começar." /></div>

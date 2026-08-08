@@ -327,6 +327,8 @@ export type DocumentoFiscal =
   | "";
 
 export interface CronogramaItem {
+  /** Chave estável de UI (React). Opcional: registros antigos não têm. */
+  id?: string;
   etapa: string; // Montagem, Alinhamentos/Testes, Ensaios, Evento...
   data: string;
   horario: string;
@@ -353,6 +355,8 @@ export interface Infraestrutura {
 }
 
 export interface Parcela {
+  /** Chave estável de UI (React). Opcional: registros antigos não têm. */
+  id?: string;
   descricao: string;
   valor: number;
 }

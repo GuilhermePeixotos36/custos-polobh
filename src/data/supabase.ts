@@ -54,6 +54,27 @@ function ok<T>({ data, error }: { data: T; error: { message: string } | null }):
   return data;
 }
 
+/** Erro de edição concorrente na EC — a tela oferece recarregar em vez de sobrescrever. */
+export class ConflitoEdicaoError extends Error {
+  constructor() {
+    super(
+      "Esta EC foi alterada por outra pessoa depois que você abriu a tela. " +
+        "Recarregue para ver a versão atual — salvar agora apagaria o que ela incluiu."
+    );
+    this.name = "ConflitoEdicaoError";
+  }
+}
+
+/** Converte os erros da trava otimista da RPC em algo que o usuário entende. */
+function traduzirConflitoEc<T>(r: { data: T; error: { message: string } | null }): { data: T; error: { message: string } | null } {
+  const msg = r.error?.message ?? "";
+  if (msg.includes("EC_CONFLITO_EDICAO")) throw new ConflitoEdicaoError();
+  if (msg.includes("EC_VERSAO_NAO_INFORMADA")) {
+    throw new Error("Recarregue a página: esta aba está com uma versão antiga do app.");
+  }
+  return r;
+}
+
 const nowIso = () => new Date().toISOString();
 
 /* --------------------------------- Cliente ------------------------------- */
@@ -349,7 +370,10 @@ function ecRow(ec: Ec) {
   };
 }
 
-const SELECT_EC = "*, linhas:ec_linhas(*)";
+// Lê pela view mascarada (A-03): o SELECT direto em `ec_linhas` é revogado, e a
+// view devolve NULL nos valores para quem não tem o recurso financeiro.
+// A gravação continua pela RPC `salvar_ec_completa`, que é SECURITY DEFINER.
+const SELECT_EC = "*, linhas:ec_linhas_visiveis(*)";
 
 const ecRepo: EcRepository = {
   async listar() {
@@ -366,11 +390,14 @@ const ecRepo: EcRepository = {
       ...linha,
       id: isUuid(linha.id) ? linha.id : globalThis.crypto.randomUUID(),
     }));
-    const data = ok(await supabase.rpc("salvar_ec_completa", {
+    // Trava otimista: manda a versão que a tela carregou. Se alguém salvou nesse
+    // intervalo, a RPC recusa em vez de apagar o trabalho da outra pessoa.
+    const data = ok(traduzirConflitoEc(await supabase.rpc("salvar_ec_completa", {
       p_ec_id: atualizando ? ec.id : null,
       p_ec: ecRow(ec),
       p_linhas: linhas.map((linha) => linhaRow(atualizando ? ec.id : "", linha)),
-    }));
+      p_esperado_em: atualizando ? ec.atualizadoEm : null,
+    })));
     const id = data as string;
     const salvo = await this.obter(id);
     if (!salvo) throw new Error("Falha ao reler a EC salva.");

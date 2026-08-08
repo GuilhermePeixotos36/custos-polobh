@@ -84,10 +84,37 @@ export function EcDetail() {
     setRecolhidos((s) => { const x = new Set(s); x.has(n) ? x.delete(n) : x.add(n); return x; });
 
   /** Observações são editáveis mesmo na tela de leitura — persiste na hora. */
+  /**
+   * Salva as observações de uma linha relendo a EC antes de gravar.
+   *
+   * Comentar é a ação mais concorrente do app (o recurso existe justamente para
+   * uma pessoa deixar pendência para outra), então aqui não basta a trava
+   * otimista: seria conflito o tempo todo. Relemos a versão atual e mesclamos
+   * por id — o que outra pessoa comentou nesse intervalo é preservado, e o que
+   * este usuário apagou continua apagado.
+   */
   async function salvarObservacoes(linhaId: string, observacoes: Observacao[]) {
-    const linhas = ec!.linhas.map((l) => (l.id === linhaId ? { ...l, observacoes } : l));
     try {
-      await repo.ecs.salvar({ ...ec!, linhas });
+      const antes = ec!.linhas.find((l) => l.id === linhaId)?.observacoes ?? [];
+      const removidos = new Set(
+        antes.filter((a) => !observacoes.some((o) => o.id === a.id)).map((a) => a.id)
+      );
+
+      const atual = await repo.ecs.obter(ec!.id);
+      if (!atual) throw new Error("EC não encontrada.");
+
+      const base = (atual.linhas.find((l) => l.id === linhaId)?.observacoes ?? []).filter(
+        (o) => !removidos.has(o.id)
+      );
+      const mescladas = [...base];
+      for (const o of observacoes) {
+        const i = mescladas.findIndex((m) => m.id === o.id);
+        if (i >= 0) mescladas[i] = o;
+        else mescladas.push(o);
+      }
+
+      const linhas = atual.linhas.map((l) => (l.id === linhaId ? { ...l, observacoes: mescladas } : l));
+      await repo.ecs.salvar({ ...atual, linhas });
       navigate(0);
     } catch (e) {
       toast(`Não foi possível salvar a observação: ${(e as Error).message}`, "danger");

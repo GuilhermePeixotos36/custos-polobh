@@ -3,5 +3,5 @@ export { Badge, tomStatusEc, tomStatusOs, tomAprovacao } from "./Badge";
 export type { Tom } from "./Badge";
 export { Card, CardTitle, Eyebrow } from "./Card";
 export { Field, Label, Input, Textarea, AutoTextarea, Select, NumberInput, CurrencyInput, TelefoneInput } from "./Field";
-export { Toggle, Avatar, ProgressBar, EmptyState, AvisoEmailPendente } from "./Misc";
+export { Toggle, Avatar, ProgressBar, EmptyState, AvisoErro, AvisoEmailPendente } from "./Misc";
 export { Table, THead, Th, Tr, Td } from "./Table";

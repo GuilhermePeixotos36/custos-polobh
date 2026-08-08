@@ -101,7 +101,7 @@ export function calcularTotais(
 const slug = (s: string, max = 18): string =>
   (s || "")
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .trim()
     .slice(0, max)
     .trim();
