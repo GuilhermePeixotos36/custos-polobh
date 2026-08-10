@@ -1,10 +1,15 @@
 import type {
   CronogramaProjeto,
+  Cliente,
   EtapaCronogramaProjeto,
   FaixaCronogramaProjeto,
   ProjetoInfo,
   RoteirosProjeto,
+  RoteiroExtraProjeto,
 } from "@/data/types";
+import { documentoFiscalValido } from "@/lib/cnpj";
+
+export const ROTEIROS_PADRAO = ["preEvento", "evento", "posEvento"] as const;
 
 export const ETAPAS_CRONOGRAMA: ReadonlyArray<{ key: EtapaCronogramaProjeto; label: string }> = [
   { key: "montagem", label: "Montagem" },
@@ -35,6 +40,14 @@ export function cronogramaProjetoVazio(): CronogramaProjeto {
 
 export const roteirosProjetoVazio = (): RoteirosProjeto => ({ preEvento: "", evento: "", posEvento: "" });
 
+export function novoRoteiroExtra(): RoteiroExtraProjeto {
+  return {
+    id: globalThis.crypto?.randomUUID?.() ?? `roteiro-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    titulo: "Nova etapa",
+    conteudo: "",
+  };
+}
+
 export function projetoInfoVazio(): ProjetoInfo {
   return {
     titulo: "",
@@ -58,6 +71,8 @@ export function projetoInfoVazio(): ProjetoInfo {
     etapasOcultas: [],
     roteiros: roteirosProjetoVazio(),
     roteirosOcultos: [],
+    roteirosExtras: [],
+    roteiroOrdem: [...ROTEIROS_PADRAO],
   };
 }
 
@@ -104,6 +119,18 @@ export function normalizarProjetoInfo(valor: unknown): ProjetoInfo {
   const cron = (raw.cronograma ?? {}) as Partial<CronogramaProjeto>;
   const semCamposNovos = !raw.clienteAbreviado && !raw.nomeProjeto && !raw.anoProjeto;
   const migrado = semCamposNovos && raw.titulo ? migrarTituloLegado(raw.titulo) : null;
+  const roteirosExtras = Array.isArray(raw.roteirosExtras)
+    ? raw.roteirosExtras
+      .filter((item) => !!item && typeof item === "object")
+      .map((item) => {
+        const parcial = item as Partial<RoteiroExtraProjeto>;
+        return { ...novoRoteiroExtra(), ...parcial, id: parcial.id || novoRoteiroExtra().id, titulo: parcial.titulo ?? "Nova etapa", conteudo: parcial.conteudo ?? "" };
+      })
+    : [];
+  const idsRoteiro = new Set([...ROTEIROS_PADRAO, ...roteirosExtras.map((item) => item.id)]);
+  const roteiroOrdem = Array.isArray(raw.roteiroOrdem)
+    ? [...raw.roteiroOrdem.filter((id): id is string => typeof id === "string" && idsRoteiro.has(id)), ...[...idsRoteiro].filter((id) => !raw.roteiroOrdem!.includes(id))]
+    : [...ROTEIROS_PADRAO, ...roteirosExtras.map((item) => item.id)];
   return {
     ...base,
     ...raw,
@@ -117,6 +144,8 @@ export function normalizarProjetoInfo(valor: unknown): ProjetoInfo {
       desmontagem: normalizarFaixas(cron.desmontagem, raw.posEvento),
     },
     roteiros: { ...base.roteiros, ...(raw.roteiros ?? {}), evento: raw.roteiros?.evento || raw.roteiro || "" },
+    roteirosExtras,
+    roteiroOrdem,
   };
 }
 
@@ -143,4 +172,23 @@ export function sincronizarCamposLegados(info: ProjetoInfo): ProjetoInfo {
     horario: [evento?.inicio, evento?.fim].filter(Boolean).join(" às "),
     roteiro: textoHtml(normalizado.roteiros.evento),
   };
+}
+
+export interface CampoObrigatorioProjeto {
+  chave: string;
+  label: string;
+}
+
+/** Campos mínimos para criar/salvar um projeto, compartilhados entre criação e edição. */
+export function camposObrigatoriosProjeto(info: ProjetoInfo, cliente: Cliente): CampoObrigatorioProjeto[] {
+  const faltando: CampoObrigatorioProjeto[] = [];
+  if (!info.clienteAbreviado.trim()) faltando.push({ chave: "clienteAbreviado", label: "Cliente (apelido)" });
+  if (!info.nomeProjeto.trim()) faltando.push({ chave: "nomeProjeto", label: "Nome do projeto" });
+  if (!/^(19\d{2}|20\d{2}|2100)$/.test(info.anoProjeto.trim())) faltando.push({ chave: "anoProjeto", label: "Ano (1900 a 2100)" });
+  if (!cliente.nome.trim()) faltando.push({ chave: "clienteNome", label: "Cliente (nome)" });
+  if (!documentoFiscalValido(cliente.cnpjCpf)) faltando.push({ chave: "cnpjCpf", label: "CNPJ/CPF válido" });
+  if (!info.modalidade) faltando.push({ chave: "modalidade", label: "Modalidade" });
+  if (!info.local.trim()) faltando.push({ chave: "local", label: "Local" });
+  if (!info.cronograma.evento.some((faixa) => faixa.data.trim())) faltando.push({ chave: "cronogramaEvento", label: "Data do evento (cronograma)" });
+  return faltando;
 }

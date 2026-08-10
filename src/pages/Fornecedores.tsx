@@ -11,9 +11,11 @@ import { consultarCnpj } from "@/lib/cnpj";
 import { flags } from "@/lib/flags";
 import { cx, maskCpfCnpjInput } from "@/lib/format";
 import { toast } from "@/store/toast";
+import { useAuth } from "@/store/auth";
 import type { Fornecedor } from "@/data/types";
 
 export function Fornecedores() {
+  const podeEditar = useAuth((s) => s.pode("fornecedores.editar"));
   const { data, loading, error, reload } = useAsync(() => repo.fornecedores.listar(), [], { oQue: "os fornecedores" });
   const [busca, setBusca] = useState("");
   const [edit, setEdit] = useState<Fornecedor | null>(null);
@@ -164,8 +166,8 @@ export function Fornecedores() {
               </div>
 
               <div className="flex gap-2 pt-1">
-                <Button block onClick={salvar}>Salvar</Button>
-                <Button variant="secondary" onClick={() => setEdit(null)}>Cancelar</Button>
+                {podeEditar && <Button block onClick={salvar}>Salvar</Button>}
+                <Button variant="secondary" block={!podeEditar} onClick={() => setEdit(null)}>{podeEditar ? "Cancelar" : "Fechar"}</Button>
               </div>
             </div>
           </Card>

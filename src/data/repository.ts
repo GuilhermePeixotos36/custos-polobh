@@ -3,12 +3,14 @@
  * interfaces; a implementação concreta é escolhida pela fábrica em ./index.
  * Hoje: mock em memória. Amanhã: Supabase — basta trocar a fábrica.
  */
-import type { Cliente, CredenciamentoResposta, Ec, EmpresaGrupo, Fornecedor, Os, Papel, Projeto, Usuario } from "./types";
+import type { Area, Cliente, CredenciamentoResposta, Ec, EmpresaGrupo, Fornecedor, Os, Projeto, Usuario } from "./types";
 
 export interface ProjetoRepository {
   listar(): Promise<Projeto[]>;
   obter(id: string): Promise<Projeto | undefined>;
   salvar(p: Projeto): Promise<Projeto>;
+  /** Arquiva, em uma única operação, todas as ECs e OSs vinculadas ao projeto. */
+  arquivarDocumentos(id: string): Promise<void>;
   remover(id: string): Promise<void>;
 }
 
@@ -45,6 +47,8 @@ export interface OsRepository {
   remover(id: string): Promise<void>;
   /** Respostas de credenciamento enviadas pelos fornecedores para esta OS. */
   credenciamentos(osId: string): Promise<CredenciamentoResposta[]>;
+  /** IDs das OSs que já receberam ao menos uma resposta de credenciamento (consulta única, p/ as pendências). */
+  osComCredenciamento(): Promise<string[]>;
 }
 
 export interface AuthRepository {
@@ -52,10 +56,19 @@ export interface AuthRepository {
   usuarios(): Promise<Usuario[]>;
   /** Lista completa (com e-mail real do login) — só para quem gerencia usuários, em Configurações. */
   usuariosCompletos(): Promise<Usuario[]>;
-  /** Convida um novo usuário por e-mail e cria o perfil correspondente. */
-  criarUsuario(dados: { email: string; nome: string; papel: Papel; telefone: string }): Promise<Usuario>;
-  /** Atualiza nome/telefone/papel/e-mail de um usuário existente. */
-  atualizarUsuario(dados: { id: string; nome?: string; telefone?: string; papel?: Papel; email?: string }): Promise<Usuario>;
+  /** Convida um novo usuário por e-mail e cria o perfil correspondente, na área indicada. */
+  criarUsuario(dados: { email: string; nome: string; areaId: string; telefone: string }): Promise<Usuario>;
+  /** Atualiza nome/telefone/área/e-mail de um usuário existente. */
+  atualizarUsuario(dados: { id: string; nome?: string; telefone?: string; areaId?: string; email?: string }): Promise<Usuario>;
+}
+
+/** Áreas = grupos de permissão cadastráveis (Configurações → Áreas). */
+export interface AreaRepository {
+  listar(): Promise<Area[]>;
+  salvar(a: Area): Promise<Area>;
+  /** Inativa/reativa. Usado quando a área tem usuários e não pode ser excluída. */
+  definirAtiva(id: string, ativa: boolean): Promise<Area>;
+  remover(id: string): Promise<void>;
 }
 
 export interface EmpresasRepository {
@@ -71,5 +84,6 @@ export interface Repositorios {
   ecs: EcRepository;
   oss: OsRepository;
   auth: AuthRepository;
+  areas: AreaRepository;
   empresas: EmpresasRepository;
 }

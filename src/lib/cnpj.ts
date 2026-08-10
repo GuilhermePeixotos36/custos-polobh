@@ -3,7 +3,7 @@
  * https://brasilapi.com.br/api/cnpj/v1/{cnpj}
  * Plano B: erro é tratado e o usuário edita manualmente.
  */
-import { onlyDigits } from "./format";
+import { onlyDigits, tituloProprio } from "./format";
 
 export interface DadosCnpj {
   cnpj: string;
@@ -61,11 +61,16 @@ function perfil(d: BrasilApiCnpj): string {
   return "Lucro Presumido/Real";
 }
 
+/**
+ * A BrasilAPI devolve tudo em CAIXA ALTA. Aqui cada pedaço é normalizado
+ * individualmente — a UF continua maiúscula e o CEP intocado, que colocar o
+ * endereço inteiro no tituloProprio viraria "Mg" e "Cep:".
+ */
 function montarEndereco(d: BrasilApiCnpj): string {
-  const linha1 = [d.logradouro, d.numero].filter(Boolean).join(", ");
-  const partes = [linha1, d.complemento, d.bairro, `${d.municipio} - ${d.uf}`]
-    .filter(Boolean)
-    .join(" - ");
+  const t = (s?: string) => tituloProprio(s ?? "");
+  const linha1 = [t(d.logradouro), d.numero].filter(Boolean).join(", ");
+  const municipioUf = d.municipio ? `${t(d.municipio)}${d.uf ? ` - ${d.uf.toUpperCase()}` : ""}` : "";
+  const partes = [linha1, t(d.complemento), t(d.bairro), municipioUf].filter(Boolean).join(" - ");
   return d.cep ? `${partes} - CEP: ${d.cep}` : partes;
 }
 
@@ -174,8 +179,10 @@ export async function consultarCnpj(cnpjRaw: string): Promise<DadosCnpj> {
 
   return {
     cnpj: cnpjRaw,
-    razaoSocial: d.razao_social ?? "",
-    nomeFantasia: d.nome_fantasia ?? "",
+    // Estes campos entram no formulário por código (não por digitação), então
+    // escapam do formatador de blur do Input — normalizam-se aqui.
+    razaoSocial: tituloProprio(d.razao_social ?? "", { preservarSiglas: true }),
+    nomeFantasia: tituloProprio(d.nome_fantasia ?? ""),
     endereco: montarEndereco(d),
     perfilTributario: perfil(d),
     cnaes,

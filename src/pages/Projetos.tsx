@@ -1,12 +1,13 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { PageShell } from "@/components/layout/AppLayout";
-import { Card, Button, Badge, Table, THead, Th, Tr, Td, EmptyState, AvisoErro, Avatar, type Tom } from "@/components/ui";
+import { Card, Button, Badge, Table, THead, Th, Tr, Td, EmptyState, AvisoErro, type Tom } from "@/components/ui";
 import { IcPlus, IcSearch } from "@/components/icons";
 import { NotifDot } from "@/components/NotifDot";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import { useMinhasPendencias } from "@/store/pendencias";
+import { useAuth } from "@/store/auth";
 import { cx } from "@/lib/format";
 import { statusProjetoAutomatico } from "@/domain/statusProjeto";
 import type { StatusProjeto } from "@/data/types";
@@ -30,6 +31,7 @@ type DirOrdem = "asc" | "desc";
 
 export function Projetos() {
   const navigate = useNavigate();
+  const podeEditar = useAuth((s) => s.pode("projetos.editar"));
   const { porProjeto } = useMinhasPendencias();
   const { data, loading, error, reload } = useAsync(async () => {
     const [projetos, ecs] = await Promise.all([repo.projetos.listar(), repo.ecs.listar()]);
@@ -58,9 +60,11 @@ export function Projetos() {
     <PageShell
       title="Projetos"
       topAction={
-        <Button size="sm" icon={<IcPlus width={16} height={16} />} onClick={() => navigate("/projetos/novo")}>
-          Novo projeto
-        </Button>
+        podeEditar ? (
+          <Button size="sm" icon={<IcPlus width={16} height={16} />} onClick={() => navigate("/projetos/novo")}>
+            Novo projeto
+          </Button>
+        ) : undefined
       }
     >
       <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
@@ -108,11 +112,10 @@ export function Projetos() {
                 <Tr key={p.id} onClick={() => navigate(`/projetos/${p.id}`)}>
                   <Td className="text-ink font-medium">{p.cliente?.nome || "—"}</Td>
                   <Td>
-                    <div className="flex items-center gap-2.5">
-                      <span className="relative shrink-0">
-                        <Avatar nome={p.nome || "P"} size={34} />
-                        <NotifDot n={porProjeto[p.id] ?? 0} title={`${porProjeto[p.id] ?? 0} pendência(s) neste projeto`} />
-                      </span>
+                    {/* Sem thumbnail: as iniciais não informavam nada e saíam quebradas em
+                        títulos com travessão ("BM – Convenção…" virava "B–"). */}
+                    <div className="flex items-center gap-2">
+                      <NotifDot inline n={porProjeto[p.id] ?? 0} title={`${porProjeto[p.id] ?? 0} pendência(s) neste projeto`} />
                       <div className="font-bold text-ink">{p.nome || "(sem título)"}</div>
                     </div>
                   </Td>

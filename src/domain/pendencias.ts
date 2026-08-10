@@ -39,13 +39,36 @@ export interface Pendencia {
 // Emitir OS é função do financeiro — único ponto ainda roteado por papel (não por pessoa fixa).
 const EMITE_OS: Papel[] = ["Admin", "Direcao", "Administrativo"];
 
-export function calcularPendencias(projetos: Projeto[], ecs: Ec[], oss: Os[], usuarios: string[] = []): Pendencia[] {
+/** EC encerrada não cobra mais nada de ninguém. */
+const EC_ENCERRADA = ["Cancelada", "Arquivada"];
+const OS_ENCERRADA = ["Cancelada", "Arquivada"];
+
+export function calcularPendencias(
+  projetos: Projeto[],
+  ecs: Ec[],
+  oss: Os[],
+  usuarios: string[] = [],
+  /** OSs que já receberam resposta de credenciamento — o resto ainda está devendo. */
+  osComCredenciamento: string[] = []
+): Pendencia[] {
   const ecPorId = new Map(ecs.map((e) => [e.id, e]));
+  const credenciamentoRespondido = new Set(osComCredenciamento);
+  // Cronograma e credenciamento são cobrados de quem toca o projeto.
+  const responsavelPorProjeto = new Map(
+    projetos.map((p) => [p.id, p.info.produtoraResponsavel?.trim() ?? ""] as const)
+  );
   const ecsAtivasPorProjeto = new Map<string, number>();
   for (const e of ecs) {
-    if (["Cancelada", "Arquivada"].includes(e.status)) continue;
+    if (EC_ENCERRADA.includes(e.status)) continue;
     ecsAtivasPorProjeto.set(e.projetoId, (ecsAtivasPorProjeto.get(e.projetoId) ?? 0) + 1);
   }
+
+  // Arquivar um projeto encerra as pendências dele: nada gerado abaixo vale para
+  // projeto arquivado ou cancelado (pedido da Marisa, 09/08/2026).
+  const projetoEncerrado = new Set(
+    projetos.filter((p) => ["Arquivado", "Cancelado"].includes(statusProjetoAutomatico(p, ecs))).map((p) => p.id)
+  );
+  const encerrado = (projetoId?: string) => !!projetoId && projetoEncerrado.has(projetoId);
 
   const out: Pendencia[] = [];
 
@@ -53,7 +76,7 @@ export function calcularPendencias(projetos: Projeto[], ecs: Ec[], oss: Os[], us
   for (const os of oss) {
     if (os.status !== "Rascunho") continue;
     const ec = ecPorId.get(os.ecId);
-    if (!ec?.projetoId) continue;
+    if (!ec?.projetoId || encerrado(ec.projetoId)) continue;
     out.push({
       id: `os.emitir:${os.id}`,
       tipo: "os.emitir",
@@ -69,8 +92,9 @@ export function calcularPendencias(projetos: Projeto[], ecs: Ec[], oss: Os[], us
 
   // Observações da OS direcionadas a alguém → pendência dessa pessoa (mesma regra da EC).
   for (const os of oss) {
+    if (OS_ENCERRADA.includes(os.status)) continue;
     const ec = ecPorId.get(os.ecId);
-    if (!ec?.projetoId) continue;
+    if (!ec?.projetoId || encerrado(ec.projetoId)) continue;
     (os.observacoes ?? []).forEach((observacao, indice) => {
       const texto = observacao.texto.trim();
       if (!texto || observacao.resolvida) return;
@@ -94,8 +118,52 @@ export function calcularPendencias(projetos: Projeto[], ecs: Ec[], oss: Os[], us
     });
   }
 
+  // Cronograma e credenciamento da OS (pedido da Marisa, 09/08/2026) — ambos cobrados
+  // do Produtor Responsável do projeto, e só depois que a OS foi disparada ao fornecedor.
+  for (const os of oss) {
+    if (os.status !== "Disparada") continue;
+    const ec = ecPorId.get(os.ecId);
+    if (!ec?.projetoId || encerrado(ec.projetoId)) continue;
+    const responsavel = responsavelPorProjeto.get(ec.projetoId);
+    if (!responsavel) continue; // sem responsável definido, não há para quem endereçar
+
+    if (!(os.cronograma ?? []).length) {
+      out.push({
+        id: `os.cronograma:${os.id}`,
+        tipo: "os.cronograma",
+        titulo: `Cronograma não preenchido na OS ${os.numero}`,
+        papeis: [],
+        pessoas: [responsavel],
+        recurso: "projetos",
+        projetoId: ec.projetoId,
+        aba: "cronograma",
+        ecId: os.ecId,
+        osId: os.id,
+      });
+    }
+
+    // O prazo-limite preenchido é o que marca "esta OS exige credenciamento" — o
+    // slug do link existe em toda OS (default do banco), então não serve de sinal.
+    const exigeCredenciamento = !!os.credenciamento?.prazoLimite?.trim();
+    if (exigeCredenciamento && !credenciamentoRespondido.has(os.id)) {
+      out.push({
+        id: `os.credenciamento:${os.id}`,
+        tipo: "os.credenciamento",
+        titulo: `Credenciamento não respondido pelo fornecedor na OS ${os.numero}`,
+        papeis: [],
+        pessoas: [responsavel],
+        recurso: "projetos",
+        projetoId: ec.projetoId,
+        aba: "os",
+        ecId: os.ecId,
+        osId: os.id,
+      });
+    }
+  }
+
   for (const ec of ecs) {
-    if (!ec.projetoId) continue;
+    // EC arquivada/cancelada (ou de projeto encerrado) não cobra observação de ninguém.
+    if (!ec.projetoId || encerrado(ec.projetoId) || EC_ENCERRADA.includes(ec.status)) continue;
     for (const linha of ec.linhas) {
       (linha.observacoes ?? []).forEach((observacao, indice) => {
         const texto = observacao.texto.trim();
@@ -123,20 +191,18 @@ export function calcularPendencias(projetos: Projeto[], ecs: Ec[], oss: Os[], us
     }
     // Linha marcada para emitir OS ("Emitir"/"Emitir Nova Versão") → o financeiro precisa
     // apertar "Emitir OS" no topo da EC (o botão cria as OSs e marca as linhas como OK).
-    if (!["Cancelada", "Arquivada"].includes(ec.status)) {
-      const temLinhaParaEmitir = ec.linhas.some((l) => l.statusOs === "Emitir" || l.statusOs === "Emitir Nova Versão");
-      if (temLinhaParaEmitir) {
-        out.push({
-          id: `ec.emitirOs:${ec.id}`,
-          tipo: "ec.emitirOs",
-          titulo: `Emitir OS a partir da EC: ${ec.projeto.titulo || ec.numero}`,
-          papeis: EMITE_OS,
-          recurso: "projetos",
-          projetoId: ec.projetoId,
-          aba: "ec",
-          ecId: ec.id,
-        });
-      }
+    // ECs encerradas já foram descartadas na entrada do laço.
+    if (ec.linhas.some((l) => l.statusOs === "Emitir" || l.statusOs === "Emitir Nova Versão")) {
+      out.push({
+        id: `ec.emitirOs:${ec.id}`,
+        tipo: "ec.emitirOs",
+        titulo: `Emitir OS a partir da EC: ${ec.projeto.titulo || ec.numero}`,
+        papeis: EMITE_OS,
+        recurso: "projetos",
+        projetoId: ec.projetoId,
+        aba: "ec",
+        ecId: ec.id,
+      });
     }
   }
 

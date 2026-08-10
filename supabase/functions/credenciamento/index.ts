@@ -46,6 +46,7 @@ Deno.serve(async (req) => {
         .from("oss")
         .select("id, fornecedor, credenciamento, ec:ecs(projeto)")
         .eq("slug_credenciamento", token)
+        .neq("status", "Arquivada")
         .maybeSingle();
       if (error) throw error;
       if (!os) return json({ error: "Link de credenciamento inválido." }, 404);
@@ -74,6 +75,7 @@ Deno.serve(async (req) => {
         .from("oss")
         .select("id, credenciamento")
         .eq("slug_credenciamento", token)
+        .neq("status", "Arquivada")
         .maybeSingle();
       if (error) throw error;
       if (!os) return json({ error: "Link de credenciamento inválido." }, 404);

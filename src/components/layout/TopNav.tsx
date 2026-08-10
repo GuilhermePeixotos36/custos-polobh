@@ -49,7 +49,7 @@ export function TopNav() {
           <Avatar nome={usuario.nome} size={32} />
           <div className="leading-tight min-w-0">
             <div className="text-[12.5px] font-bold text-ink truncate max-w-[150px]">{usuario.nome}</div>
-            <div className="text-[10.5px] text-ink-3">{ROTULO_PAPEL[usuario.papel]}</div>
+            <div className="text-[10.5px] text-ink-3">{usuario.areaNome ?? ROTULO_PAPEL[usuario.papel]}</div>
           </div>
         </div>
         <Button

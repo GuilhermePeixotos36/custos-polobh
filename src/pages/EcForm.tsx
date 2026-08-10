@@ -16,6 +16,7 @@ import {
 import { IcDownload, IcSearch, IcBack } from "@/components/icons";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
+import { useResponsaveis } from "@/hooks/useResponsaveis";
 import {
   calcularTotais,
   gastoPorLinhaViaOSs,
@@ -95,6 +96,7 @@ const fornecedorNovo = (p: Partial<Fornecedor>): Fornecedor => ({
 
 const clienteVazio = (): Cliente => ({
   id: "",
+  apelido: "",
   nome: "",
   razaoSocial: "",
   endereco: "",
@@ -127,6 +129,7 @@ export function EcForm() {
   // Usuários do sistema — para atribuir observações dos itens.
   const { data: usuariosData } = useAsync(() => repo.auth.usuarios(), []);
   const usuarios = (usuariosData ?? []).map((u) => u.nome).filter(Boolean);
+  const produtoresResponsaveis = useResponsaveis(usuariosData);
   // OS's desta EC — alimentam automaticamente o "Gasto" da rentabilidade por item.
   const { data: ossData } = useAsync(() => (id ? repo.oss.porEc(id) : Promise.resolve([])), [id]);
 
@@ -440,7 +443,16 @@ export function EcForm() {
             <Field label="Local"><Input formato="titulo" value={ec.projeto.local} onChange={(e) => updProj({ local: e.target.value })} /></Field>
             <Field label="Endereço do local"><Input formato="titulo" value={ec.projeto.enderecoLocal} onChange={(e) => updProj({ enderecoLocal: e.target.value })} /></Field>
             <Field label="Nº de participantes"><Input type="number" value={ec.projeto.participantes ?? ""} onChange={(e) => updProj({ participantes: e.target.value ? Number(e.target.value) : null })} /></Field>
-            <Field label="Produtora responsável"><Input formato="titulo" value={ec.projeto.produtoraResponsavel} onChange={(e) => updProj({ produtoraResponsavel: e.target.value })} /></Field>
+            {/* Seletor, não texto livre: este nome é quem recebe as pendências do projeto. */}
+            <Field label="Produtora responsável">
+              <Select value={ec.projeto.produtoraResponsavel} onChange={(e) => updProj({ produtoraResponsavel: e.target.value })}>
+                <option value="">Selecione…</option>
+                {produtoresResponsaveis.map((u) => <option key={u.id} value={u.nome}>{u.nome}</option>)}
+                {ec.projeto.produtoraResponsavel && !produtoresResponsaveis.some((u) => u.nome === ec.projeto.produtoraResponsavel) && (
+                  <option value={ec.projeto.produtoraResponsavel}>{ec.projeto.produtoraResponsavel} (não cadastrado)</option>
+                )}
+              </Select>
+            </Field>
             <Field label="Pré-evento"><Input type="date" value={ec.projeto.preEvento} onChange={(e) => updProj({ preEvento: e.target.value })} /></Field>
             <Field label="Evento"><Input type="date" value={ec.projeto.evento} onChange={(e) => updProj({ evento: e.target.value })} /></Field>
             <Field label="Pós-evento"><Input type="date" value={ec.projeto.posEvento} onChange={(e) => updProj({ posEvento: e.target.value })} /></Field>

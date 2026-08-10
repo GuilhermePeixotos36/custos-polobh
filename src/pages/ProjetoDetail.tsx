@@ -1,21 +1,23 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { PageShell } from "@/components/layout/AppLayout";
 import {
   Card, CardTitle, Button, Field, Input, Label, TelefoneInput, Textarea, Select, Badge,
   Table, THead, Th, Tr, Td, EmptyState, tomStatusOs, type Tom,
 } from "@/components/ui";
-import { IcPlus, IcBack, IcDownload, IcSearch, IcTrash, IcEye, IcEyeOff, IcDoc, IcCopy } from "@/components/icons";
+import { IcPlus, IcBack, IcDownload, IcSearch, IcTrash, IcEye, IcEyeOff, IcDoc, IcCopy, IcChevron } from "@/components/icons";
 import { RichTextField } from "@/components/RichTextField";
 import { TimelineConsolidada, type ItemConsolidado } from "@/components/Timeline";
 import { NotifDot } from "@/components/NotifDot";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import { useMinhasPendencias } from "@/store/pendencias";
+import { useResponsaveis } from "@/hooks/useResponsaveis";
+import { useAuth } from "@/store/auth";
 import { gerarCronogramaExcel } from "@/lib/excel";
-import { consultarCnpj, documentoFiscalValido } from "@/lib/cnpj";
+import { cnpjValido, consultarCnpj } from "@/lib/cnpj";
 import { numeroEc, tituloEc } from "@/domain/calc";
-import { ETAPAS_CRONOGRAMA, compoeTituloProjeto, novaFaixaCronograma, projetoInfoVazio, sincronizarCamposLegados } from "@/domain/projeto";
+import { camposObrigatoriosProjeto, ETAPAS_CRONOGRAMA, compoeTituloProjeto, novaFaixaCronograma, novoRoteiroExtra, projetoInfoVazio, sincronizarCamposLegados } from "@/domain/projeto";
 import { flags } from "@/lib/flags";
 import { cx, dataBR, maskCpfCnpjInput, maskDoc, onlyDigits } from "@/lib/format";
 import { toast } from "@/store/toast";
@@ -29,7 +31,7 @@ const tomStatusProjeto: Record<StatusProjeto, Tom> = {
 };
 
 const clienteVazio = (): Cliente => ({
-  id: "", nome: "", razaoSocial: "", endereco: "", cnpjCpf: "",
+  id: "", apelido: "", nome: "", razaoSocial: "", endereco: "", cnpjCpf: "",
   inscricaoEstadual: "", inscricaoMunicipal: "",
   representante: { nome: "", cargo: "", telefones: "", email: "" },
 });
@@ -47,6 +49,12 @@ const ABAS: { key: Aba; label: string }[] = [
   { key: "fornecedores", label: "Fornecedores" },
 ];
 
+const ROTEIROS_PADRAO = {
+  preEvento: { label: "Pré Evento", placeholder: "Descreva o roteiro de pré-evento…" },
+  evento: { label: "Evento", placeholder: "Descreva o roteiro do evento…" },
+  posEvento: { label: "Pós Evento", placeholder: "Descreva o roteiro de pós-evento…" },
+} as const;
+
 export function ProjetoDetail() {
   const { id = "" } = useParams();
   const [params] = useSearchParams();
@@ -55,24 +63,20 @@ export function ProjetoDetail() {
   const abaParam = params.get("aba");
   const abaInicial: Aba = ABAS.some((a) => a.key === abaParam) ? (abaParam as Aba) : "dados";
   const { porAba, porOs, porEc } = useMinhasPendencias();
+  const podeEditarProjeto = useAuth((s) => s.pode("projetos.editar"));
 
   const { data: existente, loading } = useAsync(() => (novo ? Promise.resolve(undefined) : repo.projetos.obter(id)), [id]);
   const { data: ecsAll } = useAsync(() => repo.ecs.listar(), []);
   const { data: ossAll } = useAsync(() => repo.oss.listar(), []);
   const { data: clientesAll } = useAsync(() => repo.clientes.listar(), []);
-  // Usuários elegíveis a Produtor Responsável (papéis Produção e Direção).
+  // Usuários elegíveis a Produtor Responsável — critério vem da área (ver useResponsaveis).
   const { data: usuariosAll } = useAsync(() => repo.auth.usuarios(), []);
-  const produtoresResponsaveis = useMemo(
-    () => (usuariosAll ?? []).filter((u) => u.papel === "Producao" || u.papel === "Direcao"),
-    [usuariosAll]
-  );
+  const produtoresResponsaveis = useResponsaveis(usuariosAll);
   // Lista completa (com e-mail real) — só carrega para quem tem permissão de configurações;
   // se não tiver (ex.: Produção), falha em silêncio e o e-mail continua manual.
   const { data: usuariosCompletosData } = useAsync(() => repo.auth.usuariosCompletos().catch(() => null), []);
-  const produtoresCompletos = useMemo(
-    () => usuariosCompletosData?.filter((u) => u.papel === "Producao" || u.papel === "Direcao") ?? null,
-    [usuariosCompletosData]
-  );
+  // Só serve para achar o e-mail de quem já foi escolhido acima — sem filtro próprio.
+  const produtoresCompletos = usuariosCompletosData ?? null;
 
   const [p, setP] = useState<Projeto>(projetoVazio());
   const [aba, setAba] = useState<Aba>(abaInicial);
@@ -81,7 +85,10 @@ export function ProjetoDetail() {
   const [cnpjLoading, setCnpjLoading] = useState(false);
   const [cnpjMsg, setCnpjMsg] = useState("");
   const [cnpjFoco, setCnpjFoco] = useState(false);
+  const [nomeClienteFoco, setNomeClienteFoco] = useState(false);
   const [tentouSalvar, setTentouSalvar] = useState(false);
+  const ultimoCnpjAutopreenchido = useRef("");
+  const ultimoCnpjConsultado = useRef("");
   // Importar EC de outro projeto (copia itens/valores para este projeto como rascunho).
   const [importOpen, setImportOpen] = useState(false);
   const [impProjetoId, setImpProjetoId] = useState("");
@@ -188,6 +195,23 @@ export function ProjetoDetail() {
 
   const updCli = (patch: Partial<Cliente>) => setP((x) => ({ ...x, cliente: { ...x.cliente, ...patch } }));
 
+  /** Aplica o cadastro central sem usar o representante como nome do projeto. */
+  function aplicarClienteCadastrado(cliente: Cliente) {
+    setP((atual) => {
+      const info = cliente.apelido.trim()
+        ? {
+            ...atual.info,
+            clienteAbreviado: cliente.apelido,
+            titulo: compoeTituloProjeto(cliente.apelido, atual.info.nomeProjeto, atual.info.anoProjeto),
+          }
+        : atual.info;
+      return { ...atual, cliente, info, nome: info.titulo || atual.nome };
+    });
+    setCnpjFoco(false);
+    setNomeClienteFoco(false);
+    setCnpjMsg("");
+  }
+
   // Autocomplete de cliente pelo CNPJ/CPF: sugere cadastros já arquivados cujo
   // número começa com o que foi digitado (ex.: digitar "0" já filtra os que começam com 0).
   const cnpjDigitado = onlyDigits(p.cliente.cnpjCpf);
@@ -201,11 +225,42 @@ export function ProjetoDetail() {
       .slice(0, 8);
   }, [clientesAll, cnpjDigitado]);
 
+  const sugestoesClientePorNome = useMemo(() => {
+    const busca = p.cliente.nome.trim().toLocaleLowerCase("pt-BR");
+    if (busca.length < 2) return [];
+    return (clientesAll ?? [])
+      .filter((c) => c.id !== p.cliente.id)
+      .filter((c) => [c.nome, c.razaoSocial, c.apelido].some((valor) => valor.toLocaleLowerCase("pt-BR").includes(busca)))
+      .slice(0, 8);
+  }, [clientesAll, p.cliente.id, p.cliente.nome]);
+
   function selecionarClienteArquivado(c: Cliente) {
-    updCli(c);
-    setCnpjFoco(false);
-    setCnpjMsg("");
+    aplicarClienteCadastrado(c);
   }
+
+  // Ao informar um CNPJ/CPF já cadastrado, completa imediatamente todos os
+  // dados do cliente e o apelido. Não reaplica enquanto o mesmo documento não mudar.
+  useEffect(() => {
+    if (!cnpjDigitado) {
+      ultimoCnpjAutopreenchido.current = "";
+      return;
+    }
+    if (ultimoCnpjAutopreenchido.current === cnpjDigitado) return;
+    const cliente = (clientesAll ?? []).find((c) => onlyDigits(c.cnpjCpf) === cnpjDigitado);
+    if (!cliente) return;
+    ultimoCnpjAutopreenchido.current = cnpjDigitado;
+    aplicarClienteCadastrado(cliente);
+  }, [cnpjDigitado, clientesAll]);
+
+  // Sem cadastro prévio, um CNPJ válido consulta os dados fiscais automaticamente.
+  // CPF permanece manual, pois a fonte pública integrada é exclusiva para CNPJ.
+  useEffect(() => {
+    if (cnpjDigitado.length !== 14 || !cnpjValido(cnpjDigitado)) return;
+    if ((clientesAll ?? []).some((c) => onlyDigits(c.cnpjCpf) === cnpjDigitado)) return;
+    if (ultimoCnpjConsultado.current === cnpjDigitado) return;
+    ultimoCnpjConsultado.current = cnpjDigitado;
+    void consultarCnpjCliente(p.cliente.cnpjCpf);
+  }, [cnpjDigitado, clientesAll]);
   const updInfo = (patch: Partial<ProjetoInfo>) => setP((x) => ({ ...x, info: { ...x.info, ...patch }, nome: patch.titulo ?? x.nome }));
   const updTituloParte = (patch: Partial<Pick<ProjetoInfo, "clienteAbreviado" | "nomeProjeto" | "anoProjeto">>) => {
     const clienteAbreviado = patch.clienteAbreviado ?? p.info.clienteAbreviado;
@@ -217,6 +272,21 @@ export function ProjetoDetail() {
     updInfo({ cronograma: { ...p.info.cronograma, [etapa]: faixas } });
   const updFaixa = (etapa: EtapaCronogramaProjeto, idFaixa: string, patch: Partial<FaixaCronogramaProjeto>) =>
     updCronograma(etapa, p.info.cronograma[etapa].map((faixa) => faixa.id === idFaixa ? { ...faixa, ...patch } : faixa));
+  const moverFaixa = (etapa: EtapaCronogramaProjeto, indice: number, direcao: -1 | 1) => {
+    const faixas = [...p.info.cronograma[etapa]];
+    const destino = indice + direcao;
+    if (destino < 0 || destino >= faixas.length) return;
+    [faixas[indice], faixas[destino]] = [faixas[destino], faixas[indice]];
+    updCronograma(etapa, faixas);
+  };
+  const moverRoteiro = (id: string, direcao: -1 | 1) => {
+    const ordem = [...p.info.roteiroOrdem];
+    const indice = ordem.indexOf(id);
+    const destino = indice + direcao;
+    if (indice < 0 || destino < 0 || destino >= ordem.length) return;
+    [ordem[indice], ordem[destino]] = [ordem[destino], ordem[indice]];
+    updInfo({ roteiroOrdem: ordem });
+  };
   const toggleEtapaOculta = (etapa: EtapaCronogramaProjeto) =>
     updInfo({
       etapasOcultas: p.info.etapasOcultas.includes(etapa)
@@ -230,17 +300,24 @@ export function ProjetoDetail() {
         : [...p.info.roteirosOcultos, secao],
     });
 
-  async function consultarCnpjCliente() {
+  async function consultarCnpjCliente(documento = p.cliente.cnpjCpf) {
     setCnpjMsg("");
     setCnpjLoading(true);
     try {
-      const d = await consultarCnpj(p.cliente.cnpjCpf);
-      updCli({
-        nome: p.cliente.nome || d.nomeFantasia || d.razaoSocial,
-        razaoSocial: d.razaoSocial,
-        endereco: d.endereco,
-        inscricaoEstadual: d.inscricaoEstadual || p.cliente.inscricaoEstadual,
-        inscricaoMunicipal: d.inscricaoMunicipal || p.cliente.inscricaoMunicipal,
+      const d = await consultarCnpj(documento);
+      setP((atual) => {
+        if (onlyDigits(atual.cliente.cnpjCpf) !== onlyDigits(documento)) return atual;
+        return {
+          ...atual,
+          cliente: {
+            ...atual.cliente,
+            nome: atual.cliente.nome || d.nomeFantasia || d.razaoSocial,
+            razaoSocial: d.razaoSocial,
+            endereco: d.endereco,
+            inscricaoEstadual: d.inscricaoEstadual || atual.cliente.inscricaoEstadual,
+            inscricaoMunicipal: d.inscricaoMunicipal || atual.cliente.inscricaoMunicipal,
+          },
+        };
       });
       const preenchidas = [d.inscricaoEstadual && "IE", d.inscricaoMunicipal && "IM"].filter(Boolean).join(" e ");
       setCnpjMsg(preenchidas
@@ -265,18 +342,7 @@ export function ProjetoDetail() {
     }
   }
 
-  const camposObrigatoriosFaltando = (): { chave: string; label: string }[] => {
-    const faltando: { chave: string; label: string }[] = [];
-    if (!p.info.clienteAbreviado.trim()) faltando.push({ chave: "clienteAbreviado", label: "Cliente (apelido)" });
-    if (!p.info.nomeProjeto.trim()) faltando.push({ chave: "nomeProjeto", label: "Nome do projeto" });
-    if (!/^(19\d{2}|20\d{2}|2100)$/.test(p.info.anoProjeto.trim())) faltando.push({ chave: "anoProjeto", label: "Ano (1900 a 2100)" });
-    if (!p.cliente.nome.trim()) faltando.push({ chave: "clienteNome", label: "Cliente (nome)" });
-    if (!documentoFiscalValido(p.cliente.cnpjCpf)) faltando.push({ chave: "cnpjCpf", label: "CNPJ/CPF válido" });
-    if (!p.info.modalidade) faltando.push({ chave: "modalidade", label: "Modalidade" });
-    if (!p.info.local.trim()) faltando.push({ chave: "local", label: "Local" });
-    if (!p.info.cronograma.evento.some((f) => f.data.trim())) faltando.push({ chave: "cronogramaEvento", label: "Data do evento (cronograma)" });
-    return faltando;
-  };
+  const camposObrigatoriosFaltando = () => camposObrigatoriosProjeto(p.info, p.cliente);
 
   // Derivado a cada render: assim que um campo apontado é corrigido, o destaque
   // vermelho some sozinho — não precisa tentar salvar de novo para "limpar".
@@ -292,9 +358,9 @@ export function ProjetoDetail() {
     }
     setSalvando(true);
     try {
-      const revisao = await corrigirRoteirosProjeto(p.info.roteiros);
-      const info = sincronizarCamposLegados({ ...p.info, roteiros: revisao.roteiros });
-      const cliente = await arquivarCliente(p.cliente);
+      const revisao = await corrigirRoteirosProjeto(p.info.roteiros, p.info.roteirosExtras);
+      const info = sincronizarCamposLegados({ ...p.info, roteiros: revisao.roteiros, roteirosExtras: revisao.roteirosExtras });
+      const cliente = await arquivarCliente({ ...p.cliente, apelido: info.clienteAbreviado });
       const salvo = await repo.projetos.salvar({ ...p, cliente, info, nome: info.titulo || p.nome || "Projeto" });
       setP(salvo);
       toast(revisao.revisaoCompleta
@@ -311,26 +377,22 @@ export function ProjetoDetail() {
   if (loading) return <PageShell title="Carregando…">{null}</PageShell>;
   if (!novo && !existente) return <PageShell title="Projeto não encontrado">{null}</PageShell>;
 
-  /**
-   * Arquivamento manual do projeto: só permite se não houver OS pendente de emissão
-   * (Rascunho). Ao arquivar, também arquiva a EC ativa — o que leva o status automático
-   * do projeto a "Arquivado".
-   */
+  /** Arquiva o projeto e toda a sua cadeia documental (ECs e OSs). */
   async function arquivarProjeto() {
-    const pendentes = ossDoProjeto.filter((o) => o.status === "Rascunho");
-    if (pendentes.length) {
-      toast(`Há ${pendentes.length} OS não emitida(s). Emita ou cancele todas antes de arquivar o projeto.`, "warning");
-      return;
-    }
+    const ecsParaArquivar = ecsDoProjeto.filter((e) => e.status !== "Arquivada");
+    const ossParaArquivar = ossDoProjeto.filter((o) => o.status !== "Arquivada");
     if (!(await confirmar({
       titulo: "Arquivar este projeto?",
-      mensagem: "A EC ativa será arquivada e o projeto sai dos ativos. As OSs já emitidas/canceladas são preservadas.",
+      mensagem: `Serão arquivadas ${ecsParaArquivar.length} EC(s) e ${ossParaArquivar.length} OS(s) vinculada(s). Todas as pendências do projeto serão encerradas.`,
       confirmarTexto: "Arquivar projeto",
     }))) return;
-    const ativa = ecsDoProjeto.find((e) => e.ativa);
-    if (ativa) await repo.ecs.salvar({ ...ativa, status: "Arquivada", ativa: false });
-    toast("Projeto arquivado.", "success");
-    navigate(0);
+    try {
+      await repo.projetos.arquivarDocumentos(id);
+      toast("Projeto, ECs e OSs arquivados.", "success");
+      navigate(0);
+    } catch (e) {
+      toast(`Não foi possível arquivar: ${(e as Error).message}`, "danger");
+    }
   }
 
   async function importarEc() {
@@ -389,7 +451,7 @@ export function ProjetoDetail() {
         <button onClick={() => navigate("/projetos")} className="inline-flex items-center gap-1.5 text-sm text-ink-2 hover:text-ink font-semibold">
           <IcBack width={16} height={16} /> Voltar
         </button>
-        {(aba === "dados" || novo) && (
+        {(aba === "dados" || novo) && podeEditarProjeto && (
           <div className="flex gap-2">
             {!novo && statusExibido !== "Arquivado" && (
               <Button variant="secondary" size="sm" onClick={arquivarProjeto}>Arquivar projeto</Button>
@@ -425,7 +487,7 @@ export function ProjetoDetail() {
         <div className="space-y-4">
           <Card>
               <CardTitle action={
-                <Button variant="soft" size="sm" icon={<IcSearch width={15} height={15} />} onClick={consultarCnpjCliente} disabled={cnpjLoading || !flags.consultaCnpj}>
+                <Button variant="soft" size="sm" icon={<IcSearch width={15} height={15} />} onClick={() => consultarCnpjCliente()} disabled={cnpjLoading || !flags.consultaCnpj}>
                   {cnpjLoading ? "Consultando…" : "Consultar CNPJ"}
                 </Button>
               }>Cliente</CardTitle>
@@ -461,7 +523,35 @@ export function ProjetoDetail() {
                     )}
                   </div>
                 </Field>
-                <Field label="Cliente (nome)"><Input formato="titulo" erro={chavesComErro.has("clienteNome")} value={p.cliente.nome} onChange={(e) => updCli({ nome: e.target.value })} /></Field>
+                <Field label="Cliente (nome)">
+                  <div className="relative">
+                    <Input
+                      formato="titulo"
+                      erro={chavesComErro.has("clienteNome")}
+                      value={p.cliente.nome}
+                      onChange={(e) => updCli({ nome: e.target.value })}
+                      onFocus={() => setNomeClienteFoco(true)}
+                      onBlur={() => setTimeout(() => setNomeClienteFoco(false), 150)}
+                      autoComplete="off"
+                    />
+                    {nomeClienteFoco && sugestoesClientePorNome.length > 0 && (
+                      <div className="absolute z-10 mt-1 w-full max-h-56 overflow-auto rounded-btn border border-border-soft bg-surface shadow-lg">
+                        {sugestoesClientePorNome.map((c) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            className="w-full text-left px-3.5 py-2 text-sm hover:bg-bg border-b border-border-soft last:border-b-0"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => selecionarClienteArquivado(c)}
+                          >
+                            <div className="font-bold text-ink">{c.nome || c.razaoSocial}</div>
+                            <div className="text-ink-2 text-[12.5px]">{[c.apelido, maskDoc(c.cnpjCpf)].filter(Boolean).join(" · ")}</div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </Field>
                 <Field label="Razão Social" className="sm:col-span-2"><Input formato="titulo-empresa" value={p.cliente.razaoSocial} onChange={(e) => updCli({ razaoSocial: e.target.value })} /></Field>
                 <Field label="Endereço" className="sm:col-span-2"><Input formato="titulo" value={p.cliente.endereco} onChange={(e) => updCli({ endereco: e.target.value })} /></Field>
                 <Field label="Inscrição Estadual"><Input value={p.cliente.inscricaoEstadual} onChange={(e) => updCli({ inscricaoEstadual: e.target.value })} /></Field>
@@ -529,6 +619,14 @@ export function ProjetoDetail() {
                     <option value={p.info.produtoraResponsavel}>{p.info.produtoraResponsavel} (não cadastrado)</option>
                   )}
                 </Select>
+                {/* As pendências do projeto são roteadas pelo nome cadastrado — um nome
+                    solto (dado antigo) gera pendência que não chega a ninguém. */}
+                {p.info.produtoraResponsavel && !produtoresResponsaveis.some((u) => u.nome === p.info.produtoraResponsavel) && (
+                  <p className="text-[12px] text-warning mt-1.5">
+                    "{p.info.produtoraResponsavel}" não é um usuário do sistema — as pendências deste projeto ficam sem dono.
+                    Escolha alguém da lista ou cadastre essa pessoa em Configurações → Usuários.
+                  </p>
+                )}
               </Field>
               <Field label="Telefone da produtora responsável"><TelefoneInput value={p.info.telefoneProdutora} onChange={(v) => updInfo({ telefoneProdutora: v })} /></Field>
               <Field label="E-mail da produtora responsável"><Input type="email" value={p.info.emailProdutora} onChange={(e) => updInfo({ emailProdutora: e.target.value })} /></Field>
@@ -561,12 +659,14 @@ export function ProjetoDetail() {
                     </div>
                     {!oculta && (
                       <div className="space-y-2">
-                        {p.info.cronograma[key].map((faixa) => (
+                        {p.info.cronograma[key].map((faixa, indice) => (
                           <div key={faixa.id} className="grid grid-cols-1 sm:grid-cols-[minmax(150px,1fr)_minmax(120px,.7fr)_minmax(120px,.7fr)_auto] gap-2 items-end">
                             <Field label="Data"><Input type="date" erro={key === "evento" && chavesComErro.has("cronogramaEvento") && !faixa.data.trim()} value={faixa.data} onChange={(e) => updFaixa(key, faixa.id, { data: e.target.value })} /></Field>
                             <Field label="Início"><Input type="time" value={faixa.inicio} onChange={(e) => updFaixa(key, faixa.id, { inicio: e.target.value })} /></Field>
                             <Field label="Fim"><Input type="time" value={faixa.fim} onChange={(e) => updFaixa(key, faixa.id, { fim: e.target.value })} /></Field>
                             <div className="flex gap-1 pb-0.5">
+                              <Button type="button" variant="text" size="sm" aria-label={`Mover data para cima em ${label}`} title="Mover para cima" icon={<IcChevron width={15} height={15} className="-rotate-90" />} disabled={indice === 0} onClick={() => moverFaixa(key, indice, -1)} />
+                              <Button type="button" variant="text" size="sm" aria-label={`Mover data para baixo em ${label}`} title="Mover para baixo" icon={<IcChevron width={15} height={15} className="rotate-90" />} disabled={indice === p.info.cronograma[key].length - 1} onClick={() => moverFaixa(key, indice, 1)} />
                               <Button type="button" variant="soft" size="sm" aria-label={`Adicionar data em ${label}`} icon={<IcPlus width={15} height={15} />} onClick={() => updCronograma(key, [...p.info.cronograma[key], novaFaixaCronograma()])}>Adicionar</Button>
                               {p.info.cronograma[key].length > 1 && (
                                 <Button type="button" variant="text" size="sm" aria-label={`Excluir data de ${label}`} icon={<IcTrash width={15} height={15} />} onClick={() => updCronograma(key, p.info.cronograma[key].filter((item) => item.id !== faixa.id))} />
@@ -583,35 +683,61 @@ export function ProjetoDetail() {
           </Card>
 
           <Card>
-            <CardTitle hint="Os textos aceitam parágrafos, negrito e listas. A revisão ortográfica é aplicada ao salvar.">Roteiro</CardTitle>
+            <CardTitle
+              hint="Os textos aceitam parágrafos, negrito e listas. A revisão ortográfica é aplicada ao salvar."
+              action={
+                <Button
+                  type="button"
+                  variant="soft"
+                  size="sm"
+                  icon={<IcPlus width={15} height={15} />}
+                  onClick={() => {
+                    const item = novoRoteiroExtra();
+                    updInfo({ roteirosExtras: [...p.info.roteirosExtras, item], roteiroOrdem: [...p.info.roteiroOrdem, item.id] });
+                  }}
+                >
+                  Adicionar item
+                </Button>
+              }
+            >Roteiro</CardTitle>
             <div className="space-y-4">
-              {([
-                { key: "preEvento", label: "Pré Evento", placeholder: "Descreva o roteiro de pré-evento…" },
-                { key: "evento", label: "Evento", placeholder: "Descreva o roteiro do evento…" },
-                { key: "posEvento", label: "Pós Evento", placeholder: "Descreva o roteiro de pós-evento…" },
-              ] as const).map(({ key, label, placeholder }) => {
-                const oculto = p.info.roteirosOcultos.includes(key);
+              {p.info.roteiroOrdem.flatMap((id) => {
+                const chave = id in ROTEIROS_PADRAO ? id as keyof typeof ROTEIROS_PADRAO : undefined;
+                const extra = chave ? undefined : p.info.roteirosExtras.find((item) => item.id === id);
+                if (!chave && !extra) return [];
+                const indice = p.info.roteiroOrdem.indexOf(id);
+                const label = chave ? ROTEIROS_PADRAO[chave].label : extra!.titulo;
+                const placeholder = chave ? ROTEIROS_PADRAO[chave].placeholder : "Descreva esta etapa do roteiro…";
+                const oculto = chave ? p.info.roteirosOcultos.includes(chave) : false;
                 return (
-                  <div key={key}>
+                  <div key={id} className="rounded-btn border border-border-soft p-3 sm:p-4">
                     <div className="mb-1.5 flex items-center justify-between gap-2">
-                      <Label>{label}</Label>
-                      <Button
-                        type="button"
-                        variant="text"
-                        size="sm"
-                        aria-label={oculto ? `Reexibir ${label}` : `Ocultar ${label}`}
-                        title={oculto ? "Reexibir seção" : "Ocultar seção"}
-                        icon={oculto ? <IcEye width={15} height={15} /> : <IcEyeOff width={15} height={15} />}
-                        onClick={() => toggleRoteiroOculto(key)}
-                      >
-                        {oculto ? "Reexibir" : "Ocultar"}
-                      </Button>
+                      {chave ? <Label>{label}</Label> : <Input formato="titulo" value={extra!.titulo} onChange={(e) => updInfo({ roteirosExtras: p.info.roteirosExtras.map((item) => item.id === id ? { ...item, titulo: e.target.value } : item) })} placeholder="Título da etapa" />}
+                      <div className="flex gap-1">
+                        <Button type="button" variant="text" size="sm" aria-label={`Mover ${label} para cima`} title="Mover para cima" icon={<IcChevron width={15} height={15} className="-rotate-90" />} disabled={indice === 0} onClick={() => moverRoteiro(id, -1)} />
+                        <Button type="button" variant="text" size="sm" aria-label={`Mover ${label} para baixo`} title="Mover para baixo" icon={<IcChevron width={15} height={15} className="rotate-90" />} disabled={indice === p.info.roteiroOrdem.length - 1} onClick={() => moverRoteiro(id, 1)} />
+                        {chave ? (
+                          <Button
+                            type="button"
+                            variant="text"
+                            size="sm"
+                            aria-label={oculto ? `Reexibir ${label}` : `Ocultar ${label}`}
+                            title={oculto ? "Reexibir seção" : "Ocultar seção"}
+                            icon={oculto ? <IcEye width={15} height={15} /> : <IcEyeOff width={15} height={15} />}
+                            onClick={() => toggleRoteiroOculto(chave)}
+                          />
+                        ) : (
+                          <Button type="button" variant="text" size="sm" aria-label={`Excluir ${label}`} title="Excluir item" icon={<IcTrash width={15} height={15} />} onClick={() => updInfo({ roteirosExtras: p.info.roteirosExtras.filter((item) => item.id !== id), roteiroOrdem: p.info.roteiroOrdem.filter((itemId) => itemId !== id) })} />
+                        )}
+                      </div>
                     </div>
                     {!oculto && (
                       <RichTextField
                         className="[&_[contenteditable]]:min-h-[220px]"
-                        value={p.info.roteiros[key]}
-                        onChange={(v) => updInfo({ roteiros: { ...p.info.roteiros, [key]: v } })}
+                        value={chave ? p.info.roteiros[chave] : extra!.conteudo}
+                        onChange={(v) => chave
+                          ? updInfo({ roteiros: { ...p.info.roteiros, [chave]: v } })
+                          : updInfo({ roteirosExtras: p.info.roteirosExtras.map((item) => item.id === id ? { ...item, conteudo: v } : item) })}
                         placeholder={placeholder}
                       />
                     )}

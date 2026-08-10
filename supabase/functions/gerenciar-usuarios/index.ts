@@ -11,9 +11,13 @@ import { autorizar, respostaAutorizacao, type Papel } from "../_shared/auth.ts";
  * podem chamar esta função.
  *
  * Ações (POST { acao, ... }):
- *   listar                                  -> { ok, usuarios: [...] }
- *   criar    { email, nome, papel, telefone } -> convida por e-mail + cria o perfil
- *   atualizar { id, nome?, papel?, telefone?, email? } -> atualiza perfil (+ e-mail no Auth se mudou)
+ *   listar                                     -> { ok, usuarios: [...] }
+ *   criar    { email, nome, areaId, telefone }  -> convida por e-mail + cria o perfil na área
+ *   atualizar { id, nome?, areaId?, telefone?, email? } -> atualiza perfil (+ e-mail no Auth se mudou)
+ *
+ * O `papel` (nível de segurança usado pela RLS) NÃO vem do cliente: é derivado
+ * do `papel_base` da área por trigger no banco — ver a migração
+ * 20260809120000_areas_permissoes.sql.
  */
 
 const cors = {
@@ -26,7 +30,6 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PAPEIS_VALIDOS: Papel[] = ["Admin", "Direcao", "Producao", "Administrativo"];
 const QUEM_GERENCIA: Papel[] = ["Admin", "Direcao", "Administrativo"];
 
 interface UsuarioRow {
@@ -35,6 +38,16 @@ interface UsuarioRow {
   email: string;
   telefone: string;
   papel: Papel;
+  areaId: string | null;
+  areaNome: string | null;
+}
+
+/** Confere se a área existe; devolve o papel_base para gravar junto (a trigger reforça). */
+async function papelDaArea(sb: ReturnType<typeof admin>, areaId: string): Promise<Papel> {
+  const { data, error } = await sb.from("areas").select("papel_base").eq("id", areaId).maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("Área não encontrada.");
+  return data.papel_base as Papel;
 }
 
 function admin() {
@@ -49,7 +62,7 @@ function admin() {
 async function listarUsuarios(sb: ReturnType<typeof admin>): Promise<UsuarioRow[]> {
   const { data: perfis, error: perfisErro } = await sb
     .from("perfis")
-    .select("id, nome, papel, telefone")
+    .select("id, nome, papel, telefone, area_id, areas(nome)")
     .order("nome");
   if (perfisErro) throw new Error(perfisErro.message);
 
@@ -57,12 +70,15 @@ async function listarUsuarios(sb: ReturnType<typeof admin>): Promise<UsuarioRow[
   if (authErro) throw new Error(authErro.message);
   const emailPorId = new Map(authList.users.map((u) => [u.id, u.email ?? ""]));
 
-  return (perfis ?? []).map((p): UsuarioRow => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (perfis ?? []).map((p: any): UsuarioRow => ({
     id: p.id,
     nome: p.nome ?? "",
     telefone: p.telefone ?? "",
     papel: p.papel as Papel,
     email: emailPorId.get(p.id) ?? "",
+    areaId: p.area_id ?? null,
+    areaNome: (Array.isArray(p.areas) ? p.areas[0]?.nome : p.areas?.nome) ?? null,
   }));
 }
 
@@ -70,23 +86,30 @@ async function criarUsuario(sb: ReturnType<typeof admin>, body: Record<string, u
   const email = String(body.email ?? "").trim();
   const nome = String(body.nome ?? "").trim();
   const telefone = String(body.telefone ?? "").trim();
-  const papel = body.papel as Papel;
+  const areaId = String(body.areaId ?? "").trim();
   if (!EMAIL_RE.test(email)) throw new Error("E-mail inválido.");
   if (!nome) throw new Error("Nome é obrigatório.");
-  if (!PAPEIS_VALIDOS.includes(papel)) throw new Error("Papel/grupo de permissão inválido.");
+  if (!areaId) throw new Error("Selecione a área do usuário.");
+  const papel = await papelDaArea(sb, areaId);
 
   // Cria o login (convite por e-mail — o próprio usuário define a senha).
   const { data: convite, error: conviteErro } = await sb.auth.admin.inviteUserByEmail(email);
   if (conviteErro || !convite?.user) throw new Error(conviteErro?.message ?? "Não foi possível convidar este e-mail.");
 
-  const { error: perfilErro } = await sb.from("perfis").insert({ id: convite.user.id, nome, papel, telefone });
+  const { data: perfil, error: perfilErro } = await sb
+    .from("perfis")
+    .insert({ id: convite.user.id, nome, papel, telefone, area_id: areaId })
+    .select("area_id, areas(nome)")
+    .single();
   if (perfilErro) {
     // Reverte o convite se não conseguir criar o perfil, para não deixar login órfão.
     await sb.auth.admin.deleteUser(convite.user.id).catch(() => {});
     throw new Error(perfilErro.message);
   }
 
-  return { id: convite.user.id, nome, telefone, papel, email };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const area = (Array.isArray((perfil as any)?.areas) ? (perfil as any).areas[0] : (perfil as any)?.areas) ?? null;
+  return { id: convite.user.id, nome, telefone, papel, email, areaId, areaNome: area?.nome ?? null };
 }
 
 async function atualizarUsuario(sb: ReturnType<typeof admin>, body: Record<string, unknown>): Promise<UsuarioRow> {
@@ -96,9 +119,10 @@ async function atualizarUsuario(sb: ReturnType<typeof admin>, body: Record<strin
   const patchPerfil: Record<string, unknown> = {};
   if (typeof body.nome === "string" && body.nome.trim()) patchPerfil.nome = body.nome.trim();
   if (typeof body.telefone === "string") patchPerfil.telefone = body.telefone.trim();
-  if (typeof body.papel === "string") {
-    if (!PAPEIS_VALIDOS.includes(body.papel as Papel)) throw new Error("Papel/grupo de permissão inválido.");
-    patchPerfil.papel = body.papel;
+  if (typeof body.areaId === "string" && body.areaId.trim()) {
+    const areaId = body.areaId.trim();
+    patchPerfil.papel = await papelDaArea(sb, areaId); // a trigger no banco reforça
+    patchPerfil.area_id = areaId;
   }
   if (Object.keys(patchPerfil).length) {
     const { error } = await sb.from("perfis").update(patchPerfil).eq("id", id);
@@ -112,10 +136,25 @@ async function atualizarUsuario(sb: ReturnType<typeof admin>, body: Record<strin
     if (error) throw new Error(error.message);
   }
 
-  const { data: perfil, error: perfilErro } = await sb.from("perfis").select("id, nome, papel, telefone").eq("id", id).maybeSingle();
+  const { data: perfil, error: perfilErro } = await sb
+    .from("perfis")
+    .select("id, nome, papel, telefone, area_id, areas(nome)")
+    .eq("id", id)
+    .maybeSingle();
   if (perfilErro || !perfil) throw new Error(perfilErro?.message ?? "Usuário não encontrado após atualizar.");
   const { data: authUser } = await sb.auth.admin.getUserById(id);
-  return { id: perfil.id, nome: perfil.nome ?? "", telefone: perfil.telefone ?? "", papel: perfil.papel as Papel, email: authUser?.user?.email ?? "" };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const p = perfil as any;
+  const area = (Array.isArray(p.areas) ? p.areas[0] : p.areas) ?? null;
+  return {
+    id: p.id,
+    nome: p.nome ?? "",
+    telefone: p.telefone ?? "",
+    papel: p.papel as Papel,
+    email: authUser?.user?.email ?? "",
+    areaId: p.area_id ?? null,
+    areaNome: area?.nome ?? null,
+  };
 }
 
 Deno.serve(async (req) => {

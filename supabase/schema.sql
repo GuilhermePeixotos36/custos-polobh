@@ -30,6 +30,7 @@ $$;
 
 create table if not exists clientes (
   id uuid primary key default gen_random_uuid(),
+  apelido text not null default '',
   nome text not null,
   razao_social text,
   endereco text,
@@ -168,7 +169,7 @@ create table if not exists oss (
   -- BV fica aqui (editável pela Produção via oss_write); o resto do financeiro não.
   bv jsonb not null default '{"percentual":0,"valor":0,"justificativa":""}'::jsonb,
   observacoes text,
-  status text check (status in ('Rascunho','Emitida','Disparada','Cancelada')) default 'Rascunho',
+  status text check (status in ('Rascunho','Emitida','Disparada','Cancelada','Arquivada')) default 'Rascunho',
   criado_em timestamptz default now(),
   atualizado_em timestamptz default now()
 );

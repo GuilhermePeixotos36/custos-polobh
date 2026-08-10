@@ -7,11 +7,14 @@ import type { User } from "@supabase/supabase-js";
 
 export type Recurso =
   | "projetos"
+  | "projetos.editar"
   | "ecs"
   | "ecs.editar"
   | "oss"
+  | "oss.editar"
   | "cronogramas"
   | "fornecedores"
+  | "fornecedores.editar"
   | "financeiro"
   | "configuracoes"
   | "logs"
@@ -20,39 +23,86 @@ export type Recurso =
 /** Todos os recursos — usado pelo perfil Administrador (acesso total). */
 export const TODOS_RECURSOS: Recurso[] = [
   "projetos",
+  "projetos.editar",
   "ecs",
   "ecs.editar",
   "oss",
+  "oss.editar",
   "cronogramas",
   "fornecedores",
+  "fornecedores.editar",
   "financeiro",
   "configuracoes",
   "logs",
   "guia",
 ];
 
-/** Matriz de perfis × recursos (seção 4 / 9 do brief). Espelha a RLS no banco. */
+/**
+ * Telas do sistema, na ordem em que aparecem na matriz de Configurações.
+ * `editar` é a chave do recurso de edição, quando a tela tem uma.
+ */
+export const TELAS: { ver: Recurso; editar?: Recurso; label: string }[] = [
+  { ver: "projetos", editar: "projetos.editar", label: "Projetos" },
+  { ver: "ecs", editar: "ecs.editar", label: "Estimativas de Custo" },
+  { ver: "oss", editar: "oss.editar", label: "Ordens de Serviço" },
+  { ver: "cronogramas", label: "Cronogramas" },
+  { ver: "fornecedores", editar: "fornecedores.editar", label: "Fornecedores" },
+  { ver: "guia", label: "Guia de uso" },
+];
+
+/** Permissões que não são "telas", e sim o que se enxerga dentro delas. */
+export const PERMISSOES_ESPECIAIS: { key: Recurso; label: string; hint: string }[] = [
+  {
+    key: "financeiro",
+    label: "Bloco financeiro",
+    hint: "Valores Pólobh, valores do cliente e rentabilidade na EC e na OS",
+  },
+  { key: "configuracoes", label: "Configurações", hint: "Empresas do grupo, áreas e usuários" },
+  { key: "logs", label: "Logs do sistema", hint: "Trilha de auditoria — normalmente só o Administrador" },
+];
+
+/**
+ * Matriz padrão de fábrica (perfis × recursos). Serve de semente para as áreas
+ * de fábrica e de rede de segurança quando o usuário ainda não tem área.
+ * A matriz que vale no dia a dia vem da área do usuário (tabela `areas`).
+ */
 export const PERMISSOES: Record<Papel, Recurso[]> = {
   // Administrador: superusuário (desenvolvedor/gestor do app). Único com "logs".
   Admin: TODOS_RECURSOS,
   Direcao: [
     "projetos",
+    "projetos.editar",
     "ecs",
     "ecs.editar",
     "oss",
+    "oss.editar",
     "cronogramas",
     "fornecedores",
+    "fornecedores.editar",
     "financeiro",
     "configuracoes",
     "guia",
   ],
-  Producao: ["projetos", "ecs", "ecs.editar", "oss", "cronogramas", "fornecedores", "guia"],
+  Producao: [
+    "projetos",
+    "projetos.editar",
+    "ecs",
+    "ecs.editar",
+    "oss",
+    "oss.editar",
+    "cronogramas",
+    "fornecedores",
+    "fornecedores.editar",
+    "guia",
+  ],
   Administrativo: [
     "projetos",
     "ecs",
     "oss",
+    "oss.editar",
     "cronogramas",
     "fornecedores",
+    "fornecedores.editar",
     "financeiro",
     "configuracoes",
     "guia",
@@ -63,11 +113,22 @@ export const ROTULO_PAPEL: Record<Papel, string> = {
   Admin: "Administrador",
   Direcao: "Direção",
   Producao: "Produção",
-  Administrativo: "Administrativo",
+  // O papel 'Administrativo' é o do financeiro da Pólobh (o que vê só a
+  // descrição financeira da EC) — o rótulo acompanha o nome usado na casa.
+  Administrativo: "Financeiro",
 };
+
+/**
+ * Níveis de segurança que uma área pode herdar. 'Admin' fica de fora de
+ * propósito: é o papel do desenvolvedor, que não pertence a área nenhuma e
+ * enxerga tudo pelo fallback de `pode()`.
+ */
+export const PAPEIS_AREA: Papel[] = ["Direcao", "Producao", "Administrativo"];
 
 interface AuthState {
   usuario: Usuario | null;
+  /** Recursos liberados pela área do usuário. null = sem área (cai no padrão do papel). */
+  recursos: Recurso[] | null;
   /** true até a sessão inicial ser resolvida (evita redirect prematuro). */
   carregando: boolean;
   pode: (r: Recurso) => boolean;
@@ -77,40 +138,58 @@ interface AuthState {
   bootstrap: () => Promise<void>;
 }
 
+/** Formato da área trazida no join de `perfis`. */
+interface AreaJoin {
+  nome: string | null;
+  recursos: string[] | null;
+}
+
 export const useAuth = create<AuthState>((set, get) => {
   /** Carrega o perfil (papel) do usuário autenticado e popula o estado. */
   async function carregarPerfil(user: User) {
     const { data, error } = await supabase
       .from("perfis")
-      .select("nome, papel, telefone")
+      .select("nome, papel, telefone, area_id, areas(nome, recursos)")
       .eq("id", user.id)
       .maybeSingle();
 
     if (error || !data) {
       // Usuário sem perfil cadastrado: não tem acesso a nada.
       definirAtor(null);
-      set({ usuario: null, carregando: false });
+      set({ usuario: null, recursos: null, carregando: false });
       return null;
     }
+    // O join volta como objeto (relação 1:1) — o tipo gerado do supabase-js
+    // descreve como array, daí o normalize abaixo.
+    const bruto = (data as { areas?: AreaJoin | AreaJoin[] | null }).areas;
+    const area = (Array.isArray(bruto) ? bruto[0] : bruto) ?? null;
+
     const usuario: Usuario = {
       id: user.id,
       nome: data.nome ?? user.email ?? "Usuário",
       email: user.email ?? "",
       telefone: data.telefone ?? "",
       papel: data.papel as Papel,
+      areaId: data.area_id ?? undefined,
+      areaNome: area?.nome ?? undefined,
     };
     definirAtor({ id: user.id, nome: usuario.nome, papel: usuario.papel });
-    set({ usuario, carregando: false });
+    set({ usuario, recursos: (area?.recursos as Recurso[] | undefined) ?? null, carregando: false });
     return usuario;
   }
 
   return {
     usuario: null,
+    recursos: null,
     carregando: true,
 
     pode: (r) => {
       const u = get().usuario;
       if (!u) return false;
+      // A área do usuário é a fonte de verdade; sem área (ou área sem nenhum
+      // recurso marcado), vale a matriz padrão do papel.
+      const daArea = get().recursos;
+      if (daArea && daArea.length) return daArea.includes(r);
       return PERMISSOES[u.papel].includes(r);
     },
 
@@ -150,7 +229,7 @@ export const useAuth = create<AuthState>((set, get) => {
       }
       definirAtor(null);
       await supabase.auth.signOut();
-      set({ usuario: null });
+      set({ usuario: null, recursos: null });
     },
 
     bootstrap: async () => {
@@ -166,7 +245,7 @@ export const useAuth = create<AuthState>((set, get) => {
           carregarPerfil(session.user);
         } else {
           definirAtor(null);
-          set({ usuario: null, carregando: false });
+          set({ usuario: null, recursos: null, carregando: false });
         }
       });
     },

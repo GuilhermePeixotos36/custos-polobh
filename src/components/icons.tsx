@@ -226,3 +226,16 @@ export const IcPencil = (p: P) => (
     <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z" />
   </I>
 );
+/** X — fechar modais e popups. */
+export const IcFechar = (p: P) => (
+  <I {...p}>
+    <path d="M18 6 6 18M6 6l12 12" />
+  </I>
+);
+/** Círculo cortado — inativar/bloquear algo que não pode ser excluído. */
+export const IcBloqueio = (p: P) => (
+  <I {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M5.6 5.6l12.8 12.8" />
+  </I>
+);

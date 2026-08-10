@@ -441,7 +441,7 @@ export function EcDetail() {
           <Button variant="secondary" size="sm" onClick={() => navigate(`/estimativas/${ec.id}/imprimir`)}>
             Ver / PDF
           </Button>
-          {pode("oss") && ec.ativa && ec.linhas.some((l) => l.statusOs === "Emitir" || l.statusOs === "Emitir Nova Versão") && (
+          {pode("oss.editar") && ec.ativa && ec.linhas.some((l) => l.statusOs === "Emitir" || l.statusOs === "Emitir Nova Versão") && (
             <Button variant="primary" size="sm" onClick={emitirOs} disabled={emitindo}>
               {emitindo ? "Emitindo…" : "Emitir OS"}
             </Button>

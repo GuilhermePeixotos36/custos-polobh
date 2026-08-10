@@ -3,7 +3,25 @@
  * Fonte de verdade: planilhas reais em /reference.
  */
 
+/**
+ * Nível de segurança de dados. Governa a RLS no banco (`papel_atual()`) — por
+ * isso continua sendo um conjunto fechado. Quem escolhe as telas é a Área.
+ */
 export type Papel = "Admin" | "Direcao" | "Producao" | "Administrativo";
+
+/**
+ * Grupo de permissão cadastrável ("área", no vocabulário da Pólobh).
+ * `recursos` são chaves do tipo `Recurso` (src/store/auth.ts) — as telas que a
+ * área vê/edita. `papelBase` é o nível de segurança herdado no banco.
+ */
+export interface Area {
+  id: string;
+  nome: string;
+  papelBase: Papel;
+  recursos: string[];
+  /** Área inativa não pode ser atribuída a novos usuários; quem já está nela mantém o acesso. */
+  ativa: boolean;
+}
 
 export interface Usuario {
   id: string;
@@ -11,6 +29,10 @@ export interface Usuario {
   email: string;
   telefone: string;
   papel: Papel;
+  /** Área à qual o usuário pertence (define suas telas). */
+  areaId?: string;
+  /** Nome da área, para exibição em listas. */
+  areaNome?: string;
 }
 
 /** Empresa emissora do grupo Pólobh (dados fiscais usados na OS). */
@@ -66,6 +88,8 @@ export interface Representante {
 
 export interface Cliente {
   id: string;
+  /** Apelido único do cliente, reutilizado como prefixo dos novos projetos. */
+  apelido: string;
   nome: string;
   razaoSocial: string;
   endereco: string;
@@ -170,6 +194,13 @@ export interface RoteirosProjeto {
   posEvento: string;
 }
 
+/** Bloco adicional de roteiro, criado pelo usuário além das três etapas padrão. */
+export interface RoteiroExtraProjeto {
+  id: string;
+  titulo: string;
+  conteudo: string;
+}
+
 export interface ProjetoInfo {
   /** Composto automaticamente a partir de clienteAbreviado + nomeProjeto + anoProjeto. */
   titulo: string;
@@ -195,6 +226,10 @@ export interface ProjetoInfo {
   roteiros: RoteirosProjeto;
   /** Seções do roteiro ocultadas pelo usuário (ficam recolhidas, mas os dados não são perdidos). */
   roteirosOcultos: (keyof RoteirosProjeto)[];
+  /** Blocos adicionais, livres, do roteiro. */
+  roteirosExtras: RoteiroExtraProjeto[];
+  /** Ordem de exibição das etapas padrão e dos blocos adicionais do roteiro. */
+  roteiroOrdem: string[];
 }
 
 export interface EcLinha {
@@ -309,7 +344,7 @@ export interface Ec {
 
 /* --------------------------------- OS ----------------------------------- */
 
-export type StatusOsDoc = "Rascunho" | "Emitida" | "Disparada" | "Cancelada";
+export type StatusOsDoc = "Rascunho" | "Emitida" | "Disparada" | "Cancelada" | "Arquivada";
 
 export type Modalidade =
   | "Produto"

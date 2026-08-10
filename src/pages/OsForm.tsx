@@ -188,6 +188,7 @@ export function OsForm() {
   const navigate = useNavigate();
   const pode = useAuth((s) => s.pode);
   const verFinanceiro = pode("financeiro");
+  const podeEditar = pode("oss.editar");
   // Empresas do grupo (carregadas no boot) — dados fiscais quando o tomador/contratante é a Pólobh.
   const empresas = useEmpresas((s) => s.empresas);
   const empresaPolobh = empresas.find((e) => e.padrao) ?? empresas[0];
@@ -504,8 +505,8 @@ export function OsForm() {
         <div className="flex gap-2">
           <Button variant="secondary" size="sm" icon={<IcDownload width={16} height={16} />} onClick={() => gerarOsExcel(os, ecCtx, { incluirFinanceiro: verFinanceiro })}>Baixar Excel</Button>
           <Button variant="secondary" size="sm" onClick={() => os.id ? navigate(`/ordens/${os.id}/imprimir`) : toast("Salve a OS antes de visualizar o PDF.", "info")}>Ver / PDF</Button>
-          <Button variant="secondary" size="sm" onClick={() => salvar()} disabled={busy}>Salvar</Button>
-          <Button size="sm" icon={<IcSend width={15} height={15} />} onClick={() => salvar("Disparada")} disabled={busy}>Disparar OS</Button>
+          {podeEditar && <Button variant="secondary" size="sm" onClick={() => salvar()} disabled={busy}>Salvar</Button>}
+          {podeEditar && <Button size="sm" icon={<IcSend width={15} height={15} />} onClick={() => salvar("Disparada")} disabled={busy}>Disparar OS</Button>}
         </div>
       }
     >

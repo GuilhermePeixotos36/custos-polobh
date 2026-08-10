@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabaseClient";
 import type { EcLinha } from "@/data/types";
-import type { RoteirosProjeto } from "@/data/types";
+import type { RoteiroExtraProjeto, RoteirosProjeto } from "@/data/types";
 import { sanitizarHtmlEditor } from "@/lib/sanitizeHtml";
 
 interface DescricaoCorrigida {
@@ -20,6 +20,7 @@ export interface ResultadoCorrecao {
 
 export interface ResultadoCorrecaoRoteiros {
   roteiros: RoteirosProjeto;
+  roteirosExtras: RoteiroExtraProjeto[];
   revisaoCompleta: boolean;
 }
 
@@ -83,17 +84,27 @@ async function corrigirTextos(
   };
 }
 
-export async function corrigirRoteirosProjeto(roteiros: RoteirosProjeto): Promise<ResultadoCorrecaoRoteiros> {
+export async function corrigirRoteirosProjeto(
+  roteiros: RoteirosProjeto,
+  roteirosExtras: RoteiroExtraProjeto[] = []
+): Promise<ResultadoCorrecaoRoteiros> {
   const entradas = Object.entries(roteiros)
     .filter(([, descricao]) => descricao.trim())
-    .map(([id, descricao]) => ({ id, descricao }));
+    .map(([id, descricao]) => ({ id: `padrao:${id}`, descricao }));
+  entradas.push(...roteirosExtras
+    .filter((item) => item.conteudo.trim())
+    .map((item) => ({ id: `extra:${item.id}`, descricao: item.conteudo })));
   const resultado = await corrigirTextos(entradas, corrigirMaiusculasHtml);
   return {
     roteiros: {
-      preEvento: resultado.textos.get("preEvento") ?? roteiros.preEvento,
-      evento: resultado.textos.get("evento") ?? roteiros.evento,
-      posEvento: resultado.textos.get("posEvento") ?? roteiros.posEvento,
+      preEvento: resultado.textos.get("padrao:preEvento") ?? roteiros.preEvento,
+      evento: resultado.textos.get("padrao:evento") ?? roteiros.evento,
+      posEvento: resultado.textos.get("padrao:posEvento") ?? roteiros.posEvento,
     },
+    roteirosExtras: roteirosExtras.map((item) => ({
+      ...item,
+      conteudo: resultado.textos.get(`extra:${item.id}`) ?? item.conteudo,
+    })),
     revisaoCompleta: resultado.revisaoCompleta,
   };
 }

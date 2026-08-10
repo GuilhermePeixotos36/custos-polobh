@@ -9,12 +9,11 @@ import { numeroEc, producaoPadrao, producaoZerada, linhasProducaoLegado, honorar
 import { normalizarProjetoInfo, sincronizarCamposLegados } from "@/domain/projeto";
 import { onlyDigits } from "@/lib/format";
 import { auditar } from "@/store/logs";
-import { useAuth, PERMISSOES } from "@/store/auth";
+import { useAuth } from "@/store/auth";
 
 /** O usuário atual tem acesso ao bloco financeiro? (espelha a RLS de os_financeiro) */
 function podeFinanceiro(): boolean {
-  const u = useAuth.getState().usuario;
-  return !!u && PERMISSOES[u.papel].includes("financeiro");
+  return useAuth.getState().pode("financeiro");
 }
 
 const financeiroVazio = () => ({
@@ -23,6 +22,7 @@ const financeiroVazio = () => ({
   bvPercentual: 0, bvValor: 0, bvJustificativa: "", acertoFinanceiro: "",
 });
 import type {
+  AreaRepository,
   AuthRepository,
   ClienteRepository,
   EcRepository,
@@ -33,6 +33,7 @@ import type {
   Repositorios,
 } from "./repository";
 import type {
+  Area,
   Cliente,
   Ec,
   EcLinha,
@@ -81,7 +82,7 @@ const nowIso = () => new Date().toISOString();
 
 const representanteVazio = (): Representante => ({ nome: "", cargo: "", telefones: "", email: "" });
 const clienteVazio = (): Cliente => ({
-  id: "", nome: "", razaoSocial: "", endereco: "", cnpjCpf: "",
+  id: "", apelido: "", nome: "", razaoSocial: "", endereco: "", cnpjCpf: "",
   inscricaoEstadual: "", inscricaoMunicipal: "", representante: representanteVazio(),
 });
 
@@ -89,6 +90,7 @@ const clienteVazio = (): Cliente => ({
 function mapCliente(r: any): Cliente {
   return {
     id: r.id,
+    apelido: r.apelido ?? "",
     nome: r.nome ?? "",
     razaoSocial: r.razao_social ?? "",
     endereco: r.endereco ?? "",
@@ -101,6 +103,7 @@ function mapCliente(r: any): Cliente {
 
 function clienteRow(c: Cliente) {
   return {
+    apelido: c.apelido.trim(),
     nome: c.nome,
     razao_social: c.razaoSocial,
     endereco: c.endereco,
@@ -601,6 +604,11 @@ const osRepo: OsRepository = {
       enviadoEm: r.enviado_em,
     }));
   },
+  async osComCredenciamento() {
+    const data = ok(await supabase.from("credenciamentos").select("os_id"));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return [...new Set((data ?? []).map((r: any) => r.os_id as string).filter(Boolean))];
+  },
 };
 
 /* ---------------------------------- Auth --------------------------------- */
@@ -616,16 +624,20 @@ async function gerenciarUsuarios(body: Record<string, unknown>): Promise<Usuario
 
 const authRepo: AuthRepository = {
   async usuarios() {
-    const data = ok(await supabase.from("perfis").select("id, nome, papel, telefone").order("nome"));
-    return (data ?? []).map(
-      (r: { id: string; nome: string | null; papel: Usuario["papel"]; telefone: string | null }): Usuario => ({
+    const data = ok(await supabase.from("perfis").select("id, nome, papel, telefone, area_id, areas(nome)").order("nome"));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (data ?? []).map((r: any): Usuario => {
+      const area = Array.isArray(r.areas) ? r.areas[0] : r.areas;
+      return {
         id: r.id,
         nome: r.nome ?? "",
         email: "",
         telefone: r.telefone ?? "",
         papel: r.papel,
-      })
-    );
+        areaId: r.area_id ?? undefined,
+        areaNome: area?.nome ?? undefined,
+      };
+    });
   },
   async usuariosCompletos() {
     const { data, error } = await supabase.functions.invoke("gerenciar-usuarios", { body: { acao: "listar" } });
@@ -636,6 +648,54 @@ const authRepo: AuthRepository = {
   },
   criarUsuario: (dados) => gerenciarUsuarios({ acao: "criar", ...dados }),
   atualizarUsuario: (dados) => gerenciarUsuarios({ acao: "atualizar", ...dados }),
+};
+
+/* ---------------------------------- Áreas -------------------------------- */
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mapArea = (r: any): Area => ({
+  id: r.id,
+  nome: r.nome ?? "",
+  papelBase: r.papel_base,
+  recursos: r.recursos ?? [],
+  ativa: r.ativa !== false,
+});
+
+const AREA_COLS = "id, nome, papel_base, recursos, ativa";
+
+const areaRepo: AreaRepository = {
+  async listar() {
+    const data = ok(await supabase.from("areas").select(AREA_COLS).order("nome"));
+    return (data ?? []).map(mapArea);
+  },
+  async salvar(a) {
+    const linha = { nome: a.nome.trim(), papel_base: a.papelBase, recursos: a.recursos };
+    const data = a.id
+      ? ok(await supabase.from("areas").update(linha).eq("id", a.id).select(AREA_COLS).single())
+      : ok(await supabase.from("areas").insert(linha).select(AREA_COLS).single());
+    const area = mapArea(data);
+    auditar({
+      categoria: "Configuração",
+      acao: a.id ? "area.atualizar" : "area.criar",
+      mensagem: `Área "${area.nome}" ${a.id ? "atualizada" : "criada"} (${area.recursos.length} permissões)`,
+      alvoId: area.id,
+    });
+    return area;
+  },
+  async definirAtiva(id, ativa) {
+    const area = mapArea(ok(await supabase.from("areas").update({ ativa }).eq("id", id).select(AREA_COLS).single()));
+    auditar({
+      categoria: "Configuração",
+      acao: ativa ? "area.reativar" : "area.inativar",
+      mensagem: `Área "${area.nome}" ${ativa ? "reativada" : "inativada"}`,
+      alvoId: area.id,
+    });
+    return area;
+  },
+  async remover(id) {
+    ok(await supabase.from("areas").delete().eq("id", id).select());
+    auditar({ categoria: "Configuração", acao: "area.remover", mensagem: `Área removida (${id})`, alvoId: id });
+  },
 };
 
 /* --------------------------------- Projeto ------------------------------- */
@@ -687,6 +747,15 @@ const projetoRepo: ProjetoRepository = {
       alvoId: proj.id,
     });
     return proj;
+  },
+  async arquivarDocumentos(id) {
+    ok(await supabase.rpc("arquivar_documentos_projeto", { p_projeto_id: id }));
+    auditar({
+      categoria: "Projeto",
+      acao: "projeto.arquivar",
+      mensagem: "Projeto e documentos associados arquivados",
+      alvoId: id,
+    });
   },
   async remover(id) {
     const p = await this.obter(id);
@@ -760,5 +829,6 @@ export const supabaseRepositorios: Repositorios = {
   ecs: ecRepo,
   oss: osRepo,
   auth: authRepo,
+  areas: areaRepo,
   empresas: empresasRepo,
 };

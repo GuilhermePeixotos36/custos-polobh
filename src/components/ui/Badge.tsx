@@ -47,6 +47,7 @@ export const tomStatusOs: Record<string, Tom> = {
   Emitida: "info",
   Disparada: "success",
   Cancelada: "danger",
+  Arquivada: "neutral",
 };
 
 export const tomAprovacao: Record<string, Tom> = {

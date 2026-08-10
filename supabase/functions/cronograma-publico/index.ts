@@ -37,6 +37,7 @@ Deno.serve(async (req) => {
       .from("ecs")
       .select("id, projeto, cliente")
       .eq("slug_publico", slug)
+      .neq("status", "Arquivada")
       .maybeSingle();
     if (ecErr) throw ecErr;
     if (!ec) return json({ error: "Cronograma não encontrado." }, 404);
@@ -45,6 +46,7 @@ Deno.serve(async (req) => {
       .from("oss")
       .select("fornecedor, status, cronograma")
       .eq("ec_id", ec.id)
+      .neq("status", "Arquivada")
       .order("seq");
     if (osErr) throw osErr;
 
