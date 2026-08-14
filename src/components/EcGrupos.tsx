@@ -27,6 +27,7 @@ import { ResumoPropostaModal } from "@/components/ResumoPropostaModal";
 import { NotifDot } from "@/components/NotifDot";
 import { MoverSetas } from "@/components/MoverSetas";
 import { idAncoraPendencia } from "@/components/NavegadorPendencias";
+import { destacarElemento, seguirElemento, idGrupoEc } from "@/lib/destaque";
 import { flags } from "@/lib/flags";
 import { brl, cx } from "@/lib/format";
 import type { DocumentoPg, EcLinha, Fornecedor, Observacao, StatusAprovacao, StatusOs } from "@/data/types";
@@ -261,9 +262,12 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
   };
 
   const addItem = (grupoNome: string) => {
-    commit(grupos.map((g) => (g.nome === grupoNome ? { ...g, itens: [...g.itens, { ...novaLinhaBase(), grupo: grupoNome }] } : g)));
+    const nova = { ...novaLinhaBase(), grupo: grupoNome };
+    commit(grupos.map((g) => (g.nome === grupoNome ? { ...g, itens: [...g.itens, nova] } : g)));
     const grupoId = grupos.find((g) => g.nome === grupoNome)?.id;
     if (grupoId) setExpandido((e) => ({ ...e, [grupoId]: true }));
+    // O item entra no fim do grupo, quase sempre fora da tela numa EC longa.
+    destacarElemento(idAncoraPendencia(nova.id));
   };
 
   const addGrupo = () => {
@@ -272,27 +276,57 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
     const id = `grupo-${linha.id}`;
     commit([...grupos, { id, nome, itens: [linha] }]);
     setExpandido((e) => ({ ...e, [id]: true }));
+    destacarElemento(idGrupoEc(id));
   };
 
   /**
-   * Move um item uma posição dentro do próprio grupo (as setas nunca tiram o item
-   * do grupo). A troca é feita com o VIZINHO VISÍVEL: itens ocultos ficam no meio
-   * do array e, se entrassem na conta, a seta pareceria não fazer nada.
+   * Move um item uma posição para cima ou para baixo.
+   *
+   * Dentro do grupo, a troca é com o VIZINHO VISÍVEL — itens ocultos ficam no
+   * meio do array e, se entrassem na conta, a seta pareceria não fazer nada.
+   * Chegando à borda, o item PASSA PARA O GRUPO SEGUINTE: descendo, entra no
+   * topo do grupo de baixo; subindo, no fim do grupo de cima. Assim dá para
+   * atravessar a EC inteira só com as setas, sem precisar arrastar.
+   *
+   * Exceção: o ÚLTIMO item de um grupo não sai. Os grupos existem apenas como
+   * agrupamento das linhas (ver `agrupar`/`achatar`), então um grupo sem nenhuma
+   * linha não tem como ser reconstruído e o nome dele se perderia ao recarregar.
    */
-  const moverItem = (grupoId: string, itemId: string, direcao: -1 | 1) =>
-    commit(
-      grupos.map((g) => {
-        if (g.id !== grupoId) return g;
-        const atual = g.itens.findIndex((i) => i.id === itemId);
-        if (atual < 0) return g;
-        let vizinho = atual + direcao;
-        while (vizinho >= 0 && vizinho < g.itens.length && g.itens[vizinho].oculto) vizinho += direcao;
-        if (vizinho < 0 || vizinho >= g.itens.length) return g;
-        const itens = [...g.itens];
-        [itens[atual], itens[vizinho]] = [itens[vizinho], itens[atual]];
-        return { ...g, itens };
-      })
-    );
+  const moverItem = (grupoId: string, itemId: string, direcao: -1 | 1) => {
+    const iGrupo = grupos.findIndex((g) => g.id === grupoId);
+    if (iGrupo < 0) return;
+    const grupo = grupos[iGrupo];
+    const atual = grupo.itens.findIndex((i) => i.id === itemId);
+    if (atual < 0) return;
+
+    let vizinho = atual + direcao;
+    while (vizinho >= 0 && vizinho < grupo.itens.length && grupo.itens[vizinho].oculto) vizinho += direcao;
+
+    if (vizinho >= 0 && vizinho < grupo.itens.length) {
+      const itens = [...grupo.itens];
+      [itens[atual], itens[vizinho]] = [itens[vizinho], itens[atual]];
+      commit(grupos.map((g, i) => (i === iGrupo ? { ...g, itens } : g)));
+    } else {
+      // Tirar o único item apagaria o grupo — a seta já vem desligada nesse caso,
+      // e aqui a regra fica garantida também por código.
+      if (grupo.itens.length <= 1) return;
+      const iDestino = iGrupo + direcao;
+      if (iDestino < 0 || iDestino >= grupos.length) return;
+      const destino = grupos[iDestino];
+      const movido = { ...grupo.itens[atual], grupo: destino.nome };
+      commit(
+        grupos.map((g, i) => {
+          if (i === iGrupo) return { ...g, itens: g.itens.filter((it) => it.id !== itemId) };
+          if (i === iDestino) return { ...g, itens: direcao === 1 ? [movido, ...g.itens] : [...g.itens, movido] };
+          return g;
+        })
+      );
+      // Grupo de destino retraído esconderia o item recém-chegado.
+      setExpandido((e) => ({ ...e, [destino.id]: true }));
+    }
+    // A tela acompanha o item — senão ele sai de vista a cada toque na seta.
+    seguirElemento(idAncoraPendencia(itemId));
+  };
 
   /* --------------------- seleção em massa (estilo SharePoint) --------------------- */
   const alternarSelecao = (id: string) =>
@@ -488,11 +522,13 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
       <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd}>
         <SortableContext items={grupos.map((g) => GID(g.id))} strategy={verticalListSortingStrategy}>
           <div className="space-y-3">
-            {grupos.map((g) => (
+            {grupos.map((g, iGrupo) => (
               <GrupoCard
                 key={g.id}
                 g={g}
                 aberto={isExp(g.id)}
+                primeiroGrupo={iGrupo === 0}
+                ultimoGrupo={iGrupo === grupos.length - 1}
                 verFinanceiro={verFinanceiro}
                 fornecedores={fornecedores}
                 usuarios={usuarios}
@@ -539,6 +575,9 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
 interface GrupoProps {
   g: Grupo;
   aberto: boolean;
+  /** Bordas da EC: só nelas as setas do item ficam desligadas. */
+  primeiroGrupo: boolean;
+  ultimoGrupo: boolean;
   verFinanceiro: boolean;
   fornecedores: Fornecedor[];
   usuarios: string[];
@@ -556,7 +595,7 @@ interface GrupoProps {
 }
 
 function GrupoCard({
-  g, aberto, verFinanceiro, fornecedores, usuarios, selecionados,
+  g, aberto, primeiroGrupo, ultimoGrupo, verFinanceiro, fornecedores, usuarios, selecionados,
   onToggle, onRenomear, onAddItem, onUpdLinha, onOcultoItem, onOcultoGrupo,
   onSelecionarItem, onSelecionarGrupo, onMoverItem, onValidarFornecedor,
 }: GrupoProps) {
@@ -575,11 +614,15 @@ function GrupoCard({
   const subtotal = visiveis.reduce((s, l) => s + (l.valorPolobh || 0) + (l.valorCliente || 0), 0);
   const marcadosNoGrupo = visiveis.filter((l) => selecionados.has(l.id)).length;
   const todosMarcados = visiveis.length > 0 && marcadosNoGrupo === visiveis.length;
+  // Conta os itens TODOS (inclusive ocultos): o grupo sobrevive enquanto tiver
+  // alguma linha, mesmo que nenhuma esteja visível.
+  const itemUnico = g.itens.length === 1;
 
   return (
     <div
       ref={setRefs}
       style={style}
+      id={idGrupoEc(g.id)}
       className={cx(
         "rounded-card border bg-white",
         sortable.isDragging ? "opacity-40" : "border-border",
@@ -646,8 +689,12 @@ function GrupoCard({
                 fornecedores={fornecedores}
                 usuarios={usuarios}
                 selecionado={selecionados.has(l.id)}
-                primeiro={indice === 0}
-                ultimo={indice === visiveis.length - 1}
+                // Na borda de um grupo do meio a seta continua ativa: ela leva o
+                // item para o grupo vizinho. Só trava nas pontas da EC ou quando
+                // o item é o único do grupo (sair apagaria o grupo).
+                primeiro={indice === 0 && (primeiroGrupo || itemUnico)}
+                ultimo={indice === visiveis.length - 1 && (ultimoGrupo || itemUnico)}
+                motivoBloqueio={itemUnico ? "Único item do grupo — tirá-lo daqui apagaria o grupo" : undefined}
                 onUpd={(patch) => onUpdLinha(l.id, patch)}
                 onOcultar={() => onOcultoItem(l.id, true)}
                 onSelecionar={() => onSelecionarItem(l.id)}
@@ -704,6 +751,8 @@ interface ItemProps {
   selecionado: boolean;
   primeiro: boolean;
   ultimo: boolean;
+  /** Texto do tooltip quando a seta está apagada por regra, não por estar na ponta. */
+  motivoBloqueio?: string;
   onUpd: (patch: Partial<EcLinha>) => void;
   onOcultar: () => void;
   onSelecionar: () => void;
@@ -712,7 +761,7 @@ interface ItemProps {
 }
 
 function ItemRow({
-  l, verFinanceiro, fornecedores, usuarios, selecionado, primeiro, ultimo,
+  l, verFinanceiro, fornecedores, usuarios, selecionado, primeiro, ultimo, motivoBloqueio,
   onUpd, onOcultar, onSelecionar, onMover, onValidarFornecedor,
 }: ItemProps) {
   const sortable = useSortable({ id: l.id });
@@ -762,9 +811,10 @@ function ItemRow({
           >
             <IcGrip width={18} height={18} />
           </button>
-          {/* Setas: uma posição por vez, sempre dentro do grupo. */}
+          {/* Setas: uma posição por vez; na borda, passam o item para o grupo vizinho. */}
           <MoverSetas
             rotulo={`o item ${l.item || "sem título"}`}
+            motivoBloqueio={motivoBloqueio}
             podeSubir={!primeiro}
             podeDescer={!ultimo}
             onSubir={() => onMover(-1)}

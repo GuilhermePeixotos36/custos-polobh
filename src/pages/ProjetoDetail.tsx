@@ -23,6 +23,7 @@ import { cnpjValido, consultarCnpj } from "@/lib/cnpj";
 import { numeroEc, tituloEc } from "@/domain/calc";
 import { camposObrigatoriosProjeto, compoeTituloProjeto, novoRoteiroExtra, projetoInfoVazio, sincronizarCamposLegados } from "@/domain/projeto";
 import { flags } from "@/lib/flags";
+import { destacarElemento, idBlocoRoteiro } from "@/lib/destaque";
 import { cx, dataBR, maskCpfCnpjInput, maskDoc, onlyDigits } from "@/lib/format";
 import { toast } from "@/store/toast";
 import { confirmar } from "@/store/confirm";
@@ -170,11 +171,13 @@ export function ProjetoDetail() {
     {
       pendencias: (e) => porEc[e.id] ?? 0,
       titulo: (e) => tituloEc(e),
-      versao: (e) => e.versao,
-      criadoEm: (e) => e.criadoEm,
-      status: (e) => (e.ativa ? "Ativa" : "Arquivada"),
+      // Booleano em vez do rótulo: ordenado por texto, "Arquivada" viria antes de
+      // "Ativa". Como booleano, a EC ativa é sempre a primeira.
+      status: (e) => e.ativa,
     },
-    { col: "versao", dir: "desc" }
+    // Padrão = ativa no topo; dentro do mesmo status, a ordenação estável preserva
+    // a da lista de origem (versão mais nova primeiro).
+    { col: "status", dir: "asc" }
   );
   const ossOrdenadas = useOrdenacao(
     ossDoProjeto,
@@ -703,6 +706,8 @@ export function ProjetoDetail() {
                   onClick={() => {
                     const item = novoRoteiroExtra();
                     updInfo({ roteirosExtras: [...p.info.roteirosExtras, item], roteiroOrdem: [...p.info.roteiroOrdem, item.id] });
+                    // O bloco novo entra no fim: leva a rolagem até ele e pisca 2x.
+                    destacarElemento(idBlocoRoteiro(item.id));
                   }}
                 >
                   Adicionar item
@@ -723,7 +728,7 @@ export function ProjetoDetail() {
                 const placeholder = chave ? ROTEIROS_PADRAO[chave].placeholder : "Descreva esta etapa do roteiro…";
                 const oculto = chave ? p.info.roteirosOcultos.includes(chave) : false;
                 return (
-                  <ItemArrastavel key={id} id={id} className="rounded-btn border border-border-soft p-3 sm:p-4">
+                  <ItemArrastavel key={id} id={id} domId={idBlocoRoteiro(id)} className="rounded-btn border border-border-soft p-3 sm:p-4">
                     {(alca) => (
                       <>
                         <div className="mb-1.5 flex items-center justify-between gap-2">
@@ -837,17 +842,14 @@ export function ProjetoDetail() {
                 {/* Pendências em coluna própria, alinhadas à esquerda do título da EC. */}
                 <ThPendencias col="pendencias" ordem={ecsOrdenadas.ordem} onSort={ecsOrdenadas.ordenarPor} />
                 <ThOrd col="titulo" ordem={ecsOrdenadas.ordem} onSort={ecsOrdenadas.ordenarPor}>Título da EC</ThOrd>
-                <ThOrd col="versao" align="center" ordem={ecsOrdenadas.ordem} onSort={ecsOrdenadas.ordenarPor}>Versão</ThOrd>
-                <ThOrd col="criadoEm" ordem={ecsOrdenadas.ordem} onSort={ecsOrdenadas.ordenarPor}>Criada em</ThOrd>
                 <ThOrd col="status" align="center" ordem={ecsOrdenadas.ordem} onSort={ecsOrdenadas.ordenarPor}>Status</ThOrd>
               </THead>
               <tbody>
                 {ecsOrdenadas.ordenados.map((e) => (
                   <Tr key={e.id} onClick={() => navigate(`/estimativas/${e.id}`)}>
                     <TdPendencias n={porEc[e.id] ?? 0} title="Ações pendentes nesta EC" />
+                    {/* Versão e data já vêm no próprio título ("EC – … (03) em 10 08 26"). */}
                     <Td className={cx("font-bold", e.ativa ? "text-primary-dark" : "text-ink")}>{tituloEc(e)}</Td>
-                    <Td align="center" className="text-ink-2">{String(e.versao).padStart(2, "0")}</Td>
-                    <Td className="text-[12.5px] text-ink-2 whitespace-nowrap">{dataBR(e.criadoEm)}</Td>
                     <Td align="center"><Badge tom={e.ativa ? "success" : "neutral"}>{e.ativa ? "Ativa" : "Arquivada"}</Badge></Td>
                   </Tr>
                 ))}

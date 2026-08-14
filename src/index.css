@@ -141,18 +141,26 @@ body {
   }
 }
 
-/* ---- Destaque de pendência (navegador de pendências da EC) ----
-   Ao saltar para uma pendência, o item "lateja" a cor de fundo duas vezes,
-   devagar, e para — o suficiente para o olho encontrar onde parou a rolagem. */
+/* ---- Destaque "rolar até + piscar 2x" (ver lib/destaque.ts) ----
+   O elemento "lateja" a cor de fundo duas vezes, devagar, e para — o suficiente
+   para o olho encontrar onde a rolagem parou. Duas variantes: laranja para algo
+   recém-criado, vermelho para algo que exige ação. */
 @keyframes latejar-pendencia {
   0%, 100% { background-color: transparent; box-shadow: 0 0 0 0 rgba(193, 52, 56, 0); }
   50% { background-color: #FBE7E7; box-shadow: 0 0 0 3px rgba(193, 52, 56, 0.35); }
 }
-.destaque-pendencia {
-  animation: latejar-pendencia 1.1s ease-in-out 2;
+@keyframes latejar-novo {
+  0%, 100% { background-color: transparent; box-shadow: 0 0 0 0 rgba(242, 130, 13, 0); }
+  50% { background-color: #FDF1E3; box-shadow: 0 0 0 3px rgba(242, 130, 13, 0.45); }
+}
+.destaque-pendencia,
+.destaque-novo {
   border-radius: 16px;
 }
+.destaque-pendencia { animation: latejar-pendencia 1.1s ease-in-out 2; }
+.destaque-novo { animation: latejar-novo 1.1s ease-in-out 2; }
 @media (prefers-reduced-motion: reduce) {
   /* Sem animação: mantém só o realce estático por um instante. */
   .destaque-pendencia { animation: none; box-shadow: 0 0 0 3px rgba(193, 52, 56, 0.35); }
+  .destaque-novo { animation: none; box-shadow: 0 0 0 3px rgba(242, 130, 13, 0.45); }
 }

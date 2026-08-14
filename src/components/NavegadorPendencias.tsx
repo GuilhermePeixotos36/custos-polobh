@@ -11,6 +11,7 @@
  */
 import { useEffect, useState } from "react";
 import { IcChevron, IcComment } from "@/components/icons";
+import { destacarElemento } from "@/lib/destaque";
 import { cx } from "@/lib/format";
 import type { EcLinha } from "@/data/types";
 
@@ -39,14 +40,7 @@ export function NavegadorPendencias({ ids }: { ids: string[] }) {
   const irPara = (indice: number) => {
     const alvo = (indice + ids.length) % ids.length; // circular: do fim volta ao início
     setPosicao(alvo);
-    const el = document.getElementById(idAncoraPendencia(ids[alvo]));
-    if (!el) return;
-    el.scrollIntoView({ behavior: "smooth", block: "center" });
-    // Reinicia a animação mesmo quando é o mesmo elemento de antes.
-    el.classList.remove("destaque-pendencia");
-    void el.offsetWidth;
-    el.classList.add("destaque-pendencia");
-    window.setTimeout(() => el.classList.remove("destaque-pendencia"), 2600);
+    destacarElemento(idAncoraPendencia(ids[alvo]), "pendencia");
   };
 
   return (

@@ -53,10 +53,13 @@ export function ListaArrastavel({
 
 export function ItemArrastavel({
   id,
+  domId,
   className,
   children,
 }: {
   id: string;
+  /** Id do elemento no DOM — usado por `lib/destaque` para rolar até o bloco novo. */
+  domId?: string;
   className?: string;
   /** Recebe a alça de arraste pronta — posicione-a onde fizer sentido no bloco. */
   children: (alca: ReactNode) => ReactNode;
@@ -79,7 +82,7 @@ export function ItemArrastavel({
   );
 
   return (
-    <div ref={sortable.setNodeRef} style={style} className={cx(className, sortable.isDragging && "opacity-40")}>
+    <div ref={sortable.setNodeRef} style={style} id={domId} className={cx(className, sortable.isDragging && "opacity-40")}>
       {children(alca)}
     </div>
   );

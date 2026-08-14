@@ -8,8 +8,10 @@
  *
  * Movimentação — as duas formas convivem, como no restante do sistema:
  *  · arraste (alça) reordena blocos, reordena datas dentro de um bloco e move
- *    uma data de um bloco para outro;
- *  · setas (só nas datas) movem uma posição por vez, sem sair do bloco.
+ *    uma data de um bloco para outro, em saltos grandes;
+ *  · setas (só nas datas) andam uma posição por vez e, ao chegar na borda do
+ *    bloco, atravessam para o bloco vizinho — dá para percorrer o cronograma
+ *    inteiro só com elas. A tela acompanha a data a cada passo.
  */
 import { useEffect, useRef, useState } from "react";
 import {
@@ -36,6 +38,7 @@ import {
   novaFaixaCronograma,
   novoBlocoCronograma,
 } from "@/domain/projeto";
+import { destacarElemento, seguirElemento, idBlocoCronograma, idFaixaCronograma } from "@/lib/destaque";
 import { cx, dataBR } from "@/lib/format";
 import type {
   BlocoCronogramaExtra,
@@ -129,16 +132,57 @@ export function CronogramaProjetoEditor({
   const updFaixa = (blocoId: string, faixaId: string, patch: Partial<FaixaCronogramaProjeto>) =>
     commit(blocos.map((b) => (b.id === blocoId ? { ...b, faixas: b.faixas.map((f) => (f.id === faixaId ? { ...f, ...patch } : f)) } : b)));
 
-  const addFaixa = (blocoId: string) =>
-    commit(blocos.map((b) => (b.id === blocoId ? { ...b, faixas: [...b.faixas, novaFaixaCronograma()] } : b)));
+  const addFaixa = (blocoId: string) => {
+    const nova = novaFaixaCronograma();
+    commit(blocos.map((b) => (b.id === blocoId ? { ...b, faixas: [...b.faixas, nova] } : b)));
+    destacarElemento(idFaixaCronograma(nova.id));
+  };
   const removerFaixa = (blocoId: string, faixaId: string) =>
     commit(blocos.map((b) => (b.id === blocoId ? { ...b, faixas: b.faixas.filter((f) => f.id !== faixaId) } : b)));
-  const moverFaixa = (blocoId: string, indice: number, direcao: -1 | 1) =>
-    commit(blocos.map((b) => (b.id === blocoId ? { ...b, faixas: moverNaLista(b.faixas, indice, direcao) } : b)));
+  /** Bloco oculto não mostra as datas — a seta o atravessa em vez de esconder o item lá dentro. */
+  const blocoVisivel = (b: Bloco) => !b.etapa || !info.etapasOcultas.includes(b.etapa);
+  const proximoBlocoVisivel = (de: number, direcao: -1 | 1) => {
+    for (let i = de + direcao; i >= 0 && i < blocos.length; i += direcao) if (blocoVisivel(blocos[i])) return i;
+    return -1;
+  };
+
+  /**
+   * Move uma data uma posição. Na borda do bloco ela PASSA PARA O BLOCO VIZINHO:
+   * descendo, entra no topo do bloco de baixo; subindo, no fim do de cima.
+   */
+  const moverFaixa = (blocoId: string, faixaId: string, direcao: -1 | 1) => {
+    const iBloco = blocos.findIndex((b) => b.id === blocoId);
+    if (iBloco < 0) return;
+    const bloco = blocos[iBloco];
+    const atual = bloco.faixas.findIndex((f) => f.id === faixaId);
+    if (atual < 0) return;
+    const destino = atual + direcao;
+
+    if (destino >= 0 && destino < bloco.faixas.length) {
+      commit(blocos.map((b, i) => (i === iBloco ? { ...b, faixas: moverNaLista(b.faixas, atual, direcao) } : b)));
+    } else {
+      const iDestino = proximoBlocoVisivel(iBloco, direcao);
+      if (iDestino < 0) return;
+      const faixa = bloco.faixas[atual];
+      commit(
+        blocos.map((b, i) => {
+          if (i === iBloco) return { ...b, faixas: b.faixas.filter((f) => f.id !== faixaId) };
+          if (i === iDestino) return { ...b, faixas: direcao === 1 ? [faixa, ...b.faixas] : [...b.faixas, faixa] };
+          return b;
+        })
+      );
+    }
+    // A tela acompanha a data — senão ela sai de vista a cada toque na seta.
+    seguirElemento(idFaixaCronograma(faixaId));
+  };
 
   const addBloco = () => {
     const novo = novoBlocoCronograma();
-    commit([...blocos, { id: idBlocoExtra(novo.id), titulo: novo.titulo, faixas: novo.faixas }]);
+    const id = idBlocoExtra(novo.id);
+    commit([...blocos, { id, titulo: novo.titulo, faixas: novo.faixas }]);
+    // O bloco novo entra no fim da lista, muitas vezes fora da tela: leva a
+    // rolagem até ele e pisca duas vezes para não se perder de vista.
+    destacarElemento(idBlocoCronograma(id));
   };
   const removerBloco = (id: string) => commit(blocos.filter((b) => b.id !== id));
 
@@ -221,11 +265,13 @@ export function CronogramaProjetoEditor({
       <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd}>
         <SortableContext items={blocos.map((b) => BID(b.id))} strategy={verticalListSortingStrategy}>
           <div className="space-y-3">
-            {blocos.map((bloco) => (
+            {blocos.map((bloco, iBloco) => (
               <BlocoCard
                 key={bloco.id}
                 bloco={bloco}
                 oculto={!!bloco.etapa && info.etapasOcultas.includes(bloco.etapa)}
+                temBlocoAcima={proximoBlocoVisivel(iBloco, -1) >= 0}
+                temBlocoAbaixo={proximoBlocoVisivel(iBloco, 1) >= 0}
                 comErro={bloco.etapa === "evento" && eventoComErro}
                 onTitulo={(titulo) => updBloco(bloco.id, { titulo })}
                 onToggleOculta={() => bloco.etapa && toggleOculta(bloco.etapa)}
@@ -233,7 +279,7 @@ export function CronogramaProjetoEditor({
                 onAddFaixa={() => addFaixa(bloco.id)}
                 onUpdFaixa={(faixaId, patch) => updFaixa(bloco.id, faixaId, patch)}
                 onRemoverFaixa={(faixaId) => removerFaixa(bloco.id, faixaId)}
-                onMoverFaixa={(indice, direcao) => moverFaixa(bloco.id, indice, direcao)}
+                onMoverFaixa={(faixaId, direcao) => moverFaixa(bloco.id, faixaId, direcao)}
               />
             ))}
           </div>
@@ -268,6 +314,8 @@ export function CronogramaProjetoEditor({
 function BlocoCard({
   bloco,
   oculto,
+  temBlocoAcima,
+  temBlocoAbaixo,
   comErro,
   onTitulo,
   onToggleOculta,
@@ -279,6 +327,9 @@ function BlocoCard({
 }: {
   bloco: Bloco;
   oculto: boolean;
+  /** Há bloco visível antes/depois deste — a seta na borda leva a data para lá. */
+  temBlocoAcima: boolean;
+  temBlocoAbaixo: boolean;
   comErro: boolean;
   onTitulo: (v: string) => void;
   onToggleOculta: () => void;
@@ -286,7 +337,7 @@ function BlocoCard({
   onAddFaixa: () => void;
   onUpdFaixa: (faixaId: string, patch: Partial<FaixaCronogramaProjeto>) => void;
   onRemoverFaixa: (faixaId: string) => void;
-  onMoverFaixa: (indice: number, direcao: -1 | 1) => void;
+  onMoverFaixa: (faixaId: string, direcao: -1 | 1) => void;
 }) {
   const sortable = useSortable({ id: BID(bloco.id) });
   const droppable = useDroppable({ id: DID(bloco.id) });
@@ -301,6 +352,7 @@ function BlocoCard({
     <section
       ref={setRefs}
       style={style}
+      id={idBlocoCronograma(bloco.id)}
       aria-labelledby={`cronograma-${bloco.id}`}
       className={cx(
         "rounded-btn border p-3 sm:p-4 bg-white",
@@ -370,12 +422,13 @@ function BlocoCard({
                 key={faixa.id}
                 faixa={faixa}
                 indice={indice}
-                total={bloco.faixas.length}
                 bloco={bloco.titulo}
+                podeSubir={indice > 0 || temBlocoAcima}
+                podeDescer={indice < bloco.faixas.length - 1 || temBlocoAbaixo}
                 comErro={comErro && !faixa.data.trim()}
                 onUpd={(patch) => onUpdFaixa(faixa.id, patch)}
                 onRemover={() => onRemoverFaixa(faixa.id)}
-                onMover={(direcao) => onMoverFaixa(indice, direcao)}
+                onMover={(direcao) => onMoverFaixa(faixa.id, direcao)}
               />
             ))}
             {bloco.faixas.length === 0 && (
@@ -395,8 +448,9 @@ function BlocoCard({
 function FaixaLinha({
   faixa,
   indice,
-  total,
   bloco,
+  podeSubir,
+  podeDescer,
   comErro,
   onUpd,
   onRemover,
@@ -404,8 +458,9 @@ function FaixaLinha({
 }: {
   faixa: FaixaCronogramaProjeto;
   indice: number;
-  total: number;
   bloco: string;
+  podeSubir: boolean;
+  podeDescer: boolean;
   comErro: boolean;
   onUpd: (patch: Partial<FaixaCronogramaProjeto>) => void;
   onRemover: () => void;
@@ -419,6 +474,7 @@ function FaixaLinha({
     <div
       ref={sortable.setNodeRef}
       style={style}
+      id={idFaixaCronograma(faixa.id)}
       className={cx(
         "grid grid-cols-1 sm:grid-cols-[auto_auto_minmax(150px,1fr)_minmax(120px,.7fr)_minmax(120px,.7fr)_auto] gap-2 items-end rounded-btn",
         sortable.isDragging && "opacity-40"
@@ -435,12 +491,12 @@ function FaixaLinha({
       >
         <IcGrip width={16} height={16} />
       </button>
-      {/* Setas: uma posição por vez, sempre dentro do bloco. */}
+      {/* Setas: uma posição por vez; na borda, passam a data para o bloco vizinho. */}
       <MoverSetas
         className="pb-1.5"
         rotulo={rotulo}
-        podeSubir={indice > 0}
-        podeDescer={indice < total - 1}
+        podeSubir={podeSubir}
+        podeDescer={podeDescer}
         onSubir={() => onMover(-1)}
         onDescer={() => onMover(1)}
       />

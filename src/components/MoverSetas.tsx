@@ -3,9 +3,9 @@
  *
  * Usado no Cronograma Geral, no Roteiro e nos itens da EC (e deve ser usado em
  * qualquer nova tela com itens ordenáveis). Onde também há arrastar-e-soltar, as
- * duas formas convivem: o arraste serve para saltos grandes e para tirar o item
- * do bloco; as setas movem uma posição por vez, sem sair do bloco — mais
- * confortável quando a lista é longa.
+ * duas formas convivem: o arraste serve para saltos grandes; as setas andam uma
+ * posição por vez — mais confortável quando a lista é longa — e, ao chegar na
+ * borda do bloco, atravessam para o bloco vizinho.
  */
 import { IcChevron } from "@/components/icons";
 import { cx } from "@/lib/format";
@@ -16,6 +16,7 @@ export function MoverSetas({
   podeSubir,
   podeDescer,
   rotulo,
+  motivoBloqueio,
   orientacao = "vertical",
   className,
 }: {
@@ -25,6 +26,11 @@ export function MoverSetas({
   podeDescer: boolean;
   /** Complemento do aria-label, ex.: 'o item "Buffet"'. */
   rotulo: string;
+  /**
+   * Explicação para a seta estar apagada, quando não é o óbvio "já está na
+   * ponta" — ex.: item único do grupo, que não pode sair sob pena de apagá-lo.
+   */
+  motivoBloqueio?: string;
   /** `vertical` empilha as setas (ocupa pouca largura); `horizontal` lado a lado. */
   orientacao?: "vertical" | "horizontal";
   className?: string;
@@ -35,8 +41,8 @@ export function MoverSetas({
       role="group"
       aria-label={`Mover ${rotulo}`}
     >
-      <Seta direcao="cima" onClick={onSubir} disabled={!podeSubir} rotulo={rotulo} />
-      <Seta direcao="baixo" onClick={onDescer} disabled={!podeDescer} rotulo={rotulo} />
+      <Seta direcao="cima" onClick={onSubir} disabled={!podeSubir} rotulo={rotulo} motivoBloqueio={motivoBloqueio} />
+      <Seta direcao="baixo" onClick={onDescer} disabled={!podeDescer} rotulo={rotulo} motivoBloqueio={motivoBloqueio} />
     </div>
   );
 }
@@ -46,13 +52,18 @@ function Seta({
   onClick,
   disabled,
   rotulo,
+  motivoBloqueio,
 }: {
   direcao: "cima" | "baixo";
   onClick: () => void;
   disabled: boolean;
   rotulo: string;
+  motivoBloqueio?: string;
 }) {
   const paraCima = direcao === "cima";
+  const dica = disabled
+    ? motivoBloqueio ?? `Já está no ${paraCima ? "início" : "fim"}`
+    : `Mover para ${paraCima ? "cima" : "baixo"}`;
   return (
     <button
       type="button"
@@ -63,7 +74,7 @@ function Seta({
       }}
       disabled={disabled}
       aria-label={`Mover ${rotulo} para ${paraCima ? "cima" : "baixo"}`}
-      title={disabled ? `Já está no ${paraCima ? "início" : "fim"}` : `Mover para ${paraCima ? "cima" : "baixo"}`}
+      title={dica}
       className={cx(
         "inline-flex h-5 w-5 items-center justify-center rounded text-ink-3 transition-colors",
         disabled ? "opacity-25 cursor-default" : "hover:bg-primary-soft hover:text-primary-dark"
