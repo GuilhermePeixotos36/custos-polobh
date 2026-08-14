@@ -108,7 +108,9 @@ export function ObservacoesThread({ observacoes, usuarios, onChange }: Props) {
   const emEdicao = compor?.modo === "editar" ? observacoes.find((o) => o.id === compor.id) : undefined;
 
   return (
-    <div className="border-t border-border-soft px-3 py-2.5">
+    // Sem observação, o rodapé encolhe: antes uma faixa inteira era gasta só para
+    // dizer "Nenhuma observação" ao lado de um botão grande na outra ponta.
+    <div className={cx("border-t border-border-soft px-3", n > 0 ? "py-2.5" : "py-1.5")}>
       <div className="flex items-center gap-2">
         {n > 0 && (
           <button
@@ -121,17 +123,31 @@ export function ObservacoesThread({ observacoes, usuarios, onChange }: Props) {
             <IcChevron width={16} height={16} className={cx("transition-transform duration-200", aberto && "rotate-90")} />
           </button>
         )}
-        <span className="text-[12px] font-semibold text-ink-3">
-          {n > 0 ? `${n} observaç${n > 1 ? "ões" : "ão"}${abertas > 0 ? ` · ${abertas} aberta${abertas > 1 ? "s" : ""}` : " · resolvidas"}` : "Nenhuma observação"}
-        </span>
-        <button
-          type="button"
-          onClick={() => { setCompor({ modo: "novo" }); setAberto(true); }}
-          className="ml-auto inline-flex items-center gap-1.5 h-8 px-2.5 rounded-btn border-[1.5px] border-[#D6D9E0] bg-surface text-[12px] font-bold text-ink-2 hover:text-ink hover:border-primary/50 input-focus"
-          title="Adicionar observação"
-        >
-          <IcComment width={14} height={14} /> Observações
-        </button>
+        {n > 0 ? (
+          <>
+            <span className={cx("text-[12px] font-semibold", abertas > 0 ? "text-danger" : "text-ink-3")}>
+              {n} observaç{n > 1 ? "ões" : "ão"}
+              {abertas > 0 ? ` · ${abertas} aberta${abertas > 1 ? "s" : ""}` : " · resolvidas"}
+            </span>
+            <button
+              type="button"
+              onClick={() => { setCompor({ modo: "novo" }); setAberto(true); }}
+              className="ml-auto inline-flex items-center gap-1.5 h-8 px-2.5 rounded-btn border-[1.5px] border-[#D6D9E0] bg-surface text-[12px] font-bold text-ink-2 hover:text-ink hover:border-primary/50 input-focus"
+              title="Adicionar observação"
+            >
+              <IcComment width={14} height={14} /> Observações
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={() => { setCompor({ modo: "novo" }); setAberto(true); }}
+            className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-ink-3 hover:text-primary-dark input-focus rounded"
+            title="Adicionar observação"
+          >
+            <IcComment width={14} height={14} /> Adicionar observação
+          </button>
+        )}
       </div>
 
       {aberto && n > 0 && (

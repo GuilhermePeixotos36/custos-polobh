@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { PageShell } from "@/components/layout/AppLayout";
 import {
@@ -15,7 +15,6 @@ import {
   ThOrd,
   useOrdenacao,
   tomStatusOs,
-  tomAprovacao,
 } from "@/components/ui";
 import { IcBack, IcDownload, IcChevron, IcCopy } from "@/components/icons";
 import { repo } from "@/data";
@@ -23,9 +22,8 @@ import { useAsync } from "@/hooks/useAsync";
 import { analisarEmissaoOs, calcularTotais, agruparPorFornecedor, descritivoConsolidado, gastoPorLinhaViaOSs, numeroOs, rotuloTaxa, tituloEc, ROTULO_HONORARIOS_PADRAO, ROTULO_ENCARGOS_PADRAO } from "@/domain/calc";
 import { RentabilidadeItens } from "@/components/RentabilidadeItens";
 import { EcSubGuias, type SubGuiaEc } from "@/components/EcSubGuias";
-import { NavegadorPendencias, idAncoraPendencia, linhasComPendencia } from "@/components/NavegadorPendencias";
-import { ObservacoesThread } from "@/components/ObservacoesPopup";
-import { sanitizarHtmlEditor } from "@/lib/sanitizeHtml";
+import { NavegadorPendencias, linhasComPendencia } from "@/components/NavegadorPendencias";
+import { EcItemLeitura } from "@/components/EcItemLeitura";
 import { brl, dataBR } from "@/lib/format";
 import { gerarEcExcel } from "@/lib/excel";
 import { useAuth } from "@/store/auth";
@@ -249,19 +247,20 @@ export function EcDetail() {
           const subtotal = g.itens.reduce((s, l) => s + l.valorPolobh + l.valorCliente, 0);
           return (
             <div key={g.nome} className="rounded-card border border-border overflow-hidden">
-              {/* Cabeçalho do grupo */}
-              <div className="flex items-center gap-2 px-3 py-2.5 bg-[#FAFAFB]">
-                <button onClick={() => toggleGrupo(g.nome)} className="text-ink-2 hover:text-ink shrink-0">
+              {/* Cabeçalho do grupo — mais encorpado que o fundo quase branco de antes,
+                  para o olho encontrar onde um grupo termina e o outro começa. */}
+              <div className={cx("flex items-center gap-2 px-3 py-2.5 bg-[#F1F2F5]", aberto && "border-b border-border")}>
+                <button onClick={() => toggleGrupo(g.nome)} className="text-ink-2 hover:text-ink shrink-0" aria-expanded={aberto} aria-label={`${aberto ? "Retrair" : "Expandir"} ${g.nome}`}>
                   <IcChevron width={18} height={18} className={cx("transition-transform", aberto && "rotate-90")} />
                 </button>
-                <button onClick={() => toggleGrupo(g.nome)} className="font-display font-bold text-ink text-[14px] text-left flex-1 uppercase">
+                <button onClick={() => toggleGrupo(g.nome)} className="font-display font-bold text-ink text-[14px] text-left flex-1 uppercase tracking-[0.02em]">
                   {g.nome}
                 </button>
-                <span className="shrink-0 text-[11px] font-bold text-ink-3 bg-[#EFF0F3] rounded-pill px-2 py-0.5">
+                <span className="shrink-0 text-[11px] font-bold text-ink-3 bg-white rounded-pill px-2 py-0.5">
                   {g.itens.length} {g.itens.length === 1 ? "item" : "itens"}
                 </span>
                 {verFinanceiro && subtotal > 0 && (
-                  <span className="shrink-0 text-[13px] font-display font-bold text-ink-2">{brl(subtotal)}</span>
+                  <span className="shrink-0 text-[13px] font-display font-bold text-ink">{brl(subtotal)}</span>
                 )}
               </div>
 
@@ -269,50 +268,14 @@ export function EcDetail() {
               {aberto && (
                 <div className="divide-y divide-border-soft">
                   {g.itens.map((l) => (
-                    <div key={l.id} id={idAncoraPendencia(l.id)} className="px-3 py-3 hover:bg-[#FCFCFD]">
-                      <div className="flex items-start gap-2.5">
-                        <div className="flex-1 min-w-0">
-                          <div className="font-bold text-ink text-[13.5px]">{l.item || "—"}</div>
-                          {l.descricao && <div className="text-[12.5px] text-ink-2 whitespace-pre-wrap mt-0.5">{l.descricao}</div>}
-                          {veDescricaoCompleta && l.descricaoCompleta && (
-                            <div
-                              className="text-[12.5px] text-ink-2 mt-1.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
-                              dangerouslySetInnerHTML={{ __html: sanitizarHtmlEditor(l.descricaoCompleta) }}
-                            />
-                          )}
-                        </div>
-                        {verFinanceiro && (
-                          <div className="shrink-0 flex items-start gap-3">
-                            <InfoCampo label="Pólobh" className="min-w-[76px] text-right">
-                              <span className="font-display font-bold text-ink text-[13px]">{brl(l.valorPolobh)}</span>
-                            </InfoCampo>
-                            <InfoCampo label="Cliente" className="min-w-[76px] text-right">
-                              <span className="font-display font-bold text-ink text-[13px]">{brl(l.valorCliente)}</span>
-                            </InfoCampo>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Metadados do item — mesmos campos do editor, em modo leitura */}
-                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-[0.7fr_2.6fr_1fr_1fr_1fr_1fr_0.7fr] gap-x-3 gap-y-2 mt-2.5 pt-2.5 border-t border-border-soft">
-                        <InfoCampo label="Aprovação"><Badge tom={tomAprovacao[l.statusAprovacao]}>{l.statusAprovacao}</Badge></InfoCampo>
-                        <InfoCampo label="Fornecedor" className="col-span-2 xl:col-span-1">
-                          <div className="text-[12.5px] text-ink truncate">{l.fornecedorRazao || "—"}</div>
-                          {l.fornecedorCnpj && <div className="text-[11px] text-ink-3">{l.fornecedorCnpj}</div>}
-                        </InfoCampo>
-                        <InfoCampo label="Documento PG">{l.faturaNf || "—"}</InfoCampo>
-                        <InfoCampo label="Código de Serviço">{l.codigoServico || "—"}</InfoCampo>
-                        <InfoCampo label="Pedido de Compra">{l.pedidoCompra || "—"}</InfoCampo>
-                        <InfoCampo label="OS"><Badge tom={tomAprovacao[l.statusOs]}>{l.statusOs}</Badge></InfoCampo>
-                        <InfoCampo label="Contrato"><Badge tom={tomAprovacao[l.contratoStatus]}>{l.contratoStatus}</Badge></InfoCampo>
-                      </div>
-
-                      <ObservacoesThread
-                        observacoes={l.observacoes}
-                        usuarios={usuarios}
-                        onChange={(obs) => salvarObservacoes(l.id, obs)}
-                      />
-                    </div>
+                    <EcItemLeitura
+                      key={l.id}
+                      linha={l}
+                      verFinanceiro={verFinanceiro}
+                      veDescricaoCompleta={veDescricaoCompleta}
+                      usuarios={usuarios}
+                      onObservacoes={(obs) => salvarObservacoes(l.id, obs)}
+                    />
                   ))}
                 </div>
               )}
@@ -574,15 +537,6 @@ function montarOsEmissao(ecAtual: Ec, linhas: EcLinha[], seq: number, fornCadast
   };
 }
 
-/** Rótulo + valor somente leitura — espelha o "Campo" do editor, sem input. */
-function InfoCampo({ label, className, children }: { label: string; className?: string; children: ReactNode }) {
-  return (
-    <div className={className}>
-      <span className="block text-[10.5px] font-extrabold uppercase tracking-[0.05em] text-ink-3 mb-1 truncate">{label}</span>
-      {children}
-    </div>
-  );
-}
 
 /** Linha da tabela "Resumo dos Custos" — mesmo desenho da versão editável (EcForm), em modo leitura. */
 function LinhaResumo({

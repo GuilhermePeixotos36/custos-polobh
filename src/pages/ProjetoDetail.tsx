@@ -83,6 +83,8 @@ export function ProjetoDetail() {
   const produtoresCompletos = usuariosCompletosData ?? null;
 
   const [p, setP] = useState<Projeto>(projetoVazio());
+  /** "Foto" do projeto como ele está salvo — serve para saber se há algo a salvar. */
+  const [baseline, setBaseline] = useState("");
   const [aba, setAba] = useState<Aba>(abaInicial);
   const [salvando, setSalvando] = useState(false);
   const [filtroEc, setFiltroEc] = useState<"todas" | "ativas" | "arquivadas">("todas");
@@ -100,8 +102,22 @@ export function ProjetoDetail() {
   const [importando, setImportando] = useState(false);
 
   useEffect(() => {
-    if (novo) setP(projetoVazio());
-    else if (existente) setP(structuredClone(existente));
+    if (novo) {
+      setP(projetoVazio());
+      setBaseline("");
+      return;
+    }
+    if (!existente) return;
+    const carregado = structuredClone(existente);
+    setP(carregado);
+    setBaseline(JSON.stringify(carregado));
+    // Projeto já salvo: o CNPJ que veio do banco não pode disparar o
+    // autopreenchimento nem a consulta à Receita. Marcá-lo como "já tratado"
+    // evita que só abrir o projeto reescreva os dados do cliente (e faça o
+    // formulário nascer alterado, com o botão Salvar aceso à toa).
+    const digitos = onlyDigits(carregado.cliente.cnpjCpf);
+    ultimoCnpjAutopreenchido.current = digitos;
+    ultimoCnpjConsultado.current = digitos;
   }, [existente, novo]);
 
   const ecsDoProjeto = useMemo(
@@ -364,6 +380,10 @@ export function ProjetoDetail() {
   const faltandoAtual = camposObrigatoriosFaltando();
   const chavesComErro = new Set(tentouSalvar ? faltandoAtual.map((f) => f.chave) : []);
 
+  // Projeto já salvo e sem edição nenhuma não tem o que salvar: o botão fica
+  // apagado. Em projeto novo ele segue ativo — ali o ato é criar, não atualizar.
+  const alterado = novo || (baseline !== "" && JSON.stringify(p) !== baseline);
+
   async function salvar() {
     const faltando = camposObrigatoriosFaltando();
     if (faltando.length) {
@@ -378,6 +398,8 @@ export function ProjetoDetail() {
       const cliente = await arquivarCliente({ ...p.cliente, apelido: info.clienteAbreviado });
       const salvo = await repo.projetos.salvar({ ...p, cliente, info, nome: info.titulo || p.nome || "Projeto" });
       setP(salvo);
+      // Nova referência do "já salvo" — o botão volta a ficar apagado na hora.
+      setBaseline(JSON.stringify(salvo));
       toast(revisao.revisaoCompleta
         ? "Projeto salvo e roteiros revisados automaticamente."
         : "Projeto salvo. A correção básica foi aplicada; a revisão por IA está indisponível no momento.", "success");
@@ -471,7 +493,14 @@ export function ProjetoDetail() {
             {!novo && statusExibido !== "Arquivado" && (
               <Button variant="secondary" size="sm" onClick={arquivarProjeto}>Arquivar projeto</Button>
             )}
-            <Button size="sm" onClick={salvar} disabled={salvando}>{salvando ? "Salvando…" : "Salvar projeto"}</Button>
+            <Button
+              size="sm"
+              onClick={salvar}
+              disabled={salvando || !alterado}
+              title={alterado ? "Salvar as alterações do projeto" : "Nenhuma alteração para salvar"}
+            >
+              {salvando ? "Salvando…" : "Salvar projeto"}
+            </Button>
           </div>
         )}
       </div>
