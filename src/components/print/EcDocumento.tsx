@@ -144,7 +144,7 @@ export function EcDocumento({ ec }: { ec: Ec }) {
           <div className="border-t border-ink pt-1">Visto Pólobh — {ec.responsavel}</div>
         </div>
         <div>
-          <div className="border-t border-ink pt-1">Aprovação do Cliente — Data: ____/____/______</div>
+          <div className="border-t border-ink pt-1">Aprovação do Cliente — Data: ____ ____ ______</div>
         </div>
       </div>
     </div>

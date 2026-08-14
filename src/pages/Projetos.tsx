@@ -1,9 +1,9 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { PageShell } from "@/components/layout/AppLayout";
-import { Card, Button, Badge, Table, THead, Th, Tr, Td, EmptyState, AvisoErro, type Tom } from "@/components/ui";
+import { Card, Button, Badge, Table, THead, Tr, Td, EmptyState, AvisoErro, ThOrd, useOrdenacao, type Tom } from "@/components/ui";
 import { IcPlus, IcSearch } from "@/components/icons";
-import { NotifDot } from "@/components/NotifDot";
+import { ThPendencias, TdPendencias } from "@/components/ColunaPendencias";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import { useMinhasPendencias } from "@/store/pendencias";
@@ -26,9 +26,6 @@ const FILTROS: { key: FiltroProjeto; label: string }[] = [
   { key: "Arquivado", label: "Arquivados" },
 ];
 
-type OrdemColuna = "cliente" | "projeto" | "status";
-type DirOrdem = "asc" | "desc";
-
 export function Projetos() {
   const navigate = useNavigate();
   const podeEditar = useAuth((s) => s.pode("projetos.editar"));
@@ -39,22 +36,25 @@ export function Projetos() {
   }, [], { oQue: "os projetos" });
   const [filtro, setFiltro] = useState<FiltroProjeto>("Ativo");
   const [busca, setBusca] = useState("");
-  const [ordem, setOrdem] = useState<{ col: OrdemColuna; dir: DirOrdem }>({ col: "cliente", dir: "asc" });
 
-  const ordenarPor = (col: OrdemColuna) =>
-    setOrdem((o) => (o.col === col ? { col, dir: o.dir === "asc" ? "desc" : "asc" } : { col, dir: "asc" }));
-
-  const lista = useMemo(() => {
+  const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
-    const arr = (data?.projetos ?? []).map((p) => ({ ...p, status: statusProjetoAutomatico(p, data?.ecs ?? []) }))
+    return (data?.projetos ?? []).map((p) => ({ ...p, status: statusProjetoAutomatico(p, data?.ecs ?? []) }))
       // "Arquivados" agrupa tudo que não está Ativo (Arquivado/Concluído/Cancelado).
       .filter((p) => filtro === "Todos" || (filtro === "Ativo" ? p.status === "Ativo" : p.status !== "Ativo"))
       .filter((p) => !q || `${p.nome} ${p.cliente?.nome ?? ""}`.toLowerCase().includes(q));
-    const valor = (p: (typeof arr)[number]) =>
-      ordem.col === "cliente" ? p.cliente?.nome ?? "" : ordem.col === "projeto" ? p.nome ?? "" : p.status;
-    arr.sort((a, b) => valor(a).localeCompare(valor(b), "pt-BR", { sensitivity: "base" }) * (ordem.dir === "asc" ? 1 : -1));
-    return arr;
-  }, [data, filtro, busca, ordem]);
+  }, [data, filtro, busca]);
+
+  const { ordem, ordenarPor, ordenados: lista } = useOrdenacao(
+    filtrados,
+    {
+      pendencias: (p) => porProjeto[p.id] ?? 0,
+      cliente: (p) => p.cliente?.nome,
+      projeto: (p) => p.nome,
+      status: (p) => p.status,
+    },
+    { col: "cliente", dir: "asc" }
+  );
 
   return (
     <PageShell
@@ -103,22 +103,21 @@ export function Projetos() {
         ) : (
           <Table>
             <THead>
-              <ThOrdenavel col="cliente" ordem={ordem} onSort={ordenarPor}>Cliente</ThOrdenavel>
-              <ThOrdenavel col="projeto" ordem={ordem} onSort={ordenarPor}>Projeto</ThOrdenavel>
-              <ThOrdenavel col="status" align="center" ordem={ordem} onSort={ordenarPor}>Status</ThOrdenavel>
+              {/* Pendências em coluna própria: os badges ficam alinhados entre si e o
+                  nome do projeto começa sempre na mesma posição. */}
+              <ThPendencias col="pendencias" ordem={ordem} onSort={ordenarPor} />
+              <ThOrd col="cliente" ordem={ordem} onSort={ordenarPor}>Cliente</ThOrd>
+              <ThOrd col="projeto" ordem={ordem} onSort={ordenarPor}>Projeto</ThOrd>
+              <ThOrd col="status" align="center" ordem={ordem} onSort={ordenarPor}>Status</ThOrd>
             </THead>
             <tbody>
               {lista.map((p) => (
                 <Tr key={p.id} onClick={() => navigate(`/projetos/${p.id}`)}>
+                  <TdPendencias n={porProjeto[p.id] ?? 0} title={`${porProjeto[p.id] ?? 0} pendência(s) neste projeto`} />
                   <Td className="text-ink font-medium">{p.cliente?.nome || "—"}</Td>
-                  <Td>
-                    {/* Sem thumbnail: as iniciais não informavam nada e saíam quebradas em
-                        títulos com travessão ("BM – Convenção…" virava "B–"). */}
-                    <div className="flex items-center gap-2">
-                      <NotifDot inline n={porProjeto[p.id] ?? 0} title={`${porProjeto[p.id] ?? 0} pendência(s) neste projeto`} />
-                      <div className="font-bold text-ink">{p.nome || "(sem título)"}</div>
-                    </div>
-                  </Td>
+                  {/* Sem thumbnail: as iniciais não informavam nada e saíam quebradas em
+                      títulos com travessão ("BM – Convenção…" virava "B–"). */}
+                  <Td className="font-bold text-ink">{p.nome || "(sem título)"}</Td>
                   <Td align="center"><Badge tom={tomStatusProjeto[p.status]}>{p.status}</Badge></Td>
                 </Tr>
               ))}
@@ -127,38 +126,5 @@ export function Projetos() {
         )}
       </Card>
     </PageShell>
-  );
-}
-
-function ThOrdenavel({
-  col,
-  children,
-  align = "left",
-  ordem,
-  onSort,
-}: {
-  col: OrdemColuna;
-  children: ReactNode;
-  align?: "left" | "center" | "right";
-  ordem: { col: OrdemColuna; dir: DirOrdem };
-  onSort: (col: OrdemColuna) => void;
-}) {
-  const ativo = ordem.col === col;
-  return (
-    <Th align={align}>
-      <button
-        type="button"
-        onClick={() => onSort(col)}
-        className={cx(
-          "inline-flex items-center gap-1 uppercase tracking-[0.08em] hover:text-ink-2 transition-colors",
-          align === "center" && "justify-center w-full"
-        )}
-      >
-        {children}
-        <span className={cx("text-[9px] leading-none", ativo ? "text-ink-2" : "text-ink-3/40")}>
-          {ativo ? (ordem.dir === "asc" ? "▲" : "▼") : "▲"}
-        </span>
-      </button>
-    </Th>
   );
 }

@@ -25,6 +25,8 @@ import {
   producaoZerada,
   honorariosPadrao,
   encargosPadrao,
+  limitarPercentual,
+  rotuloTaxa,
   ROTULO_HONORARIOS_PADRAO,
   ROTULO_ENCARGOS_PADRAO,
 } from "@/domain/calc";
@@ -36,6 +38,7 @@ import { corrigirMaiusculas, corrigirMaiusculasHtml } from "@/lib/correcaoOrtogr
 import { useAuth } from "@/store/auth";
 import { RentabilidadeItens } from "@/components/RentabilidadeItens";
 import { EcGrupos } from "@/components/EcGrupos";
+import { NavegadorPendencias, linhasComPendencia } from "@/components/NavegadorPendencias";
 import { EcSubGuias, type SubGuiaEc } from "@/components/EcSubGuias";
 import { flags } from "@/lib/flags";
 import { toast } from "@/store/toast";
@@ -198,6 +201,8 @@ export function EcForm() {
     () => (ec ? gastoPorLinhaViaOSs(ec.linhas, ossData ?? []) : {}),
     [ec, ossData]
   );
+  // Itens com observação em aberto — alimentam o navegador de pendências.
+  const idsPendencias = useMemo(() => linhasComPendencia(ec?.linhas ?? []), [ec?.linhas]);
 
   const sujo = !!ec && baseline !== "" && JSON.stringify(ec) !== baseline;
   useUnsavedGuard(sujo);
@@ -377,34 +382,47 @@ export function EcForm() {
 
   return (
     <PageShell title={tituloEc({ ...ec, numero })} titleAdornment={statusBadge}>
-      <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
-        <button onClick={() => navigate(voltarUrl)} className="inline-flex items-center gap-1.5 text-sm text-ink-2 hover:text-ink font-semibold">
-          <IcBack width={16} height={16} /> Voltar ao projeto
-        </button>
-        <div className="flex gap-2 flex-wrap">
-          <Button variant="secondary" size="sm" icon={<IcDownload width={16} height={16} />} onClick={() => gerarEcExcel({ ...ec, numero }, { modelo: "financeiro" })}>
-            Excel Financeiro
-          </Button>
-          <Button variant="secondary" size="sm" icon={<IcDownload width={16} height={16} />} onClick={() => gerarEcExcel({ ...ec, numero }, { modelo: "completa" })}>
-            Excel Completa
-          </Button>
-          <Button variant="secondary" size="sm" onClick={revisar} disabled={salvando} title="Padroniza a formatação dos textos (sem IA)">
-            Revisar
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => navigate(editando ? `/estimativas/${ec.id}` : voltarUrl)}
-          >
-            Cancelar
-          </Button>
-          <Button size="sm" onClick={() => void salvar()} disabled={salvando || mostrarSalvo}>
-            {salvando ? "Salvando…" : mostrarSalvo ? "Salvo" : "Salvar"}
-          </Button>
+      {/* Cabeçalho fixo: em EC longa, o título, o status e as ações continuam à
+          vista enquanto se rola a lista de itens. */}
+      <div className="sticky top-0 z-30 -mx-2 mb-4 rounded-card border border-border bg-surface/95 px-3 py-2.5 shadow-card backdrop-blur">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3 min-w-0">
+            <button onClick={() => navigate(voltarUrl)} className="inline-flex items-center gap-1.5 text-sm text-ink-2 hover:text-ink font-semibold shrink-0">
+              <IcBack width={16} height={16} /> Voltar ao projeto
+            </button>
+            <span className="hidden md:inline-flex items-center gap-2 min-w-0">
+              <span className="font-display font-bold text-[15px] text-ink truncate max-w-[42ch]">{tituloEc({ ...ec, numero })}</span>
+              {statusBadge}
+            </span>
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <Button variant="secondary" size="sm" icon={<IcDownload width={16} height={16} />} onClick={() => gerarEcExcel({ ...ec, numero }, { modelo: "financeiro" })}>
+              Excel Financeiro
+            </Button>
+            <Button variant="secondary" size="sm" icon={<IcDownload width={16} height={16} />} onClick={() => gerarEcExcel({ ...ec, numero }, { modelo: "completa" })}>
+              Excel Completa
+            </Button>
+            <Button variant="secondary" size="sm" onClick={revisar} disabled={salvando} title="Padroniza a formatação dos textos (sem IA)">
+              Revisar
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => navigate(editando ? `/estimativas/${ec.id}` : voltarUrl)}
+            >
+              Cancelar
+            </Button>
+            <Button size="sm" onClick={() => void salvar()} disabled={salvando || mostrarSalvo}>
+              {salvando ? "Salvando…" : mostrarSalvo ? "Salvo" : "Salvar"}
+            </Button>
+          </div>
         </div>
       </div>
 
       <EcSubGuias atual={subaba} onChange={setSubaba} temResumo={verFinanceiro} temRentabilidade={verFinanceiro} />
+
+      {/* Pill flutuante que salta entre as observações em aberto da EC. */}
+      {subaba === "ec" && <NavegadorPendencias ids={idsPendencias} />}
 
       {verFinanceiro && subaba === "resumo" && <div className="space-y-4">{resumoCard}</div>}
       {verFinanceiro && subaba === "rentabilidade" && <div className="space-y-4">{rentabilidadeCard}</div>}
@@ -490,29 +508,54 @@ export function EcForm() {
   );
 }
 
-/** Editor de uma taxa: alterna entre percentual (%) e valor fixo (R$). */
-function TaxaEditor({ cfg, onChange }: { cfg: TaxaConfig; onChange: (c: TaxaConfig) => void }) {
+/**
+ * Editor de uma taxa: alterna entre percentual (%) e valor fixo (R$).
+ *
+ * No modo percentual o valor é travado em 0–100,00% (não existe taxa de 150%) e,
+ * quando `comMinimo`, aparece o campo de taxa mínima: o sistema cobra o maior
+ * entre o percentual e esse piso.
+ */
+function TaxaEditor({ cfg, onChange, comMinimo = false }: { cfg: TaxaConfig; onChange: (c: TaxaConfig) => void; comMinimo?: boolean }) {
   return (
-    <div className="inline-flex items-center gap-1.5">
+    <div className="inline-flex items-center gap-1.5 flex-wrap">
       <Select
         className="!h-8 !w-[68px] !px-2 !text-[12px]"
         value={cfg.modo}
-        onChange={(e) => onChange({ modo: e.target.value as TaxaConfig["modo"], valor: cfg.modo === (e.target.value as TaxaConfig["modo"]) ? cfg.valor : 0 })}
+        onChange={(e) => {
+          const modo = e.target.value as TaxaConfig["modo"];
+          onChange({ ...cfg, modo, valor: cfg.modo === modo ? cfg.valor : 0 });
+        }}
       >
         <option value="percentual">%</option>
         <option value="fixo">R$</option>
       </Select>
       {cfg.modo === "percentual" ? (
-        <div className="relative">
-          <NumberInput
-            className="!h-8 !w-24 !px-2 !pr-6 !text-[12px] text-right"
-            value={Math.round((cfg.valor || 0) * 10000) / 100}
-            onValue={(v) => onChange({ modo: "percentual", valor: (v || 0) / 100 })}
-          />
-          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[12px] text-ink-3">%</span>
-        </div>
+        <>
+          <div className="relative">
+            <NumberInput
+              className="!h-8 !w-24 !px-2 !pr-6 !text-[12px] text-right"
+              min={0}
+              max={100}
+              step={0.01}
+              value={Math.round(limitarPercentual(cfg.valor || 0) * 10000) / 100}
+              onValue={(v) => onChange({ ...cfg, modo: "percentual", valor: limitarPercentual((v || 0) / 100) })}
+            />
+            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[12px] text-ink-3">%</span>
+          </div>
+          {comMinimo && (
+            <label className="inline-flex items-center gap-1.5 text-[11.5px] text-ink-3">
+              mín.
+              <CurrencyInput
+                className="!h-8 !w-28 !px-2 !text-[12px]"
+                value={cfg.minimo || 0}
+                onValue={(v) => onChange({ ...cfg, minimo: v })}
+                title="Taxa mínima: quando o percentual render menos que este valor, cobra-se o mínimo"
+              />
+            </label>
+          )}
+        </>
       ) : (
-        <CurrencyInput className="!h-8 !w-32 !px-2 !text-[12px]" value={cfg.valor || 0} onValue={(v) => onChange({ modo: "fixo", valor: v })} />
+        <CurrencyInput className="!h-8 !w-32 !px-2 !text-[12px]" value={cfg.valor || 0} onValue={(v) => onChange({ ...cfg, modo: "fixo", valor: v })} />
       )}
     </div>
   );
@@ -559,8 +602,9 @@ function ResumoCustos({
             <td className="px-4 py-2.5">
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <input className={rotuloClasse} value={honorariosRotulo ?? ""} placeholder={ROTULO_HONORARIOS_PADRAO} onChange={(e) => onHonorariosRotulo(e.target.value)} title="Rótulo editável — aparece também na planilha" />
-                <TaxaEditor cfg={honorarios} onChange={onHonorarios} />
+                <TaxaEditor cfg={honorarios} onChange={onHonorarios} comMinimo />
               </div>
+              <p className="mt-1 text-[11.5px] text-ink-3">{rotuloTaxa(honorarios, t.honorariosMinimoAplicado)}</p>
             </td>
             <td className="px-4 py-2.5 text-right font-display font-bold text-ink whitespace-nowrap">{brl(t.honorariosPolobh)}</td>
             <td className="px-4 py-2.5 text-right font-display font-bold text-ink whitespace-nowrap">{brl(t.honorariosCliente)}</td>

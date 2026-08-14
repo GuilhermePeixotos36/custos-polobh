@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { camposObrigatoriosProjeto, compoeTituloProjeto, normalizarProjetoInfo, projetoInfoVazio } from "./projeto";
+import {
+  camposObrigatoriosProjeto,
+  compoeTituloProjeto,
+  normalizarProjetoInfo,
+  projetoInfoVazio,
+  ETAPAS_CRONOGRAMA,
+  idBlocoEtapa,
+  idBlocoExtra,
+  novoBlocoCronograma,
+} from "./projeto";
 import type { Cliente } from "@/data/types";
 
 const clienteValido = (): Cliente => ({
@@ -41,5 +50,44 @@ describe("projetoInfo", () => {
     info.local = "Centro de Convenções";
     info.cronograma.evento[0].data = "2026-10-01";
     expect(camposObrigatoriosProjeto(info, clienteValido())).toEqual([]);
+  });
+});
+
+describe("cronograma do projeto — blocos livres", () => {
+  it("projeto novo já vem com as cinco etapas padrão na ordem", () => {
+    const info = projetoInfoVazio();
+    expect(info.cronogramaExtras).toEqual([]);
+    expect(info.cronogramaOrdem).toEqual(ETAPAS_CRONOGRAMA.map((e) => idBlocoEtapa(e.key)));
+  });
+
+  it("projeto legado (sem os campos novos) ganha ordem completa sem perder etapa", () => {
+    const info = normalizarProjetoInfo({ titulo: "Antigo", evento: "2026-05-10", horario: "08h às 18h" });
+    expect(info.cronogramaExtras).toEqual([]);
+    for (const e of ETAPAS_CRONOGRAMA) expect(info.cronogramaOrdem).toContain(idBlocoEtapa(e.key));
+    // Data legada continua migrando para o bloco Evento.
+    expect(info.cronograma.evento[0].data).toBe("2026-05-10");
+  });
+
+  it("preserva blocos livres e a ordem salva", () => {
+    const extra = novoBlocoCronograma();
+    const ordem = [idBlocoExtra(extra.id), ...ETAPAS_CRONOGRAMA.map((e) => idBlocoEtapa(e.key))];
+    const info = normalizarProjetoInfo({ cronogramaExtras: [extra], cronogramaOrdem: ordem });
+    expect(info.cronogramaOrdem).toEqual(ordem);
+    expect(info.cronogramaExtras[0].titulo).toBe(extra.titulo);
+  });
+
+  it("descarta ids órfãos da ordem e acrescenta blocos que faltavam", () => {
+    const info = normalizarProjetoInfo({
+      cronogramaExtras: [],
+      cronogramaOrdem: ["extra:bloco-que-nao-existe", idBlocoEtapa("evento")],
+    });
+    expect(info.cronogramaOrdem).not.toContain("extra:bloco-que-nao-existe");
+    expect(info.cronogramaOrdem[0]).toBe(idBlocoEtapa("evento"));
+    expect(info.cronogramaOrdem).toHaveLength(ETAPAS_CRONOGRAMA.length);
+  });
+
+  it("respeita um bloco esvaziado por arraste (não recria data em branco)", () => {
+    const info = normalizarProjetoInfo({ cronograma: { ensaios: [] } });
+    expect(info.cronograma.ensaios).toEqual([]);
   });
 });

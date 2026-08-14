@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { PageShell } from "@/components/layout/AppLayout";
-import { Card, Badge, Table, THead, Th, Tr, Td, Input, EmptyState, AvisoErro, tomStatusOs } from "@/components/ui";
+import { Card, Badge, Table, THead, Tr, Td, Input, EmptyState, AvisoErro, ThOrd, useOrdenacao, tomStatusOs } from "@/components/ui";
 import { IcSearch } from "@/components/icons";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
@@ -14,12 +14,25 @@ export function OsList() {
   const { data, loading, error, reload } = useAsync(() => repo.oss.listar(), [], { oQue: "as OSs" });
   const [busca, setBusca] = useState("");
 
-  const lista = useMemo(() => {
+  const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
     return (data ?? []).filter((o) =>
       !q ? true : [o.numero, o.fornecedor.razaoSocial, o.ecNumero].join(" ").toLowerCase().includes(q)
     );
   }, [data, busca]);
+
+  const { ordem, ordenarPor, ordenados: lista } = useOrdenacao(
+    filtrados,
+    {
+      numero: (o) => o.numero,
+      fornecedor: (o) => o.fornecedor.razaoSocial,
+      ec: (o) => o.ecNumero,
+      modalidade: (o) => o.modalidade,
+      valor: (o) => o.orcamento.valorEc,
+      status: (o) => o.status,
+    },
+    { col: "numero", dir: "asc" }
+  );
 
   return (
     <PageShell title="Ordens de Serviço" subtitle="OSs geradas a partir das estimativas, consolidadas por fornecedor.">
@@ -39,12 +52,12 @@ export function OsList() {
         ) : (
           <Table>
             <THead>
-              <Th>OS</Th>
-              <Th>Fornecedor</Th>
-              <Th>EC</Th>
-              <Th>Modalidade</Th>
-              {verFinanceiro && <Th align="right">Valor EC</Th>}
-              <Th align="center">Status</Th>
+              <ThOrd col="numero" ordem={ordem} onSort={ordenarPor}>OS</ThOrd>
+              <ThOrd col="fornecedor" ordem={ordem} onSort={ordenarPor}>Fornecedor</ThOrd>
+              <ThOrd col="ec" ordem={ordem} onSort={ordenarPor}>EC</ThOrd>
+              <ThOrd col="modalidade" ordem={ordem} onSort={ordenarPor}>Modalidade</ThOrd>
+              {verFinanceiro && <ThOrd col="valor" align="right" ordem={ordem} onSort={ordenarPor}>Valor EC</ThOrd>}
+              <ThOrd col="status" align="center" ordem={ordem} onSort={ordenarPor}>Status</ThOrd>
             </THead>
             <tbody>
               {lista.map((o) => (

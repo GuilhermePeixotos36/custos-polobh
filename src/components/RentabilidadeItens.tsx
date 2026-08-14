@@ -11,10 +11,14 @@ function tomRent(p: number | null): string {
 }
 
 /**
- * Rentabilidade por item da EC: A = estimado, B = gasto (automático das OS's),
- * C = (A − B) / A. O "Gasto" vem do valor a pagar das OS's rateado por item
- * (via `gastoPorLinha`), não é digitado. Só aparecem itens que tiveram custo na
- * EC ou pagamento por OS; itens ocultos ficam de fora.
+ * Rentabilidade ITEM A ITEM da EC: A = estimado, B = gasto (automático das OS's),
+ * C = (A − B) / A — sempre calculado sobre cada item, nunca sobre o grupo de
+ * despesa. Os grupos aparecem apenas como cabeçalho, para localizar o item; o
+ * subtotal do grupo é informativo e não entra em nenhum percentual de item.
+ *
+ * O "Gasto" vem do valor a pagar das OS's rateado por item (via `gastoPorLinha`),
+ * não é digitado. Só aparecem itens que tiveram custo na EC ou pagamento por OS;
+ * itens ocultos ficam de fora.
  */
 export function RentabilidadeItens({
   linhas,
@@ -29,6 +33,16 @@ export function RentabilidadeItens({
     (l) => !l.oculto && ((l.valorPolobh || 0) + (l.valorCliente || 0) > 0 || l.valorGasto > 0)
   );
   const total = rentabilidadeTotal(visiveis);
+
+  // Agrupa só para exibir: preserva a ordem de aparição dos grupos na EC.
+  const grupos: { nome: string; itens: typeof visiveis }[] = [];
+  for (const l of visiveis) {
+    const nome = l.grupo || "GERAL";
+    const atual = grupos.at(-1);
+    if (atual?.nome === nome) atual.itens.push(l);
+    else grupos.push({ nome, itens: [l] });
+  }
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -48,20 +62,35 @@ export function RentabilidadeItens({
               </td>
             </tr>
           )}
-          {visiveis.map((l) => {
-            const r = rentabilidadeItem(l);
+          {grupos.map((g) => {
+            const subtotal = rentabilidadeTotal(g.itens);
             return (
-              <tr key={l.id} className="border-b border-border-soft">
-                <td className="px-3 py-2.5">
-                  <div className="font-semibold text-ink">{l.item || l.descricao || "—"}</div>
-                  {l.grupo && <div className="text-[11px] text-ink-3">{l.grupo}</div>}
-                </td>
-                <td className="px-3 py-2.5 text-right font-display font-bold text-ink whitespace-nowrap">{brl(r.estimado)}</td>
-                <td className="px-3 py-2.5 text-right font-semibold text-ink whitespace-nowrap">{brl(r.gasto)}</td>
-                <td className={cx("px-3 py-2.5 text-right font-display font-bold whitespace-nowrap", tomRent(r.percent))}>
-                  {r.percent === null ? "—" : pct(r.percent)}
-                </td>
-              </tr>
+              <FragmentoGrupo key={g.nome} nome={g.nome}>
+                {g.itens.map((l) => {
+                  const r = rentabilidadeItem(l);
+                  return (
+                    <tr key={l.id} className="border-b border-border-soft">
+                      <td className="px-3 py-2.5 pl-6">
+                        <div className="font-semibold text-ink">{l.item || l.descricao || "—"}</div>
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-display font-bold text-ink whitespace-nowrap">{brl(r.estimado)}</td>
+                      <td className="px-3 py-2.5 text-right font-semibold text-ink whitespace-nowrap">{brl(r.gasto)}</td>
+                      <td className={cx("px-3 py-2.5 text-right font-display font-bold whitespace-nowrap", tomRent(r.percent))}>
+                        {r.percent === null ? "—" : pct(r.percent)}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {/* Subtotal do grupo: referência de leitura, não entra no cálculo dos itens. */}
+                <tr className="border-b border-border-soft text-ink-2">
+                  <td className="px-3 py-1.5 pl-6 text-[11.5px] font-bold italic">Subtotal do grupo</td>
+                  <td className="px-3 py-1.5 text-right text-[12px] font-semibold whitespace-nowrap">{brl(subtotal.estimado)}</td>
+                  <td className="px-3 py-1.5 text-right text-[12px] font-semibold whitespace-nowrap">{brl(subtotal.gasto)}</td>
+                  <td className="px-3 py-1.5 text-right text-[12px] font-semibold whitespace-nowrap">
+                    {subtotal.percent === null ? "—" : pct(subtotal.percent)}
+                  </td>
+                </tr>
+              </FragmentoGrupo>
             );
           })}
           {visiveis.length > 0 && (
@@ -77,8 +106,23 @@ export function RentabilidadeItens({
         </tbody>
       </table>
       <p className="px-3 py-2 text-[11.5px] text-ink-3">
-        A = estimado na EC · B = gasto (valor a pagar das OS's, rateado por item) · C = (A − B) ÷ A.
+        A = estimado na EC · B = gasto (valor a pagar das OS's, rateado por item) · C = (A − B) ÷ A,
+        calculado item a item. O subtotal por grupo é apenas informativo.
       </p>
     </div>
+  );
+}
+
+/** Cabeçalho do grupo + suas linhas (o grupo é só organização visual). */
+function FragmentoGrupo({ nome, children }: { nome: string; children: React.ReactNode }) {
+  return (
+    <>
+      <tr className="bg-[#F4F5F7]">
+        <td colSpan={4} className="px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.06em] text-ink-2">
+          {nome}
+        </td>
+      </tr>
+      {children}
+    </>
   );
 }

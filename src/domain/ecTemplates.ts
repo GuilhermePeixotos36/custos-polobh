@@ -9,6 +9,18 @@ export interface TemplateItem {
   descricao: string;
 }
 
+/**
+ * Bloco EQUIPE PRODUÇÃO — definido uma única vez e usado nos DOIS modelos.
+ * As ECs Culturais passaram a ter os mesmos itens das Corporativas (pedido da
+ * Marisa, 14/08/2026); manter a lista compartilhada evita que voltem a divergir.
+ */
+const EQUIPE_PRODUCAO: TemplateItem[] = [
+  { grupo: "EQUIPE PRODUÇÃO", item: "Despesas operacionais", descricao: "Previsão para despesas operacionais com motoboy, cartório, Correios - Taxa Fixa Pólobh." },
+  { grupo: "EQUIPE PRODUÇÃO", item: "Equipe", descricao: "Contratação de Equipe de Produção, sendo:\n\nDiária padrão BH | R$ 750,00\nDiária padrão Viagem | R$ 900,00" },
+  { grupo: "EQUIPE PRODUÇÃO", item: "Transporte", descricao: "Custos Transporte Equipe de Produção, sendo:\n\nBH | R$ 125,00/dia/produtor\nViagem | R$ 200,00/dia" },
+  { grupo: "EQUIPE PRODUÇÃO", item: "Alimentação", descricao: "Custos Alimentação Equipe de Produção, sendo:\n\nBH | R$ 85,00/dia/produtor\nViagem | R$ 150,00" },
+];
+
 export const TEMPLATE_CORPORATIVO: TemplateItem[] = [
   { grupo: "VISITA TÉCNICA", item: "Passagens Aéreas", descricao: "Aquisição de Passagens Aéreas para atendimento das necessidades da VT, sendo:" },
   { grupo: "VISITA TÉCNICA", item: "Transporte Terrestre", descricao: "Contratação de Serviços de Transporte Terrestre, sendo:" },
@@ -154,11 +166,7 @@ export const TEMPLATE_CORPORATIVO: TemplateItem[] = [
   { grupo: "TAXAS E LIBERAÇÕES", item: "Ignifugação Tecidos", descricao: "Serviços de Ignifugação de Tecidos, sendo:" },
   { grupo: "TAXAS E LIBERAÇÕES", item: "Centro de Controle Operacional", descricao: "Contratação de Serviços de Controle Operacional, sendo:" },
   { grupo: "EXTRAS", item: "", descricao: "" },
-  { grupo: "EXTRAS", item: "", descricao: "" },
-  { grupo: "EQUIPE PRODUÇÃO", item: "Despesas operacionais", descricao: "Previsão para despesas operacionais com motoboy, cartório, Correios - Taxa Fixa Pólobh." },
-  { grupo: "EQUIPE PRODUÇÃO", item: "Equipe", descricao: "Contratação de Equipe de Produção, sendo:\n\nDiária padrão BH | R$ 750,00\nDiária padrão Viagem | R$ 900,00" },
-  { grupo: "EQUIPE PRODUÇÃO", item: "Transporte", descricao: "Custos Transporte Equipe de Produção, sendo:\n\nBH | R$ 125,00/dia/produtor\nViagem | R$ 200,00/dia" },
-  { grupo: "EQUIPE PRODUÇÃO", item: "Alimentação", descricao: "Custos Alimentação Equipe de Produção, sendo:\n\nBH | R$ 85,00/dia/produtor\nViagem | R$ 150,00" },
+  ...EQUIPE_PRODUCAO,
   { grupo: "LOGÍSTICA EQUIPES PRODUÇÃO", item: "Passagens Aéreas", descricao: "Aquisição de Passagens Aéreas para atendimento das necessidades dos Equipes de Produção, sendo:" },
   { grupo: "LOGÍSTICA EQUIPES PRODUÇÃO", item: "Transporte de Carga", descricao: "Contratação de Transporte de Carga Equipes Produção, sendo:" },
   { grupo: "LOGÍSTICA EQUIPES PRODUÇÃO", item: "Transfers Aeroportos", descricao: "Contratação de Transfers Aeroportos, sendo:" },
@@ -216,8 +224,8 @@ export const TEMPLATE_CULTURAL: TemplateItem[] = [
   { grupo: "MÍDIA", item: "Mídia Globo", descricao: "Sem custos para o projeto - Apoio promocional." },
   { grupo: "MÍDIA", item: "VT", descricao: "Edição de VT's 12\" para mídia divulgação Globo + Versão Adatptada para Prestação de Contas MinC" },
   { grupo: "REGISTRO FOTOGRÁFICO", item: "Registro Fotográficos", descricao: "Contratação de fotógrafo para registro do evento, sendo:\nData - Horário - XX Profissionais x XX Horas x Valor unitário" },
-  { grupo: "EQUIPE PRODUÇÃO", item: "Despesas operacionais", descricao: "Previsão para despesas operacionais com motoboy, cartório, Correios - Taxa Fixa Pólobh." },
-  { grupo: "EQUIPE PRODUÇÃO", item: "Equipe", descricao: "Contratação de Equipe de Produção, sendo:" },
+  // Mesmos itens do modelo Corporativo + o item exclusivo das Culturais.
+  ...EQUIPE_PRODUCAO,
   { grupo: "EQUIPE PRODUÇÃO", item: "Atendimento Patrocinadores e apoiadores de Mídia", descricao: "Contratação de promotora para atendimento dos convidados e Patrocinadores no teatro, sendo:\n\nData - Horário - XX Profissionais x Valor unitário:" },
   { grupo: "LOGÍSTICA EQUIPES PRODUÇÃO", item: "Transporte Material", descricao: "Contratação de Transporte de Carga Equipes Produção, sendo:" },
   { grupo: "LOGÍSTICA EQUIPES PRODUÇÃO", item: "Transporte Terrestre", descricao: "Contratação de Serviços de Transporte Terrestre, sendo:" },

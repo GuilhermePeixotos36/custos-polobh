@@ -19,15 +19,20 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Input, AutoTextarea, Select, CurrencyInput, Button } from "@/components/ui";
-import { IcGrip, IcChevron, IcPlus, IcEye, IcEyeOff, IcSpark } from "@/components/icons";
+import { IcGrip, IcChevron, IcPlus, IcEye, IcEyeOff, IcSpark, IcCheck } from "@/components/icons";
 import { FornecedorField } from "@/components/FornecedorField";
 import { RichTextField } from "@/components/RichTextField";
 import { ObservacoesThread } from "@/components/ObservacoesPopup";
 import { ResumoPropostaModal } from "@/components/ResumoPropostaModal";
 import { NotifDot } from "@/components/NotifDot";
+import { MoverSetas } from "@/components/MoverSetas";
+import { idAncoraPendencia } from "@/components/NavegadorPendencias";
 import { flags } from "@/lib/flags";
 import { brl, cx } from "@/lib/format";
 import type { DocumentoPg, EcLinha, Fornecedor, Observacao, StatusAprovacao, StatusOs } from "@/data/types";
+
+/** Opções de status de OS e de Contrato — a mesma lista nos dois campos. */
+const OPCOES_STATUS_OS: StatusOs[] = ["Pendente", "Emitir", "Emitir Nova Versão", "OK", "Não se Aplica"];
 
 const OPCOES_STATUS_TEXTO = ["Pendente", "Não se Aplica"];
 const OPCOES_SELECT_TEXTO = [
@@ -219,6 +224,7 @@ interface Props {
 export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuarios, onValidarFornecedor }: Props) {
   const [grupos, setGrupos] = useState<Grupo[]>(() => agrupar(linhas));
   const [expandido, setExpandido] = useState<Record<string, boolean>>({});
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const [ativo, setAtivo] = useState<{ tipo: "grupo" | "item"; chave: string } | null>(null);
   const arrastandoRef = useRef(false);
   // Espelho sempre atual do estado (evita leitura defasada entre onDragOver e onDragEnd).
@@ -267,6 +273,68 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
     commit([...grupos, { id, nome, itens: [linha] }]);
     setExpandido((e) => ({ ...e, [id]: true }));
   };
+
+  /**
+   * Move um item uma posição dentro do próprio grupo (as setas nunca tiram o item
+   * do grupo). A troca é feita com o VIZINHO VISÍVEL: itens ocultos ficam no meio
+   * do array e, se entrassem na conta, a seta pareceria não fazer nada.
+   */
+  const moverItem = (grupoId: string, itemId: string, direcao: -1 | 1) =>
+    commit(
+      grupos.map((g) => {
+        if (g.id !== grupoId) return g;
+        const atual = g.itens.findIndex((i) => i.id === itemId);
+        if (atual < 0) return g;
+        let vizinho = atual + direcao;
+        while (vizinho >= 0 && vizinho < g.itens.length && g.itens[vizinho].oculto) vizinho += direcao;
+        if (vizinho < 0 || vizinho >= g.itens.length) return g;
+        const itens = [...g.itens];
+        [itens[atual], itens[vizinho]] = [itens[vizinho], itens[atual]];
+        return { ...g, itens };
+      })
+    );
+
+  /* --------------------- seleção em massa (estilo SharePoint) --------------------- */
+  const alternarSelecao = (id: string) =>
+    setSelecionados((s) => {
+      const x = new Set(s);
+      x.has(id) ? x.delete(id) : x.add(id);
+      return x;
+    });
+  /** Marca/desmarca de uma vez todos os itens visíveis de um grupo. */
+  const alternarSelecaoGrupo = (grupoId: string, marcar: boolean) =>
+    setSelecionados((s) => {
+      const x = new Set(s);
+      const alvo = grupos.find((g) => g.id === grupoId);
+      for (const it of alvo?.itens.filter((i) => !i.oculto) ?? []) marcar ? x.add(it.id) : x.delete(it.id);
+      return x;
+    });
+  const limparSelecao = () => setSelecionados(new Set());
+
+  /**
+   * Aprova os itens selecionados e, junto, deixa a OS pronta para ser emitida.
+   *
+   * A OS só é empurrada para "Emitir" quando ainda está "Pendente": itens que já
+   * têm OS emitida ("OK"), que já estão marcados para emitir, ou que não geram OS
+   * ("Não se Aplica") mantêm o status — aprovar não pode disparar uma segunda OS
+   * nem ressuscitar um item declarado fora do fluxo. Os dois campos continuam
+   * editáveis um a um no próprio item.
+   */
+  const aprovarSelecionados = () => {
+    commit(
+      grupos.map((g) => ({
+        ...g,
+        itens: g.itens.map((it) =>
+          selecionados.has(it.id)
+            ? { ...it, statusAprovacao: "OK" as const, statusOs: it.statusOs === "Pendente" ? ("Emitir" as const) : it.statusOs }
+            : it
+        ),
+      }))
+    );
+    limparSelecao();
+  };
+
+  const totalSelecionados = selecionados.size;
 
   /** Oculta/reexibe um item. */
   const setOcultoItem = (id: string, oculto: boolean) => updLinha(id, { oculto });
@@ -363,6 +431,27 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
 
   return (
     <div className="space-y-3">
+      {/* Barra de ações da seleção: aparece só com itens marcados e acompanha a
+          rolagem, para as ações ficarem à mão em EC longa. */}
+      {totalSelecionados > 0 && (
+        <div className="sticky top-2 z-30 flex items-center gap-3 flex-wrap rounded-btn border border-primary bg-primary-soft px-3 py-2 shadow-card">
+          <span className="text-[13px] font-extrabold text-primary-dark">
+            {totalSelecionados} {totalSelecionados === 1 ? "item selecionado" : "itens selecionados"}
+          </span>
+          <Button
+            size="sm"
+            icon={<IcCheck width={15} height={15} />}
+            onClick={aprovarSelecionados}
+            title="Marca a Aprovação como OK e, nos itens com OS ainda Pendente, muda a OS para Emitir"
+          >
+            Aprovar e liberar OS
+          </Button>
+          <button type="button" onClick={limparSelecao} className="ml-auto text-[12.5px] font-bold text-ink-2 hover:text-ink">
+            Limpar seleção
+          </button>
+        </div>
+      )}
+
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <Button variant="secondary" size="sm" icon={<IcPlus width={16} height={16} />} onClick={addGrupo}>
           Adicionar grupo
@@ -407,12 +496,16 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
                 verFinanceiro={verFinanceiro}
                 fornecedores={fornecedores}
                 usuarios={usuarios}
+                selecionados={selecionados}
                 onToggle={() => toggle(g.id)}
                 onRenomear={(v) => renomearGrupo(g.nome, v)}
                 onAddItem={() => addItem(g.nome)}
                 onUpdLinha={updLinha}
                 onOcultoItem={setOcultoItem}
                 onOcultoGrupo={(v) => setOcultoGrupo(g.nome, v)}
+                onSelecionarItem={alternarSelecao}
+                onSelecionarGrupo={(marcar) => alternarSelecaoGrupo(g.id, marcar)}
+                onMoverItem={(itemId, direcao) => moverItem(g.id, itemId, direcao)}
                 onValidarFornecedor={onValidarFornecedor}              />
             ))}
           </div>
@@ -449,18 +542,23 @@ interface GrupoProps {
   verFinanceiro: boolean;
   fornecedores: Fornecedor[];
   usuarios: string[];
+  selecionados: Set<string>;
   onToggle: () => void;
   onRenomear: (v: string) => void;
   onAddItem: () => void;
   onUpdLinha: (id: string, patch: Partial<EcLinha>) => void;
   onOcultoItem: (id: string, oculto: boolean) => void;
   onOcultoGrupo: (oculto: boolean) => void;
+  onSelecionarItem: (id: string) => void;
+  onSelecionarGrupo: (marcar: boolean) => void;
+  onMoverItem: (itemId: string, direcao: -1 | 1) => void;
   onValidarFornecedor: (cnpj: string) => Promise<string | null>;
 }
 
 function GrupoCard({
-  g, aberto, verFinanceiro, fornecedores, usuarios,
-  onToggle, onRenomear, onAddItem, onUpdLinha, onOcultoItem, onOcultoGrupo, onValidarFornecedor,
+  g, aberto, verFinanceiro, fornecedores, usuarios, selecionados,
+  onToggle, onRenomear, onAddItem, onUpdLinha, onOcultoItem, onOcultoGrupo,
+  onSelecionarItem, onSelecionarGrupo, onMoverItem, onValidarFornecedor,
 }: GrupoProps) {
   const sortable = useSortable({ id: GID(g.id) });
   const droppable = useDroppable({ id: CID(g.id) });
@@ -475,6 +573,8 @@ function GrupoCard({
   const ocultos = g.itens.filter((l) => l.oculto);
   const grupoOculto = g.itens.length > 0 && visiveis.length === 0;
   const subtotal = visiveis.reduce((s, l) => s + (l.valorPolobh || 0) + (l.valorCliente || 0), 0);
+  const marcadosNoGrupo = visiveis.filter((l) => selecionados.has(l.id)).length;
+  const todosMarcados = visiveis.length > 0 && marcadosNoGrupo === visiveis.length;
 
   return (
     <div
@@ -488,6 +588,17 @@ function GrupoCard({
       )}
     >
       <div className={cx("flex items-center gap-2 px-3 py-3", aberto && "border-b border-border-soft")}>
+        {/* Marca de uma vez todos os itens visíveis do grupo. */}
+        <input
+          type="checkbox"
+          className="h-4 w-4 shrink-0 accent-[#F2820D] cursor-pointer"
+          checked={todosMarcados}
+          ref={(el) => { if (el) el.indeterminate = marcadosNoGrupo > 0 && !todosMarcados; }}
+          onChange={(e) => onSelecionarGrupo(e.target.checked)}
+          disabled={visiveis.length === 0}
+          aria-label={`Selecionar todos os itens de ${g.nome}`}
+          title="Selecionar todos os itens deste grupo"
+        />
         <button
           ref={sortable.setActivatorNodeRef}
           {...sortable.listeners}
@@ -527,15 +638,20 @@ function GrupoCard({
       {aberto && (
         <div className="p-3 space-y-2.5">
           <SortableContext items={visiveis.map((i) => i.id)} strategy={verticalListSortingStrategy}>
-            {visiveis.map((l) => (
+            {visiveis.map((l, indice) => (
               <ItemRow
                 key={l.id}
                 l={l}
                 verFinanceiro={verFinanceiro}
                 fornecedores={fornecedores}
                 usuarios={usuarios}
+                selecionado={selecionados.has(l.id)}
+                primeiro={indice === 0}
+                ultimo={indice === visiveis.length - 1}
                 onUpd={(patch) => onUpdLinha(l.id, patch)}
                 onOcultar={() => onOcultoItem(l.id, true)}
+                onSelecionar={() => onSelecionarItem(l.id)}
+                onMover={(direcao) => onMoverItem(l.id, direcao)}
                 onValidarFornecedor={onValidarFornecedor}              />
             ))}
           </SortableContext>
@@ -585,12 +701,20 @@ interface ItemProps {
   verFinanceiro: boolean;
   fornecedores: Fornecedor[];
   usuarios: string[];
+  selecionado: boolean;
+  primeiro: boolean;
+  ultimo: boolean;
   onUpd: (patch: Partial<EcLinha>) => void;
   onOcultar: () => void;
+  onSelecionar: () => void;
+  onMover: (direcao: -1 | 1) => void;
   onValidarFornecedor: (cnpj: string) => Promise<string | null>;
 }
 
-function ItemRow({ l, verFinanceiro, fornecedores, usuarios, onUpd, onOcultar, onValidarFornecedor }: ItemProps) {
+function ItemRow({
+  l, verFinanceiro, fornecedores, usuarios, selecionado, primeiro, ultimo,
+  onUpd, onOcultar, onSelecionar, onMover, onValidarFornecedor,
+}: ItemProps) {
   const sortable = useSortable({ id: l.id });
   const style = { transform: CSS.Translate.toString(sortable.transform), transition: sortable.transition };
   const [resumoAberto, setResumoAberto] = useState(false);
@@ -604,25 +728,49 @@ function ItemRow({ l, verFinanceiro, fornecedores, usuarios, onUpd, onOcultar, o
 
   return (
     <div
+      // Âncora do navegador de pendências (pill flutuante que salta entre elas).
+      id={idAncoraPendencia(l.id)}
       ref={sortable.setNodeRef}
       style={style}
       className={cx(
-        "rounded-card border border-border bg-white",
+        "rounded-card border bg-white",
+        selecionado ? "border-primary ring-1 ring-primary/40 bg-primary-soft/30" : "border-border",
         sortable.isDragging && "opacity-40"
       )}
     >
       {/* Linha 1: item + descrições + valores */}
       <div className="grid grid-cols-[auto_minmax(0,1fr)] xl:grid-cols-[auto_13rem_minmax(280px,1fr)_auto_auto] items-start gap-2 p-2.5 min-w-0">
-        <button
-          ref={sortable.setActivatorNodeRef}
-          {...sortable.listeners}
-          {...sortable.attributes}
-          className="relative cursor-grab active:cursor-grabbing text-ink-3 hover:text-ink shrink-0 mt-2 touch-none"
-          title="Arraste para reordenar / mover de grupo"
-        >
-          <NotifDot n={pendencias} title={`${pendencias} pendência(s) neste item`} />
-          <IcGrip width={18} height={18} />
-        </button>
+        {/* Trilha de controles: seleção, pendências, alça e setas — empilhadas, nunca
+            sobrepostas (antes o badge vermelho cobria a alça de arraste). */}
+        <div className="flex flex-col items-center gap-1 shrink-0 pt-1.5">
+          <input
+            type="checkbox"
+            className="h-4 w-4 accent-[#F2820D] cursor-pointer"
+            checked={selecionado}
+            onChange={onSelecionar}
+            aria-label={`Selecionar item ${l.item || "sem título"}`}
+            title="Selecionar item para ações em bloco"
+          />
+          <NotifDot inline n={pendencias} title={`${pendencias} pendência(s) neste item`} />
+          <button
+            ref={sortable.setActivatorNodeRef}
+            {...sortable.listeners}
+            {...sortable.attributes}
+            className="cursor-grab active:cursor-grabbing text-ink-3 hover:text-ink touch-none"
+            title="Arraste para reordenar / mover de grupo"
+            aria-label={`Arrastar item ${l.item || "sem título"}`}
+          >
+            <IcGrip width={18} height={18} />
+          </button>
+          {/* Setas: uma posição por vez, sempre dentro do grupo. */}
+          <MoverSetas
+            rotulo={`o item ${l.item || "sem título"}`}
+            podeSubir={!primeiro}
+            podeDescer={!ultimo}
+            onSubir={() => onMover(-1)}
+            onDescer={() => onMover(1)}
+          />
+        </div>
 
         <div className="min-w-0">
           <Campo label="Item">
@@ -718,19 +866,13 @@ function ItemRow({ l, verFinanceiro, fornecedores, usuarios, onUpd, onOcultar, o
         </Campo>
         <Campo label="OS" className="w-full">
           <Select className="!h-9 !px-2 !text-[12.5px]" value={l.statusOs} onChange={(e) => onUpd({ statusOs: e.target.value as StatusOs })}>
-            <option>Pendente</option>
-            <option>Emitir</option>
-            <option>Emitir Nova Versão</option>
-            <option>OK</option>
-            <option>Não se Aplica</option>
+            {OPCOES_STATUS_OS.map((o) => <option key={o}>{o}</option>)}
           </Select>
         </Campo>
+        {/* Contrato usa exatamente a mesma lista da OS (inclui "Emitir Nova Versão"). */}
         <Campo label="Contrato" className="w-full">
           <Select className="!h-9 !px-2 !text-[12.5px]" value={l.contratoStatus} onChange={(e) => onUpd({ contratoStatus: e.target.value as StatusOs })}>
-            <option>Pendente</option>
-            <option>Emitir</option>
-            <option>OK</option>
-            <option>Não se Aplica</option>
+            {OPCOES_STATUS_OS.map((o) => <option key={o}>{o}</option>)}
           </Select>
         </Campo>
       </div>

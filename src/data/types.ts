@@ -188,6 +188,13 @@ export interface FaixaCronogramaProjeto {
 
 export type CronogramaProjeto = Record<EtapaCronogramaProjeto, FaixaCronogramaProjeto[]>;
 
+/** Bloco adicional do cronograma, criado pelo usuário além das cinco etapas padrão. */
+export interface BlocoCronogramaExtra {
+  id: string;
+  titulo: string;
+  faixas: FaixaCronogramaProjeto[];
+}
+
 export interface RoteirosProjeto {
   preEvento: string;
   evento: string;
@@ -221,6 +228,10 @@ export interface ProjetoInfo {
   roteiro: string;
   incentivosFiscais: string;
   cronograma: CronogramaProjeto;
+  /** Blocos adicionais, livres, do cronograma. */
+  cronogramaExtras: BlocoCronogramaExtra[];
+  /** Ordem de exibição das etapas padrão e dos blocos adicionais do cronograma. */
+  cronogramaOrdem: string[];
   /** Etapas do cronograma ocultadas pelo usuário (ficam recolhidas, mas os dados não são perdidos). */
   etapasOcultas: EtapaCronogramaProjeto[];
   roteiros: RoteirosProjeto;
@@ -310,6 +321,12 @@ export interface Projeto {
 export interface TaxaConfig {
   modo: "percentual" | "fixo";
   valor: number;
+  /**
+   * Taxa mínima em R$ (piso). Só vale no modo percentual: quando o percentual
+   * rende menos que este valor, cobra-se o mínimo; quando rende mais, vale o
+   * percentual. Ausente ou 0 = sem piso.
+   */
+  minimo?: number;
 }
 
 export interface Ec {

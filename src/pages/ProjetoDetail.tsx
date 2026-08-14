@@ -3,12 +3,16 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { PageShell } from "@/components/layout/AppLayout";
 import {
   Card, CardTitle, Button, Field, Input, Label, TelefoneInput, Textarea, Select, Badge,
-  Table, THead, Th, Tr, Td, EmptyState, tomStatusOs, type Tom,
+  Table, THead, Tr, Td, EmptyState, ThOrd, useOrdenacao, tomStatusOs, type Tom,
 } from "@/components/ui";
-import { IcPlus, IcBack, IcDownload, IcSearch, IcTrash, IcEye, IcEyeOff, IcDoc, IcCopy, IcChevron } from "@/components/icons";
+import { IcPlus, IcBack, IcDownload, IcSearch, IcTrash, IcEye, IcEyeOff, IcDoc, IcCopy } from "@/components/icons";
 import { RichTextField } from "@/components/RichTextField";
 import { TimelineConsolidada, type ItemConsolidado } from "@/components/Timeline";
 import { NotifDot } from "@/components/NotifDot";
+import { ThPendencias, TdPendencias } from "@/components/ColunaPendencias";
+import { MoverSetas, moverNaLista } from "@/components/MoverSetas";
+import { ListaArrastavel, ItemArrastavel } from "@/components/ListaArrastavel";
+import { CronogramaProjetoEditor } from "@/components/CronogramaProjetoEditor";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import { useMinhasPendencias } from "@/store/pendencias";
@@ -17,14 +21,14 @@ import { useAuth } from "@/store/auth";
 import { gerarCronogramaExcel } from "@/lib/excel";
 import { cnpjValido, consultarCnpj } from "@/lib/cnpj";
 import { numeroEc, tituloEc } from "@/domain/calc";
-import { camposObrigatoriosProjeto, ETAPAS_CRONOGRAMA, compoeTituloProjeto, novaFaixaCronograma, novoRoteiroExtra, projetoInfoVazio, sincronizarCamposLegados } from "@/domain/projeto";
+import { camposObrigatoriosProjeto, compoeTituloProjeto, novoRoteiroExtra, projetoInfoVazio, sincronizarCamposLegados } from "@/domain/projeto";
 import { flags } from "@/lib/flags";
 import { cx, dataBR, maskCpfCnpjInput, maskDoc, onlyDigits } from "@/lib/format";
 import { toast } from "@/store/toast";
 import { confirmar } from "@/store/confirm";
 import { corrigirRoteirosProjeto } from "@/lib/correcaoOrtografica";
 import { statusProjetoAutomatico } from "@/domain/statusProjeto";
-import type { Cliente, Ec, EcLinha, EtapaCronogramaProjeto, FaixaCronogramaProjeto, Projeto, ProjetoInfo, StatusProjeto } from "@/data/types";
+import type { Cliente, Ec, EcLinha, Projeto, ProjetoInfo, StatusProjeto } from "@/data/types";
 
 const tomStatusProjeto: Record<StatusProjeto, Tom> = {
   Ativo: "success", Arquivado: "neutral", Concluido: "info", Cancelado: "danger",
@@ -115,11 +119,13 @@ export function ProjetoDetail() {
   const ossDoProjeto = useMemo(() => (ossAll ?? []).filter((o) => ecIds.has(o.ecId)), [ossAll, ecIds]);
   const statusExibido = useMemo(() => statusProjetoAutomatico(p, ecsDoProjeto), [p, ecsDoProjeto]);
   // Projetos de origem para importação (derivados das ECs existentes, exceto o atual).
+  // O rótulo traz APENAS o nome do projeto — o nome do cliente foi retirado por
+  // já estar embutido no título do projeto e só poluir a lista.
   const projetosOrigem = useMemo(() => {
     const map = new Map<string, string>();
     for (const e of ecsAll ?? []) {
       if (!e.projetoId || e.projetoId === id) continue;
-      if (!map.has(e.projetoId)) map.set(e.projetoId, `${e.cliente?.nome || "—"} — ${e.projeto?.titulo || e.numero}`);
+      if (!map.has(e.projetoId)) map.set(e.projetoId, e.projeto?.titulo || e.numero);
     }
     return [...map].map(([projetoId, rotulo]) => ({ projetoId, rotulo })).sort((a, b) => a.rotulo.localeCompare(b.rotulo, "pt-BR"));
   }, [ecsAll, id]);
@@ -142,12 +148,42 @@ export function ProjetoDetail() {
     return [...m.values()];
   }, [ossDoProjeto]);
 
+  // Ordenação de todas as listagens desta tela — mesmo mecanismo da lista de Projetos.
+  const ecsOrdenadas = useOrdenacao(
+    ecsFiltradas,
+    {
+      pendencias: (e) => porEc[e.id] ?? 0,
+      titulo: (e) => tituloEc(e),
+      versao: (e) => e.versao,
+      criadoEm: (e) => e.criadoEm,
+      status: (e) => (e.ativa ? "Ativa" : "Arquivada"),
+    },
+    { col: "versao", dir: "desc" }
+  );
+  const ossOrdenadas = useOrdenacao(
+    ossDoProjeto,
+    {
+      pendencias: (o) => porOs[o.id] ?? 0,
+      numero: (o) => o.numero,
+      fornecedor: (o) => o.fornecedor.razaoSocial,
+      status: (o) => o.status,
+    },
+    { col: "numero", dir: "asc" }
+  );
+  const fornecedoresOrdenados = useOrdenacao(
+    fornecedores,
+    { razao: (f) => f.razao, cnpj: (f) => f.cnpj, email: (f) => f.email },
+    { col: "razao", dir: "asc" }
+  );
+
   // Linhas do cronograma (uma por etapa da OS, com Data e Horário próprios).
   // Se ainda não houver etapas cadastradas nas OSs, cai para as contratações da EC.
   const linhasCronograma = useMemo(() => {
     const doOs = etapas
       .filter((e) => e.data || e.horario || e.etapa || e.atividades)
       .map((e) => ({
+        // `iso` só existe para ordenar: a data formatada ("DD MM AA") não é ordenável.
+        iso: e.data || "",
         data: dataBR(e.data),
         horario: e.horario || "",
         fornecedor: e.fornecedor || "",
@@ -155,7 +191,9 @@ export function ProjetoDetail() {
         produtor: "",
       }));
     if (doOs.length) {
-      return doOs.sort((a, b) => (a.data || "").localeCompare(b.data || "") || a.horario.localeCompare(b.horario));
+      return doOs
+        .sort((a, b) => a.iso.localeCompare(b.iso) || a.horario.localeCompare(b.horario))
+        .map(({ iso: _iso, ...linha }) => linha);
     }
     // Fallback: contratações da EC (sem data/horário — a equipe preenche).
     const ecLinhas = ecsDoProjeto.filter((e) => e.status !== "Cancelada").flatMap((e) => e.linhas);
@@ -268,31 +306,8 @@ export function ProjetoDetail() {
     const anoProjeto = patch.anoProjeto ?? p.info.anoProjeto;
     updInfo({ ...patch, titulo: compoeTituloProjeto(clienteAbreviado, nomeProjeto, anoProjeto) });
   };
-  const updCronograma = (etapa: EtapaCronogramaProjeto, faixas: FaixaCronogramaProjeto[]) =>
-    updInfo({ cronograma: { ...p.info.cronograma, [etapa]: faixas } });
-  const updFaixa = (etapa: EtapaCronogramaProjeto, idFaixa: string, patch: Partial<FaixaCronogramaProjeto>) =>
-    updCronograma(etapa, p.info.cronograma[etapa].map((faixa) => faixa.id === idFaixa ? { ...faixa, ...patch } : faixa));
-  const moverFaixa = (etapa: EtapaCronogramaProjeto, indice: number, direcao: -1 | 1) => {
-    const faixas = [...p.info.cronograma[etapa]];
-    const destino = indice + direcao;
-    if (destino < 0 || destino >= faixas.length) return;
-    [faixas[indice], faixas[destino]] = [faixas[destino], faixas[indice]];
-    updCronograma(etapa, faixas);
-  };
-  const moverRoteiro = (id: string, direcao: -1 | 1) => {
-    const ordem = [...p.info.roteiroOrdem];
-    const indice = ordem.indexOf(id);
-    const destino = indice + direcao;
-    if (indice < 0 || destino < 0 || destino >= ordem.length) return;
-    [ordem[indice], ordem[destino]] = [ordem[destino], ordem[indice]];
-    updInfo({ roteiroOrdem: ordem });
-  };
-  const toggleEtapaOculta = (etapa: EtapaCronogramaProjeto) =>
-    updInfo({
-      etapasOcultas: p.info.etapasOcultas.includes(etapa)
-        ? p.info.etapasOcultas.filter((e) => e !== etapa)
-        : [...p.info.etapasOcultas, etapa],
-    });
+  const moverRoteiro = (id: string, direcao: -1 | 1) =>
+    updInfo({ roteiroOrdem: moverNaLista(p.info.roteiroOrdem, p.info.roteiroOrdem.indexOf(id), direcao) });
   const toggleRoteiroOculto = (secao: keyof ProjetoInfo["roteiros"]) =>
     updInfo({
       roteirosOcultos: p.info.roteirosOcultos.includes(secao)
@@ -637,49 +652,14 @@ export function ProjetoDetail() {
           </Card>
 
           <Card>
-            <CardTitle hint="Cada etapa pode ter uma ou mais datas, com horários de início e fim.">Cronograma</CardTitle>
-            <div className="space-y-5">
-              {ETAPAS_CRONOGRAMA.map(({ key, label }) => {
-                const oculta = p.info.etapasOcultas.includes(key);
-                return (
-                  <section key={key} aria-labelledby={`cronograma-${key}`} className="rounded-btn border border-border-soft p-3 sm:p-4">
-                    <div className="mb-3 flex items-center justify-between gap-2">
-                      <h3 id={`cronograma-${key}`} className="text-sm font-bold text-ink">{label}</h3>
-                      <Button
-                        type="button"
-                        variant="text"
-                        size="sm"
-                        aria-label={oculta ? `Reexibir ${label}` : `Ocultar ${label}`}
-                        title={oculta ? "Reexibir etapa" : "Ocultar etapa"}
-                        icon={oculta ? <IcEye width={15} height={15} /> : <IcEyeOff width={15} height={15} />}
-                        onClick={() => toggleEtapaOculta(key)}
-                      >
-                        {oculta ? "Reexibir" : "Ocultar"}
-                      </Button>
-                    </div>
-                    {!oculta && (
-                      <div className="space-y-2">
-                        {p.info.cronograma[key].map((faixa, indice) => (
-                          <div key={faixa.id} className="grid grid-cols-1 sm:grid-cols-[minmax(150px,1fr)_minmax(120px,.7fr)_minmax(120px,.7fr)_auto] gap-2 items-end">
-                            <Field label="Data"><Input type="date" erro={key === "evento" && chavesComErro.has("cronogramaEvento") && !faixa.data.trim()} value={faixa.data} onChange={(e) => updFaixa(key, faixa.id, { data: e.target.value })} /></Field>
-                            <Field label="Início"><Input type="time" value={faixa.inicio} onChange={(e) => updFaixa(key, faixa.id, { inicio: e.target.value })} /></Field>
-                            <Field label="Fim"><Input type="time" value={faixa.fim} onChange={(e) => updFaixa(key, faixa.id, { fim: e.target.value })} /></Field>
-                            <div className="flex gap-1 pb-0.5">
-                              <Button type="button" variant="text" size="sm" aria-label={`Mover data para cima em ${label}`} title="Mover para cima" icon={<IcChevron width={15} height={15} className="-rotate-90" />} disabled={indice === 0} onClick={() => moverFaixa(key, indice, -1)} />
-                              <Button type="button" variant="text" size="sm" aria-label={`Mover data para baixo em ${label}`} title="Mover para baixo" icon={<IcChevron width={15} height={15} className="rotate-90" />} disabled={indice === p.info.cronograma[key].length - 1} onClick={() => moverFaixa(key, indice, 1)} />
-                              <Button type="button" variant="soft" size="sm" aria-label={`Adicionar data em ${label}`} icon={<IcPlus width={15} height={15} />} onClick={() => updCronograma(key, [...p.info.cronograma[key], novaFaixaCronograma()])}>Adicionar</Button>
-                              {p.info.cronograma[key].length > 1 && (
-                                <Button type="button" variant="text" size="sm" aria-label={`Excluir data de ${label}`} icon={<IcTrash width={15} height={15} />} onClick={() => updCronograma(key, p.info.cronograma[key].filter((item) => item.id !== faixa.id))} />
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </section>
-                );
-              })}
-            </div>
+            <CardTitle hint="Cada bloco pode ter uma ou mais datas, com horários de início e fim. Arraste pela alça para reordenar blocos e datas (inclusive movendo uma data para outro bloco); as setas movem a data uma posição por vez dentro do bloco.">
+              Cronograma
+            </CardTitle>
+            <CronogramaProjetoEditor
+              info={p.info}
+              onChange={updInfo}
+              eventoComErro={chavesComErro.has("cronogramaEvento")}
+            />
           </Card>
 
           <Card>
@@ -700,7 +680,11 @@ export function ProjetoDetail() {
                 </Button>
               }
             >Roteiro</CardTitle>
-            <div className="space-y-4">
+            <ListaArrastavel
+              ids={p.info.roteiroOrdem}
+              onReordenar={(ordem) => updInfo({ roteiroOrdem: ordem })}
+              className="space-y-4"
+            >
               {p.info.roteiroOrdem.flatMap((id) => {
                 const chave = id in ROTEIROS_PADRAO ? id as keyof typeof ROTEIROS_PADRAO : undefined;
                 const extra = chave ? undefined : p.info.roteirosExtras.find((item) => item.id === id);
@@ -710,41 +694,55 @@ export function ProjetoDetail() {
                 const placeholder = chave ? ROTEIROS_PADRAO[chave].placeholder : "Descreva esta etapa do roteiro…";
                 const oculto = chave ? p.info.roteirosOcultos.includes(chave) : false;
                 return (
-                  <div key={id} className="rounded-btn border border-border-soft p-3 sm:p-4">
-                    <div className="mb-1.5 flex items-center justify-between gap-2">
-                      {chave ? <Label>{label}</Label> : <Input formato="titulo" value={extra!.titulo} onChange={(e) => updInfo({ roteirosExtras: p.info.roteirosExtras.map((item) => item.id === id ? { ...item, titulo: e.target.value } : item) })} placeholder="Título da etapa" />}
-                      <div className="flex gap-1">
-                        <Button type="button" variant="text" size="sm" aria-label={`Mover ${label} para cima`} title="Mover para cima" icon={<IcChevron width={15} height={15} className="-rotate-90" />} disabled={indice === 0} onClick={() => moverRoteiro(id, -1)} />
-                        <Button type="button" variant="text" size="sm" aria-label={`Mover ${label} para baixo`} title="Mover para baixo" icon={<IcChevron width={15} height={15} className="rotate-90" />} disabled={indice === p.info.roteiroOrdem.length - 1} onClick={() => moverRoteiro(id, 1)} />
-                        {chave ? (
-                          <Button
-                            type="button"
-                            variant="text"
-                            size="sm"
-                            aria-label={oculto ? `Reexibir ${label}` : `Ocultar ${label}`}
-                            title={oculto ? "Reexibir seção" : "Ocultar seção"}
-                            icon={oculto ? <IcEye width={15} height={15} /> : <IcEyeOff width={15} height={15} />}
-                            onClick={() => toggleRoteiroOculto(chave)}
+                  <ItemArrastavel key={id} id={id} className="rounded-btn border border-border-soft p-3 sm:p-4">
+                    {(alca) => (
+                      <>
+                        <div className="mb-1.5 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            {alca}
+                            {/* Setas movem uma posição por vez; o arraste serve para saltos maiores. */}
+                            <MoverSetas
+                              orientacao="horizontal"
+                              rotulo={`a etapa ${label}`}
+                              podeSubir={indice > 0}
+                              podeDescer={indice < p.info.roteiroOrdem.length - 1}
+                              onSubir={() => moverRoteiro(id, -1)}
+                              onDescer={() => moverRoteiro(id, 1)}
+                            />
+                            {chave ? <Label>{label}</Label> : <Input formato="titulo" value={extra!.titulo} onChange={(e) => updInfo({ roteirosExtras: p.info.roteirosExtras.map((item) => item.id === id ? { ...item, titulo: e.target.value } : item) })} placeholder="Título da etapa" />}
+                          </div>
+                          <div className="flex gap-1 shrink-0">
+                            {chave ? (
+                              <Button
+                                type="button"
+                                variant="text"
+                                size="sm"
+                                aria-label={oculto ? `Reexibir ${label}` : `Ocultar ${label}`}
+                                title={oculto ? "Reexibir seção" : "Ocultar seção"}
+                                icon={oculto ? <IcEye width={15} height={15} /> : <IcEyeOff width={15} height={15} />}
+                                onClick={() => toggleRoteiroOculto(chave)}
+                              />
+                            ) : (
+                              <Button type="button" variant="text" size="sm" aria-label={`Excluir ${label}`} title="Excluir item" icon={<IcTrash width={15} height={15} />} onClick={() => updInfo({ roteirosExtras: p.info.roteirosExtras.filter((item) => item.id !== id), roteiroOrdem: p.info.roteiroOrdem.filter((itemId) => itemId !== id) })} />
+                            )}
+                          </div>
+                        </div>
+                        {!oculto && (
+                          <RichTextField
+                            className="[&_[contenteditable]]:min-h-[220px]"
+                            value={chave ? p.info.roteiros[chave] : extra!.conteudo}
+                            onChange={(v) => chave
+                              ? updInfo({ roteiros: { ...p.info.roteiros, [chave]: v } })
+                              : updInfo({ roteirosExtras: p.info.roteirosExtras.map((item) => item.id === id ? { ...item, conteudo: v } : item) })}
+                            placeholder={placeholder}
                           />
-                        ) : (
-                          <Button type="button" variant="text" size="sm" aria-label={`Excluir ${label}`} title="Excluir item" icon={<IcTrash width={15} height={15} />} onClick={() => updInfo({ roteirosExtras: p.info.roteirosExtras.filter((item) => item.id !== id), roteiroOrdem: p.info.roteiroOrdem.filter((itemId) => itemId !== id) })} />
                         )}
-                      </div>
-                    </div>
-                    {!oculto && (
-                      <RichTextField
-                        className="[&_[contenteditable]]:min-h-[220px]"
-                        value={chave ? p.info.roteiros[chave] : extra!.conteudo}
-                        onChange={(v) => chave
-                          ? updInfo({ roteiros: { ...p.info.roteiros, [chave]: v } })
-                          : updInfo({ roteirosExtras: p.info.roteirosExtras.map((item) => item.id === id ? { ...item, conteudo: v } : item) })}
-                        placeholder={placeholder}
-                      />
+                      </>
                     )}
-                  </div>
+                  </ItemArrastavel>
                 );
               })}
-            </div>
+            </ListaArrastavel>
           </Card>
         </div>
       )}
@@ -806,16 +804,21 @@ export function ProjetoDetail() {
             <div className="p-6"><EmptyState title="Nenhuma EC neste filtro" hint="Selecione outro filtro para visualizar as demais estimativas." /></div>
           ) : (
             <Table>
-              <THead><Th>Título da EC</Th><Th align="center">Status</Th></THead>
+              <THead>
+                {/* Pendências em coluna própria, alinhadas à esquerda do título da EC. */}
+                <ThPendencias col="pendencias" ordem={ecsOrdenadas.ordem} onSort={ecsOrdenadas.ordenarPor} />
+                <ThOrd col="titulo" ordem={ecsOrdenadas.ordem} onSort={ecsOrdenadas.ordenarPor}>Título da EC</ThOrd>
+                <ThOrd col="versao" align="center" ordem={ecsOrdenadas.ordem} onSort={ecsOrdenadas.ordenarPor}>Versão</ThOrd>
+                <ThOrd col="criadoEm" ordem={ecsOrdenadas.ordem} onSort={ecsOrdenadas.ordenarPor}>Criada em</ThOrd>
+                <ThOrd col="status" align="center" ordem={ecsOrdenadas.ordem} onSort={ecsOrdenadas.ordenarPor}>Status</ThOrd>
+              </THead>
               <tbody>
-                {ecsFiltradas.map((e) => (
+                {ecsOrdenadas.ordenados.map((e) => (
                   <Tr key={e.id} onClick={() => navigate(`/estimativas/${e.id}`)}>
-                    <Td>
-                      <div className="flex items-center gap-2">
-                        <NotifDot inline n={porEc[e.id] ?? 0} title="Ações pendentes nesta EC" />
-                        <div className={cx("font-bold", e.ativa ? "text-primary-dark" : "text-ink")}>{tituloEc(e)}</div>
-                      </div>
-                    </Td>
+                    <TdPendencias n={porEc[e.id] ?? 0} title="Ações pendentes nesta EC" />
+                    <Td className={cx("font-bold", e.ativa ? "text-primary-dark" : "text-ink")}>{tituloEc(e)}</Td>
+                    <Td align="center" className="text-ink-2">{String(e.versao).padStart(2, "0")}</Td>
+                    <Td className="text-[12.5px] text-ink-2 whitespace-nowrap">{dataBR(e.criadoEm)}</Td>
                     <Td align="center"><Badge tom={e.ativa ? "success" : "neutral"}>{e.ativa ? "Ativa" : "Arquivada"}</Badge></Td>
                   </Tr>
                 ))}
@@ -868,16 +871,17 @@ export function ProjetoDetail() {
             <div className="p-6"><EmptyState title="Nenhuma OS" hint="Gere OSs a partir das ECs do projeto." /></div>
           ) : (
             <Table>
-              <THead><Th>OS</Th><Th>Fornecedor</Th><Th align="center">Status</Th></THead>
+              <THead>
+                <ThPendencias col="pendencias" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor} />
+                <ThOrd col="numero" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor}>OS</ThOrd>
+                <ThOrd col="fornecedor" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor}>Fornecedor</ThOrd>
+                <ThOrd col="status" align="center" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor}>Status</ThOrd>
+              </THead>
               <tbody>
-                {ossDoProjeto.map((o) => (
+                {ossOrdenadas.ordenados.map((o) => (
                   <Tr key={o.id} onClick={() => navigate(`/ordens/${o.id}`)}>
-                    <Td className="font-bold">
-                      <span className="inline-flex items-center gap-2">
-                        <NotifDot inline n={porOs[o.id] ?? 0} title="Esta OS tem ação pendente" />
-                        {o.numero}
-                      </span>
-                    </Td>
+                    <TdPendencias n={porOs[o.id] ?? 0} title="Esta OS tem ação pendente" />
+                    <Td className="font-bold">{o.numero}</Td>
                     <Td>{o.fornecedor.razaoSocial || "—"}</Td>
                     <Td align="center"><Badge tom={tomStatusOs[o.status]}>{o.status}</Badge></Td>
                   </Tr>
@@ -911,9 +915,13 @@ export function ProjetoDetail() {
             <div className="p-6"><EmptyState title="Nenhum fornecedor" hint="Aparecem aqui os fornecedores das OSs do projeto." /></div>
           ) : (
             <Table>
-              <THead><Th>Fornecedor</Th><Th>CNPJ</Th><Th>Contato</Th></THead>
+              <THead>
+                <ThOrd col="razao" ordem={fornecedoresOrdenados.ordem} onSort={fornecedoresOrdenados.ordenarPor}>Fornecedor</ThOrd>
+                <ThOrd col="cnpj" ordem={fornecedoresOrdenados.ordem} onSort={fornecedoresOrdenados.ordenarPor}>CNPJ</ThOrd>
+                <ThOrd col="email" ordem={fornecedoresOrdenados.ordem} onSort={fornecedoresOrdenados.ordenarPor}>Contato</ThOrd>
+              </THead>
               <tbody>
-                {fornecedores.map((f, i) => (
+                {fornecedoresOrdenados.ordenados.map((f, i) => (
                   <Tr key={i}>
                     <Td className="font-bold text-ink">{f.razao || "—"}</Td>
                     <Td className="text-[12.5px]">{f.cnpj || "—"}</Td>

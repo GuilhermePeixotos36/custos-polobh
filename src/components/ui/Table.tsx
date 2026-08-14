@@ -21,13 +21,17 @@ export function Th({
   children,
   className,
   align = "left",
+  ariaSort,
 }: {
   children?: ReactNode;
   className?: string;
   align?: "left" | "right" | "center";
+  /** Direção da ordenação quando a coluna é ordenável (ver ui/Ordenacao). */
+  ariaSort?: "ascending" | "descending" | "none";
 }) {
   return (
     <th
+      aria-sort={ariaSort}
       className={cx(
         "px-3 py-2.5 text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-ink-3 border-b border-border",
         align === "right" && "text-right",

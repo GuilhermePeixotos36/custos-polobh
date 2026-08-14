@@ -1,4 +1,5 @@
 import type {
+  BlocoCronogramaExtra,
   CronogramaProjeto,
   Cliente,
   EtapaCronogramaProjeto,
@@ -19,14 +20,27 @@ export const ETAPAS_CRONOGRAMA: ReadonlyArray<{ key: EtapaCronogramaProjeto; lab
   { key: "desmontagem", label: "Desmontagem" },
 ] as const;
 
+/**
+ * Identificador do bloco na ordenação do cronograma. As cinco etapas padrão
+ * usam o prefixo `etapa:` (a chave é fixa e alimenta os campos legados);
+ * os blocos criados pelo usuário usam `extra:` + id próprio.
+ */
+export const idBlocoEtapa = (key: EtapaCronogramaProjeto) => `etapa:${key}`;
+export const idBlocoExtra = (id: string) => `extra:${id}`;
+
+const novoId = (prefixo: string) =>
+  globalThis.crypto?.randomUUID?.() ?? `${prefixo}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
 export function novaFaixaCronograma(): FaixaCronogramaProjeto {
-  return {
-    id: globalThis.crypto?.randomUUID?.() ?? `cron-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-    data: "",
-    inicio: "",
-    fim: "",
-  };
+  return { id: novoId("cron"), data: "", inicio: "", fim: "" };
 }
+
+export function novoBlocoCronograma(): BlocoCronogramaExtra {
+  return { id: novoId("bloco"), titulo: "Novo bloco", faixas: [novaFaixaCronograma()] };
+}
+
+/** Ordem inicial dos blocos: as cinco etapas padrão, na sequência natural do evento. */
+export const cronogramaOrdemPadrao = (): string[] => ETAPAS_CRONOGRAMA.map((e) => idBlocoEtapa(e.key));
 
 export function cronogramaProjetoVazio(): CronogramaProjeto {
   return {
@@ -68,6 +82,8 @@ export function projetoInfoVazio(): ProjetoInfo {
     roteiro: "",
     incentivosFiscais: "",
     cronograma: cronogramaProjetoVazio(),
+    cronogramaExtras: [],
+    cronogramaOrdem: cronogramaOrdemPadrao(),
     etapasOcultas: [],
     roteiros: roteirosProjetoVazio(),
     roteirosOcultos: [],
@@ -77,7 +93,10 @@ export function projetoInfoVazio(): ProjetoInfo {
 }
 
 function normalizarFaixas(valor: unknown, dataLegada = "", horarioLegado = ""): FaixaCronogramaProjeto[] {
-  if (Array.isArray(valor) && valor.length) {
+  // Um array (mesmo vazio) significa que o projeto já foi salvo no formato atual:
+  // respeitamos o vazio, senão um bloco esvaziado por arraste renasceria com uma
+  // data em branco a cada recarga. Só dados legados (sem o array) caem no fallback.
+  if (Array.isArray(valor)) {
     return valor.map((item) => {
       const faixa = (item ?? {}) as Partial<FaixaCronogramaProjeto>;
       return { ...novaFaixaCronograma(), ...faixa, id: faixa.id || novaFaixaCronograma().id };
@@ -131,6 +150,32 @@ export function normalizarProjetoInfo(valor: unknown): ProjetoInfo {
   const roteiroOrdem = Array.isArray(raw.roteiroOrdem)
     ? [...raw.roteiroOrdem.filter((id): id is string => typeof id === "string" && idsRoteiro.has(id)), ...[...idsRoteiro].filter((id) => !raw.roteiroOrdem!.includes(id))]
     : [...ROTEIROS_PADRAO, ...roteirosExtras.map((item) => item.id)];
+
+  const cronogramaExtras: BlocoCronogramaExtra[] = Array.isArray(raw.cronogramaExtras)
+    ? raw.cronogramaExtras
+      .filter((item) => !!item && typeof item === "object")
+      .map((item) => {
+        const parcial = item as Partial<BlocoCronogramaExtra>;
+        return {
+          id: parcial.id || novoBlocoCronograma().id,
+          titulo: parcial.titulo ?? "Novo bloco",
+          faixas: normalizarFaixas(parcial.faixas),
+        };
+      })
+    : [];
+  const idsCronograma = new Set([
+    ...ETAPAS_CRONOGRAMA.map((e) => idBlocoEtapa(e.key)),
+    ...cronogramaExtras.map((b) => idBlocoExtra(b.id)),
+  ]);
+  // Ordem salva primeiro (descartando ids órfãos), e o que faltar entra no fim —
+  // assim um bloco novo nunca some por não constar da ordem gravada.
+  const cronogramaOrdem = Array.isArray(raw.cronogramaOrdem)
+    ? [
+      ...raw.cronogramaOrdem.filter((id): id is string => typeof id === "string" && idsCronograma.has(id)),
+      ...[...idsCronograma].filter((id) => !raw.cronogramaOrdem!.includes(id)),
+    ]
+    : [...idsCronograma];
+
   return {
     ...base,
     ...raw,
@@ -143,6 +188,8 @@ export function normalizarProjetoInfo(valor: unknown): ProjetoInfo {
       evento: normalizarFaixas(cron.evento, raw.evento, raw.horario),
       desmontagem: normalizarFaixas(cron.desmontagem, raw.posEvento),
     },
+    cronogramaExtras,
+    cronogramaOrdem,
     roteiros: { ...base.roteiros, ...(raw.roteiros ?? {}), evento: raw.roteiros?.evento || raw.roteiro || "" },
     roteirosExtras,
     roteiroOrdem,

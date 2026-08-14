@@ -8,7 +8,7 @@ import ExcelJS from "exceljs";
 import type { Ec, Os } from "@/data/types";
 import { dataBR } from "@/lib/format";
 import { textoObjetoContrato, FORMA_PAGAMENTO_PADRAO, OBS_CONTRATO_PADRAO } from "@/domain/calc";
-import { COR, fill, grade, baixar, nomeArquivo, carregarLogo } from "./shared";
+import { COR, fill, grade, baixar, nomeArquivo, carregarLogo, encaixarLogo } from "./shared";
 
 const moeda = '"R$" #,##0.00';
 
@@ -110,8 +110,9 @@ export async function criarOsExcelBuffer(
   ws.getRow(r + 1).height = 26;
   const logo = await carregarLogo();
   if (logo) {
-    const id = wb.addImage({ buffer: logo as ArrayBuffer, extension: "png" });
-    ws.addImage(id, { tl: { col: 0.15, row: r - 0.9 }, ext: { width: 120, height: 52 } });
+    const id = wb.addImage({ buffer: logo.buffer as unknown as ExcelJS.Buffer, extension: "png" });
+    // Escala pela proporção real do PNG — tamanho fixo achatava a logo.
+    ws.addImage(id, { tl: { col: 0.15, row: r - 0.9 }, ext: encaixarLogo(logo, { largura: 150, altura: 50 }) });
   }
   r += 2;
   linha("Número da OS:", os.numero);

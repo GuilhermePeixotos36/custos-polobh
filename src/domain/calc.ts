@@ -3,13 +3,13 @@
  * Percentuais fixos: honorários 15%, encargos 16,33%.
  */
 import type { Ec, EcLinha, Producao, Fornecedor, Os, TaxaConfig } from "@/data/types";
-import { dataBRCurta } from "@/lib/format";
+import { brl, dataBRCurta } from "@/lib/format";
 
 export const HONORARIOS = 0.15;
 export const ENCARGOS = 0.1633;
 
-export const honorariosPadrao = (): TaxaConfig => ({ modo: "percentual", valor: HONORARIOS });
-export const encargosPadrao = (): TaxaConfig => ({ modo: "percentual", valor: ENCARGOS });
+export const honorariosPadrao = (): TaxaConfig => ({ modo: "percentual", valor: HONORARIOS, minimo: 0 });
+export const encargosPadrao = (): TaxaConfig => ({ modo: "percentual", valor: ENCARGOS, minimo: 0 });
 
 /** Rótulos padrão do resumo de custos (usados quando a EC não tem rótulo personalizado). */
 export const ROTULO_HONORARIOS_PADRAO = "Honorários Pólobh (Organização e Planejamento)";
@@ -20,6 +20,29 @@ export function valorTaxa(cfg: TaxaConfig, base: number): number {
   return cfg.modo === "fixo" ? (cfg.valor || 0) : base * (cfg.valor || 0);
 }
 
+/** Piso da taxa em R$ (0 = sem piso). Só existe no modo percentual. */
+export const taxaMinima = (cfg: TaxaConfig): number =>
+  cfg.modo === "percentual" ? Math.max(0, cfg.minimo || 0) : 0;
+
+/** Percentual nunca passa de 100,00% — vale para Honorários e Encargos. */
+export const PERCENTUAL_MAXIMO = 1;
+export const limitarPercentual = (fracao: number): number =>
+  Math.min(PERCENTUAL_MAXIMO, Math.max(0, Number.isFinite(fracao) ? fracao : 0));
+
+/**
+ * Rótulo curto de uma taxa para o resumo e para a planilha: "15%",
+ * "15% · taxa mínima R$ 5.000,00" ou "valor fixo". Quando o piso é o que está
+ * valendo, o rótulo diz "(mínimo aplicado)" — a EC precisa explicar por que o
+ * valor não bate com a conta do percentual.
+ */
+export function rotuloTaxa(cfg: TaxaConfig, minimoAplicado = false): string {
+  if (cfg.modo === "fixo") return "valor fixo";
+  const percentual = `${((cfg.valor || 0) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`;
+  const minimo = taxaMinima(cfg);
+  if (!minimo) return percentual;
+  return `${percentual} · taxa mínima ${brl(minimo)}${minimoAplicado ? " (mínimo aplicado)" : ""}`;
+}
+
 export interface EcTotais {
   somaLinhasPolobh: number;
   somaLinhasCliente: number;
@@ -28,6 +51,8 @@ export interface EcTotais {
   somaCliente: number;
   honorariosPolobh: number;
   honorariosCliente: number;
+  /** true quando a taxa mínima superou o percentual e passou a valer. */
+  honorariosMinimoAplicado: boolean;
   encargos: number;
   subTotalPolobh: number;
   valorTotalBruto: number;
@@ -68,11 +93,19 @@ export function calcularTotais(
   const somaFornecedores = r2(somaLinhasPolobh + somaProducao);
   const somaCliente = somaLinhasCliente;
 
-  const honorariosPolobh = r2(valorTaxa(honorariosCfg, somaFornecedores));
+  const honorariosPercentual = r2(valorTaxa(honorariosCfg, somaFornecedores));
   // Honorários sobre o lado Cliente só fazem sentido no modo percentual.
   const honorariosCliente = r2(
     honorariosCfg.modo === "percentual" ? somaCliente * (honorariosCfg.valor || 0) : 0
   );
+  // Taxa mínima: piso do honorário TOTAL (Pólobh + Cliente). Quando o percentual
+  // não alcança o mínimo, a diferença entra no lado Pólobh — a linha que a Pólobh
+  // fatura —, o que preserva a identidade faturamentoPólobh + terceiros = bruto.
+  const minimoHonorarios = taxaMinima(honorariosCfg);
+  const honorariosPercentualTotal = r2(honorariosPercentual + honorariosCliente);
+  const complementoMinimo = minimoHonorarios > honorariosPercentualTotal ? r2(minimoHonorarios - honorariosPercentualTotal) : 0;
+  const honorariosPolobh = r2(honorariosPercentual + complementoMinimo);
+  const honorariosMinimoAplicado = complementoMinimo > 0;
   const encargos = r2(valorTaxa(encargosCfg, somaFornecedores));
 
   const subTotalPolobh = r2(somaFornecedores + honorariosPolobh + encargos);
@@ -89,6 +122,7 @@ export function calcularTotais(
     somaCliente,
     honorariosPolobh,
     honorariosCliente,
+    honorariosMinimoAplicado,
     encargos,
     subTotalPolobh,
     valorTotalBruto,
@@ -221,6 +255,48 @@ export function rentabilidadeTotal(linhas: { valorPolobh: number; valorCliente: 
   const estimado = r2(linhas.reduce((s, l) => s + (l.valorPolobh || 0) + (l.valorCliente || 0), 0));
   const gasto = r2(linhas.reduce((s, l) => s + (l.valorGasto || 0), 0));
   return { estimado, gasto, percent: estimado > 0 ? (estimado - gasto) / estimado : null };
+}
+
+/* ----------------------- Elegibilidade para emitir OS ----------------------- */
+
+/** Item marcado para gerar OS, com o que ainda falta nele (vazio = pronto). */
+export interface ItemEmissaoOs {
+  linha: EcLinha;
+  faltas: string[];
+}
+
+export interface AnaliseEmissaoOs {
+  /** Marcados para emitir e com tudo preenchido — são estes que viram OS. */
+  prontos: EcLinha[];
+  /** Marcados para emitir, mas barrados: cada um com a lista do que falta. */
+  bloqueados: ItemEmissaoOs[];
+}
+
+/**
+ * Decide quais linhas entram na emissão de OS.
+ *
+ * Só entra a linha que reúne as três condições combinadas com a Marisa
+ * (14/08/2026): aprovada, com fornecedor identificado (razão social + CNPJ
+ * completo) e marcada como "Emitir" ou "Emitir Nova Versão". Os campos fiscais
+ * obrigatórios entram na mesma peneira — assim a tela consegue dizer, item a
+ * item, exatamente o que está travando a emissão em vez de só recusar tudo.
+ */
+export function analisarEmissaoOs(linhas: EcLinha[]): AnaliseEmissaoOs {
+  const prontos: EcLinha[] = [];
+  const bloqueados: ItemEmissaoOs[] = [];
+  for (const l of linhas) {
+    if (l.statusOs !== "Emitir" && l.statusOs !== "Emitir Nova Versão") continue;
+    const faltas: string[] = [];
+    if (l.statusAprovacao !== "OK") faltas.push("Aprovação (item ainda pendente)");
+    if (!l.fornecedorRazao?.trim()) faltas.push("Fornecedor (razão social)");
+    if (l.fornecedorCnpj.replace(/\D/g, "").length !== 14) faltas.push("CNPJ do fornecedor");
+    if (!l.faturaNf?.trim()) faltas.push("Documento PG");
+    if (!l.codigoServico?.trim()) faltas.push("Código de Serviço");
+    if (!l.pedidoCompra?.trim()) faltas.push("Pedido de Compra");
+    if (faltas.length) bloqueados.push({ linha: l, faltas });
+    else prontos.push(l);
+  }
+  return { prontos, bloqueados };
 }
 
 /* --------------------- Consolidação EC -> OS --------------------- */

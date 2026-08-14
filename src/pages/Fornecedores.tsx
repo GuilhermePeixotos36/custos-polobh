@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { PageShell } from "@/components/layout/AppLayout";
 import {
-  Card, CardTitle, Button, Field, Input, TelefoneInput, Select, Table, THead, Th, Tr, Td,
-  Badge, EmptyState, AvisoErro, Avatar,
+  Card, CardTitle, Button, Field, Input, TelefoneInput, Select, Table, THead, Tr, Td,
+  Badge, EmptyState, AvisoErro, Avatar, ThOrd, useOrdenacao,
 } from "@/components/ui";
 import { IcSearch, IcTrash } from "@/components/icons";
 import { repo } from "@/data";
@@ -31,10 +31,21 @@ export function Fornecedores() {
     setNovoContato("");
   }
 
-  const lista = useMemo(() => {
+  const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
     return (data ?? []).filter((f) => !q ? true : [f.razaoSocial, f.cnpj, f.perfilTributario].join(" ").toLowerCase().includes(q));
   }, [data, busca]);
+
+  const { ordem, ordenarPor, ordenados: lista } = useOrdenacao(
+    filtrados,
+    {
+      fornecedor: (f) => f.nomeFantasia || f.razaoSocial,
+      cnpj: (f) => f.cnpj,
+      perfil: (f) => f.perfilTributario,
+      contato: (f) => f.email,
+    },
+    { col: "fornecedor", dir: "asc" }
+  );
 
   async function consultar() {
     if (!edit) return;
@@ -73,7 +84,12 @@ export function Fornecedores() {
             <EmptyState title="Nenhum fornecedor" />
           ) : (
             <Table>
-              <THead><Th>Fornecedor</Th><Th>CNPJ</Th><Th>Perfil</Th><Th>Contato</Th></THead>
+              <THead>
+                <ThOrd col="fornecedor" ordem={ordem} onSort={ordenarPor}>Fornecedor</ThOrd>
+                <ThOrd col="cnpj" ordem={ordem} onSort={ordenarPor}>CNPJ</ThOrd>
+                <ThOrd col="perfil" ordem={ordem} onSort={ordenarPor}>Perfil</ThOrd>
+                <ThOrd col="contato" ordem={ordem} onSort={ordenarPor}>Contato</ThOrd>
+              </THead>
               <tbody>
                 {lista.map((f) => (
                   <Tr key={f.id} onClick={() => { setEdit(structuredClone(f)); setMsg(""); setNovoContato(""); }}>

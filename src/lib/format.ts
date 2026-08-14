@@ -13,31 +13,42 @@ export const num = (v: number | null | undefined): string =>
     maximumFractionDigits: 2,
   });
 
-/** Aceita "2026-02-22" ou Date e devolve dd/mm/aaaa. */
+/**
+ * Formato ÚNICO de data do sistema: "DD MM AA", separado por espaço — sem
+ * barras, hífens ou pontos (padrão Pólobh, definido em 14/08/2026). Vale para a
+ * tela, os documentos e as planilhas geradas. Campos de digitação de data
+ * (`<input type="date">`) seguem o calendário nativo do navegador.
+ *
+ * Aceita "2026-02-22" (data pura) ou um ISO completo com hora.
+ */
+const partesData = (iso: string): Date => (iso.length <= 10 ? new Date(iso + "T00:00:00") : new Date(iso));
+
 export const dataBR = (iso: string | null | undefined): string => {
   if (!iso) return "";
-  const d = iso.length <= 10 ? new Date(iso + "T00:00:00") : new Date(iso);
+  const d = partesData(iso);
   if (isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("pt-BR");
+  return d
+    .toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" })
+    .replace(/\D/g, " ");
 };
 
-/** Data curta dd/mm/aa (ano com 2 dígitos) — usada no nome dos arquivos de EC. */
-export const dataBRCurta = (iso: string | null | undefined): string => {
-  if (!iso) return "";
-  const d = iso.length <= 10 ? new Date(iso + "T00:00:00") : new Date(iso);
-  if (isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
-};
+/** @deprecated Use `dataBR` — desde a padronização DD MM AA os dois são idênticos. */
+export const dataBRCurta = dataBR;
 
 export const pct = (v: number): string =>
   `${(v * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`;
 
-/** Data + hora dd/mm/aaaa hh:mm:ss (para trilha de auditoria/logs). */
+/**
+ * Data + hora para a trilha de auditoria/logs: "DD MM AA hh:mm:ss". A data segue
+ * o padrão sem separadores; a hora mantém os dois-pontos (separador de hora, não
+ * de data).
+ */
 export const dataHoraBR = (iso: string | null | undefined): string => {
   if (!iso) return "";
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
-  return d.toLocaleString("pt-BR");
+  const hora = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  return `${dataBR(iso)} ${hora}`;
 };
 
 /** Máscara visual de CNPJ/CPF. */

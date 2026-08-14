@@ -8,9 +8,13 @@ import {
   honorariosPadrao,
   encargosPadrao,
   HONORARIOS,
+  limitarPercentual,
+  analisarEmissaoOs,
+  tituloEc,
   ENCARGOS,
 } from "./calc";
 import type { EcLinha, Producao } from "@/data/types";
+import { dataBR } from "@/lib/format";
 
 const producaoZero: Producao = {
   despesasOperacionais: 0, equipeBH: 0, equipeViagem: 0, transporteBH: 0,
@@ -137,5 +141,116 @@ describe("textoObjetoContrato", () => {
     const txt = textoObjetoContrato(base);
     expect(txt).toContain("[projeto incentivado]");
     expect(txt).toContain("[número do projeto incentivado]");
+  });
+});
+
+describe("taxa mínima dos honorários", () => {
+  const so = (valorPolobh: number) => [linha({ id: "a", valorPolobh })];
+
+  it("usa o percentual quando ele supera a taxa mínima", () => {
+    // 15% de 100.000 = 15.000 > mínimo de 5.000.
+    const t = calcularTotais(so(100_000), producaoZero, { modo: "percentual", valor: 0.15, minimo: 5_000 }, encargosPadrao());
+    expect(t.honorariosPolobh).toBe(15_000);
+    expect(t.honorariosMinimoAplicado).toBe(false);
+  });
+
+  it("usa a taxa mínima quando o percentual fica abaixo dela", () => {
+    // 15% de 10.000 = 1.500 < mínimo de 5.000 → cobra o mínimo.
+    const t = calcularTotais(so(10_000), producaoZero, { modo: "percentual", valor: 0.15, minimo: 5_000 }, encargosPadrao());
+    expect(t.honorariosPolobh).toBe(5_000);
+    expect(t.honorariosMinimoAplicado).toBe(true);
+  });
+
+  it("considera os dois lados (Pólobh e Cliente) ao comparar com o mínimo", () => {
+    // 10% de 10.000 (Pólobh) + 10% de 20.000 (Cliente) = 3.000 → já passa do mínimo de 2.500.
+    const linhas = [linha({ id: "a", valorPolobh: 10_000 }), linha({ id: "b", valorCliente: 20_000 })];
+    const t = calcularTotais(linhas, producaoZero, { modo: "percentual", valor: 0.1, minimo: 2_500 }, encargosPadrao());
+    expect(t.honorariosPolobh).toBe(1_000);
+    expect(t.honorariosCliente).toBe(2_000);
+    expect(t.honorariosMinimoAplicado).toBe(false);
+  });
+
+  it("mantém a identidade faturamento Pólobh + terceiros = valor total bruto com o mínimo aplicado", () => {
+    const linhas = [linha({ id: "a", valorPolobh: 8_000 }), linha({ id: "b", valorCliente: 3_000 })];
+    const t = calcularTotais(linhas, producaoZero, { modo: "percentual", valor: 0.15, minimo: 9_000 }, encargosPadrao());
+    expect(t.honorariosMinimoAplicado).toBe(true);
+    expect(Math.round((t.faturamentoPolobh + t.faturamentoTerceiros) * 100) / 100).toBe(t.valorTotalBruto);
+  });
+
+  it("ignora a taxa mínima quando a taxa está em valor fixo", () => {
+    const t = calcularTotais(so(10_000), producaoZero, { modo: "fixo", valor: 800, minimo: 5_000 }, encargosPadrao());
+    expect(t.honorariosPolobh).toBe(800);
+    expect(t.honorariosMinimoAplicado).toBe(false);
+  });
+});
+
+describe("limitarPercentual", () => {
+  it("trava em 100% e não aceita negativo", () => {
+    expect(limitarPercentual(1.5)).toBe(1);
+    expect(limitarPercentual(-0.2)).toBe(0);
+    expect(limitarPercentual(0.1633)).toBe(0.1633);
+  });
+});
+
+describe("analisarEmissaoOs", () => {
+  const completo = (p: Partial<EcLinha>) =>
+    linha({
+      statusAprovacao: "OK", statusOs: "Emitir", fornecedorRazao: "Fornecedor X",
+      fornecedorCnpj: "12.345.678/0001-95", faturaNf: "Nota Fiscal",
+      codigoServico: "1401", pedidoCompra: "PC-01", ...p,
+    });
+
+  it("ignora linhas que não estão marcadas para emitir", () => {
+    const r = analisarEmissaoOs([completo({ id: "a", statusOs: "Pendente" }), completo({ id: "b", statusOs: "OK" })]);
+    expect(r.prontos).toHaveLength(0);
+    expect(r.bloqueados).toHaveLength(0);
+  });
+
+  it("aceita item aprovado, com fornecedor e marcado para emitir", () => {
+    const r = analisarEmissaoOs([completo({ id: "a" }), completo({ id: "b", statusOs: "Emitir Nova Versão" })]);
+    expect(r.prontos.map((l) => l.id)).toEqual(["a", "b"]);
+    expect(r.bloqueados).toHaveLength(0);
+  });
+
+  it("barra item ainda não aprovado", () => {
+    const r = analisarEmissaoOs([completo({ id: "a", statusAprovacao: "Pendente" })]);
+    expect(r.prontos).toHaveLength(0);
+    expect(r.bloqueados[0].faltas).toContain("Aprovação (item ainda pendente)");
+  });
+
+  it("barra item sem fornecedor identificado", () => {
+    const r = analisarEmissaoOs([completo({ id: "a", fornecedorRazao: "", fornecedorCnpj: "123" })]);
+    expect(r.bloqueados[0].faltas).toEqual(
+      expect.arrayContaining(["Fornecedor (razão social)", "CNPJ do fornecedor"])
+    );
+  });
+
+  it("barra item sem campos fiscais obrigatórios e lista todos", () => {
+    const r = analisarEmissaoOs([completo({ id: "a", faturaNf: "", codigoServico: "", pedidoCompra: "" })]);
+    expect(r.bloqueados[0].faltas).toEqual(["Documento PG", "Código de Serviço", "Pedido de Compra"]);
+  });
+
+  it("separa prontos de bloqueados na mesma EC", () => {
+    const r = analisarEmissaoOs([completo({ id: "ok" }), completo({ id: "nao", pedidoCompra: "" })]);
+    expect(r.prontos.map((l) => l.id)).toEqual(["ok"]);
+    expect(r.bloqueados.map((b) => b.linha.id)).toEqual(["nao"]);
+  });
+});
+
+describe("formato de data do sistema", () => {
+  it("apresenta DD MM AA sem barras nem hífens", () => {
+    expect(dataBR("2026-02-22")).toBe("22 02 26");
+    expect(dataBR("2026-12-05T14:30:00.000Z")).toMatch(/^\d{2} \d{2} \d{2}$/);
+  });
+
+  it("devolve vazio para data ausente e o próprio texto para data inválida", () => {
+    expect(dataBR("")).toBe("");
+    expect(dataBR(null)).toBe("");
+    expect(dataBR("texto")).toBe("texto");
+  });
+
+  it("usa o mesmo formato no título automático da EC", () => {
+    expect(tituloEc({ versao: 3, projeto: { titulo: "Convenção" }, criadoEm: "2026-02-22" } as never))
+      .toBe("EC – Convenção (03) em 22 02 26");
   });
 });

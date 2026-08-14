@@ -8,23 +8,25 @@ import {
   Button,
   Table,
   THead,
-  Th,
   Tr,
   Td,
   EmptyState,
   Eyebrow,
+  ThOrd,
+  useOrdenacao,
   tomStatusOs,
   tomAprovacao,
 } from "@/components/ui";
 import { IcBack, IcDownload, IcChevron, IcCopy } from "@/components/icons";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
-import { calcularTotais, agruparPorFornecedor, descritivoConsolidado, gastoPorLinhaViaOSs, numeroOs, tituloEc, ROTULO_HONORARIOS_PADRAO, ROTULO_ENCARGOS_PADRAO } from "@/domain/calc";
+import { analisarEmissaoOs, calcularTotais, agruparPorFornecedor, descritivoConsolidado, gastoPorLinhaViaOSs, numeroOs, rotuloTaxa, tituloEc, ROTULO_HONORARIOS_PADRAO, ROTULO_ENCARGOS_PADRAO } from "@/domain/calc";
 import { RentabilidadeItens } from "@/components/RentabilidadeItens";
 import { EcSubGuias, type SubGuiaEc } from "@/components/EcSubGuias";
+import { NavegadorPendencias, idAncoraPendencia, linhasComPendencia } from "@/components/NavegadorPendencias";
 import { ObservacoesThread } from "@/components/ObservacoesPopup";
 import { sanitizarHtmlEditor } from "@/lib/sanitizeHtml";
-import { brl, dataBR, onlyDigits } from "@/lib/format";
+import { brl, dataBR } from "@/lib/format";
 import { gerarEcExcel } from "@/lib/excel";
 import { useAuth } from "@/store/auth";
 import { toast } from "@/store/toast";
@@ -67,6 +69,17 @@ export function EcDetail() {
     () => (ec ? gastoPorLinhaViaOSs(ec.linhas, oss ?? []) : {}),
     [ec, oss]
   );
+  const ossOrdenadas = useOrdenacao(
+    useMemo(() => oss ?? [], [oss]),
+    {
+      numero: (o) => o.numero,
+      fornecedor: (o) => o.fornecedor.razaoSocial,
+      itens: (o) => o.ecLinhaIds.length,
+      valor: (o) => o.orcamento.valorEc,
+      status: (o) => o.status,
+    },
+    { col: "numero", dir: "asc" }
+  );
 
   if (loading) return <PageShell title="Carregando…">{null}</PageShell>;
   if (!ec) return <PageShell title="EC não encontrada">{null}</PageShell>;
@@ -80,6 +93,8 @@ export function EcDetail() {
   const voltarUrl = ec.projetoId ? `/projetos/${ec.projetoId}?aba=ec` : "/projetos";
 
   const gruposLinha = agruparLinhas(ec.linhas);
+  // Quem entra e quem está travado na emissão de OS — alimenta o rótulo do botão.
+  const emissao = analisarEmissaoOs(ec.linhas);
   const toggleGrupo = (n: string) =>
     setRecolhidos((s) => { const x = new Set(s); x.has(n) ? x.delete(n) : x.add(n); return x; });
 
@@ -153,35 +168,35 @@ export function EcDetail() {
    */
   async function emitirOs() {
     setErro("");
-    const marcadas = ec!.linhas.filter((l) => l.statusOs === "Emitir" || l.statusOs === "Emitir Nova Versão");
-    if (!marcadas.length) {
+    // Só entram itens aprovados, com fornecedor identificado e marcados para
+    // emitir; o resto é devolvido com o motivo exato de estar travado.
+    const { prontos, bloqueados } = analisarEmissaoOs(ec!.linhas);
+    if (!prontos.length && !bloqueados.length) {
       toast("Nenhuma linha com status 'Emitir' ou 'Emitir Nova Versão'.", "info");
       return;
     }
-    // Obrigatórios apenas na emissão (na EC eles são opcionais).
-    const faltas: string[] = [];
-    for (const l of marcadas) {
-      const f: string[] = [];
-      if (!l.fornecedorRazao?.trim()) f.push("Fornecedor");
-      if (onlyDigits(l.fornecedorCnpj).length !== 14) f.push("CNPJ");
-      if (!l.faturaNf?.trim()) f.push("Documento PG");
-      if (!l.codigoServico?.trim()) f.push("Código de Serviço");
-      if (!l.pedidoCompra?.trim()) f.push("Pedido de Compra");
-      if (f.length) faltas.push(`• ${l.item || "(item sem nome)"}: ${f.join(", ")}`);
-    }
-    if (faltas.length) {
-      setErro(`Complete os campos obrigatórios antes de emitir a OS:\n${faltas.join("\n")}`);
+    const relatorioBloqueados = bloqueados.length
+      ? `${bloqueados.length} item(ns) fora da emissão — falta preencher:\n${bloqueados
+        .map((b) => `• ${b.linha.item || "(item sem nome)"}: ${b.faltas.join(", ")}`)
+        .join("\n")}`
+      : "";
+    if (!prontos.length) {
+      setErro(relatorioBloqueados);
       return;
     }
+    setErro(relatorioBloqueados);
     if (!(await confirmar({
-      titulo: "Emitir OS das linhas marcadas?",
-      mensagem: "Será criada uma OS (rascunho) por fornecedor, com os itens consolidados. Itens 'Emitir Nova Versão' arquivam a OS anterior e geram uma nova. Depois é só completar os dados fiscais de cada OS.",
+      titulo: `Emitir OS de ${prontos.length} item(ns)?`,
+      mensagem: [
+        "Será criada uma OS (rascunho) por fornecedor, com os itens consolidados. Itens 'Emitir Nova Versão' arquivam a OS anterior e geram uma nova. Depois é só completar os dados fiscais de cada OS.",
+        bloqueados.length ? `\n${bloqueados.length} item(ns) marcado(s) para emitir ficam de fora por dados incompletos — a lista fica na tela.` : "",
+      ].join(""),
       confirmarTexto: "Emitir OS",
     }))) return;
 
     setEmitindo(true);
     try {
-      const grupos = agruparPorFornecedor(marcadas);
+      const grupos = agruparPorFornecedor(prontos);
       const idsEmitidos = new Set<string>();
       let criadas = 0;
       for (const g of grupos) {
@@ -254,7 +269,7 @@ export function EcDetail() {
               {aberto && (
                 <div className="divide-y divide-border-soft">
                   {g.itens.map((l) => (
-                    <div key={l.id} className="px-3 py-3 hover:bg-[#FCFCFD]">
+                    <div key={l.id} id={idAncoraPendencia(l.id)} className="px-3 py-3 hover:bg-[#FCFCFD]">
                       <div className="flex items-start gap-2.5">
                         <div className="flex-1 min-w-0">
                           <div className="font-bold text-ink text-[13.5px]">{l.item || "—"}</div>
@@ -316,14 +331,14 @@ export function EcDetail() {
       ) : (
         <Table>
           <THead>
-            <Th>OS</Th>
-            <Th>Fornecedor</Th>
-            <Th align="center">Itens</Th>
-            {verFinanceiro && <Th align="right">Valor EC</Th>}
-            <Th align="center">Status</Th>
+            <ThOrd col="numero" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor}>OS</ThOrd>
+            <ThOrd col="fornecedor" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor}>Fornecedor</ThOrd>
+            <ThOrd col="itens" align="center" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor}>Itens</ThOrd>
+            {verFinanceiro && <ThOrd col="valor" align="right" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor}>Valor EC</ThOrd>}
+            <ThOrd col="status" align="center" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor}>Status</ThOrd>
           </THead>
           <tbody>
-            {(oss ?? []).map((o) => (
+            {ossOrdenadas.ordenados.map((o) => (
               <Tr key={o.id} onClick={() => navigate(`/ordens/${o.id}`)}>
                 <Td className="font-bold">{o.numero}</Td>
                 <Td>{o.fornecedor.razaoSocial}</Td>
@@ -365,7 +380,7 @@ export function EcDetail() {
           <tbody>
             <LinhaResumo desc="Soma dos fornecedores" polobh={t.somaFornecedores} cliente={t.somaCliente} />
             <LinhaResumo
-              desc={`${ec.honorariosRotulo || ROTULO_HONORARIOS_PADRAO} (${rotuloTaxa(ec.honorarios)})`}
+              desc={`${ec.honorariosRotulo || ROTULO_HONORARIOS_PADRAO} (${rotuloTaxa(ec.honorarios, t.honorariosMinimoAplicado)})`}
               polobh={t.honorariosPolobh}
               cliente={t.honorariosCliente}
             />
@@ -441,9 +456,19 @@ export function EcDetail() {
           <Button variant="secondary" size="sm" onClick={() => navigate(`/estimativas/${ec.id}/imprimir`)}>
             Ver / PDF
           </Button>
-          {pode("oss.editar") && ec.ativa && ec.linhas.some((l) => l.statusOs === "Emitir" || l.statusOs === "Emitir Nova Versão") && (
-            <Button variant="primary" size="sm" onClick={emitirOs} disabled={emitindo}>
-              {emitindo ? "Emitindo…" : "Emitir OS"}
+          {pode("oss.editar") && ec.ativa && (emissao.prontos.length > 0 || emissao.bloqueados.length > 0) && (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={emitirOs}
+              disabled={emitindo}
+              title={
+                emissao.bloqueados.length
+                  ? `${emissao.prontos.length} item(ns) prontos · ${emissao.bloqueados.length} com dados incompletos`
+                  : "Itens aprovados, com fornecedor identificado e marcados para emitir"
+              }
+            >
+              {emitindo ? "Emitindo…" : `Emitir OS${emissao.prontos.length ? ` (${emissao.prontos.length})` : ""}`}
             </Button>
           )}
           {podeEditar && !ec.ativa && (
@@ -472,6 +497,8 @@ export function EcDetail() {
 
       {subaba === "ec" && (
         <div className="space-y-4">
+          {/* Pill flutuante que salta entre as observações em aberto da EC. */}
+          <NavegadorPendencias ids={linhasComPendencia(ec.linhas)} />
           {estimativaCard}
           {ossCard}
 
@@ -505,13 +532,6 @@ export function EcDetail() {
       )}
     </PageShell>
   );
-}
-
-/** Rótulo curto de uma taxa: "15%" (percentual) ou "valor fixo". */
-function rotuloTaxa(cfg: { modo: "percentual" | "fixo"; valor: number }): string {
-  return cfg.modo === "fixo"
-    ? "valor fixo"
-    : `${(cfg.valor * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`;
 }
 
 function fornecedorVazioEc(razao: string, cnpj: string): Fornecedor {

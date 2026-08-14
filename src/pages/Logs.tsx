@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { PageShell } from "@/components/layout/AppLayout";
-import { Card, Badge, Input, Select, Button, Table, THead, Th, Tr, Td, EmptyState, type Tom } from "@/components/ui";
+import { Card, Badge, Input, Select, Button, Table, THead, Tr, Td, EmptyState, ThOrd, useOrdenacao, type Tom } from "@/components/ui";
 import { IcDownload, IcSearch } from "@/components/icons";
 import { supabase } from "@/lib/supabaseClient";
 import { useAsync } from "@/hooks/useAsync";
@@ -59,6 +59,18 @@ export function Logs() {
       return true;
     });
   }, [itens, busca, categoria, nivel]);
+
+  const { ordem, ordenarPor, ordenados } = useOrdenacao(
+    filtrados,
+    {
+      ts: (l) => l.ts,
+      nivel: (l) => l.nivel,
+      categoria: (l) => l.categoria,
+      evento: (l) => l.mensagem,
+      usuario: (l) => l.usuario,
+    },
+    { col: "ts", dir: "desc" }
+  );
 
   function exportarCsv() {
     const cab = ["Data/Hora", "Nível", "Categoria", "Ação", "Mensagem", "Usuário", "Perfil", "Alvo"];
@@ -121,14 +133,14 @@ export function Logs() {
           ) : (
             <Table>
               <THead>
-                <Th className="whitespace-nowrap">Data / Hora</Th>
-                <Th>Nível</Th>
-                <Th>Categoria</Th>
-                <Th>Evento</Th>
-                <Th>Usuário</Th>
+                <ThOrd col="ts" ordem={ordem} onSort={ordenarPor} className="whitespace-nowrap">Data / Hora</ThOrd>
+                <ThOrd col="nivel" ordem={ordem} onSort={ordenarPor}>Nível</ThOrd>
+                <ThOrd col="categoria" ordem={ordem} onSort={ordenarPor}>Categoria</ThOrd>
+                <ThOrd col="evento" ordem={ordem} onSort={ordenarPor}>Evento</ThOrd>
+                <ThOrd col="usuario" ordem={ordem} onSort={ordenarPor}>Usuário</ThOrd>
               </THead>
               <tbody>
-                {filtrados.map((l) => (
+                {ordenados.map((l) => (
                   <Tr key={l.id}>
                     <Td className="whitespace-nowrap text-ink-2 text-[12.5px]">{dataHoraBR(l.ts)}</Td>
                     <Td><Badge tom={NIVEL_TOM[l.nivel]}>{NIVEL_LABEL[l.nivel]}</Badge></Td>

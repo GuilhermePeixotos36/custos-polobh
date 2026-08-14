@@ -291,7 +291,7 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
 
       <div className="grid grid-cols-2 gap-8 mt-10 text-[11px] doc-avoid-break">
         <div><div className="border-t border-ink pt-1">Pólobh Eventos</div></div>
-        <div><div className="border-t border-ink pt-1">{f.razaoSocial || "Fornecedor"} — Data: ____/____/______</div></div>
+        <div><div className="border-t border-ink pt-1">{f.razaoSocial || "Fornecedor"} — Data: ____ ____ ______</div></div>
       </div>
     </div>
   );
