@@ -20,6 +20,12 @@ const COLS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
 
 const ALTURA_MAX = ALTURA_MAX_LINHA;
 
+/** Formato de moeda exato do modelo original (barra invertida = espaço fixo após R$). */
+const FORMATO_MOEDA = '"R$"\ #,##0.00';
+
+/** Índices das colunas de dinheiro na linha de item (C e D). */
+const MOEDA = new Set([2, 3]);
+
 /** Título fixo do documento — o número/título da EC vai na linha "Número EC | Orçamento". */
 const TITULO_DOCUMENTO = "Estimativa de Custos | Proposta Comercial";
 
@@ -60,11 +66,18 @@ export async function criarEcExcelBuffer(
     views: [{ showGridLines: false }],
   });
 
-  // larguras — mesmas proporções da EC original da Pólobh (Item 25, Descrição ~60, demais ~17).
+  // Larguras medidas na EC original da Pólobh (reference/*.xlt): A=25, B=63,4,
+  // C=13,6 e as demais 16,6. O modelo "financeiro" é exatamente o do arquivo
+  // original (4 colunas); o "completa" acrescenta as colunas de documentação.
   const widths = completa
-    ? [25, 58, 14, 17, 17, 17, 17, 17, 17, 17, 17, 17]
-    : [26, 30, 16, 16];
+    ? [25, 63.4, 13.6, 16.6, 16.6, 16.6, 16.6, 16.6, 16.6, 16.6, 16.6, 16.6]
+    : [25, 63.4, 13.6, 16.6];
   widths.forEach((w, i) => (ws.getColumn(i + 1).width = w));
+
+  // Corpo em 11pt (tamanho do modelo). Na versão completa, 12 colunas em 11pt
+  // não cabem na página: só ali o corpo encolhe, mantendo cores, bordas,
+  // negritos e alinhamentos idênticos.
+  const PT = completa ? 9.5 : 11;
 
   const t = calcularTotais(ec.linhas, ec.producao, ec.honorarios, ec.encargos);
   /** Largura somada de um intervalo de colunas — base para estimar a altura das linhas. */
@@ -79,35 +92,35 @@ export async function criarEcExcelBuffer(
   // Sem fundo colorido (a EC original da Pólobh não tem barra atrás do título).
   // O título é só "Estimativa de Custos | Proposta Comercial", em preto e negrito;
   // o número/título da EC aparece abaixo, na linha "Número EC | Orçamento".
-  ws.mergeCells(`A${r}:B${r + 1}`);
-  ws.mergeCells(`C${r}:${ultimaColuna}${r + 1}`);
-  const titulo = ws.getCell(`C${r}`);
+  // Uma única linha alta (100pt no modelo): logo na coluna A, título mesclado em
+  // B:última, alinhado à direita e centrado na vertical.
+  ws.mergeCells(`B${r}:${ultimaColuna}${r}`);
+  const titulo = ws.getCell(`B${r}`);
   titulo.value = TITULO_DOCUMENTO;
-  titulo.font = { name: FONT_BOLD, bold: true, size: 18, color: { argb: COR.ink } };
+  titulo.font = { name: FONT_BOLD, bold: true, size: 16, color: { argb: COR.ink } };
   titulo.alignment = { vertical: "middle", horizontal: "right", wrapText: true };
-  ws.getRow(r).height = 30;
-  ws.getRow(r + 1).height = 30;
+  ws.getRow(r).height = 100;
 
   const logo = await carregarLogo();
   if (logo) {
     const id = wb.addImage({ buffer: logo.buffer as unknown as ExcelJS.Buffer, extension: "png" });
-    // Escala pela proporção real do arquivo — antes o tamanho era fixo (92×56) e
-    // achatava a logo, que é bem mais larga do que alta.
-    const ext = encaixarLogo(logo, { largura: 170, altura: 54 });
-    ws.addImage(id, { tl: { col: 0.2, row: r - 0.85 }, ext });
+    // Escala pela proporção real do arquivo (inclusive a versão com slogan, bem
+    // mais larga que alta) — tamanho fixo achatava o desenho.
+    const ext = encaixarLogo(logo, { largura: 168, altura: 118 });
+    ws.addImage(id, { tl: { col: 0.15, row: r - 0.9 }, ext });
   }
-  r += 2;
+  r += 1;
 
   // ---------- Meta ----------
   const meta = (label: string, valor: string) => {
     ws.getCell(`A${r}`).value = label;
-    ws.getCell(`A${r}`).font = { name: FONT_LIGHT, bold: true, size: 10, color: { argb: COR.ink } };
-    ws.getCell(`A${r}`).alignment = { vertical: "middle" };
+    ws.getCell(`A${r}`).font = { name: FONT_LIGHT, bold: true, size: PT, color: { argb: COR.ink } };
+    ws.getCell(`A${r}`).alignment = { vertical: "middle", wrapText: true };
     ws.mergeCells(`B${r}:${ultimaColuna}${r}`);
     ws.getCell(`B${r}`).value = valor;
-    ws.getCell(`B${r}`).font = { name: FONT_LIGHT, bold: true, size: 10, color: { argb: COR.ink } };
-    ws.getCell(`B${r}`).alignment = { vertical: "middle" };
-    ws.getRow(r).height = 18;
+    ws.getCell(`B${r}`).font = { name: FONT_LIGHT, bold: true, size: PT, color: { argb: COR.ink } };
+    ws.getCell(`B${r}`).alignment = { vertical: "middle", horizontal: "left", wrapText: true };
+    ws.getRow(r).height = 20.2;
     r++;
   };
   meta("Data:", dataBR(new Date().toISOString())); // data de geração (modelo usa =HOJE())
@@ -121,23 +134,33 @@ export async function criarEcExcelBuffer(
     ws.mergeCells(`A${r}:${ultimaColuna}${r}`);
     const c = ws.getCell(`A${r}`);
     c.value = txt;
-    c.font = { name: FONT_LIGHT, bold: true, size: 11, color: { argb: COR.ink } };
+    c.font = { name: FONT_LIGHT, bold: true, size: PT, color: { argb: COR.ink } };
     c.fill = fill(variante === "gold" ? COR.gold : COR.sectionGray);
-    c.alignment = { vertical: "middle" };
-    ws.getRow(r).height = variante === "gold" ? 16 : 24;
+    // Barras de seção vêm CENTRADAS no modelo original (não alinhadas à esquerda).
+    c.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+    // A faixa mesclada precisa da borda em todas as colunas, não só na primeira.
+    for (const col of COLS.slice(0, completa ? 12 : 4)) {
+      const cc = ws.getCell(`${col}${r}`);
+      cc.border = grade;
+      cc.fill = fill(variante === "gold" ? COR.gold : COR.sectionGray);
+    }
+    ws.getRow(r).height = variante === "gold" ? 20 : 24;
     r++;
   };
   const larguraValor = larguraDe("B", ultimaColuna);
   const linhaLV = (label: string, valor: string) => {
     ws.getCell(`A${r}`).value = label;
-    ws.getCell(`A${r}`).font = { name: FONT_LIGHT, bold: true, size: 10, color: { argb: COR.ink } };
-    ws.getCell(`A${r}`).alignment = { vertical: "top" };
+    // Rótulo e valor em negrito, centrados na vertical — como no modelo original.
+    ws.getCell(`A${r}`).font = { name: FONT_LIGHT, bold: true, size: PT, color: { argb: COR.ink } };
+    ws.getCell(`A${r}`).alignment = { vertical: "middle", wrapText: true };
     ws.mergeCells(`B${r}:${ultimaColuna}${r}`);
     ws.getCell(`B${r}`).value = valor;
-    ws.getCell(`B${r}`).font = { name: FONT_LIGHT, size: 10, color: { argb: COR.ink } };
-    ws.getCell(`B${r}`).alignment = { wrapText: true, vertical: "top" };
-    // Altura pelo conteúdo: representante e endereço têm várias linhas e ficavam cortados.
-    ws.getRow(r).height = alturaParaLinhas(linhasVisuais(valor, larguraValor));
+    ws.getCell(`B${r}`).font = { name: FONT_LIGHT, bold: true, size: PT, color: { argb: COR.ink } };
+    ws.getCell(`B${r}`).alignment = { horizontal: "left", vertical: "middle", wrapText: true };
+    // Altura pelo conteúdo (mínimo 20,2 do modelo): representante e endereço têm
+    // várias linhas e ficavam cortados.
+    const linhas = linhasVisuais(valor, larguraValor);
+    ws.getRow(r).height = linhas <= 1 ? 20.2 : alturaParaLinhas(linhas, PT + 3);
     r++;
   };
 
@@ -179,15 +202,23 @@ export async function criarEcExcelBuffer(
         ["H", "Documento PG"], ["I", "Código Serviço"], ["J", "Pedido de Compra"],
         ["K", "OS"], ["L", "Contrato"],
       ]
-    : [["A", "Item"], ["C", "Pólobh"], ["D", "Cliente"]];
-  if (!completa) ws.mergeCells(`A${hr}:B${hr}`);
+    // Modelo financeiro = as 4 colunas do arquivo original, com "Descrição" em B
+    // (não mesclada com A — a descrição tem coluna própria lá).
+    : [["A", "Item"], ["B", "Descrição"], ["C", "Pólobh"], ["D", "Cliente"]];
+  // Colunas de texto alinham à esquerda; as de dinheiro, à direita, para o
+  // cabeçalho ficar sobre os próprios números.
+  const COLS_VALOR = new Set(["C", "D"]);
   headers.forEach(([col, h]) => {
     const c = ws.getCell(`${col}${hr}`);
     c.value = h;
-    c.font = { name: FONT_LIGHT, bold: true, size: 9, color: { argb: COR.ink } };
+    c.font = { name: FONT_LIGHT, bold: true, size: PT, color: { argb: COR.ink } };
     // Fundo azul-claro só nas colunas de fornecedor/documentação (padrão da EC original).
     if (completa && COLS_DESTAQUE.has(col)) c.fill = fill(COR.statusBlue);
-    c.alignment = { wrapText: true, vertical: "middle", horizontal: "center" };
+    c.alignment = {
+      wrapText: true,
+      vertical: "middle",
+      horizontal: COLS_VALOR.has(col) ? "right" : completa ? "center" : "left",
+    };
     c.border = grade;
   });
   ws.getRow(hr).height = 30;
@@ -217,7 +248,7 @@ export async function criarEcExcelBuffer(
       ws.mergeCells(`A${r}:L${r}`);
       const c = ws.getCell(`A${r}`);
       c.value = buffer.join("\n");
-      c.font = { name: FONT_LIGHT, size: 9, color: { argb: COR.ink2 } };
+      c.font = { name: FONT_LIGHT, size: PT - 1.5, color: { argb: COR.ink2 } };
       c.alignment = { wrapText: true, vertical: "top" };
       c.border = thin;
       ws.getRow(r).height = Math.min(ALTURA_MAX, acc * 13 + 8);
@@ -229,7 +260,7 @@ export async function criarEcExcelBuffer(
     ws.mergeCells(`A${r}:L${r}`);
     const cab = ws.getCell(`A${r}`);
     cab.value = titulo;
-    cab.font = { name: FONT_LIGHT, size: 8.5, bold: true, italic: true, color: { argb: COR.ink2 } };
+    cab.font = { name: FONT_LIGHT, size: PT - 2, bold: true, italic: true, color: { argb: COR.ink2 } };
     cab.border = thin;
     r++;
     for (const l of linhasTxt) {
@@ -245,14 +276,17 @@ export async function criarEcExcelBuffer(
     ws.mergeCells(`A${r}:${ultimaColuna}${r}`);
     const gc = ws.getCell(`A${r}`);
     gc.value = grupo;
-    gc.font = { name: FONT_LIGHT, bold: true, size: 10.5, color: { argb: COR.ink } };
+    gc.font = { name: FONT_LIGHT, bold: true, size: PT, color: { argb: COR.ink } };
     gc.fill = fill(COR.sectionGray);
+    // Nome do grupo vem CENTRADO na faixa, como no modelo original.
+    gc.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
     // grade em toda a faixa do grupo (todas as colunas), não só na célula A
     for (const col of COLS.slice(0, completa ? 12 : 4)) {
       const cc = ws.getCell(`${col}${r}`);
       cc.border = grade;
       cc.fill = fill(COR.sectionGray);
     }
+    ws.getRow(r).height = 16.5;
     r++;
     for (const l of linhas) {
       if (completa) {
@@ -265,36 +299,43 @@ export async function criarEcExcelBuffer(
           const col = COLS[i];
           const c = ws.getCell(`${col}${r}`);
           c.value = v as ExcelJS.CellValue;
-          c.font = { name: FONT_LIGHT, size: 9, color: { argb: COR.ink } };
+          // Coluna Item em negrito; descrição e demais campos em peso normal.
+          c.font = { name: FONT_LIGHT, bold: i === 0, size: PT, color: { argb: COR.ink } };
           c.border = grade;
-          // Valores alinhados à direita e ancorados no topo, junto com o texto da linha.
-          c.alignment = i === 2 || i === 3
-            ? { horizontal: "right", vertical: "top" }
-            : { wrapText: true, vertical: "top" };
-          if (i === 0) c.font = { name: FONT_LIGHT, bold: true, size: 9, color: { argb: COR.ink } };
-          if (i === 2 || i === 3) c.numFmt = '"R$" #,##0.00';
+          // Tudo centrado na vertical e com quebra de texto, como no modelo.
+          c.alignment = MOEDA.has(i)
+            ? { horizontal: "right", vertical: "middle" }
+            : { wrapText: true, vertical: "middle", horizontal: "left" };
+          if (MOEDA.has(i)) c.numFmt = FORMATO_MOEDA;
           // Fundo azul-claro nas colunas de fornecedor/documentação (padrão da EC original).
           if (COLS_DESTAQUE.has(col)) c.fill = fill(COR.statusBlue);
         });
         // Altura pela coluna mais "cheia" (Item ou Descrição), para nada ficar cortado.
         ws.getRow(r).height = alturaParaLinhas(
           Math.max(linhasVisuais(l.item, larguraDe("A", "A")), linhasVisuais(l.descricao, larguraDe("B", "B"))),
-          11.5
+          PT + 3
         );
       } else {
-        ws.mergeCells(`A${r}:B${r}`);
+        // Modelo financeiro = o do arquivo original: Item em A (negrito) e a
+        // descrição em B, sem mesclar — é assim que a Pólobh distribui as células.
         ws.getCell(`A${r}`).value = l.item;
-        ws.getCell(`A${r}`).font = { name: FONT_LIGHT, bold: true, size: 9, color: { argb: COR.ink } };
-        ws.getCell(`A${r}`).alignment = { wrapText: true, vertical: "top" };
+        ws.getCell(`A${r}`).font = { name: FONT_LIGHT, bold: true, size: PT, color: { argb: COR.ink } };
+        ws.getCell(`A${r}`).alignment = { wrapText: true, vertical: "middle", horizontal: "left" };
+        ws.getCell(`B${r}`).value = l.descricao;
+        ws.getCell(`B${r}`).font = { name: FONT_LIGHT, size: PT, color: { argb: COR.ink } };
+        ws.getCell(`B${r}`).alignment = { wrapText: true, vertical: "middle", horizontal: "left" };
         for (const [col, valor] of [["C", l.valorPolobh], ["D", l.valorCliente]] as const) {
           const c = ws.getCell(`${col}${r}`);
           c.value = valor;
-          c.font = { name: FONT_LIGHT, size: 9, color: { argb: COR.ink } };
-          c.numFmt = '"R$" #,##0.00';
-          c.alignment = { horizontal: "right", vertical: "top" };
+          c.font = { name: FONT_LIGHT, size: PT, color: { argb: COR.ink } };
+          c.numFmt = FORMATO_MOEDA;
+          c.alignment = { horizontal: "right", vertical: "middle" };
         }
         for (const col of ["A", "B", "C", "D"]) ws.getCell(`${col}${r}`).border = grade;
-        ws.getRow(r).height = alturaParaLinhas(linhasVisuais(l.item, larguraDe("A", "B")), 11.5);
+        ws.getRow(r).height = alturaParaLinhas(
+          Math.max(linhasVisuais(l.item, larguraDe("A", "A")), linhasVisuais(l.descricao, larguraDe("B", "B"))),
+          PT + 3
+        );
       }
       r++;
       if (completa) {
@@ -311,7 +352,7 @@ export async function criarEcExcelBuffer(
   // Fórmulas VIVAS (recalculam se a planilha for editada no Excel), em duas
   // colunas como o modelo original: C = lado Pólobh · D = lado Cliente.
   r++;
-  const moeda = '"R$" #,##0.00';
+  const moeda = FORMATO_MOEDA;
   const temItens = itemEnd >= itemStart;
   const fSomaC = temItens ? `SUM(C${itemStart}:C${itemEnd})` : "0";
   const fSomaD = temItens ? `SUM(D${itemStart}:D${itemEnd})` : undefined;
@@ -329,13 +370,13 @@ export async function criarEcExcelBuffer(
     if (!completa) ws.mergeCells(`A${r}:B${r}`);
     const a = ws.getCell(`A${r}`);
     a.value = label;
-    a.font = { name: FONT_LIGHT, bold: true, size: 10, color: { argb: corTxt } };
+    a.font = { name: FONT_LIGHT, bold: true, size: PT, color: { argb: corTxt } };
     a.alignment = { vertical: "middle" };
     if (completa) {
       const b = ws.getCell(`B${r}`);
       b.value = desc;
-      b.font = { name: FONT_LIGHT, size: 9, color: { argb: COR.ink2 } };
-      b.alignment = { wrapText: true, vertical: "middle" };
+      b.font = { name: FONT_LIGHT, size: PT - 1.5, color: { argb: COR.ink2 } };
+      b.alignment = { wrapText: true, vertical: "middle", horizontal: "left" };
     }
     const setVal = (ref: string, v: Val) => {
       const c = ws.getCell(ref);
@@ -343,7 +384,7 @@ export async function criarEcExcelBuffer(
         ? ({ formula: v.formula, result: v.result } as ExcelJS.CellValue)
         : v.result;
       c.numFmt = moeda;
-      c.font = { name: FONT_LIGHT, bold: true, size: 10, color: { argb: corTxt } };
+      c.font = { name: FONT_LIGHT, bold: true, size: PT, color: { argb: corTxt } };
       c.alignment = { horizontal: "right", vertical: "middle" };
     };
     if (dVal === null) {
@@ -401,7 +442,7 @@ export async function criarEcExcelBuffer(
   );
 
   ws.getCell(`A${r}`).value = "Sendo:";
-  ws.getCell(`A${r}`).font = { name: FONT_LIGHT, bold: true, size: 9, italic: true, color: { argb: COR.ink2 } };
+  ws.getCell(`A${r}`).font = { name: FONT_LIGHT, bold: true, size: PT - 1.5, italic: true, color: { argb: COR.ink2 } };
   r++;
 
   totalRow(
@@ -418,24 +459,24 @@ export async function criarEcExcelBuffer(
   // ---------- Bloco contratual (aprovação/assinaturas — conforme o modelo) ----------
   r++;
   ws.getCell(`A${r}`).value = "Visto Pólobh:";
-  ws.getCell(`A${r}`).font = { name: FONT_LIGHT, bold: true, size: 10 };
+  ws.getCell(`A${r}`).font = { name: FONT_LIGHT, bold: true, size: PT };
   ws.mergeCells(`B${r}:C${r}`);
   ws.getCell(`B${r}`).value = ec.responsavel;
-  ws.getCell(`B${r}`).font = { name: FONT_LIGHT, size: 10 };
+  ws.getCell(`B${r}`).font = { name: FONT_LIGHT, size: PT };
   ws.getCell(`D${r}`).value = dataBR(new Date().toISOString());
-  ws.getCell(`D${r}`).font = { name: FONT_LIGHT, size: 10 };
+  ws.getCell(`D${r}`).font = { name: FONT_LIGHT, size: PT };
   r++;
 
   ws.getCell(`A${r}`).value = "Validade";
-  ws.getCell(`A${r}`).font = { name: FONT_LIGHT, bold: true, size: 10 };
+  ws.getCell(`A${r}`).font = { name: FONT_LIGHT, bold: true, size: PT };
   ws.mergeCells(`B${r}:${ultimaColuna}${r}`);
   ws.getCell(`B${r}`).value = `Esta Estimativa de Custos | Orçamento é válida por ${ec.validadeDias} dias.`;
-  ws.getCell(`B${r}`).font = { name: FONT_LIGHT, size: 10 };
+  ws.getCell(`B${r}`).font = { name: FONT_LIGHT, size: PT };
   r += 2;
 
   ws.mergeCells(`A${r}:${ultimaColuna}${r}`);
   ws.getCell(`A${r}`).value = "INFORMAÇÕES GERAIS:";
-  ws.getCell(`A${r}`).font = { name: FONT_LIGHT, bold: true, size: 10 };
+  ws.getCell(`A${r}`).font = { name: FONT_LIGHT, bold: true, size: PT };
   r++;
 
   ws.mergeCells(`A${r}:${ultimaColuna}${r}`);
@@ -450,7 +491,7 @@ export async function criarEcExcelBuffer(
     '"Total Geral NF Pólobh x Cliente" no prazo máximo de 30 dias a partir da apresentação da(s) nota(s) ' +
     "fiscal(is) da Pólobh, que poderão ser emitidas pela Pólobh Promoções Eireli e MF Promoções Eireli, " +
     "ambas do mesmo grupo empresarial, em conjunto ou separadamente.";
-  legal.font = { name: FONT_LIGHT, size: 8.5, color: { argb: COR.ink } };
+  legal.font = { name: FONT_LIGHT, size: PT - 2.5, color: { argb: COR.ink } };
   legal.alignment = { wrapText: true, vertical: "top", horizontal: "justify" };
   ws.getRow(r).height = 66;
   r++;
@@ -458,30 +499,30 @@ export async function criarEcExcelBuffer(
   ws.mergeCells(`A${r}:${ultimaColuna}${r}`);
   ws.getCell(`A${r}`).value =
     "Obs.: Esta EC | Orçamento cancela e substitui todas as anteriores referentes ao mesmo projeto | peça que porventura existam.";
-  ws.getCell(`A${r}`).font = { name: FONT_LIGHT, italic: true, size: 9 };
+  ws.getCell(`A${r}`).font = { name: FONT_LIGHT, italic: true, size: PT - 1.5 };
   r += 2;
 
   ws.getCell(`A${r}`).value = "Aprovação do Cliente:";
-  ws.getCell(`A${r}`).font = { name: FONT_LIGHT, bold: true, size: 10 };
+  ws.getCell(`A${r}`).font = { name: FONT_LIGHT, bold: true, size: PT };
   ws.mergeCells(`B${r}:C${r}`);
   ws.getCell(`B${r}`).border = { bottom: { style: "thin", color: { argb: COR.ink } } };
   ws.getCell(`D${r}`).value = "____ ____ ______";
-  ws.getCell(`D${r}`).font = { name: FONT_LIGHT, size: 10 };
+  ws.getCell(`D${r}`).font = { name: FONT_LIGHT, size: PT };
   ws.getRow(r).height = 22;
   r++;
 
   ws.mergeCells(`A${r}:${ultimaColuna}${r}`);
   ws.getCell(`A${r}`).value = "Identificação do Signatário: Nome e Identidade Funcional";
-  ws.getCell(`A${r}`).font = { name: FONT_LIGHT, size: 9, color: { argb: COR.ink2 } };
+  ws.getCell(`A${r}`).font = { name: FONT_LIGHT, size: PT - 1.5, color: { argb: COR.ink2 } };
   r++;
 
   ws.getCell(`A${r}`).value = "Protocolo Financeiro Pólobh:";
-  ws.getCell(`A${r}`).font = { name: FONT_LIGHT, bold: true, size: 10 };
+  ws.getCell(`A${r}`).font = { name: FONT_LIGHT, bold: true, size: PT };
   ws.getCell(`B${r}`).value = "Assinatura:";
-  ws.getCell(`B${r}`).font = { name: FONT_LIGHT, size: 10 };
+  ws.getCell(`B${r}`).font = { name: FONT_LIGHT, size: PT };
   ws.getCell(`C${r}`).border = { bottom: { style: "thin", color: { argb: COR.ink } } };
   ws.getCell(`D${r}`).value = "____ ____ ______";
-  ws.getCell(`D${r}`).font = { name: FONT_LIGHT, size: 10 };
+  ws.getCell(`D${r}`).font = { name: FONT_LIGHT, size: PT };
   ws.getRow(r).height = 22;
 
   // Impressão: área definida + cabeçalho da tabela repetido em toda página

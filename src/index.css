@@ -164,3 +164,18 @@ body {
   .destaque-pendencia { animation: none; box-shadow: 0 0 0 3px rgba(193, 52, 56, 0.35); }
   .destaque-novo { animation: none; box-shadow: 0 0 0 3px rgba(242, 130, 13, 0.45); }
 }
+
+/* ---- Camadas fixas do app ----
+   As barras que "grudam" no topo precisam se empilhar sem se cobrir. A altura
+   da barra de navegação vive aqui (e não solta no Tailwind) porque a barra de
+   ações da EC gruda logo abaixo dela: se as duas usassem números soltos, mudar
+   uma quebraria a outra em silêncio — foi o que aconteceu quando as duas
+   ficaram em `top-0 z-30` e a da EC passou a pintar por cima da navegação.
+
+   Empilhamento: navegação (30) > barra da EC (20) > barra de seleção (10). */
+:root {
+  --altura-topnav: 60px;
+  /* Valor de partida; o EcForm mede a barra e atualiza esta variável, porque
+     ela cresce quando os botões quebram para uma segunda linha. */
+  --altura-barra-ec: 60px;
+}

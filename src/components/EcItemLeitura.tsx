@@ -9,10 +9,10 @@
  * Aqui a informação é lida em três faixas curtas, cada peça ocupando só o
  * espaço de que precisa e quebrando linha quando falta espaço:
  *   1. identificação (nome + descrições) e o bloco dos dois valores;
- *   2. status (Aprovação / OS / Contrato) e dados de contratação;
+ *   2. uma única linha com status e contratação, campos separados por um traço;
  *   3. observações.
  */
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { Badge, tomAprovacao } from "@/components/ui";
 import { ObservacoesThread } from "@/components/ObservacoesPopup";
 import { idAncoraPendencia } from "@/components/NavegadorPendencias";
@@ -36,7 +36,7 @@ export function EcItemLeitura({
   onObservacoes: (obs: Observacao[]) => void;
 }) {
   return (
-    <div id={idAncoraPendencia(l.id)} className="px-4 py-3.5 hover:bg-[#FCFCFD]">
+    <div id={idAncoraPendencia(l.id)} className="px-4 pt-4 pb-1 hover:bg-[#FCFCFD]">
       {/* Faixa 1 — identificação do item e os dois valores, lado a lado. */}
       <div className="flex items-start gap-4">
         <div className="flex-1 min-w-0">
@@ -60,22 +60,31 @@ export function EcItemLeitura({
         )}
       </div>
 
-      {/* Faixa 2 — status e dados de contratação, em linhas que "embrulham". */}
-      <div className="mt-2.5 pt-2.5 border-t border-border-soft space-y-1.5">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-          <ChipStatus rotulo="Aprovação"><Badge tom={tomAprovacao[l.statusAprovacao]}>{l.statusAprovacao}</Badge></ChipStatus>
-          <ChipStatus rotulo="OS"><Badge tom={tomAprovacao[l.statusOs]}>{l.statusOs}</Badge></ChipStatus>
-          <ChipStatus rotulo="Contrato"><Badge tom={tomAprovacao[l.contratoStatus]}>{l.contratoStatus}</Badge></ChipStatus>
-        </div>
-        <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
-          <DadoInline rotulo="Fornecedor" valor={l.fornecedorRazao} extra={l.fornecedorCnpj} />
-          <DadoInline rotulo="Documento PG" valor={l.faturaNf} />
-          <DadoInline rotulo="Código de Serviço" valor={l.codigoServico} />
-          <DadoInline rotulo="Pedido de Compra" valor={l.pedidoCompra} />
+      {/* Faixa 2 — status e contratação numa ÚNICA linha, com um traço fino
+          separando cada campo do seguinte. Antes eram duas fileiras empilhadas,
+          e sem divisor não dava para saber onde um campo terminava e o outro
+          começava. Em tela estreita a linha quebra sozinha. */}
+      <div className="mt-3 pt-3 pb-3 border-t border-border-soft">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          {[
+            <ChipStatus key="aprovacao" rotulo="Aprovação"><Badge tom={tomAprovacao[l.statusAprovacao]}>{l.statusAprovacao}</Badge></ChipStatus>,
+            <ChipStatus key="os" rotulo="OS"><Badge tom={tomAprovacao[l.statusOs]}>{l.statusOs}</Badge></ChipStatus>,
+            <ChipStatus key="contrato" rotulo="Contrato"><Badge tom={tomAprovacao[l.contratoStatus]}>{l.contratoStatus}</Badge></ChipStatus>,
+            <DadoInline key="fornecedor" rotulo="Fornecedor" valor={l.fornecedorRazao} extra={l.fornecedorCnpj} />,
+            <DadoInline key="documento" rotulo="Documento PG" valor={l.faturaNf} />,
+            <DadoInline key="codigo" rotulo="Código de Serviço" valor={l.codigoServico} />,
+            <DadoInline key="pedido" rotulo="Pedido de Compra" valor={l.pedidoCompra} />,
+          ].map((campo, i) => (
+            <Fragment key={campo.key}>
+              {i > 0 && <span aria-hidden="true" className="h-4 w-px shrink-0 bg-border" />}
+              {campo}
+            </Fragment>
+          ))}
         </div>
       </div>
 
-      <ObservacoesThread observacoes={l.observacoes} usuarios={usuarios} onChange={onObservacoes} />
+      {/* Rodapé alinhado ao conteúdo do item (o padding lateral já vem do contêiner). */}
+      <ObservacoesThread className="!px-0" observacoes={l.observacoes} usuarios={usuarios} onChange={onObservacoes} />
     </div>
   );
 }

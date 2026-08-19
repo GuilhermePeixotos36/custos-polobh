@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(mkdir -p \"/c/Users/GUILHE~1.SIL/AppData/Local/Temp/claude/C--Users-guilherme-silva-OneDrive---LS-PRO-01---PASTA-GERAL-01---GUILHERME-02---GPX-AUTOMA--O-05---PROJETOS-01---P-LOBH-app-custo-polobh/213d9b77-a719-49ba-8055-a938edb9f30a/scratchpad\" && echo ok)",
+      "mcp__244002f1-30ff-42bb-b6c1-7dbc53798820__list_projects",
+      "Bash(node -e ' *)"
+    ]
+  }
+}

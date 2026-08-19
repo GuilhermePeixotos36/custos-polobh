@@ -11,6 +11,8 @@ interface Props {
   observacoes: Observacao[];
   usuarios: string[]; // nomes dos usuários do sistema (para @mencionar / atribuir)
   onChange: (obs: Observacao[]) => void;
+  /** Ajusta o espaçamento do rodapé ao contêiner que o recebe (ex.: `!px-0`). */
+  className?: string;
 }
 
 const novoId = () => globalThis.crypto?.randomUUID?.() ?? `obs-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -47,7 +49,7 @@ type ComporState =
   | { modo: "responder"; id: string }
   | null;
 
-export function ObservacoesThread({ observacoes, usuarios, onChange }: Props) {
+export function ObservacoesThread({ observacoes, usuarios, onChange, className }: Props) {
   const usuarioAtual = useAuth((s) => s.usuario);
   const nomeAtual = usuarioAtual?.nome ?? "";
   const [aberto, setAberto] = useState(false);
@@ -110,7 +112,7 @@ export function ObservacoesThread({ observacoes, usuarios, onChange }: Props) {
   return (
     // Sem observação, o rodapé encolhe: antes uma faixa inteira era gasta só para
     // dizer "Nenhuma observação" ao lado de um botão grande na outra ponta.
-    <div className={cx("border-t border-border-soft px-3", n > 0 ? "py-2.5" : "py-1.5")}>
+    <div className={cx("border-t border-border-soft px-3", n > 0 ? "py-2.5" : "py-2", className)}>
       <div className="flex items-center gap-2">
         {n > 0 && (
           <button

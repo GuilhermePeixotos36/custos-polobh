@@ -468,7 +468,7 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
       {/* Barra de ações da seleção: aparece só com itens marcados e acompanha a
           rolagem, para as ações ficarem à mão em EC longa. */}
       {totalSelecionados > 0 && (
-        <div className="sticky top-2 z-30 flex items-center gap-3 flex-wrap rounded-btn border border-primary bg-primary-soft px-3 py-2 shadow-card">
+        <div className="sticky top-[calc(var(--altura-topnav)+var(--altura-barra-ec))] z-10 flex items-center gap-3 flex-wrap rounded-btn border border-primary bg-primary-soft px-3 py-2 shadow-card">
           <span className="text-[13px] font-extrabold text-primary-dark">
             {totalSelecionados} {totalSelecionados === 1 ? "item selecionado" : "itens selecionados"}
           </span>

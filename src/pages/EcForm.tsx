@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { PageShell } from "@/components/layout/AppLayout";
 import {
@@ -204,6 +204,27 @@ export function EcForm() {
   // Itens com observação em aberto — alimentam o navegador de pendências.
   const idsPendencias = useMemo(() => linhasComPendencia(ec?.linhas ?? []), [ec?.linhas]);
 
+  /**
+   * Publica a altura real da barra de ações em `--altura-barra-ec`.
+   *
+   * A barra de seleção em massa (dentro de EcGrupos) gruda logo abaixo desta.
+   * Um número fixo no CSS quebraria em silêncio quando os botões quebrassem
+   * para uma segunda linha em tela estreita — aí a barra de seleção passaria
+   * por cima. Medindo, as duas seguem coladas em qualquer largura.
+   */
+  const observadorBarra = useRef<ResizeObserver | null>(null);
+  const medirBarra = useCallback((node: HTMLDivElement | null) => {
+    observadorBarra.current?.disconnect();
+    observadorBarra.current = null;
+    if (!node) return;
+    const aplicar = () =>
+      document.documentElement.style.setProperty("--altura-barra-ec", `${Math.round(node.getBoundingClientRect().height)}px`);
+    aplicar();
+    const observer = new ResizeObserver(aplicar);
+    observer.observe(node);
+    observadorBarra.current = observer;
+  }, []);
+
   const sujo = !!ec && baseline !== "" && JSON.stringify(ec) !== baseline;
   useUnsavedGuard(sujo);
 
@@ -382,19 +403,14 @@ export function EcForm() {
 
   return (
     <PageShell title={tituloEc({ ...ec, numero })} titleAdornment={statusBadge}>
-      {/* Cabeçalho fixo: em EC longa, o título, o status e as ações continuam à
-          vista enquanto se rola a lista de itens. */}
-      <div className="sticky top-0 z-30 -mx-2 mb-4 rounded-card border border-border bg-surface/95 px-3 py-2.5 shadow-card backdrop-blur">
+      {/* Cabeçalho fixo: em EC longa, as ações continuam à mão enquanto se rola a
+          lista de itens. Título e status ficam só no cabeçalho da página, acima —
+          repeti-los aqui era informação duplicada. */}
+      <div ref={medirBarra} className="sticky top-[var(--altura-topnav)] z-20 -mx-[40px] mb-4 border-b border-border bg-surface px-[40px] py-2.5 shadow-card">
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-3 min-w-0">
-            <button onClick={() => navigate(voltarUrl)} className="inline-flex items-center gap-1.5 text-sm text-ink-2 hover:text-ink font-semibold shrink-0">
-              <IcBack width={16} height={16} /> Voltar ao projeto
-            </button>
-            <span className="hidden md:inline-flex items-center gap-2 min-w-0">
-              <span className="font-display font-bold text-[15px] text-ink truncate max-w-[42ch]">{tituloEc({ ...ec, numero })}</span>
-              {statusBadge}
-            </span>
-          </div>
+          <button onClick={() => navigate(voltarUrl)} className="inline-flex items-center gap-1.5 text-sm text-ink-2 hover:text-ink font-semibold shrink-0">
+            <IcBack width={16} height={16} /> Voltar ao projeto
+          </button>
           <div className="flex gap-2 flex-wrap">
             <Button variant="secondary" size="sm" icon={<IcDownload width={16} height={16} />} onClick={() => gerarEcExcel({ ...ec, numero }, { modelo: "financeiro" })}>
               Excel Financeiro

@@ -17,7 +17,7 @@ export function TopNav() {
   const itens = NAV.filter((i) => pode(i.recurso));
 
   return (
-    <header className="no-print sticky top-0 z-30 h-[60px] bg-surface border-b border-border flex items-center gap-3 px-3 md:px-5">
+    <header className="no-print sticky top-0 z-30 h-[var(--altura-topnav)] bg-surface border-b border-border flex items-center gap-3 px-3 md:px-5">
       <img src="/polobh-logo.png" alt="Pólobh" className="h-6 w-auto object-contain shrink-0" />
 
       <nav className="flex items-center gap-1 overflow-x-auto flex-1 min-w-0">

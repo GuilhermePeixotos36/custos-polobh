@@ -48,10 +48,14 @@ async function abrir(ec: Ec, modelo: "completa" | "financeiro" = "completa") {
 describe("Excel da EC", () => {
   it("usa apenas 'Estimativa de Custos | Proposta Comercial' como título", async () => {
     const { ws } = await abrir(ecBase([linha({ item: "Buffet", valorPolobh: 1000 })]));
-    expect(ws.getCell("C1").value).toBe("Estimativa de Custos | Proposta Comercial");
-    // O título da EC continua disponível, na linha de identificação.
-    const identificacao = ws.getCell("B4").value;
-    expect(String(identificacao)).toContain("Convenção 2026");
+    expect(ws.getCell("B1").value).toBe("Estimativa de Custos | Proposta Comercial");
+    // O título da EC continua disponível, na linha de identificação (procurada
+    // pelo rótulo, não por posição fixa — o cabeçalho pode ganhar/perder linhas).
+    let identificacao = "";
+    ws.eachRow((row) => {
+      if (String(row.getCell("A").value ?? "").startsWith("Número EC")) identificacao = String(row.getCell("B").value ?? "");
+    });
+    expect(identificacao).toContain("Convenção 2026");
   });
 
   it("embute a logo preservando a proporção do arquivo", async () => {
