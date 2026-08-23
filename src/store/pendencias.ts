@@ -35,8 +35,12 @@ export const usePendencias = create<State>((set, get) => ({
       ]);
       const nomes = usuarios.map((u) => u.nome).filter(Boolean);
       set({ itens: calcularPendencias(projetos, ecs, oss, nomes, credenciados), ultimoLoad: Date.now() });
-    } catch {
-      /* silencioso: os badges são auxiliares, não devem quebrar a tela */
+    } catch (erro) {
+      // Não quebra a tela — os badges são auxiliares. Mas o erro precisa ficar
+      // visível no console: quando uma das cargas falha, TODAS as pendências
+      // somem de uma vez, e sem rastro isso vira "o sistema parou de mostrar
+      // as pendências", sem pista de onde olhar.
+      console.error("[pendencias] falha ao carregar — badges ficarão zerados:", erro);
     } finally {
       set({ carregando: false });
     }

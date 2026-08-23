@@ -10,6 +10,8 @@ import {
   HONORARIOS,
   limitarPercentual,
   analisarEmissaoOs,
+  aprovarLinha,
+  reverterAprovacaoLinha,
   tituloEc,
   ENCARGOS,
 } from "./calc";
@@ -252,5 +254,50 @@ describe("formato de data do sistema", () => {
   it("usa o mesmo formato no título automático da EC", () => {
     expect(tituloEc({ versao: 3, projeto: { titulo: "Convenção" }, criadoEm: "2026-02-22" } as never))
       .toBe("EC – Convenção (03) em 22 02 26");
+  });
+});
+
+describe("aprovarLinha", () => {
+  it("aprova o item pendente e manda a OS para Emitir", () => {
+    const r = aprovarLinha(linha({ statusAprovacao: "Pendente", statusOs: "Pendente" }));
+    expect(r.statusAprovacao).toBe("OK");
+    expect(r.statusOs).toBe("Emitir");
+  });
+
+  it("não reaprova item já aprovado — devolve o mesmo objeto", () => {
+    const l = linha({ statusAprovacao: "OK", statusOs: "OK" });
+    expect(aprovarLinha(l)).toBe(l);
+  });
+
+  it("não mexe na OS que já saiu de Pendente", () => {
+    for (const os of ["Emitir", "Emitir Nova Versão", "OK", "Não se Aplica"] as const) {
+      expect(aprovarLinha(linha({ statusAprovacao: "Pendente", statusOs: os })).statusOs).toBe(os);
+    }
+  });
+});
+
+describe("reverterAprovacaoLinha", () => {
+  it("volta a aprovação e desfaz a OS que a aprovação tinha criado", () => {
+    const r = reverterAprovacaoLinha(linha({ statusAprovacao: "OK", statusOs: "Emitir" }));
+    expect(r.statusAprovacao).toBe("Pendente");
+    expect(r.statusOs).toBe("Pendente");
+  });
+
+  it("preserva OS já emitida ou fora do fluxo", () => {
+    for (const os of ["OK", "Emitir Nova Versão", "Não se Aplica"] as const) {
+      const r = reverterAprovacaoLinha(linha({ statusAprovacao: "OK", statusOs: os }));
+      expect(r.statusAprovacao).toBe("Pendente");
+      expect(r.statusOs).toBe(os);
+    }
+  });
+
+  it("ignora item que já está pendente — devolve o mesmo objeto", () => {
+    const l = linha({ statusAprovacao: "Pendente", statusOs: "Pendente" });
+    expect(reverterAprovacaoLinha(l)).toBe(l);
+  });
+
+  it("aprovar e reverter em seguida devolve o item ao estado original", () => {
+    const l = linha({ statusAprovacao: "Pendente", statusOs: "Pendente" });
+    expect(reverterAprovacaoLinha(aprovarLinha(l))).toEqual(l);
   });
 });

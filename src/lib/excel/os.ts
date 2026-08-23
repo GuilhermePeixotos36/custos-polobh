@@ -112,7 +112,10 @@ export async function criarOsExcelBuffer(
   if (logo) {
     const id = wb.addImage({ buffer: logo.buffer as unknown as ExcelJS.Buffer, extension: "png" });
     // Escala pela proporção real do PNG — tamanho fixo achatava a logo.
-    ws.addImage(id, { tl: { col: 0.15, row: r - 0.9 }, ext: encaixarLogo(logo, { largura: 150, altura: 50 }) });
+    // A caixa acompanha a faixa do cabeçalho (2 linhas de 26pt ≈ 69px) e a
+    // largura da coluna de rótulos (34 unidades ≈ 243px), para a logo não sair
+    // miúda como saía na caixa de 150x50.
+    ws.addImage(id, { tl: { col: 0.15, row: r - 0.9 }, ext: encaixarLogo(logo, { largura: 230, altura: 62 }) });
   }
   r += 2;
   linha("Número da OS:", os.numero);

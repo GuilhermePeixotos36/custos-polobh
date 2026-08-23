@@ -273,6 +273,25 @@ export interface AnaliseEmissaoOs {
 }
 
 /**
+ * O que ainda falta na linha para ela virar OS (lista vazia = pronta).
+ *
+ * Fica separado de `analisarEmissaoOs` porque a barra de seleção da EC precisa
+ * antecipar o bloqueio ANTES de o item ser marcado como "Emitir" — ela roda
+ * esta mesma peneira sobre o item já simulado como aprovado, para avisar na
+ * hora quantos itens vão ficar travados por falta de dado fiscal.
+ */
+export function faltasParaEmitirOs(l: EcLinha): string[] {
+  const faltas: string[] = [];
+  if (l.statusAprovacao !== "OK") faltas.push("Aprovação (item ainda pendente)");
+  if (!l.fornecedorRazao?.trim()) faltas.push("Fornecedor (razão social)");
+  if (l.fornecedorCnpj.replace(/\D/g, "").length !== 14) faltas.push("CNPJ do fornecedor");
+  if (!l.faturaNf?.trim()) faltas.push("Documento PG");
+  if (!l.codigoServico?.trim()) faltas.push("Código de Serviço");
+  if (!l.pedidoCompra?.trim()) faltas.push("Pedido de Compra");
+  return faltas;
+}
+
+/**
  * Decide quais linhas entram na emissão de OS.
  *
  * Só entra a linha que reúne as três condições combinadas com a Marisa
@@ -286,17 +305,45 @@ export function analisarEmissaoOs(linhas: EcLinha[]): AnaliseEmissaoOs {
   const bloqueados: ItemEmissaoOs[] = [];
   for (const l of linhas) {
     if (l.statusOs !== "Emitir" && l.statusOs !== "Emitir Nova Versão") continue;
-    const faltas: string[] = [];
-    if (l.statusAprovacao !== "OK") faltas.push("Aprovação (item ainda pendente)");
-    if (!l.fornecedorRazao?.trim()) faltas.push("Fornecedor (razão social)");
-    if (l.fornecedorCnpj.replace(/\D/g, "").length !== 14) faltas.push("CNPJ do fornecedor");
-    if (!l.faturaNf?.trim()) faltas.push("Documento PG");
-    if (!l.codigoServico?.trim()) faltas.push("Código de Serviço");
-    if (!l.pedidoCompra?.trim()) faltas.push("Pedido de Compra");
+    const faltas = faltasParaEmitirOs(l);
     if (faltas.length) bloqueados.push({ linha: l, faltas });
     else prontos.push(l);
   }
   return { prontos, bloqueados };
+}
+
+/* ------------------- Aprovação em bloco dos itens da EC ------------------- */
+
+/**
+ * Aprova um item e, junto, deixa a OS pronta para ser emitida.
+ *
+ * Duas travas, decididas com o cliente (23/08/2026):
+ *   1. só mexe em item com Aprovação "Pendente" — item já aprovado que não
+ *      sofreu alteração não é reaprovado. Se a OS mudou, quem marca "Emitir
+ *      Nova Versão" é a pessoa, no campo: só ela sabe que houve alteração;
+ *   2. a OS só é empurrada para "Emitir" quando ainda está "Pendente" — quem já
+ *      tem OS emitida ("OK"), já está marcado para emitir, ou não gera OS
+ *      ("Não se Aplica") mantém o status, para aprovar não disparar uma segunda
+ *      OS nem ressuscitar item declarado fora do fluxo.
+ *
+ * Item fora dessas condições volta inalterado (mesma referência).
+ */
+export function aprovarLinha(l: EcLinha): EcLinha {
+  if (l.statusAprovacao !== "Pendente") return l;
+  return { ...l, statusAprovacao: "OK", statusOs: l.statusOs === "Pendente" ? "Emitir" : l.statusOs };
+}
+
+/**
+ * Desfaz a aprovação de um item — rede de segurança para o clique errado.
+ *
+ * Espelha `aprovarLinha`: volta a Aprovação para "Pendente" e só desfaz a OS que
+ * a própria aprovação havia criado (a que está em "Emitir"). OS já emitida
+ * ("OK"), marcada para nova versão ou fora do fluxo não é tocada — a reversão
+ * nunca pode apagar um estado que veio do processo real.
+ */
+export function reverterAprovacaoLinha(l: EcLinha): EcLinha {
+  if (l.statusAprovacao !== "OK") return l;
+  return { ...l, statusAprovacao: "Pendente", statusOs: l.statusOs === "Emitir" ? "Pendente" : l.statusOs };
 }
 
 /* --------------------- Consolidação EC -> OS --------------------- */

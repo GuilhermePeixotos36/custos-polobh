@@ -19,7 +19,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Input, AutoTextarea, Select, CurrencyInput, Button } from "@/components/ui";
-import { IcGrip, IcChevron, IcPlus, IcEye, IcEyeOff, IcSpark, IcCheck } from "@/components/icons";
+import { IcGrip, IcChevron, IcPlus, IcEye, IcEyeOff, IcSpark, IcCheck, IcBack } from "@/components/icons";
 import { FornecedorField } from "@/components/FornecedorField";
 import { RichTextField } from "@/components/RichTextField";
 import { ObservacoesThread } from "@/components/ObservacoesPopup";
@@ -28,6 +28,7 @@ import { NotifDot } from "@/components/NotifDot";
 import { MoverSetas } from "@/components/MoverSetas";
 import { idAncoraPendencia } from "@/components/NavegadorPendencias";
 import { destacarElemento, seguirElemento, idGrupoEc } from "@/lib/destaque";
+import { aprovarLinha, faltasParaEmitirOs, reverterAprovacaoLinha } from "@/domain/calc";
 import { flags } from "@/lib/flags";
 import { brl, cx } from "@/lib/format";
 import type { DocumentoPg, EcLinha, Fornecedor, Observacao, StatusAprovacao, StatusOs } from "@/data/types";
@@ -344,31 +345,74 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
       return x;
     });
   const limparSelecao = () => setSelecionados(new Set());
+  /** Marca de uma vez, na EC inteira, todo item visível com Aprovação pendente. */
+  const selecionarPendentes = () => setSelecionados(new Set(pendentesAprovacao.map((l) => l.id)));
 
   /**
-   * Aprova os itens selecionados e, junto, deixa a OS pronta para ser emitida.
+   * Poda a seleção sempre que a lista de itens muda.
    *
-   * A OS só é empurrada para "Emitir" quando ainda está "Pendente": itens que já
-   * têm OS emitida ("OK"), que já estão marcados para emitir, ou que não geram OS
-   * ("Não se Aplica") mantêm o status — aprovar não pode disparar uma segunda OS
-   * nem ressuscitar um item declarado fora do fluxo. Os dois campos continuam
-   * editáveis um a um no próprio item.
+   * Sem isto o id de um item ocultado, apagado ou substituído (troca de versão
+   * da EC / template) continuava marcado: o contador da barra inflava e a ação
+   * em bloco alcançava item que já não estava na tela.
    */
-  const aprovarSelecionados = () => {
+  useEffect(() => {
+    setSelecionados((s) => {
+      if (s.size === 0) return s;
+      const validos = new Set(grupos.flatMap((g) => g.itens.filter((i) => !i.oculto).map((i) => i.id)));
+      if ([...s].every((id) => validos.has(id))) return s; // nada mudou — evita re-render à toa
+      return new Set([...s].filter((id) => validos.has(id)));
+    });
+  }, [grupos]);
+
+  /** Itens de fato marcados e à vista — base de toda ação em bloco. */
+  const linhasSelecionadas = grupos.flatMap((g) => g.itens).filter((it) => !it.oculto && selecionados.has(it.id));
+  /** Só entram na aprovação em bloco os que ainda estão pendentes. */
+  const aAprovar = linhasSelecionadas.filter((l) => l.statusAprovacao === "Pendente");
+  /** Já aprovados: a ação não os toca (reaprovar item sem alteração não faz sentido). */
+  const jaAprovados = linhasSelecionadas.filter((l) => l.statusAprovacao === "OK");
+  /**
+   * Prévia do bloqueio: roda a peneira da emissão sobre o item já simulado como
+   * aprovado. Assim a barra avisa ANTES do clique quantos itens vão ficar
+   * marcados para emitir mas travados por falta de dado fiscal — em vez de a
+   * pessoa só descobrir isso lá na tela de emissão.
+   */
+  const previaAprovacao = aAprovar
+    .map(aprovarLinha)
+    .filter((l) => l.statusOs === "Emitir" || l.statusOs === "Emitir Nova Versão")
+    .map(faltasParaEmitirOs);
+  const bloqueiosPrevistos = previaAprovacao.filter((faltas) => faltas.length > 0);
+  /** Campos que travam a seleção atual — vira o texto do aviso. */
+  const camposFaltantes = [...new Set(bloqueiosPrevistos.flat())];
+  /** Vão sair da barra prontos para virar OS. */
+  const liberadosPrevistos = previaAprovacao.length - bloqueiosPrevistos.length;
+
+  /**
+   * Aplica uma transição de status a todos os itens marcados e visíveis.
+   *
+   * A regra de cada transição mora em `domain/calc` (`aprovarLinha` /
+   * `reverterAprovacaoLinha`), que devolve o item intacto quando ele não se
+   * enquadra — aqui só sobra percorrer os grupos. Os dois campos continuam
+   * editáveis um a um no próprio item, sem restrição.
+   */
+  const aplicarNaSelecao = (transicao: (l: EcLinha) => EcLinha) => {
     commit(
       grupos.map((g) => ({
         ...g,
-        itens: g.itens.map((it) =>
-          selecionados.has(it.id)
-            ? { ...it, statusAprovacao: "OK" as const, statusOs: it.statusOs === "Pendente" ? ("Emitir" as const) : it.statusOs }
-            : it
-        ),
+        itens: g.itens.map((it) => (selecionados.has(it.id) && !it.oculto ? transicao(it) : it)),
       }))
     );
     limparSelecao();
   };
 
-  const totalSelecionados = selecionados.size;
+  const aprovarSelecionados = () => aplicarNaSelecao(aprovarLinha);
+  const reverterSelecionados = () => aplicarNaSelecao(reverterAprovacaoLinha);
+
+  const totalSelecionados = linhasSelecionadas.length;
+  /** Todo item visível com Aprovação pendente, na EC inteira (atalho da barra de ferramentas). */
+  const pendentesAprovacao = grupos.flatMap((g) => g.itens).filter((it) => !it.oculto && it.statusAprovacao === "Pendente");
+  /** Já estão todos marcados? Então o atalho vira "limpar" em vez de repetir a ação. */
+  const todosPendentesMarcados =
+    pendentesAprovacao.length > 0 && pendentesAprovacao.every((l) => selecionados.has(l.id)) && totalSelecionados === pendentesAprovacao.length;
 
   /** Oculta/reexibe um item. */
   const setOcultoItem = (id: string, oculto: boolean) => updLinha(id, { oculto });
@@ -468,21 +512,63 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
       {/* Barra de ações da seleção: aparece só com itens marcados e acompanha a
           rolagem, para as ações ficarem à mão em EC longa. */}
       {totalSelecionados > 0 && (
-        <div className="sticky top-[calc(var(--altura-topnav)+var(--altura-barra-ec))] z-10 flex items-center gap-3 flex-wrap rounded-btn border border-primary bg-primary-soft px-3 py-2 shadow-card">
-          <span className="text-[13px] font-extrabold text-primary-dark">
-            {totalSelecionados} {totalSelecionados === 1 ? "item selecionado" : "itens selecionados"}
-          </span>
-          <Button
-            size="sm"
-            icon={<IcCheck width={15} height={15} />}
-            onClick={aprovarSelecionados}
-            title="Marca a Aprovação como OK e, nos itens com OS ainda Pendente, muda a OS para Emitir"
-          >
-            Aprovar e liberar OS
-          </Button>
-          <button type="button" onClick={limparSelecao} className="ml-auto text-[12.5px] font-bold text-ink-2 hover:text-ink">
-            Limpar seleção
-          </button>
+        <div className="sticky top-[calc(var(--altura-topnav)+var(--altura-barra-ec))] z-10 space-y-1.5 rounded-btn border border-primary bg-primary-soft px-3 py-2 shadow-card">
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-[13px] font-extrabold text-primary-dark">
+              {totalSelecionados} {totalSelecionados === 1 ? "item selecionado" : "itens selecionados"}
+            </span>
+            <Button
+              size="sm"
+              icon={<IcCheck width={15} height={15} />}
+              onClick={aprovarSelecionados}
+              disabled={aAprovar.length === 0}
+              title={
+                aAprovar.length === 0
+                  ? "Nenhum item pendente na seleção — os marcados já estão aprovados"
+                  : "Marca a Aprovação como OK e, nos itens com OS ainda Pendente, muda a OS para Emitir"
+              }
+            >
+              Aprovar e liberar OS ({aAprovar.length})
+            </Button>
+            {jaAprovados.length > 0 && (
+              <Button
+                size="sm"
+                variant="secondary"
+                icon={<IcBack width={15} height={15} />}
+                onClick={reverterSelecionados}
+                title="Volta a Aprovação para Pendente e desfaz a OS que ficou em Emitir (não mexe em OS já emitida)"
+              >
+                Reverter para Pendente ({jaAprovados.length})
+              </Button>
+            )}
+            <button type="button" onClick={limparSelecao} className="ml-auto text-[12.5px] font-bold text-ink-2 hover:text-ink">
+              Limpar seleção
+            </button>
+          </div>
+
+          {/* Prévia do efeito: o que sai pronto para OS e o que ainda vai travar.
+              Evita a descoberta tardia na tela de emissão. */}
+          {aAprovar.length > 0 && (
+            <div className="text-[12px] font-bold text-ink-2 leading-snug">
+              {liberadosPrevistos > 0 && (
+                <span className="text-primary-dark">
+                  {liberadosPrevistos} {liberadosPrevistos === 1 ? "item fica pronto" : "itens ficam prontos"} para emitir OS
+                </span>
+              )}
+              {liberadosPrevistos > 0 && bloqueiosPrevistos.length > 0 && <span className="text-border"> · </span>}
+              {bloqueiosPrevistos.length > 0 && (
+                <span title={`Falta preencher: ${camposFaltantes.join(", ")}`}>
+                  {bloqueiosPrevistos.length} {bloqueiosPrevistos.length === 1 ? "ficará bloqueado" : "ficarão bloqueados"} até preencher{" "}
+                  <span className="text-danger">{camposFaltantes.join(", ")}</span>
+                </span>
+              )}
+            </div>
+          )}
+          {jaAprovados.length > 0 && (
+            <div className="text-[12px] font-bold text-ink-3 leading-snug">
+              {jaAprovados.length} {jaAprovados.length === 1 ? "item já aprovado" : "itens já aprovados"} — a aprovação não os altera.
+            </div>
+          )}
         </div>
       )}
 
@@ -491,6 +577,18 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
           Adicionar grupo
         </Button>
         <div className="flex items-center gap-3 text-[13px] font-bold text-ink-2">
+          {pendentesAprovacao.length > 0 && (
+            <>
+              <button
+                onClick={todosPendentesMarcados ? limparSelecao : selecionarPendentes}
+                className="hover:text-ink"
+                title="Marca de uma vez, na EC inteira, todos os itens visíveis com Aprovação ainda pendente"
+              >
+                {todosPendentesMarcados ? "Limpar seleção" : `Selecionar todos os pendentes (${pendentesAprovacao.length})`}
+              </button>
+              <span className="text-border">|</span>
+            </>
+          )}
           {qtdNaoPreenchidos > 0 && (
             <>
               <button onClick={ocultarNaoPreenchidos} className="hover:text-ink" title="Oculta de uma vez todos os itens sem custo, fornecedor ou observações">

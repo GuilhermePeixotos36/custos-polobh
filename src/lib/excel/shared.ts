@@ -16,12 +16,50 @@ export const COR = {
   headerGray: "FF595959", // cabeçalhos (título geral e cabeçalho da tabela) — texto branco
   groupGray: "FFD9D9D9",  // barras de nome de grupo — texto escuro em destaque
   gridLine: "FFBFBFBF",   // linhas da grade (mais visível que a borda suave)
-  // Extraídas da EC original da Pólobh (reference/*.xlt) — usadas no lib/excel/ec.ts.
-  sectionGray: "FFC0C0C0", // barras CLIENTE / PROJETO / nome do grupo (cinza real do modelo)
+  // Medidas nos modelos oficiais de 2026 ("EC - Projetos Culturais/Corporativos
+  // - Modelo 2026 ... .xlsx"). Os dois arquivos usam exatamente a mesma paleta;
+  // ela substitui a do modelo antigo de 2022 (cinza C0C0C0 / azul 99CCFF).
+  sectionGray: "FFD9D9D9", // barras CLIENTE / PROJETO / nome do grupo (branco -15%)
   rotuloGray: "FFF2F2F2",  // fundo da coluna de rótulos nas linhas "RÓTULO | VALOR" da OS
-  gold: "FFFFCC00",        // destaque ESTIMATIVA DE CUSTOS e Valor Total Bruto
-  statusBlue: "FF99CCFF",  // colunas de status/documentação (Status, Fornecedor, Documento PG, Código, Pedido)
+  gold: "FFFFC000",        // destaque ESTIMATIVA DE CUSTOS e Valor Total Bruto
+  // Destaque das colunas de documentação no cabeçalho: laranja da marca a 60%
+  // de clareamento (accent2 #E97132 + tint 0,6). Só o cabeçalho é pintado —
+  // nos modelos de 2026 as linhas de dados ficam sem preenchimento.
+  destaqueCabecalho: "FFF6C6AD",
 };
+
+/**
+ * Realces por CONTEÚDO da célula — os três estilos do "Realçar Regras das
+ * Células" do Excel, que os modelos de 2026 usam em centenas de regras de
+ * formatação condicional sobre a faixa de status e documentação.
+ *
+ * Vão como formatação condicional de verdade (e não como preenchimento fixo)
+ * justamente para acompanharem a edição: se a pessoa mudar "Pendente" para "OK"
+ * na planilha baixada, a cor muda junto, como acontece no modelo.
+ */
+export const REALCE = {
+  vermelho: { fonte: "FF9C0006", fundo: "FFFFC7CE" },
+  verde: { fonte: "FF006100", fundo: "FFC6EFCE" },
+  ambar: { fonte: "FF9C5700", fundo: "FFFFEB9C" },
+} as const;
+
+/** Regra de realce por texto contido, no formato que o ExcelJS espera. */
+export function regraRealce(
+  texto: string,
+  realce: { fonte: string; fundo: string },
+  priority: number
+): ExcelJS.ConditionalFormattingRule {
+  return {
+    type: "containsText",
+    operator: "containsText",
+    text: texto,
+    priority,
+    style: {
+      font: { color: { argb: realce.fonte } },
+      fill: { type: "pattern", pattern: "solid", bgColor: { argb: realce.fundo } },
+    },
+  } as ExcelJS.ConditionalFormattingRule;
+}
 
 /** Fontes da EC original da Pólobh (Excel usa fonte substituta automaticamente se não instalada). */
 export const FONT_BOLD = "Futura PT Bold";
@@ -40,12 +78,24 @@ export const thin: Partial<ExcelJS.Borders> = {
   right: { style: "thin", color: { argb: COR.border } },
 };
 
-/** Grade visível (separa colunas e linhas) — padrão da EC original Pólobh. */
+/** Grade visível (separa colunas e linhas) — usada na OS. */
 export const grade: Partial<ExcelJS.Borders> = {
   top: { style: "thin", color: { argb: COR.gridLine } },
   left: { style: "thin", color: { argb: COR.gridLine } },
   bottom: { style: "thin", color: { argb: COR.gridLine } },
   right: { style: "thin", color: { argb: COR.gridLine } },
+};
+
+/**
+ * Grade da EC: borda fina na cor automática, sem `color` declarada.
+ * É o que os modelos de 2026 usam (`<color indexed="64"/>` = automática); a
+ * grade cinza-clara deixava a planilha visivelmente mais "lavada" que o modelo.
+ */
+export const gradeAuto: Partial<ExcelJS.Borders> = {
+  top: { style: "thin" },
+  left: { style: "thin" },
+  bottom: { style: "thin" },
+  right: { style: "thin" },
 };
 
 const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";

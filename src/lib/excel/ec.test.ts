@@ -118,3 +118,117 @@ describe("helpers de layout do Excel", () => {
     expect(linhasVisuais("x".repeat(60), 20)).toBeGreaterThan(2);
   });
 });
+
+/**
+ * Trava a formatação medida célula a célula nos modelos oficiais de 2026
+ * ("EC - Projetos Culturais/Corporativos - Modelo 2026 ... .xlsx", em
+ * reference/, idênticos entre si no desenho). Se alguém "arrumar" um
+ * alinhamento ou uma cor por gosto, o teste avisa que saiu do modelo.
+ */
+describe("fidelidade aos modelos de 2026 da Pólobh", () => {
+  /** Acha a linha do cabeçalho da tabela pelo rótulo, não por posição fixa. */
+  async function tabela(linhas = [linha({ item: "Buffet", descricao: "Coffee", valorPolobh: 1000, valorCliente: 500 })]) {
+    const { ws } = await abrir(ecBase(linhas));
+    let hr = 0;
+    ws.eachRow((row, i) => {
+      if (String(row.getCell("A").value ?? "") === "Item") hr = i;
+    });
+    return { ws, hr };
+  }
+
+  /** Alinhamento por coluna, igual no cabeçalho e nas linhas de item. */
+  const ALINHAMENTO: Record<string, string> = {
+    A: "left", B: "left", C: "distributed", D: "distributed", E: "center", F: "center",
+    G: "center", H: "center", I: "center", J: "center", K: "center", L: "center",
+  };
+  const COLUNAS = "ABCDEFGHIJKL".split("");
+
+  it("tem as 12 colunas do modelo, com os rótulos e larguras da planilha", async () => {
+    const { ws, hr } = await tabela();
+    expect(hr).toBeGreaterThan(0);
+    const rotulos = ["Item", "Descrição", "Pólobh", "Cliente", "Status Aprovação",
+      "Fornecedor\n(Razão Social)", "Fornecedor\n(CNPJ)", "Fatura ou\nNota Fiscal",
+      "Código Serviço", "Pedido de Compra", "OS", "Contrato"];
+    COLUNAS.forEach((col, i) => expect(ws.getCell(`${col}${hr}`).value).toBe(rotulos[i]));
+    // Não existe coluna "Observação" — ela era só uma nota de apoio no modelo.
+    expect(ws.getCell(`M${hr}`).value).toBeFalsy();
+    const larguras = [29.75, 72.875, 15.625, 15.625, 14.75, 12.25, 10.125, 9.5, 13.5, 16.125, 12.875, 12.875];
+    COLUNAS.forEach((_, i) => expect(ws.getColumn(i + 1).width).toBe(larguras[i]));
+  });
+
+  it("cabeçalho: alinhamento do modelo e destaque só em E–J", async () => {
+    const { ws, hr } = await tabela();
+    for (const [col, h] of Object.entries(ALINHAMENTO)) {
+      expect(`${col}=${ws.getCell(`${col}${hr}`).alignment?.horizontal}`).toBe(`${col}=${h}`);
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cor = (ref: string) => (ws.getCell(ref).fill as any)?.fgColor?.argb;
+    for (const col of ["E", "F", "G", "H", "I", "J"]) expect(cor(`${col}${hr}`)).toBe("FFF6C6AD");
+    for (const col of ["A", "B", "C", "D", "K", "L"]) expect(cor(`${col}${hr}`)).toBeUndefined();
+    expect(ws.getRow(hr).height).toBe(30);
+  });
+
+  it("linha de item: alinhamento, altura de 16,5pt e sem preenchimento fixo", async () => {
+    const { ws, hr } = await tabela();
+    const ir = hr + 2; // cabeçalho, barra do grupo, primeiro item
+    for (const [col, h] of Object.entries(ALINHAMENTO)) {
+      expect(`${col}=${ws.getCell(`${col}${ir}`).alignment?.horizontal}`).toBe(`${col}=${h}`);
+    }
+    expect(ws.getRow(ir).height).toBe(16.5);
+    // A cor da faixa de status vem da formatação condicional, nunca de fill fixo.
+    for (const col of COLUNAS) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      expect((ws.getCell(`${col}${ir}`).fill as any)?.fgColor?.argb).toBeUndefined();
+    }
+    // "Item" um ponto maior que o corpo, em negrito.
+    expect(ws.getCell(`A${ir}`).font?.size).toBe(12);
+    expect(ws.getCell(`A${ir}`).font?.bold).toBe(true);
+    expect(ws.getCell(`B${ir}`).font?.size).toBe(11);
+  });
+
+  it("cores e alturas das faixas vêm do modelo", async () => {
+    const { ws } = await abrir(ecBase([linha({ item: "Buffet", valorPolobh: 1000 })]));
+    let faixaOuro = 0;
+    let faixaGrupo = 0;
+    ws.eachRow((row, i) => {
+      const v = String(row.getCell("A").value ?? "");
+      if (v === "ESTIMATIVA DE CUSTOS") faixaOuro = i;
+      if (v === "PRODUÇÃO") faixaGrupo = i;
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cor = (ref: string) => (ws.getCell(ref).fill as any)?.fgColor?.argb;
+    expect(cor(`A${faixaOuro}`)).toBe("FFFFC000"); // âmbar do modelo
+    expect(ws.getRow(faixaOuro).height).toBe(15);
+    expect(cor(`A${faixaGrupo}`)).toBe("FFD9D9D9"); // cinza das barras de grupo
+    expect(ws.getRow(faixaGrupo).height).toBe(16.5);
+  });
+
+  it("realça os status por conteúdo, como as regras condicionais do modelo", async () => {
+    const { ws, hr } = await tabela([
+      linha({ id: "a", item: "Cachê", statusAprovacao: "OK", statusOs: "Emitir Nova Versão" }),
+      linha({ id: "b", item: "Teatro" }),
+    ]);
+    // `conditionalFormattings` existe em runtime, mas não nos tipos do ExcelJS.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cf = (ws as any).conditionalFormattings as { ref: string; rules: unknown[] }[];
+    expect(cf).toHaveLength(1);
+    // Cobre a faixa E:L só das linhas de item (a barra do grupo fica de fora).
+    expect(cf[0].ref).toBe(`E${hr + 2}:L${hr + 3}`);
+    // Ao reabrir, o texto da regra fica dentro da fórmula SEARCH("...").
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const regras = (cf[0].rules as any[]).map((x) => ({
+      texto: String(x.formulae?.[0] ?? "").match(/SEARCH\("([^"]+)"/)?.[1] ?? "",
+      cor: x.style?.fill?.bgColor?.argb,
+      priority: x.priority,
+    }));
+    const porTexto = Object.fromEntries(regras.map((x) => [x.texto, x.cor]));
+    expect(porTexto["Pendente"]).toBe("FFFFC7CE"); // vermelho
+    expect(porTexto["OK"]).toBe("FFC6EFCE");       // verde
+    expect(porTexto["Emitir"]).toBe("FFFFEB9C");   // âmbar (pega "Emitir Nova Versão" também)
+    expect(porTexto["Não se Aplica"]).toBe("FFC6EFCE");
+    // "Nota Fiscal" tem de vencer "Fatura" para "Fatura e Nota Fiscal" sair verde.
+    const iNf = regras.findIndex((x) => x.texto === "Nota Fiscal");
+    const iFat = regras.findIndex((x) => x.texto === "Fatura");
+    expect(regras[iNf].priority).toBeLessThan(regras[iFat].priority);
+  });
+});
