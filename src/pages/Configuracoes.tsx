@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ChecklistModelosCard } from "@/components/ChecklistModelosCard";
 import { createPortal } from "react-dom";
 import { PageShell } from "@/components/layout/AppLayout";
 import { Card, CardTitle, Toggle, Badge, Field, Input, TelefoneInput, Select, Button, Table, THead, Th, Tr, Td, EmptyState } from "@/components/ui";
@@ -12,9 +13,10 @@ import { confirmar } from "@/store/confirm";
 import { cx } from "@/lib/format";
 import type { Area, Papel, Usuario } from "@/data/types";
 
-type AbaConfig = "geral" | "areas" | "usuarios";
+type AbaConfig = "geral" | "checklist" | "areas" | "usuarios";
 const ABAS: { key: AbaConfig; label: string }[] = [
   { key: "geral", label: "Geral" },
+  { key: "checklist", label: "Check-list" },
   { key: "areas", label: "Áreas e permissões" },
   { key: "usuarios", label: "Usuários" },
 ];
@@ -61,6 +63,8 @@ export function Configuracoes() {
           </Card>
         </div>
       )}
+
+      {aba === "checklist" && <ChecklistModelosCard />}
 
       {aba === "areas" && <AreasCard />}
       {aba === "usuarios" && <UsuariosCard />}
