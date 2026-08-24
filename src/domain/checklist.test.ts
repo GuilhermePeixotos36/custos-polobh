@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   agruparPorData,
+  atrasoNaConclusao,
   calcularDataLimite,
+  dataLocalDe,
+  definirDataConclusao,
+  paraCampoDataHora,
   definirStatus,
   diasEntre,
   gerarChecklist,
@@ -221,6 +225,49 @@ describe("definirStatus", () => {
 
   it("repetir o mesmo status devolve o objeto intacto", () => {
     expect(definirStatus(base, "Pendente", "Marisa", "2026-01-20T10:00:00Z")).toBe(base);
+  });
+});
+
+describe("data de conclusão", () => {
+  const base: ItemChecklist = {
+    id: "i1", checklistId: "c1", origemModeloItemId: "mi-1", titulo: "T", descricao: "", etapa: "E",
+    status: "Concluído", dataLimite: "2026-02-10", dataManual: false, concluidoEm: "", concluidoPor: "",
+    responsavel: "", observacoes: [], oculto: true, ordem: 0,
+  };
+
+  it("guarda data E hora, e devolve as duas ao campo da tela", () => {
+    const r = definirDataConclusao(base, "2026-02-08T18:30");
+    // Vai para o banco em UTC...
+    expect(r.concluidoEm).toContain("T");
+    expect(new Date(r.concluidoEm).getTime()).toBe(new Date("2026-02-08T18:30").getTime());
+    // ...e volta para a tela no horário local, sem perder a hora.
+    expect(paraCampoDataHora(r.concluidoEm)).toBe("2026-02-08T18:30");
+  });
+
+  it("só a data (sem hora) assume meio-dia, longe da virada", () => {
+    expect(paraCampoDataHora(definirDataConclusao(base, "2026-02-08").concluidoEm)).toBe("2026-02-08T12:00");
+  });
+
+  it("conclusão da noite continua sendo o dia em que a pessoa trabalhou", () => {
+    // Às 22h no Brasil já é o dia seguinte em UTC: ler o ISO cru daria 09/02.
+    const r = definirDataConclusao(base, "2026-02-08T22:00");
+    expect(dataLocalDe(r.concluidoEm)).toBe("2026-02-08");
+    expect(atrasoNaConclusao({ ...r, dataLimite: "2026-02-08" })).toBe(0); // entregou no prazo
+  });
+
+  it("limpar o campo devolve vazio", () => {
+    expect(definirDataConclusao(base, "").concluidoEm).toBe("");
+  });
+
+  it("compara prazo e conclusão para dizer se saiu no tempo", () => {
+    expect(atrasoNaConclusao(definirDataConclusao(base, "2026-02-13T09:00"))).toBe(3);  // 3 dias depois
+    expect(atrasoNaConclusao(definirDataConclusao(base, "2026-02-10T23:59"))).toBe(0);  // no dia, no limite
+    expect(atrasoNaConclusao(definirDataConclusao(base, "2026-02-05T08:00"))).toBe(-5); // adiantada
+  });
+
+  it("sem uma das duas datas não há comparação a fazer", () => {
+    expect(atrasoNaConclusao({ ...base, concluidoEm: "" })).toBeNull();
+    expect(atrasoNaConclusao({ ...definirDataConclusao(base, "2026-02-13T10:00"), dataLimite: "" })).toBeNull();
   });
 });
 

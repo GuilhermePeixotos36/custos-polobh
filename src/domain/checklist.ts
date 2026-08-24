@@ -243,6 +243,64 @@ export function definirStatus(
   return { ...item, status, concluidoEm: "", concluidoPor: "", oculto: false };
 }
 
+/* --------------------------- data de conclusão ---------------------------- */
+
+const doisDigitos = (n: number) => String(n).padStart(2, "0");
+
+/**
+ * Dia LOCAL de um instante (YYYY-MM-DD) — o dia que a pessoa viu no relógio.
+ *
+ * `concluidoEm` guarda o instante em UTC. Uma tarefa concluída às 21h no
+ * Brasil já é o dia seguinte em UTC, então ler os dez primeiros caracteres do
+ * ISO daria o dia errado em toda conclusão do fim da tarde.
+ */
+export function dataLocalDe(iso: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.getFullYear()}-${doisDigitos(d.getMonth() + 1)}-${doisDigitos(d.getDate())}`;
+}
+
+/** Valor de `concluidoEm` no formato de um <input type="datetime-local">. */
+export function paraCampoDataHora(iso: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${dataLocalDe(iso)}T${doisDigitos(d.getHours())}:${doisDigitos(d.getMinutes())}`;
+}
+
+/**
+ * Grava o instante em que a tarefa foi REALMENTE concluída — data e hora.
+ *
+ * O carimbo normal é automático (sai no momento do clique, com a hora exata),
+ * mas a realidade atrasa o registro: a pessoa termina na sexta às 18h e só marca
+ * no sistema na segunda. Poder corrigir é o que mantém o histórico fiel — e é
+ * dessa data que sai a leitura de "saiu no prazo ou não".
+ *
+ * Recebe o valor como o campo da tela entrega: "YYYY-MM-DDTHH:mm" em horário
+ * LOCAL. Guarda em UTC, que é o formato da coluna timestamptz.
+ */
+export function definirDataConclusao(item: ItemChecklist, valorLocal: string): ItemChecklist {
+  if (!valorLocal) return { ...item, concluidoEm: "" };
+  // Só a data (sem hora): assume meio-dia, para não cair na virada do dia.
+  const bruto = valorLocal.length <= 10 ? `${valorLocal}T12:00` : valorLocal;
+  const d = new Date(bruto); // sem sufixo Z, o JS lê como horário local
+  if (Number.isNaN(d.getTime())) return item;
+  return { ...item, concluidoEm: d.toISOString() };
+}
+
+/**
+ * Dias entre o prazo e a conclusão real.
+ *
+ * Positivo = concluiu depois do prazo (atraso); zero ou negativo = saiu no
+ * prazo. Compara pelo DIA LOCAL da conclusão: quem terminou às 22h do dia do
+ * prazo entregou no prazo, ainda que em UTC já fosse o dia seguinte.
+ */
+export function atrasoNaConclusao(item: ItemChecklist): number | null {
+  if (!item.concluidoEm || !item.dataLimite) return null;
+  return diasEntre(item.dataLimite, dataLocalDe(item.concluidoEm));
+}
+
 /* -------------------------------- situação -------------------------------- */
 
 /** Como o item está em relação ao prazo — base dos badges e das pendências. */

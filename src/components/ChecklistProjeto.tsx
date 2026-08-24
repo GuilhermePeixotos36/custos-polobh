@@ -16,6 +16,9 @@ import { NotifDot } from "@/components/NotifDot";
 import { idAncoraPendencia } from "@/components/NavegadorPendencias";
 import {
   agruparPorData,
+  atrasoNaConclusao,
+  definirDataConclusao,
+  paraCampoDataHora,
   definirStatus,
   encerrado,
   ordenarPorPrazo,
@@ -445,11 +448,8 @@ function ItemCard({
                 data ajustada à mão
               </span>
             )}
-            {item.status === "Concluído" && item.concluidoPor && (
-              <span className="text-[11.5px] font-bold text-ink-3">
-                por {item.concluidoPor}
-                {item.concluidoEm ? ` em ${dataBR(item.concluidoEm)}` : ""}
-              </span>
+            {item.status === "Concluído" && (
+              <ConclusaoDoItem item={item} podeEditar={podeEditar} onAlterar={onAlterar} />
             )}
             <div className="ml-auto flex items-center gap-1">
               <ObservacoesThread observacoes={item.observacoes ?? []} usuarios={usuarios} onChange={onObservacoes} />
@@ -480,5 +480,52 @@ function ItemCard({
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Bloco de conclusão do item: quando foi concluída, por quem, e se saiu no prazo.
+ *
+ * As duas datas convivem de propósito. `dataLimite` é o compromisso — quando a
+ * tarefa DEVE ficar pronta, calculada pela régua do modelo. `concluidoEm` é o
+ * fato — quando ela ficou. É a comparação entre as duas que responde a pergunta
+ * que interessa depois do evento: a produção saiu no tempo combinado?
+ *
+ * A data de conclusão é editável porque a realidade atrasa o registro: quem
+ * termina na sexta e marca na segunda precisa poder corrigir, senão o histórico
+ * inventa três dias de atraso que não existiram.
+ */
+function ConclusaoDoItem({
+  item,
+  podeEditar,
+  onAlterar,
+}: {
+  item: ItemChecklist;
+  podeEditar: boolean;
+  onAlterar: (patch: Partial<ItemChecklist>) => void;
+}) {
+  const atraso = atrasoNaConclusao(item);
+  return (
+    <span className="inline-flex items-center gap-1.5 flex-wrap text-[11.5px] font-bold text-ink-3">
+      <span>Concluída em</span>
+      <Input
+        type="datetime-local"
+        className="!h-7 !px-1.5 !text-[11.5px] !w-[12.5rem]"
+        value={paraCampoDataHora(item.concluidoEm)}
+        disabled={!podeEditar}
+        onChange={(e) => onAlterar(definirDataConclusao(item, e.target.value))}
+        aria-label="Data e hora em que a tarefa foi concluída"
+        title="Data e hora reais da conclusão — corrija se você marcou depois de ter feito"
+      />
+      {item.concluidoPor && <span>por {item.concluidoPor}</span>}
+      {atraso !== null &&
+        (atraso > 0 ? (
+          <Badge tom="danger">
+            {atraso} {atraso === 1 ? "dia de atraso" : "dias de atraso"}
+          </Badge>
+        ) : (
+          <Badge tom="success">no prazo</Badge>
+        ))}
+    </span>
   );
 }
