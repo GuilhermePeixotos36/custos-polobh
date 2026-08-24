@@ -12,6 +12,8 @@ export type Recurso =
   | "ecs.editar"
   | "oss"
   | "oss.editar"
+  | "checklists"
+  | "checklists.editar"
   | "cronogramas"
   | "fornecedores"
   | "fornecedores.editar"
@@ -28,6 +30,8 @@ export const TODOS_RECURSOS: Recurso[] = [
   "ecs.editar",
   "oss",
   "oss.editar",
+  "checklists",
+  "checklists.editar",
   "cronogramas",
   "fornecedores",
   "fornecedores.editar",
@@ -45,6 +49,7 @@ export const TELAS: { ver: Recurso; editar?: Recurso; label: string }[] = [
   { ver: "projetos", editar: "projetos.editar", label: "Projetos" },
   { ver: "ecs", editar: "ecs.editar", label: "Estimativas de Custo" },
   { ver: "oss", editar: "oss.editar", label: "Ordens de Serviço" },
+  { ver: "checklists", editar: "checklists.editar", label: "Check-list de projetos" },
   { ver: "cronogramas", label: "Cronogramas" },
   { ver: "fornecedores", editar: "fornecedores.editar", label: "Fornecedores" },
   { ver: "guia", label: "Guia de uso" },
@@ -76,6 +81,8 @@ export const PERMISSOES: Record<Papel, Recurso[]> = {
     "ecs.editar",
     "oss",
     "oss.editar",
+    "checklists",
+    "checklists.editar",
     "cronogramas",
     "fornecedores",
     "fornecedores.editar",
@@ -90,6 +97,8 @@ export const PERMISSOES: Record<Papel, Recurso[]> = {
     "ecs.editar",
     "oss",
     "oss.editar",
+    "checklists",
+    "checklists.editar",
     "cronogramas",
     "fornecedores",
     "fornecedores.editar",
@@ -100,6 +109,8 @@ export const PERMISSOES: Record<Papel, Recurso[]> = {
     "ecs",
     "oss",
     "oss.editar",
+    "checklists",
+    "checklists.editar",
     "cronogramas",
     "fornecedores",
     "fornecedores.editar",

@@ -26,15 +26,19 @@ export const usePendencias = create<State>((set, get) => ({
     if (!force && Date.now() - ultimoLoad < 4000) return; // evita recargas em rajada
     set({ carregando: true });
     try {
-      const [projetos, ecs, oss, usuarios, credenciados] = await Promise.all([
+      const [projetos, ecs, oss, usuarios, credenciados, checklists] = await Promise.all([
         repo.projetos.listar(),
         repo.ecs.listar(),
         repo.oss.listar(),
         repo.auth.usuarios(),
         repo.oss.osComCredenciamento(),
+        repo.checklists.listar(),
       ]);
       const nomes = usuarios.map((u) => u.nome).filter(Boolean);
-      set({ itens: calcularPendencias(projetos, ecs, oss, nomes, credenciados), ultimoLoad: Date.now() });
+      set({
+        itens: calcularPendencias(projetos, ecs, oss, nomes, credenciados, checklists),
+        ultimoLoad: Date.now(),
+      });
     } catch (erro) {
       // Não quebra a tela — os badges são auxiliares. Mas o erro precisa ficar
       // visível no console: quando uma das cargas falha, TODAS as pendências

@@ -1,0 +1,324 @@
+/**
+ * Check-list (work flow) do projeto — regras de negócio.
+ *
+ * O módulo transforma o conhecimento operacional da Pólobh em listas padrão por
+ * modalidade (Corporativo / Cultural) e, a partir das datas do projeto, calcula
+ * a data-limite de cada tarefa. Aqui mora só a matemática e as transições de
+ * status; tela e banco ficam de fora, para tudo isto ser testável direto.
+ */
+import type {
+  Checklist,
+  ItemChecklist,
+  ItemModeloChecklist,
+  ModeloChecklist,
+  ModalidadeProjeto,
+  Projeto,
+  RegraPrazoChecklist,
+  StatusChecklist,
+} from "@/data/types";
+
+/** Status que encerram o item — saem da visão principal e param de cobrar prazo. */
+export const STATUS_ENCERRADOS: StatusChecklist[] = ["Concluído", "Não se aplica"];
+
+export const encerrado = (item: ItemChecklist) => STATUS_ENCERRADOS.includes(item.status);
+
+/* ------------------------------ datas ------------------------------------ */
+
+const MS_DIA = 86400000;
+
+/** Converte "2026-08-23" (ou ISO completo) em Date UTC no início do dia. */
+function dia(iso: string): Date | null {
+  if (!iso) return null;
+  const d = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/** Volta ao formato "YYYY-MM-DD" — o mesmo que o resto do app grava. */
+function iso(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+export function somarDias(isoData: string, dias: number): string {
+  const d = dia(isoData);
+  return d ? iso(new Date(d.getTime() + dias * MS_DIA)) : "";
+}
+
+/** Dias corridos entre duas datas (b - a). Negativo = b antes de a. */
+export function diasEntre(a: string, b: string): number | null {
+  const da = dia(a);
+  const db = dia(b);
+  if (!da || !db) return null;
+  return Math.round((db.getTime() - da.getTime()) / MS_DIA);
+}
+
+/**
+ * Janela do projeto usada pelo motor de prazos.
+ *
+ * `inicio` e `fim` delimitam o período completo (pré-evento → pós-evento) e
+ * `evento` é a âncora do dia D. Quando o projeto ainda não tem alguma das datas,
+ * o motor degrada com elegância: sem janela não há régua percentual, sem evento
+ * não há âncora — e o item simplesmente nasce sem data-limite, para ser
+ * preenchido à mão.
+ */
+export interface JanelaProjeto {
+  inicio: string;
+  evento: string;
+  fim: string;
+}
+
+/**
+ * Lê a janela a partir do projeto.
+ *
+ * As três datas do projeto (pré-evento, evento, pós-evento) nem sempre estão
+ * todas preenchidas; o que existir é aproveitado, com o dia do evento servindo
+ * de tampão nas pontas — um projeto que só tem a data do evento ainda consegue
+ * posicionar as tarefas ancoradas.
+ */
+export function janelaDoProjeto(projeto: Projeto): JanelaProjeto {
+  const { preEvento, evento, posEvento } = projeto.info;
+  return {
+    inicio: preEvento || evento || "",
+    evento: evento || preEvento || posEvento || "",
+    fim: posEvento || evento || "",
+  };
+}
+
+/**
+ * Data-limite de uma tarefa dentro da janela do projeto.
+ *
+ * Percentual: distribui no período completo (0 = início, 1 = fim). Âncora: fixa
+ * a tarefa a N dias do evento. Devolve "" quando falta a data que a régua
+ * precisa — nunca inventa um prazo em cima de projeto sem data.
+ */
+export function calcularDataLimite(prazo: RegraPrazoChecklist, janela: JanelaProjeto): string {
+  if (prazo.modo === "ancora") {
+    if (!janela.evento) return "";
+    return somarDias(janela.evento, prazo.diasDoEvento ?? 0);
+  }
+  const total = diasEntre(janela.inicio, janela.fim);
+  if (total === null || !janela.inicio) return "";
+  const fracao = Math.min(1, Math.max(0, prazo.percentual ?? 0));
+  // Projeto de um dia só (total = 0) resolve tudo no próprio dia.
+  return somarDias(janela.inicio, Math.round(total * fracao));
+}
+
+/* --------------------------- geração e sincronia -------------------------- */
+
+/** Gera o id de um item novo — isolado para o teste poder injetar um previsível. */
+export type GeradorId = () => string;
+
+const idPadrao: GeradorId = () =>
+  globalThis.crypto?.randomUUID?.() ?? `item-${Math.round(performance.now() * 1000)}`;
+
+/**
+ * Instancia o check-list de um projeto a partir do modelo da sua modalidade.
+ *
+ * Todo item nasce "Pendente" e visível, com a data-limite já calculada — é o
+ * comportamento pedido no briefing. O vínculo `origemModeloItemId` fica gravado
+ * para a sincronização posterior saber o que veio do modelo e o que foi criado
+ * à mão dentro do projeto.
+ */
+export function gerarChecklist(
+  projeto: Projeto,
+  modelo: ModeloChecklist,
+  novoId: GeradorId = idPadrao
+): Checklist {
+  const janela = janelaDoProjeto(projeto);
+  const agora = new Date().toISOString();
+  const checklistId = novoId();
+  const itens = [...modelo.itens]
+    .sort((a, b) => a.ordem - b.ordem)
+    .map((molde, indice) => itemDoModelo(molde, checklistId, janela, indice, novoId));
+  return {
+    id: checklistId,
+    projetoId: projeto.id,
+    modalidade: modelo.modalidade,
+    modeloId: modelo.id,
+    itens,
+    criadoEm: agora,
+    atualizadoEm: agora,
+  };
+}
+
+function itemDoModelo(
+  molde: ItemModeloChecklist,
+  checklistId: string,
+  janela: JanelaProjeto,
+  ordem: number,
+  novoId: GeradorId
+): ItemChecklist {
+  return {
+    id: novoId(),
+    checklistId,
+    origemModeloItemId: molde.id,
+    titulo: molde.titulo,
+    descricao: molde.descricao,
+    etapa: molde.etapa,
+    status: "Pendente",
+    dataLimite: calcularDataLimite(molde.prazo, janela),
+    dataManual: false,
+    concluidoEm: "",
+    concluidoPor: "",
+    responsavel: molde.responsavelPadrao,
+    observacoes: [],
+    oculto: false,
+    ordem,
+  };
+}
+
+/**
+ * Recalcula as datas-limite depois que as datas do projeto mudam.
+ *
+ * Preserva duas coisas de propósito: o item com `dataManual` (alguém já ajustou
+ * aquela data e a régua não pode passar por cima) e o item já encerrado (mexer
+ * no prazo de tarefa concluída só embaralharia o histórico).
+ */
+export function recalcularPrazos(
+  checklist: Checklist,
+  projeto: Projeto,
+  modelo: ModeloChecklist | undefined
+): Checklist {
+  const janela = janelaDoProjeto(projeto);
+  const prazoPorModeloItem = new Map((modelo?.itens ?? []).map((m) => [m.id, m.prazo]));
+  const itens = checklist.itens.map((item) => {
+    if (item.dataManual || encerrado(item)) return item;
+    const prazo = prazoPorModeloItem.get(item.origemModeloItemId);
+    if (!prazo) return item; // item criado à mão: sem régua, mantém a data que tem
+    const dataLimite = calcularDataLimite(prazo, janela);
+    return dataLimite && dataLimite !== item.dataLimite ? { ...item, dataLimite } : item;
+  });
+  return { ...checklist, itens };
+}
+
+/**
+ * Traz para um check-list já existente os itens que foram acrescentados ao
+ * modelo depois que ele foi gerado.
+ *
+ * Alterar a lista padrão NÃO reescreve os check-lists em andamento — isso
+ * apagaria o trabalho da equipe no meio do projeto. Esta função é o caminho
+ * explícito: acrescenta só o que falta, mantendo intacto tudo o que já existe.
+ */
+export function sincronizarComModelo(
+  checklist: Checklist,
+  projeto: Projeto,
+  modelo: ModeloChecklist,
+  novoId: GeradorId = idPadrao
+): { checklist: Checklist; adicionados: number } {
+  const janela = janelaDoProjeto(projeto);
+  const jaTem = new Set(checklist.itens.map((i) => i.origemModeloItemId).filter(Boolean));
+  const novos = [...modelo.itens]
+    .sort((a, b) => a.ordem - b.ordem)
+    .filter((m) => !jaTem.has(m.id));
+  if (!novos.length) return { checklist, adicionados: 0 };
+  let ordem = checklist.itens.reduce((max, i) => Math.max(max, i.ordem), -1);
+  const acrescentados = novos.map((m) => itemDoModelo(m, checklist.id, janela, ++ordem, novoId));
+  return {
+    checklist: { ...checklist, itens: [...checklist.itens, ...acrescentados] },
+    adicionados: acrescentados.length,
+  };
+}
+
+/* ------------------------------- transições ------------------------------- */
+
+/**
+ * Aplica a mudança de status de um item.
+ *
+ * "Concluído" carimba data e autor e recolhe o item da visão principal — a
+ * ocultação automática pedida no briefing. Voltar o item para aberto desfaz as
+ * três coisas, senão ele reapareceria já marcado como concluído por alguém.
+ */
+export function definirStatus(
+  item: ItemChecklist,
+  status: StatusChecklist,
+  porQuem: string,
+  agoraIso: string
+): ItemChecklist {
+  if (item.status === status) return item;
+  if (status === "Concluído") {
+    return { ...item, status, concluidoEm: agoraIso, concluidoPor: porQuem, oculto: true };
+  }
+  if (status === "Não se aplica") {
+    return { ...item, status, concluidoEm: "", concluidoPor: "", oculto: true };
+  }
+  return { ...item, status, concluidoEm: "", concluidoPor: "", oculto: false };
+}
+
+/* -------------------------------- situação -------------------------------- */
+
+/** Como o item está em relação ao prazo — base dos badges e das pendências. */
+export type SituacaoPrazo = "sem-data" | "encerrado" | "atrasado" | "hoje" | "proximo" | "em-dia";
+
+/** Dias de antecedência a partir dos quais o item já entra no radar da equipe. */
+export const DIAS_ALERTA = 3;
+
+export function situacaoPrazo(item: ItemChecklist, hojeIso: string): SituacaoPrazo {
+  if (encerrado(item)) return "encerrado";
+  if (!item.dataLimite) return "sem-data";
+  const faltam = diasEntre(hojeIso, item.dataLimite);
+  if (faltam === null) return "sem-data";
+  if (faltam < 0) return "atrasado";
+  if (faltam === 0) return "hoje";
+  return faltam <= DIAS_ALERTA ? "proximo" : "em-dia";
+}
+
+/** Resumo do check-list para o cabeçalho da tela e para a lista de projetos. */
+export interface ResumoChecklist {
+  total: number;
+  /** Tarefas que contam para o progresso (exclui as marcadas "Não se aplica"). */
+  contam: number;
+  concluidos: number;
+  abertos: number;
+  atrasados: number;
+  proximos: number;
+  /** 0 a 1 — concluídos sobre o que de fato conta (exclui "Não se aplica"). */
+  progresso: number;
+}
+
+export function resumirChecklist(checklist: Checklist | undefined, hojeIso: string): ResumoChecklist {
+  const itens = checklist?.itens ?? [];
+  const contam = itens.filter((i) => i.status !== "Não se aplica");
+  const concluidos = contam.filter((i) => i.status === "Concluído").length;
+  const abertos = itens.filter((i) => !encerrado(i));
+  const situacoes = abertos.map((i) => situacaoPrazo(i, hojeIso));
+  return {
+    total: itens.length,
+    contam: contam.length,
+    concluidos,
+    abertos: abertos.length,
+    atrasados: situacoes.filter((s) => s === "atrasado").length,
+    proximos: situacoes.filter((s) => s === "hoje" || s === "proximo").length,
+    progresso: contam.length ? concluidos / contam.length : 0,
+  };
+}
+
+/**
+ * Ordena os itens do jeito que a equipe lê: por data-limite (o que vence antes
+ * vem primeiro), com os sem data no fim e a ordem do modelo como desempate.
+ */
+export function ordenarPorPrazo(itens: ItemChecklist[]): ItemChecklist[] {
+  return [...itens].sort((a, b) => {
+    if (!a.dataLimite && !b.dataLimite) return a.ordem - b.ordem;
+    if (!a.dataLimite) return 1;
+    if (!b.dataLimite) return -1;
+    return a.dataLimite.localeCompare(b.dataLimite) || a.ordem - b.ordem;
+  });
+}
+
+/** Agrupa por data-limite — base da visão cronológica ("indexado por data"). */
+export function agruparPorData(itens: ItemChecklist[]): { data: string; itens: ItemChecklist[] }[] {
+  const mapa = new Map<string, ItemChecklist[]>();
+  for (const item of ordenarPorPrazo(itens)) {
+    const chave = item.dataLimite || "";
+    if (!mapa.has(chave)) mapa.set(chave, []);
+    mapa.get(chave)!.push(item);
+  }
+  return [...mapa.entries()].map(([data, lista]) => ({ data, itens: lista }));
+}
+
+/** Modelo da modalidade do projeto (a lista padrão que deve alimentá-lo). */
+export function modeloDaModalidade(
+  modelos: ModeloChecklist[],
+  modalidade: ModalidadeProjeto
+): ModeloChecklist | undefined {
+  return modelos.find((m) => m.modalidade === modalidade);
+}

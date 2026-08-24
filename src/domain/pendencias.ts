@@ -13,12 +13,14 @@
  * (recurso da navegação, projeto, subguia, EC e/ou OS). Para adicionar uma nova
  * regra, basta empurrar mais objetos em `calcularPendencias`.
  */
-import type { Ec, Os, Papel, Projeto } from "@/data/types";
+import type { Checklist, Ec, Os, Papel, Projeto } from "@/data/types";
 import { extrairMencoes } from "@/domain/mencoes";
 import { statusProjetoAutomatico } from "@/domain/statusProjeto";
+// `encerrado` já é o nome do teste de projeto encerrado aqui — o do item vem com alias.
+import { encerrado as itemEncerrado, situacaoPrazo } from "@/domain/checklist";
 
 /** Chave da subguia dentro do detalhe do projeto (espelha ProjetoDetail). */
-export type AbaProjeto = "dados" | "ec" | "os" | "cronograma" | "fornecedores";
+export type AbaProjeto = "dados" | "ec" | "os" | "checklist" | "cronograma" | "fornecedores";
 
 export interface Pendencia {
   id: string;
@@ -34,6 +36,8 @@ export interface Pendencia {
   aba?: AbaProjeto;
   ecId?: string;
   osId?: string;
+  /** Item do check-list que originou a pendência (leva direto até ele na tela). */
+  checklistItemId?: string;
 }
 
 // Emitir OS é função do financeiro — único ponto ainda roteado por papel (não por pessoa fixa).
@@ -49,7 +53,11 @@ export function calcularPendencias(
   oss: Os[],
   usuarios: string[] = [],
   /** OSs que já receberam resposta de credenciamento — o resto ainda está devendo. */
-  osComCredenciamento: string[] = []
+  osComCredenciamento: string[] = [],
+  /** Check-lists dos projetos — geram pendência de prazo e de observação. */
+  checklists: Checklist[] = [],
+  /** "Hoje" em ISO — injetado para o cálculo ser testável e estável. */
+  hojeIso: string = new Date().toISOString().slice(0, 10)
 ): Pendencia[] {
   const ecPorId = new Map(ecs.map((e) => [e.id, e]));
   const credenciamentoRespondido = new Set(osComCredenciamento);
@@ -202,6 +210,60 @@ export function calcularPendencias(
         projetoId: ec.projetoId,
         aba: "ec",
         ecId: ec.id,
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------- check-list
+  // Duas cobranças: a observação endereçada a alguém (igual à da EC) e a tarefa
+  // que venceu ou está vencendo. A segunda é a razão de existir do módulo — é o
+  // que troca a cobrança informal por um aviso no quadro de pendências.
+  for (const checklist of checklists) {
+    if (!checklist.projetoId || encerrado(checklist.projetoId)) continue;
+    const responsavelProjeto = responsavelPorProjeto.get(checklist.projetoId)?.trim() ?? "";
+    for (const item of checklist.itens) {
+      if (itemEncerrado(item)) continue; // concluído/não se aplica: não cobra mais nada
+
+      for (const observacao of item.observacoes ?? []) {
+        const texto = observacao.texto.trim();
+        if (!texto || observacao.resolvida) continue;
+        const destinatarios = new Set<string>();
+        if (observacao.responsavelNome?.trim()) destinatarios.add(observacao.responsavelNome.trim());
+        for (const m of extrairMencoes(texto, usuarios)) destinatarios.add(m);
+        if (!destinatarios.size) continue;
+        const resumo = texto.length > 80 ? `${texto.slice(0, 77)}…` : texto;
+        out.push({
+          id: `checklist.observacao:${item.id}:${observacao.id}`,
+          tipo: "checklist.observacao",
+          titulo: `Observação para você em ${item.titulo}: ${resumo}`,
+          papeis: [],
+          pessoas: [...destinatarios],
+          recurso: "projetos",
+          projetoId: checklist.projetoId,
+          aba: "checklist",
+          checklistItemId: item.id,
+        });
+      }
+
+      const situacao = situacaoPrazo(item, hojeIso);
+      if (situacao !== "atrasado" && situacao !== "hoje" && situacao !== "proximo") continue;
+      // Sem responsável no item, quem responde é o produtor do projeto — a
+      // tarefa não pode ficar órfã só porque ninguém foi nomeado nela.
+      const dono = item.responsavel?.trim() || responsavelProjeto;
+      if (!dono) continue;
+      out.push({
+        id: `checklist.prazo:${item.id}`,
+        tipo: situacao === "atrasado" ? "checklist.atrasado" : "checklist.vencendo",
+        titulo:
+          situacao === "atrasado"
+            ? `Tarefa atrasada: ${item.titulo}`
+            : `Tarefa vencendo: ${item.titulo}`,
+        papeis: [],
+        pessoas: [dono],
+        recurso: "projetos",
+        projetoId: checklist.projetoId,
+        aba: "checklist",
+        checklistItemId: item.id,
       });
     }
   }

@@ -3,7 +3,10 @@
  * interfaces; a implementação concreta é escolhida pela fábrica em ./index.
  * Hoje: mock em memória. Amanhã: Supabase — basta trocar a fábrica.
  */
-import type { Area, Cliente, CredenciamentoResposta, Ec, EmpresaGrupo, Fornecedor, Os, Projeto, Usuario } from "./types";
+import type {
+  Area, Checklist, Cliente, CredenciamentoResposta, Ec, EmpresaGrupo, Fornecedor,
+  ItemChecklist, ModeloChecklist, Os, Projeto, Usuario,
+} from "./types";
 
 export interface ProjetoRepository {
   listar(): Promise<Projeto[]>;
@@ -77,6 +80,32 @@ export interface EmpresasRepository {
   definirPadrao(id: string): Promise<void>;
 }
 
+/**
+ * Check-list (work flow) do projeto.
+ *
+ * Repare que não existe um `salvar(checklist)` que grave a lista inteira: os
+ * itens vão um a um. Duas pessoas mexendo em tarefas diferentes do mesmo
+ * projeto é o caso normal aqui, e gravar tudo de uma vez faria uma sobrescrever
+ * a outra em silêncio.
+ */
+export interface ChecklistRepository {
+  /** Listas padrão por modalidade (cadastro de Configurações). */
+  listarModelos(): Promise<ModeloChecklist[]>;
+  salvarModelo(modelo: ModeloChecklist): Promise<ModeloChecklist>;
+  /** Check-list de um projeto, com os itens. */
+  doProjeto(projetoId: string): Promise<Checklist | undefined>;
+  /** Todos os check-lists com itens — visão cronológica e quadro de pendências. */
+  listar(): Promise<Checklist[]>;
+  /** Grava o check-list recém-gerado (cabeçalho + itens) de uma vez só. */
+  criar(checklist: Checklist): Promise<Checklist>;
+  salvarItem(item: ItemChecklist): Promise<ItemChecklist>;
+  /** Gravação em lote — usada no recálculo de prazos e na ordenação. */
+  salvarItens(itens: ItemChecklist[]): Promise<void>;
+  removerItem(id: string): Promise<void>;
+  /** Apaga o check-list do projeto (usado ao trocar a modalidade). */
+  remover(checklistId: string): Promise<void>;
+}
+
 export interface Repositorios {
   projetos: ProjetoRepository;
   clientes: ClienteRepository;
@@ -86,4 +115,5 @@ export interface Repositorios {
   auth: AuthRepository;
   areas: AreaRepository;
   empresas: EmpresasRepository;
+  checklists: ChecklistRepository;
 }

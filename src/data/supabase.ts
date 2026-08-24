@@ -24,6 +24,7 @@ const financeiroVazio = () => ({
 import type {
   AreaRepository,
   AuthRepository,
+  ChecklistRepository,
   ClienteRepository,
   EcRepository,
   EmpresasRepository,
@@ -34,11 +35,18 @@ import type {
 } from "./repository";
 import type {
   Area,
+  Checklist,
   Cliente,
   Ec,
   EcLinha,
+  ItemChecklist,
+  ModeloChecklist,
+  ItemModeloChecklist,
+  StatusChecklist,
+  ModalidadeProjeto,
   EmpresaGrupo,
   Fornecedor,
+  Observacao,
   Os,
   Producao,
   Projeto,
@@ -222,6 +230,46 @@ function extrairProducao(raw: any): Producao {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
+/**
+ * Normaliza a thread de observações vinda do jsonb.
+ *
+ * Vale para os itens da EC e para os do check-list: as duas telas usam o mesmo
+ * componente de thread e o mesmo motor de pendências, então precisam do mesmo
+ * formato. `legado` migra a observação antiga de texto único (e o antigo campo
+ * "pessoa", que virou autor/responsável) — só a EC tem essa herança.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapObservacoes(linhaId: string, raw: any, legado?: string): Observacao[] {
+  if (Array.isArray(raw) && raw.length) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return raw.map((o: any, indice: number) => ({
+      id: o.id || `obs-${linhaId}-${indice}`,
+      texto: o.texto ?? "",
+      autorId: o.autorId ?? "",
+      autorNome: o.autorNome ?? o.pessoa ?? "",
+      criadoEm: o.criadoEm ?? nowIso(),
+      responsavelNome: o.responsavelNome ?? o.pessoa ?? "",
+      resolvida: !!o.resolvida,
+      resolvidoPorNome: o.resolvidoPorNome ?? "",
+      resolvidoEm: o.resolvidoEm ?? "",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      respostas: Array.isArray(o.respostas)
+        ? o.respostas.map((rr: any, j: number) => ({
+            id: rr.id || `resp-${linhaId}-${indice}-${j}`,
+            texto: rr.texto ?? "",
+            autorId: rr.autorId ?? "",
+            autorNome: rr.autorNome ?? "",
+            criadoEm: rr.criadoEm ?? nowIso(),
+          }))
+        : [],
+    }));
+  }
+  if (legado) {
+    return [{ id: `obs-${linhaId}-0`, texto: legado, autorId: "", autorNome: "", criadoEm: nowIso(), respostas: [] }];
+  }
+  return [];
+}
+
 function mapLinha(r: any): EcLinha {
   return {
     id: r.id,
@@ -242,34 +290,7 @@ function mapLinha(r: any): EcLinha {
     statusOs: r.status_os ?? "Pendente",
     contratoStatus: r.contrato_status ?? "Pendente",
     observacao: r.observacao ?? "",
-    // migra a observação legada (texto único, ou o antigo campo "pessoa" atribuído) para o formato de autor.
-    observacoes:
-      Array.isArray(r.observacoes) && r.observacoes.length
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ? r.observacoes.map((o: any, indice: number) => ({
-            id: o.id || `obs-${r.id}-${indice}`,
-            texto: o.texto ?? "",
-            autorId: o.autorId ?? "",
-            autorNome: o.autorNome ?? o.pessoa ?? "",
-            criadoEm: o.criadoEm ?? nowIso(),
-            responsavelNome: o.responsavelNome ?? o.pessoa ?? "",
-            resolvida: !!o.resolvida,
-            resolvidoPorNome: o.resolvidoPorNome ?? "",
-            resolvidoEm: o.resolvidoEm ?? "",
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            respostas: Array.isArray(o.respostas)
-              ? o.respostas.map((rr: any, j: number) => ({
-                  id: rr.id || `resp-${r.id}-${indice}-${j}`,
-                  texto: rr.texto ?? "",
-                  autorId: rr.autorId ?? "",
-                  autorNome: rr.autorNome ?? "",
-                  criadoEm: rr.criadoEm ?? nowIso(),
-                }))
-              : [],
-          }))
-        : r.observacao
-        ? [{ id: `obs-${r.id}-0`, texto: r.observacao, autorId: "", autorNome: "", criadoEm: nowIso(), respostas: [] }]
-        : [],
+    observacoes: mapObservacoes(r.id, r.observacoes, r.observacao),
     oculto: !!r.oculto,
     ordem: r.ordem ?? 0,
   };
@@ -822,6 +843,168 @@ const empresasRepo: EmpresasRepository = {
   },
 };
 
+/* ------------------------------ CHECK-LIST ------------------------------- */
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapModeloChecklist(r: any): ModeloChecklist {
+  return {
+    id: r.id,
+    modalidade: (r.modalidade ?? "") as ModalidadeProjeto,
+    nome: r.nome ?? "",
+    itens: (Array.isArray(r.itens) ? r.itens : [])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((i: any, n: number): ItemModeloChecklist => ({
+        id: i.id || `mi-${n + 1}`,
+        titulo: i.titulo ?? "",
+        descricao: i.descricao ?? "",
+        etapa: i.etapa ?? "",
+        prazo:
+          i.prazo?.modo === "ancora"
+            ? { modo: "ancora", diasDoEvento: Number(i.prazo.diasDoEvento) || 0 }
+            : { modo: "percentual", percentual: Number(i.prazo?.percentual) || 0 },
+        responsavelPadrao: i.responsavelPadrao ?? "",
+        ordem: Number(i.ordem) || n,
+      }))
+      .sort((a: ItemModeloChecklist, b: ItemModeloChecklist) => a.ordem - b.ordem),
+    atualizadoEm: r.atualizado_em ?? "",
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapItemChecklist(r: any): ItemChecklist {
+  return {
+    id: r.id,
+    checklistId: r.checklist_id,
+    origemModeloItemId: r.origem_modelo_item_id ?? "",
+    titulo: r.titulo ?? "",
+    descricao: r.descricao ?? "",
+    etapa: r.etapa ?? "",
+    status: (r.status ?? "Pendente") as StatusChecklist,
+    // `date` do Postgres já chega como "YYYY-MM-DD"; normaliza por segurança.
+    dataLimite: r.data_limite ? String(r.data_limite).slice(0, 10) : "",
+    dataManual: !!r.data_manual,
+    concluidoEm: r.concluido_em ?? "",
+    concluidoPor: r.concluido_por ?? "",
+    responsavel: r.responsavel ?? "",
+    observacoes: mapObservacoes(r.id, r.observacoes),
+    oculto: !!r.oculto,
+    ordem: r.ordem ?? 0,
+  };
+}
+
+function itemChecklistRow(i: ItemChecklist) {
+  return {
+    id: i.id,
+    checklist_id: i.checklistId,
+    origem_modelo_item_id: i.origemModeloItemId ?? "",
+    titulo: i.titulo,
+    descricao: i.descricao ?? "",
+    etapa: i.etapa ?? "",
+    status: i.status,
+    // Coluna `date`: string vazia viraria erro de cast, então vira NULL.
+    data_limite: i.dataLimite || null,
+    data_manual: !!i.dataManual,
+    concluido_em: i.concluidoEm || null,
+    concluido_por: i.concluidoPor ?? "",
+    responsavel: i.responsavel ?? "",
+    observacoes: i.observacoes ?? [],
+    oculto: !!i.oculto,
+    ordem: i.ordem ?? 0,
+  };
+}
+
+const SELECT_CHECKLIST = "*, itens:checklist_itens(*)";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapChecklist(r: any): Checklist {
+  return {
+    id: r.id,
+    projetoId: r.projeto_id,
+    modalidade: (r.modalidade ?? "") as ModalidadeProjeto,
+    modeloId: r.modelo_id ?? "",
+    itens: (Array.isArray(r.itens) ? r.itens : []).map(mapItemChecklist).sort(
+      (a: ItemChecklist, b: ItemChecklist) => a.ordem - b.ordem
+    ),
+    criadoEm: r.criado_em ?? "",
+    atualizadoEm: r.atualizado_em ?? "",
+  };
+}
+
+const checklistRepo: ChecklistRepository = {
+  async listarModelos() {
+    const data = ok(await supabase.from("checklist_modelos").select("*").order("modalidade"));
+    return (data ?? []).map(mapModeloChecklist);
+  },
+  async salvarModelo(modelo) {
+    const data = ok(
+      await supabase
+        .from("checklist_modelos")
+        .update({ nome: modelo.nome, itens: modelo.itens, atualizado_em: new Date().toISOString() })
+        .eq("id", modelo.id)
+        .select("*")
+        .single()
+    )!;
+    auditar({
+      categoria: "Configuração",
+      acao: "checklist.modelo.atualizar",
+      mensagem: `Lista padrão de check-list (${modelo.modalidade}) atualizada — ${modelo.itens.length} itens`,
+      alvoId: modelo.id,
+    });
+    return mapModeloChecklist(data);
+  },
+  async doProjeto(projetoId) {
+    const data = ok(
+      await supabase.from("checklists").select(SELECT_CHECKLIST).eq("projeto_id", projetoId).maybeSingle()
+    );
+    return data ? mapChecklist(data) : undefined;
+  },
+  async listar() {
+    const data = ok(await supabase.from("checklists").select(SELECT_CHECKLIST));
+    return (data ?? []).map(mapChecklist);
+  },
+  async criar(checklist) {
+    const cab = ok(
+      await supabase
+        .from("checklists")
+        .insert({
+          id: checklist.id,
+          projeto_id: checklist.projetoId,
+          modalidade: checklist.modalidade,
+          modelo_id: checklist.modeloId || null,
+        })
+        .select("*")
+        .single()
+    )!;
+    if (checklist.itens.length) {
+      ok(await supabase.from("checklist_itens").insert(checklist.itens.map(itemChecklistRow)));
+    }
+    auditar({
+      categoria: "Projeto",
+      acao: "checklist.gerar",
+      mensagem: `Check-list ${checklist.modalidade} gerado com ${checklist.itens.length} tarefas`,
+      alvoId: checklist.projetoId,
+    });
+    return { ...checklist, criadoEm: cab.criado_em, atualizadoEm: cab.atualizado_em };
+  },
+  async salvarItem(item) {
+    const data = ok(
+      await supabase.from("checklist_itens").upsert(itemChecklistRow(item)).select("*").single()
+    )!;
+    return mapItemChecklist(data);
+  },
+  async salvarItens(itens) {
+    if (!itens.length) return;
+    ok(await supabase.from("checklist_itens").upsert(itens.map(itemChecklistRow)));
+  },
+  async removerItem(id) {
+    ok(await supabase.from("checklist_itens").delete().eq("id", id));
+  },
+  async remover(checklistId) {
+    // Os itens saem por cascade.
+    ok(await supabase.from("checklists").delete().eq("id", checklistId));
+  },
+};
+
 export const supabaseRepositorios: Repositorios = {
   projetos: projetoRepo,
   clientes: clienteRepo,
@@ -831,4 +1014,5 @@ export const supabaseRepositorios: Repositorios = {
   auth: authRepo,
   areas: areaRepo,
   empresas: empresasRepo,
+  checklists: checklistRepo,
 };

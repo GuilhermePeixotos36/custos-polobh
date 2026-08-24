@@ -509,3 +509,94 @@ export interface Os {
   criadoEm: string;
   atualizadoEm: string;
 }
+
+/* ------------------------------ CHECK-LIST ------------------------------- */
+
+/** Status de um item do check-list (work flow do projeto). */
+export type StatusChecklist = "Pendente" | "Em andamento" | "Concluído" | "Não se aplica";
+
+/**
+ * Onde a tarefa cai no calendário do projeto. Duas réguas, porque a produção de
+ * evento tem dois tipos de tarefa:
+ *
+ *  - `percentual` — distribui a tarefa proporcionalmente ao período completo do
+ *    projeto (0 = início, 1 = fim). É a régua pedida no briefing e serve bem
+ *    para o miolo da produção, que "estica" junto com o projeto.
+ *  - `ancora` — fixa a tarefa a uma distância em dias do DIA DO EVENTO
+ *    (negativo = antes, positivo = depois). Serve para o que não estica:
+ *    credenciamento fecha 7 dias antes do evento, seja o projeto de 2 meses ou
+ *    de 2 anos.
+ */
+export interface RegraPrazoChecklist {
+  modo: "percentual" | "ancora";
+  /** Modo percentual: fração de 0 a 1 do período do projeto. */
+  percentual?: number;
+  /** Modo âncora: dias em relação ao evento (ex.: -7 = uma semana antes). */
+  diasDoEvento?: number;
+}
+
+/** Item de uma lista padrão (o "molde" de onde nascem os itens do projeto). */
+export interface ItemModeloChecklist {
+  id: string;
+  titulo: string;
+  descricao: string;
+  /** Agrupador na tela (ex.: "PRÉ-PRODUÇÃO", "MONTAGEM", "PÓS-EVENTO"). */
+  etapa: string;
+  prazo: RegraPrazoChecklist;
+  /** Sugestão de responsável — pode ficar vazio e ser definido no projeto. */
+  responsavelPadrao: string;
+  ordem: number;
+}
+
+/**
+ * Lista padrão de tarefas de uma modalidade. É o cadastro que a Coordenação
+ * mantém em Configurações e de onde o sistema instancia o check-list de cada
+ * projeto novo.
+ */
+export interface ModeloChecklist {
+  id: string;
+  modalidade: ModalidadeProjeto;
+  nome: string;
+  itens: ItemModeloChecklist[];
+  atualizadoEm: string;
+}
+
+/** Item do check-list de um projeto — o que a equipe de fato acompanha. */
+export interface ItemChecklist {
+  id: string;
+  checklistId: string;
+  /** Item de modelo que originou este (vazio quando criado à mão no projeto). */
+  origemModeloItemId: string;
+  titulo: string;
+  descricao: string;
+  etapa: string;
+  status: StatusChecklist;
+  /** Data-limite (ISO). Calculada pelo motor de prazos ou definida à mão. */
+  dataLimite: string;
+  /**
+   * Data-limite editada à mão. Quando verdadeiro, recalcular os prazos do
+   * projeto NÃO sobrescreve esta data — o ajuste da pessoa vale mais que a régua.
+   */
+  dataManual: boolean;
+  /** Quando o item foi concluído (ISO) — vazio enquanto não conclui. */
+  concluidoEm: string;
+  concluidoPor: string;
+  responsavel: string;
+  /** Thread de observações — mesmo formato e comportamento dos itens da EC. */
+  observacoes: Observacao[];
+  /** Item recolhido da visão principal (some da lista, não é apagado). */
+  oculto: boolean;
+  ordem: number;
+}
+
+/** Check-list de um projeto: uma lista, instanciada a partir de um modelo. */
+export interface Checklist {
+  id: string;
+  projetoId: string;
+  modalidade: ModalidadeProjeto;
+  /** Modelo que originou a lista — rastreia de onde os itens vieram. */
+  modeloId: string;
+  itens: ItemChecklist[];
+  criadoEm: string;
+  atualizadoEm: string;
+}

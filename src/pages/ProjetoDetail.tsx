@@ -5,7 +5,7 @@ import {
   Card, CardTitle, Button, Field, Input, Label, TelefoneInput, Textarea, Select, Badge,
   Table, THead, Tr, Td, EmptyState, ThOrd, useOrdenacao, tomStatusOs, type Tom,
 } from "@/components/ui";
-import { IcPlus, IcBack, IcDownload, IcSearch, IcTrash, IcEye, IcEyeOff, IcDoc, IcCopy } from "@/components/icons";
+import { IcPlus, IcBack, IcDownload, IcSearch, IcTrash, IcEye, IcEyeOff, IcDoc, IcCopy, IcCalendar } from "@/components/icons";
 import { RichTextField } from "@/components/RichTextField";
 import { TimelineConsolidada, type ItemConsolidado } from "@/components/Timeline";
 import { NotifDot } from "@/components/NotifDot";
@@ -26,6 +26,8 @@ import { flags } from "@/lib/flags";
 import { destacarElemento, idBlocoRoteiro } from "@/lib/destaque";
 import { cx, dataBR, maskCpfCnpjInput, maskDoc, onlyDigits } from "@/lib/format";
 import { toast } from "@/store/toast";
+import { ChecklistProjeto } from "@/components/ChecklistProjeto";
+import { useChecklistProjeto } from "@/hooks/useChecklistProjeto";
 import { confirmar } from "@/store/confirm";
 import { corrigirRoteirosProjeto } from "@/lib/correcaoOrtografica";
 import { statusProjetoAutomatico } from "@/domain/statusProjeto";
@@ -45,11 +47,12 @@ const projetoVazio = (): Projeto => ({
   docsUrl: "", status: "Ativo", criadoEm: "", atualizadoEm: "",
 });
 
-type Aba = "dados" | "ec" | "os" | "cronograma" | "fornecedores";
+type Aba = "dados" | "ec" | "os" | "checklist" | "cronograma" | "fornecedores";
 const ABAS: { key: Aba; label: string }[] = [
   { key: "dados", label: "Dados Gerais" },
   { key: "ec", label: "EC" },
   { key: "os", label: "OS" },
+  { key: "checklist", label: "Check-list" },
   { key: "cronograma", label: "Cronograma" },
   { key: "fornecedores", label: "Fornecedores" },
 ];
@@ -69,6 +72,7 @@ export function ProjetoDetail() {
   const abaInicial: Aba = ABAS.some((a) => a.key === abaParam) ? (abaParam as Aba) : "dados";
   const { porAba, porOs, porEc } = useMinhasPendencias();
   const podeEditarProjeto = useAuth((s) => s.pode("projetos.editar"));
+  const podeEditarChecklist = useAuth((s) => s.pode("checklists.editar"));
 
   const { data: existente, loading } = useAsync(() => (novo ? Promise.resolve(undefined) : repo.projetos.obter(id)), [id]);
   const { data: ecsAll } = useAsync(() => repo.ecs.listar(), []);
@@ -77,6 +81,8 @@ export function ProjetoDetail() {
   // Usuários elegíveis a Produtor Responsável — critério vem da área (ver useResponsaveis).
   const { data: usuariosAll } = useAsync(() => repo.auth.usuarios(), []);
   const produtoresResponsaveis = useResponsaveis(usuariosAll);
+  /** Nomes de todos os usuários — @menções e escolha de responsável no check-list. */
+  const nomesUsuarios = useMemo(() => (usuariosAll ?? []).map((u) => u.nome).filter(Boolean), [usuariosAll]);
   // Lista completa (com e-mail real) — só carrega para quem tem permissão de configurações;
   // se não tiver (ex.: Produção), falha em silêncio e o e-mail continua manual.
   const { data: usuariosCompletosData } = useAsync(() => repo.auth.usuariosCompletos().catch(() => null), []);
@@ -87,6 +93,8 @@ export function ProjetoDetail() {
   /** "Foto" do projeto como ele está salvo — serve para saber se há algo a salvar. */
   const [baseline, setBaseline] = useState("");
   const [aba, setAba] = useState<Aba>(abaInicial);
+  // Check-list do projeto — só faz sentido depois que o projeto existe no banco.
+  const checklistProjeto = useChecklistProjeto(novo ? undefined : p, podeEditarChecklist);
   const [salvando, setSalvando] = useState(false);
   const [filtroEc, setFiltroEc] = useState<"todas" | "ativas" | "arquivadas">("todas");
   const [cnpjLoading, setCnpjLoading] = useState(false);
@@ -923,6 +931,10 @@ export function ProjetoDetail() {
         </Card>
       )}
 
+      {aba === "checklist" && (
+        <ChecklistPainel estado={checklistProjeto} projeto={p} podeEditar={podeEditarChecklist} usuarios={nomesUsuarios} />
+      )}
+
       {aba === "cronograma" && (
         <Card>
           <CardTitle
@@ -965,5 +977,123 @@ export function ProjetoDetail() {
         </Card>
       )}
     </PageShell>
+  );
+}
+
+/* ------------------------------ CHECK-LIST -------------------------------- */
+
+/**
+ * Aba de check-list: os avisos de estado (modalidade em falta, prazos
+ * desatualizados, modalidade trocada) e a lista em si.
+ */
+function ChecklistPainel({
+  estado,
+  projeto,
+  podeEditar,
+  usuarios,
+}: {
+  estado: ReturnType<typeof useChecklistProjeto>;
+  projeto: Projeto;
+  podeEditar: boolean;
+  usuarios: string[];
+}) {
+  const [confirmarRegenerar, setConfirmarRegenerar] = useState(false);
+
+  if (!projeto.id) {
+    return <EmptyState title="Salve o projeto primeiro" hint="O check-list é criado assim que o projeto existe." />;
+  }
+  if (!projeto.info.modalidade) {
+    return (
+      <EmptyState
+        title="Defina a modalidade do projeto"
+        hint="O check-list é gerado a partir da lista padrão de projetos Corporativos ou Culturais. Escolha a modalidade em Dados Gerais."
+      />
+    );
+  }
+  if (estado.carregando) {
+    return <div className="text-center text-ink-3 text-sm py-8">Carregando o check-list…</div>;
+  }
+  if (!estado.modelo) {
+    return (
+      <EmptyState
+        title={`Sem lista padrão para projetos ${projeto.info.modalidade}`}
+        hint="Cadastre a lista em Configurações → Check-list para o sistema poder gerar as tarefas."
+      />
+    );
+  }
+  if (!estado.checklist) {
+    return (
+      <EmptyState
+        title="Check-list ainda não criado"
+        hint={
+          podeEditar
+            ? "A lista é gerada automaticamente ao abrir o projeto. Recarregue a página se ela não aparecer."
+            : "Você não tem permissão para criar o check-list deste projeto."
+        }
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* As datas do projeto mudaram: o recálculo é oferecido, nunca imposto. */}
+      {podeEditar && estado.prazosDesatualizados > 0 && (
+        <Card>
+          <div className="flex items-center gap-3 flex-wrap">
+            <IcCalendar width={18} height={18} className="text-primary" />
+            <span className="text-[13px] font-bold text-ink">
+              As datas do projeto mudaram — {estado.prazosDesatualizados}{" "}
+              {estado.prazosDesatualizados === 1 ? "tarefa teria" : "tarefas teriam"} outro prazo.
+            </span>
+            <span className="text-[12px] font-bold text-ink-3">
+              Datas ajustadas à mão e tarefas concluídas não são tocadas.
+            </span>
+            <Button size="sm" className="ml-auto" onClick={() => void estado.aplicarRecalculo()}>
+              Recalcular prazos
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {/* Trocaram a modalidade do projeto depois da lista criada. */}
+      {podeEditar && estado.modalidadeDivergente && (
+        <Card>
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-[13px] font-bold text-ink">
+              Este check-list foi gerado no modelo <b>{estado.checklist.modalidade}</b>, mas o projeto agora é{" "}
+              <b>{projeto.info.modalidade}</b>.
+            </span>
+            {confirmarRegenerar ? (
+              <div className="ml-auto flex items-center gap-2">
+                <span className="text-[12px] font-bold text-danger">
+                  Refazer apaga status, prazos ajustados e observações. Confirma?
+                </span>
+                <Button size="sm" variant="danger" onClick={() => void estado.regenerar()}>
+                  Refazer
+                </Button>
+                <Button size="sm" variant="text" onClick={() => setConfirmarRegenerar(false)}>
+                  Cancelar
+                </Button>
+              </div>
+            ) : (
+              <Button size="sm" variant="secondary" className="ml-auto" onClick={() => setConfirmarRegenerar(true)}>
+                Refazer no modelo certo
+              </Button>
+            )}
+          </div>
+        </Card>
+      )}
+
+      <ChecklistProjeto
+        checklist={estado.checklist}
+        usuarios={usuarios}
+        podeEditar={podeEditar}
+        onSalvarItem={(item) => void estado.salvarItem(item)}
+        onCriarItem={() => void estado.criarItem()}
+        onRemoverItem={(item) => void estado.removerItem(item)}
+        onSincronizar={() => void estado.sincronizar()}
+        itensNovosNoModelo={estado.itensNovosNoModelo}
+      />
+    </div>
   );
 }
