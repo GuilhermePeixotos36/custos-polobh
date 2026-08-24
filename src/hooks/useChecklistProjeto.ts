@@ -40,7 +40,20 @@ export interface EstadoChecklist {
   regenerar: () => Promise<void>;
 }
 
-export function useChecklistProjeto(projeto: Projeto | undefined, podeEditar: boolean): EstadoChecklist {
+/**
+ * @param projeto      Projeto da tela.
+ * @param podeEditar   Recurso `checklists.editar`.
+ * @param projetoSalvo O formulário está sem alterações pendentes. Só então a
+ *   lista é gerada e o recálculo é oferecido: sem esta trava, trocar a
+ *   modalidade no formulário e desistir antes de salvar já teria criado o
+ *   check-list da modalidade errada, e as datas em digitação ficariam
+ *   disparando o aviso de prazo desatualizado a cada tecla.
+ */
+export function useChecklistProjeto(
+  projeto: Projeto | undefined,
+  podeEditar: boolean,
+  projetoSalvo: boolean
+): EstadoChecklist {
   const [checklist, setChecklist] = useState<Checklist | undefined>();
   const [modelos, setModelos] = useState<ModeloChecklist[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -80,7 +93,7 @@ export function useChecklistProjeto(projeto: Projeto | undefined, podeEditar: bo
   /** Cria a lista assim que o projeto tem modalidade — o "automaticamente" do briefing. */
   useEffect(() => {
     if (carregando || checklist || !projeto || !modelo || !podeEditar || gerando.current) return;
-    if (!projetoId || !modalidade) return;
+    if (!projetoId || !modalidade || !projetoSalvo) return;
     gerando.current = true;
     void (async () => {
       try {
@@ -96,15 +109,15 @@ export function useChecklistProjeto(projeto: Projeto | undefined, podeEditar: bo
         gerando.current = false;
       }
     })();
-  }, [carregando, checklist, projeto, modelo, podeEditar, projetoId, modalidade, carregar, recarregarPendencias]);
+  }, [carregando, checklist, projeto, modelo, podeEditar, projetoId, modalidade, projetoSalvo, carregar, recarregarPendencias]);
 
   /* ----------------------------- diagnósticos ----------------------------- */
 
   const prazosDesatualizados = useMemo(() => {
-    if (!checklist || !projeto || !modelo) return 0;
+    if (!checklist || !projeto || !modelo || !projetoSalvo) return 0;
     const recalculado = recalcularPrazos(checklist, projeto, modelo);
     return recalculado.itens.filter((novo, i) => novo.dataLimite !== checklist.itens[i]?.dataLimite).length;
-  }, [checklist, projeto, modelo]);
+  }, [checklist, projeto, modelo, projetoSalvo]);
 
   const itensNovosNoModelo = useMemo(() => {
     if (!checklist || !modelo) return 0;

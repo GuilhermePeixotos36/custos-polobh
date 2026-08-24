@@ -93,8 +93,6 @@ export function ProjetoDetail() {
   /** "Foto" do projeto como ele está salvo — serve para saber se há algo a salvar. */
   const [baseline, setBaseline] = useState("");
   const [aba, setAba] = useState<Aba>(abaInicial);
-  // Check-list do projeto — só faz sentido depois que o projeto existe no banco.
-  const checklistProjeto = useChecklistProjeto(novo ? undefined : p, podeEditarChecklist);
   const [salvando, setSalvando] = useState(false);
   const [filtroEc, setFiltroEc] = useState<"todas" | "ativas" | "arquivadas">("todas");
   const [cnpjLoading, setCnpjLoading] = useState(false);
@@ -394,6 +392,10 @@ export function ProjetoDetail() {
   // Projeto já salvo e sem edição nenhuma não tem o que salvar: o botão fica
   // apagado. Em projeto novo ele segue ativo — ali o ato é criar, não atualizar.
   const alterado = novo || (baseline !== "" && JSON.stringify(p) !== baseline);
+
+  // Check-list do projeto. Depende de `alterado`: a lista é gerada a partir do
+  // que está SALVO, nunca do que ainda está sendo digitado no formulário.
+  const checklistProjeto = useChecklistProjeto(novo ? undefined : p, podeEditarChecklist, !alterado);
 
   async function salvar() {
     const faltando = camposObrigatoriosFaltando();

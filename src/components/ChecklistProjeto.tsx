@@ -77,24 +77,31 @@ export function ChecklistProjeto({
 }: Props) {
   const hoje = hojeIso();
   const nomeAtual = useAuth((s) => s.usuario?.nome ?? "");
-  const [verConcluidos, setVerConcluidos] = useState(false);
+  const [verRecolhidas, setVerRecolhidas] = useState(false);
   const [agrupamento, setAgrupamento] = useState<Agrupamento>("etapa");
   const [filtroResponsavel, setFiltroResponsavel] = useState("");
 
   const resumo = useMemo(() => resumirChecklist(checklist, hoje), [checklist, hoje]);
 
   /**
-   * Itens à vista. "Concluído" e "Não se aplica" saem da visão principal
-   * automaticamente (pedido do briefing) e voltam pelo botão de concluídos —
-   * nunca são apagados.
+   * Itens à vista.
+   *
+   * Uma tarefa sai da visão principal por dois caminhos: automaticamente, ao ser
+   * concluída (pedido do briefing), ou à mão, pelo botão de recolher. Os dois
+   * casos voltam pelo MESMO botão — por isso ele fala em "recolhidas", e não em
+   * "concluídas": recolher um item pendente e não ter como trazê-lo de volta
+   * seria perdê-lo de vista. Nada aqui é apagado.
    */
   const visiveis = useMemo(() => {
-    const base = checklist.itens.filter((i) => (verConcluidos ? true : !i.oculto));
+    const base = checklist.itens.filter((i) => (verRecolhidas ? true : !i.oculto));
     const porPessoa = filtroResponsavel
       ? base.filter((i) => i.responsavel === filtroResponsavel)
       : base;
     return ordenarPorPrazo(porPessoa);
-  }, [checklist.itens, verConcluidos, filtroResponsavel]);
+  }, [checklist.itens, verRecolhidas, filtroResponsavel]);
+
+  /** Tudo o que está fora da visão principal — concluído OU recolhido à mão. */
+  const recolhidas = useMemo(() => checklist.itens.filter((i) => i.oculto).length, [checklist.itens]);
 
   /** Blocos da tela: por etapa (ordem do processo) ou por data (visão cronológica). */
   const blocos = useMemo(() => {
@@ -210,11 +217,13 @@ export function ChecklistProjeto({
         </div>
         <button
           type="button"
-          onClick={() => setVerConcluidos((v) => !v)}
-          className="inline-flex items-center gap-1.5 text-[13px] font-bold text-ink-2 hover:text-ink"
+          onClick={() => setVerRecolhidas((v) => !v)}
+          disabled={!verRecolhidas && recolhidas === 0}
+          title="Mostra as tarefas concluídas e as que foram recolhidas da lista"
+          className="inline-flex items-center gap-1.5 text-[13px] font-bold text-ink-2 hover:text-ink disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {verConcluidos ? <IcEyeOff width={16} height={16} /> : <IcEye width={16} height={16} />}
-          {verConcluidos ? "Esconder concluídas" : `Ver concluídas (${resumo.total - resumo.abertos})`}
+          {verRecolhidas ? <IcEyeOff width={16} height={16} /> : <IcEye width={16} height={16} />}
+          {verRecolhidas ? "Esconder recolhidas" : `Ver recolhidas (${recolhidas})`}
         </button>
       </div>
 
@@ -225,7 +234,9 @@ export function ChecklistProjeto({
           hint={
             filtroResponsavel
               ? "Troque o filtro para ver as demais."
-              : "Todas as tarefas do check-list já foram concluídas. Use “Ver concluídas” para consultá-las."
+              : recolhidas > 0
+              ? `As ${recolhidas} tarefas do check-list estão concluídas ou recolhidas. Use “Ver recolhidas” para trazê-las de volta.`
+              : "Este check-list ainda não tem tarefas."
           }
         />
       )}
@@ -281,6 +292,8 @@ function ItemCard({
 }) {
   const situacao = situacaoPrazo(item, hoje);
   const aviso = AVISO_PRAZO[situacao];
+  /** Recolhida à mão e ainda em aberto — o caso que some da lista sem estar resolvido. */
+  const recolhidaAberta = item.oculto && !encerrado(item);
   const pendencias = (item.observacoes ?? []).filter((o) => !o.resolvida && o.texto.trim()).length;
   const fechado = encerrado(item);
 
@@ -290,7 +303,9 @@ function ItemCard({
       className={cx(
         "rounded-card border bg-white p-3",
         situacao === "atrasado" ? "border-danger/50" : "border-border",
-        fechado && "opacity-70"
+        // Recolhida (por conclusão ou à mão) aparece esmaecida quando revelada.
+        item.oculto && "opacity-70",
+        recolhidaAberta && "border-dashed"
       )}
     >
       <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-3">
@@ -369,6 +384,9 @@ function ItemCard({
 
           <div className="flex items-center gap-3 flex-wrap">
             <Badge tom={tomStatus[item.status]}>{item.status}</Badge>
+            {recolhidaAberta && (
+              <Badge tom="neutral">Recolhida</Badge>
+            )}
             {item.dataManual && (
               <span className="text-[11.5px] font-bold text-ink-3" title="O recálculo de prazos não altera esta data">
                 data ajustada à mão
