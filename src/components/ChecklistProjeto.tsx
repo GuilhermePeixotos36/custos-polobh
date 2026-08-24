@@ -8,7 +8,7 @@
  * Gravação item a item: cada mudança persiste só a tarefa mexida. Duas pessoas
  * trabalhando em tarefas diferentes do mesmo projeto nunca se sobrescrevem.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Badge, Button, Card, EmptyState, Input, ProgressBar, Select, type Tom } from "@/components/ui";
 import { IcCheck, IcPlus, IcEye, IcEyeOff, IcCalendar, IcTrash } from "@/components/icons";
 import { ObservacoesThread } from "@/components/ObservacoesPopup";
@@ -24,7 +24,7 @@ import {
   type SituacaoPrazo,
 } from "@/domain/checklist";
 import { useAuth } from "@/store/auth";
-import { cx, dataBR } from "@/lib/format";
+import { colapsarEspacos, cx, dataBR } from "@/lib/format";
 import type { Checklist, ItemChecklist, Observacao, StatusChecklist } from "@/data/types";
 
 const STATUS: StatusChecklist[] = ["Pendente", "Em andamento", "Concluído", "Não se aplica"];
@@ -58,7 +58,8 @@ interface Props {
   podeEditar: boolean;
   /** Persiste UM item. A tela chama a cada alteração. */
   onSalvarItem: (item: ItemChecklist) => void;
-  onCriarItem: () => void;
+  /** Devolve o id da tarefa criada, para a tela levar o cursor até ela. */
+  onCriarItem: () => Promise<string | void>;
   onRemoverItem: (item: ItemChecklist) => void;
   /** Traz para este check-list os itens acrescentados à lista padrão depois. */
   onSincronizar?: () => void;
@@ -80,6 +81,8 @@ export function ChecklistProjeto({
   const [verRecolhidas, setVerRecolhidas] = useState(false);
   const [agrupamento, setAgrupamento] = useState<Agrupamento>("etapa");
   const [filtroResponsavel, setFiltroResponsavel] = useState("");
+  /** Id da última tarefa criada aqui — recebe o foco assim que aparece. */
+  const [idRecemCriado, setIdRecemCriado] = useState("");
 
   const resumo = useMemo(() => resumirChecklist(checklist, hoje), [checklist, hoje]);
 
@@ -137,6 +140,19 @@ export function ChecklistProjeto({
   const mudarStatus = (item: ItemChecklist, status: StatusChecklist) =>
     onSalvarItem(definirStatus(item, status, nomeAtual, new Date().toISOString()));
 
+  /**
+   * Cria a tarefa e garante que ela apareça.
+   *
+   * O filtro por responsável é limpo de propósito: a tarefa nova nasce sem
+   * responsável e, com um filtro ativo, o clique em "Nova tarefa" não mostrava
+   * nada — parecia que o botão não tinha funcionado.
+   */
+  const criar = async () => {
+    setFiltroResponsavel("");
+    const id = await onCriarItem();
+    if (typeof id === "string") setIdRecemCriado(id);
+  };
+
   return (
     <div className="space-y-4">
       {/* ----------------------------- resumo ----------------------------- */}
@@ -186,7 +202,7 @@ export function ChecklistProjeto({
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
           {podeEditar && (
-            <Button size="sm" variant="secondary" icon={<IcPlus width={16} height={16} />} onClick={onCriarItem}>
+            <Button size="sm" variant="secondary" icon={<IcPlus width={16} height={16} />} onClick={() => void criar()}>
               Nova tarefa
             </Button>
           )}
@@ -257,6 +273,7 @@ export function ChecklistProjeto({
               hoje={hoje}
               usuarios={usuarios}
               podeEditar={podeEditar}
+              autoFoco={item.id === idRecemCriado}
               onAlterar={(patch) => alterar(item, patch)}
               onStatus={(s) => mudarStatus(item, s)}
               onObservacoes={(observacoes) => alterar(item, { observacoes })}
@@ -276,6 +293,7 @@ function ItemCard({
   hoje,
   usuarios,
   podeEditar,
+  autoFoco,
   onAlterar,
   onStatus,
   onObservacoes,
@@ -285,6 +303,8 @@ function ItemCard({
   hoje: string;
   usuarios: string[];
   podeEditar: boolean;
+  /** Tarefa recém-criada: o cursor vai direto para o título. */
+  autoFoco: boolean;
   onAlterar: (patch: Partial<ItemChecklist>) => void;
   onStatus: (status: StatusChecklist) => void;
   onObservacoes: (observacoes: Observacao[]) => void;
@@ -294,6 +314,26 @@ function ItemCard({
   const aviso = AVISO_PRAZO[situacao];
   /** Recolhida à mão e ainda em aberto — o caso que some da lista sem estar resolvido. */
   const recolhidaAberta = item.oculto && !encerrado(item);
+
+  // Rascunho local do título. Sem ele, cada tecla virava uma gravação no banco.
+  const [titulo, setTitulo] = useState(item.titulo);
+  const [editandoTitulo, setEditandoTitulo] = useState(false);
+  // Reflete alteração vinda de fora (recarga, outra aba) sem atropelar quem digita.
+  useEffect(() => {
+    if (!editandoTitulo) setTitulo(item.titulo);
+  }, [item.titulo, editandoTitulo]);
+  const commitTitulo = () => {
+    setEditandoTitulo(false);
+    const limpo = colapsarEspacos(titulo);
+    // Título vazio deixaria a tarefa sem identidade na lista e no quadro de
+    // pendências: apagar tudo e sair do campo devolve o texto anterior.
+    if (!limpo && item.titulo) {
+      setTitulo(item.titulo);
+      return;
+    }
+    if (limpo === item.titulo) return;
+    onAlterar({ titulo: limpo });
+  };
   const pendencias = (item.observacoes ?? []).filter((o) => !o.resolvida && o.texto.trim()).length;
   const fechado = encerrado(item);
 
@@ -329,22 +369,35 @@ function ItemCard({
         <div className="min-w-0 space-y-2">
           <div className="flex items-start gap-2 flex-wrap">
             <Input
+              autoFocus={autoFoco}
               className={cx("!h-8 !px-2 !text-[14px] !font-bold flex-1 min-w-[200px]", fechado && "line-through")}
-              value={item.titulo}
+              value={titulo}
+              placeholder="Descreva a tarefa"
               disabled={!podeEditar}
-              onChange={(e) => onAlterar({ titulo: e.target.value })}
+              onFocus={() => setEditandoTitulo(true)}
+              onChange={(e) => setTitulo(e.target.value)}
+              // Grava ao sair do campo (ou no Enter), NÃO a cada tecla: digitar
+              // um título disparava uma gravação por caractere.
+              onBlur={commitTitulo}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                if (e.key === "Escape") setTitulo(item.titulo);
+              }}
               aria-label="Título da tarefa"
             />
             {aviso && <Badge tom={aviso.tom}>{aviso.rotulo}</Badge>}
             <NotifDot inline n={pendencias} title={`${pendencias} observação(ões) em aberto`} />
           </div>
 
-          <div className="grid gap-2 sm:grid-cols-[10rem_minmax(0,1fr)_minmax(0,1fr)] items-center">
+          {/* Larguras fixas, do tamanho do conteúdo. Antes os três campos se
+              esticavam pela largura do cartão e uma data de 10 caracteres
+              ocupava meia tela. */}
+          <div className="flex flex-wrap items-center gap-2">
             <label className="flex items-center gap-1.5">
               <span className="sr-only">Data-limite</span>
               <Input
                 type="date"
-                className="!h-8 !px-2 !text-[12.5px]"
+                className="!h-8 !px-2 !text-[12.5px] !w-[9.5rem]"
                 value={item.dataLimite}
                 disabled={!podeEditar}
                 // Editar a data trava o item contra o recálculo automático: o
@@ -354,7 +407,7 @@ function ItemCard({
               />
             </label>
             <Select
-              className="!h-8 !px-2 !text-[12.5px]"
+              className="!h-8 !px-2 !text-[12.5px] !w-[13rem]"
               value={item.responsavel}
               disabled={!podeEditar}
               onChange={(e) => onAlterar({ responsavel: e.target.value })}
@@ -368,7 +421,7 @@ function ItemCard({
               ))}
             </Select>
             <Select
-              className="!h-8 !px-2 !text-[12.5px]"
+              className="!h-8 !px-2 !text-[12.5px] !w-[11rem]"
               value={item.status}
               disabled={!podeEditar}
               onChange={(e) => onStatus(e.target.value as StatusChecklist)}

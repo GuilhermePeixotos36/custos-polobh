@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { PageShell } from "@/components/layout/AppLayout";
-import { Card, Button, Badge, Table, THead, Tr, Td, EmptyState, AvisoErro, ThOrd, useOrdenacao, type Tom } from "@/components/ui";
+import { Card, Button, Badge, Table, THead, Tr, Td, EmptyState, AvisoErro, ThOrd, useOrdenacao, ProgressBar, type Tom } from "@/components/ui";
 import { IcPlus, IcSearch } from "@/components/icons";
 import { ThPendencias, TdPendencias } from "@/components/ColunaPendencias";
 import { repo } from "@/data";
@@ -10,6 +10,7 @@ import { useMinhasPendencias } from "@/store/pendencias";
 import { useAuth } from "@/store/auth";
 import { cx } from "@/lib/format";
 import { statusProjetoAutomatico } from "@/domain/statusProjeto";
+import { resumirChecklist, type ResumoChecklist } from "@/domain/checklist";
 import type { StatusProjeto } from "@/data/types";
 
 const tomStatusProjeto: Record<StatusProjeto, Tom> = {
@@ -30,12 +31,26 @@ export function Projetos() {
   const navigate = useNavigate();
   const podeEditar = useAuth((s) => s.pode("projetos.editar"));
   const { porProjeto } = useMinhasPendencias();
+  const podeVerChecklist = useAuth((s) => s.pode("checklists"));
   const { data, loading, error, reload } = useAsync(async () => {
-    const [projetos, ecs] = await Promise.all([repo.projetos.listar(), repo.ecs.listar()]);
-    return { projetos, ecs };
-  }, [], { oQue: "os projetos" });
+    const [projetos, ecs, checklists] = await Promise.all([
+      repo.projetos.listar(),
+      repo.ecs.listar(),
+      // Sem permissão de check-list a coluna nem aparece: não vale a consulta.
+      podeVerChecklist ? repo.checklists.listar() : Promise.resolve([]),
+    ]);
+    return { projetos, ecs, checklists };
+  }, [podeVerChecklist], { oQue: "os projetos" });
   const [filtro, setFiltro] = useState<FiltroProjeto>("Ativo");
   const [busca, setBusca] = useState("");
+
+  const hoje = new Date().toISOString().slice(0, 10);
+  /** Resumo do check-list por projeto — alimenta a coluna de progresso. */
+  const resumoPorProjeto = useMemo(() => {
+    const mapa = new Map<string, ResumoChecklist>();
+    for (const c of data?.checklists ?? []) mapa.set(c.projetoId, resumirChecklist(c, hoje));
+    return mapa;
+  }, [data?.checklists, hoje]);
 
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
@@ -51,6 +66,9 @@ export function Projetos() {
       pendencias: (p) => porProjeto[p.id] ?? 0,
       cliente: (p) => p.cliente?.nome,
       projeto: (p) => p.nome,
+      // Ordena pelo que falta fazer, não pelo percentual: o projeto com mais
+      // tarefas em aberto é o que precisa de atenção primeiro.
+      checklist: (p) => resumoPorProjeto.get(p.id)?.abertos ?? -1,
       status: (p) => p.status,
     },
     { col: "cliente", dir: "asc" }
@@ -108,6 +126,9 @@ export function Projetos() {
               <ThPendencias col="pendencias" ordem={ordem} onSort={ordenarPor} />
               <ThOrd col="cliente" ordem={ordem} onSort={ordenarPor}>Cliente</ThOrd>
               <ThOrd col="projeto" ordem={ordem} onSort={ordenarPor}>Projeto</ThOrd>
+              {podeVerChecklist && (
+                <ThOrd col="checklist" align="center" ordem={ordem} onSort={ordenarPor}>Check-list</ThOrd>
+              )}
               <ThOrd col="status" align="center" ordem={ordem} onSort={ordenarPor}>Status</ThOrd>
             </THead>
             <tbody>
@@ -118,6 +139,11 @@ export function Projetos() {
                   {/* Sem thumbnail: as iniciais não informavam nada e saíam quebradas em
                       títulos com travessão ("BM – Convenção…" virava "B–"). */}
                   <Td className="font-bold text-ink">{p.nome || "(sem título)"}</Td>
+                  {podeVerChecklist && (
+                    <Td align="center">
+                      <ProgressoChecklist resumo={resumoPorProjeto.get(p.id)} />
+                    </Td>
+                  )}
                   <Td align="center"><Badge tom={tomStatusProjeto[p.status]}>{p.status}</Badge></Td>
                 </Tr>
               ))}
@@ -126,5 +152,34 @@ export function Projetos() {
         )}
       </Card>
     </PageShell>
+  );
+}
+
+/**
+ * Progresso do check-list numa célula da lista de projetos.
+ *
+ * Mostra "18/25" com uma barrinha e destaca em vermelho quando há tarefa
+ * atrasada — é o relance que evita entrar projeto por projeto para saber como
+ * cada um está.
+ */
+function ProgressoChecklist({ resumo }: { resumo?: ResumoChecklist }) {
+  if (!resumo || resumo.total === 0) {
+    return <span className="text-[12.5px] text-ink-3">—</span>;
+  }
+  const completo = resumo.abertos === 0;
+  return (
+    <div className="inline-flex flex-col items-center gap-1 min-w-[84px]">
+      <div className="flex items-center gap-1.5">
+        <span className={cx("text-[12.5px] font-extrabold", completo ? "text-success" : "text-ink")}>
+          {resumo.concluidos}/{resumo.contam}
+        </span>
+        {resumo.atrasados > 0 && (
+          <Badge tom="danger">{resumo.atrasados}</Badge>
+        )}
+      </div>
+      <div className="w-full">
+        <ProgressBar value={resumo.progresso * 100} />
+      </div>
+    </div>
   );
 }

@@ -33,7 +33,8 @@ export interface EstadoChecklist {
   /** A modalidade do projeto mudou depois que a lista foi gerada. */
   modalidadeDivergente: boolean;
   salvarItem: (item: ItemChecklist) => Promise<void>;
-  criarItem: () => Promise<void>;
+  /** Devolve o id da tarefa criada — a tela usa para dar foco nela. */
+  criarItem: () => Promise<string | void>;
   removerItem: (item: ItemChecklist) => Promise<void>;
   aplicarRecalculo: () => Promise<void>;
   sincronizar: () => Promise<void>;
@@ -60,6 +61,8 @@ export function useChecklistProjeto(
   // Evita a segunda geração enquanto a primeira ainda está no ar (StrictMode
   // monta o efeito duas vezes em desenvolvimento).
   const gerando = useRef(false);
+  // Sem `force`: o store estrangula recargas a uma cada 4s. Marcar dez tarefas
+  // em sequência recarregava o quadro dez vezes — seis consultas cada.
   const recarregarPendencias = usePendencias((s) => s.carregar);
 
   const projetoId = projeto?.id ?? "";
@@ -100,7 +103,7 @@ export function useChecklistProjeto(
         const novo = gerarChecklist(projeto, modelo);
         setChecklist(await repo.checklists.criar(novo));
         toast(`Check-list ${modalidade} criado com ${novo.itens.length} tarefas.`, "success");
-        void recarregarPendencias(true);
+        void recarregarPendencias();
       } catch {
         // Corrida entre duas abas: o índice único de projeto_id barra a segunda.
         // Recarregar resolve — quem perdeu a corrida passa a ver a lista da outra.
@@ -135,7 +138,7 @@ export function useChecklistProjeto(
       setChecklist((c) => (c ? { ...c, itens: c.itens.map((i) => (i.id === item.id ? item : i)) } : c));
       try {
         await repo.checklists.salvarItem(item);
-        void recarregarPendencias(true);
+        void recarregarPendencias();
       } catch (erro) {
         toast(`Não foi possível salvar a tarefa: ${(erro as Error).message}`, "danger");
         await carregar(); // volta ao que está no banco em vez de mentir na tela
@@ -144,14 +147,16 @@ export function useChecklistProjeto(
     [carregar, recarregarPendencias]
   );
 
-  const criarItem = useCallback(async () => {
+  const criarItem = useCallback(async (): Promise<string | void> => {
     if (!checklist) return;
     const ordem = checklist.itens.reduce((max, i) => Math.max(max, i.ordem), -1) + 1;
     const novo: ItemChecklist = {
       id: globalThis.crypto.randomUUID(),
       checklistId: checklist.id,
       origemModeloItemId: "", // criado à mão: fora da régua do modelo
-      titulo: "Nova tarefa",
+      // Nasce sem título: o campo recebe o foco e a pessoa escreve direto,
+      // em vez de precisar apagar um texto de exemplo.
+      titulo: "",
       descricao: "",
       // Cai no mesmo bloco do último item, para nascer perto do contexto de quem criou.
       etapa: checklist.itens[checklist.itens.length - 1]?.etapa ?? "",
@@ -168,6 +173,7 @@ export function useChecklistProjeto(
     setChecklist((c) => (c ? { ...c, itens: [...c.itens, novo] } : c));
     try {
       await repo.checklists.salvarItem(novo);
+      return novo.id;
     } catch (erro) {
       toast(`Não foi possível criar a tarefa: ${(erro as Error).message}`, "danger");
       await carregar();
@@ -179,7 +185,7 @@ export function useChecklistProjeto(
       setChecklist((c) => (c ? { ...c, itens: c.itens.filter((i) => i.id !== item.id) } : c));
       try {
         await repo.checklists.removerItem(item.id);
-        void recarregarPendencias(true);
+        void recarregarPendencias();
       } catch (erro) {
         toast(`Não foi possível excluir a tarefa: ${(erro as Error).message}`, "danger");
         await carregar();
@@ -197,7 +203,7 @@ export function useChecklistProjeto(
     try {
       await repo.checklists.salvarItens(mudaram);
       toast(`${mudaram.length} prazo(s) recalculado(s) a partir das datas do projeto.`, "success");
-      void recarregarPendencias(true);
+      void recarregarPendencias();
     } catch (erro) {
       toast(`Não foi possível recalcular: ${(erro as Error).message}`, "danger");
       await carregar();
@@ -232,7 +238,7 @@ export function useChecklistProjeto(
       const novo = gerarChecklist(projeto, modelo);
       setChecklist(await repo.checklists.criar(novo));
       toast(`Check-list refeito no modelo ${modelo.modalidade}.`, "success");
-      void recarregarPendencias(true);
+      void recarregarPendencias();
     } catch (erro) {
       toast(`Não foi possível refazer o check-list: ${(erro as Error).message}`, "danger");
       await carregar();

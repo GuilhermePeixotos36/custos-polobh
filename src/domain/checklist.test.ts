@@ -353,6 +353,15 @@ describe("pendências geradas pelo check-list", () => {
     expect(pendencias(c).some((x) => x.tipo === "checklist.observacao")).toBe(false);
   });
 
+  it("tarefa sem título ainda é identificável no quadro", () => {
+    // Tarefa criada à mão nasce sem título; a pendência não pode virar
+    // "Tarefa atrasada: " com o nome em branco.
+    const c = comUmItem({ dataLimite: "2026-02-01", titulo: "" });
+    expect(pendencias(c).find((x) => x.tipo === "checklist.atrasado")?.titulo).toBe(
+      "Tarefa atrasada: (tarefa sem título)"
+    );
+  });
+
   it("projeto encerrado não cobra nada do check-list", () => {
     // O status do projeto é DERIVADO das ECs (statusProjetoAutomatico): com todas
     // arquivadas, o projeto está encerrado e o quadro para de cobrar.

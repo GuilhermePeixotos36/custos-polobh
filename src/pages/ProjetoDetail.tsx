@@ -28,6 +28,7 @@ import { cx, dataBR, maskCpfCnpjInput, maskDoc, onlyDigits } from "@/lib/format"
 import { toast } from "@/store/toast";
 import { ChecklistProjeto } from "@/components/ChecklistProjeto";
 import { useChecklistProjeto } from "@/hooks/useChecklistProjeto";
+import { janelaDoProjeto } from "@/domain/checklist";
 import { confirmar } from "@/store/confirm";
 import { corrigirRoteirosProjeto } from "@/lib/correcaoOrtografica";
 import { statusProjetoAutomatico } from "@/domain/statusProjeto";
@@ -1036,8 +1037,28 @@ function ChecklistPainel({
     );
   }
 
+  // Projeto sem nenhuma data: as tarefas nascem sem prazo e a tela precisa
+  // dizer por quê — senão parece defeito do check-list, e não campo em branco
+  // lá em Dados Gerais.
+  const janela = janelaDoProjeto(projeto);
+  const semPrazo = estado.checklist.itens.filter((i) => !i.dataLimite).length;
+
   return (
     <div className="space-y-3">
+      {semPrazo > 0 && !janela.evento && (
+        <Card>
+          <div className="flex items-center gap-3 flex-wrap">
+            <IcCalendar width={18} height={18} className="text-ink-3" />
+            <span className="text-[13px] font-bold text-ink">
+              {semPrazo} {semPrazo === 1 ? "tarefa está" : "tarefas estão"} sem prazo porque o projeto ainda não tem datas.
+            </span>
+            <span className="text-[12px] font-bold text-ink-3">
+              Preencha Pré-evento, Evento e Pós-evento em Dados Gerais — os prazos são calculados a partir delas.
+            </span>
+          </div>
+        </Card>
+      )}
+
       {/* As datas do projeto mudaram: o recálculo é oferecido, nunca imposto. */}
       {podeEditar && estado.prazosDesatualizados > 0 && (
         <Card>
@@ -1091,7 +1112,7 @@ function ChecklistPainel({
         usuarios={usuarios}
         podeEditar={podeEditar}
         onSalvarItem={(item) => void estado.salvarItem(item)}
-        onCriarItem={() => void estado.criarItem()}
+        onCriarItem={() => estado.criarItem()}
         onRemoverItem={(item) => void estado.removerItem(item)}
         onSincronizar={() => void estado.sincronizar()}
         itensNovosNoModelo={estado.itensNovosNoModelo}

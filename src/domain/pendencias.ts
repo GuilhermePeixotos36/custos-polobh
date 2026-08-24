@@ -224,6 +224,8 @@ export function calcularPendencias(
     for (const item of checklist.itens) {
       if (itemEncerrado(item)) continue; // concluído/não se aplica: não cobra mais nada
 
+      // Tarefa criada à mão pode estar sem título até alguém escrever nela.
+      const nomeItem = item.titulo.trim() || "(tarefa sem título)";
       for (const observacao of item.observacoes ?? []) {
         const texto = observacao.texto.trim();
         if (!texto || observacao.resolvida) continue;
@@ -235,7 +237,7 @@ export function calcularPendencias(
         out.push({
           id: `checklist.observacao:${item.id}:${observacao.id}`,
           tipo: "checklist.observacao",
-          titulo: `Observação para você em ${item.titulo}: ${resumo}`,
+          titulo: `Observação para você em ${nomeItem}: ${resumo}`,
           papeis: [],
           pessoas: [...destinatarios],
           recurso: "projetos",
@@ -256,8 +258,8 @@ export function calcularPendencias(
         tipo: situacao === "atrasado" ? "checklist.atrasado" : "checklist.vencendo",
         titulo:
           situacao === "atrasado"
-            ? `Tarefa atrasada: ${item.titulo}`
-            : `Tarefa vencendo: ${item.titulo}`,
+            ? `Tarefa atrasada: ${nomeItem}`
+            : `Tarefa vencendo: ${nomeItem}`,
         papeis: [],
         pessoas: [dono],
         recurso: "projetos",

@@ -27,7 +27,11 @@ import type { ItemModeloChecklist, ModalidadeProjeto, ModeloChecklist } from "@/
 const MODALIDADES: ModalidadeProjeto[] = ["Corporativo", "Cultural"];
 
 export function ChecklistModelosCard() {
-  const podeEditar = useAuth((s) => s.pode("configuracoes"));
+  // A RLS de `checklist_modelos` só aceita escrita de Admin e Direção. A tela
+  // precisa usar a MESMA regra: com o recurso "configuracoes" genérico, o perfil
+  // Administrativo via o botão "Salvar" habilitado e tomava erro do banco.
+  const papel = useAuth((s) => s.usuario?.papel);
+  const podeEditar = papel === "Admin" || papel === "Direcao";
   const [modelos, setModelos] = useState<ModeloChecklist[]>([]);
   const [modalidade, setModalidade] = useState<ModalidadeProjeto>("Corporativo");
   const [itens, setItens] = useState<ItemModeloChecklist[]>([]);
