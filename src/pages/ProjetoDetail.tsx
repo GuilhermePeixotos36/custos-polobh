@@ -18,6 +18,7 @@ import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import { useMinhasPendencias } from "@/store/pendencias";
 import { useResponsaveis } from "@/hooks/useResponsaveis";
+import { useSugestoes } from "@/hooks/useSugestoes";
 import { useAuth } from "@/store/auth";
 import { gerarCronogramaExcel } from "@/lib/excel";
 import { cnpjValido, consultarCnpj } from "@/lib/cnpj";
@@ -78,6 +79,9 @@ export function ProjetoDetail() {
   const { porAba, porOs, porEc, itens: minhasPendencias } = useMinhasPendencias();
   const podeEditarProjeto = useAuth((s) => s.pode("projetos.editar"));
   const podeEditarChecklist = useAuth((s) => s.pode("checklists.editar"));
+  // Criar/importar EC grava uma EC nova — o banco recusa quem não tem o recurso,
+  // então o botão não pode existir para quem só consulta (era erro cru na cara).
+  const podeEditarEc = useAuth((s) => s.pode("ecs.editar"));
 
   const { data: existente, loading } = useAsync(() => (novo ? Promise.resolve(undefined) : repo.projetos.obter(id)), [id]);
   const { data: ecsAll } = useAsync(() => repo.ecs.listar(), []);
@@ -86,6 +90,8 @@ export function ProjetoDetail() {
   // Usuários elegíveis a Produtor Responsável — critério vem da área (ver useResponsaveis).
   const { data: usuariosAll } = useAsync(() => repo.auth.usuarios(), []);
   const produtoresResponsaveis = useResponsaveis(usuariosAll);
+  // O que a casa já usou nestes campos, em outros projetos — ver `domain/sugestoes`.
+  const sugestoes = useSugestoes();
   /** Nomes de todos os usuários — @menções e escolha de responsável no check-list. */
   const nomesUsuarios = useMemo(() => (usuariosAll ?? []).map((u) => u.nome).filter(Boolean), [usuariosAll]);
   // Lista completa (com e-mail real) — só carrega para quem tem permissão de configurações;
@@ -146,16 +152,29 @@ export function ProjetoDetail() {
   const ecIds = useMemo(() => new Set(ecsDoProjeto.map((e) => e.id)), [ecsDoProjeto]);
   const ossDoProjeto = useMemo(() => (ossAll ?? []).filter((o) => ecIds.has(o.ecId)), [ossAll, ecIds]);
   const statusExibido = useMemo(() => statusProjetoAutomatico(p, ecsDoProjeto), [p, ecsDoProjeto]);
-  // Projetos de origem para importação (derivados das ECs existentes, exceto o atual).
-  // O rótulo traz APENAS o nome do projeto — o nome do cliente foi retirado por
-  // já estar embutido no título do projeto e só poluir a lista.
+  /**
+   * Projetos de origem da importação, derivados das ECs existentes.
+   *
+   * O PRÓPRIO projeto entra na lista, em primeiro lugar: reaproveitar uma versão
+   * arquivada da própria EC — voltar para uma estrutura de custos anterior sem
+   * reativá-la por cima da EC ativa — era o caso que a tela não deixava fazer.
+   *
+   * O rótulo traz APENAS o nome do projeto: o nome do cliente já está embutido
+   * no título e só poluía a lista.
+   */
   const projetosOrigem = useMemo(() => {
     const map = new Map<string, string>();
     for (const e of ecsAll ?? []) {
       if (!e.projetoId || e.projetoId === id) continue;
       if (!map.has(e.projetoId)) map.set(e.projetoId, e.projeto?.titulo || e.numero);
     }
-    return [...map].map(([projetoId, rotulo]) => ({ projetoId, rotulo })).sort((a, b) => a.rotulo.localeCompare(b.rotulo, "pt-BR"));
+    const outros = [...map]
+      .map(([projetoId, rotulo]) => ({ projetoId, rotulo }))
+      .sort((a, b) => a.rotulo.localeCompare(b.rotulo, "pt-BR"));
+    const temProprias = (ecsAll ?? []).some((e) => e.projetoId === id);
+    return temProprias
+      ? [{ projetoId: id, rotulo: "Este projeto (versões anteriores)" }, ...outros]
+      : outros;
   }, [ecsAll, id]);
   const ecsOrigem = useMemo(
     () => (ecsAll ?? []).filter((e) => e.projetoId === impProjetoId).sort((a, b) => Number(b.ativa) - Number(a.ativa) || b.versao - a.versao),
@@ -473,6 +492,13 @@ export function ProjetoDetail() {
     }
   }
 
+  /**
+   * Traz os itens de outra EC para este projeto como um RASCUNHO novo.
+   *
+   * Serve tanto para copiar de outro projeto quanto para retomar uma versão
+   * arquivada deste mesmo projeto — em nenhum dos dois casos a EC de origem é
+   * tocada, e a EC ativa daqui continua ativa (a cópia entra como rascunho).
+   */
   async function importarEc() {
     const origem = (ecsAll ?? []).find((e) => e.id === impEcId);
     if (!origem) { toast("Selecione a EC de origem.", "warning"); return; }
@@ -510,11 +536,19 @@ export function ProjetoDetail() {
         linhas,
       };
       const salvo = await repo.ecs.salvar(nova);
-      toast(`EC importada de "${origem.projeto?.titulo || origem.numero}" como rascunho.`, "success");
+      toast(`EC importada de "${tituloEc(origem)}" como rascunho (V${String(versao).padStart(2, "0")}).`, "success");
       setImportOpen(false);
       navigate(`/estimativas/${salvo.id}/editar`);
     } catch (e) {
-      toast(`Não foi possível importar: ${(e as Error).message}`, "danger");
+      const erro = (e as Error).message;
+      // O banco recusa a gravação para quem não edita EC — sem tradução, isso
+      // chegava como "Sem permissão" solto, sem dizer permissão de quê.
+      toast(
+        erro.includes("Sem permissão")
+          ? "Seu perfil pode consultar ECs, mas não criar. Peça a alguém da Direção ou da Produção."
+          : `Não foi possível importar: ${erro}`,
+        "danger"
+      );
     } finally {
       setImportando(false);
     }
@@ -657,7 +691,7 @@ export function ProjetoDetail() {
                     </Button>
                   </div>
                 </Field>
-                <Field label="Representante"><Input formato="titulo" value={p.cliente.representante.nome} onChange={(e) => updCli({ representante: { ...p.cliente.representante, nome: e.target.value } })} /></Field>
+                <Field label="Representante"><Input formato="titulo" sugestoes={sugestoes.representante} value={p.cliente.representante.nome} onChange={(e) => updCli({ representante: { ...p.cliente.representante, nome: e.target.value } })} /></Field>
                 <Field label="Telefone do representante"><TelefoneInput value={p.cliente.representante.telefones} onChange={(v) => updCli({ representante: { ...p.cliente.representante, telefones: v } })} /></Field>
                 <Field label="E-mail do representante"><Input value={p.cliente.representante.email} onChange={(e) => updCli({ representante: { ...p.cliente.representante, email: e.target.value } })} /></Field>
               </div>
@@ -666,8 +700,8 @@ export function ProjetoDetail() {
           <Card>
             <CardTitle>Informações do projeto</CardTitle>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <Field label="Cliente (apelido)"><Input erro={chavesComErro.has("clienteAbreviado")} value={p.info.clienteAbreviado} onChange={(e) => updTituloParte({ clienteAbreviado: e.target.value })} placeholder="Ex.: ACME" /></Field>
-              <Field label="Nome do projeto"><Input formato="titulo" erro={chavesComErro.has("nomeProjeto")} value={p.info.nomeProjeto} onChange={(e) => updTituloParte({ nomeProjeto: e.target.value })} /></Field>
+              <Field label="Cliente (apelido)"><Input erro={chavesComErro.has("clienteAbreviado")} sugestoes={sugestoes.clienteApelido} value={p.info.clienteAbreviado} onChange={(e) => updTituloParte({ clienteAbreviado: e.target.value })} placeholder="Ex.: ACME" /></Field>
+              <Field label="Nome do projeto"><Input formato="titulo" erro={chavesComErro.has("nomeProjeto")} sugestoes={sugestoes.nomeProjeto} value={p.info.nomeProjeto} onChange={(e) => updTituloParte({ nomeProjeto: e.target.value })} /></Field>
               <Field label="Ano"><Input erro={chavesComErro.has("anoProjeto")} value={p.info.anoProjeto} inputMode="numeric" onChange={(e) => updTituloParte({ anoProjeto: onlyDigits(e.target.value).slice(0, 4) })} placeholder="2026" /></Field>
               <Field label="Modalidade">
                 <Select erro={chavesComErro.has("modalidade")} value={p.info.modalidade} onChange={(e) => updInfo({ modalidade: e.target.value as ProjetoInfo["modalidade"] })}>
@@ -676,8 +710,8 @@ export function ProjetoDetail() {
                   <option value="Corporativo">Corporativo</option>
                 </Select>
               </Field>
-              <Field label="Local"><Input formato="titulo" erro={chavesComErro.has("local")} value={p.info.local} onChange={(e) => updInfo({ local: e.target.value })} /></Field>
-              <Field label="Endereço do local"><Input formato="titulo" value={p.info.enderecoLocal} onChange={(e) => updInfo({ enderecoLocal: e.target.value })} /></Field>
+              <Field label="Local"><Input formato="titulo" erro={chavesComErro.has("local")} sugestoes={sugestoes.local} value={p.info.local} onChange={(e) => updInfo({ local: e.target.value })} /></Field>
+              <Field label="Endereço do local"><Input formato="titulo" sugestoes={sugestoes.enderecoLocal} value={p.info.enderecoLocal} onChange={(e) => updInfo({ enderecoLocal: e.target.value })} /></Field>
               <Field label="Nº de participantes"><Input type="number" value={p.info.participantes ?? ""} onChange={(e) => updInfo({ participantes: e.target.value ? Number(e.target.value) : null })} /></Field>
               <Field label="Produtor Responsável">
                 <Select
@@ -823,32 +857,35 @@ export function ProjetoDetail() {
         <Card padded={false}>
           <div className="p-5 flex items-center justify-between gap-3 flex-wrap">
             <CardTitle hint="Estimativas de custo deste projeto (incluindo versões)">Estimativas (EC)</CardTitle>
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                icon={<IcPlus width={16} height={16} />}
-                title={p.info.modalidade ? `Usa o modelo ${p.info.modalidade} (definido em Dados Gerais)` : "Defina a Modalidade em Dados Gerais para carregar um modelo automaticamente"}
-                onClick={() => navigate(`/estimativas/nova?projeto=${id}${p.info.modalidade ? `&template=${p.info.modalidade}` : ""}`)}
-              >
-                Nova EC
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                icon={<IcDoc width={16} height={16} />}
-                onClick={() => navigate(`/estimativas/nova?projeto=${id}`)}
-              >
-                EC em branco
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                icon={<IcCopy width={16} height={16} />}
-                onClick={() => { setImpProjetoId(""); setImpEcId(""); setImportOpen(true); }}
-              >
-                Importar EC
-              </Button>
-            </div>
+            {podeEditarEc && (
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  icon={<IcPlus width={16} height={16} />}
+                  title={p.info.modalidade ? `Usa o modelo ${p.info.modalidade} (definido em Dados Gerais)` : "Defina a Modalidade em Dados Gerais para carregar um modelo automaticamente"}
+                  onClick={() => navigate(`/estimativas/nova?projeto=${id}${p.info.modalidade ? `&template=${p.info.modalidade}` : ""}`)}
+                >
+                  Nova EC
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon={<IcDoc width={16} height={16} />}
+                  onClick={() => navigate(`/estimativas/nova?projeto=${id}`)}
+                >
+                  EC em branco
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon={<IcCopy width={16} height={16} />}
+                  title="Copia os itens e valores de outra EC — deste projeto ou de outro, ativa ou arquivada"
+                  onClick={() => { setImpProjetoId(""); setImpEcId(""); setImportOpen(true); }}
+                >
+                  Importar EC
+                </Button>
+              </div>
+            )}
           </div>
           <div className="px-5 pb-4 flex items-center gap-1 border-b border-border-soft" role="group" aria-label="Filtrar estimativas">
             {([
@@ -901,8 +938,8 @@ export function ProjetoDetail() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setImportOpen(false)}>
           <div className="w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
             <Card>
-              <CardTitle hint="Copia os itens e valores de uma EC de outro projeto para este, como um novo rascunho.">
-                Importar EC de outro projeto
+              <CardTitle hint="Copia os itens e valores de uma EC — deste projeto ou de outro, ativa ou arquivada — para cá, como um novo rascunho. A EC de origem não é alterada.">
+                Importar EC
               </CardTitle>
               <div className="mt-4 grid gap-4">
                 <Field label="Projeto de origem">
@@ -913,13 +950,16 @@ export function ProjetoDetail() {
                     ))}
                   </Select>
                 </Field>
-                <Field label="EC (ativa ou arquivada)">
+                <Field label="EC de origem" hint="ativas e arquivadas">
                   <Select value={impEcId} onChange={(e) => setImpEcId(e.target.value)} disabled={!impProjetoId}>
                     <option value="">Selecione…</option>
                     {ecsOrigem.map((e) => (
                       <option key={e.id} value={e.id}>{tituloEc(e)} — {e.ativa ? "Ativa" : "Arquivada"}</option>
                     ))}
                   </Select>
+                  {!!impProjetoId && ecsOrigem.length === 0 && (
+                    <p className="text-[12px] text-ink-3 mt-1.5">Este projeto não tem nenhuma EC para copiar.</p>
+                  )}
                 </Field>
               </div>
               <div className="mt-5 flex justify-end gap-2">

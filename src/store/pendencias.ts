@@ -1,16 +1,26 @@
 /**
- * Store das pendências do processo. Carrega projetos/ECs/OSs e deriva a lista de
- * pendências (via domain/pendencias). Os componentes leem daqui e filtram pelo
- * papel do usuário para exibir os badges (bolinhas vermelhas).
+ * Store da leitura geral do sistema: carrega projetos/ECs/OSs uma vez e deriva
+ * dali as pendências (via domain/pendencias). Os componentes leem daqui e
+ * filtram pelo papel do usuário para exibir os badges (bolinhas vermelhas).
+ *
+ * As listas cruas ficam guardadas de propósito. Elas são a carga mais pesada do
+ * app, e as sugestões de preenchimento (`useSugestoes`) precisam exatamente dos
+ * mesmos dados — buscá-los de novo, numa segunda store, seria pagar duas vezes
+ * pela mesma consulta.
  */
 import { useMemo } from "react";
 import { create } from "zustand";
 import { repo } from "@/data";
 import { useAuth } from "@/store/auth";
 import { calcularPendencias, agregarPendencias, type Pendencia } from "@/domain/pendencias";
+import type { Ec, Os, Projeto } from "@/data/types";
 
 interface State {
   itens: Pendencia[];
+  /** Listas cruas da última carga — base das pendências e das sugestões de campo. */
+  projetos: Projeto[];
+  ecs: Ec[];
+  oss: Os[];
   carregando: boolean;
   ultimoLoad: number;
   carregar: (force?: boolean) => Promise<void>;
@@ -18,6 +28,9 @@ interface State {
 
 export const usePendencias = create<State>((set, get) => ({
   itens: [],
+  projetos: [],
+  ecs: [],
+  oss: [],
   carregando: false,
   ultimoLoad: 0,
   carregar: async (force = false) => {
@@ -37,6 +50,9 @@ export const usePendencias = create<State>((set, get) => ({
       const nomes = usuarios.map((u) => u.nome).filter(Boolean);
       set({
         itens: calcularPendencias(projetos, ecs, oss, nomes, credenciados, checklists),
+        projetos,
+        ecs,
+        oss,
         ultimoLoad: Date.now(),
       });
     } catch (erro) {

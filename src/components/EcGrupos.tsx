@@ -32,6 +32,7 @@ import { aprovarLinha, faltasParaEmitirOs, reverterAprovacaoLinha } from "@/doma
 import { flags } from "@/lib/flags";
 import { brl, cx } from "@/lib/format";
 import type { DocumentoPg, EcLinha, Fornecedor, Observacao, StatusAprovacao, StatusOs } from "@/data/types";
+import type { Sugestoes } from "@/domain/sugestoes";
 
 /** Opções de status de OS e de Contrato — a mesma lista nos dois campos. */
 const OPCOES_STATUS_OS: StatusOs[] = ["Pendente", "Emitir", "Emitir Nova Versão", "OK", "Não se Aplica"];
@@ -54,7 +55,18 @@ const SETA_SELECT_ESTILO = {
  * em texto livre (fundo cinza), em vez de abrir um segundo campo abaixo. A seta
  * continua clicável para reabrir a lista e trocar de opção.
  */
-function SelectComTexto({ value, onChange, className }: { value: string; onChange: (v: string) => void; className?: string }) {
+function SelectComTexto({
+  value,
+  onChange,
+  className,
+  sugestoes,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  className?: string;
+  /** Valores já usados neste campo em outras ECs (modo "Outro"). */
+  sugestoes?: string[];
+}) {
   const [modoOutro, setModoOutro] = useState(false);
   const [menuAberto, setMenuAberto] = useState(false);
   const personalizado = value !== "" && !OPCOES_STATUS_TEXTO.includes(value);
@@ -83,6 +95,7 @@ function SelectComTexto({ value, onChange, className }: { value: string; onChang
           // O preenchimento do status vem do esquema de cores; sem valor, o cinza de antes.
           className={cx("!h-9 !pl-2 !pr-7 !text-[12.5px]", value ? classeCampoStatus(value) : "!bg-[#EDEEF1]", className)}
           value={value}
+          sugestoes={sugestoes}
           onChange={(e) => onChange(e.target.value)}
           placeholder="Outro (preencher)"
         />
@@ -222,10 +235,12 @@ interface Props {
   fornecedores: Fornecedor[];
   /** Nomes dos usuários do sistema (para atribuir observações). */
   usuarios: string[];
+  /** O que a casa já escreveu nestes campos em outras ECs (ver `domain/sugestoes`). */
+  sugestoes: Sugestoes;
   onValidarFornecedor: (cnpj: string) => Promise<string | null>;
 }
 
-export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuarios, onValidarFornecedor }: Props) {
+export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuarios, sugestoes, onValidarFornecedor }: Props) {
   const [grupos, setGrupos] = useState<Grupo[]>(() => agrupar(linhas));
   const [expandido, setExpandido] = useState<Record<string, boolean>>({});
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
@@ -648,6 +663,7 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
                 verFinanceiro={verFinanceiro}
                 fornecedores={fornecedores}
                 usuarios={usuarios}
+                sugestoes={sugestoes}
                 selecionados={selecionados}
                 onToggle={() => toggle(g.id)}
                 onRenomear={(v) => renomearGrupo(g.nome, v)}
@@ -698,6 +714,7 @@ interface GrupoProps {
   verFinanceiro: boolean;
   fornecedores: Fornecedor[];
   usuarios: string[];
+  sugestoes: Sugestoes;
   selecionados: Set<string>;
   onToggle: () => void;
   onRenomear: (v: string) => void;
@@ -713,7 +730,7 @@ interface GrupoProps {
 }
 
 function GrupoCard({
-  g, aberto, primeiroGrupo, ultimoGrupo, verFinanceiro, fornecedores, usuarios, selecionados,
+  g, aberto, primeiroGrupo, ultimoGrupo, verFinanceiro, fornecedores, usuarios, sugestoes, selecionados,
   onToggle, onRenomear, onAddItem, onUpdLinha, onOcultoItem, onOcultoGrupo,
   onSelecionarItem, onSelecionarGrupo, onMoverItem, onMoverGrupo, onValidarFornecedor,
 }: GrupoProps) {
@@ -780,7 +797,12 @@ function GrupoCard({
         <button onClick={onToggle} className="shrink-0 text-ink-2 hover:text-ink" title={aberto ? "Retrair" : "Expandir"}>
           <IcChevron width={20} height={20} className={cx("transition-transform duration-200", aberto && "rotate-90")} />
         </button>
-        <Input className="!h-10 !px-2.5 !text-[15px] !font-bold !uppercase max-w-sm" value={g.nome} onChange={(e) => onRenomear(e.target.value)} />
+        <Input
+          className="!h-10 !px-2.5 !text-[15px] !font-bold !uppercase max-w-sm"
+          value={g.nome}
+          sugestoes={sugestoes.grupoEc}
+          onChange={(e) => onRenomear(e.target.value)}
+        />
         <span className="shrink-0 text-[12px] font-bold text-ink-3 bg-[#F0F1F4] rounded-pill px-2.5 py-1">
           {visiveis.length} {visiveis.length === 1 ? "item" : "itens"}
         </span>
@@ -814,6 +836,7 @@ function GrupoCard({
                 verFinanceiro={verFinanceiro}
                 fornecedores={fornecedores}
                 usuarios={usuarios}
+                sugestoes={sugestoes}
                 selecionado={selecionados.has(l.id)}
                 // Na borda de um grupo do meio a seta continua ativa: ela leva o
                 // item para o grupo vizinho. Só trava nas pontas da EC ou quando
@@ -874,6 +897,7 @@ interface ItemProps {
   verFinanceiro: boolean;
   fornecedores: Fornecedor[];
   usuarios: string[];
+  sugestoes: Sugestoes;
   selecionado: boolean;
   primeiro: boolean;
   ultimo: boolean;
@@ -887,7 +911,7 @@ interface ItemProps {
 }
 
 function ItemRow({
-  l, verFinanceiro, fornecedores, usuarios, selecionado, primeiro, ultimo, motivoBloqueio,
+  l, verFinanceiro, fornecedores, usuarios, sugestoes, selecionado, primeiro, ultimo, motivoBloqueio,
   onUpd, onOcultar, onSelecionar, onMover, onValidarFornecedor,
 }: ItemProps) {
   const sortable = useSortable({ id: l.id });
@@ -950,7 +974,13 @@ function ItemRow({
 
         <div className="min-w-0">
           <Campo label="Item">
-            <Input className="!h-10 !px-2.5 !text-[13.5px] !font-semibold" placeholder="Nome do item" value={l.item} onChange={(e) => onUpd({ item: e.target.value })} />
+            <Input
+              className="!h-10 !px-2.5 !text-[13.5px] !font-semibold"
+              placeholder="Nome do item"
+              value={l.item}
+              sugestoes={sugestoes.itemEc}
+              onChange={(e) => onUpd({ item: e.target.value })}
+            />
           </Campo>
         </div>
 
@@ -1035,10 +1065,10 @@ function ItemRow({
           </Select>
         </Campo>
         <Campo label="Código de Serviço" className="w-full" obrigatorio>
-          <SelectComTexto value={l.codigoServico} onChange={(v) => onUpd({ codigoServico: v })} />
+          <SelectComTexto value={l.codigoServico} sugestoes={sugestoes.codigoServico} onChange={(v) => onUpd({ codigoServico: v })} />
         </Campo>
         <Campo label="Pedido de Compra" className="w-full" obrigatorio>
-          <SelectComTexto value={l.pedidoCompra} onChange={(v) => onUpd({ pedidoCompra: v })} />
+          <SelectComTexto value={l.pedidoCompra} sugestoes={sugestoes.pedidoCompra} onChange={(v) => onUpd({ pedidoCompra: v })} />
         </Campo>
         <Campo label="OS" className="w-full">
           <Select className={cx("!h-9 !px-2 !text-[12.5px]", classeCampoStatus(l.statusOs))} value={l.statusOs} onChange={(e) => onUpd({ statusOs: e.target.value as StatusOs })}>

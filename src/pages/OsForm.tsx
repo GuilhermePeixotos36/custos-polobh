@@ -38,6 +38,7 @@ import { useAuth } from "@/store/auth";
 import { toast } from "@/store/toast";
 import { confirmar } from "@/store/confirm";
 import { usePendencias, useMinhasPendencias } from "@/store/pendencias";
+import { useSugestoes } from "@/hooks/useSugestoes";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
 import { idAncoraPendencia } from "@/lib/destaque";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
@@ -281,6 +282,8 @@ export function OsForm() {
   const guard = useUnsavedGuard(sujo);
   // Pendências desta OS — mesma lista que alimenta o badge vermelho dela.
   const { itens: pendenciasDoUsuario } = useMinhasPendencias();
+  // Valores já usados nestes campos em outras OSs (ver `domain/sugestoes`).
+  const sugestoes = useSugestoes();
 
   if (!os || !ecCtx) return <PageShell title="Carregando…">{null}</PageShell>;
 
@@ -649,7 +652,7 @@ export function OsForm() {
               </button>
             )}
           </LinhaOs>
-          <LinhaOs label="Entrega"><Input value={os.entrega} onChange={(e) => setOs((o) => (o ? { ...o, entrega: e.target.value } : o))} placeholder="Instalação, operação, acompanhamento…" /></LinhaOs>
+          <LinhaOs label="Entrega"><Input value={os.entrega} sugestoes={sugestoes.entrega} onChange={(e) => setOs((o) => (o ? { ...o, entrega: e.target.value } : o))} placeholder="Instalação, operação, acompanhamento…" /></LinhaOs>
           <LinhaOs label="Itens da EC" hint={`(${linhasConsolidadas.length} consolidado(s) — origem do descritivo)`}>
             <div className="py-2 space-y-1.5">
               {linhasConsolidadas.map((l) => (
@@ -696,24 +699,24 @@ export function OsForm() {
 
           <LinhaOs label="Logística do Fornecedor">
             <div className="py-1.5 grid sm:grid-cols-2 gap-2">
-              <Field label="Transporte Material"><Input className="!h-9" value={os.logistica.transporteMaterial} onChange={(e) => updLog({ transporteMaterial: e.target.value })} /></Field>
-              <Field label="Transporte Equipe"><Input className="!h-9" value={os.logistica.transporteEquipe} onChange={(e) => updLog({ transporteEquipe: e.target.value })} /></Field>
-              <Field label="Hospedagem Equipe"><Input className="!h-9" value={os.logistica.hospedagem} onChange={(e) => updLog({ hospedagem: e.target.value })} /></Field>
-              <Field label="Alimentação Equipe"><Input className="!h-9" value={os.logistica.alimentacao} onChange={(e) => updLog({ alimentacao: e.target.value })} /></Field>
-              <Field label="Estacionamento Carga"><Input className="!h-9" value={os.logistica.estacionamentoCarga} onChange={(e) => updLog({ estacionamentoCarga: e.target.value })} /></Field>
-              <Field label="Estacionamento Equipe"><Input className="!h-9" value={os.logistica.estacionamentoEquipe} onChange={(e) => updLog({ estacionamentoEquipe: e.target.value })} /></Field>
-              <Field label="Uniformização Equipe" className="sm:col-span-2"><Input className="!h-9" value={os.logistica.uniformizacao} onChange={(e) => updLog({ uniformizacao: e.target.value })} /></Field>
+              <Field label="Transporte Material"><Input className="!h-9" sugestoes={sugestoes.transporteMaterial} value={os.logistica.transporteMaterial} onChange={(e) => updLog({ transporteMaterial: e.target.value })} /></Field>
+              <Field label="Transporte Equipe"><Input className="!h-9" sugestoes={sugestoes.transporteEquipe} value={os.logistica.transporteEquipe} onChange={(e) => updLog({ transporteEquipe: e.target.value })} /></Field>
+              <Field label="Hospedagem Equipe"><Input className="!h-9" sugestoes={sugestoes.hospedagem} value={os.logistica.hospedagem} onChange={(e) => updLog({ hospedagem: e.target.value })} /></Field>
+              <Field label="Alimentação Equipe"><Input className="!h-9" sugestoes={sugestoes.alimentacao} value={os.logistica.alimentacao} onChange={(e) => updLog({ alimentacao: e.target.value })} /></Field>
+              <Field label="Estacionamento Carga"><Input className="!h-9" sugestoes={sugestoes.estacionamentoCarga} value={os.logistica.estacionamentoCarga} onChange={(e) => updLog({ estacionamentoCarga: e.target.value })} /></Field>
+              <Field label="Estacionamento Equipe"><Input className="!h-9" sugestoes={sugestoes.estacionamentoEquipe} value={os.logistica.estacionamentoEquipe} onChange={(e) => updLog({ estacionamentoEquipe: e.target.value })} /></Field>
+              <Field label="Uniformização Equipe" className="sm:col-span-2"><Input className="!h-9" sugestoes={sugestoes.uniformizacao} value={os.logistica.uniformizacao} onChange={(e) => updLog({ uniformizacao: e.target.value })} /></Field>
             </div>
           </LinhaOs>
 
           <LinhaOs label="Infraestrutura">
             <div className="py-1.5 grid sm:grid-cols-2 gap-2">
-              <Field label="Energia"><Input className="!h-9" value={os.infraestrutura.energia} onChange={(e) => updInfra({ energia: e.target.value })} /></Field>
-              <Field label="Internet"><Input className="!h-9" value={os.infraestrutura.internet} onChange={(e) => updInfra({ internet: e.target.value })} /></Field>
-              <Field label="Pontos Elétricos"><Input className="!h-9" value={os.infraestrutura.pontosEletricos} onChange={(e) => updInfra({ pontosEletricos: e.target.value })} /></Field>
-              <Field label="Estruturas Diversas"><Input className="!h-9" value={os.infraestrutura.estruturas} onChange={(e) => updInfra({ estruturas: e.target.value })} /></Field>
-              <Field label="Serviços de Apoio"><Input className="!h-9" value={os.infraestrutura.servicosApoio} onChange={(e) => updInfra({ servicosApoio: e.target.value })} /></Field>
-              <Field label="ART, Laudos e Certificações"><Input className="!h-9" value={os.infraestrutura.artLaudos} onChange={(e) => updInfra({ artLaudos: e.target.value })} /></Field>
+              <Field label="Energia"><Input className="!h-9" sugestoes={sugestoes.energia} value={os.infraestrutura.energia} onChange={(e) => updInfra({ energia: e.target.value })} /></Field>
+              <Field label="Internet"><Input className="!h-9" sugestoes={sugestoes.internet} value={os.infraestrutura.internet} onChange={(e) => updInfra({ internet: e.target.value })} /></Field>
+              <Field label="Pontos Elétricos"><Input className="!h-9" sugestoes={sugestoes.pontosEletricos} value={os.infraestrutura.pontosEletricos} onChange={(e) => updInfra({ pontosEletricos: e.target.value })} /></Field>
+              <Field label="Estruturas Diversas"><Input className="!h-9" sugestoes={sugestoes.estruturas} value={os.infraestrutura.estruturas} onChange={(e) => updInfra({ estruturas: e.target.value })} /></Field>
+              <Field label="Serviços de Apoio"><Input className="!h-9" sugestoes={sugestoes.servicosApoio} value={os.infraestrutura.servicosApoio} onChange={(e) => updInfra({ servicosApoio: e.target.value })} /></Field>
+              <Field label="ART, Laudos e Certificações"><Input className="!h-9" sugestoes={sugestoes.artLaudos} value={os.infraestrutura.artLaudos} onChange={(e) => updInfra({ artLaudos: e.target.value })} /></Field>
             </div>
           </LinhaOs>
 

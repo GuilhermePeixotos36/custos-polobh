@@ -40,6 +40,7 @@ import { RentabilidadeItens } from "@/components/RentabilidadeItens";
 import { EcGrupos } from "@/components/EcGrupos";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
 import { useMinhasPendencias } from "@/store/pendencias";
+import { useSugestoes } from "@/hooks/useSugestoes";
 import { EcSubGuias, type SubGuiaEc } from "@/components/EcSubGuias";
 import { flags } from "@/lib/flags";
 import { toast } from "@/store/toast";
@@ -137,6 +138,8 @@ export function EcForm() {
   // OS's desta EC — alimentam automaticamente o "Gasto" da rentabilidade por item.
   const { data: ossData } = useAsync(() => (id ? repo.oss.porEc(id) : Promise.resolve([])), [id]);
   const { itens: minhasPendencias } = useMinhasPendencias();
+  // Valores já usados nestes campos em outras ECs (ver `domain/sugestoes`).
+  const sugestoes = useSugestoes();
 
   // inicia o formulário e registra a "foto" base para detectar alterações
   const iniciar = (e: Ec) => {
@@ -518,6 +521,7 @@ export function EcForm() {
               verFinanceiro={verFinanceiro}
               fornecedores={fornecedores}
               usuarios={usuarios}
+              sugestoes={sugestoes}
               onValidarFornecedor={validarFornecedor}
             />
           </div>

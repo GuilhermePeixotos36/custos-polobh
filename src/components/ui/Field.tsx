@@ -6,7 +6,7 @@ import type {
   SelectHTMLAttributes,
   TextareaHTMLAttributes,
 } from "react";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import {
   cx, maskTelefone, onlyDigits, colapsarEspacos, tituloProprio, capitalizarFrase,
   brl, limparEntradaNumerica, parseNumeroBR,
@@ -68,7 +68,16 @@ export function Field({
  */
 export type FormatoCampo = "titulo" | "titulo-empresa" | "frase";
 
-type InputProps = InputHTMLAttributes<HTMLInputElement> & { formato?: FormatoCampo; erro?: boolean };
+type InputProps = InputHTMLAttributes<HTMLInputElement> & {
+  formato?: FormatoCampo;
+  erro?: boolean;
+  /**
+   * Valores que a Pólobh já usou neste campo em outros projetos/ECs/OSs — vira
+   * uma lista de autocompletar do próprio navegador (ver `domain/sugestoes`).
+   * É atalho, não trava: qualquer texto novo continua valendo.
+   */
+  sugestoes?: string[];
+};
 
 function aplicarFormato(v: string, formato?: FormatoCampo): string {
   switch (formato) {
@@ -83,7 +92,9 @@ function aplicarFormato(v: string, formato?: FormatoCampo): string {
   }
 }
 
-export function Input({ className, type, onChange, value, onBlur, formato, erro, ...rest }: InputProps) {
+export function Input({ className, type, onChange, value, onBlur, formato, erro, sugestoes, ...rest }: InputProps) {
+  // Chamado sempre (antes de qualquer retorno): a lista precisa de um id estável.
+  const idLista = useId();
   if (type === "date") {
     return <CampoData className={className} erro={erro} value={value} onChange={onChange} onBlur={onBlur} {...rest} />;
   }
@@ -98,7 +109,31 @@ export function Input({ className, type, onChange, value, onBlur, formato, erro,
     }
     onBlur?.(e);
   };
-  return <input className={cx(fieldBase, "h-11", erro && fieldErro, className)} type={type} onChange={onChange} value={value} onBlur={handleBlur} {...rest} />;
+  const temSugestoes = !!sugestoes?.length;
+  const campo = (
+    <input
+      className={cx(fieldBase, "h-11", erro && fieldErro, className)}
+      type={type}
+      list={temSugestoes ? idLista : undefined}
+      onChange={onChange}
+      value={value}
+      onBlur={handleBlur}
+      {...rest}
+    />
+  );
+  if (!temSugestoes) return campo;
+  return (
+    <>
+      {campo}
+      {/* <datalist> nativo: filtra, navega pelo teclado e não rouba o campo de
+          quem quer digitar um valor novo. */}
+      <datalist id={idLista}>
+        {sugestoes!.map((v) => (
+          <option key={v} value={v} />
+        ))}
+      </datalist>
+    </>
+  );
 }
 
 /** Telefone em dois campos (DDD + número), mas guarda/emite uma única string mascarada — como antes. */
