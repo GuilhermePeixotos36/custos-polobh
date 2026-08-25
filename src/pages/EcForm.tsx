@@ -213,6 +213,14 @@ export function EcForm() {
     () => minhasPendencias.filter((p) => p.ecId === id),
     [minhasPendencias, id]
   );
+  /** Quantas pendências o usuário tem em cada linha — vira o badge do item. */
+  const pendenciasPorLinha = useMemo(() => {
+    const mapa: Record<string, number> = {};
+    for (const p of pendenciasDaEc) {
+      if (p.ancora) mapa[p.ancora] = (mapa[p.ancora] ?? 0) + 1;
+    }
+    return mapa;
+  }, [pendenciasDaEc]);
 
   /**
    * Publica a altura real da barra de ações em `--altura-barra-ec`.
@@ -522,6 +530,7 @@ export function EcForm() {
               fornecedores={fornecedores}
               usuarios={usuarios}
               sugestoes={sugestoes}
+              pendenciasPorLinha={pendenciasPorLinha}
               onValidarFornecedor={validarFornecedor}
             />
           </div>

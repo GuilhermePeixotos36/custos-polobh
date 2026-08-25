@@ -14,7 +14,6 @@ import { IcCheck, IcPlus, IcEye, IcEyeOff, IcCalendar, IcTrash } from "@/compone
 import { ObservacoesThread } from "@/components/ObservacoesPopup";
 import { NotifDot } from "@/components/NotifDot";
 import { idAncoraPendencia } from "@/lib/destaque";
-
 import {
   agruparPorData,
   atrasoNaConclusao,
@@ -68,6 +67,12 @@ interface Props {
   /** Traz para este check-list os itens acrescentados à lista padrão depois. */
   onSincronizar?: () => void;
   itensNovosNoModelo?: number;
+  /**
+   * Pendências DO USUÁRIO por tarefa (id -> quantidade). Vem de cima porque o
+   * badge do item tem de dizer a mesma coisa que o da aba e o do navegador: o
+   * número vermelho é sempre "o que é seu", nunca "o que existe".
+   */
+  pendenciasPorItem?: Record<string, number>;
 }
 
 export function ChecklistProjeto({
@@ -79,6 +84,7 @@ export function ChecklistProjeto({
   onRemoverItem,
   onSincronizar,
   itensNovosNoModelo = 0,
+  pendenciasPorItem = {},
 }: Props) {
   const hoje = hojeIso();
   const nomeAtual = useAuth((s) => s.usuario?.nome ?? "");
@@ -277,6 +283,7 @@ export function ChecklistProjeto({
               hoje={hoje}
               usuarios={usuarios}
               podeEditar={podeEditar}
+              pendencias={pendenciasPorItem[item.id] ?? 0}
               autoFoco={item.id === idRecemCriado}
               onAlterar={(patch) => alterar(item, patch)}
               onStatus={(s) => mudarStatus(item, s)}
@@ -297,6 +304,7 @@ function ItemCard({
   hoje,
   usuarios,
   podeEditar,
+  pendencias,
   autoFoco,
   onAlterar,
   onStatus,
@@ -307,6 +315,8 @@ function ItemCard({
   hoje: string;
   usuarios: string[];
   podeEditar: boolean;
+  /** Pendências do usuário nesta tarefa — o mesmo número do badge da aba. */
+  pendencias: number;
   /** Tarefa recém-criada: o cursor vai direto para o título. */
   autoFoco: boolean;
   onAlterar: (patch: Partial<ItemChecklist>) => void;
@@ -338,7 +348,6 @@ function ItemCard({
     if (limpo === item.titulo) return;
     onAlterar({ titulo: limpo });
   };
-  const pendencias = (item.observacoes ?? []).filter((o) => !o.resolvida && o.texto.trim()).length;
   const fechado = encerrado(item);
 
   return (
@@ -390,7 +399,7 @@ function ItemCard({
               aria-label="Título da tarefa"
             />
             {aviso && <Badge tom={aviso.tom}>{aviso.rotulo}</Badge>}
-            <NotifDot inline n={pendencias} title={`${pendencias} observação(ões) em aberto`} />
+            <NotifDot inline n={pendencias} title={`${pendencias} pendência(s) sua(s) nesta tarefa`} />
           </div>
 
           {/* Larguras fixas, do tamanho do conteúdo. Antes os três campos se

@@ -26,7 +26,6 @@ import { ObservacoesThread } from "@/components/ObservacoesPopup";
 import { ResumoPropostaModal } from "@/components/ResumoPropostaModal";
 import { NotifDot } from "@/components/NotifDot";
 import { MoverSetas } from "@/components/MoverSetas";
-
 import { destacarElemento, seguirElemento, idAncoraPendencia, idGrupoEc } from "@/lib/destaque";
 import { aprovarLinha, faltasParaEmitirOs, reverterAprovacaoLinha } from "@/domain/calc";
 import { flags } from "@/lib/flags";
@@ -237,10 +236,18 @@ interface Props {
   usuarios: string[];
   /** O que a casa já escreveu nestes campos em outras ECs (ver `domain/sugestoes`). */
   sugestoes: Sugestoes;
+  /**
+   * Pendências DO USUÁRIO por linha (id -> quantidade). O badge do item conta o
+   * mesmo que o badge da EC e o navegador: "o que é seu", não "o que existe".
+   */
+  pendenciasPorLinha?: Record<string, number>;
   onValidarFornecedor: (cnpj: string) => Promise<string | null>;
 }
 
-export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuarios, sugestoes, onValidarFornecedor }: Props) {
+export function EcGrupos({
+  linhas, onChange, verFinanceiro, fornecedores, usuarios, sugestoes,
+  pendenciasPorLinha = {}, onValidarFornecedor,
+}: Props) {
   const [grupos, setGrupos] = useState<Grupo[]>(() => agrupar(linhas));
   const [expandido, setExpandido] = useState<Record<string, boolean>>({});
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
@@ -664,6 +671,7 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
                 fornecedores={fornecedores}
                 usuarios={usuarios}
                 sugestoes={sugestoes}
+                pendenciasPorLinha={pendenciasPorLinha}
                 selecionados={selecionados}
                 onToggle={() => toggle(g.id)}
                 onRenomear={(v) => renomearGrupo(g.nome, v)}
@@ -715,6 +723,7 @@ interface GrupoProps {
   fornecedores: Fornecedor[];
   usuarios: string[];
   sugestoes: Sugestoes;
+  pendenciasPorLinha: Record<string, number>;
   selecionados: Set<string>;
   onToggle: () => void;
   onRenomear: (v: string) => void;
@@ -730,7 +739,8 @@ interface GrupoProps {
 }
 
 function GrupoCard({
-  g, aberto, primeiroGrupo, ultimoGrupo, verFinanceiro, fornecedores, usuarios, sugestoes, selecionados,
+  g, aberto, primeiroGrupo, ultimoGrupo, verFinanceiro, fornecedores, usuarios, sugestoes,
+  pendenciasPorLinha, selecionados,
   onToggle, onRenomear, onAddItem, onUpdLinha, onOcultoItem, onOcultoGrupo,
   onSelecionarItem, onSelecionarGrupo, onMoverItem, onMoverGrupo, onValidarFornecedor,
 }: GrupoProps) {
@@ -837,6 +847,7 @@ function GrupoCard({
                 fornecedores={fornecedores}
                 usuarios={usuarios}
                 sugestoes={sugestoes}
+                pendencias={pendenciasPorLinha[l.id] ?? 0}
                 selecionado={selecionados.has(l.id)}
                 // Na borda de um grupo do meio a seta continua ativa: ela leva o
                 // item para o grupo vizinho. Só trava nas pontas da EC ou quando
@@ -898,6 +909,8 @@ interface ItemProps {
   fornecedores: Fornecedor[];
   usuarios: string[];
   sugestoes: Sugestoes;
+  /** Pendências do usuário nesta linha — o mesmo número do badge da EC. */
+  pendencias: number;
   selecionado: boolean;
   primeiro: boolean;
   ultimo: boolean;
@@ -911,14 +924,12 @@ interface ItemProps {
 }
 
 function ItemRow({
-  l, verFinanceiro, fornecedores, usuarios, sugestoes, selecionado, primeiro, ultimo, motivoBloqueio,
+  l, verFinanceiro, fornecedores, usuarios, sugestoes, pendencias, selecionado, primeiro, ultimo, motivoBloqueio,
   onUpd, onOcultar, onSelecionar, onMover, onValidarFornecedor,
 }: ItemProps) {
   const sortable = useSortable({ id: l.id });
   const style = { transform: CSS.Translate.toString(sortable.transform), transition: sortable.transition };
   const [resumoAberto, setResumoAberto] = useState(false);
-  // Pendências do item = observações direcionadas ainda não resolvidas (badge vermelho).
-  const pendencias = (l.observacoes ?? []).filter((o) => !o.resolvida && o.texto.trim()).length;
 
   const inserirResumo = (html: string) => {
     if (!html) return;
@@ -950,7 +961,7 @@ function ItemRow({
             aria-label={`Selecionar item ${l.item || "sem título"}`}
             title="Selecionar item para ações em bloco"
           />
-          <NotifDot inline n={pendencias} title={`${pendencias} pendência(s) neste item`} />
+          <NotifDot inline n={pendencias} title={`${pendencias} pendência(s) sua(s) neste item`} />
           <button
             ref={sortable.setActivatorNodeRef}
             {...sortable.listeners}

@@ -16,7 +16,6 @@ import { Fragment, type ReactNode } from "react";
 import { Badge, tomDoStatus } from "@/components/ui";
 import { ObservacoesThread } from "@/components/ObservacoesPopup";
 import { idAncoraPendencia } from "@/lib/destaque";
-
 import { sanitizarHtmlEditor } from "@/lib/sanitizeHtml";
 import { brl, cx } from "@/lib/format";
 import type { EcLinha, Observacao } from "@/data/types";

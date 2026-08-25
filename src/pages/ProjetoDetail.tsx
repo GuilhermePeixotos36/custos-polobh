@@ -1002,7 +1002,13 @@ export function ProjetoDetail() {
       )}
 
       {aba === "checklist" && (
-        <ChecklistPainel estado={checklistProjeto} projeto={p} podeEditar={podeEditarChecklist} usuarios={nomesUsuarios} />
+        <ChecklistPainel
+          estado={checklistProjeto}
+          projeto={p}
+          podeEditar={podeEditarChecklist}
+          usuarios={nomesUsuarios}
+          pendencias={pendenciasDaAba}
+        />
       )}
 
       {aba === "cronograma" && (
@@ -1064,13 +1070,25 @@ function ChecklistPainel({
   projeto,
   podeEditar,
   usuarios,
+  pendencias,
 }: {
   estado: ReturnType<typeof useChecklistProjeto>;
   projeto: Projeto;
   podeEditar: boolean;
   usuarios: string[];
+  /** Pendências do usuário nesta aba — viram o badge de cada tarefa. */
+  pendencias: Pendencia[];
 }) {
   const [confirmarRegenerar, setConfirmarRegenerar] = useState(false);
+  // Quantas pendências do usuário cada tarefa tem — o badge do item, o da aba e
+  // o navegador passam a contar a mesma coisa.
+  const pendenciasPorItem = useMemo(() => {
+    const mapa: Record<string, number> = {};
+    for (const p of pendencias) {
+      if (p.checklistItemId) mapa[p.checklistItemId] = (mapa[p.checklistItemId] ?? 0) + 1;
+    }
+    return mapa;
+  }, [pendencias]);
 
   if (!projeto.id) {
     return <EmptyState title="Salve o projeto primeiro" hint="O check-list é criado assim que o projeto existe." />;
@@ -1186,6 +1204,7 @@ function ChecklistPainel({
         onRemoverItem={(item) => void estado.removerItem(item)}
         onSincronizar={() => void estado.sincronizar()}
         itensNovosNoModelo={estado.itensNovosNoModelo}
+        pendenciasPorItem={pendenciasPorItem}
       />
     </div>
   );
