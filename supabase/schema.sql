@@ -11,6 +11,11 @@
 -- otimista e guarda de valores). Nada deve ser aplicado direto no painel do
 -- Supabase sem virar migração: foi assim que a coluna `perfis.telefone` e a
 -- função `gerenciar-usuarios` ficaram só em produção, fora do repositório.
+--
+-- MÓDULOS QUE NÃO ESTÃO NESTE ARQUIVO (existem só nas migrações — o passo 2 não
+-- é opcional, nem em banco novo):
+--   * Áreas / permissões cadastráveis .... 20260809120000, 20260809140000
+--   * Check-list (Work Flow) do projeto .. 20260823100000
 -- ============================================================================
 
 -- Perfis de usuário (liga ao auth.users do Supabase)

@@ -10,3 +10,6 @@ dist-ssr
 *.log
 .vscode/*
 !.vscode/extensions.json
+
+# Cache incremental do TypeScript (gerado por `tsc -b`): muda a cada build.
+tsconfig.tsbuildinfo

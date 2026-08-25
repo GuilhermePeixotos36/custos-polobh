@@ -29,8 +29,10 @@ src/
   components/layout/         Sidebar, Topbar, AppLayout, nav, guarda por recurso
   data/                      types, repository e implementação Supabase
   domain/calc.ts             cálculos da EC, numeração, consolidação EC→OS
+  domain/checklist.ts        régua de prazos e estados do check-list (Work Flow)
+  domain/pendencias.ts       motor de pendências que alimenta os badges vermelhos
   lib/                       format, cnpj (BrasilAPI), ai (flag), flags, excel/
-  pages/                     telas (Login, Dashboard, EC*, OS*, Cronogramas…)
+  pages/                     telas (Login, Projetos, EC*, OS*, Agenda, Cronogramas…)
   store/auth.ts              perfil + matriz de permissões
 supabase/schema.sql          schema completo + RLS
 supabase/migrations/         atualizações incrementais do banco
@@ -40,7 +42,9 @@ supabase/migrations/         atualizações incrementais do banco
 | Recurso | Direção | Produção | Administrativo |
 |---|:--:|:--:|:--:|
 | Dashboard / ECs (consulta) / OSs / Cronogramas / Fornecedores | ✅ | ✅ | ✅ |
+| Check-list do projeto / Agenda (ver e editar) | ✅ | ✅ | ✅ |
 | Editar EC | ✅ | ✅ | — |
+| Modelos de check-list (Configurações) | ✅ | — | — |
 | Bloco financeiro / Configurações | ✅ | — | ✅ |
 
 ## Cálculos da EC (fixos)
@@ -49,6 +53,28 @@ supabase/migrations/         atualizações incrementais do banco
 - `subTotalPolobh` = fornecedores + honorários + encargos
 - `valorTotalBruto` = subTotalPolobh + somaCliente + honoráriosCliente
 - Numeração: `EC – {Cliente} – {Projeto} – V{NN}`; OS: `… – OS-{NN}`.
+
+## Check-list (Work Flow) do projeto
+Substitui a cobrança informal por uma lista de tarefas com prazo, dono e histórico.
+
+- **Modelos por modalidade** (Cultural / Corporativo) ficam em **Configurações →
+  Check-list**, editáveis sem tocar em código. Cada tarefa declara sua
+  régua de prazo: **percentual** da janela do projeto (0 % = início, 100 % = evento)
+  ou **âncora** em dias do evento (ex.: −15 = quinze dias antes).
+- **Geração automática:** abrir um projeto que tem modalidade e ainda não tem
+  check-list já cria a lista. O **recálculo** de prazos, não — quando as datas do
+  projeto mudam, a tela avisa e oferece o botão; ninguém tem prazo remexido sem saber.
+- **Aba Check-list** (2ª aba do projeto, logo após Dados Gerais): tarefas por etapa
+  ou por data, com responsável, status, observações (mesma thread da EC, com
+  @menção) e **data de conclusão editável** — dela sai a leitura de "saiu no prazo".
+- **Agenda** (menu Operação): todas as tarefas de todos os projetos na ordem em que
+  vencem — atrasadas, hoje, 7 dias, 30 dias. Abre filtrada em quem está logado.
+- **Pendências:** tarefa que vence **hoje ou já venceu** entra no quadro de
+  pendências (badge vermelho + navegador do canto inferior direito), endereçada ao
+  responsável da tarefa ou, na falta dele, ao Produtor Responsável do projeto.
+
+Banco: `checklist_modelos`, `checklists`, `checklist_itens` (migração
+`20260823100000_checklist_workflow.sql`).
 
 ## Geração de Excel
 - **EC e OS:** ambas são **remontadas com a marca Pólobh** via ExcelJS (que aplica
@@ -107,9 +133,20 @@ servidor. Enquanto `VITE_FEATURE_EMAIL=false` (ou sem endpoint), os envios são
 5. Criar `CRON_SECRET`, configurá-lo nos secrets da função e enviá-lo no header `x-cron-secret` do `pg_cron`.
 
 ## Banco Supabase
-1. Aplicar as migrations de `supabase/migrations/` na ordem.
-2. Em uma instalação nova, aplicar `supabase/schema.sql`.
+`supabase/schema.sql` é a **baseline** (o banco como estava em 21/07/2026). Tudo
+que veio depois vive **só** em `supabase/migrations/` — inclusive módulos
+inteiros: **Áreas/permissões** (09/08) e **Check-list (Work Flow)** (23/08). A
+ordem importa:
+
+1. **Instalação nova:** aplicar `supabase/schema.sql` (baseline).
+2. Aplicar **todas** as migrations de `supabase/migrations/` em ordem de nome —
+   também num banco recém-criado. Pular este passo faz o sistema nascer sem
+   Áreas e sem Check-list.
 3. Preencher `.env` a partir de `.env.example` e publicar as Edge Functions.
+
+Nada é aplicado direto no painel do Supabase sem virar migração: foi assim que
+`perfis.telefone` e a função `gerenciar-usuarios` ficaram só em produção, fora
+do repositório.
 
 ## Retenção (baixo custo)
 Guardamos **dados estruturados** e regeneramos Excel/PDF sob demanda. Projetos

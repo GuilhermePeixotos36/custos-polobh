@@ -1,7 +1,7 @@
 /**
  * Camada de repositório (interfaces). A aplicação fala apenas com estas
- * interfaces; a implementação concreta é escolhida pela fábrica em ./index.
- * Hoje: mock em memória. Amanhã: Supabase — basta trocar a fábrica.
+ * interfaces; a implementação concreta é escolhida pela fábrica em ./index —
+ * hoje, Supabase para tudo (não existe mais mock em memória).
  */
 import type {
   Area, Checklist, Cliente, CredenciamentoResposta, Ec, EmpresaGrupo, Fornecedor,

@@ -3,7 +3,7 @@ import { PageShell } from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui";
 import {
   IcSearch, IcGrid, IcDoc, IcClipboard, IcCalendar, IcUsers, IcGear,
-  IcActivity, IcShield, IcSend, IcCheck, IcBook,
+  IcActivity, IcShield, IcSend, IcCheck, IcBook, IcClock,
 } from "@/components/icons";
 import { cx } from "@/lib/format";
 
@@ -217,6 +217,94 @@ const MODULOS: Modulo[] = [
             <span><b>Baixar Excel</b> e <b>Ver / PDF</b> geram o documento da OS (o PDF respeita seu perfil quanto ao financeiro).</span>
           </Passos>
           <Atencao>O <b>envio de e-mail está aguardando a conexão com o Brevo</b> da Pólobh. Até lá, o disparo é <b>simulado</b> — a OS é salva e o status muda, mas nenhum e-mail sai de fato.</Atencao>
+        </Secao>
+      </>
+    ),
+  },
+  {
+    id: "checklist",
+    icone: <IcCheck />,
+    titulo: "Check-list do projeto (Work Flow)",
+    resumo: "Lista de tarefas com prazo e dono, gerada do modelo da modalidade.",
+    tags: ["check-list", "checklist", "work flow", "workflow", "tarefa", "tarefas", "prazo", "etapa", "modelo", "responsável", "concluir", "atrasada", "pendência"],
+    conteudo: (
+      <>
+        <Secao titulo="Para que serve">
+          <p>
+            O check-list é a <b>lista de tarefas do projeto</b>: o que precisa acontecer, <b>até quando</b> e
+            <b> de quem</b> é. Ele nasce sozinho a partir do modelo da <b>modalidade</b> (Cultural ou Corporativo)
+            e vira a pauta da reunião de produção.
+          </p>
+          <Passos>
+            <span>Preencha <b>Modalidade</b> e as <b>datas</b> em <b>Dados Gerais</b> e salve o projeto.</span>
+            <span>Abra a aba <b>Check-list</b> (a segunda, logo depois de Dados Gerais). A lista já vem pronta.</span>
+            <span>Ajuste responsável, prazo e status tarefa a tarefa. Dá para <b>adicionar tarefas</b> que só existem neste projeto.</span>
+          </Passos>
+          <Dica>Trocar as datas do projeto <b>não</b> mexe nos prazos sozinho: a tela avisa quantas tarefas mudariam e você decide com o botão <b>Recalcular prazos</b>.</Dica>
+        </Secao>
+        <Secao titulo="Prazo de cada tarefa">
+          <p>O modelo define a régua de cada tarefa, de dois jeitos:</p>
+          <Passos>
+            <span><b>Percentual</b> da janela do projeto — 0 % é o começo, 100 % é o dia do evento. Serve para o que acompanha o andamento (montar a EC, aprovar, contratar).</span>
+            <span><b>Âncora no evento</b> — tantos dias antes ou depois do dia D (ex.: −15 = quinze dias antes). Serve para o que é preso ao evento (credenciamento, montagem, prestação de contas).</span>
+          </Passos>
+          <p>
+            Uma data ajustada à mão fica marcada como <Tag>data ajustada à mão</Tag> e o recálculo <b>não</b> passa por cima dela.
+          </p>
+        </Secao>
+        <Secao titulo="Concluir e medir o prazo">
+          <p>
+            Ao marcar <Tag tom="success">Concluído</Tag>, o sistema carimba <b>data e hora</b> e o seu nome. Essa data é
+            <b> editável</b>: quem terminou na sexta e só marcou na segunda corrige, e o histórico não inventa atraso.
+          </p>
+          <p>Comparando o prazo com a conclusão, a tarefa mostra <Tag tom="success">no prazo</Tag> ou <Tag tom="warning">N dias de atraso</Tag>.</p>
+        </Secao>
+        <Secao titulo="Pendências">
+          <p>
+            Tarefa que <b>vence hoje ou já venceu</b> entra no quadro de pendências — o número vermelho na aba e a
+            pílula do canto inferior direito, que salta de uma pendência para a outra. A cobrança vai para o
+            <b> responsável da tarefa</b>; sem responsável, para o <b>Produtor Responsável</b> do projeto.
+          </p>
+          <Atencao>Projeto <b>arquivado ou cancelado</b> encerra as pendências dele — inclusive as do check-list.</Atencao>
+        </Secao>
+        <Secao titulo="Modelos (quem edita)">
+          <p>
+            As listas padrão ficam em <b>Configurações → Check-list</b>, uma por modalidade, e só
+            <b> Direção</b> e <b>Administrador</b> editam. Mudar o modelo <b>não</b> mexe nos check-lists já gerados: dentro do
+            projeto aparece a ação <b>trazer itens novos</b>, que você aplica quando quiser.
+          </p>
+        </Secao>
+      </>
+    ),
+  },
+  {
+    id: "agenda",
+    icone: <IcClock />,
+    titulo: "Agenda",
+    resumo: "Todas as tarefas de todos os projetos, na ordem em que vencem.",
+    tags: ["agenda", "hoje", "semana", "atrasadas", "tarefas", "prazo", "check-list", "minhas tarefas", "pauta"],
+    conteudo: (
+      <>
+        <Secao titulo="O que a Agenda responde">
+          <p>
+            Dentro do projeto você vê <b>um projeto por vez</b>. A Agenda responde a outra pergunta:
+            <b> o que precisa acontecer esta semana na Pólobh inteira?</b>
+          </p>
+          <Tela titulo="Agenda">
+            <div className="space-y-2 text-[12px]">
+              <div className="flex items-center gap-2"><Tag tom="warning">Atrasadas</Tag><span className="text-ink-3">o que exige ação hoje</span></div>
+              <div className="flex items-center gap-2"><Tag tom="warning">Hoje</Tag><span className="text-ink-3">vence no dia</span></div>
+              <div className="flex items-center gap-2"><Tag tom="info">Próximos 7 dias</Tag><span className="text-ink-3">a semana à frente</span></div>
+              <div className="flex items-center gap-2"><Tag>Próximos 30 dias · Mais adiante · Sem data</Tag></div>
+            </div>
+          </Tela>
+        </Secao>
+        <Secao titulo="Como usar">
+          <Passos>
+            <span>A tela abre filtrada em <b>você</b> — a leitura mais frequente é "o que é meu".</span>
+            <span>Troque o filtro para <b>Todos</b> e ela vira a <b>pauta da reunião de produção</b>.</span>
+            <span>Marque a tarefa como concluída ali mesmo, ou clique nela para abrir o projeto na aba do check-list.</span>
+          </Passos>
         </Secao>
       </>
     ),
