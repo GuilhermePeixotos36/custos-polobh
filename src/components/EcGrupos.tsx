@@ -18,7 +18,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Input, AutoTextarea, Select, CurrencyInput, Button } from "@/components/ui";
+import { Input, AutoTextarea, Select, CurrencyInput, Button, classeCampoStatus } from "@/components/ui";
 import { IcGrip, IcChevron, IcPlus, IcEye, IcEyeOff, IcSpark, IcCheck, IcBack } from "@/components/icons";
 import { FornecedorField } from "@/components/FornecedorField";
 import { RichTextField } from "@/components/RichTextField";
@@ -80,7 +80,8 @@ function SelectComTexto({ value, onChange, className }: { value: string; onChang
       {emOutro ? (
         <Input
           autoFocus={modoOutro && !personalizado}
-          className={cx("!h-9 !pl-2 !pr-7 !text-[12.5px] !bg-[#EDEEF1]", className)}
+          // O preenchimento do status vem do esquema de cores; sem valor, o cinza de antes.
+          className={cx("!h-9 !pl-2 !pr-7 !text-[12.5px]", value ? classeCampoStatus(value) : "!bg-[#EDEEF1]", className)}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder="Outro (preencher)"
@@ -93,6 +94,7 @@ function SelectComTexto({ value, onChange, className }: { value: string; onChang
           className={cx(
             "!h-9 w-full appearance-none bg-no-repeat bg-surface border-[1.5px] border-[#BFC4CE] rounded-btn pl-2 pr-7 text-[12.5px] text-left truncate",
             value ? "text-ink" : "text-ink-3",
+            classeCampoStatus(value),
             className,
           )}
         >
@@ -278,6 +280,22 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
     commit([...grupos, { id, nome, itens: [linha] }]);
     setExpandido((e) => ({ ...e, [id]: true }));
     destacarElemento(idGrupoEc(id));
+  };
+
+  /**
+   * Move um GRUPO inteiro uma posição para cima ou para baixo.
+   *
+   * Mesmo par de setas dos itens, agora na barra do grupo: numa EC com muitos
+   * grupos, arrastar um card inteiro por cima dos outros é desconfortável, e a
+   * ordem dos grupos é justamente o que define a leitura da EC e do Excel.
+   */
+  const moverGrupo = (grupoId: string, direcao: -1 | 1) => {
+    const atual = grupos.findIndex((g) => g.id === grupoId);
+    const destino = atual + direcao;
+    if (atual < 0 || destino < 0 || destino >= grupos.length) return;
+    commit(arrayMove(grupos, atual, destino));
+    // A tela acompanha o grupo — senão ele sai de vista a cada toque na seta.
+    seguirElemento(idGrupoEc(grupoId));
   };
 
   /**
@@ -640,6 +658,7 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
                 onSelecionarItem={alternarSelecao}
                 onSelecionarGrupo={(marcar) => alternarSelecaoGrupo(g.id, marcar)}
                 onMoverItem={(itemId, direcao) => moverItem(g.id, itemId, direcao)}
+                onMoverGrupo={(direcao) => moverGrupo(g.id, direcao)}
                 onValidarFornecedor={onValidarFornecedor}              />
             ))}
           </div>
@@ -689,13 +708,14 @@ interface GrupoProps {
   onSelecionarItem: (id: string) => void;
   onSelecionarGrupo: (marcar: boolean) => void;
   onMoverItem: (itemId: string, direcao: -1 | 1) => void;
+  onMoverGrupo: (direcao: -1 | 1) => void;
   onValidarFornecedor: (cnpj: string) => Promise<string | null>;
 }
 
 function GrupoCard({
   g, aberto, primeiroGrupo, ultimoGrupo, verFinanceiro, fornecedores, usuarios, selecionados,
   onToggle, onRenomear, onAddItem, onUpdLinha, onOcultoItem, onOcultoGrupo,
-  onSelecionarItem, onSelecionarGrupo, onMoverItem, onValidarFornecedor,
+  onSelecionarItem, onSelecionarGrupo, onMoverItem, onMoverGrupo, onValidarFornecedor,
 }: GrupoProps) {
   const sortable = useSortable({ id: GID(g.id) });
   const droppable = useDroppable({ id: CID(g.id) });
@@ -749,6 +769,14 @@ function GrupoCard({
         >
           <IcGrip width={20} height={20} />
         </button>
+        {/* Mesmas setas dos itens: uma posição por vez, sem precisar arrastar o card. */}
+        <MoverSetas
+          rotulo={`o grupo ${g.nome}`}
+          podeSubir={!primeiroGrupo}
+          podeDescer={!ultimoGrupo}
+          onSubir={() => onMoverGrupo(-1)}
+          onDescer={() => onMoverGrupo(1)}
+        />
         <button onClick={onToggle} className="shrink-0 text-ink-2 hover:text-ink" title={aberto ? "Retrair" : "Expandir"}>
           <IcChevron width={20} height={20} className={cx("transition-transform duration-200", aberto && "rotate-90")} />
         </button>
@@ -982,7 +1010,7 @@ function ItemRow({
       {/* Linha 2: metadados */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-[0.7fr_2.6fr_1fr_1fr_1fr_1fr_0.7fr] items-end gap-2 px-2.5 pb-2.5 pt-1 border-t border-border-soft bg-[#FCFCFD] rounded-b-card min-w-0">
         <Campo label="Aprovação" className="w-full">
-          <Select className="!h-9 !px-2 !text-[12.5px]" value={l.statusAprovacao} onChange={(e) => onUpd({ statusAprovacao: e.target.value as StatusAprovacao })}>
+          <Select className={cx("!h-9 !px-2 !text-[12.5px]", classeCampoStatus(l.statusAprovacao))} value={l.statusAprovacao} onChange={(e) => onUpd({ statusAprovacao: e.target.value as StatusAprovacao })}>
             <option>Pendente</option>
             <option>OK</option>
           </Select>
@@ -1013,13 +1041,13 @@ function ItemRow({
           <SelectComTexto value={l.pedidoCompra} onChange={(v) => onUpd({ pedidoCompra: v })} />
         </Campo>
         <Campo label="OS" className="w-full">
-          <Select className="!h-9 !px-2 !text-[12.5px]" value={l.statusOs} onChange={(e) => onUpd({ statusOs: e.target.value as StatusOs })}>
+          <Select className={cx("!h-9 !px-2 !text-[12.5px]", classeCampoStatus(l.statusOs))} value={l.statusOs} onChange={(e) => onUpd({ statusOs: e.target.value as StatusOs })}>
             {OPCOES_STATUS_OS.map((o) => <option key={o}>{o}</option>)}
           </Select>
         </Campo>
         {/* Contrato usa exatamente a mesma lista da OS (inclui "Emitir Nova Versão"). */}
         <Campo label="Contrato" className="w-full">
-          <Select className="!h-9 !px-2 !text-[12.5px]" value={l.contratoStatus} onChange={(e) => onUpd({ contratoStatus: e.target.value as StatusOs })}>
+          <Select className={cx("!h-9 !px-2 !text-[12.5px]", classeCampoStatus(l.contratoStatus))} value={l.contratoStatus} onChange={(e) => onUpd({ contratoStatus: e.target.value as StatusOs })}>
             {OPCOES_STATUS_OS.map((o) => <option key={o}>{o}</option>)}
           </Select>
         </Campo>

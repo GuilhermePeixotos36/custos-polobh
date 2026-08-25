@@ -211,12 +211,12 @@ describe("fidelidade aos modelos de 2026 da Pólobh", () => {
     // `conditionalFormattings` existe em runtime, mas não nos tipos do ExcelJS.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const cf = (ws as any).conditionalFormattings as { ref: string; rules: unknown[] }[];
-    expect(cf).toHaveLength(1);
     // Cobre a faixa E:L só das linhas de item (a barra do grupo fica de fora).
-    expect(cf[0].ref).toBe(`E${hr + 2}:L${hr + 3}`);
+    const status = cf.find((x) => x.ref === `E${hr + 2}:L${hr + 3}`)!;
+    expect(status).toBeDefined();
     // Ao reabrir, o texto da regra fica dentro da fórmula SEARCH("...").
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const regras = (cf[0].rules as any[]).map((x) => ({
+    const regras = (status.rules as any[]).map((x) => ({
       texto: String(x.formulae?.[0] ?? "").match(/SEARCH\("([^"]+)"/)?.[1] ?? "",
       cor: x.style?.fill?.bgColor?.argb,
       priority: x.priority,
@@ -230,5 +230,31 @@ describe("fidelidade aos modelos de 2026 da Pólobh", () => {
     const iNf = regras.findIndex((x) => x.texto === "Nota Fiscal");
     const iFat = regras.findIndex((x) => x.texto === "Fatura");
     expect(regras[iNf].priority).toBeLessThan(regras[iFat].priority);
+  });
+
+  it("pinta de amarelo claro as células de valor preenchidas (> 0)", async () => {
+    const { ws, hr } = await tabela([
+      linha({ id: "a", item: "Cachê", valorPolobh: 1000 }),
+      linha({ id: "b", item: "Teatro" }),
+    ]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cf = (ws as any).conditionalFormattings as { ref: string; rules: unknown[] }[];
+    const valores = cf.find((x) => x.ref === `C${hr + 2}:D${hr + 3}`);
+    expect(valores).toBeDefined();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const regra = (valores!.rules as any[])[0];
+    expect(regra.operator).toBe("greaterThan");
+    expect(regra.formulae?.[0]).toBe("0");
+    expect(regra.style?.fill?.bgColor?.argb).toBe("FFFFEB9C"); // mesmo amarelo do "Emitir"
+  });
+
+  it("realça valores também no modelo financeiro (que não tem faixa de status)", async () => {
+    const { buffer } = await criarEcExcelBuffer(ecBase([linha({ item: "Cachê", valorPolobh: 500 })]), "financeiro");
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buffer);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cf = (wb.getWorksheet("EC") as any).conditionalFormattings as { ref: string; rules: unknown[] }[];
+    expect(cf).toHaveLength(1);
+    expect(cf[0].ref).toMatch(/^C\d+:D\d+$/);
   });
 });

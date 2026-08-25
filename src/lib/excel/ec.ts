@@ -9,7 +9,7 @@ import { calcularTotais, rotuloTaxa, tituloEc } from "@/domain/calc";
 import { dataBR } from "@/lib/format";
 import {
   COR, fill, thin, gradeAuto, baixar, salvarComPicker, carregarLogo, encaixarLogo,
-  REALCE, regraRealce,
+  REALCE, regraRealce, regraValorPreenchido,
   linhasVisuais, alturaParaLinhas, ALTURA_MAX_LINHA, FONT_BOLD, FONT_LIGHT,
 } from "./shared";
 import { nomeEcExcel } from "./nomeEc";
@@ -415,18 +415,34 @@ export async function criarEcExcelBuffer(
    * "Fatura" para "Fatura e Nota Fiscal" sair verde (o documento final já
    * existe), e "Emitir" cobre também "Emitir Nova Versão", que o contém.
    */
-  if (completa && linhasDeItem.length) {
-    // Só as linhas de item entram na faixa. Incluir as barras de grupo e os
-    // blocos de descrição faria uma descrição que cite "Pendente" acender de
-    // vermelho — o realce vale para a célula de status, não para texto corrido.
+  /**
+   * Agrupa as linhas de item em faixas contíguas ("A12:B15 A18:B20") para a
+   * formatação condicional. Só as linhas de item entram: incluir as barras de
+   * grupo e os blocos de descrição faria uma descrição que cite "Pendente"
+   * acender de vermelho — o realce vale para a célula, não para texto corrido.
+   */
+  const faixasDeItem = (colInicial: string, colFinal: string): string => {
     const faixas: string[] = [];
     for (let i = 0; i < linhasDeItem.length; i++) {
       const inicio = linhasDeItem[i];
       while (i + 1 < linhasDeItem.length && linhasDeItem[i + 1] === linhasDeItem[i] + 1) i++;
-      faixas.push(`E${inicio}:${ultimaColuna}${linhasDeItem[i]}`);
+      faixas.push(`${colInicial}${inicio}:${colFinal}${linhasDeItem[i]}`);
     }
+    return faixas.join(" ");
+  };
+
+  // Valores preenchidos (> 0) nas colunas Pólobh e Cliente saem em amarelo
+  // claro, o mesmo do "Emitir" — vale nos dois modelos, completo e financeiro.
+  if (linhasDeItem.length) {
     ws.addConditionalFormatting({
-      ref: faixas.join(" "),
+      ref: faixasDeItem("C", "D"),
+      rules: [regraValorPreenchido(REALCE.ambar, 1)],
+    });
+  }
+
+  if (completa && linhasDeItem.length) {
+    ws.addConditionalFormatting({
+      ref: faixasDeItem("E", ultimaColuna),
       rules: [
         regraRealce("Nota Fiscal", REALCE.verde, 1),
         regraRealce("Não se Aplica", REALCE.verde, 2),

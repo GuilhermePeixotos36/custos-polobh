@@ -13,7 +13,7 @@
  *   3. observações.
  */
 import { Fragment, type ReactNode } from "react";
-import { Badge, tomAprovacao } from "@/components/ui";
+import { Badge, tomDoStatus } from "@/components/ui";
 import { ObservacoesThread } from "@/components/ObservacoesPopup";
 import { idAncoraPendencia } from "@/components/NavegadorPendencias";
 import { sanitizarHtmlEditor } from "@/lib/sanitizeHtml";
@@ -67,13 +67,22 @@ export function EcItemLeitura({
       <div className="mt-3 pt-3 pb-3 border-t border-border-soft">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           {[
-            <ChipStatus key="aprovacao" rotulo="Aprovação"><Badge tom={tomAprovacao[l.statusAprovacao]}>{l.statusAprovacao}</Badge></ChipStatus>,
-            <ChipStatus key="os" rotulo="OS"><Badge tom={tomAprovacao[l.statusOs]}>{l.statusOs}</Badge></ChipStatus>,
-            <ChipStatus key="contrato" rotulo="Contrato"><Badge tom={tomAprovacao[l.contratoStatus]}>{l.contratoStatus}</Badge></ChipStatus>,
+            <ChipStatus key="aprovacao" rotulo="Aprovação"><Badge tom={tomDoStatus(l.statusAprovacao)}>{l.statusAprovacao}</Badge></ChipStatus>,
+            <ChipStatus key="os" rotulo="OS"><Badge tom={tomDoStatus(l.statusOs)}>{l.statusOs}</Badge></ChipStatus>,
+            <ChipStatus key="contrato" rotulo="Contrato"><Badge tom={tomDoStatus(l.contratoStatus)}>{l.contratoStatus}</Badge></ChipStatus>,
             <DadoInline key="fornecedor" rotulo="Fornecedor" valor={l.fornecedorRazao} extra={l.fornecedorCnpj} />,
             <DadoInline key="documento" rotulo="Documento PG" valor={l.faturaNf} />,
-            <DadoInline key="codigo" rotulo="Código de Serviço" valor={l.codigoServico} />,
-            <DadoInline key="pedido" rotulo="Pedido de Compra" valor={l.pedidoCompra} />,
+            // Mesmo esquema de cores dos status: preenchido é assunto resolvido.
+            <ChipStatus key="codigo" rotulo="Código de Serviço">
+              {l.codigoServico.trim()
+                ? <Badge tom={tomDoStatus(l.codigoServico)}>{l.codigoServico}</Badge>
+                : <span className="text-[12.5px] text-ink-3/60">—</span>}
+            </ChipStatus>,
+            <ChipStatus key="pedido" rotulo="Pedido de Compra">
+              {l.pedidoCompra.trim()
+                ? <Badge tom={tomDoStatus(l.pedidoCompra)}>{l.pedidoCompra}</Badge>
+                : <span className="text-[12.5px] text-ink-3/60">—</span>}
+            </ChipStatus>,
           ].map((campo, i) => (
             <Fragment key={campo.key}>
               {i > 0 && <span aria-hidden="true" className="h-4 w-px shrink-0 bg-border" />}
