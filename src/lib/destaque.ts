@@ -88,6 +88,16 @@ function comElemento(id: string, acao: (el: HTMLElement) => void): void {
 /** Ids podem conter ":" (ex.: "extra:uuid"); trocamos para não quebrar seletores. */
 const limpar = (id: string) => id.replace(/[^\w-]/g, "-");
 
+/**
+ * Âncora de uma pendência: o elemento que o navegador procura no DOM para rolar
+ * até ela. Vale para a linha da EC, o item do check-list e a OS — o contrato com
+ * quem renderiza é só esse `id`.
+ */
+export const idAncoraPendencia = (id: string) => `pendencia-${limpar(id)}`;
+
+/** Âncora de uma observação dentro da thread — o comentário exato que pisca. */
+export const idComentario = (id: string) => `comentario-${limpar(id)}`;
+
 export const idBlocoCronograma = (id: string) => `bloco-cronograma-${limpar(id)}`;
 export const idFaixaCronograma = (id: string) => `faixa-cronograma-${limpar(id)}`;
 export const idGrupoEc = (id: string) => `grupo-ec-${limpar(id)}`;

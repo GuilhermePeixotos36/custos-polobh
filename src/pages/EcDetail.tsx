@@ -22,7 +22,8 @@ import { useAsync } from "@/hooks/useAsync";
 import { analisarEmissaoOs, calcularTotais, agruparPorFornecedor, descritivoConsolidado, gastoPorLinhaViaOSs, numeroOs, rotuloTaxa, tituloEc, ROTULO_HONORARIOS_PADRAO, ROTULO_ENCARGOS_PADRAO } from "@/domain/calc";
 import { RentabilidadeItens } from "@/components/RentabilidadeItens";
 import { EcSubGuias, type SubGuiaEc } from "@/components/EcSubGuias";
-import { NavegadorPendencias, linhasComPendencia } from "@/components/NavegadorPendencias";
+import { NavegadorPendencias } from "@/components/NavegadorPendencias";
+import { useMinhasPendencias } from "@/store/pendencias";
 import { EcItemLeitura } from "@/components/EcItemLeitura";
 import { brl, dataBR } from "@/lib/format";
 import { gerarEcExcel } from "@/lib/excel";
@@ -51,6 +52,7 @@ export function EcDetail() {
   const papel = useAuth((s) => s.usuario?.papel);
   const { data: ec, loading } = useAsync(() => repo.ecs.obter(id), [id]);
   const { data: oss } = useAsync(() => repo.oss.porEc(id), [id]);
+  const { itens: minhasPendencias } = useMinhasPendencias();
   // Usuários do sistema — para exibir/atribuir observações dos itens.
   const { data: usuariosData } = useAsync(() => repo.auth.usuarios(), []);
   const usuarios = (usuariosData ?? []).map((u) => u.nome).filter(Boolean);
@@ -460,8 +462,9 @@ export function EcDetail() {
 
       {subaba === "ec" && (
         <div className="space-y-4">
-          {/* Pill flutuante que salta entre as observações em aberto da EC. */}
-          <NavegadorPendencias ids={linhasComPendencia(ec.linhas)} />
+          {/* Pílula flutuante que salta entre as pendências desta EC — mesmo
+              número do badge vermelho dela. */}
+          <NavegadorPendencias pendencias={minhasPendencias.filter((p) => p.ecId === ec.id)} />
           {estimativaCard}
           {ossCard}
 

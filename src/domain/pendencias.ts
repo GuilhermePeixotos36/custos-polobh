@@ -9,9 +9,19 @@
  * ponto que ainda é por PAPEL (não por pessoa fixa) é "Emitir OS", função do
  * financeiro — não há mais fluxo de aprovação do cliente (removido).
  *
- * Cada pendência declara QUEM deve agir (papeis e/ou pessoas) e ONDE ela aparece
- * (recurso da navegação, projeto, subguia, EC e/ou OS). Para adicionar uma nova
- * regra, basta empurrar mais objetos em `calcularPendencias`.
+ * QUEM VÊ O QUÊ (regra revista em 25/08/2026):
+ *   · quem foi mencionado / escolhido como responsável da observação;
+ *   · quem CRIOU a observação (cobrou alguém e precisa acompanhar);
+ *   · o Produtor Responsável do projeto — para ele conta QUALQUER pendência
+ *     nascida dentro do projeto dele, mesmo endereçada a outra pessoa. É ele
+ *     quem responde pelo projeto inteiro;
+ *   · o papel, no único ponto que ainda é por função ("Emitir OS").
+ *
+ * Cada pendência declara QUEM deve agir, ONDE ela aparece (recurso da navegação,
+ * projeto, subguia, EC e/ou OS) e — o que faz o número do badge bater com o
+ * navegador de pendências — em qual ELEMENTO da tela ela mora (`ancora`) e em
+ * qual observação exata (`observacaoId`). Para adicionar uma nova regra, basta
+ * empurrar mais objetos em `calcularPendencias`.
  */
 import type { Checklist, Ec, Os, Papel, Projeto } from "@/data/types";
 import { extrairMencoes } from "@/domain/mencoes";
@@ -30,6 +40,10 @@ export interface Pendencia {
   papeis: Papel[];
   /** Pessoas especificamente atribuídas, pelo nome cadastrado no sistema. */
   pessoas?: string[];
+  /** Quem escreveu a observação que virou pendência — ela continua na lista de quem cobrou. */
+  autor?: string;
+  /** Produtor Responsável do projeto: vê tudo o que acontece dentro do projeto dele. */
+  responsavelProjeto?: string;
   /** Recurso da navegação superior onde ela aparece (hoje sempre "projetos"). */
   recurso: "projetos";
   projetoId?: string;
@@ -38,6 +52,14 @@ export interface Pendencia {
   osId?: string;
   /** Item do check-list que originou a pendência (leva direto até ele na tela). */
   checklistItemId?: string;
+  /**
+   * Elemento da tela onde a pendência mora — id da linha da EC, do item do
+   * check-list ou da própria OS. É o que o navegador do canto inferior direito
+   * usa para rolar até ela (ver `idAncoraPendencia`).
+   */
+  ancora?: string;
+  /** Observação exata que originou a pendência: o navegador abre a thread e pisca nela. */
+  observacaoId?: string;
 }
 
 // Emitir OS é função do financeiro — único ponto ainda roteado por papel (não por pessoa fixa).
@@ -77,6 +99,12 @@ export function calcularPendencias(
     projetos.filter((p) => ["Arquivado", "Cancelado"].includes(statusProjetoAutomatico(p, ecs))).map((p) => p.id)
   );
   const encerrado = (projetoId?: string) => !!projetoId && projetoEncerrado.has(projetoId);
+  /**
+   * Produtor Responsável do projeto, carimbado em TODA pendência dele: é assim
+   * que ele passa a ver o projeto inteiro sem precisar ser mencionado em cada
+   * observação (ver `agregarPendencias`).
+   */
+  const respDe = (projetoId?: string) => (projetoId && responsavelPorProjeto.get(projetoId)) || undefined;
 
   const out: Pendencia[] = [];
 
@@ -90,11 +118,13 @@ export function calcularPendencias(
       tipo: "os.emitir",
       titulo: `Emitir OS ${os.numero}`,
       papeis: EMITE_OS,
+      responsavelProjeto: respDe(ec.projetoId),
       recurso: "projetos",
       projetoId: ec.projetoId,
       aba: "os",
       ecId: os.ecId,
       osId: os.id,
+      ancora: os.id,
     });
   }
 
@@ -114,14 +144,18 @@ export function calcularPendencias(
       out.push({
         id: `os.observacao:${os.id}:${observacao.id || indice}`,
         tipo: "os.observacao",
-        titulo: `Observação para você na OS ${os.numero}: ${resumo}`,
+        titulo: `Observação para ${[...destinatarios].join(", ")} na OS ${os.numero}: ${resumo}`,
         papeis: [],
         pessoas: [...destinatarios],
+        autor: observacao.autorNome?.trim() || undefined,
+        responsavelProjeto: respDe(ec.projetoId),
         recurso: "projetos",
         projetoId: ec.projetoId,
         aba: "os",
         ecId: os.ecId,
         osId: os.id,
+        ancora: os.id,
+        observacaoId: observacao.id || undefined,
       });
     });
   }
@@ -142,6 +176,7 @@ export function calcularPendencias(
         titulo: `Cronograma não preenchido na OS ${os.numero}`,
         papeis: [],
         pessoas: [responsavel],
+        responsavelProjeto: responsavel,
         recurso: "projetos",
         projetoId: ec.projetoId,
         aba: "cronograma",
@@ -160,11 +195,13 @@ export function calcularPendencias(
         titulo: `Credenciamento não respondido pelo fornecedor na OS ${os.numero}`,
         papeis: [],
         pessoas: [responsavel],
+        responsavelProjeto: responsavel,
         recurso: "projetos",
         projetoId: ec.projetoId,
         aba: "os",
         ecId: os.ecId,
         osId: os.id,
+        ancora: os.id,
       });
     }
   }
@@ -187,13 +224,17 @@ export function calcularPendencias(
         out.push({
           id: `ec.observacao:${ec.id}:${linha.id}:${observacao.id || indice}`,
           tipo: "ec.observacao",
-          titulo: `Observação para você em ${linha.item || linha.grupo}: ${resumo}`,
+          titulo: `Observação para ${[...destinatarios].join(", ")} em ${linha.item || linha.grupo}: ${resumo}`,
           papeis: [],
           pessoas: [...destinatarios],
+          autor: observacao.autorNome?.trim() || undefined,
+          responsavelProjeto: respDe(ec.projetoId),
           recurso: "projetos",
           projetoId: ec.projetoId,
           aba: "ec",
           ecId: ec.id,
+          ancora: linha.id,
+          observacaoId: observacao.id || undefined,
         });
       });
     }
@@ -206,6 +247,7 @@ export function calcularPendencias(
         tipo: "ec.emitirOs",
         titulo: `Emitir OS a partir da EC: ${ec.projeto.titulo || ec.numero}`,
         papeis: EMITE_OS,
+        responsavelProjeto: respDe(ec.projetoId),
         recurso: "projetos",
         projetoId: ec.projetoId,
         aba: "ec",
@@ -216,8 +258,12 @@ export function calcularPendencias(
 
   // ---------------------------------------------------------------- check-list
   // Duas cobranças: a observação endereçada a alguém (igual à da EC) e a tarefa
-  // que venceu ou está vencendo. A segunda é a razão de existir do módulo — é o
-  // que troca a cobrança informal por um aviso no quadro de pendências.
+  // cujo prazo é HOJE ou já passou. A segunda é a razão de existir do módulo — é
+  // o que troca a cobrança informal por um aviso no quadro de pendências.
+  //
+  // O corte é hoje, e não "os próximos 3 dias" (regra revista em 25/08/2026):
+  // pendência é o que precisa de ação agora. O que ainda tem prazo aparece na
+  // Agenda e nos avisos do check-list, sem inflar o badge vermelho.
   for (const checklist of checklists) {
     if (!checklist.projetoId || encerrado(checklist.projetoId)) continue;
     const responsavelProjeto = responsavelPorProjeto.get(checklist.projetoId)?.trim() ?? "";
@@ -237,18 +283,22 @@ export function calcularPendencias(
         out.push({
           id: `checklist.observacao:${item.id}:${observacao.id}`,
           tipo: "checklist.observacao",
-          titulo: `Observação para você em ${nomeItem}: ${resumo}`,
+          titulo: `Observação para ${[...destinatarios].join(", ")} em ${nomeItem}: ${resumo}`,
           papeis: [],
           pessoas: [...destinatarios],
+          autor: observacao.autorNome?.trim() || undefined,
+          responsavelProjeto: responsavelProjeto || undefined,
           recurso: "projetos",
           projetoId: checklist.projetoId,
           aba: "checklist",
           checklistItemId: item.id,
+          ancora: item.id,
+          observacaoId: observacao.id || undefined,
         });
       }
 
       const situacao = situacaoPrazo(item, hojeIso);
-      if (situacao !== "atrasado" && situacao !== "hoje" && situacao !== "proximo") continue;
+      if (situacao !== "atrasado" && situacao !== "hoje") continue;
       // Sem responsável no item, quem responde é o produtor do projeto — a
       // tarefa não pode ficar órfã só porque ninguém foi nomeado nela.
       const dono = item.responsavel?.trim() || responsavelProjeto;
@@ -256,16 +306,15 @@ export function calcularPendencias(
       out.push({
         id: `checklist.prazo:${item.id}`,
         tipo: situacao === "atrasado" ? "checklist.atrasado" : "checklist.vencendo",
-        titulo:
-          situacao === "atrasado"
-            ? `Tarefa atrasada: ${nomeItem}`
-            : `Tarefa vencendo: ${nomeItem}`,
+        titulo: situacao === "atrasado" ? `Tarefa atrasada: ${nomeItem}` : `Tarefa para hoje: ${nomeItem}`,
         papeis: [],
         pessoas: [dono],
+        responsavelProjeto: responsavelProjeto || undefined,
         recurso: "projetos",
         projetoId: checklist.projetoId,
         aba: "checklist",
         checklistItemId: item.id,
+        ancora: item.id,
       });
     }
   }
@@ -282,6 +331,7 @@ export function calcularPendencias(
       titulo: `Projeto sem estimativa: ${p.nome || "Projeto"}`,
       papeis: [],
       pessoas: [responsavel],
+      responsavelProjeto: responsavel,
       recurso: "projetos",
       projetoId: p.id,
       aba: "ec",
@@ -307,10 +357,31 @@ function normalizarPessoa(valor: string): string {
   return valor.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
 }
 
+/**
+ * Filtra as pendências que são DESTA pessoa. Quatro portas, nesta ordem de leitura:
+ *
+ *  1. o papel — só para "Emitir OS", o único ponto ainda roteado por função;
+ *  2. ela foi mencionada/escolhida na observação;
+ *  3. ela ESCREVEU a observação — quem cobrou acompanha até resolver;
+ *  4. ela é o Produtor Responsável do projeto — e aí conta qualquer pendência
+ *     nascida ali dentro, mesmo endereçada a outra pessoa.
+ *
+ * A porta 4 é o que estava faltando: o responsável via um número maior no badge
+ * (as pendências do projeto dele) e não conseguia achá-las na tela, porque o
+ * navegador só varria as observações da EC aberta. Agora badge e navegador saem
+ * exatamente da mesma lista.
+ */
 export function agregarPendencias(itens: Pendencia[], papel: Papel | undefined, pessoa?: string): PendenciasAgregadas {
   const nome = pessoa ? normalizarPessoa(pessoa) : "";
+  const souEu = (valor?: string) => !!nome && !!valor && normalizarPessoa(valor) === nome;
   const meus = papel
-    ? itens.filter((p) => p.papeis.includes(papel) || (!!nome && p.pessoas?.some((n) => normalizarPessoa(n) === nome)))
+    ? itens.filter(
+        (p) =>
+          p.papeis.includes(papel) ||
+          p.pessoas?.some(souEu) ||
+          souEu(p.autor) ||
+          souEu(p.responsavelProjeto)
+      )
     : [];
   const inc = (obj: Record<string, number>, k: string) => (obj[k] = (obj[k] ?? 0) + 1);
   const ag: PendenciasAgregadas = {

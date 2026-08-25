@@ -37,7 +37,9 @@ import { brl, cx, dataBR, dataHoraBR, maskCpfCnpjInput } from "@/lib/format";
 import { useAuth } from "@/store/auth";
 import { toast } from "@/store/toast";
 import { confirmar } from "@/store/confirm";
-import { usePendencias } from "@/store/pendencias";
+import { usePendencias, useMinhasPendencias } from "@/store/pendencias";
+import { NavegadorPendencias } from "@/components/NavegadorPendencias";
+import { idAncoraPendencia } from "@/lib/destaque";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import type {
   DocumentoFiscal,
@@ -277,6 +279,8 @@ export function OsForm() {
 
   const sujo = !!os && baseline !== "" && JSON.stringify(os) !== baseline;
   const guard = useUnsavedGuard(sujo);
+  // Pendências desta OS — mesma lista que alimenta o badge vermelho dela.
+  const { itens: pendenciasDoUsuario } = useMinhasPendencias();
 
   if (!os || !ecCtx) return <PageShell title="Carregando…">{null}</PageShell>;
 
@@ -714,8 +718,11 @@ export function OsForm() {
           </LinhaOs>
 
           <LinhaOs label="Observações Gerais">
-            <div className="py-1 -mx-1">
+            {/* Âncora da OS para o navegador de pendências (as observações da OS
+                são pendências como as da EC). */}
+            <div className="py-1 -mx-1" id={idAncoraPendencia(os.id)}>
               <ObservacoesThread
+                ancora={os.id}
                 observacoes={os.observacoes}
                 usuarios={usuarios}
                 onChange={(observacoes) => setOs((o) => (o ? { ...o, observacoes } : o))}
@@ -989,6 +996,9 @@ export function OsForm() {
           </CardOs>
         )}
       </div>
+
+      {/* Mesma pílula da EC: o número aqui é o do badge desta OS. */}
+      <NavegadorPendencias pendencias={pendenciasDoUsuario.filter((p) => p.osId === os.id)} />
     </PageShell>
   );
 

@@ -38,7 +38,8 @@ import { corrigirMaiusculas, corrigirMaiusculasHtml } from "@/lib/correcaoOrtogr
 import { useAuth } from "@/store/auth";
 import { RentabilidadeItens } from "@/components/RentabilidadeItens";
 import { EcGrupos } from "@/components/EcGrupos";
-import { NavegadorPendencias, linhasComPendencia } from "@/components/NavegadorPendencias";
+import { NavegadorPendencias } from "@/components/NavegadorPendencias";
+import { useMinhasPendencias } from "@/store/pendencias";
 import { EcSubGuias, type SubGuiaEc } from "@/components/EcSubGuias";
 import { flags } from "@/lib/flags";
 import { toast } from "@/store/toast";
@@ -135,6 +136,7 @@ export function EcForm() {
   const produtoresResponsaveis = useResponsaveis(usuariosData);
   // OS's desta EC — alimentam automaticamente o "Gasto" da rentabilidade por item.
   const { data: ossData } = useAsync(() => (id ? repo.oss.porEc(id) : Promise.resolve([])), [id]);
+  const { itens: minhasPendencias } = useMinhasPendencias();
 
   // inicia o formulário e registra a "foto" base para detectar alterações
   const iniciar = (e: Ec) => {
@@ -202,7 +204,12 @@ export function EcForm() {
     [ec, ossData]
   );
   // Itens com observação em aberto — alimentam o navegador de pendências.
-  const idsPendencias = useMemo(() => linhasComPendencia(ec?.linhas ?? []), [ec?.linhas]);
+  // Pendências desta EC — a MESMA lista do badge vermelho da EC (ver
+  // `agregarPendencias`), e não mais "toda observação em aberto que existir aqui".
+  const pendenciasDaEc = useMemo(
+    () => minhasPendencias.filter((p) => p.ecId === id),
+    [minhasPendencias, id]
+  );
 
   /**
    * Publica a altura real da barra de ações em `--altura-barra-ec`.
@@ -437,8 +444,8 @@ export function EcForm() {
 
       <EcSubGuias atual={subaba} onChange={setSubaba} temResumo={verFinanceiro} temRentabilidade={verFinanceiro} />
 
-      {/* Pill flutuante que salta entre as observações em aberto da EC. */}
-      {subaba === "ec" && <NavegadorPendencias ids={idsPendencias} />}
+      {/* Pílula flutuante que salta entre as pendências desta EC. */}
+      {subaba === "ec" && <NavegadorPendencias pendencias={pendenciasDaEc} />}
 
       {verFinanceiro && subaba === "resumo" && <div className="space-y-4">{resumoCard}</div>}
       {verFinanceiro && subaba === "rentabilidade" && <div className="space-y-4">{rentabilidadeCard}</div>}

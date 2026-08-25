@@ -26,8 +26,8 @@ import { ObservacoesThread } from "@/components/ObservacoesPopup";
 import { ResumoPropostaModal } from "@/components/ResumoPropostaModal";
 import { NotifDot } from "@/components/NotifDot";
 import { MoverSetas } from "@/components/MoverSetas";
-import { idAncoraPendencia } from "@/components/NavegadorPendencias";
-import { destacarElemento, seguirElemento, idGrupoEc } from "@/lib/destaque";
+
+import { destacarElemento, seguirElemento, idAncoraPendencia, idGrupoEc } from "@/lib/destaque";
 import { aprovarLinha, faltasParaEmitirOs, reverterAprovacaoLinha } from "@/domain/calc";
 import { flags } from "@/lib/flags";
 import { brl, cx } from "@/lib/format";
@@ -1054,6 +1054,7 @@ function ItemRow({
       </div>
 
       <ObservacoesThread
+        ancora={l.id}
         observacoes={l.observacoes}
         usuarios={usuarios}
         onChange={(obs: Observacao[]) => onUpd({ observacoes: obs })}

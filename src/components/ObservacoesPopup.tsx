@@ -1,8 +1,10 @@
-import { useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { Button, Select } from "@/components/ui";
 import { IcComment, IcChevron, IcPencil, IcTrash, IcSend } from "@/components/icons";
 import { cx, dataHoraBR } from "@/lib/format";
+import { destacarElemento, idAncoraPendencia, idComentario } from "@/lib/destaque";
+import { alvoPendente, aoFocarPendencia, destacarComentario } from "@/lib/focoPendencia";
 import { regexMencoes } from "@/domain/mencoes";
 import { useAuth } from "@/store/auth";
 import type { Observacao, RespostaObservacao } from "@/data/types";
@@ -13,6 +15,12 @@ interface Props {
   onChange: (obs: Observacao[]) => void;
   /** Ajusta o espaçamento do rodapé ao contêiner que o recebe (ex.: `!px-0`). */
   className?: string;
+  /**
+   * Id do item dono desta thread (linha da EC, tarefa do check-list, OS). Com
+   * ele, o navegador de pendências consegue abrir esta thread e piscar o
+   * comentário exato — ver `focoPendencia`.
+   */
+  ancora?: string;
 }
 
 const novoId = () => globalThis.crypto?.randomUUID?.() ?? `obs-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -49,11 +57,39 @@ type ComporState =
   | { modo: "responder"; id: string }
   | null;
 
-export function ObservacoesThread({ observacoes, usuarios, onChange, className }: Props) {
+export function ObservacoesThread({ observacoes, usuarios, onChange, className, ancora }: Props) {
   const usuarioAtual = useAuth((s) => s.usuario);
   const nomeAtual = usuarioAtual?.nome ?? "";
   const [aberto, setAberto] = useState(false);
   const [compor, setCompor] = useState<ComporState>(null);
+
+  /**
+   * O navegador de pendências saltou para este item: abre a thread (ela nasce
+   * retraída) e faz o comentário da pendência latejar em vermelho. Sem isto, a
+   * pessoa chegava ao item certo e ainda precisava caçar qual dos comentários
+   * era a pendência.
+   */
+  useEffect(() => {
+    if (!ancora) return;
+    const atender = (alvo: { ancora: string; observacaoId?: string }) => {
+      setAberto(true);
+      // O comentário só existe no DOM depois que a thread abre — o próprio
+      // `destacarElemento` reespera alguns quadros por ele.
+      if (alvo.observacaoId) destacarComentario(alvo.observacaoId);
+    };
+    // Salto disparado de OUTRA tela (ex.: a pendência de uma EC clicada a partir
+    // do projeto): ele ficou guardado até esta thread existir.
+    const guardado = alvoPendente(ancora);
+    if (guardado) {
+      destacarElemento(idAncoraPendencia(ancora), "pendencia");
+      atender(guardado);
+    }
+    return aoFocarPendencia((alvo) => {
+      if (alvo.ancora !== ancora) return false;
+      atender(alvo);
+      return true;
+    });
+  }, [ancora]);
 
   const validas = observacoes.filter((o) => o.texto.trim());
   const n = validas.length;
@@ -224,7 +260,10 @@ function ComentarioLinha({
 }) {
   const respostas = o.respostas ?? [];
   return (
-    <div className={cx("group rounded-btn border px-2.5 py-2", o.resolvida ? "border-border-soft bg-[#FAFAFB] opacity-80" : "border-border-soft")}>
+    <div
+      id={idComentario(o.id)}
+      className={cx("group rounded-btn border px-2.5 py-2", o.resolvida ? "border-border-soft bg-[#FAFAFB] opacity-80" : "border-border-soft")}
+    >
       <div className="flex items-baseline gap-2 flex-wrap">
         <span className="text-[12.5px] font-bold text-ink">{o.autorNome || "Usuário"}</span>
         {o.responsavelNome && (

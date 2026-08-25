@@ -1,67 +1,80 @@
 /**
- * Navegador de pendências da EC.
+ * Navegador de pendências — a pílula flutuante do canto inferior direito.
  *
- * Uma EC longa pode ter observações em aberto espalhadas por dezenas de itens, e
- * até aqui só dava para achá-las rolando a tela. Esta pill flutuante mostra
- * quantas existem e salta de uma para a outra com as setas ▲ / ▼: o item entra
- * na tela e "lateja" duas vezes, devagar, marcando onde a rolagem parou.
+ * O número dela é EXATAMENTE o mesmo do badge vermelho da tela em que está: as
+ * duas leituras saem da mesma lista (`useMinhasPendencias`), recortada pelo que
+ * a tela mostra. Antes não era assim — o badge contava as pendências da pessoa
+ * (inclusive as do projeto pelo qual ela responde) e a pílula varria só as
+ * observações em aberto da EC aberta. Quem era Produtor Responsável via um
+ * número que não conseguia localizar.
+ *
+ * As setas ▲ / ▼ saltam de uma para a outra: a tela rola até o item, ele "lateja"
+ * duas vezes e, quando a pendência é um comentário, a thread daquele item se
+ * abre e o comentário exato pisca em vermelho (ver `focarPendencia`).
  *
  * O contrato com quem renderiza os itens é só um: cada item precisa ter
- * `id={idAncoraPendencia(linhaId)}`.
+ * `id={idAncoraPendencia(id)}`.
  */
 import { useEffect, useState } from "react";
 import { IcChevron, IcComment } from "@/components/icons";
-import { destacarElemento } from "@/lib/destaque";
+import { focarPendencia } from "@/lib/focoPendencia";
 import { cx } from "@/lib/format";
-import type { EcLinha } from "@/data/types";
+import type { Pendencia } from "@/domain/pendencias";
 
-/** Id do elemento que o navegador procura no DOM para rolar até o item. */
-export const idAncoraPendencia = (linhaId: string) => `pendencia-${linhaId}`;
-
-/** Uma observação em aberto (não resolvida, com texto) é uma pendência do item. */
-export const temPendencia = (l: EcLinha) => (l.observacoes ?? []).some((o) => !o.resolvida && o.texto.trim());
-
-/** Ids das linhas com pendência, na ordem em que aparecem na tela. */
-export function linhasComPendencia(linhas: EcLinha[]): string[] {
-  return linhas.filter((l) => !l.oculto && temPendencia(l)).map((l) => l.id);
-}
-
-export function NavegadorPendencias({ ids }: { ids: string[] }) {
+export function NavegadorPendencias({
+  pendencias,
+  aoSaltar,
+}: {
+  pendencias: Pendencia[];
+  /**
+   * Chance de a tela tratar o salto por conta própria — usada no projeto, onde a
+   * pendência de uma EC/OS mora em outra tela e o salto vira uma navegação. O
+   * alvo fica guardado em `focoPendencia` e a tela de destino o consome ao abrir.
+   */
+  aoSaltar?: (pendencia: Pendencia) => void;
+}) {
   const [posicao, setPosicao] = useState(0);
 
   // A lista muda conforme observações são resolvidas/criadas: o índice precisa
   // acompanhar, senão as setas apontariam para uma pendência que já não existe.
   useEffect(() => {
-    setPosicao((p) => (ids.length === 0 ? 0 : Math.min(p, ids.length - 1)));
-  }, [ids.length]);
+    setPosicao((p) => (pendencias.length === 0 ? 0 : Math.min(p, pendencias.length - 1)));
+  }, [pendencias.length]);
 
-  if (!ids.length) return null;
+  if (!pendencias.length) return null;
+
+  const atual = pendencias[Math.min(posicao, pendencias.length - 1)];
 
   const irPara = (indice: number) => {
-    const alvo = (indice + ids.length) % ids.length; // circular: do fim volta ao início
+    const alvo = (indice + pendencias.length) % pendencias.length; // circular: do fim volta ao início
     setPosicao(alvo);
-    destacarElemento(idAncoraPendencia(ids[alvo]), "pendencia");
+    const p = pendencias[alvo];
+    if (p.ancora) focarPendencia({ ancora: p.ancora, observacaoId: p.observacaoId });
+    aoSaltar?.(p);
   };
 
   return (
     <div
-      className="fixed right-5 bottom-5 z-40 flex items-center gap-2 rounded-pill border border-danger/30 bg-white px-3 py-2 shadow-modal"
+      className="fixed right-5 bottom-5 z-40 flex items-center gap-2 rounded-card border border-danger/30 bg-white px-3 py-2 shadow-modal max-w-[min(28rem,calc(100vw-2.5rem))]"
       role="group"
-      aria-label="Navegar pelas pendências da EC"
+      aria-label="Navegar pelas pendências desta tela"
     >
       <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-danger text-white shrink-0">
         <IcComment width={14} height={14} />
       </span>
-      <div className="leading-tight">
+      <div className="leading-tight min-w-0">
         <div className="text-[12.5px] font-extrabold text-ink whitespace-nowrap">
-          {ids.length} {ids.length === 1 ? "pendência" : "pendências"}
+          {pendencias.length} {pendencias.length === 1 ? "pendência" : "pendências"}
+          <span className="font-bold text-ink-3"> · {posicao + 1} de {pendencias.length}</span>
         </div>
-        <div className="text-[11px] text-ink-3 whitespace-nowrap">
-          {posicao + 1} de {ids.length}
+        {/* O título vem junto: pendência sem lugar para rolar (emitir OS, projeto
+            sem EC) pelo menos se identifica, em vez de virar um número mudo. */}
+        <div className="text-[11px] text-ink-2 truncate" title={atual.titulo}>
+          {atual.titulo}
         </div>
       </div>
       {/* Setas empilhadas: ▲ em cima de ▼, como um seletor de posição. */}
-      <div className="flex flex-col">
+      <div className="flex flex-col ml-auto shrink-0">
         <SetaPendencia direcao="anterior" onClick={() => irPara(posicao - 1)} />
         <SetaPendencia direcao="proxima" onClick={() => irPara(posicao + 1)} />
       </div>

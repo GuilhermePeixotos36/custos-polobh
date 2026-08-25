@@ -15,7 +15,8 @@
 import { Fragment, type ReactNode } from "react";
 import { Badge, tomDoStatus } from "@/components/ui";
 import { ObservacoesThread } from "@/components/ObservacoesPopup";
-import { idAncoraPendencia } from "@/components/NavegadorPendencias";
+import { idAncoraPendencia } from "@/lib/destaque";
+
 import { sanitizarHtmlEditor } from "@/lib/sanitizeHtml";
 import { brl, cx } from "@/lib/format";
 import type { EcLinha, Observacao } from "@/data/types";
@@ -93,7 +94,7 @@ export function EcItemLeitura({
       </div>
 
       {/* Rodapé alinhado ao conteúdo do item (o padding lateral já vem do contêiner). */}
-      <ObservacoesThread className="!px-0" observacoes={l.observacoes} usuarios={usuarios} onChange={onObservacoes} />
+      <ObservacoesThread ancora={l.id} className="!px-0" observacoes={l.observacoes} usuarios={usuarios} onChange={onObservacoes} />
     </div>
   );
 }

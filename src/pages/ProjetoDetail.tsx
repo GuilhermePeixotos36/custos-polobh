@@ -9,6 +9,7 @@ import { IcPlus, IcBack, IcDownload, IcSearch, IcTrash, IcEye, IcEyeOff, IcDoc, 
 import { RichTextField } from "@/components/RichTextField";
 import { TimelineConsolidada, type ItemConsolidado } from "@/components/Timeline";
 import { NotifDot } from "@/components/NotifDot";
+import { NavegadorPendencias } from "@/components/NavegadorPendencias";
 import { ThPendencias, TdPendencias } from "@/components/ColunaPendencias";
 import { MoverSetas, moverNaLista } from "@/components/MoverSetas";
 import { ListaArrastavel, ItemArrastavel } from "@/components/ListaArrastavel";
@@ -33,6 +34,7 @@ import { confirmar } from "@/store/confirm";
 import { corrigirRoteirosProjeto } from "@/lib/correcaoOrtografica";
 import { statusProjetoAutomatico } from "@/domain/statusProjeto";
 import type { Cliente, Ec, EcLinha, Projeto, ProjetoInfo, StatusProjeto } from "@/data/types";
+import type { Pendencia } from "@/domain/pendencias";
 
 const tomStatusProjeto: Record<StatusProjeto, Tom> = {
   Ativo: "success", Arquivado: "neutral", Concluido: "info", Cancelado: "danger",
@@ -49,11 +51,13 @@ const projetoVazio = (): Projeto => ({
 });
 
 type Aba = "dados" | "ec" | "os" | "checklist" | "cronograma" | "fornecedores";
+// O check-list vem logo depois de Dados Gerais: é a aba de acompanhamento diário
+// do projeto, consultada muito mais vezes que EC e OS (pedido de 25/08/2026).
 const ABAS: { key: Aba; label: string }[] = [
   { key: "dados", label: "Dados Gerais" },
+  { key: "checklist", label: "Check-list" },
   { key: "ec", label: "EC" },
   { key: "os", label: "OS" },
-  { key: "checklist", label: "Check-list" },
   { key: "cronograma", label: "Cronograma" },
   { key: "fornecedores", label: "Fornecedores" },
 ];
@@ -71,7 +75,7 @@ export function ProjetoDetail() {
   const novo = id === "novo";
   const abaParam = params.get("aba");
   const abaInicial: Aba = ABAS.some((a) => a.key === abaParam) ? (abaParam as Aba) : "dados";
-  const { porAba, porOs, porEc } = useMinhasPendencias();
+  const { porAba, porOs, porEc, itens: minhasPendencias } = useMinhasPendencias();
   const podeEditarProjeto = useAuth((s) => s.pode("projetos.editar"));
   const podeEditarChecklist = useAuth((s) => s.pode("checklists.editar"));
 
@@ -382,6 +386,29 @@ export function ProjetoDetail() {
       throw new Error(`Não foi possível arquivar os dados do cliente: ${(erro as Error).message}`);
     }
   }
+
+  /**
+   * Pendências da ABA aberta — exatamente o número do badge vermelho dela. O
+   * navegador flutuante e o badge saem da mesma lista, então tudo o que é
+   * contado pode ser encontrado.
+   */
+  const pendenciasDaAba = useMemo(
+    () => minhasPendencias.filter((x) => x.projetoId === id && x.aba === aba),
+    [minhasPendencias, id, aba]
+  );
+
+  /**
+   * A pendência de uma EC ou de uma OS mora na tela dela, não aqui: o salto vira
+   * navegação. O alvo já ficou guardado em `focoPendencia`, e a tela de destino
+   * abre a observação certa assim que carregar.
+   */
+  const saltarParaPendencia = (pendencia: Pendencia) => {
+    if (pendencia.ecId && (pendencia.aba === "ec" || !pendencia.osId)) {
+      navigate(`/estimativas/${pendencia.ecId}`);
+      return;
+    }
+    if (pendencia.osId) navigate(`/ordens/${pendencia.osId}`);
+  };
 
   const camposObrigatoriosFaltando = () => camposObrigatoriosProjeto(p.info, p.cliente);
 
@@ -953,6 +980,9 @@ export function ProjetoDetail() {
           <TimelineConsolidada itens={etapas} />
         </Card>
       )}
+
+      {/* Pílula flutuante: as pendências da aba aberta, uma a uma. */}
+      {!novo && <NavegadorPendencias pendencias={pendenciasDaAba} aoSaltar={saltarParaPendencia} />}
 
       {aba === "fornecedores" && (
         <Card padded={false}>

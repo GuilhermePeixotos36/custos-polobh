@@ -13,7 +13,8 @@ import { Badge, Button, Card, EmptyState, Input, ProgressBar, Select, type Tom }
 import { IcCheck, IcPlus, IcEye, IcEyeOff, IcCalendar, IcTrash } from "@/components/icons";
 import { ObservacoesThread } from "@/components/ObservacoesPopup";
 import { NotifDot } from "@/components/NotifDot";
-import { idAncoraPendencia } from "@/components/NavegadorPendencias";
+import { idAncoraPendencia } from "@/lib/destaque";
+
 import {
   agruparPorData,
   atrasoNaConclusao,
@@ -452,7 +453,7 @@ function ItemCard({
               <ConclusaoDoItem item={item} podeEditar={podeEditar} onAlterar={onAlterar} />
             )}
             <div className="ml-auto flex items-center gap-1">
-              <ObservacoesThread observacoes={item.observacoes ?? []} usuarios={usuarios} onChange={onObservacoes} />
+              <ObservacoesThread ancora={item.id} observacoes={item.observacoes ?? []} usuarios={usuarios} onChange={onObservacoes} />
               {podeEditar && (
                 <button
                   type="button"
