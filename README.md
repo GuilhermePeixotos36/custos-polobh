@@ -120,13 +120,31 @@ Banco: `checklist_modelos`, `checklists`, `checklist_itens` (migração
   faturamentos) e os campos calculados da OS (valor a pagar, BV) saem como
   **fórmulas de Excel** — se a Marisa editar um valor na planilha baixada, tudo
   recalcula sozinho, como na planilha antiga dela.
+- **Layout da EC** (medido célula a célula nos modelos de 2026, em `/reference`):
+  corpo **11pt em tudo** (só o título do documento é 16), grade fina, faixas
+  CLIENTE/PROJETO em cinza `D9D9D9`, ESTIMATIVA DE CUSTOS e Valor Total Bruto em
+  âmbar `FFC000`, e realce de status por formatação condicional (acompanha a
+  edição na planilha baixada).
+- **Cada item é um BLOCO fechado:** todas as colunas do item são mescladas na
+  vertical e o descritivo fica **só na coluna B** — Descrição (principal),
+  Descrição Completa e observações, um pedaço por linha. O bloco leva moldura
+  (`medium`) nos quatro lados, para um item não se confundir com o seguinte.
+- **Nada é cortado:** a altura de cada linha sai do conteúdo real e a largura das
+  colunas de valor/status/documentação cresce quando precisa (as do modelo são o
+  piso; A e B ficam fixas porque quebram texto). Como a altura de linha do Excel
+  para em **409,5pt**, o texto que passaria disso é repartido em quantas células
+  forem necessárias (`quebrarPorAltura`) — quem abre a planilha não precisa
+  arrastar borda nenhuma.
 - **Impressão:** área de impressão definida, ajuste à largura da página e
   cabeçalho da tabela de custos repetido em todas as páginas da EC.
 - O template original da OS (`public/templates/OS_template.xlsx`) e a planilha
   `.xls` da EC ficam em `/reference` apenas como **referência de conteúdo** —
   não são mais preenchidos (eram formulários internos, visualmente pobres).
-- **Exemplos:** `npm run gerar:exemplos` gera `exemplos/EC_exemplo.xlsx` e
-  `exemplos/OS_exemplo.xlsx` para conferência (espelham o gerador do app).
+- **Exemplos:** `npm run gerar:exemplos` gera `exemplos/EC_exemplo.xlsx`,
+  `exemplos/EC_exemplo_financeiro.xlsx` e `exemplos/OS_exemplo.xlsx` para
+  conferência. O script **chama o gerador do app** (carregado pelo Vite), não uma
+  cópia: a cópia que existia apodreceu e os exemplos saíam com o layout de 2022
+  muito depois de o app ter migrado.
 - **PDF:** `baixarPdfViaImpressao()` usa a impressão do navegador (`window.print`)
   sobre a visualização em tela. Estilos `@media print` em `src/index.css`.
 - ExcelJS é carregado **sob demanda** (code-splitting) — não pesa no load inicial.

@@ -6,11 +6,12 @@
 import ExcelJS from "exceljs";
 import type { Ec } from "@/data/types";
 import { calcularTotais, rotuloTaxa, tituloEc } from "@/domain/calc";
-import { dataBR } from "@/lib/format";
+import { brl, dataBR } from "@/lib/format";
 import {
-  COR, fill, thin, gradeAuto, baixar, salvarComPicker, carregarLogo, encaixarLogo,
+  COR, fill, gradeAuto, baixar, salvarComPicker, carregarLogo, encaixarLogo,
   REALCE, regraRealce, regraValorPreenchido,
-  linhasVisuais, alturaParaLinhas, ALTURA_MAX_LINHA, FONT_BOLD, FONT_LIGHT,
+  linhasVisuais, alturaParaLinhas, larguraParaTexto, quebrarPorAltura,
+  FONT_BOLD, FONT_LIGHT,
 } from "./shared";
 import { nomeEcExcel } from "./nomeEc";
 
@@ -24,8 +25,6 @@ import { nomeEcExcel } from "./nomeEc";
 const COLS_DESTAQUE = new Set(["E", "F", "G", "H", "I", "J"]);
 
 const COLS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
-
-const ALTURA_MAX = ALTURA_MAX_LINHA;
 
 /** Formato de moeda dos totais (barra invertida = espaço fixo após o R$). */
 const FORMATO_MOEDA = '"R$"\ #,##0.00';
@@ -65,11 +64,36 @@ const ALINHAMENTO_ITEM: Record<string, "left" | "center" | "distributed"> = {
 /** Altura mínima da linha de item nos modelos de 2026. */
 const ALTURA_ITEM = 16.5;
 
-/** Corpo da EC: 11pt, como nos modelos (a página se ajusta por fitToWidth). */
+/**
+ * Corpo da EC: 11pt em TUDO — é o corpo do modelo da casa, e misturar tamanhos
+ * (o "Item" um ponto maior, as notas de rodapé menores) deixava a planilha com
+ * cara de remendo. Só o título do documento foge disso.
+ */
 const PT_CORPO = 11;
 
-/** Coluna "Item": 12pt em negrito nos modelos, um ponto acima do resto. */
-const PT_ITEM = 12;
+/** Pontos por linha visual de texto em 11pt — base do cálculo de altura. */
+const PT_LINHA = PT_CORPO + 3;
+
+/**
+ * Moldura que FECHA cada item por todos os lados.
+ *
+ * Um item ocupa várias linhas da planilha (descritivo principal, descrição
+ * completa, observações), e sem a moldura não dava para ver onde um termina e o
+ * outro começa: virava uma parede de texto com grade uniforme.
+ */
+const MOLDURA: ExcelJS.BorderStyle = "medium";
+
+/**
+ * Teto de largura de cada coluna no ajuste automático.
+ *
+ * As larguras do modelo entram como PISO; uma coluna só cresce quando o
+ * conteúdo real não caberia nela — é o que evita a pessoa ter de arrastar a
+ * borda da coluna para ler um CNPJ ou um valor. O teto existe para a página
+ * continuar cabendo na largura da folha.
+ */
+const LARGURA_MAX: Record<string, number> = {
+  C: 20, D: 20, E: 18, F: 34, G: 22, H: 16, I: 18, J: 22, K: 18, L: 18,
+};
 
 /** Título fixo do documento — o número/título da EC vai na linha "Número EC | Orçamento". */
 const TITULO_DOCUMENTO = "Estimativa de Custos | Proposta Comercial";
@@ -111,29 +135,55 @@ export async function criarEcExcelBuffer(
     views: [{ showGridLines: false }],
   });
 
+  // Corpo em 11pt nos dois modelos, como na planilha da casa. As 13 colunas
+  // cabem na página pelo fitToWidth do pageSetup, sem encolher a fonte.
+  const PT = PT_CORPO;
+
+  const t = calcularTotais(ec.linhas, ec.producao, ec.honorarios, ec.encargos);
+
   // Larguras lidas do <cols> dos modelos de 2026 (os dois arquivos são iguais).
   // O modelo "financeiro" fica com as quatro primeiras — é o recorte que vai
   // para o cliente, sem a faixa de documentação.
   const widths = completa
     ? [29.75, 72.875, 15.625, 15.625, 14.75, 12.25, 10.125, 9.5, 13.5, 16.125, 12.875, 12.875]
     : [29.75, 72.875, 15.625, 15.625];
+
+  /**
+   * Ajuste automático das colunas de valor, status e documentação.
+   *
+   * As larguras do modelo são o PISO; uma coluna só cresce quando o conteúdo
+   * real não caberia nela — CNPJ, razão social do fornecedor e valores grandes
+   * eram exatamente o que obrigava a pessoa a arrastar a borda da coluna (ou
+   * pior, mostrava "#######"). A e B ficam nas medidas do modelo: elas quebram
+   * o texto, e quem dá conta do conteúdo lá é a ALTURA da linha.
+   *
+   * É feito aqui, antes de escrever, porque toda altura de linha depende da
+   * largura final da coluna.
+   */
+  const itensVisiveis = ec.linhas.filter((l) => !l.oculto);
+  const conteudoDaColuna: Record<string, string[]> = {
+    C: ["Pólobh", brl(t.valorTotalBruto), ...itensVisiveis.map((l) => brl(l.valorPolobh))],
+    D: ["Cliente", brl(t.somaCliente), ...itensVisiveis.map((l) => brl(l.valorCliente))],
+    E: ["Status Aprovação", ...itensVisiveis.map((l) => l.statusAprovacao)],
+    F: ["Fornecedor", "(Razão Social)", ...itensVisiveis.map((l) => l.fornecedorRazao)],
+    G: ["Fornecedor", "(CNPJ)", ...itensVisiveis.map((l) => l.fornecedorCnpj)],
+    H: ["Fatura ou", "Nota Fiscal", ...itensVisiveis.map((l) => l.faturaNf)],
+    I: ["Código Serviço", ...itensVisiveis.map((l) => l.codigoServico)],
+    J: ["Pedido de Compra", ...itensVisiveis.map((l) => l.pedidoCompra)],
+    K: ["OS", ...itensVisiveis.map((l) => l.statusOs)],
+    L: ["Contrato", ...itensVisiveis.map((l) => l.contratoStatus)],
+  };
+  for (const [col, textos] of Object.entries(conteudoDaColuna)) {
+    const i = COLS.indexOf(col);
+    if (i < 0 || i >= widths.length) continue;
+    widths[i] = textos.reduce((larg, txt) => larguraParaTexto(txt, larg, LARGURA_MAX[col]), widths[i]);
+  }
   widths.forEach((w, i) => (ws.getColumn(i + 1).width = w));
-
-  // Corpo em 11pt nos dois modelos, como na planilha da casa. As 13 colunas
-  // cabem na página pelo fitToWidth do pageSetup, sem encolher a fonte.
-  const PT = PT_CORPO;
-
-  const t = calcularTotais(ec.linhas, ec.producao, ec.honorarios, ec.encargos);
   /** Largura somada de um intervalo de colunas — base para estimar a altura das linhas. */
   const larguraDe = (colInicio: string, colFim: string) => {
     const i = COLS.indexOf(colInicio);
     const f = COLS.indexOf(colFim);
     return widths.slice(i, f + 1).reduce((s, w) => s + w, 0);
-  };
-  /** Altura da linha de item: 15pt (modelo) quando cabe em uma linha visual. */
-  const alturaItem = (item: string, descricao: string) => {
-    const linhas = Math.max(linhasVisuais(item, larguraDe("A", "A")), linhasVisuais(descricao, larguraDe("B", "B")));
-    return linhas <= 1 ? ALTURA_ITEM : alturaParaLinhas(linhas, PT + 3);
   };
   let r = 1;
 
@@ -217,7 +267,7 @@ export async function criarEcExcelBuffer(
     // Altura pelo conteúdo (mínimo 20,2 do modelo): representante e endereço têm
     // várias linhas e ficavam cortados.
     const linhas = linhasVisuais(valor, larguraValor);
-    ws.getRow(r).height = linhas <= 1 ? 20.2 : alturaParaLinhas(linhas, PT + 3);
+    ws.getRow(r).height = linhas <= 1 ? 20.2 : alturaParaLinhas(linhas, PT_LINHA);
     r++;
   };
 
@@ -281,7 +331,12 @@ export async function criarEcExcelBuffer(
     };
     c.border = gradeAuto;
   });
-  ws.getRow(hr).height = 30;
+  // Altura pelo rótulo mais alto (os do modelo têm duas linhas): assim o
+  // cabeçalho nunca corta "Fornecedor (Razão Social)".
+  ws.getRow(hr).height = Math.max(
+    30,
+    ...headers.map(([col, h]) => alturaParaLinhas(linhasVisuais(h, larguraDe(col, col)), PT_LINHA))
+  );
   r++;
   const itemStart = r; // início do intervalo das linhas de custo (p/ fórmulas)
   /** Linhas que são de fato itens — só elas recebem o realce condicional. */
@@ -295,43 +350,74 @@ export async function criarEcExcelBuffer(
     grupos.get(g)!.push(l);
   }
 
-  /** Escreve a Descrição Completa (e observações) em linhas extras mescladas A:L,
-   *  quebrando em quantas linhas forem necessárias sem estourar a altura de 409. */
-  const escreverBlocoTexto = (titulo: string, linhasTxt: string[]) => {
-    if (!linhasTxt.length) return;
-    // Largura real do bloco mesclado (A:L), em unidades de coluna do Excel.
-    const larguraBloco = larguraDe("A", ultimaColuna);
-    const visuais = (s: string) => linhasVisuais(s, larguraBloco);
-    const LINHAS_ALVO = Math.floor((ALTURA_MAX - 8) / 13); // ~30 linhas visuais por célula
-    let buffer: string[] = [];
-    let acc = 0;
-    const flush = () => {
-      if (!buffer.length) return;
-      ws.mergeCells(`A${r}:${ultimaColuna}${r}`);
-      const c = ws.getCell(`A${r}`);
-      c.value = buffer.join("\n");
-      c.font = { name: FONT_LIGHT, size: PT - 1.5, color: { argb: COR.ink2 } };
-      c.alignment = { wrapText: true, vertical: "top" };
-      c.border = thin;
-      ws.getRow(r).height = Math.min(ALTURA_MAX, acc * 13 + 8);
-      r++;
-      buffer = [];
-      acc = 0;
-    };
-    // rótulo do bloco
-    ws.mergeCells(`A${r}:${ultimaColuna}${r}`);
-    const cab = ws.getCell(`A${r}`);
-    cab.value = titulo;
-    cab.font = { name: FONT_LIGHT, size: PT - 2, bold: true, italic: true, color: { argb: COR.ink2 } };
-    cab.border = thin;
-    r++;
-    for (const l of linhasTxt) {
-      const v = visuais(l);
-      if (acc + v > LINHAS_ALVO && buffer.length) flush();
-      buffer.push(l);
-      acc += v;
+  const colunasAtivas = COLS.slice(0, completa ? 12 : 4);
+  const larguraA = larguraDe("A", "A");
+  const larguraB = larguraDe("B", "B");
+  /**
+   * Altura que um texto exige numa célula daquela largura. Uma linha visual = os
+   * 16,5pt do modelo; daí para cima, o que o texto pedir (até o teto do Excel).
+   */
+  const alturaDe = (texto: string, largura: number) => {
+    const visuais = linhasVisuais(texto, largura);
+    return visuais <= 1 ? ALTURA_ITEM : alturaParaLinhas(visuais, PT_LINHA);
+  };
+
+  /**
+   * Fecha um item como um BLOCO: grade fina por dentro e moldura por fora, nos
+   * quatro lados. É o que separa visualmente um item do seguinte, agora que cada
+   * um ocupa várias linhas.
+   *
+   * As colunas mescladas recebem a borda uma única vez, na célula-mestre: numa
+   * mesclagem o ExcelJS guarda o estilo só nela, e escrever linha a linha fazia
+   * a última sobrescrever a moldura de cima com a grade fina.
+   */
+  const fecharBloco = (inicio: number, fim: number) => {
+    colunasAtivas.forEach((col, i) => {
+      const lado = {
+        ...(i === 0 ? { left: { style: MOLDURA } } : {}),
+        ...(i === colunasAtivas.length - 1 ? { right: { style: MOLDURA } } : {}),
+      } as Partial<ExcelJS.Borders>;
+      if (col === "B") {
+        // Única coluna não mesclada: cada pedaço do descritivo tem a sua linha.
+        for (let linha = inicio; linha <= fim; linha++) {
+          ws.getCell(`B${linha}`).border = {
+            ...gradeAuto,
+            ...lado,
+            ...(linha === inicio ? { top: { style: MOLDURA } } : {}),
+            ...(linha === fim ? { bottom: { style: MOLDURA } } : {}),
+          };
+        }
+        return;
+      }
+      // Mesclada de ponta a ponta: a célula É o bloco inteiro naquela coluna.
+      ws.getCell(`${col}${inicio}`).border = {
+        ...gradeAuto,
+        ...lado,
+        top: { style: MOLDURA },
+        bottom: { style: MOLDURA },
+      };
+    });
+  };
+
+  /**
+   * O descritivo do item, todo na COLUNA B: primeiro a Descrição (principal),
+   * depois a Descrição Completa e, no modelo completo, as observações.
+   *
+   * Sai em pedaços porque a altura de linha do Excel para em 409,5pt — um
+   * descritivo grande não cabe numa célula só, e o que passa disso sumia da tela
+   * e da impressão. Cada pedaço vira uma linha da planilha dentro do mesmo item.
+   */
+  const descritivoDoItem = (l: (typeof ec.linhas)[number]): string[] => {
+    const partes: string[] = [];
+    if (l.descricao?.trim()) partes.push(l.descricao.trim());
+    if (completa) {
+      partes.push(...quebrarPorAltura(htmlParaLinhas(l.descricaoCompleta), larguraB, PT_LINHA));
+      const obs = (l.observacoes ?? [])
+        .filter((o) => o.texto.trim())
+        .map((o) => `• ${o.texto}${o.autorNome ? " — " + o.autorNome : ""}`);
+      if (obs.length) partes.push(...quebrarPorAltura(["Observações:", ...obs], larguraB, PT_LINHA));
     }
-    flush();
+    return partes.length ? partes : [""];
   };
 
   for (const [grupo, linhas] of grupos) {
@@ -343,7 +429,7 @@ export async function criarEcExcelBuffer(
     // Nome do grupo vem CENTRADO na faixa, como no modelo original.
     gc.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
     // grade em toda a faixa do grupo (todas as colunas), não só na célula A
-    for (const col of COLS.slice(0, completa ? 12 : 4)) {
+    for (const col of colunasAtivas) {
       const cc = ws.getCell(`${col}${r}`);
       cc.border = gradeAuto;
       cc.fill = fill(COR.sectionGray);
@@ -351,58 +437,61 @@ export async function criarEcExcelBuffer(
     ws.getRow(r).height = 16.5;
     r++;
     for (const l of linhas) {
-      linhasDeItem.push(r);
-      if (completa) {
-        const vals = [
-          l.item, l.descricao, l.valorPolobh, l.valorCliente, l.statusAprovacao,
-          l.fornecedorRazao, l.fornecedorCnpj, l.faturaNf, l.codigoServico,
-          l.pedidoCompra, l.statusOs, l.contratoStatus,
-        ];
-        vals.forEach((v, i) => {
-          const col = COLS[i];
-          const c = ws.getCell(`${col}${r}`);
-          c.value = v as ExcelJS.CellValue;
-          // "Item" vem um ponto maior e em negrito no modelo; o resto, 11pt normal.
-          c.font = { name: FONT_LIGHT, bold: i === 0, size: i === 0 ? PT_ITEM : PT, color: { argb: COR.ink } };
-          c.border = gradeAuto;
-          // Tudo centrado na vertical e com quebra de texto; o alinhamento
-          // horizontal sai da tabela medida nos modelos de 2026.
-          c.alignment = { wrapText: true, vertical: "middle", horizontal: ALINHAMENTO_ITEM[col] ?? "left" };
-          if (MOEDA.has(i)) c.numFmt = FORMATO_MOEDA_ITEM;
-          // Sem preenchimento nas linhas de dados — o destaque fica só no cabeçalho.
-        });
-        // Altura pela coluna mais "cheia" (Item ou Descrição), para nada ficar
-        // cortado; a linha de uma só linha visual fica nos 15pt do modelo.
-        ws.getRow(r).height = alturaItem(l.item, l.descricao);
-      } else {
-        // Modelo financeiro = o do arquivo original: Item em A (negrito) e a
-        // descrição em B, sem mesclar — é assim que a Pólobh distribui as células.
-        ws.getCell(`A${r}`).value = l.item;
-        ws.getCell(`A${r}`).font = { name: FONT_LIGHT, bold: true, size: PT_ITEM, color: { argb: COR.ink } };
-        ws.getCell(`A${r}`).alignment = { wrapText: true, vertical: "middle", horizontal: "left" };
-        ws.getCell(`B${r}`).value = l.descricao;
-        ws.getCell(`B${r}`).font = { name: FONT_LIGHT, size: PT, color: { argb: COR.ink } };
-        ws.getCell(`B${r}`).alignment = { wrapText: true, vertical: "middle", horizontal: "left" };
-        for (const [col, valor] of [["C", l.valorPolobh], ["D", l.valorCliente]] as const) {
-          const c = ws.getCell(`${col}${r}`);
-          c.value = valor;
-          c.font = { name: FONT_LIGHT, size: PT, color: { argb: COR.ink } };
-          c.numFmt = FORMATO_MOEDA_ITEM;
-          c.alignment = { horizontal: "distributed", vertical: "middle", wrapText: true };
+      const partesB = descritivoDoItem(l);
+      const inicio = r;
+      const fim = r + partesB.length - 1;
+      linhasDeItem.push(inicio);
+
+      // Linha de topo do item: é ela que carrega TODAS as colunas. As demais
+      // linhas do bloco existem só para o descritivo continuar na coluna B.
+      const vals: (string | number)[] = completa
+        ? [
+            l.item, "", l.valorPolobh, l.valorCliente, l.statusAprovacao,
+            l.fornecedorRazao, l.fornecedorCnpj, l.faturaNf, l.codigoServico,
+            l.pedidoCompra, l.statusOs, l.contratoStatus,
+          ]
+        : [l.item, "", l.valorPolobh, l.valorCliente];
+      vals.forEach((v, i) => {
+        const col = COLS[i];
+        if (col === "B") return; // a coluna B é escrita pedaço a pedaço abaixo
+        const c = ws.getCell(`${col}${inicio}`);
+        c.value = v as ExcelJS.CellValue;
+        c.font = { name: FONT_LIGHT, bold: i === 0, size: PT, color: { argb: COR.ink } };
+        // Vertical ao meio: com a coluna mesclada de ponta a ponta do item, o
+        // valor fica centrado na altura do bloco, e não colado no topo.
+        c.alignment = { wrapText: true, vertical: "middle", horizontal: ALINHAMENTO_ITEM[col] ?? "left" };
+        if (MOEDA.has(i)) c.numFmt = FORMATO_MOEDA_ITEM;
+        // Sem preenchimento nas linhas de dados — o destaque fica só no cabeçalho.
+      });
+
+      // Coluna B: uma linha da planilha por pedaço do descritivo.
+      partesB.forEach((texto, i) => {
+        const c = ws.getCell(`B${inicio + i}`);
+        c.value = texto;
+        c.font = { name: FONT_LIGHT, size: PT, color: { argb: COR.ink } };
+        // Item de uma linha só segue o modelo (centrado); descritivo que ocupa
+        // várias linhas lê melhor a partir do topo.
+        c.alignment = { wrapText: true, vertical: partesB.length > 1 ? "top" : "middle", horizontal: "left" };
+      });
+
+      // Alturas: cada linha comporta o seu pedaço de descritivo; se o nome do
+      // item precisar de mais que o bloco inteiro, a diferença entra no topo.
+      const alturas = partesB.map((texto) => alturaDe(texto, larguraB));
+      const precisaItem = alturaDe(l.item, larguraA);
+      const total = alturas.reduce((soma, h) => soma + h, 0);
+      if (total < precisaItem) alturas[0] += precisaItem - total;
+      alturas.forEach((h, i) => (ws.getRow(inicio + i).height = h));
+
+      // Todas as colunas do item viram uma célula só, de cima a baixo do bloco —
+      // é o que o modelo faz para o item caber junto do seu descritivo.
+      if (fim > inicio) {
+        for (const col of colunasAtivas) {
+          if (col === "B") continue;
+          ws.mergeCells(`${col}${inicio}:${col}${fim}`);
         }
-        for (const col of ["A", "B", "C", "D"]) ws.getCell(`${col}${r}`).border = gradeAuto;
-        ws.getRow(r).height = alturaItem(l.item, l.descricao);
       }
-      r++;
-      // Descrição Completa e observações não têm coluna no modelo e são longas
-      // demais para uma célula: saem em blocos mesclados logo abaixo do item.
-      if (completa) {
-        escreverBlocoTexto("Descrição Completa:", htmlParaLinhas(l.descricaoCompleta));
-        const obs = (l.observacoes ?? [])
-          .filter((o) => o.texto.trim())
-          .map((o) => `• ${o.texto}${o.autorNome ? " — " + o.autorNome : ""}`);
-        escreverBlocoTexto("Observações:", obs);
-      }
+      fecharBloco(inicio, fim);
+      r = fim + 1;
     }
   }
   const itemEnd = r - 1; // fim do intervalo das linhas de custo
@@ -618,15 +707,17 @@ export async function criarEcExcelBuffer(
     '"Total Geral NF Pólobh x Cliente" no prazo máximo de 30 dias a partir da apresentação da(s) nota(s) ' +
     "fiscal(is) da Pólobh, que poderão ser emitidas pela Pólobh Promoções Eireli e MF Promoções Eireli, " +
     "ambas do mesmo grupo empresarial, em conjunto ou separadamente.";
-  legal.font = { name: FONT_LIGHT, size: PT - 2.5, color: { argb: COR.ink } };
+  legal.font = { name: FONT_LIGHT, size: PT, color: { argb: COR.ink } };
   legal.alignment = { wrapText: true, vertical: "top", horizontal: "justify" };
-  ws.getRow(r).height = 66;
+  // Altura pelo texto: o parágrafo é longo e antes vinha com 66pt fixos, que
+  // cortavam metade dele quando a coluna B era estreita.
+  ws.getRow(r).height = alturaParaLinhas(linhasVisuais(legal.value as string, larguraDe("A", ultimaColuna)), PT_LINHA);
   r++;
 
   ws.mergeCells(`A${r}:${ultimaColuna}${r}`);
   ws.getCell(`A${r}`).value =
     "Obs.: Esta EC | Orçamento cancela e substitui todas as anteriores referentes ao mesmo projeto | peça que porventura existam.";
-  ws.getCell(`A${r}`).font = { name: FONT_LIGHT, italic: true, size: PT - 1.5 };
+  ws.getCell(`A${r}`).font = { name: FONT_LIGHT, italic: true, size: PT };
   r += 2;
 
   ws.getCell(`A${r}`).value = "Aprovação do Cliente:";
@@ -640,7 +731,7 @@ export async function criarEcExcelBuffer(
 
   ws.mergeCells(`A${r}:${ultimaColuna}${r}`);
   ws.getCell(`A${r}`).value = "Identificação do Signatário: Nome e Identidade Funcional";
-  ws.getCell(`A${r}`).font = { name: FONT_LIGHT, size: PT - 1.5, color: { argb: COR.ink2 } };
+  ws.getCell(`A${r}`).font = { name: FONT_LIGHT, size: PT, color: { argb: COR.ink2 } };
   r++;
 
   ws.getCell(`A${r}`).value = "Protocolo Financeiro Pólobh:";

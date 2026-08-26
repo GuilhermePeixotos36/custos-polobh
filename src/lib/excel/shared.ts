@@ -242,3 +242,78 @@ export const ALTURA_MAX_LINHA = 409.5;
 /** Converte um número de linhas visuais em altura de linha (pontos), com folga. */
 export const alturaParaLinhas = (linhas: number, ptPorLinha = 12.6, folga = 4): number =>
   Math.min(ALTURA_MAX_LINHA, Math.max(15, linhas * ptPorLinha + folga));
+
+/** Quantos caracteres cabem numa linha visual de uma célula com `largura` colunas. */
+const caracteresPorLinha = (largura: number) => Math.max(8, Math.floor(largura) - 1);
+
+/** Corta o texto no último espaço antes do limite — não parte palavra ao meio. */
+function cortarEmPalavra(texto: string, limite: number): { cabe: string; resto: string } {
+  if (texto.length <= limite) return { cabe: texto, resto: "" };
+  const bruto = texto.slice(0, limite);
+  const espaco = bruto.lastIndexOf(" ");
+  const corte = espaco > limite * 0.6 ? espaco : limite; // sem espaço útil, corta seco
+  return { cabe: texto.slice(0, corte).trimEnd(), resto: texto.slice(corte).trimStart() };
+}
+
+/**
+ * Quebra um texto (já em parágrafos) em PEDAÇOS que cabem numa célula.
+ *
+ * A altura de linha do Excel para em 409,5pt: um descritivo longo simplesmente
+ * não cabe numa célula só, e o que passa disso some da tela e da impressão. Aqui
+ * o texto é dividido em quantas células forem necessárias, cortando por
+ * parágrafo — e, quando um parágrafo sozinho é maior que o teto, na última
+ * palavra que cabe. Nada é descartado.
+ */
+export function quebrarPorAltura(
+  paragrafos: string[],
+  largura: number,
+  ptPorLinha = 14,
+  folga = 4
+): string[] {
+  const maxLinhas = Math.max(1, Math.floor((ALTURA_MAX_LINHA - folga) / ptPorLinha));
+  const limite = maxLinhas * caracteresPorLinha(largura);
+  const out: string[] = [];
+  let buffer: string[] = [];
+  let acc = 0;
+  const fechar = () => {
+    if (!buffer.length) return;
+    out.push(buffer.join("\n"));
+    buffer = [];
+    acc = 0;
+  };
+  for (const paragrafo of paragrafos) {
+    let resto = paragrafo;
+    // Parágrafo que sozinho estoura a célula: sai em pedaços do tamanho do teto.
+    while (linhasVisuais(resto, largura) > maxLinhas) {
+      fechar();
+      const corte = cortarEmPalavra(resto, limite);
+      out.push(corte.cabe);
+      resto = corte.resto;
+      if (!corte.resto) break;
+    }
+    if (!resto) continue;
+    const visuais = linhasVisuais(resto, largura);
+    if (acc + visuais > maxLinhas && buffer.length) fechar();
+    buffer.push(resto);
+    acc += visuais;
+  }
+  fechar();
+  return out;
+}
+
+/**
+ * Largura de coluna (unidades do Excel) necessária para o maior parágrafo do
+ * texto, entre um piso e um teto.
+ *
+ * É o "ajuste automático de coluna" que o Excel só faz quando a pessoa manda:
+ * as larguras do modelo entram como PISO, e uma coluna só cresce quando o
+ * conteúdo real não caberia nela — assim ninguém precisa arrastar a borda da
+ * coluna para ler um CNPJ ou um valor.
+ */
+export function larguraParaTexto(texto: string, min: number, max: number): number {
+  if (!texto) return min;
+  const maior = String(texto)
+    .split("\n")
+    .reduce((n, linha) => Math.max(n, linha.length), 0);
+  return Math.min(max, Math.max(min, maior + 2));
+}
