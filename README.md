@@ -148,6 +148,18 @@ Nada é aplicado direto no painel do Supabase sem virar migração: foi assim qu
 `perfis.telefone` e a função `gerenciar-usuarios` ficaram só em produção, fora
 do repositório.
 
+**As migrations rodam UMA vez, na ordem do nome.** Reaplicar a pasta inteira do
+zero num banco que já a tem falha em algumas delas (elas assumem o estado
+anterior — por exemplo a que recria a view `ec_linhas_visiveis`). Isso é
+esperado: cada arquivo é um passo, não um script repetível.
+
+### Projeto de demonstração
+`20260826110000_projeto_demonstracao.sql` insere um projeto inteiro de exemplo
+(cliente, EC com 6 itens em 3 grupos, 2 OSs com financeiro, credenciamento
+respondido e check-list com tarefa atrasada e de hoje) para conferir a
+rentabilidade item a item, as opções de valor e as pendências com dados reais.
+O cabeçalho do arquivo traz os `delete` para remover tudo quando não precisar mais.
+
 ## Retenção (baixo custo)
 Guardamos **dados estruturados** e regeneramos Excel/PDF sob demanda. Projetos
 concluídos são **arquivados (não apagados)** — configurável (sugestão 24 meses).
