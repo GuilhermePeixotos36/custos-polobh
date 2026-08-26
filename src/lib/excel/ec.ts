@@ -10,7 +10,7 @@ import { brl, dataBR } from "@/lib/format";
 import {
   COR, fill, gradeAuto, baixar, salvarComPicker, carregarLogo, encaixarLogo,
   REALCE, regraRealce, regraValorPreenchido,
-  linhasVisuais, alturaParaLinhas, larguraParaTexto, quebrarPorAltura,
+  linhasVisuais, alturaParaLinhas, larguraParaTexto, ALTURA_MAX_LINHA,
   FONT_BOLD, FONT_LIGHT,
 } from "./shared";
 import { nomeEcExcel } from "./nomeEc";
@@ -354,70 +354,61 @@ export async function criarEcExcelBuffer(
   const larguraA = larguraDe("A", "A");
   const larguraB = larguraDe("B", "B");
   /**
-   * Altura que um texto exige numa célula daquela largura. Uma linha visual = os
-   * 16,5pt do modelo; daí para cima, o que o texto pedir (até o teto do Excel).
+   * Altura que o texto exige, SEM o teto de 409,5pt: o teto é de cada linha da
+   * planilha, e a célula mesclada do item vale a SOMA das linhas que ocupa.
+   * Uma linha visual = os 16,5pt do modelo; daí para cima, o que o texto pedir.
    */
-  const alturaDe = (texto: string, largura: number) => {
+  const alturaSemTeto = (texto: string, largura: number) => {
     const visuais = linhasVisuais(texto, largura);
-    return visuais <= 1 ? ALTURA_ITEM : alturaParaLinhas(visuais, PT_LINHA);
+    return visuais <= 1 ? ALTURA_ITEM : visuais * PT_LINHA + 4;
   };
 
   /**
    * Fecha um item como um BLOCO: grade fina por dentro e moldura por fora, nos
-   * quatro lados. É o que separa visualmente um item do seguinte, agora que cada
-   * um ocupa várias linhas.
+   * quatro lados. É o que separa visualmente um item do seguinte, já que cada um
+   * pode ocupar várias linhas da planilha.
    *
-   * As colunas mescladas recebem a borda uma única vez, na célula-mestre: numa
-   * mesclagem o ExcelJS guarda o estilo só nela, e escrever linha a linha fazia
-   * a última sobrescrever a moldura de cima com a grade fina.
+   * A borda é escrita uma única vez por coluna, na célula-mestre da mesclagem:
+   * numa mesclagem o ExcelJS guarda o estilo só nela, e escrever linha a linha
+   * fazia a última sobrescrever a moldura de cima com a grade fina.
    */
-  const fecharBloco = (inicio: number, fim: number) => {
+  const fecharBloco = (inicio: number) => {
     colunasAtivas.forEach((col, i) => {
-      const lado = {
-        ...(i === 0 ? { left: { style: MOLDURA } } : {}),
-        ...(i === colunasAtivas.length - 1 ? { right: { style: MOLDURA } } : {}),
-      } as Partial<ExcelJS.Borders>;
-      if (col === "B") {
-        // Única coluna não mesclada: cada pedaço do descritivo tem a sua linha.
-        for (let linha = inicio; linha <= fim; linha++) {
-          ws.getCell(`B${linha}`).border = {
-            ...gradeAuto,
-            ...lado,
-            ...(linha === inicio ? { top: { style: MOLDURA } } : {}),
-            ...(linha === fim ? { bottom: { style: MOLDURA } } : {}),
-          };
-        }
-        return;
-      }
-      // Mesclada de ponta a ponta: a célula É o bloco inteiro naquela coluna.
       ws.getCell(`${col}${inicio}`).border = {
         ...gradeAuto,
-        ...lado,
         top: { style: MOLDURA },
         bottom: { style: MOLDURA },
+        ...(i === 0 ? { left: { style: MOLDURA } } : {}),
+        ...(i === colunasAtivas.length - 1 ? { right: { style: MOLDURA } } : {}),
       };
     });
   };
 
   /**
-   * O descritivo do item, todo na COLUNA B: primeiro a Descrição (principal),
-   * depois a Descrição Completa e, no modelo completo, as observações.
+   * O descritivo do item, tudo numa célula só na COLUNA B: a Descrição
+   * (principal), a Descrição Completa e, no modelo completo, as observações.
    *
-   * Sai em pedaços porque a altura de linha do Excel para em 409,5pt — um
-   * descritivo grande não cabe numa célula só, e o que passa disso sumia da tela
-   * e da impressão. Cada pedaço vira uma linha da planilha dentro do mesmo item.
+   * Vai junto de propósito — é um texto só sobre o mesmo serviço, e reparti-lo
+   * em células separadas fazia a leitura pular de caixa em caixa. O que dá conta
+   * do tamanho é a MESCLAGEM: a altura de linha do Excel para em 409,5pt, mas a
+   * altura de uma célula mesclada é a SOMA das linhas que ela ocupa. Por isso o
+   * item ganha quantas linhas forem necessárias, e o texto continua inteiro numa
+   * célula só.
    */
-  const descritivoDoItem = (l: (typeof ec.linhas)[number]): string[] => {
+  const descritivoDoItem = (l: (typeof ec.linhas)[number]): string => {
     const partes: string[] = [];
     if (l.descricao?.trim()) partes.push(l.descricao.trim());
     if (completa) {
-      partes.push(...quebrarPorAltura(htmlParaLinhas(l.descricaoCompleta), larguraB, PT_LINHA));
+      const completaTxt = htmlParaLinhas(l.descricaoCompleta);
+      if (completaTxt.length) partes.push(completaTxt.join("\n"));
       const obs = (l.observacoes ?? [])
         .filter((o) => o.texto.trim())
         .map((o) => `• ${o.texto}${o.autorNome ? " — " + o.autorNome : ""}`);
-      if (obs.length) partes.push(...quebrarPorAltura(["Observações:", ...obs], larguraB, PT_LINHA));
+      if (obs.length) partes.push(["Observações:", ...obs].join("\n"));
     }
-    return partes.length ? partes : [""];
+    // Linha em branco entre os blocos de texto: é o que separa o resumo do
+    // detalhamento dentro da mesma célula.
+    return partes.join("\n\n");
   };
 
   for (const [grupo, linhas] of grupos) {
@@ -437,60 +428,52 @@ export async function criarEcExcelBuffer(
     ws.getRow(r).height = 16.5;
     r++;
     for (const l of linhas) {
-      const partesB = descritivoDoItem(l);
+      const descritivo = descritivoDoItem(l);
+      // Altura que o bloco precisa ter: o descritivo inteiro (numa célula só) e,
+      // no mínimo, o que o nome do item exige na coluna A.
+      const precisa = Math.max(alturaSemTeto(descritivo, larguraB), alturaSemTeto(l.item, larguraA));
+      // Nenhuma LINHA passa de 409,5pt; a célula mesclada, sim — ela vale a soma
+      // das linhas que ocupa. É daí que sai a quantidade de linhas do item.
+      const quantas = Math.max(1, Math.ceil(precisa / ALTURA_MAX_LINHA));
       const inicio = r;
-      const fim = r + partesB.length - 1;
+      const fim = inicio + quantas - 1;
       linhasDeItem.push(inicio);
 
-      // Linha de topo do item: é ela que carrega TODAS as colunas. As demais
-      // linhas do bloco existem só para o descritivo continuar na coluna B.
       const vals: (string | number)[] = completa
         ? [
-            l.item, "", l.valorPolobh, l.valorCliente, l.statusAprovacao,
+            l.item, descritivo, l.valorPolobh, l.valorCliente, l.statusAprovacao,
             l.fornecedorRazao, l.fornecedorCnpj, l.faturaNf, l.codigoServico,
             l.pedidoCompra, l.statusOs, l.contratoStatus,
           ]
-        : [l.item, "", l.valorPolobh, l.valorCliente];
+        : [l.item, descritivo, l.valorPolobh, l.valorCliente];
       vals.forEach((v, i) => {
         const col = COLS[i];
-        if (col === "B") return; // a coluna B é escrita pedaço a pedaço abaixo
         const c = ws.getCell(`${col}${inicio}`);
         c.value = v as ExcelJS.CellValue;
         c.font = { name: FONT_LIGHT, bold: i === 0, size: PT, color: { argb: COR.ink } };
         // Vertical ao meio: com a coluna mesclada de ponta a ponta do item, o
-        // valor fica centrado na altura do bloco, e não colado no topo.
-        c.alignment = { wrapText: true, vertical: "middle", horizontal: ALINHAMENTO_ITEM[col] ?? "left" };
+        // valor fica centrado na altura do bloco, e não colado no topo. O
+        // descritivo é a exceção — texto longo lê melhor a partir do topo.
+        c.alignment = {
+          wrapText: true,
+          vertical: col === "B" && quantas > 1 ? "top" : "middle",
+          horizontal: ALINHAMENTO_ITEM[col] ?? "left",
+        };
         if (MOEDA.has(i)) c.numFmt = FORMATO_MOEDA_ITEM;
         // Sem preenchimento nas linhas de dados — o destaque fica só no cabeçalho.
       });
 
-      // Coluna B: uma linha da planilha por pedaço do descritivo.
-      partesB.forEach((texto, i) => {
-        const c = ws.getCell(`B${inicio + i}`);
-        c.value = texto;
-        c.font = { name: FONT_LIGHT, size: PT, color: { argb: COR.ink } };
-        // Item de uma linha só segue o modelo (centrado); descritivo que ocupa
-        // várias linhas lê melhor a partir do topo.
-        c.alignment = { wrapText: true, vertical: partesB.length > 1 ? "top" : "middle", horizontal: "left" };
-      });
+      // Altura repartida em partes iguais entre as linhas do bloco.
+      const alturaLinha = Math.min(ALTURA_MAX_LINHA, Math.max(ALTURA_ITEM, precisa / quantas));
+      for (let linha = inicio; linha <= fim; linha++) ws.getRow(linha).height = alturaLinha;
 
-      // Alturas: cada linha comporta o seu pedaço de descritivo; se o nome do
-      // item precisar de mais que o bloco inteiro, a diferença entra no topo.
-      const alturas = partesB.map((texto) => alturaDe(texto, larguraB));
-      const precisaItem = alturaDe(l.item, larguraA);
-      const total = alturas.reduce((soma, h) => soma + h, 0);
-      if (total < precisaItem) alturas[0] += precisaItem - total;
-      alturas.forEach((h, i) => (ws.getRow(inicio + i).height = h));
-
-      // Todas as colunas do item viram uma célula só, de cima a baixo do bloco —
-      // é o que o modelo faz para o item caber junto do seu descritivo.
+      // TODAS as colunas do item viram uma célula só, de cima a baixo do bloco —
+      // inclusive a B, para o descritivo ficar inteiro numa célula, e a A, para o
+      // nome do item acompanhar as linhas da descrição.
       if (fim > inicio) {
-        for (const col of colunasAtivas) {
-          if (col === "B") continue;
-          ws.mergeCells(`${col}${inicio}:${col}${fim}`);
-        }
+        for (const col of colunasAtivas) ws.mergeCells(`${col}${inicio}:${col}${fim}`);
       }
-      fecharBloco(inicio, fim);
+      fecharBloco(inicio);
       r = fim + 1;
     }
   }

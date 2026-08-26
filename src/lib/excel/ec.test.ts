@@ -3,7 +3,7 @@ import ExcelJS from "exceljs";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { criarEcExcelBuffer } from "./ec";
-import { encaixarLogo, larguraParaTexto, linhasVisuais, quebrarPorAltura } from "./shared";
+import { encaixarLogo, larguraParaTexto, linhasVisuais } from "./shared";
 import { honorariosPadrao, encargosPadrao, producaoZerada } from "@/domain/calc";
 import type { Ec, EcLinha } from "@/data/types";
 import { projetoInfoVazio } from "@/domain/projeto";
@@ -118,20 +118,6 @@ describe("helpers de layout do Excel", () => {
     expect(linhasVisuais("", 20)).toBe(1);
     expect(linhasVisuais("a\nb\nc", 20)).toBe(3);
     expect(linhasVisuais("x".repeat(60), 20)).toBeGreaterThan(2);
-  });
-
-  it("quebrarPorAltura mantém junto o que cabe numa célula", () => {
-    expect(quebrarPorAltura(["Um", "Dois"], 40)).toEqual(["Um\nDois"]);
-    expect(quebrarPorAltura([], 40)).toEqual([]);
-  });
-
-  it("quebrarPorAltura reparte o que não caberia — sem perder conteúdo", () => {
-    // Um parágrafo bem maior que o teto de 409,5pt de altura de linha.
-    const gigante = "palavra ".repeat(4000).trim();
-    const pedacos = quebrarPorAltura([gigante], 40);
-    expect(pedacos.length).toBeGreaterThan(1);
-    const semEspaco = (t: string) => t.replace(/\s+/g, "");
-    expect(semEspaco(pedacos.join(" "))).toBe(semEspaco(gigante));
   });
 
   it("larguraParaTexto respeita o piso e o teto", () => {
@@ -279,28 +265,48 @@ describe("fidelidade aos modelos de 2026 da Pólobh", () => {
     expect(regra.style?.fill?.bgColor?.argb).toBe("FFFFEB9C"); // mesmo amarelo do "Emitir"
   });
 
-  it("o item vira um BLOCO: colunas mescladas na vertical e descritivo só na B", async () => {
+  it("descrição e descrição completa ficam na MESMA célula da coluna B", async () => {
     const { ws, hr } = await tabela([
       linha({
         id: "a", item: "Buffet", descricao: "Coffee break para 300 pessoas",
         descricaoCompleta: "<p>Serviço completo</p><ul><li>Bebidas</li><li>Salgados</li></ul>",
         valorPolobh: 1000,
+        observacoes: [{ id: "o1", texto: "Confirmar cardápio", autorId: "", autorNome: "Ana", criadoEm: "", responsavelNome: "", resolvida: false, respostas: [] }],
       }),
     ]);
     const inicio = hr + 2; // cabeçalho, barra do grupo, item
+    const descritivo = String(ws.getCell(`B${inicio}`).value);
+    expect(descritivo).toContain("Coffee break para 300 pessoas");
+    expect(descritivo).toContain("Serviço completo");
+    expect(descritivo).toContain("• Bebidas");
+    expect(descritivo).toContain("Confirmar cardápio");
+    // Cabendo numa linha só, não há nada para mesclar — o item ocupa uma linha.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const merges: string[] = (ws.model as any).merges ?? [];
+    expect(merges.some((m) => m.startsWith(`A${inicio}:A`))).toBe(false);
+    expect(Number(ws.getRow(inicio).height)).toBeGreaterThan(16.5);
+  });
+
+  it("item que não cabe numa linha ganha linhas — e TODAS as colunas mesclam junto", async () => {
+    // Descritivo maior que os 409,5pt de uma linha: o bloco precisa crescer.
+    const { ws, hr } = await tabela([
+      linha({
+        id: "a", item: "Estrutura", descricao: "Resumo",
+        descricaoCompleta: `<p>${"Fornecimento de estrutura metálica, ".repeat(200)}</p>`,
+      }),
+    ]);
+    const inicio = hr + 2;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const merges: string[] = (ws.model as any).merges ?? [];
     const bloco = merges.filter((m) => m.startsWith(`A${inicio}:A`));
     expect(bloco).toHaveLength(1);
     const fim = Number(bloco[0].split(":A")[1]);
     expect(fim).toBeGreaterThan(inicio);
-    // Todas as colunas do item mescladas de cima a baixo — menos a B.
-    for (const col of "ACDEFGHIJKL") expect(merges).toContain(`${col}${inicio}:${col}${fim}`);
-    expect(merges.some((m) => m.startsWith(`B${inicio}:B`))).toBe(false);
-    // O descritivo mora só na coluna B; as outras linhas do bloco não repetem nada.
-    expect(String(ws.getCell(`B${inicio}`).value)).toContain("Coffee break");
-    expect(String(ws.getCell(`B${inicio + 1}`).value)).toContain("Serviço completo");
-    expect(String(ws.getCell(`B${inicio + 1}`).value)).toContain("• Bebidas");
+    // O nome do item acompanha as linhas da descrição, na coluna dele; a coluna
+    // B mescla junto, para o descritivo ficar inteiro numa célula só.
+    for (const col of "ABCDEFGHIJKL") expect(merges).toContain(`${col}${inicio}:${col}${fim}`);
+    // Nenhuma LINHA passa do teto do Excel — a célula mesclada, sim.
+    for (let i = inicio; i <= fim; i++) expect(Number(ws.getRow(i).height)).toBeLessThanOrEqual(409.5);
   });
 
   it("fecha o item com moldura nos quatro lados", async () => {
@@ -308,20 +314,17 @@ describe("fidelidade aos modelos de 2026 da Pólobh", () => {
       linha({ id: "a", item: "Buffet", descricao: "Coffee", descricaoCompleta: "<p>Detalhe</p>" }),
     ]);
     const inicio = hr + 2;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const merges: string[] = (ws.model as any).merges ?? [];
-    const fim = Number(merges.find((m) => m.startsWith(`A${inicio}:A`))!.split(":A")[1]);
-    expect(ws.getCell(`A${inicio}`).border?.top?.style).toBe("medium");
+    for (const ref of [`A${inicio}`, `B${inicio}`, `E${inicio}`, `L${inicio}`]) {
+      expect(ws.getCell(ref).border?.top?.style).toBe("medium");
+      expect(ws.getCell(ref).border?.bottom?.style).toBe("medium");
+    }
     expect(ws.getCell(`A${inicio}`).border?.left?.style).toBe("medium");
-    expect(ws.getCell(`L${fim}`).border?.right?.style).toBe("medium");
-    expect(ws.getCell(`L${fim}`).border?.bottom?.style).toBe("medium");
+    expect(ws.getCell(`L${inicio}`).border?.right?.style).toBe("medium");
     // Por dentro do bloco a grade continua fina.
-    expect(ws.getCell(`E${inicio}`).border?.top?.style).toBe("medium");
     expect(ws.getCell(`E${inicio}`).border?.left?.style).toBe("thin");
   });
 
-  it("descritivo enorme é dividido em linhas — nada se perde e nenhuma estoura o teto", async () => {
-    // Um parágrafo que sozinho não caberia numa célula (teto de 409,5pt).
+  it("descritivo enorme continua INTEIRO numa célula, e o bloco cresce para caber", async () => {
     const gigante = "Fornecimento de estrutura, ".repeat(900);
     const { ws, hr } = await tabela([
       linha({ id: "a", item: "Estrutura", descricao: "Resumo", descricaoCompleta: `<p>${gigante}</p>` }),
@@ -330,16 +333,16 @@ describe("fidelidade aos modelos de 2026 da Pólobh", () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const merges: string[] = (ws.model as any).merges ?? [];
     const fim = Number(merges.find((m) => m.startsWith(`A${inicio}:A`))!.split(":A")[1]);
-    expect(fim - inicio).toBeGreaterThan(1); // precisou de mais de uma célula
-    let junto = "";
+    expect(fim - inicio).toBeGreaterThan(1); // precisou de várias linhas
+    // Nada de repartir o texto: ele está inteiro na célula mesclada.
+    expect(String(ws.getCell(`B${inicio}`).value)).toContain(gigante.trim());
+    let somaAlturas = 0;
     for (let i = inicio; i <= fim; i++) {
       expect(Number(ws.getRow(i).height)).toBeLessThanOrEqual(409.5);
-      junto += String(ws.getCell(`B${i}`).value ?? "");
+      somaAlturas += Number(ws.getRow(i).height);
     }
-    // O texto continua INTEIRO, só repartido entre as células (o corte come o
-    // espaço da quebra, e só ele).
-    const semEspaco = (t: string) => t.replace(/\s+/g, "");
-    expect(semEspaco(junto)).toContain(semEspaco(gigante));
+    // A célula mesclada vale a soma das linhas — é assim que ela passa do teto.
+    expect(somaAlturas).toBeGreaterThan(409.5);
   });
 
   it("corpo 11 em toda a planilha — só o título do documento é maior", async () => {

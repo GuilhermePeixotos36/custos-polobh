@@ -125,16 +125,17 @@ Banco: `checklist_modelos`, `checklists`, `checklist_itens` (migração
   CLIENTE/PROJETO em cinza `D9D9D9`, ESTIMATIVA DE CUSTOS e Valor Total Bruto em
   âmbar `FFC000`, e realce de status por formatação condicional (acompanha a
   edição na planilha baixada).
-- **Cada item é um BLOCO fechado:** todas as colunas do item são mescladas na
-  vertical e o descritivo fica **só na coluna B** — Descrição (principal),
-  Descrição Completa e observações, um pedaço por linha. O bloco leva moldura
-  (`medium`) nos quatro lados, para um item não se confundir com o seguinte.
-- **Nada é cortado:** a altura de cada linha sai do conteúdo real e a largura das
-  colunas de valor/status/documentação cresce quando precisa (as do modelo são o
-  piso; A e B ficam fixas porque quebram texto). Como a altura de linha do Excel
-  para em **409,5pt**, o texto que passaria disso é repartido em quantas células
-  forem necessárias (`quebrarPorAltura`) — quem abre a planilha não precisa
-  arrastar borda nenhuma.
+- **Cada item é um BLOCO fechado:** o descritivo inteiro — Descrição (principal),
+  Descrição Completa e observações — fica numa **única célula da coluna B**, e
+  todas as demais colunas do item (o nome do item na A inclusive) são **mescladas
+  na vertical** para acompanhá-la. O bloco leva moldura (`medium`) nos quatro
+  lados, para um item não se confundir com o seguinte.
+- **Nada é cortado:** a altura sai do conteúdo real e a largura das colunas de
+  valor/status/documentação cresce quando precisa (as do modelo são o piso; A e B
+  ficam fixas porque quebram texto). A altura de **linha** do Excel para em
+  409,5pt, mas a de uma **célula mesclada** é a soma das linhas que ela ocupa: um
+  descritivo grande faz o item ganhar quantas linhas forem necessárias, sem nunca
+  repartir o texto nem estourar o teto de linha alguma.
 - **Impressão:** área de impressão definida, ajuste à largura da página e
   cabeçalho da tabela de custos repetido em todas as páginas da EC.
 - O template original da OS (`public/templates/OS_template.xlsx`) e a planilha
