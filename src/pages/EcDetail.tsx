@@ -531,7 +531,8 @@ function montarOsEmissao(ecAtual: Ec, linhas: EcLinha[], seq: number, fornCadast
     logistica: { transporteMaterial: "", transporteEquipe: "", hospedagem: "", alimentacao: "", estacionamentoCarga: "", estacionamentoEquipe: "", uniformizacao: "" },
     infraestrutura: { energia: "", internet: "", pontosEletricos: "", estruturas: "", servicosApoio: "", artLaudos: "" },
     observacoes: [],
-    credenciamento: { prazoLimite: "", linkFormulario: `https://forms.polobh.com.br/cred/${ecAtual.id}-${seq}` },
+    // Sem link montado à mão: ele nasce do token que o banco gera ao salvar.
+    credenciamento: { prazoLimite: "", linkFormulario: "" },
     orcamento: { valorEc, valorComBvNf: valorEc, valorSemBvComNf: valorEc, valorSemBvSemNf: valorEc, parcelas: [{ descricao: "Pagamento único", valor: valorEc }], documentoFiscal: "" },
     financeiro: { tomador: "", descritivoNf: "", cnae: "", codigoServico: "", valorUnitario: valorEc, valorTotal: valorEc, descontoNegociado: 0, valorAPagar: valorEc, bvPercentual: 0, bvValor: 0, bvJustificativa: "", acertoFinanceiro: "" },
     contrato: { contratante: "", descritivoServicos: "", informacoesComplementares: "", valorUnitario: valorEc, valorTotal: valorEc, descontoNegociado: 0, valorAPagar: valorEc, dataContrato: "", rubrica: "" },

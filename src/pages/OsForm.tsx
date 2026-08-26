@@ -41,6 +41,7 @@ import { toast } from "@/store/toast";
 import { confirmar } from "@/store/confirm";
 import { usePendencias, useMinhasPendencias } from "@/store/pendencias";
 import { useSugestoes } from "@/hooks/useSugestoes";
+import { urlCredenciamento } from "@/lib/links";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
 import { idAncoraPendencia } from "@/lib/destaque";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
@@ -269,7 +270,9 @@ export function OsForm() {
         logistica: { transporteMaterial: "", transporteEquipe: "", hospedagem: "", alimentacao: "", estacionamentoCarga: "", estacionamentoEquipe: "", uniformizacao: "" },
         infraestrutura: { energia: "", internet: "", pontosEletricos: "", estruturas: "", servicosApoio: "", artLaudos: "" },
         observacoes: [],
-        credenciamento: { prazoLimite: "", linkFormulario: `https://forms.polobh.com.br/cred/${ec.id}-${seq}` },
+        // O link só existe depois de salvar: quem o monta é `urlCredenciamento`, a
+        // partir do token que o banco gera (ver lib/links).
+        credenciamento: { prazoLimite: "", linkFormulario: "" },
         orcamento: { valorEc, valorComBvNf: valorEc, valorSemBvComNf: valorEc, valorSemBvSemNf: valorEc, parcelas: [{ descricao: "Pagamento único", valor: valorEc }], documentoFiscal: "" },
         financeiro: { tomador: "", descritivoNf: "", cnae: "", codigoServico: "", valorUnitario: valorEc, valorTotal: valorEc, descontoNegociado: 0, valorAPagar: valorEc, bvPercentual: 0, bvValor: 0, bvJustificativa: "", acertoFinanceiro: "" },
         contrato: { contratante: "", descritivoServicos: "", informacoesComplementares: "", valorUnitario: valorEc, valorTotal: valorEc, descontoNegociado: 0, valorAPagar: valorEc, dataContrato: "", rubrica: "" },
@@ -291,7 +294,7 @@ export function OsForm() {
 
   // Linhas da EC que esta OS consolida (mesmo fornecedor).
   const linhasConsolidadas = ecCtx.linhas.filter((l) => os.ecLinhaIds.includes(l.id));
-  const linkCredenciamento = os.slugCredenciamento ? `${location.origin}/credenciamento/${os.slugCredenciamento}` : "";
+  const linkCredenciamento = urlCredenciamento(os);
   // Justificativa do BV é obrigatória quando não há BV ou o percentual é < 15%.
   const bvPrecisaJustif = os.financeiro.bvPercentual < 15;
   const bvJustifFaltando = bvPrecisaJustif && !os.financeiro.bvJustificativa?.trim();
@@ -449,9 +452,7 @@ export function OsForm() {
         ? (os!.financeiro.valorTotal * os!.financeiro.bvPercentual) / 100
         : os!.financeiro.bvValor;
       // mantém o link de credenciamento coerente com o token da OS (p/ e-mail/impressão)
-      const linkCred = os!.slugCredenciamento
-        ? `${location.origin}/credenciamento/${os!.slugCredenciamento}`
-        : os!.credenciamento.linkFormulario;
+      const linkCred = urlCredenciamento(os!);
       let salvo = await repo.oss.salvar({
         ...os!,
         status: status === "Disparada" ? os!.status : (status ?? os!.status),

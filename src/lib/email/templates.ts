@@ -3,6 +3,7 @@
  * Geram assunto + HTML simples. Sem dependências — fácil de manter por 1 dev.
  */
 import type { Ec, Os } from "@/data/types";
+import { urlCredenciamento } from "@/lib/links";
 import { dataBR } from "@/lib/format";
 
 export interface AnexoEmail {
@@ -63,7 +64,7 @@ export function emailDispararOs(os: Os, ec: Ec): MensagemEmail {
     </ul>
     <p style="font-size:14px"><b>Descritivo:</b><br>${h(os.descritivo || "").replace(/\n/g, "<br>")}</p>
     <p style="font-size:14px">Por favor, confirme o recebimento e realize o credenciamento da equipe pelo link:
-       <a href="${urlHttp(os.credenciamento.linkFormulario)}">${h(os.credenciamento.linkFormulario)}</a>
+       <a href="${urlHttp(urlCredenciamento(os))}">${h(urlCredenciamento(os))}</a>
        ${os.credenciamento.prazoLimite ? `(prazo: ${dataBR(os.credenciamento.prazoLimite)})` : ""}.</p>`;
   return {
     para: os.fornecedor.email ? [{ email: os.fornecedor.email, nome: os.fornecedor.razaoSocial }] : [],
@@ -78,7 +79,7 @@ export function emailCredenciamento(os: Os, ec: Ec): MensagemEmail {
     <p>Olá, ${h(os.fornecedor.razaoSocial || "fornecedor")}.</p>
     <p>Para o projeto <b>${h(ec.projeto.titulo)}</b>, acesse o formulário de credenciamento
        e cadastre os dados de profissionais e veículos da sua equipe:</p>
-    <p><a href="${urlHttp(os.credenciamento.linkFormulario)}"
+    <p><a href="${urlHttp(urlCredenciamento(os))}"
         style="display:inline-block;background:#F2820D;color:#2A1602;font-weight:700;
         padding:10px 18px;border-radius:10px;text-decoration:none">Abrir credenciamento</a></p>
     ${os.credenciamento.prazoLimite ? `<p style="font-size:14px"><b>Prazo limite:</b> ${dataBR(os.credenciamento.prazoLimite)}</p>` : ""}`;

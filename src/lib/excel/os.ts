@@ -26,6 +26,7 @@ import {
   opcaoEscolhidaDoItem, valorItemNaEc,
 } from "@/domain/calc";
 import { ETAPAS_CRONOGRAMA } from "@/domain/projeto";
+import { urlCredenciamento } from "@/lib/links";
 import { COR, fill, FONT_LIGHT, baixar, nomeArquivo, carregarLogo, encaixarLogo } from "./shared";
 
 const moeda = '"R$" #,##0.00';
@@ -345,7 +346,7 @@ export async function criarOsExcelBuffer(
   secao("CREDENCIAMENTO");
   linha(
     "Favor acessar o link abaixo e preencher o formulário de credenciamento com os dados de todos os profissionais e veículos de sua equipe.",
-    os.credenciamento.linkFormulario || "Link gerado ao salvar/disparar a OS",
+    urlCredenciamento(os) || "O link é gerado ao salvar a OS.",
     { altura: 42 }
   );
   linha("Prazo Limite para o Credenciamento:", dataBR(os.credenciamento.prazoLimite));

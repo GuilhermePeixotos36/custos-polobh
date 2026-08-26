@@ -72,7 +72,7 @@ const os = (ecLinhaIds: string[]): Os => ({
     estruturas: "Praticável 2x1", servicosApoio: "Carregadores", artLaudos: "ART emitida",
   },
   observacoes: [],
-  credenciamento: { prazoLimite: "2026-09-01", linkFormulario: "https://forms.polobh.com.br/cred/abc" },
+  credenciamento: { prazoLimite: "2026-09-01", linkFormulario: "https://forms.polobh.com.br/cred/abc" }, // link legado, fictício
   orcamento: {
     valorEc: 10000, valorComBvNf: 9000, valorSemBvComNf: 8500, valorSemBvSemNf: 8000,
     parcelas: [{ descricao: "Entrada", valor: 5000 }, { descricao: "Saldo", valor: 5000 }],
@@ -130,8 +130,10 @@ describe("Excel da OS — modelo novo", () => {
     expect(texto).toContain("Itaú");
     expect(texto).toContain("220V trifásico");
     expect(texto).toContain("Camiseta preta");
-    // Credenciamento
-    expect(texto).toContain("https://forms.polobh.com.br/cred/abc");
+    // Credenciamento: o link sai do token gerado pelo banco, nunca do domínio
+    // fictício que a OS carregava por padrão (forms.polobh.com.br).
+    expect(texto).toContain("/credenciamento/abc");
+    expect(texto).not.toContain("forms.polobh.com.br");
   });
 
   it("não exporta a coluna de OBSERVAÇÕES do modelo (era só o guia de preenchimento)", async () => {

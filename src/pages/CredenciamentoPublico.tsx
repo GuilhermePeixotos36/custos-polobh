@@ -2,13 +2,15 @@ import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { Button, Input } from "@/components/ui";
 import { useAsync } from "@/hooks/useAsync";
-import { dataBR, maskCpfCnpjInput, maskPlaca } from "@/lib/format";
+import { cx, dataBR, maskCpfCnpjInput, maskPlaca } from "@/lib/format";
 import type { CredenciamentoMembro, CredenciamentoVeiculo } from "@/data/types";
 
 interface Contexto {
   evento: { titulo: string; local: string; data: string };
   fornecedor: string;
   prazoLimite: string;
+  /** O servidor é quem decide: o prazo é do calendário da Pólobh (fuso de Brasília). */
+  prazoEncerrado?: boolean;
 }
 
 const base = import.meta.env.VITE_SUPABASE_URL as string;
@@ -74,9 +76,24 @@ export function CredenciamentoPublico() {
         <p className="text-ink-2 mt-1">
           {ctx.fornecedor && <>{ctx.fornecedor} · </>}Evento em {dataBR(ctx.evento.data)}{ctx.evento.local ? ` · ${ctx.evento.local}` : ""}
         </p>
-        {ctx.prazoLimite && <p className="text-[12.5px] text-primary-dark font-semibold mt-1">Prazo para credenciamento: {dataBR(ctx.prazoLimite)}</p>}
+        {ctx.prazoLimite && (
+          <p className={cx("text-[12.5px] font-semibold mt-1", ctx.prazoEncerrado ? "text-danger" : "text-primary-dark")}>
+            Prazo para credenciamento: {dataBR(ctx.prazoLimite)}
+            {ctx.prazoEncerrado && " — encerrado"}
+          </p>
+        )}
 
-        {enviado ? (
+        {/* Prazo vencido: avisa AGORA, e não depois de a pessoa preencher a
+            equipe inteira e apanhar um erro no envio. */}
+        {ctx.prazoEncerrado && !enviado ? (
+          <div className="mt-8 bg-surface border border-danger/30 rounded-card shadow-card p-6 text-center">
+            <h2 className="font-display font-bold text-ink text-lg">Prazo encerrado</h2>
+            <p className="text-ink-2 text-sm mt-1">
+              O prazo para este credenciamento terminou em {dataBR(ctx.prazoLimite)}. Fale com a produção da Pólobh
+              para reabrir o formulário.
+            </p>
+          </div>
+        ) : enviado ? (
           <div className="mt-8 bg-surface border border-border rounded-card shadow-card p-6 text-center">
             <h2 className="font-display font-bold text-ink text-lg">Credenciamento enviado!</h2>
             <p className="text-ink-2 text-sm mt-1">Recebemos os dados da sua equipe e veículos. Obrigado.</p>
