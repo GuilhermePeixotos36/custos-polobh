@@ -248,6 +248,8 @@ export interface ProjetoInfo {
  * Os rótulos de tela/planilha vivem em `OPCOES_VALOR_ITEM`, em domain/calc.
  */
 export type OpcaoValorItem = "" | "comBvNf" | "semBvComNf" | "semBvSemNf";
+/** As três opções de fato — sem o "" de "ninguém escolheu ainda". */
+export type OpcaoValorDefinida = Exclude<OpcaoValorItem, "">;
 
 export interface EcLinha {
   id: string;
@@ -269,6 +271,12 @@ export interface EcLinha {
   valorComBvNf: number;
   valorSemBvComNf: number;
   valorSemBvSemNf: number;
+  /**
+   * Opções que NÃO SE APLICAM a este item. Cada um dos três campos é uma coisa
+   * ou outra: um valor digitado ou "Não se aplica" — e as duas respostas são
+   * diferentes de "ainda não preenchi", que é o campo em branco.
+   */
+  valoresNaoAplicaveis: OpcaoValorDefinida[];
   /** Qual das três vale. É ela que a planilha da OS imprime abaixo do valor da EC. */
   opcaoValor: OpcaoValorItem;
   statusAprovacao: StatusAprovacao;

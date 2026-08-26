@@ -229,6 +229,23 @@ const MODULOS: Modulo[] = [
           </Tela>
           <Dica>Os percentuais são fixos: <b>honorários 15%</b> e <b>encargos 16,33%</b>. O valor total recalcula sozinho a cada mudança.</Dica>
         </Secao>
+        <Secao titulo="Opções de valor do item (o que sai na OS)">
+          <p>
+            Dentro de cada item há um bloquinho com as <b>três formas de cobrar</b> aquele serviço — a OS junta vários
+            itens, e cada um é negociado do seu jeito:
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            <Tag tom="primary">Valor com BV e NF</Tag>
+            <Tag tom="primary">Valor Sem BV e Com Nota Fiscal</Tag>
+            <Tag tom="primary">Valor Sem BV e Sem NF</Tag>
+          </div>
+          <Passos>
+            <span>Em cada uma, ou você <b>digita o valor</b>, ou clica em <b>Não se aplica</b> — este item não é cobrado daquela forma. São respostas diferentes de deixar em branco.</span>
+            <span>O <b>rádio</b> marca qual das três <b>vale</b> para o item. É ela que a planilha da OS imprime, logo abaixo de "Valor do Item na EC do Projeto".</span>
+            <span>Marcar "Não se aplica" <b>não apaga</b> o valor digitado: dá para voltar atrás sem perder o que estava escrito.</span>
+          </Passos>
+          <Dica>Uma opção marcada como "Não se aplica" sai na planilha com esse texto e <b>não entra</b> no total das opções escolhidas.</Dica>
+        </Secao>
         <Secao titulo="Enviar para aprovação, versões e Excel">
           <Passos>
             <span>Na EC, em <b>Ações</b>, use <b>Enviar ao cliente para aprovação</b> — a EC vai para o status <Tag tom="warning">Aguardando</Tag>.</span>

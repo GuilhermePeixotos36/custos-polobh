@@ -19,7 +19,7 @@ const projeto = (local: string, representante = ""): Projeto => ({
 const linha = (p: Partial<EcLinha>): EcLinha => ({
   id: "l", grupo: "PRODUÇÃO", item: "", descricao: "", descricaoCompleta: "",
   valorPolobh: 0, valorCliente: 0, valorGasto: 0,
-  valorComBvNf: 0, valorSemBvComNf: 0, valorSemBvSemNf: 0, opcaoValor: "",
+  valorComBvNf: 0, valorSemBvComNf: 0, valorSemBvSemNf: 0, valoresNaoAplicaveis: [], opcaoValor: "",
   statusAprovacao: "Pendente",
   fornecedorRazao: "", fornecedorCnpj: "", fornecedorContato: "", faturaNf: "",
   codigoServico: "", pedidoCompra: "", statusOs: "Pendente", contratoStatus: "Pendente",

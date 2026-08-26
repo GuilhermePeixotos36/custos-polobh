@@ -19,7 +19,7 @@ beforeAll(() => {
 const linha = (p: Partial<EcLinha>): EcLinha => ({
   id: "l1", grupo: "PRODUÇÃO", item: "Item", descricao: "", descricaoCompleta: "",
   valorPolobh: 0, valorCliente: 0, valorGasto: 0,
-  valorComBvNf: 0, valorSemBvComNf: 0, valorSemBvSemNf: 0, opcaoValor: "",
+  valorComBvNf: 0, valorSemBvComNf: 0, valorSemBvSemNf: 0, valoresNaoAplicaveis: [], opcaoValor: "",
   statusAprovacao: "OK", fornecedorRazao: "Som & Luz LTDA", fornecedorCnpj: "12.345.678/0001-95",
   fornecedorContato: "", faturaNf: "Nota Fiscal", codigoServico: "17.02", pedidoCompra: "PC-1",
   statusOs: "OK", contratoStatus: "OK", observacao: "", observacoes: [], oculto: false, ordem: 0, ...p,
@@ -165,6 +165,20 @@ describe("Excel da OS — modelo novo", () => {
     expect(linhasTxt[i + 6]).toContain("3600");
     // As opções não escolhidas não entram — é a decisão da produção que sai.
     expect(linhasTxt[i + 3]).not.toContain("Sem BV");
+  });
+
+  it("opção marcada como 'Não se aplica' sai como texto, e não como valor", async () => {
+    const l = linha({
+      id: "l1", item: "Som", valorPolobh: 10000,
+      valorComBvNf: 9000, opcaoValor: "comBvNf", valoresNaoAplicaveis: ["comBvNf"],
+    });
+    const { linhas: linhasTxt, texto } = await abrir(os(["l1"]), ec([l]));
+    const i = linhasTxt.findIndex((x) => x?.startsWith("ORÇAMENTO"));
+    expect(linhasTxt[i + 3]).toContain("Valor com BV e NF");
+    expect(linhasTxt[i + 3]).toContain("Não se aplica");
+    // O 9000 continua guardado na EC, mas não pode aparecer como se fosse cobrança.
+    expect(linhasTxt[i + 3]).not.toContain("9000");
+    expect(texto).toContain("Total das opções escolhidas");
   });
 
   it("item sem opção escolhida diz isso, em vez de inventar uma forma de cobrança", async () => {

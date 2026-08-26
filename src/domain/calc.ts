@@ -2,7 +2,7 @@
  * Cálculos da EC (seção 4 do brief) e helpers de numeração/consolidação.
  * Percentuais fixos: honorários 15%, encargos 16,33%.
  */
-import type { Ec, EcLinha, OpcaoValorItem, Producao, Fornecedor, Os, TaxaConfig } from "@/data/types";
+import type { Ec, EcLinha, OpcaoValorDefinida, OpcaoValorItem, Producao, Fornecedor, Os, TaxaConfig } from "@/data/types";
 import { brl, dataBRCurta } from "@/lib/format";
 
 export const HONORARIOS = 0.15;
@@ -246,21 +246,44 @@ export function valorItemNaEc(l: Pick<EcLinha, "valorPolobh" | "valorCliente">):
   return r2((l.valorPolobh || 0) + (l.valorCliente || 0));
 }
 
-/** Valor de uma das três opções do item. */
+/**
+ * A opção foi marcada como "Não se aplica" neste item?
+ *
+ * É diferente de valor zero: "não se aplica" é uma RESPOSTA da produção (este
+ * item não é cobrado assim), e o campo em branco é uma pergunta sem resposta.
+ * A planilha da OS imprime as duas coisas de jeitos diferentes.
+ */
+export function opcaoNaoSeAplica(l: Pick<EcLinha, "valoresNaoAplicaveis">, opcao: OpcaoValorItem): boolean {
+  return !!opcao && !!l.valoresNaoAplicaveis?.includes(opcao as OpcaoValorDefinida);
+}
+
+/** Valor de uma das três opções do item — zero quando ela não se aplica. */
 export function valorDaOpcao(l: EcLinha, opcao: OpcaoValorItem): number {
   const def = OPCOES_VALOR_ITEM.find((o) => o.opcao === opcao);
-  return def ? Number(l[def.campo] ?? 0) || 0 : 0;
+  if (!def || opcaoNaoSeAplica(l, opcao)) return 0;
+  return Number(l[def.campo] ?? 0) || 0;
 }
 
 /**
  * A opção que a produção escolheu para o item — rótulo e valor prontos para a
  * planilha. `null` quando ninguém escolheu ainda: nesse caso a OS imprime só o
  * valor do item na EC, sem inventar uma forma de cobrança.
+ *
+ * `naoSeAplica` marca a escolha que a produção respondeu com "Não se aplica":
+ * a planilha imprime o texto no lugar do número, e ela não entra em soma nenhuma.
  */
-export function opcaoEscolhidaDoItem(l: EcLinha): { opcao: OpcaoValorItem; rotulo: string; valor: number } | null {
+export function opcaoEscolhidaDoItem(
+  l: EcLinha
+): { opcao: OpcaoValorItem; rotulo: string; valor: number; naoSeAplica: boolean } | null {
   const def = OPCOES_VALOR_ITEM.find((o) => o.opcao === l.opcaoValor);
   if (!def) return null;
-  return { opcao: def.opcao, rotulo: def.rotulo, valor: Number(l[def.campo] ?? 0) || 0 };
+  const naoSeAplica = opcaoNaoSeAplica(l, def.opcao);
+  return {
+    opcao: def.opcao,
+    rotulo: def.rotulo,
+    valor: naoSeAplica ? 0 : Number(l[def.campo] ?? 0) || 0,
+    naoSeAplica,
+  };
 }
 
 /* ------------------------- Rentabilidade ------------------------- */

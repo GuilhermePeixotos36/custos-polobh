@@ -377,7 +377,9 @@ export async function criarOsExcelBuffer(
       r++;
       linha("Valor do Item na EC do Projeto:", valorItemNaEc(item), { money: true });
       const escolha = opcaoEscolhidaDoItem(item);
-      if (escolha) linha(`${escolha.rotulo}:`, escolha.valor, { money: true });
+      // "Não se aplica" é resposta, não valor: sai como texto e não entra na soma.
+      if (escolha?.naoSeAplica) linha(`${escolha.rotulo}:`, "Não se aplica", { fixo: true });
+      else if (escolha) linha(`${escolha.rotulo}:`, escolha.valor, { money: true });
       else linha("Opção de valor:", "A produção ainda não escolheu a forma de cobrança deste item.", { fixo: true });
     }
     // Fechamento do bloco: o que a OS soma das opções escolhidas.

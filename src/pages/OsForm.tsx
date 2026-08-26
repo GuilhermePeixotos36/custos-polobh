@@ -810,7 +810,8 @@ export function OsForm() {
                       <div className="text-[12px] mt-0.5">
                         {escolha ? (
                           <span className="text-ink-2">
-                            <b className="text-primary-dark">{escolha.rotulo}:</b> {brl(escolha.valor)}
+                            <b className="text-primary-dark">{escolha.rotulo}:</b>{" "}
+                            {escolha.naoSeAplica ? <i className="text-ink-3">Não se aplica</i> : brl(escolha.valor)}
                           </span>
                         ) : (
                           <span className="text-warning font-semibold">

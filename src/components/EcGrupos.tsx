@@ -27,10 +27,10 @@ import { ResumoPropostaModal } from "@/components/ResumoPropostaModal";
 import { NotifDot } from "@/components/NotifDot";
 import { MoverSetas } from "@/components/MoverSetas";
 import { destacarElemento, seguirElemento, idAncoraPendencia, idCampoPendencia, idGrupoEc } from "@/lib/destaque";
-import { aprovarLinha, faltasParaEmitirOs, reverterAprovacaoLinha, OPCOES_VALOR_ITEM, valorItemNaEc } from "@/domain/calc";
+import { aprovarLinha, faltasParaEmitirOs, reverterAprovacaoLinha, opcaoNaoSeAplica, OPCOES_VALOR_ITEM, valorItemNaEc } from "@/domain/calc";
 import { flags } from "@/lib/flags";
 import { brl, cx } from "@/lib/format";
-import type { DocumentoPg, EcLinha, Fornecedor, Observacao, OpcaoValorItem, StatusAprovacao, StatusOs } from "@/data/types";
+import type { DocumentoPg, EcLinha, Fornecedor, Observacao, OpcaoValorDefinida, OpcaoValorItem, StatusAprovacao, StatusOs } from "@/data/types";
 import type { Sugestoes } from "@/domain/sugestoes";
 
 /** Opções de status de OS e de Contrato — a mesma lista nos dois campos. */
@@ -203,6 +203,7 @@ function novaLinhaBase(): EcLinha {
     valorComBvNf: 0,
     valorSemBvComNf: 0,
     valorSemBvSemNf: 0,
+    valoresNaoAplicaveis: [],
     opcaoValor: "",
     statusAprovacao: "Pendente",
     fornecedorRazao: "",
@@ -1125,9 +1126,31 @@ function ItemRow({
  * "Valor do Item na EC do Projeto" — item a item, na ordem da EC.
  */
 function OpcoesDeValor({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinha>) => void }) {
-  const escolher = (opcao: OpcaoValorItem) =>
+  const escolher = (opcao: OpcaoValorDefinida) => {
     // Clicar de novo na opção marcada desmarca: sem escolha, a OS imprime só o valor da EC.
-    onUpd({ opcaoValor: l.opcaoValor === opcao ? "" : opcao });
+    if (l.opcaoValor === opcao) return onUpd({ opcaoValor: "" });
+    // Eleger uma opção é dizer que ela SE APLICA — as duas coisas não convivem.
+    onUpd({
+      opcaoValor: opcao,
+      valoresNaoAplicaveis: (l.valoresNaoAplicaveis ?? []).filter((o) => o !== opcao),
+    });
+  };
+
+  /**
+   * Alterna entre digitar o valor e responder "Não se aplica".
+   *
+   * O valor digitado NÃO é apagado ao marcar "não se aplica" — quem marcou por
+   * engano volta atrás sem perder o que tinha escrito.
+   */
+  const alternarNaoSeAplica = (opcao: OpcaoValorDefinida) => {
+    const atuais = l.valoresNaoAplicaveis ?? [];
+    const marcando = !atuais.includes(opcao);
+    onUpd({
+      valoresNaoAplicaveis: marcando ? [...atuais, opcao] : atuais.filter((o) => o !== opcao),
+      // O que não se aplica não pode seguir sendo "a opção que vale" para o item.
+      ...(marcando && l.opcaoValor === opcao ? { opcaoValor: "" as OpcaoValorItem } : {}),
+    });
+  };
 
   return (
     <div className="px-2.5 pb-2.5 pt-2 border-t border-border-soft bg-[#FCFCFD]">
@@ -1142,6 +1165,7 @@ function OpcoesDeValor({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinh
       <div className="grid sm:grid-cols-3 gap-2">
         {OPCOES_VALOR_ITEM.map(({ opcao, rotulo, campo }) => {
           const marcada = l.opcaoValor === opcao;
+          const naoSeAplica = opcaoNaoSeAplica(l, opcao);
           return (
             <div
               key={opcao}
@@ -1163,12 +1187,27 @@ function OpcoesDeValor({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinh
                   {rotulo}
                 </span>
               </label>
-              <CurrencyInput
-                className="!h-8 !px-2 !text-[12.5px]"
-                value={l[campo]}
-                onValue={(v) => onUpd({ [campo]: v } as Partial<EcLinha>)}
-                aria-label={`${rotulo} do item ${l.item || "sem título"}`}
-              />
+              {/* Ou o valor, ou "Não se aplica" — as duas respostas possíveis. */}
+              {naoSeAplica ? (
+                <div className="h-8 flex items-center rounded-btn border border-border-soft bg-[#F1F2F5] px-2 text-[12.5px] font-bold text-ink-3">
+                  Não se aplica
+                </div>
+              ) : (
+                <CurrencyInput
+                  className="!h-8 !px-2 !text-[12.5px]"
+                  value={l[campo]}
+                  onValue={(v) => onUpd({ [campo]: v } as Partial<EcLinha>)}
+                  aria-label={`${rotulo} do item ${l.item || "sem título"}`}
+                />
+              )}
+              <button
+                type="button"
+                onClick={() => alternarNaoSeAplica(opcao)}
+                className="mt-1 text-[10.5px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded"
+                title={naoSeAplica ? "Voltar a informar um valor" : "Este item não é cobrado desta forma"}
+              >
+                {naoSeAplica ? "Informar valor" : "Não se aplica"}
+              </button>
             </div>
           );
         })}

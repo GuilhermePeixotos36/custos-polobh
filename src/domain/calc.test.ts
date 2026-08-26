@@ -3,6 +3,9 @@ import {
   calcularTotais,
   valorTaxa,
   numeroEc,
+  opcaoEscolhidaDoItem,
+  opcaoNaoSeAplica,
+  valorDaOpcao,
   descritivoConsolidado,
   textoObjetoContrato,
   honorariosPadrao,
@@ -29,7 +32,8 @@ function linha(p: Partial<EcLinha>): EcLinha {
   return {
     id: "l1", grupo: "G", item: "Item", descricao: "", descricaoCompleta: "",
     valorPolobh: 0, valorCliente: 0, valorGasto: 0,
-  valorComBvNf: 0, valorSemBvComNf: 0, valorSemBvSemNf: 0, opcaoValor: "", statusAprovacao: "Pendente",
+    valorComBvNf: 0, valorSemBvComNf: 0, valorSemBvSemNf: 0,
+    valoresNaoAplicaveis: [], opcaoValor: "", statusAprovacao: "Pendente",
     fornecedorRazao: "", fornecedorCnpj: "", fornecedorContato: "", faturaNf: "",
     codigoServico: "", pedidoCompra: "", statusOs: "Pendente", contratoStatus: "Pendente",
     observacao: "", observacoes: [], oculto: false, ordem: 0, ...p,
@@ -127,6 +131,33 @@ describe("numeroEc", () => {
     expect(numeroEc("ACME Comércio Ltda", "ACME – Convenção – 2026", 1)).toBe(
       "EC – ACME – Convencao – 2026 – V01"
     );
+  });
+});
+
+describe("opções de valor do item", () => {
+  it("a opção escolhida sai com rótulo e valor", () => {
+    const escolha = opcaoEscolhidaDoItem(linha({ valorComBvNf: 9000, opcaoValor: "comBvNf" }));
+    expect(escolha).toMatchObject({ rotulo: "Valor com BV e NF", valor: 9000, naoSeAplica: false });
+  });
+
+  it("'Não se aplica' é resposta: zera o valor e se identifica", () => {
+    // O número digitado antes continua guardado (dá para voltar atrás), mas não
+    // vale mais nada — nem na planilha, nem em soma.
+    const l = linha({ valorComBvNf: 9000, opcaoValor: "comBvNf", valoresNaoAplicaveis: ["comBvNf"] });
+    expect(opcaoNaoSeAplica(l, "comBvNf")).toBe(true);
+    expect(valorDaOpcao(l, "comBvNf")).toBe(0);
+    expect(opcaoEscolhidaDoItem(l)).toMatchObject({ valor: 0, naoSeAplica: true });
+    expect(l.valorComBvNf).toBe(9000);
+  });
+
+  it("marcar uma opção não afeta as outras", () => {
+    const l = linha({ valorSemBvSemNf: 3600, opcaoValor: "semBvSemNf", valoresNaoAplicaveis: ["comBvNf"] });
+    expect(opcaoNaoSeAplica(l, "semBvSemNf")).toBe(false);
+    expect(valorDaOpcao(l, "semBvSemNf")).toBe(3600);
+  });
+
+  it("sem escolha nenhuma, não há opção para a OS imprimir", () => {
+    expect(opcaoEscolhidaDoItem(linha({ valorComBvNf: 9000 }))).toBeNull();
   });
 });
 
