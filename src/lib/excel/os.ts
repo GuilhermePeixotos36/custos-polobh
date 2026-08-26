@@ -1,16 +1,46 @@
 /**
- * Geração da OS em Excel seguindo o "Modelo Novo" da Pólobh.
- * Layout em 2 colunas: RÓTULO | VALOR. As informações vêm automaticamente da EC
- * ou do que a equipe preencheu na criação da OS. (A coluna de "Observações" do
- * modelo servia só de guia para montar este gerador e NÃO é exportada.)
+ * Geração da OS em Excel seguindo o "Modelo Novo" da Pólobh
+ * ("Planilha de formatação de OS - Modelo Novo (5) em 13 06 26.xlsx").
+ *
+ * O modelo é uma folha de rótulo + valor: a coluna A é o rótulo e o valor ocupa
+ * a faixa B:O, com sub-colunas nas linhas de cronograma (etapa · data · horário
+ * · atividades). Cores, fontes e alturas foram medidas no arquivo original —
+ * barras de seção em cinza 15%, faixa laranja clara nas duas barras do
+ * financeiro, Futura PT Light em negrito nos rótulos.
+ *
+ * A coluna "OBSERVAÇÕES" do modelo (P) NÃO é exportada: lá ela só explica de
+ * onde cada campo vem ("informação vem automaticamente da EC", "preenchida pela
+ * equipe"). Ela foi o roteiro para montar este gerador — tudo o que ela manda
+ * puxar do sistema é puxado aqui.
+ *
+ * ORÇAMENTO é o único bloco que foge do modelo de propósito, a pedido do
+ * Guilherme (26/08/2026): como a OS consolida vários itens da EC e cada um é
+ * negociado do seu jeito, o bloco sai ITEM A ITEM — o valor do item na EC e,
+ * logo abaixo, a opção de cobrança escolhida para ele (ver `opcaoEscolhidaDoItem`).
  */
 import ExcelJS from "exceljs";
-import type { Ec, Os } from "@/data/types";
+import type { Ec, EcLinha, Os } from "@/data/types";
 import { dataBR } from "@/lib/format";
-import { textoObjetoContrato, FORMA_PAGAMENTO_PADRAO, OBS_CONTRATO_PADRAO } from "@/domain/calc";
-import { COR, fill, grade, baixar, nomeArquivo, carregarLogo, encaixarLogo } from "./shared";
+import {
+  textoObjetoContrato, FORMA_PAGAMENTO_PADRAO, OBS_CONTRATO_PADRAO,
+  opcaoEscolhidaDoItem, valorItemNaEc,
+} from "@/domain/calc";
+import { ETAPAS_CRONOGRAMA } from "@/domain/projeto";
+import { COR, fill, FONT_LIGHT, baixar, nomeArquivo, carregarLogo, encaixarLogo } from "./shared";
 
 const moeda = '"R$" #,##0.00';
+const PT = 11;
+/** Última coluna da faixa de valores — o modelo vai de B até O. */
+const FIM = "O";
+const COLS = ["A","B","C","D","E","F","G","H","I","J","K","L","M","N","O"];
+
+/** Borda fina embaixo, como nas linhas de dado do modelo. */
+const linhaFina: Partial<ExcelJS.Borders> = { bottom: { style: "thin" } };
+/** Moldura grossa das barras de seção. */
+const molduraSecao: Partial<ExcelJS.Borders> = {
+  top: { style: "medium" }, bottom: { style: "medium" },
+  left: { style: "medium" }, right: { style: "medium" },
+};
 
 /** Dados fiscais da empresa do grupo Pólobh (configurados em Configurações). */
 export interface EmpresaEmissora {
@@ -40,81 +70,139 @@ export async function criarOsExcelBuffer(
     },
     views: [{ showGridLines: false }],
   });
-  ws.getColumn(1).width = 34; // Rótulo
-  ws.getColumn(2).width = 92; // Valor
+  // Larguras do modelo: rótulo largo em A, faixa de valores repartida em B:O.
+  ws.getColumn(1).width = 31.125;
+  for (let c = 2; c <= 15; c++) ws.getColumn(c).width = 6.5;
 
   let r = 1;
 
   /* ------------------------------ helpers ------------------------------ */
-  const secao = (txt: string) => {
-    ws.mergeCells(`A${r}:B${r}`);
-    const c = ws.getCell(`A${r}`);
-    c.value = txt;
-    // Cinza das barras de seção do modelo original Pólobh (mesmo usado na EC),
-    // com texto escuro. Tela e PDF seguem exatamente estas cores.
-    c.font = { bold: true, size: 11, color: { argb: COR.ink } };
-    c.fill = fill(COR.sectionGray);
-    c.alignment = { vertical: "middle", horizontal: "center" };
-    ws.getRow(r).height = 22;
-    r++;
-  };
 
-  const sub = (txt: string) => {
-    ws.mergeCells(`A${r}:B${r}`);
+  /** Barra de seção (cinza 15%, moldura grossa), como DADOS DO CLIENTE. */
+  const secao = (txt: string, tom: "cinza" | "laranja" = "cinza") => {
+    ws.mergeCells(`A${r}:${FIM}${r}`);
     const c = ws.getCell(`A${r}`);
     c.value = txt;
-    c.font = { bold: true, size: 10, color: { argb: COR.ink } };
-    c.fill = fill(COR.groupGray);
+    c.font = { name: FONT_LIGHT, bold: true, size: PT, color: { argb: COR.ink } };
+    c.fill = fill(tom === "cinza" ? COR.sectionGray : COR.destaqueCabecalho);
     c.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
-    c.border = grade;
+    for (const col of COLS) ws.getCell(`${col}${r}`).border = molduraSecao;
+    ws.getRow(r).height = 24;
     r++;
   };
 
-  const linha = (
-    label: string,
-    valor: string | number | null | undefined,
-    o: { money?: boolean; fixo?: boolean; formula?: string; numFmt?: string } = {}
-  ) => {
-    const a = ws.getCell(`A${r}`);
-    a.value = label;
-    a.font = { bold: true, size: 10 };
-    a.fill = fill(COR.rotuloGray);
-    a.alignment = { vertical: "top", wrapText: true };
-    a.border = grade;
-    const b = ws.getCell(`B${r}`);
+  /** Aplica o estilo de rótulo do modelo: negrito, sem preenchimento, filete embaixo. */
+  const estiloRotulo = (cel: ExcelJS.Cell) => {
+    cel.font = { name: FONT_LIGHT, bold: true, size: PT, color: { argb: COR.ink } };
+    cel.alignment = { vertical: "middle", wrapText: true };
+    cel.border = linhaFina;
+  };
+
+  /** Estilo do conteúdo preenchido pelo sistema (regular, alinhado à esquerda). */
+  const estiloValor = (cel: ExcelJS.Cell, o: { fixo?: boolean } = {}) => {
+    cel.font = { name: FONT_LIGHT, size: PT, italic: !!o.fixo, color: { argb: COR.ink } };
+    cel.alignment = { vertical: "middle", horizontal: "left", wrapText: true };
+    cel.border = linhaFina;
+  };
+
+  interface OpcoesLinha {
+    /** Formata como dinheiro (R$ #.##0,00). */
+    money?: boolean;
+    /** Texto fixo do modelo (sai em itálico, para não parecer dado preenchido). */
+    fixo?: boolean;
+    /** Fórmula viva — recalcula se a planilha for editada no Excel. */
+    formula?: string;
+    numFmt?: string;
+    /** Altura da linha, quando o modelo pede mais espaço (blocos de texto). */
+    altura?: number;
+    /** Omite o rótulo: usado nas linhas seguintes de um rótulo agrupado. */
+    semRotulo?: boolean;
+    /**
+     * Nome do campo DENTRO da faixa de valores (B:L), com o número empurrado
+     * para a direita (M:O). É o desenho das linhas de "Valor" do modelo: o
+     * rótulo agrupado em A diz "Valor", e cada linha se identifica por dentro
+     * ("Valor unitário:", "Valor total:"…).
+     */
+    rotuloInterno?: string;
+  }
+
+  /** Linha rótulo | valor: A = rótulo, B:O = valor. Devolve o número da linha. */
+  const linha = (rotulo: string, valor: string | number | null | undefined, o: OpcoesLinha = {}): number => {
+    const atual = r;
+    const a = ws.getCell(`A${atual}`);
+    if (!o.semRotulo) a.value = rotulo;
+    estiloRotulo(a);
+    if (o.rotuloInterno) {
+      ws.mergeCells(`B${atual}:L${atual}`);
+      const nome = ws.getCell(`B${atual}`);
+      nome.value = `${o.rotuloInterno}:`;
+      nome.font = { name: FONT_LIGHT, bold: true, size: PT, color: { argb: COR.ink } };
+      nome.alignment = { vertical: "middle", horizontal: "left", wrapText: true };
+      ws.mergeCells(`M${atual}:${FIM}${atual}`);
+    } else {
+      ws.mergeCells(`B${atual}:${FIM}${atual}`);
+    }
+    // Com rótulo interno o número vai para a faixa da direita (M:O).
+    const b = ws.getCell(`${o.rotuloInterno ? "M" : "B"}${atual}`);
     b.value = o.formula
       ? ({ formula: o.formula, result: typeof valor === "number" ? valor : undefined } as ExcelJS.CellValue)
       : ((valor ?? "") as ExcelJS.CellValue);
-    b.font = { size: 10, italic: !!o.fixo, color: { argb: COR.ink } };
-    b.alignment = { wrapText: true, vertical: "top" };
-    b.border = grade;
-    if (o.money && typeof valor === "number") {
-      b.numFmt = moeda;
-      b.alignment = { vertical: "top", horizontal: "left" };
-    }
+    estiloValor(b, o);
+    if (o.rotuloInterno) b.alignment = { vertical: "middle", horizontal: "right" };
+    for (const col of COLS.slice(1)) ws.getCell(`${col}${atual}`).border = linhaFina;
+    if (o.money && typeof valor === "number") b.numFmt = moeda;
     if (o.numFmt) b.numFmt = o.numFmt;
+    if (o.altura) ws.getRow(atual).height = o.altura;
+    r++;
+    return atual;
+  };
+
+  /**
+   * Linha repartida em blocos, como as do cronograma no modelo:
+   * A = rótulo | B:D | E:I | J:L | M:O.
+   */
+  const linhaBlocos = (rotulo: string, blocos: [string, string, string, string], o: { semRotulo?: boolean } = {}) => {
+    const a = ws.getCell(`A${r}`);
+    if (!o.semRotulo) a.value = rotulo;
+    estiloRotulo(a);
+    const faixas: [string, string][] = [["B", "D"], ["E", "I"], ["J", "L"], ["M", FIM]];
+    faixas.forEach(([ini, fim], i) => {
+      ws.mergeCells(`${ini}${r}:${fim}${r}`);
+      const c = ws.getCell(`${ini}${r}`);
+      c.value = blocos[i];
+      // A primeira faixa nomeia a etapa: no modelo ela vem em negrito.
+      c.font = { name: FONT_LIGHT, bold: i === 0, size: PT, color: { argb: COR.ink } };
+      c.alignment = { vertical: "middle", horizontal: "left", wrapText: true };
+    });
+    for (const col of COLS.slice(1)) ws.getCell(`${col}${r}`).border = linhaFina;
     r++;
   };
 
+  /** Junta o rótulo de um bloco de N linhas numa célula só (mescla vertical em A). */
+  const agruparRotulo = (primeira: number, ultima: number) => {
+    if (ultima > primeira) {
+      ws.mergeCells(`A${primeira}:A${ultima}`);
+      ws.getCell(`A${primeira}`).alignment = { vertical: "top", wrapText: true };
+    }
+  };
+
   /* ------------------------------ cabeçalho ---------------------------- */
-  ws.mergeCells(`A${r}:B${r + 1}`);
+  // O modelo começa direto em DADOS DO CLIENTE; a faixa de marca é a mesma
+  // solução da EC — sem ela a planilha sai sem dizer de que OS se trata.
+  ws.mergeCells(`A${r}:${FIM}${r + 1}`);
   const tit = ws.getCell(`A${r}`);
   tit.value = "        Ordem de Serviço";
-  tit.font = { name: "Calibri", size: 16, bold: true, color: { argb: COR.white } };
+  tit.font = { name: FONT_LIGHT, size: 16, bold: true, color: { argb: COR.white } };
   tit.alignment = { vertical: "middle", horizontal: "center" };
-  ["A", "B"].forEach((c) => {
-    ws.getCell(`${c}${r}`).fill = fill(COR.headerGray);
-    ws.getCell(`${c}${r + 1}`).fill = fill(COR.headerGray);
-  });
+  for (const col of COLS) {
+    ws.getCell(`${col}${r}`).fill = fill(COR.headerGray);
+    ws.getCell(`${col}${r + 1}`).fill = fill(COR.headerGray);
+  }
   ws.getRow(r).height = 26;
   ws.getRow(r + 1).height = 26;
   const logo = await carregarLogo();
   if (logo) {
     const id = wb.addImage({ buffer: logo.buffer as unknown as ExcelJS.Buffer, extension: "png" });
-    // Escala pela proporção real do PNG — tamanho fixo achatava a logo.
-    // A caixa acompanha a faixa do cabeçalho (2 linhas de 26pt ≈ 69px) e a
-    // largura da coluna de rótulos (34 unidades ≈ 243px), para a logo não sair
-    // miúda como saía na caixa de 150x50.
     ws.addImage(id, { tl: { col: 0.15, row: r - 0.9 }, ext: encaixarLogo(logo, { largura: 230, altura: 62 }) });
   }
   r += 2;
@@ -137,6 +225,7 @@ export async function criarOsExcelBuffer(
   const p = ec.projeto;
   secao("DADOS DO PROJETO");
   linha("Título:", p.titulo);
+  linha("Modalidade:", p.modalidade);
   linha("Incentivos Fiscais:", p.incentivosFiscais);
   linha("Data:", dataBR(p.evento));
   linha("Horário:", p.horario);
@@ -147,22 +236,51 @@ export async function criarOsExcelBuffer(
   linha("Telefone:", p.telefoneProdutora);
   linha("E-mail:", p.emailProdutora);
 
+  // Cronograma do PROJETO: as cinco etapas padrão, com as datas e horários que
+  // a equipe preencheu em Dados Gerais (uma linha por faixa cadastrada).
+  const primeiraCron = r;
+  let escreveuCron = false;
+  for (const etapa of ETAPAS_CRONOGRAMA) {
+    if (p.etapasOcultas?.includes(etapa.key)) continue;
+    const faixas = p.cronograma?.[etapa.key] ?? [];
+    if (!faixas.length) {
+      linhaBlocos("Cronograma:", [etapa.label, "", "", ""], { semRotulo: escreveuCron });
+      escreveuCron = true;
+      continue;
+    }
+    for (const f of faixas) {
+      const horario = [f.inicio, f.fim].filter(Boolean).join(" às ");
+      linhaBlocos("Cronograma:", [etapa.label, dataBR(f.data), horario, ""], { semRotulo: escreveuCron });
+      escreveuCron = true;
+    }
+  }
+  // Blocos livres criados pela equipe entram na sequência, com o título deles.
+  for (const bloco of p.cronogramaExtras ?? []) {
+    for (const f of bloco.faixas ?? []) {
+      const horario = [f.inicio, f.fim].filter(Boolean).join(" às ");
+      linhaBlocos("Cronograma:", [bloco.titulo, dataBR(f.data), horario, ""], { semRotulo: escreveuCron });
+      escreveuCron = true;
+    }
+  }
+  if (escreveuCron) agruparRotulo(primeiraCron, r - 1);
+
   /* -------------------------- DADOS DO FORNECEDOR ---------------------- */
   const f = os.fornecedor;
   const bnc = f.dadosBancarios;
   secao("DADOS DO FORNECEDOR");
   linha("Fornecedor:", f.nomeFantasia || f.razaoSocial);
   linha("CNPJ/CPF:", f.cnpj);
-  linha("Perfil (MEI / Simples / etc.):", f.perfilTributario);
+  linha("Perfil:", f.perfilTributario);
   linha("Razão Social:", f.razaoSocial);
   linha("Endereço:", f.endereco);
   linha("Inscrição Estadual:", f.inscricaoEstadual);
   linha("Inscrição Municipal:", f.inscricaoMunicipal);
-  linha("Conta PJ / PF:", bnc.tipoConta);
-  linha("Banco:", bnc.banco);
-  linha("Agência:", bnc.agencia);
-  linha("Conta Corrente:", bnc.conta);
-  linha("Chave Pix:", bnc.chavePix);
+  const primeiraBanco = linha("Dados Bancários:", `Conta ${bnc.tipoConta || "—"}`);
+  linha("", bnc.banco ? `Banco: ${bnc.banco}` : "Banco:", { semRotulo: true });
+  linha("", bnc.agencia ? `Agência: ${bnc.agencia}` : "Agência:", { semRotulo: true });
+  linha("", bnc.conta ? `Conta Corrente: ${bnc.conta}` : "Conta Corrente:", { semRotulo: true });
+  const ultimaBanco = linha("", bnc.chavePix ? `Chave Pix: ${bnc.chavePix}` : "Chave Pix:", { semRotulo: true });
+  agruparRotulo(primeiraBanco, ultimaBanco);
   linha("Representante:", f.representante);
   linha("Telefone:", f.telefone);
   linha("E-mail:", f.email);
@@ -170,21 +288,26 @@ export async function criarOsExcelBuffer(
   /* --------------------- DETALHAMENTO DA CONTRATAÇÃO ------------------- */
   secao("DETALHAMENTO DA CONTRATAÇÃO");
   linha("Modalidade:", os.modalidade);
-  linha("Descritivo:", os.descritivo);
-  linha("Entrega:", os.entrega);
-  const cron = [...os.cronograma].sort((a, c) => (a.data || "").localeCompare(c.data || ""));
-  if (cron.length === 0) {
-    linha("Cronograma do Fornecedor:", "Sem etapas cadastradas.", { fixo: true });
+  linha("Descritivo:", os.descritivo, { altura: 60 });
+  linha("Entrega:", os.entrega, { altura: 40 });
+
+  const cron = [...(os.cronograma ?? [])].sort((a, c) => (a.data || "").localeCompare(c.data || ""));
+  const primeiraCronF = r;
+  if (!cron.length) {
+    linhaBlocos("Cronograma Específico do Fornecedor:", ["—", "", "", ""]);
   } else {
     cron.forEach((c, i) =>
-      linha(
-        i === 0 ? "Cronograma do Fornecedor:" : "",
-        `${c.etapa || "Etapa"}  —  ${dataBR(c.data)}${c.horario ? "  ·  " + c.horario : ""}${c.atividades ? "  ·  " + c.atividades : ""}`
+      linhaBlocos(
+        "Cronograma Específico do Fornecedor:",
+        [c.etapa || "Etapa", dataBR(c.data), c.horario || "", c.atividades || ""],
+        { semRotulo: i > 0 }
       )
     );
   }
+  agruparRotulo(primeiraCronF, r - 1);
+
   const lg = os.logistica;
-  ([
+  const logistica: [string, string][] = [
     ["Transporte Material", lg.transporteMaterial],
     ["Transporte Equipe", lg.transporteEquipe],
     ["Hospedagem Equipe", lg.hospedagem],
@@ -192,132 +315,178 @@ export async function criarOsExcelBuffer(
     ["Estacionamento Carga", lg.estacionamentoCarga],
     ["Estacionamento Equipe", lg.estacionamentoEquipe],
     ["Uniformização Equipe", lg.uniformizacao],
-  ] as [string, string][]).forEach(([nome, val], i) =>
-    linha(i === 0 ? "Logística do Fornecedor:" : "", `${nome}: ${val || "____"}`)
+  ];
+  const primeiraLog = r;
+  logistica.forEach(([nome, val], i) =>
+    linhaBlocos("Logística do Fornecedor:", [nome, val || "", "", ""], { semRotulo: i > 0 })
   );
+  agruparRotulo(primeiraLog, r - 1);
+
   const inf = os.infraestrutura;
-  ([
+  const infra: [string, string][] = [
     ["Energia", inf.energia],
     ["Internet", inf.internet],
     ["Pontos Elétricos", inf.pontosEletricos],
     ["Estruturas Diversas", inf.estruturas],
     ["Serviços de Apoio", inf.servicosApoio],
     ["ART, Laudos e Certificações", inf.artLaudos],
-  ] as [string, string][]).forEach(([nome, val], i) =>
-    linha(i === 0 ? "Infraestrutura:" : "", `${nome}: ${val || "____"}`)
-  );
+  ];
+  const primeiraInf = r;
+  infra.forEach(([nome, val], i) => linhaBlocos("Infraestrutura:", [nome, val || "", "", ""], { semRotulo: i > 0 }));
+  agruparRotulo(primeiraInf, r - 1);
+
   const obsTexto = (os.observacoes ?? [])
     .filter((o) => o.texto.trim())
     .map((o) => `${o.texto}${o.autorNome ? " — " + o.autorNome : ""}${o.resolvida ? " (resolvida)" : ""}`)
     .join("\n");
-  linha("Observações Gerais:", obsTexto);
+  linha("Observações Gerais:", obsTexto, { altura: 40 });
 
   /* ---------------------------- CREDENCIAMENTO ------------------------- */
   secao("CREDENCIAMENTO");
-  linha("Formulário de Credenciamento:", os.credenciamento.linkFormulario || "Link gerado ao salvar/disparar a OS");
-  linha("Prazo Limite:", dataBR(os.credenciamento.prazoLimite));
+  linha(
+    "Favor acessar o link abaixo e preencher o formulário de credenciamento com os dados de todos os profissionais e veículos de sua equipe.",
+    os.credenciamento.linkFormulario || "Link gerado ao salvar/disparar a OS",
+    { altura: 42 }
+  );
+  linha("Prazo Limite para o Credenciamento:", dataBR(os.credenciamento.prazoLimite));
 
   /* ------------------------------ ORÇAMENTO ---------------------------- */
+  // Item a item: o valor do item na EC e, logo abaixo, a opção escolhida para
+  // ele. É esta a leitura que a Pólobh faz na hora de pagar o fornecedor.
   const orc = os.orcamento;
+  const itens: EcLinha[] = (ec.linhas ?? []).filter((l) => (os.ecLinhaIds ?? []).includes(l.id));
   secao("ORÇAMENTO");
-  linha("Valor do Item na EC do Projeto:", orc.valorEc, { money: true });
-  linha("Valor com BV e NF:", orc.valorComBvNf, { money: true });
-  linha("Valor Sem BV e Com Nota Fiscal:", orc.valorSemBvComNf, { money: true });
-  linha("Valor Sem BV e Sem NF:", orc.valorSemBvSemNf, { money: true });
-  if (orc.parcelas.length === 0) {
-    linha("Prazo de Pagamento (parcelas):", "____");
+  if (!itens.length) {
+    // OS antiga (ou avulsa): cai no consolidado que já existia na própria OS.
+    linha("Valor do Item na EC do Projeto:", orc.valorEc, { money: true });
+    linha("Valor com BV e NF:", orc.valorComBvNf, { money: true });
+    linha("Valor Sem BV e Com Nota Fiscal:", orc.valorSemBvComNf, { money: true });
+    linha("Valor Sem BV e Sem NF:", orc.valorSemBvSemNf, { money: true });
   } else {
+    for (const item of itens) {
+      // Nome do item como faixa, para separar um bloco do outro.
+      ws.mergeCells(`A${r}:${FIM}${r}`);
+      const cab = ws.getCell(`A${r}`);
+      cab.value = item.item || item.descricao || "Item";
+      cab.font = { name: FONT_LIGHT, bold: true, size: PT, color: { argb: COR.ink } };
+      cab.fill = fill(COR.groupGray);
+      cab.alignment = { vertical: "middle", horizontal: "left", wrapText: true };
+      for (const col of COLS) ws.getCell(`${col}${r}`).border = linhaFina;
+      ws.getRow(r).height = 16.5;
+      r++;
+      linha("Valor do Item na EC do Projeto:", valorItemNaEc(item), { money: true });
+      const escolha = opcaoEscolhidaDoItem(item);
+      if (escolha) linha(`${escolha.rotulo}:`, escolha.valor, { money: true });
+      else linha("Opção de valor:", "A produção ainda não escolheu a forma de cobrança deste item.", { fixo: true });
+    }
+    // Fechamento do bloco: o que a OS soma das opções escolhidas.
+    const somaEscolhida = itens.reduce((s, i) => s + (opcaoEscolhidaDoItem(i)?.valor ?? 0), 0);
+    linha("Total das opções escolhidas:", somaEscolhida, { money: true });
+  }
+
+  if (!orc.parcelas?.length) {
+    linhaBlocos("Prazo de Pagamento:", ["Parcela única", "", "", ""]);
+  } else {
+    const primeiraParc = r;
     orc.parcelas.forEach((x, i) =>
-      linha(
-        i === 0 ? "Prazo de Pagamento (parcelas):" : "",
-        `${i + 1}ª — ${x.descricao || "Parcela"}: R$ ${(x.valor || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
+      linhaBlocos(
+        "Prazo de Pagamento:",
+        [
+          `${i + 1}ª — ${x.descricao || "Parcela"}`,
+          `R$ ${(x.valor || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+          "",
+          "",
+        ],
+        { semRotulo: i > 0 }
       )
     );
+    agruparRotulo(primeiraParc, r - 1);
   }
   linha("Documento Fiscal:", orc.documentoFiscal);
 
   /* ----------- INFORMAÇÕES A SEREM PREENCHIDAS PELO FINANCEIRO --------- */
   if (incluirFinanceiro) {
     const fin = os.financeiro;
-    secao("INFORMAÇÕES A SEREM PREENCHIDAS PELO FINANCEIRO DA PÓLOBH");
-    sub("DADOS EMISSÃO — RECIBO SIMPLES | FATURA | NOTA FISCAL | FATURA E NOTA FISCAL");
-    const tomadorLabel =
-      fin.tomador === "Polobh"
-        ? emp?.nome
-          ? `Pólobh — ${emp.nome}`
-          : "Pólobh"
-        : fin.tomador === "Cliente"
-          ? "Cliente"
-          : "";
-    linha("Tomador dos Serviços:", tomadorLabel);
-    // dados fiscais: do cliente (via EC) ou da empresa do grupo Pólobh (Configurações)
+    secao("INFORMAÇÕES A SEREM PREENCHIDAS PELO FINANCEIRO DA PÓLOBH", "laranja");
+    secao("DADOS EMISSÃO RECIBO SIMPLES | FATURA | NOTA FISCAL | FATURA E NOTA FISCAL");
+    const nomePolobh = emp?.nome ? `Pólobh — ${emp.nome}` : "Pólobh";
+    // Dados fiscais: do cliente (via EC) ou da empresa do grupo Pólobh (Configurações).
     const tom =
       fin.tomador === "Cliente"
-        ? { razao: cli.razaoSocial, end: cli.endereco, doc: cli.cnpjCpf, ie: cli.inscricaoEstadual, im: cli.inscricaoMunicipal }
+        ? { nome: cli.nome || "Cliente", razao: cli.razaoSocial, end: cli.endereco, doc: cli.cnpjCpf, ie: cli.inscricaoEstadual, im: cli.inscricaoMunicipal }
         : fin.tomador === "Polobh" && emp
-          ? { razao: emp.razaoSocial, end: emp.endereco, doc: emp.cnpj, ie: emp.inscricaoEstadual, im: emp.inscricaoMunicipal }
+          ? { nome: nomePolobh, razao: emp.razaoSocial, end: emp.endereco, doc: emp.cnpj, ie: emp.inscricaoEstadual, im: emp.inscricaoMunicipal }
           : null;
+    linha("Tomador dos Serviços:", fin.tomador === "Polobh" ? nomePolobh : fin.tomador === "Cliente" ? "Cliente" : "");
+    linha("Cliente ou Pólobh:", tom?.nome ?? "");
     linha("Razão Social:", tom?.razao ?? "");
     linha("Endereço:", tom?.end ?? "");
     linha("CNPJ/CPF:", tom?.doc ?? "");
     linha("Inscrição Estadual:", tom?.ie ?? "");
     linha("Inscrição Municipal:", tom?.im ?? "");
-    linha("Descritivo Nota Fiscal:", fin.descritivoNf);
-    // Projeto incentivado: usa os campos da OS; OSs antigas caem no texto único da EC.
-    if (fin.projetoIncentivado || fin.leiIncentivo || fin.numeroProjetoIncentivado) {
-      linha("Nome do Projeto Incentivado:", fin.projetoIncentivado);
-      linha("Lei de Incentivo à Cultura:", fin.leiIncentivo);
-      linha("Nº do Projeto Incentivado:", fin.numeroProjetoIncentivado);
-    } else if (p.incentivosFiscais) {
-      linha("Nome do Projeto Incentivado / Lei / Nº:", p.incentivosFiscais);
-    }
-    linha("CNAE:", fin.cnae);
-    linha("Código de Serviço:", fin.codigoServico);
-    linha("Valor unitário:", fin.valorUnitario, { money: true });
-    const rTotF = r;
-    linha("Valor total:", fin.valorTotal, { money: true });
-    const rDescF = r;
-    linha("Desconto Especial Negociado:", fin.descontoNegociado, { money: true });
-    // fórmulas vivas: recalculam se a planilha for editada no Excel
-    linha("Valor total a pagar:", (fin.valorTotal || 0) - (fin.descontoNegociado || 0), {
-      money: true, formula: `B${rTotF}-B${rDescF}`,
+
+    const primeiraNf = linha("Descritivo Nota Fiscal:", fin.descritivoNf, { altura: 30 });
+    linha("", `Dados do Projeto: ${p.titulo}`, { semRotulo: true });
+    // Projeto incentivado: campos próprios da OS; OSs antigas caem no texto único da EC.
+    linha("", `Nome Projeto Incentivado: ${fin.projetoIncentivado || (p.incentivosFiscais ? p.incentivosFiscais : "")}`, { semRotulo: true });
+    linha("", `Lei de Incentivo à Cultura: ${fin.leiIncentivo || ""}`, { semRotulo: true });
+    linha("", `Nº Projeto Incentivado: ${fin.numeroProjetoIncentivado || ""}`, { semRotulo: true });
+    linha("", `CNAE: ${fin.cnae || ""}`, { semRotulo: true });
+    const ultimaNf = linha("", `Código de Serviço: ${fin.codigoServico || ""}`, { semRotulo: true });
+    agruparRotulo(primeiraNf, ultimaNf);
+
+    const primeiraVal = linha("Valor:", fin.valorUnitario, { money: true, rotuloInterno: "Valor unitário" });
+    const rTotF = linha("", fin.valorTotal, { semRotulo: true, money: true, rotuloInterno: "Valor total" });
+    const rDescF = linha("", fin.descontoNegociado, {
+      semRotulo: true, money: true, rotuloInterno: "Desconto Especial Negociado",
     });
-    const rPctF = r;
-    linha("BV Pólobh — Percentual:", fin.bvPercentual ?? 0, { numFmt: '0.##"%"' });
-    linha("BV Pólobh — Valor:", ((fin.valorTotal || 0) * (fin.bvPercentual || 0)) / 100, {
-      money: true, formula: `B${rTotF}*B${rPctF}/100`,
+    // Fórmulas vivas: apontam para M, que é onde o número fica nestas linhas.
+    const rPagarF = linha("", (fin.valorTotal || 0) - (fin.descontoNegociado || 0), {
+      semRotulo: true, money: true, rotuloInterno: "Valor total a pagar", formula: `M${rTotF}-M${rDescF}`,
     });
+    agruparRotulo(primeiraVal, rPagarF);
+
+    const rPctF = linha("BV Pólobh:", fin.bvPercentual ?? 0, { numFmt: '0.##"%"', rotuloInterno: "Percentual" });
+    const rBvF = linha("", ((fin.valorTotal || 0) * (fin.bvPercentual || 0)) / 100, {
+      semRotulo: true, money: true, rotuloInterno: "Valor", formula: `M${rTotF}*M${rPctF}/100`,
+    });
+    agruparRotulo(rPctF, rBvF);
     linha("Acerto Financeiro:", fin.acertoFinanceiro);
 
     /* ------------------------- DADOS PARA CONTRATO --------------------- */
     const ct = os.contrato;
     const contr =
       ct.contratante === "Cliente"
-        ? { razao: cli.razaoSocial, end: cli.endereco, doc: cli.cnpjCpf, ie: cli.inscricaoEstadual, im: cli.inscricaoMunicipal }
+        ? { nome: cli.nome || "Cliente", razao: cli.razaoSocial, end: cli.endereco, doc: cli.cnpjCpf, ie: cli.inscricaoEstadual, im: cli.inscricaoMunicipal }
         : ct.contratante === "Polobh" && emp
-          ? { razao: emp.razaoSocial, end: emp.endereco, doc: emp.cnpj, ie: emp.inscricaoEstadual, im: emp.inscricaoMunicipal }
+          ? { nome: nomePolobh, razao: emp.razaoSocial, end: emp.endereco, doc: emp.cnpj, ie: emp.inscricaoEstadual, im: emp.inscricaoMunicipal }
           : null;
-    sub("DADOS PARA CONTRATO");
-    linha(
-      "Contratante:",
-      ct.contratante === "Polobh" ? (emp?.nome ? `Pólobh — ${emp.nome}` : "Pólobh") : ct.contratante === "Cliente" ? "Cliente" : ""
-    );
+    secao("DADOS PARA CONTRATO");
+    linha("Contratante:", ct.contratante === "Polobh" ? nomePolobh : ct.contratante === "Cliente" ? "Cliente" : "");
+    linha("Cliente ou Pólobh:", contr?.nome ?? "");
     linha("Razão Social:", contr?.razao ?? "");
     linha("Endereço:", contr?.end ?? "");
     linha("CNPJ/CPF:", contr?.doc ?? "");
     linha("Inscrição Estadual:", contr?.ie ?? "");
     linha("Inscrição Municipal:", contr?.im ?? "");
-    linha("Objeto do Contrato:", textoObjetoContrato(fin), { fixo: true });
-    linha("Descritivo dos Serviços e/ou Produtos:", ct.descritivoServicos || fin.descritivoNf || os.descritivo);
-    linha("Informações Complementares:", ct.informacoesComplementares);
-    linha("Valor unitário:", ct.valorUnitario, { money: true });
-    const rTotC = r;
-    linha("Valor total:", ct.valorTotal, { money: true });
-    const rDescC = r;
-    linha("Desconto Especial Negociado:", ct.descontoNegociado, { money: true });
-    linha("Valor total a pagar:", (ct.valorTotal || 0) - (ct.descontoNegociado || 0), {
-      money: true, formula: `B${rTotC}-B${rDescC}`,
+
+    const primeiraDesc = linha("Descritivo da Contratação:", textoObjetoContrato(fin), { fixo: true, altura: 44 });
+    linha("", `DESCRITIVO DOS SERVIÇOS E/OU PRODUTOS:\n${ct.descritivoServicos || fin.descritivoNf || os.descritivo}`, {
+      semRotulo: true, altura: 44,
     });
+    const ultimaDesc = linha("", ct.informacoesComplementares, { semRotulo: true });
+    agruparRotulo(primeiraDesc, ultimaDesc);
+
+    const primeiraValC = linha("Valor:", ct.valorUnitario, { money: true, rotuloInterno: "Valor unitário" });
+    const rTotC = linha("", ct.valorTotal, { semRotulo: true, money: true, rotuloInterno: "Valor total" });
+    const rDescC = linha("", ct.descontoNegociado, {
+      semRotulo: true, money: true, rotuloInterno: "Desconto Especial Negociado",
+    });
+    const rPagarC = linha("", (ct.valorTotal || 0) - (ct.descontoNegociado || 0), {
+      semRotulo: true, money: true, rotuloInterno: "Valor total a pagar", formula: `M${rTotC}-M${rDescC}`,
+    });
+    agruparRotulo(primeiraValC, rPagarC);
+
     // Editáveis na OS; o texto padrão do modelo entra só quando o campo está vazio.
     linha("Forma de Pagamento:", ct.formaPagamento || FORMA_PAGAMENTO_PADRAO, { fixo: !ct.formaPagamento });
     linha("Observações Gerais:", ct.observacoesGerais || OBS_CONTRATO_PADRAO, { fixo: !ct.observacoesGerais });
@@ -325,7 +494,7 @@ export async function criarOsExcelBuffer(
     linha("Rubrica:", ct.rubrica);
   }
 
-  ws.pageSetup.printArea = `A1:B${r - 1}`;
+  ws.pageSetup.printArea = `A1:${FIM}${r - 1}`;
 
   const buffer = await wb.xlsx.writeBuffer();
   return { buffer: buffer as ArrayBuffer, nome: `${nomeArquivo(os.numero)}.xlsx` };

@@ -27,10 +27,10 @@ import { ResumoPropostaModal } from "@/components/ResumoPropostaModal";
 import { NotifDot } from "@/components/NotifDot";
 import { MoverSetas } from "@/components/MoverSetas";
 import { destacarElemento, seguirElemento, idAncoraPendencia, idGrupoEc } from "@/lib/destaque";
-import { aprovarLinha, faltasParaEmitirOs, reverterAprovacaoLinha } from "@/domain/calc";
+import { aprovarLinha, faltasParaEmitirOs, reverterAprovacaoLinha, OPCOES_VALOR_ITEM, valorItemNaEc } from "@/domain/calc";
 import { flags } from "@/lib/flags";
 import { brl, cx } from "@/lib/format";
-import type { DocumentoPg, EcLinha, Fornecedor, Observacao, StatusAprovacao, StatusOs } from "@/data/types";
+import type { DocumentoPg, EcLinha, Fornecedor, Observacao, OpcaoValorItem, StatusAprovacao, StatusOs } from "@/data/types";
 import type { Sugestoes } from "@/domain/sugestoes";
 
 /** Opções de status de OS e de Contrato — a mesma lista nos dois campos. */
@@ -200,6 +200,10 @@ function novaLinhaBase(): EcLinha {
     valorPolobh: 0,
     valorCliente: 0,
     valorGasto: 0,
+    valorComBvNf: 0,
+    valorSemBvComNf: 0,
+    valorSemBvSemNf: 0,
+    opcaoValor: "",
     statusAprovacao: "Pendente",
     fornecedorRazao: "",
     fornecedorCnpj: "",
@@ -1094,6 +1098,8 @@ function ItemRow({
         </Campo>
       </div>
 
+      {verFinanceiro && <OpcoesDeValor l={l} onUpd={onUpd} />}
+
       <ObservacoesThread
         ancora={l.id}
         observacoes={l.observacoes}
@@ -1102,6 +1108,69 @@ function ItemRow({
       />
 
       {resumoAberto && <ResumoPropostaModal onInserir={inserirResumo} onClose={() => setResumoAberto(false)} />}
+    </div>
+  );
+}
+
+/**
+ * Opções de valor do item — o "bloquinho" que a produção preenche.
+ *
+ * A OS consolida vários itens da EC, e cada um é negociado do seu jeito: um sai
+ * com nota, outro sem, outro com BV. Por isso as três formas de cobrar moram
+ * AQUI, no item, e não uma vez só no orçamento da OS.
+ *
+ * A opção marcada é a que a planilha da OS imprime, logo abaixo da linha
+ * "Valor do Item na EC do Projeto" — item a item, na ordem da EC.
+ */
+function OpcoesDeValor({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinha>) => void }) {
+  const escolher = (opcao: OpcaoValorItem) =>
+    // Clicar de novo na opção marcada desmarca: sem escolha, a OS imprime só o valor da EC.
+    onUpd({ opcaoValor: l.opcaoValor === opcao ? "" : opcao });
+
+  return (
+    <div className="px-2.5 pb-2.5 pt-2 border-t border-border-soft bg-[#FCFCFD]">
+      <div className="flex items-baseline gap-2 flex-wrap mb-1.5">
+        <span className="text-[10.5px] font-extrabold uppercase tracking-[0.05em] text-ink-3">
+          Opções de valor para a OS
+        </span>
+        <span className="text-[11px] text-ink-3">
+          Valor do item na EC: <b className="text-ink-2">{brl(valorItemNaEc(l))}</b> · marque a opção que vale para este item
+        </span>
+      </div>
+      <div className="grid sm:grid-cols-3 gap-2">
+        {OPCOES_VALOR_ITEM.map(({ opcao, rotulo, campo }) => {
+          const marcada = l.opcaoValor === opcao;
+          return (
+            <div
+              key={opcao}
+              className={cx(
+                "rounded-btn border px-2 py-1.5 transition-colors",
+                marcada ? "border-primary bg-primary-soft/40" : "border-border-soft bg-surface"
+              )}
+            >
+              <label className="flex items-center gap-1.5 cursor-pointer mb-1">
+                <input
+                  type="radio"
+                  className="h-3.5 w-3.5 accent-[#F2820D] cursor-pointer"
+                  name={`opcao-valor-${l.id}`}
+                  checked={marcada}
+                  onChange={() => escolher(opcao)}
+                  onClick={() => marcada && escolher(opcao)}
+                />
+                <span className={cx("text-[11px] font-bold leading-tight", marcada ? "text-primary-dark" : "text-ink-2")}>
+                  {rotulo}
+                </span>
+              </label>
+              <CurrencyInput
+                className="!h-8 !px-2 !text-[12.5px]"
+                value={l[campo]}
+                onValue={(v) => onUpd({ [campo]: v } as Partial<EcLinha>)}
+                aria-label={`${rotulo} do item ${l.item || "sem título"}`}
+              />
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

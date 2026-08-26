@@ -243,6 +243,12 @@ export interface ProjetoInfo {
   roteiroOrdem: string[];
 }
 
+/**
+ * Opção de valor escolhida para o item ("" = a produção ainda não decidiu).
+ * Os rótulos de tela/planilha vivem em `OPCOES_VALOR_ITEM`, em domain/calc.
+ */
+export type OpcaoValorItem = "" | "comBvNf" | "semBvComNf" | "semBvSemNf";
+
 export interface EcLinha {
   id: string;
   grupo: string;
@@ -255,6 +261,16 @@ export interface EcLinha {
   valorCliente: number;
   /** Valor total gasto até a presente data no item (para rentabilidade). */
   valorGasto: number;
+  /**
+   * As três formas de cobrar ESTE item, preenchidas pela produção. A OS
+   * consolida vários itens, e cada um é negociado do seu jeito — um sai com
+   * nota, outro sem, outro com BV —, então a escolha mora no item, não na OS.
+   */
+  valorComBvNf: number;
+  valorSemBvComNf: number;
+  valorSemBvSemNf: number;
+  /** Qual das três vale. É ela que a planilha da OS imprime abaixo do valor da EC. */
+  opcaoValor: OpcaoValorItem;
   statusAprovacao: StatusAprovacao;
   fornecedorRazao: string;
   fornecedorCnpj: string;

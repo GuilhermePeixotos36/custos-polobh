@@ -25,6 +25,8 @@ import {
   LEI_INCENTIVO_PADRAO,
   FORMA_PAGAMENTO_PADRAO,
   OBS_CONTRATO_PADRAO,
+  opcaoEscolhidaDoItem,
+  valorItemNaEc,
 } from "@/domain/calc";
 import { ETAPAS_CRONOGRAMA } from "@/domain/projeto";
 import { useEmpresas } from "@/store/empresas";
@@ -789,7 +791,41 @@ export function OsForm() {
           {/* ORÇAMENTO */}
           <CardOs>
             <Secao>Orçamento</Secao>
-            <LinhaOs label="Valor do Item na EC do Projeto"><Auto v={brl(os.orcamento.valorEc)} /></LinhaOs>
+            {/* Espelho do que a produção escolheu item a item lá na EC — é isto
+                que sai na planilha da OS, um bloco por item. Aqui é leitura:
+                para mudar, muda-se no item da EC. */}
+            <LinhaOs label="Por item (vindo da EC)" hint="(a opção marcada em cada item é a que sai na planilha)">
+              <div className="py-1.5 space-y-1.5">
+                {linhasConsolidadas.map((l) => {
+                  const escolha = opcaoEscolhidaDoItem(l);
+                  return (
+                    <div key={l.id} className="rounded-btn border border-border-soft bg-[#FAFAFB] px-2.5 py-1.5">
+                      <div className="flex items-baseline gap-2 flex-wrap">
+                        <span className="text-[12.5px] font-bold text-ink">{l.item || l.descricao || "Item"}</span>
+                        <span className="text-[11.5px] text-ink-3">
+                          Valor na EC: <b className="text-ink-2">{brl(valorItemNaEc(l))}</b>
+                        </span>
+                      </div>
+                      <div className="text-[12px] mt-0.5">
+                        {escolha ? (
+                          <span className="text-ink-2">
+                            <b className="text-primary-dark">{escolha.rotulo}:</b> {brl(escolha.valor)}
+                          </span>
+                        ) : (
+                          <span className="text-warning font-semibold">
+                            Sem opção de valor escolhida no item da EC.
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                {!linhasConsolidadas.length && (
+                  <span className="text-[12.5px] text-ink-3">Esta OS não está ligada a itens da EC.</span>
+                )}
+              </div>
+            </LinhaOs>
+            <LinhaOs label="Valor do Item na EC do Projeto" hint="(soma dos itens consolidados)"><Auto v={brl(os.orcamento.valorEc)} /></LinhaOs>
             <LinhaOs label="Valor com BV e NF" hint="(valor negociado — alimenta Faturamento e Contrato)">
               <NumberInput value={os.orcamento.valorComBvNf} onValue={setValorNegociado} />
             </LinhaOs>

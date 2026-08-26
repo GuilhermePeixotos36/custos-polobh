@@ -2,7 +2,7 @@
  * Cálculos da EC (seção 4 do brief) e helpers de numeração/consolidação.
  * Percentuais fixos: honorários 15%, encargos 16,33%.
  */
-import type { Ec, EcLinha, Producao, Fornecedor, Os, TaxaConfig } from "@/data/types";
+import type { Ec, EcLinha, OpcaoValorItem, Producao, Fornecedor, Os, TaxaConfig } from "@/data/types";
 import { brl, dataBRCurta } from "@/lib/format";
 
 export const HONORARIOS = 0.15;
@@ -207,6 +207,41 @@ export function linhasProducaoLegado(p: Producao): { item: string; descricao: st
     { item: "Alimentação", descricao: "Alimentação da equipe de produção.", valorPolobh: r2(p.alimentacaoBH * p.qtdAlimentacaoBH + p.alimentacaoViagem * p.qtdAlimentacaoViagem) },
   ];
   return linhas.filter((l) => l.valorPolobh > 0);
+}
+
+/* --------------------- Opções de valor por item (OS) --------------------- */
+
+/**
+ * As três formas de cobrar um item, na ordem em que aparecem no modelo de OS da
+ * Pólobh. O rótulo é o mesmo na tela e na planilha — é ele que a OS imprime
+ * logo abaixo do valor do item na EC.
+ */
+export const OPCOES_VALOR_ITEM = [
+  { opcao: "comBvNf", rotulo: "Valor com BV e NF", campo: "valorComBvNf" },
+  { opcao: "semBvComNf", rotulo: "Valor Sem BV e Com Nota Fiscal", campo: "valorSemBvComNf" },
+  { opcao: "semBvSemNf", rotulo: "Valor Sem BV e Sem NF", campo: "valorSemBvSemNf" },
+] as const satisfies readonly { opcao: Exclude<OpcaoValorItem, "">; rotulo: string; campo: keyof EcLinha }[];
+
+/** "Valor do Item na EC do Projeto": o que o item custa na EC (Pólobh + Cliente). */
+export function valorItemNaEc(l: Pick<EcLinha, "valorPolobh" | "valorCliente">): number {
+  return r2((l.valorPolobh || 0) + (l.valorCliente || 0));
+}
+
+/** Valor de uma das três opções do item. */
+export function valorDaOpcao(l: EcLinha, opcao: OpcaoValorItem): number {
+  const def = OPCOES_VALOR_ITEM.find((o) => o.opcao === opcao);
+  return def ? Number(l[def.campo] ?? 0) || 0 : 0;
+}
+
+/**
+ * A opção que a produção escolheu para o item — rótulo e valor prontos para a
+ * planilha. `null` quando ninguém escolheu ainda: nesse caso a OS imprime só o
+ * valor do item na EC, sem inventar uma forma de cobrança.
+ */
+export function opcaoEscolhidaDoItem(l: EcLinha): { opcao: OpcaoValorItem; rotulo: string; valor: number } | null {
+  const def = OPCOES_VALOR_ITEM.find((o) => o.opcao === l.opcaoValor);
+  if (!def) return null;
+  return { opcao: def.opcao, rotulo: def.rotulo, valor: Number(l[def.campo] ?? 0) || 0 };
 }
 
 /* ------------------------- Rentabilidade ------------------------- */
