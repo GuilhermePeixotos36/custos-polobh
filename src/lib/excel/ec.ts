@@ -386,7 +386,7 @@ export async function criarEcExcelBuffer(
 
   /**
    * O descritivo do item, tudo numa célula só na COLUNA B: a Descrição
-   * (principal), a Descrição Completa e, no modelo completo, as observações.
+   * (principal) e, no modelo completo, a Descrição Completa.
    *
    * Vai junto de propósito — é um texto só sobre o mesmo serviço, e reparti-lo
    * em células separadas fazia a leitura pular de caixa em caixa. O que dá conta
@@ -394,6 +394,10 @@ export async function criarEcExcelBuffer(
    * altura de uma célula mesclada é a SOMA das linhas que ela ocupa. Por isso o
    * item ganha quantas linhas forem necessárias, e o texto continua inteiro numa
    * célula só.
+   *
+   * As OBSERVAÇÕES do item ficam de fora: são conversa interna da equipe (quem
+   * cobrou o quê, o que falta confirmar) e a EC é um documento que vai ao
+   * cliente. Elas continuam no sistema, na thread do item.
    */
   const descritivoDoItem = (l: (typeof ec.linhas)[number]): string => {
     const partes: string[] = [];
@@ -401,10 +405,6 @@ export async function criarEcExcelBuffer(
     if (completa) {
       const completaTxt = htmlParaLinhas(l.descricaoCompleta);
       if (completaTxt.length) partes.push(completaTxt.join("\n"));
-      const obs = (l.observacoes ?? [])
-        .filter((o) => o.texto.trim())
-        .map((o) => `• ${o.texto}${o.autorNome ? " — " + o.autorNome : ""}`);
-      if (obs.length) partes.push(["Observações:", ...obs].join("\n"));
     }
     // Linha em branco entre os blocos de texto: é o que separa o resumo do
     // detalhamento dentro da mesma célula.

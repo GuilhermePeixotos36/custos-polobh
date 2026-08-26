@@ -265,6 +265,19 @@ describe("fidelidade aos modelos de 2026 da Pólobh", () => {
     expect(regra.style?.fill?.bgColor?.argb).toBe("FFFFEB9C"); // mesmo amarelo do "Emitir"
   });
 
+  it("não leva as observações do item para a planilha — elas são internas", async () => {
+    const { ws } = await abrir(ecBase([
+      linha({
+        item: "Buffet", descricao: "Coffee", valorPolobh: 1000,
+        observacoes: [{ id: "o1", texto: "Confirmar cardápio com a Ana", autorId: "", autorNome: "Marisa", criadoEm: "", responsavelNome: "", resolvida: false, respostas: [] }],
+      }),
+    ]));
+    const textos: string[] = [];
+    ws.eachRow((row) => row.eachCell((c) => { if (typeof c.value === "string") textos.push(c.value); }));
+    expect(textos.join(" | ")).not.toContain("Confirmar cardápio");
+    expect(textos.join(" | ")).not.toContain("Observações:");
+  });
+
   it("descrição e descrição completa ficam na MESMA célula da coluna B", async () => {
     const { ws, hr } = await tabela([
       linha({
@@ -279,7 +292,6 @@ describe("fidelidade aos modelos de 2026 da Pólobh", () => {
     expect(descritivo).toContain("Coffee break para 300 pessoas");
     expect(descritivo).toContain("Serviço completo");
     expect(descritivo).toContain("• Bebidas");
-    expect(descritivo).toContain("Confirmar cardápio");
     // Cabendo numa linha só, não há nada para mesclar — o item ocupa uma linha.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const merges: string[] = (ws.model as any).merges ?? [];
