@@ -10,7 +10,12 @@
  *
  * As setas ▲ / ▼ saltam de uma para a outra: a tela rola até o item, ele "lateja"
  * duas vezes e, quando a pendência é um comentário, a thread daquele item se
- * abre e o comentário exato pisca em vermelho (ver `focarPendencia`).
+ * abre e o comentário exato pisca em vermelho (ver `focarPendencia`); quando é
+ * "OS/Contrato a emitir", quem pisca é o campo de status.
+ *
+ * O pisca acontece a CADA clique, inclusive quando as duas pendências moram no
+ * mesmo item e a câmera não precisa se mexer — é o único sinal de que a seta fez
+ * alguma coisa.
  *
  * O contrato com quem renderiza os itens é só um: cada item precisa ter
  * `id={idAncoraPendencia(id)}`.
@@ -49,7 +54,7 @@ export function NavegadorPendencias({
     const alvo = (indice + pendencias.length) % pendencias.length; // circular: do fim volta ao início
     setPosicao(alvo);
     const p = pendencias[alvo];
-    if (p.ancora) focarPendencia({ ancora: p.ancora, observacaoId: p.observacaoId });
+    if (p.ancora) focarPendencia({ ancora: p.ancora, observacaoId: p.observacaoId, campo: p.campo });
     aoSaltar?.(p);
   };
 

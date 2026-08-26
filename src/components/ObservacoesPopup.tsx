@@ -3,8 +3,8 @@ import { createPortal } from "react-dom";
 import { Button, Select } from "@/components/ui";
 import { IcComment, IcChevron, IcPencil, IcTrash, IcSend } from "@/components/icons";
 import { cx, dataHoraBR } from "@/lib/format";
-import { destacarElemento, idAncoraPendencia, idComentario } from "@/lib/destaque";
-import { alvoPendente, aoFocarPendencia, destacarComentario } from "@/lib/focoPendencia";
+import { idComentario } from "@/lib/destaque";
+import { alvoPendente, aoFocarPendencia, destacarAlvo, destacarComentario, type AlvoPendencia } from "@/lib/focoPendencia";
 import { regexMencoes } from "@/domain/mencoes";
 import { useAuth } from "@/store/auth";
 import type { Observacao, RespostaObservacao } from "@/data/types";
@@ -64,24 +64,25 @@ export function ObservacoesThread({ observacoes, usuarios, onChange, className, 
   const [compor, setCompor] = useState<ComporState>(null);
 
   /**
-   * O navegador de pendências saltou para este item: abre a thread (ela nasce
-   * retraída) e faz o comentário da pendência latejar em vermelho. Sem isto, a
-   * pessoa chegava ao item certo e ainda precisava caçar qual dos comentários
-   * era a pendência.
+   * O navegador de pendências (ou o sininho) saltou para este item: abre a
+   * CADEIA INTEIRA de comentários — ela nasce retraída — e faz latejar em
+   * vermelho o que a pendência é de fato: o comentário em aberto, ou o campo
+   * OS/Contrato quando a pendência é um status a emitir. Sem isto, a pessoa
+   * chegava ao item certo e ainda precisava caçar o que fazer ali.
    */
   useEffect(() => {
     if (!ancora) return;
-    const atender = (alvo: { ancora: string; observacaoId?: string }) => {
+    const atender = (alvo: AlvoPendencia) => {
       setAberto(true);
       // O comentário só existe no DOM depois que a thread abre — o próprio
       // `destacarElemento` reespera alguns quadros por ele.
       if (alvo.observacaoId) destacarComentario(alvo.observacaoId);
     };
     // Salto disparado de OUTRA tela (ex.: a pendência de uma EC clicada a partir
-    // do projeto): ele ficou guardado até esta thread existir.
+    // do projeto ou do sininho): ele ficou guardado até esta thread existir.
     const guardado = alvoPendente(ancora);
     if (guardado) {
-      destacarElemento(idAncoraPendencia(ancora), "pendencia");
+      destacarAlvo(guardado);
       atender(guardado);
     }
     return aoFocarPendencia((alvo) => {

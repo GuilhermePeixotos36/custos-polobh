@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agregarPendencias, calcularPendencias, type Pendencia } from "./pendencias";
+import { agregarPendencias, calcularPendencias, rotaDaPendencia, type Pendencia } from "./pendencias";
 import { projetoInfoVazio } from "./projeto";
 import { honorariosPadrao, encargosPadrao, producaoZerada } from "./calc";
 import type { Checklist, Cliente, Ec, EcLinha, ItemChecklist, Observacao, Projeto } from "@/data/types";
@@ -54,7 +54,7 @@ const checklist = (itens: ItemChecklist[]): Checklist => ({
 });
 
 const USUARIOS = ["Ana", "Bruno", "Carla"];
-const de = (itens: Pendencia[], pessoa: string) => agregarPendencias(itens, "Producao", pessoa);
+const de = (itens: Pendencia[], pessoa: string) => agregarPendencias(itens, pessoa);
 
 describe("quem vê a pendência de uma observação", () => {
   // Ana (autora) cobra Bruno num projeto cuja responsável é Carla.
@@ -66,8 +66,10 @@ describe("quem vê a pendência de uma observação", () => {
     expect(de(itens, "Bruno").total).toBe(1);
   });
 
-  it("continua com quem cobrou — criar a pendência não é se livrar dela", () => {
-    expect(de(itens, "Ana").total).toBe(1);
+  it("não fica com quem cobrou — cobrar não é ter o que fazer", () => {
+    // Ana escreveu a observação; a tarefa é do Bruno. O número vermelho é lista
+    // de tarefa, não acompanhamento (regra revista em 26/08/2026).
+    expect(de(itens, "Ana").total).toBe(0);
   });
 
   it("conta para o Produtor Responsável, mesmo sem ele ter sido citado", () => {
@@ -135,6 +137,42 @@ describe("tarefa do check-list vira pendência", () => {
   });
 });
 
+describe("item de EC com OS ou Contrato a emitir", () => {
+  const comStatus = (campo: "statusOs" | "contratoStatus", status: EcLinha["statusOs"]) =>
+    calcularPendencias(
+      [projeto("Carla")], [ec([{ ...linha([]), [campo]: status }])], [], USUARIOS, [], [], HOJE
+    );
+
+  it("cobra a emissão da OS do Produtor Responsável", () => {
+    const itens = comStatus("statusOs", "Emitir");
+    expect(de(itens, "Carla").total).toBe(1);
+    expect(de(itens, "Carla").itens[0].campo).toBe("os");
+  });
+
+  it("cobra também o contrato, e 'Emitir Nova Versão' conta igual", () => {
+    const itens = comStatus("contratoStatus", "Emitir Nova Versão");
+    const p = de(itens, "Carla").itens[0];
+    expect(p.campo).toBe("contrato");
+    expect(p.titulo).toContain("Emitir Nova Versão");
+  });
+
+  it("status resolvido não cobra nada", () => {
+    expect(de(comStatus("statusOs", "OK"), "Carla").total).toBe(0);
+    expect(de(comStatus("statusOs", "Não se Aplica"), "Carla").total).toBe(0);
+  });
+
+  it("leva até o item da EC — e não a uma pendência sem endereço", () => {
+    const p = de(comStatus("statusOs", "Emitir"), "Carla").itens[0];
+    expect(p.ancora).toBe("l1");
+    expect(p.ecId).toBe("ec1");
+    expect(rotaDaPendencia(p)).toBe("/estimativas/ec1");
+  });
+
+  it("não aparece para quem não responde pelo projeto", () => {
+    expect(de(comStatus("statusOs", "Emitir"), "Bruno").total).toBe(0);
+  });
+});
+
 describe("agregação por tela", () => {
   it("o badge da aba e o navegador saem da mesma lista", () => {
     const itens = calcularPendencias(
@@ -144,5 +182,12 @@ describe("agregação por tela", () => {
     expect(carla.porAba["p1:ec"]).toBe(carla.itens.filter((p) => p.aba === "ec").length);
     expect(carla.porAba["p1:checklist"]).toBe(carla.itens.filter((p) => p.aba === "checklist").length);
     expect(carla.porProjeto["p1"]).toBe(carla.total);
+  });
+
+  it("toda pendência sabe para qual tela levar", () => {
+    const itens = calcularPendencias(
+      [projeto("Carla")], [ec([linha([observacao({})])])], [], USUARIOS, [], [checklist([tarefa({})])], HOJE
+    );
+    for (const p of de(itens, "Carla").itens) expect(rotaDaPendencia(p)).not.toBe("/projetos");
   });
 });

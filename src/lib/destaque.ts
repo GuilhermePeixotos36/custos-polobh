@@ -34,6 +34,16 @@ const semAnimacao = () =>
   typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
 /**
+ * Relógio de cada elemento que está piscando agora.
+ *
+ * Sem isto, destacar o MESMO elemento duas vezes seguidas (duas pendências no
+ * mesmo item, seta apertada de novo) reiniciava a animação mas deixava vivo o
+ * timer da primeira — que apagava a classe no meio do segundo pisca. O resultado
+ * era um pisca pela metade, ou nenhum. Guardar o timer permite cancelá-lo.
+ */
+const relogios = new WeakMap<HTMLElement, number>();
+
+/**
  * Rola até o elemento de `id` e o faz latejar. Pode ser chamado no mesmo
  * clique que cria o elemento: se ele ainda não existe no DOM, tenta de novo
  * nos próximos quadros até o React terminar de renderizar.
@@ -43,11 +53,20 @@ export function destacarElemento(id: string, variante: VarianteDestaque = "novo"
   comElemento(id, (el) => {
     el.scrollIntoView({ behavior: semAnimacao() ? "auto" : "smooth", block: "center" });
     // Remover e forçar reflow reinicia a animação mesmo quando é o mesmo
-    // elemento destacado duas vezes seguidas.
+    // elemento destacado duas vezes seguidas. O timer anterior é cancelado junto,
+    // senão ele apagaria a classe no meio deste novo pisca.
+    const anterior = relogios.get(el);
+    if (anterior) window.clearTimeout(anterior);
     el.classList.remove(classe);
     void el.offsetWidth;
     el.classList.add(classe);
-    window.setTimeout(() => el.classList.remove(classe), DURACAO_MS);
+    relogios.set(
+      el,
+      window.setTimeout(() => {
+        el.classList.remove(classe);
+        relogios.delete(el);
+      }, DURACAO_MS)
+    );
   });
 }
 
@@ -97,6 +116,13 @@ export const idAncoraPendencia = (id: string) => `pendencia-${limpar(id)}`;
 
 /** Âncora de uma observação dentro da thread — o comentário exato que pisca. */
 export const idComentario = (id: string) => `comentario-${limpar(id)}`;
+
+/**
+ * Campo de status dentro do item (OS / Contrato) — quando a pendência não é um
+ * comentário e sim "esta OS precisa ser emitida", é este pedaço da tela que
+ * pisca, e não a linha inteira.
+ */
+export const idCampoPendencia = (ancora: string, campo: string) => `pendencia-campo-${limpar(ancora)}-${campo}`;
 
 export const idBlocoCronograma = (id: string) => `bloco-cronograma-${limpar(id)}`;
 export const idFaixaCronograma = (id: string) => `faixa-cronograma-${limpar(id)}`;

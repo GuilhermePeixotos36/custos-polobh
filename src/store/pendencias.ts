@@ -67,10 +67,14 @@ export const usePendencias = create<State>((set, get) => ({
   },
 }));
 
-/** Pendências do usuário atual, já agregadas por recurso/projeto/subguia/EC/OS. */
+/**
+ * Pendências do usuário atual, já agregadas por recurso/projeto/subguia/EC/OS.
+ *
+ * O recorte é só pelo NOME: pendência é de quem responde pelo projeto ou de quem
+ * foi cobrado nela — o papel não abre porta nenhuma (ver `agregarPendencias`).
+ */
 export function useMinhasPendencias() {
   const itens = usePendencias((s) => s.itens);
-  const papel = useAuth((s) => s.usuario?.papel);
   const pessoa = useAuth((s) => s.usuario?.nome);
-  return useMemo(() => agregarPendencias(itens, papel, pessoa), [itens, papel, pessoa]);
+  return useMemo(() => agregarPendencias(itens, pessoa), [itens, pessoa]);
 }

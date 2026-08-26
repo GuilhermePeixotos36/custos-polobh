@@ -23,6 +23,7 @@ import { analisarEmissaoOs, calcularTotais, agruparPorFornecedor, descritivoCons
 import { RentabilidadeItens } from "@/components/RentabilidadeItens";
 import { EcSubGuias, type SubGuiaEc } from "@/components/EcSubGuias";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
+import { rotaDaPendencia } from "@/domain/pendencias";
 import { useMinhasPendencias } from "@/store/pendencias";
 import { EcItemLeitura } from "@/components/EcItemLeitura";
 import { brl, dataBR } from "@/lib/format";
@@ -464,7 +465,15 @@ export function EcDetail() {
         <div className="space-y-4">
           {/* Pílula flutuante que salta entre as pendências desta EC — mesmo
               número do badge vermelho dela. */}
-          <NavegadorPendencias pendencias={minhasPendencias.filter((p) => p.ecId === ec.id)} />
+          <NavegadorPendencias
+            pendencias={minhasPendencias.filter((p) => p.ecId === ec.id)}
+            aoSaltar={(p) => {
+              // Parte do que a EC contabiliza mora na OS (observação, cronograma):
+              // o salto vira navegação, e a tela de destino abre no item certo.
+              const rota = rotaDaPendencia(p);
+              if (!rota.startsWith(`/estimativas/${ec.id}`)) navigate(rota);
+            }}
+          />
           {estimativaCard}
           {ossCard}
 

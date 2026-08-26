@@ -3,7 +3,7 @@ import { PageShell } from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui";
 import {
   IcSearch, IcGrid, IcDoc, IcClipboard, IcCalendar, IcUsers, IcGear,
-  IcActivity, IcShield, IcSend, IcCheck, IcBook, IcClock,
+  IcActivity, IcShield, IcSend, IcCheck, IcBook, IcClock, IcBell,
 } from "@/components/icons";
 import { cx } from "@/lib/format";
 
@@ -124,6 +124,57 @@ const MODULOS: Modulo[] = [
             <Tag>Cronogramas</Tag><Tag>Fornecedores</Tag><Tag>Configurações</Tag><Tag>Logs</Tag><Tag>Guia</Tag>
           </div>
           <Dica>Está com dúvida em algum módulo? Volte sempre aqui no <b>Guia</b> e use a busca no topo.</Dica>
+        </Secao>
+      </>
+    ),
+  },
+  {
+    id: "pendencias",
+    icone: <IcBell />,
+    titulo: "Pendências (o que o sistema cobra de você)",
+    resumo: "Quem vê cada número vermelho, o sininho do topo e como saltar até a pendência.",
+    tags: ["pendência", "pendencias", "sininho", "sino", "badge", "número vermelho", "bolinha", "notificação", "cobrança", "responsável"],
+    conteudo: (
+      <>
+        <Secao titulo="De quem é a pendência">
+          <p>
+            O número vermelho é uma <b>lista de tarefa</b>, não um resumo do que anda acontecendo na casa. Por isso ele
+            só acende para <b>duas pessoas</b>:
+          </p>
+          <Passos>
+            <span>O(a) <b>Produtor(a) Responsável</b> do projeto — para ele conta <b>tudo</b> o que está pendente ali dentro, mesmo o que foi endereçado a outra pessoa. É quem responde pelo projeto inteiro.</span>
+            <span>O <b>destinatário</b> da cobrança — quem foi <b>@mencionado</b> ou escolhido como responsável do comentário, e quem é dono da tarefa do check-list.</span>
+          </Passos>
+          <Atencao>
+            Quem <b>escreveu</b> o comentário não carrega a pendência do outro: cobrar não é ter o que fazer. Acompanhe
+            pela própria thread do item ou pelo projeto.
+          </Atencao>
+        </Secao>
+        <Secao titulo="O que vira pendência">
+          <div className="flex flex-wrap gap-1.5">
+            <Tag tom="primary">Comentário em aberto</Tag><Tag tom="primary">Tarefa de hoje ou atrasada</Tag>
+            <Tag tom="primary">OS a emitir</Tag><Tag tom="primary">Contrato a emitir</Tag>
+            <Tag tom="primary">Cronograma da OS vazio</Tag><Tag tom="primary">Credenciamento sem resposta</Tag>
+            <Tag tom="primary">Projeto sem EC</Tag>
+          </div>
+          <p>
+            Nos itens da EC, <b>OS</b> ou <b>Contrato</b> em <Tag tom="warning">Emitir</Tag> ou
+            <Tag tom="warning">Emitir Nova Versão</Tag> viram pendência <b>item a item</b> — cada uma leva à linha certa
+            e faz o campo piscar.
+          </p>
+          <Atencao>Projeto <b>arquivado ou cancelado</b> encerra todas as pendências dele.</Atencao>
+        </Secao>
+        <Secao titulo="Achar a pendência na tela">
+          <p>
+            Todo número do sistema sai da <b>mesma lista</b>: o do sininho, o da aba, o do item e o da pílula do canto
+            inferior direito. O que é contado sempre pode ser encontrado.
+          </p>
+          <Passos>
+            <span>O <b>sininho</b> no canto superior direito abre tudo o que está pendente com você, agrupado por projeto. Clicar num bloco <b>abre a tela</b> da pendência com a câmera em cima dela.</span>
+            <span>A <b>pílula</b> do canto inferior direito anda pelas pendências <b>da tela aberta</b>, uma a uma, pelas setas ▲ ▼.</span>
+            <span>Ao chegar, o item <b>lateja em vermelho</b>: a cadeia de comentários abre e o comentário pendente pisca — ou o campo <b>OS/Contrato</b>, quando a pendência é emitir.</span>
+          </Passos>
+          <Dica>Duas pendências no mesmo item? A seta pisca de novo mesmo sem a tela rolar — é o sinal de que ela mudou de alvo.</Dica>
         </Secao>
       </>
     ),
@@ -263,7 +314,8 @@ const MODULOS: Modulo[] = [
           <p>
             Tarefa que <b>vence hoje ou já venceu</b> entra no quadro de pendências — o número vermelho na aba e a
             pílula do canto inferior direito, que salta de uma pendência para a outra. A cobrança vai para o
-            <b> responsável da tarefa</b>; sem responsável, para o <b>Produtor Responsável</b> do projeto.
+            <b> responsável da tarefa</b>; sem responsável, para o <b>Produtor Responsável</b> do projeto — que enxerga
+            tudo do projeto dele de qualquer jeito (ver <b>Pendências</b>).
           </p>
           <Atencao>Projeto <b>arquivado ou cancelado</b> encerra as pendências dele — inclusive as do check-list.</Atencao>
         </Secao>

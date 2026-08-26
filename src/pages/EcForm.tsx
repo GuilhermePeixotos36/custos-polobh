@@ -39,6 +39,7 @@ import { useAuth } from "@/store/auth";
 import { RentabilidadeItens } from "@/components/RentabilidadeItens";
 import { EcGrupos } from "@/components/EcGrupos";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
+import { rotaDaPendencia } from "@/domain/pendencias";
 import { useMinhasPendencias } from "@/store/pendencias";
 import { useSugestoes } from "@/hooks/useSugestoes";
 import { EcSubGuias, type SubGuiaEc } from "@/components/EcSubGuias";
@@ -460,7 +461,17 @@ export function EcForm() {
       <EcSubGuias atual={subaba} onChange={setSubaba} temResumo={verFinanceiro} temRentabilidade={verFinanceiro} />
 
       {/* Pílula flutuante que salta entre as pendências desta EC. */}
-      {subaba === "ec" && <NavegadorPendencias pendencias={pendenciasDaEc} />}
+      {subaba === "ec" && (
+        <NavegadorPendencias
+          pendencias={pendenciasDaEc}
+          aoSaltar={(p) => {
+            // Observação/cronograma de OS entram na conta desta EC, mas moram na
+            // tela da OS — saltar para lá é o que faz o número ser alcançável.
+            const rota = rotaDaPendencia(p);
+            if (!rota.startsWith(`/estimativas/${id}`)) navigate(rota);
+          }}
+        />
+      )}
 
       {verFinanceiro && subaba === "resumo" && <div className="space-y-4">{resumoCard}</div>}
       {verFinanceiro && subaba === "rentabilidade" && <div className="space-y-4">{rentabilidadeCard}</div>}

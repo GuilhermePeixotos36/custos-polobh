@@ -3,6 +3,7 @@ import { NAV } from "./nav";
 import { useAuth, ROTULO_PAPEL } from "@/store/auth";
 import { Avatar, Button } from "@/components/ui";
 import { NotifDot } from "@/components/NotifDot";
+import { SinoPendencias } from "@/components/SinoPendencias";
 import { IcLogout } from "@/components/icons";
 import { cx } from "@/lib/format";
 import { useMinhasPendencias } from "@/store/pendencias";
@@ -45,6 +46,8 @@ export function TopNav() {
       </nav>
 
       <div className="flex items-center gap-2 shrink-0">
+        {/* Tudo o que é cobrado da pessoa, em qualquer projeto — ver SinoPendencias. */}
+        <SinoPendencias />
         <div className="hidden sm:flex items-center gap-2">
           <Avatar nome={usuario.nome} size={32} />
           <div className="leading-tight min-w-0">

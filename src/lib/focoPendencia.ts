@@ -11,13 +11,15 @@
  * pílula, fixa na tela) e quem abre (a thread, lá no meio da lista) não têm
  * nenhum parentesco na árvore de componentes.
  */
-import { destacarElemento, idAncoraPendencia, idComentario } from "@/lib/destaque";
+import { destacarElemento, idAncoraPendencia, idCampoPendencia, idComentario } from "@/lib/destaque";
 
 export interface AlvoPendencia {
   /** Item que contém a pendência (linha da EC, tarefa do check-list, OS). */
   ancora: string;
   /** Observação exata, quando a pendência é um comentário. */
   observacaoId?: string;
+  /** Campo de status do item, quando a pendência é "emitir OS/Contrato". */
+  campo?: string;
 }
 
 /** Devolve `true` quando a thread é a dona daquela âncora e já tratou o salto. */
@@ -41,9 +43,22 @@ export function aoFocarPendencia(ouvinte: Ouvinte): () => void {
   };
 }
 
+/**
+ * Faz latejar o que a pendência é: sempre o item, e — quando a pendência é um
+ * status a emitir — também o campo OS/Contrato dentro dele.
+ *
+ * Fica separado de `focarPendencia` porque o salto vindo de OUTRA tela só é
+ * atendido quando a tela de destino monta (ver `alvoPendente`): lá o destaque
+ * precisa ser refeito, sem reabrir a distribuição do alvo.
+ */
+export function destacarAlvo(alvo: AlvoPendencia): void {
+  destacarElemento(idAncoraPendencia(alvo.ancora), "pendencia");
+  if (alvo.campo) destacarElemento(idCampoPendencia(alvo.ancora, alvo.campo), "pendencia");
+}
+
 /** Rola até o item, faz o card latejar e avisa a thread para abrir no comentário. */
 export function focarPendencia(alvo: AlvoPendencia): void {
-  destacarElemento(idAncoraPendencia(alvo.ancora), "pendencia");
+  destacarAlvo(alvo);
   let atendido = false;
   for (const ouvinte of [...ouvintes]) if (ouvinte(alvo)) atendido = true;
   // Ninguém desta tela é dono do item: guarda para a tela de destino consumir.
@@ -56,9 +71,9 @@ export function focarPendencia(alvo: AlvoPendencia): void {
  */
 export function alvoPendente(ancora: string): AlvoPendencia | null {
   if (!pendente || pendente.ancora !== ancora) return null;
-  const { observacaoId, em } = pendente;
+  const { observacaoId, campo, em } = pendente;
   pendente = null;
-  return Date.now() - em > VALIDADE_MS ? null : { ancora, observacaoId };
+  return Date.now() - em > VALIDADE_MS ? null : { ancora, observacaoId, campo };
 }
 
 /** Destaca o comentário dentro da thread já aberta (usado pela própria thread). */

@@ -26,7 +26,7 @@ import { ObservacoesThread } from "@/components/ObservacoesPopup";
 import { ResumoPropostaModal } from "@/components/ResumoPropostaModal";
 import { NotifDot } from "@/components/NotifDot";
 import { MoverSetas } from "@/components/MoverSetas";
-import { destacarElemento, seguirElemento, idAncoraPendencia, idGrupoEc } from "@/lib/destaque";
+import { destacarElemento, seguirElemento, idAncoraPendencia, idCampoPendencia, idGrupoEc } from "@/lib/destaque";
 import { aprovarLinha, faltasParaEmitirOs, reverterAprovacaoLinha, OPCOES_VALOR_ITEM, valorItemNaEc } from "@/domain/calc";
 import { flags } from "@/lib/flags";
 import { brl, cx } from "@/lib/format";
@@ -814,7 +814,7 @@ function GrupoCard({
         <Input
           className="!h-10 !px-2.5 !text-[15px] !font-bold !uppercase max-w-sm"
           value={g.nome}
-          sugestoes={sugestoes.grupoEc}
+          sugestoes={sugestoes.valores.grupoEc}
           onChange={(e) => onRenomear(e.target.value)}
         />
         <span className="shrink-0 text-[12px] font-bold text-ink-3 bg-[#F0F1F4] rounded-pill px-2.5 py-1">
@@ -993,7 +993,7 @@ function ItemRow({
               className="!h-10 !px-2.5 !text-[13.5px] !font-semibold"
               placeholder="Nome do item"
               value={l.item}
-              sugestoes={sugestoes.itemEc}
+              sugestoes={sugestoes.valores.itemEc}
               onChange={(e) => onUpd({ item: e.target.value })}
             />
           </Campo>
@@ -1080,18 +1080,20 @@ function ItemRow({
           </Select>
         </Campo>
         <Campo label="Código de Serviço" className="w-full" obrigatorio>
-          <SelectComTexto value={l.codigoServico} sugestoes={sugestoes.codigoServico} onChange={(v) => onUpd({ codigoServico: v })} />
+          <SelectComTexto value={l.codigoServico} sugestoes={sugestoes.valores.codigoServico} onChange={(v) => onUpd({ codigoServico: v })} />
         </Campo>
         <Campo label="Pedido de Compra" className="w-full" obrigatorio>
-          <SelectComTexto value={l.pedidoCompra} sugestoes={sugestoes.pedidoCompra} onChange={(v) => onUpd({ pedidoCompra: v })} />
+          <SelectComTexto value={l.pedidoCompra} sugestoes={sugestoes.valores.pedidoCompra} onChange={(v) => onUpd({ pedidoCompra: v })} />
         </Campo>
-        <Campo label="OS" className="w-full">
+        {/* Os dois campos levam id próprio: "OS a emitir" é uma pendência, e o
+            navegador/sininho pisca exatamente este pedaço da linha. */}
+        <Campo label="OS" className="w-full" id={idCampoPendencia(l.id, "os")}>
           <Select className={cx("!h-9 !px-2 !text-[12.5px]", classeCampoStatus(l.statusOs))} value={l.statusOs} onChange={(e) => onUpd({ statusOs: e.target.value as StatusOs })}>
             {OPCOES_STATUS_OS.map((o) => <option key={o}>{o}</option>)}
           </Select>
         </Campo>
         {/* Contrato usa exatamente a mesma lista da OS (inclui "Emitir Nova Versão"). */}
-        <Campo label="Contrato" className="w-full">
+        <Campo label="Contrato" className="w-full" id={idCampoPendencia(l.id, "contrato")}>
           <Select className={cx("!h-9 !px-2 !text-[12.5px]", classeCampoStatus(l.contratoStatus))} value={l.contratoStatus} onChange={(e) => onUpd({ contratoStatus: e.target.value as StatusOs })}>
             {OPCOES_STATUS_OS.map((o) => <option key={o}>{o}</option>)}
           </Select>
@@ -1176,9 +1178,9 @@ function OpcoesDeValor({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinh
 }
 
 /** Rótulo pequeno acima de um campo. `obrigatorio` marca com * vermelho (obrigatório só na emissão da OS). */
-function Campo({ label, className, children, obrigatorio }: { label: string; className?: string; children: React.ReactNode; obrigatorio?: boolean }) {
+function Campo({ label, className, children, obrigatorio, id }: { label: string; className?: string; children: React.ReactNode; obrigatorio?: boolean; id?: string }) {
   return (
-    <label className={cx("block", className)}>
+    <label id={id} className={cx("block", className)}>
       <span className="block text-[10.5px] font-extrabold uppercase tracking-[0.05em] text-ink-3 mb-1 truncate">
         {label}
         {obrigatorio && <span className="text-danger" title="Obrigatório para emitir a OS"> *</span>}

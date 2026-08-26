@@ -47,6 +47,27 @@ supabase/migrations/         atualizações incrementais do banco
 | Modelos de check-list (Configurações) | ✅ | — | — |
 | Bloco financeiro / Configurações | ✅ | — | ✅ |
 
+## Pendências (quem vê o quê)
+O número vermelho é uma lista de tarefa, não um painel do que anda acontecendo.
+Duas portas, e só elas (`domain/pendencias.ts` → `agregarPendencias`):
+- o **Produtor(a) Responsável** do projeto — para ele conta **qualquer** pendência
+  nascida ali dentro, mesmo endereçada a outra pessoa;
+- o **destinatário** da cobrança — @mencionado ou escolhido como responsável do
+  comentário, e o dono da tarefa do check-list.
+
+Não abrem porta: o **papel** (antes todo Admin/Direção/Administrativo via "emitir
+OS" da casa inteira) e o **autor** do comentário (quem cobrava carregava a
+pendência do outro).
+
+Geram pendência: comentário em aberto (EC, OS e check-list), tarefa de hoje ou
+atrasada, **OS e Contrato do item da EC em "Emitir"/"Emitir Nova Versão"** (uma
+por item), OS em rascunho, cronograma da OS vazio, credenciamento sem resposta e
+projeto ativo sem EC. Projeto arquivado/cancelado encerra todas.
+
+Todo número sai da mesma lista — sininho do topo, badge da aba, badge do item e a
+pílula do canto inferior direito —, e cada pendência carrega o endereço da tela
+(`ancora`, `observacaoId` ou `campo`), então o que é contado pode ser achado.
+
 ## Cálculos da EC (fixos)
 - `somaFornecedores` = Σ(valor Pólobh) + Σ(produção)
 - `honorários` = 15% · `encargos` = 16,33% (sobre fornecedores)

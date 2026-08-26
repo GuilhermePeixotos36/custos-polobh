@@ -19,6 +19,7 @@ import { useAsync } from "@/hooks/useAsync";
 import { useMinhasPendencias } from "@/store/pendencias";
 import { useResponsaveis } from "@/hooks/useResponsaveis";
 import { useSugestoes } from "@/hooks/useSugestoes";
+import { filhosDe, type CampoSugerido } from "@/domain/sugestoes";
 import { useAuth } from "@/store/auth";
 import { gerarCronogramaExcel } from "@/lib/excel";
 import { cnpjValido, consultarCnpj } from "@/lib/cnpj";
@@ -35,7 +36,7 @@ import { confirmar } from "@/store/confirm";
 import { corrigirRoteirosProjeto } from "@/lib/correcaoOrtografica";
 import { statusProjetoAutomatico } from "@/domain/statusProjeto";
 import type { Cliente, Ec, EcLinha, Projeto, ProjetoInfo, StatusProjeto } from "@/data/types";
-import type { Pendencia } from "@/domain/pendencias";
+import { rotaDaPendencia, type Pendencia } from "@/domain/pendencias";
 
 const tomStatusProjeto: Record<StatusProjeto, Tom> = {
   Ativo: "success", Arquivado: "neutral", Concluido: "info", Cancelado: "danger",
@@ -104,6 +105,13 @@ export function ProjetoDetail() {
   /** "Foto" do projeto como ele está salvo — serve para saber se há algo a salvar. */
   const [baseline, setBaseline] = useState("");
   const [aba, setAba] = useState<Aba>(abaInicial);
+  /**
+   * O sininho pode pedir OUTRA subguia do projeto que já está aberto — aí só a
+   * URL muda, o componente não remonta e a aba ficaria na anterior.
+   */
+  useEffect(() => {
+    if (abaParam && ABAS.some((a) => a.key === abaParam)) setAba(abaParam as Aba);
+  }, [abaParam]);
   const [salvando, setSalvando] = useState(false);
   const [filtroEc, setFiltroEc] = useState<"todas" | "ativas" | "arquivadas">("todas");
   const [cnpjLoading, setCnpjLoading] = useState(false);
@@ -282,18 +290,17 @@ export function ProjetoDetail() {
 
   const updCli = (patch: Partial<Cliente>) => setP((x) => ({ ...x, cliente: { ...x.cliente, ...patch } }));
 
-  /** Aplica o cadastro central sem usar o representante como nome do projeto. */
+  /**
+   * Aplica o cadastro central do cliente (razão social, endereço, documentos,
+   * representante) — e SÓ isso.
+   *
+   * O apelido não vem junto de propósito: ele é decisão de quem cria o projeto,
+   * e herdá-lo do cadastro fazia todo projeto novo do mesmo cliente nascer com
+   * o apelido de um projeto antigo. O campo continua oferecendo os apelidos já
+   * usados como sugestão — a pessoa escolhe, o sistema não escolhe por ela.
+   */
   function aplicarClienteCadastrado(cliente: Cliente) {
-    setP((atual) => {
-      const info = cliente.apelido.trim()
-        ? {
-            ...atual.info,
-            clienteAbreviado: cliente.apelido,
-            titulo: compoeTituloProjeto(cliente.apelido, atual.info.nomeProjeto, atual.info.anoProjeto),
-          }
-        : atual.info;
-      return { ...atual, cliente, info, nome: info.titulo || atual.nome };
-    });
+    setP((atual) => ({ ...atual, cliente }));
     setCnpjFoco(false);
     setNomeClienteFoco(false);
     setCnpjMsg("");
@@ -355,7 +362,84 @@ export function ProjetoDetail() {
     const anoProjeto = patch.anoProjeto ?? p.info.anoProjeto;
     updInfo({ ...patch, titulo: compoeTituloProjeto(clienteAbreviado, nomeProjeto, anoProjeto) });
   };
-  const moverRoteiro = (id: string, direcao: -1 | 1) =>
+  /**
+   * Campos do projeto que são FILHOS de outro campo (ver `domain/sugestoes`).
+   * Só campos de texto entram aqui — é o que o vínculo sabe preencher.
+   */
+  type CampoFilhoInfo = "enderecoLocal" | "telefoneProdutora" | "emailProdutora";
+  const CAMPO_FILHO: Partial<Record<CampoSugerido, CampoFilhoInfo>> = {
+    enderecoLocal: "enderecoLocal",
+    telefoneProdutora: "telefoneProdutora",
+    emailProdutora: "emailProdutora",
+  };
+
+  /**
+   * Muda um campo PAI e traz junto o que a casa já usou com aquele valor.
+   *
+   * Escolher "Teatro Sesiminas" no Local preenche o Endereço do Local com o
+   * endereço que veio junto nos projetos anteriores. A regra de sobrescrita é
+   * conservadora: só preenche o filho VAZIO ou aquele que tinha vindo do
+   * vínculo anterior (trocar de local troca o endereço). O que a pessoa digitou
+   * à mão nunca é sobrescrito.
+   */
+  const comVinculo = (
+    pai: CampoSugerido,
+    valorAnterior: string,
+    valorNovo: string,
+    patch: Partial<ProjetoInfo>
+  ) => {
+    const antes = filhosDe(sugestoes, pai, valorAnterior);
+    const agora = filhosDe(sugestoes, pai, valorNovo);
+    const herdado: Partial<Pick<ProjetoInfo, CampoFilhoInfo>> = {};
+    for (const [chave, valorFilho] of Object.entries(agora)) {
+      const campo = CAMPO_FILHO[chave as CampoSugerido];
+      if (!campo) continue;
+      const atual = String(p.info[campo] ?? "");
+      const veioDoVinculo = !!antes[chave as CampoSugerido] && atual === antes[chave as CampoSugerido];
+      if (!atual || veioDoVinculo) herdado[campo] = valorFilho;
+    }
+    updInfo({ ...patch, ...herdado });
+  };
+
+  /** Mesma ideia para o representante do cliente (telefone e e-mail dele). */
+  const escolherRepresentante = (nome: string) => {
+    const antes = filhosDe(sugestoes, "representante", p.cliente.representante.nome);
+    const agora = filhosDe(sugestoes, "representante", nome);
+    const rep = { ...p.cliente.representante, nome };
+    const manter = (atual: string, anterior?: string) => !atual || (!!anterior && atual === anterior);
+    if (agora.representanteTelefone && manter(rep.telefones, antes.representanteTelefone)) {
+      rep.telefones = agora.representanteTelefone;
+    }
+    if (agora.representanteEmail && manter(rep.email, antes.representanteEmail)) {
+      rep.email = agora.representanteEmail;
+    }
+    updCli({ representante: rep });
+  };
+
+  /**
+   * Produtor(a) responsável: telefone e e-mail vêm do CADASTRO quando existe e,
+   * quando não existe, do que a casa já usou com essa pessoa em outros projetos.
+   *
+   * O e-mail só vem do cadastro para quem tem permissão de configurações (a
+   * lista completa); sem ela, o histórico cobre o campo em vez de deixá-lo
+   * vazio. Como nos demais vínculos, nada sobrescreve o que foi digitado à mão.
+   */
+  const escolherProdutora = (nome: string) => {
+    const antes = filhosDe(sugestoes, "produtoraResponsavel", p.info.produtoraResponsavel);
+    const agora = filhosDe(sugestoes, "produtoraResponsavel", nome);
+    const leve = produtoresResponsaveis.find((u) => u.nome === nome);
+    const completo = produtoresCompletos?.find((u) => u.nome === nome);
+    const manter = (atual: string, anterior?: string) => !atual || (!!anterior && atual === anterior);
+    const doHistorico = (campo: "telefoneProdutora" | "emailProdutora", atual: string) =>
+      agora[campo] && manter(atual, antes[campo]) ? agora[campo] : atual;
+    updInfo({
+      produtoraResponsavel: nome,
+      telefoneProdutora: leve?.telefone || doHistorico("telefoneProdutora", p.info.telefoneProdutora),
+      emailProdutora: completo?.email || doHistorico("emailProdutora", p.info.emailProdutora),
+    });
+  };
+
+  const moverRoteiro =(id: string, direcao: -1 | 1) =>
     updInfo({ roteiroOrdem: moverNaLista(p.info.roteiroOrdem, p.info.roteiroOrdem.indexOf(id), direcao) });
   const toggleRoteiroOculto = (secao: keyof ProjetoInfo["roteiros"]) =>
     updInfo({
@@ -418,15 +502,14 @@ export function ProjetoDetail() {
 
   /**
    * A pendência de uma EC ou de uma OS mora na tela dela, não aqui: o salto vira
-   * navegação. O alvo já ficou guardado em `focoPendencia`, e a tela de destino
-   * abre a observação certa assim que carregar.
+   * navegação — para o mesmo lugar que o sininho do topo abre (`rotaDaPendencia`).
+   * O alvo já ficou guardado em `focoPendencia`, e a tela de destino abre a
+   * observação certa assim que carregar. O que já mora nesta tela (check-list,
+   * cronograma) não navega: só rola até o item.
    */
   const saltarParaPendencia = (pendencia: Pendencia) => {
-    if (pendencia.ecId && (pendencia.aba === "ec" || !pendencia.osId)) {
-      navigate(`/estimativas/${pendencia.ecId}`);
-      return;
-    }
-    if (pendencia.osId) navigate(`/ordens/${pendencia.osId}`);
+    const rota = rotaDaPendencia(pendencia);
+    if (!rota.startsWith(`/projetos/${id}`)) navigate(rota);
   };
 
   const camposObrigatoriosFaltando = () => camposObrigatoriosProjeto(p.info, p.cliente);
@@ -691,17 +774,24 @@ export function ProjetoDetail() {
                     </Button>
                   </div>
                 </Field>
-                <Field label="Representante"><Input formato="titulo" sugestoes={sugestoes.representante} value={p.cliente.representante.nome} onChange={(e) => updCli({ representante: { ...p.cliente.representante, nome: e.target.value } })} /></Field>
+                <Field label="Representante" hint="(telefone e e-mail vêm junto)">
+                  <Input
+                    formato="titulo"
+                    sugestoes={sugestoes.valores.representante}
+                    value={p.cliente.representante.nome}
+                    onChange={(e) => escolherRepresentante(e.target.value)}
+                  />
+                </Field>
                 <Field label="Telefone do representante"><TelefoneInput value={p.cliente.representante.telefones} onChange={(v) => updCli({ representante: { ...p.cliente.representante, telefones: v } })} /></Field>
-                <Field label="E-mail do representante"><Input value={p.cliente.representante.email} onChange={(e) => updCli({ representante: { ...p.cliente.representante, email: e.target.value } })} /></Field>
+                <Field label="E-mail do representante"><Input type="email" sugestoes={sugestoes.valores.representanteEmail} value={p.cliente.representante.email} onChange={(e) => updCli({ representante: { ...p.cliente.representante, email: e.target.value } })} /></Field>
               </div>
           </Card>
 
           <Card>
             <CardTitle>Informações do projeto</CardTitle>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <Field label="Cliente (apelido)"><Input erro={chavesComErro.has("clienteAbreviado")} sugestoes={sugestoes.clienteApelido} value={p.info.clienteAbreviado} onChange={(e) => updTituloParte({ clienteAbreviado: e.target.value })} placeholder="Ex.: ACME" /></Field>
-              <Field label="Nome do projeto"><Input formato="titulo" erro={chavesComErro.has("nomeProjeto")} sugestoes={sugestoes.nomeProjeto} value={p.info.nomeProjeto} onChange={(e) => updTituloParte({ nomeProjeto: e.target.value })} /></Field>
+              <Field label="Cliente (apelido)"><Input erro={chavesComErro.has("clienteAbreviado")} sugestoes={sugestoes.valores.clienteApelido} value={p.info.clienteAbreviado} onChange={(e) => updTituloParte({ clienteAbreviado: e.target.value })} placeholder="Ex.: ACME" /></Field>
+              <Field label="Nome do projeto"><Input formato="titulo" erro={chavesComErro.has("nomeProjeto")} sugestoes={sugestoes.valores.nomeProjeto} value={p.info.nomeProjeto} onChange={(e) => updTituloParte({ nomeProjeto: e.target.value })} /></Field>
               <Field label="Ano"><Input erro={chavesComErro.has("anoProjeto")} value={p.info.anoProjeto} inputMode="numeric" onChange={(e) => updTituloParte({ anoProjeto: onlyDigits(e.target.value).slice(0, 4) })} placeholder="2026" /></Field>
               <Field label="Modalidade">
                 <Select erro={chavesComErro.has("modalidade")} value={p.info.modalidade} onChange={(e) => updInfo({ modalidade: e.target.value as ProjetoInfo["modalidade"] })}>
@@ -710,24 +800,21 @@ export function ProjetoDetail() {
                   <option value="Corporativo">Corporativo</option>
                 </Select>
               </Field>
-              <Field label="Local"><Input formato="titulo" erro={chavesComErro.has("local")} sugestoes={sugestoes.local} value={p.info.local} onChange={(e) => updInfo({ local: e.target.value })} /></Field>
-              <Field label="Endereço do local"><Input formato="titulo" sugestoes={sugestoes.enderecoLocal} value={p.info.enderecoLocal} onChange={(e) => updInfo({ enderecoLocal: e.target.value })} /></Field>
+              <Field label="Local" hint="(o endereço vem junto quando o local já foi usado)">
+                <Input
+                  formato="titulo"
+                  erro={chavesComErro.has("local")}
+                  sugestoes={sugestoes.valores.local}
+                  value={p.info.local}
+                  onChange={(e) => comVinculo("local", p.info.local, e.target.value, { local: e.target.value })}
+                />
+              </Field>
+              <Field label="Endereço do local"><Input formato="titulo" sugestoes={sugestoes.valores.enderecoLocal} value={p.info.enderecoLocal} onChange={(e) => updInfo({ enderecoLocal: e.target.value })} /></Field>
               <Field label="Nº de participantes"><Input type="number" value={p.info.participantes ?? ""} onChange={(e) => updInfo({ participantes: e.target.value ? Number(e.target.value) : null })} /></Field>
-              <Field label="Produtor Responsável">
+              <Field label="Produtor Responsável" hint="(telefone e e-mail vêm junto)">
                 <Select
                   value={p.info.produtoraResponsavel}
-                  onChange={(e) => {
-                    const nome = e.target.value;
-                    // Telefone vem sempre do cadastro; e-mail só quando a lista completa carregou
-                    // (exige permissão de configurações) — senão o campo de e-mail fica manual.
-                    const leve = produtoresResponsaveis.find((u) => u.nome === nome);
-                    const completo = produtoresCompletos?.find((u) => u.nome === nome);
-                    updInfo({
-                      produtoraResponsavel: nome,
-                      telefoneProdutora: leve?.telefone || p.info.telefoneProdutora,
-                      emailProdutora: completo?.email || p.info.emailProdutora,
-                    });
-                  }}
+                  onChange={(e) => escolherProdutora(e.target.value)}
                 >
                   <option value="">Selecione…</option>
                   {produtoresResponsaveis.map((u) => (
@@ -747,8 +834,8 @@ export function ProjetoDetail() {
                   </p>
                 )}
               </Field>
-              <Field label="Telefone da produtora responsável"><TelefoneInput value={p.info.telefoneProdutora} onChange={(v) => updInfo({ telefoneProdutora: v })} /></Field>
-              <Field label="E-mail da produtora responsável"><Input type="email" value={p.info.emailProdutora} onChange={(e) => updInfo({ emailProdutora: e.target.value })} /></Field>
+              <Field label="Telefone do(a) Produtor(a) Responsável"><TelefoneInput value={p.info.telefoneProdutora} onChange={(v) => updInfo({ telefoneProdutora: v })} /></Field>
+              <Field label="E-mail do(a) Produtor(a) Responsável"><Input type="email" sugestoes={sugestoes.valores.emailProdutora} value={p.info.emailProdutora} onChange={(e) => updInfo({ emailProdutora: e.target.value })} /></Field>
               {p.info.modalidade === "Cultural" && (
                 <Field label="Incentivos Fiscais" className="sm:col-span-2 lg:col-span-3"><Textarea value={p.info.incentivosFiscais} onChange={(e) => updInfo({ incentivosFiscais: e.target.value })} /></Field>
               )}

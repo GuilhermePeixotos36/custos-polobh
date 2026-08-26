@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { montarSugestoes } from "./sugestoes";
+import { filhosDe, montarSugestoes } from "./sugestoes";
 import { projetoInfoVazio } from "./projeto";
 import { honorariosPadrao, encargosPadrao, producaoZerada } from "./calc";
 import type { Cliente, Ec, EcLinha, Os, Projeto } from "@/data/types";
@@ -70,15 +70,15 @@ describe("montarSugestoes", () => {
       [ec([linha({ item: "Buffet", codigoServico: "17.02", pedidoCompra: "PC-100" })])],
       [os({ hospedagem: "Hotel Ouro Minas" })]
     );
-    expect(s.local).toContain("Teatro Sesiminas");
-    expect(s.enderecoLocal).toContain("Rua Teatro Sesiminas");
-    expect(s.representante).toContain("João Andrade");
-    expect(s.itemEc).toContain("Buffet");
-    expect(s.codigoServico).toContain("17.02");
-    expect(s.pedidoCompra).toContain("PC-100");
-    expect(s.hospedagem).toContain("Hotel Ouro Minas");
-    expect(s.entrega).toContain("Instalação e operação");
-    expect(s.energia).toContain("220V trifásico");
+    expect(s.valores.local).toContain("Teatro Sesiminas");
+    expect(s.valores.enderecoLocal).toContain("Rua Teatro Sesiminas");
+    expect(s.valores.representante).toContain("João Andrade");
+    expect(s.valores.itemEc).toContain("Buffet");
+    expect(s.valores.codigoServico).toContain("17.02");
+    expect(s.valores.pedidoCompra).toContain("PC-100");
+    expect(s.valores.hospedagem).toContain("Hotel Ouro Minas");
+    expect(s.valores.entrega).toContain("Instalação e operação");
+    expect(s.valores.energia).toContain("220V trifásico");
   });
 
   it("o mais usado vem primeiro — repetição é sinal do valor certo da casa", () => {
@@ -86,16 +86,68 @@ describe("montarSugestoes", () => {
       [projeto("Expominas"), projeto("Expominas"), projeto("Minascentro")],
       [], []
     );
-    expect(s.local[0]).toBe("Expominas");
+    expect(s.valores.local[0]).toBe("Expominas");
   });
 
   it("mesma grafia com outra caixa/acento conta junto, e vale a primeira vista", () => {
     const s = montarSugestoes([projeto("Expominas"), projeto("EXPOMINAS")], [], []);
-    expect(s.local).toEqual(["Expominas"]);
+    expect(s.valores.local).toEqual(["Expominas"]);
   });
 
   it("ignora vazio e texto longo demais para ser um valor repetível", () => {
     const s = montarSugestoes([projeto(""), projeto("x".repeat(200))], [], []);
-    expect(s.local).toEqual([]);
+    expect(s.valores.local).toEqual([]);
+  });
+});
+
+describe("vínculos entre campos que andam juntos", () => {
+  /** Projeto com produtora responsável e contato dela — o par pai/filho da tela. */
+  const comProdutora = (nome: string, telefone: string, email: string): Projeto => ({
+    ...projeto("Expominas"),
+    id: `p-${nome}-${telefone}`,
+    info: { ...projetoInfoVazio(), produtoraResponsavel: nome, telefoneProdutora: telefone, emailProdutora: email },
+  });
+
+  it("escolher o local traz o endereço que já foi usado com ele", () => {
+    const s = montarSugestoes([projeto("Teatro Sesiminas")], [], []);
+    expect(filhosDe(s, "local", "Teatro Sesiminas")).toEqual({ enderecoLocal: "Rua Teatro Sesiminas" });
+  });
+
+  it("acha o vínculo mesmo com outra caixa ou acento no pai", () => {
+    const s = montarSugestoes([projeto("Teatro Sesiminas")], [], []);
+    expect(filhosDe(s, "local", "teatro sesiminas").enderecoLocal).toBe("Rua Teatro Sesiminas");
+  });
+
+  it("a produtora responsável traz telefone e e-mail juntos", () => {
+    const s = montarSugestoes([comProdutora("Marisa", "(31) 98888-0000", "marisa@polobh.com.br")], [], []);
+    expect(filhosDe(s, "produtoraResponsavel", "Marisa")).toEqual({
+      telefoneProdutora: "(31) 98888-0000",
+      emailProdutora: "marisa@polobh.com.br",
+    });
+  });
+
+  it("quando o histórico diverge, vence o que apareceu mais vezes", () => {
+    const s = montarSugestoes(
+      [
+        comProdutora("Marisa", "(31) 98888-0000", "marisa@polobh.com.br"),
+        comProdutora("Marisa", "(31) 98888-0000", "marisa@polobh.com.br"),
+        comProdutora("Marisa", "(31) 90000-1111", "antigo@polobh.com.br"),
+      ],
+      [], []
+    );
+    expect(filhosDe(s, "produtoraResponsavel", "Marisa").telefoneProdutora).toBe("(31) 98888-0000");
+  });
+
+  it("valor que a casa nunca usou não inventa filho nenhum", () => {
+    const s = montarSugestoes([projeto("Expominas")], [], []);
+    expect(filhosDe(s, "local", "Casa Nova")).toEqual({});
+    expect(filhosDe(s, "local", "")).toEqual({});
+  });
+
+  it("as ECs também alimentam o vínculo — elas guardam projetos fora da lista", () => {
+    const daEc = ec([], "Minascentro");
+    daEc.projeto.enderecoLocal = "Av. Augusto de Lima, 785";
+    const s = montarSugestoes([], [daEc], []);
+    expect(filhosDe(s, "local", "Minascentro").enderecoLocal).toBe("Av. Augusto de Lima, 785");
   });
 });
