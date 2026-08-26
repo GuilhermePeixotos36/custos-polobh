@@ -140,15 +140,34 @@ const slug = (s: string, max = 18): string =>
     .slice(0, max)
     .trim();
 
-/** Numeração automática: "EC – {Cliente} – {Projeto} – V{NN}". */
+/** Comparação tolerante a caixa e acento — só para saber se um texto repete o outro. */
+const chaveTexto = (s: string) =>
+  s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase("pt-BR");
+
+/**
+ * Numeração automática: "EC – {Cliente} – {Projeto} – V{NN}".
+ *
+ * O nome do cliente é omitido quando o título do projeto JÁ começa por ele. Os
+ * títulos passaram a nascer como "{Apelido} – {Projeto} – {Ano}" (ver
+ * `compoeTituloProjeto`), e repetir o cliente produzia números como
+ * "EC – Instituto Aurora – Instituto Aurora – Festival… – V04" — que a pessoa lia
+ * como se fosse outra EC, não a que ela tinha acabado de importar.
+ */
 export function numeroEc(
   clienteNome: string,
   projetoTitulo: string,
   versao: number
 ): string {
   const v = String(versao).padStart(2, "0");
+  const cliente = slug(clienteNome);
   // título do projeto com folga maior (evita "comer" parte do título no número).
-  return `EC – ${slug(clienteNome)} – ${slug(projetoTitulo, 60)} – V${v}`;
+  const titulo = slug(projetoTitulo, 60);
+  // Compara com o PRIMEIRO trecho do título: ele traz o apelido ("ACME"), que é
+  // um pedaço do nome cadastrado ("ACME Comércio Ltda") — e vice-versa.
+  const primeiro = chaveTexto(titulo.split("–")[0] ?? "");
+  const alvo = chaveTexto(cliente);
+  const jaNoTitulo = !!primeiro && !!alvo && (alvo.startsWith(primeiro) || primeiro.startsWith(alvo));
+  return jaNoTitulo || !cliente ? `EC – ${titulo} – V${v}` : `EC – ${cliente} – ${titulo} – V${v}`;
 }
 
 /**

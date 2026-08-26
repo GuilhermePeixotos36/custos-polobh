@@ -108,6 +108,26 @@ describe("numeroEc", () => {
     expect(n).toContain("Convencao Anual de Liderancas");
     expect(n).not.toMatch(/[çãáéíóú]/i);
   });
+
+  it("mantém o cliente quando o título do projeto não o traz", () => {
+    expect(numeroEc("BANCO MERCANTIL", "Convencao Anual", 1)).toBe(
+      "EC – BANCO MERCANTIL – Convencao Anual – V01"
+    );
+  });
+
+  it("não repete o cliente quando o título já começa por ele", () => {
+    // O título nasce como "{Apelido} – {Projeto} – {Ano}": repetir dava
+    // "EC – Instituto Aurora – Instituto Aurora – Festival…", que parecia outra EC.
+    expect(numeroEc("Instituto Aurora", "Instituto Aurora – Festival de Inverno – 2026", 4)).toBe(
+      "EC – Instituto Aurora – Festival de Inverno – 2026 – V04"
+    );
+  });
+
+  it("reconhece o apelido como pedaço do nome cadastrado", () => {
+    expect(numeroEc("ACME Comércio Ltda", "ACME – Convenção – 2026", 1)).toBe(
+      "EC – ACME – Convencao – 2026 – V01"
+    );
+  });
 });
 
 describe("descritivoConsolidado", () => {

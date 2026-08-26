@@ -234,8 +234,15 @@ const MODULOS: Modulo[] = [
             <span>Na EC, em <b>Ações</b>, use <b>Enviar ao cliente para aprovação</b> — a EC vai para o status <Tag tom="warning">Aguardando</Tag>.</span>
             <span><b>Gerar nova versão (V02…)</b> cria uma cópia que “cancela e substitui” a anterior — use quando o escopo muda.</span>
             <span><b>Duplicar EC</b> cria uma nova estimativa (V01, Rascunho) a partir desta.</span>
+            <span><b>Importar EC</b> (na aba EC do projeto) copia os itens e valores de <b>qualquer</b> EC — deste projeto ou de outro, ativa ou arquivada — para cá, como um <Tag tom="info">Rascunho</Tag> novo. A EC de origem não é tocada.</span>
             <span><b>Excel Financeiro</b> exporta somente itens e valores; <b>Excel Completa</b> inclui todos os dados e as descrições completas.</span>
           </Passos>
+          <Dica>
+            Cada projeto tem <b>uma</b> EC <Tag tom="success">Ativa</Tag> — a versão que vale. As outras podem ser
+            <Tag tom="info">Rascunho</Tag> (cópia ou importação ainda em aberto, <b>editável</b>) ou
+            <Tag>Arquivada</Tag> (substituída por uma versão nova, preservada como está). Para promover um rascunho,
+            use <b>Tornar EC ativa</b> no detalhe.
+          </Dica>
           <Atencao>Arquivar e Cancelar <b>não apagam</b> a EC — ela continua consultável. Nada é excluído de fato.</Atencao>
         </Secao>
       </>

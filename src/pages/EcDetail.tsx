@@ -24,6 +24,7 @@ import { RentabilidadeItens } from "@/components/RentabilidadeItens";
 import { EcSubGuias, type SubGuiaEc } from "@/components/EcSubGuias";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
 import { rotaDaPendencia } from "@/domain/pendencias";
+import { ecEditavel, situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
 import { useMinhasPendencias } from "@/store/pendencias";
 import { EcItemLeitura } from "@/components/EcItemLeitura";
 import { brl, dataBR } from "@/lib/format";
@@ -371,13 +372,10 @@ export function EcDetail() {
     </Card>
   ) : null;
 
-  // A EC hoje só tem dois estados que importam: Ativa ou Arquivada (Cancelada é um terceiro,
-  // explícito). O campo `status` bruto é legado do antigo fluxo de aprovação do cliente.
-  const statusBadge = ec.status === "Cancelada"
-    ? <Badge tom="danger">Cancelada</Badge>
-    : ec.ativa
-      ? <Badge tom="success">Ativa</Badge>
-      : <Badge tom="neutral">Arquivada</Badge>;
+  // Leitura única do par (status, ativa) — ver `domain/ec`. Um rascunho que não é
+  // a versão ativa (o caso da EC importada) é "Rascunho", não "Arquivada".
+  const situacao = situacaoEc(ec);
+  const statusBadge = <Badge tom={TOM_SITUACAO_EC[situacao]}>{ROTULO_SITUACAO_EC[situacao]}</Badge>;
 
   return (
     <PageShell title={tituloEc(ec)} titleAdornment={statusBadge}>
@@ -442,7 +440,7 @@ export function EcDetail() {
               Tornar EC ativa
             </Button>
           )}
-          {podeEditar && ec.ativa && ec.status !== "Cancelada" && (
+          {podeEditar && ecEditavel(ec) && (
             <Button size="sm" onClick={() => navigate(`/estimativas/${ec.id}/editar`)}>
               Editar EC
             </Button>

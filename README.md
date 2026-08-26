@@ -47,6 +47,19 @@ supabase/migrations/         atualizações incrementais do banco
 | Modelos de check-list (Configurações) | ✅ | — | — |
 | Bloco financeiro / Configurações | ✅ | — | ✅ |
 
+## Versões da EC (o que é editável)
+Cada projeto tem **uma** EC ativa. O par `status` + `ativa` é lido num lugar só
+(`domain/ec.ts` → `situacaoEc`), em quatro situações:
+- **Ativa** — a versão que vale, editável;
+- **Rascunho** — cópia/importação em aberto que ainda não é a ativa: **editável**
+  (é o estado em que nascem `Importar EC` e `Duplicar`);
+- **Arquivada** — substituída por uma versão nova: preservada, não edita;
+- **Cancelada** — não edita.
+
+A trava do editor é sobre o que já foi **finalizado**, não sobre ser a ativa —
+antes um rascunho recém-importado caía direto em "Edição bloqueada" e aparecia
+com selo de "Arquivada" na lista.
+
 ## Pendências (quem vê o quê)
 O número vermelho é uma lista de tarefa, não um painel do que anda acontecendo.
 Duas portas, e só elas (`domain/pendencias.ts` → `agregarPendencias`):

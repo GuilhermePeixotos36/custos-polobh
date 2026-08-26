@@ -31,6 +31,7 @@ import {
   ROTULO_ENCARGOS_PADRAO,
 } from "@/domain/calc";
 import { itensDoTemplate } from "@/domain/ecTemplates";
+import { motivoBloqueioEc, situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
 import { projetoInfoVazio } from "@/domain/projeto";
 import { gerarEcExcel } from "@/lib/excel";
 import { consultarCnpj } from "@/lib/cnpj";
@@ -255,16 +256,18 @@ export function EcForm() {
     return <PageShell title="Carregando…">{null}</PageShell>;
   }
 
-  // Trava de edição: uma EC só é editável enquanto for a versão ativa do projeto e não
-  // estiver cancelada. Arquivada (superseded por nova versão) ou cancelada ficam bloqueadas —
-  // para alterar algo, gera-se uma nova versão a partir do detalhe.
-  if (editando && (!ec.ativa || ec.status === "Cancelada")) {
+  // Trava de edição: só o que já foi FINALIZADO fica preservado (arquivada ou
+  // cancelada). Rascunho é sempre editável, ativo ou não — é nele que nascem a
+  // importação e a duplicação, e antes elas caíam aqui sem nunca ter sido abertas.
+  // Ver `domain/ec`.
+  const bloqueio = motivoBloqueioEc(ec);
+  if (editando && bloqueio) {
     return (
       <PageShell title="Edição bloqueada">
         <Card>
           <CardTitle>Esta EC não pode mais ser editada</CardTitle>
           <p className="mt-2 text-sm text-ink-2">
-            A EC <b>{ec.numero}</b> está {ec.status === "Cancelada" ? "cancelada" : "arquivada (não é a versão ativa do projeto)"}. ECs finalizadas ficam
+            A EC <b>{tituloEc(ec)}</b> {bloqueio}. ECs finalizadas ficam
             preservadas — para alterar algo, gere uma nova versão (02, 03…) a partir do detalhe,
             que arquiva esta e abre uma cópia em Rascunho.
           </p>
@@ -416,13 +419,10 @@ export function EcForm() {
   );
 
   const voltarUrl = ec.projetoId ? `/projetos/${ec.projetoId}?aba=ec` : "/projetos";
-  // Mesmo critério do EcDetail: dentro do editor a EC está sempre ativa (edição só é
-  // permitida enquanto for a versão ativa), então o badge aqui é só por paridade visual.
-  const statusBadge = ec.status === "Cancelada"
-    ? <Badge tom="danger">Cancelada</Badge>
-    : ec.ativa
-      ? <Badge tom="success">Ativa</Badge>
-      : <Badge tom="neutral">Arquivada</Badge>;
+  // Mesma leitura do EcDetail e da lista do projeto (ver `domain/ec`): um rascunho
+  // que não é a versão ativa é "Rascunho", e não "Arquivada".
+  const situacao = situacaoEc(ec);
+  const statusBadge = <Badge tom={TOM_SITUACAO_EC[situacao]}>{ROTULO_SITUACAO_EC[situacao]}</Badge>;
 
   return (
     <PageShell title={tituloEc({ ...ec, numero })} titleAdornment={statusBadge}>

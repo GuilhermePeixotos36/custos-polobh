@@ -37,6 +37,7 @@ import { corrigirRoteirosProjeto } from "@/lib/correcaoOrtografica";
 import { statusProjetoAutomatico } from "@/domain/statusProjeto";
 import type { Cliente, Ec, EcLinha, Projeto, ProjetoInfo, StatusProjeto } from "@/data/types";
 import { rotaDaPendencia, type Pendencia } from "@/domain/pendencias";
+import { situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
 
 const tomStatusProjeto: Record<StatusProjeto, Tom> = {
   Ativo: "success", Arquivado: "neutral", Concluido: "info", Cancelado: "danger",
@@ -978,7 +979,9 @@ export function ProjetoDetail() {
             {([
               ["todas", "Todas"],
               ["ativas", "Ativas"],
-              ["arquivadas", "Arquivadas"],
+              // Não é só "arquivadas": aqui caem também os rascunhos importados,
+              // que não são a versão ativa e continuam editáveis.
+              ["arquivadas", "Demais versões"],
             ] as const).map(([valor, rotulo]) => (
               <button
                 key={valor}
@@ -1012,7 +1015,11 @@ export function ProjetoDetail() {
                     <TdPendencias n={porEc[e.id] ?? 0} title="Ações pendentes nesta EC" />
                     {/* Versão e data já vêm no próprio título ("EC – … (03) em 10 08 26"). */}
                     <Td className={cx("font-bold", e.ativa ? "text-primary-dark" : "text-ink")}>{tituloEc(e)}</Td>
-                    <Td align="center"><Badge tom={e.ativa ? "success" : "neutral"}>{e.ativa ? "Ativa" : "Arquivada"}</Badge></Td>
+                    {/* Rascunho não-ativo (a EC recém-importada) é "Rascunho", e não
+                        "Arquivada" — a leitura é uma só, em `domain/ec`. */}
+                    <Td align="center">
+                      <Badge tom={TOM_SITUACAO_EC[situacaoEc(e)]}>{ROTULO_SITUACAO_EC[situacaoEc(e)]}</Badge>
+                    </Td>
                   </Tr>
                 ))}
               </tbody>
@@ -1041,7 +1048,7 @@ export function ProjetoDetail() {
                   <Select value={impEcId} onChange={(e) => setImpEcId(e.target.value)} disabled={!impProjetoId}>
                     <option value="">Selecione…</option>
                     {ecsOrigem.map((e) => (
-                      <option key={e.id} value={e.id}>{tituloEc(e)} — {e.ativa ? "Ativa" : "Arquivada"}</option>
+                      <option key={e.id} value={e.id}>{tituloEc(e)} — {ROTULO_SITUACAO_EC[situacaoEc(e)]}</option>
                     ))}
                   </Select>
                   {!!impProjetoId && ecsOrigem.length === 0 && (
