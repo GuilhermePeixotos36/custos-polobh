@@ -838,14 +838,6 @@ export function ProjetoDetail() {
                     <option value={p.info.produtoraResponsavel}>{p.info.produtoraResponsavel} (não cadastrado)</option>
                   )}
                 </Select>
-                {/* As pendências do projeto são roteadas pelo nome cadastrado — um nome
-                    solto (dado antigo) gera pendência que não chega a ninguém. */}
-                {p.info.produtoraResponsavel && !produtoresResponsaveis.some((u) => u.nome === p.info.produtoraResponsavel) && (
-                  <p className="text-[12px] text-warning mt-1.5">
-                    "{p.info.produtoraResponsavel}" não é um usuário do sistema — as pendências deste projeto ficam sem dono.
-                    Escolha alguém da lista ou cadastre essa pessoa em Configurações → Usuários.
-                  </p>
-                )}
               </Field>
               <Field label="Telefone do(a) Produtor(a) Responsável"><TelefoneInput value={p.info.telefoneProdutora} onChange={(v) => updInfo({ telefoneProdutora: v })} /></Field>
               <Field label="E-mail do(a) Produtor(a) Responsável"><Input type="email" sugestoes={sugestoes.valores.emailProdutora} value={p.info.emailProdutora} onChange={(e) => updInfo({ emailProdutora: e.target.value })} /></Field>
