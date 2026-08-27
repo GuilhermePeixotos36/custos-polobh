@@ -229,6 +229,18 @@ const MODULOS: Modulo[] = [
           </Tela>
           <Dica>Os percentuais são fixos: <b>honorários 15%</b> e <b>encargos 16,33%</b>. O valor total recalcula sozinho a cada mudança.</Dica>
         </Secao>
+        <Secao titulo="Aprovar o item">
+          <p>
+            Marcar a <b>Aprovação</b> do item como <Tag tom="success">OK</Tag> já muda o campo <b>OS</b> para
+            <Tag tom="warning">Emitir</Tag> — item liberado pelo cliente é item que precisa de OS. Vale tanto no campo
+            do item quanto no botão <b>Aprovar selecionados</b>.
+          </p>
+          <Passos>
+            <span>Voltar a Aprovação para <Tag tom="warning">Pendente</Tag> desfaz <b>só</b> a OS que a aprovação criou (a que está em "Emitir").</span>
+            <span>OS já em <Tag tom="success">OK</Tag>, em <Tag tom="warning">Emitir Nova Versão</Tag> ou em <Tag tom="success">Não se Aplica</Tag> não é tocada — esses estados vieram do processo real.</span>
+            <span>Item <b>já aprovado</b> não é reaprovado. Se o escopo mudou depois da OS, quem marca <b>Emitir Nova Versão</b> é você: só você sabe que houve alteração.</span>
+          </Passos>
+        </Secao>
         <Secao titulo="Opções de valor do item (o que sai na OS)">
           <p>
             Dentro de cada item há um bloquinho com as <b>três formas de cobrar</b> aquele serviço — a OS junta vários

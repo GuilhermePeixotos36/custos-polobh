@@ -201,6 +201,14 @@ Nada é aplicado direto no painel do Supabase sem virar migração: foi assim qu
 `perfis.telefone` e a função `gerenciar-usuarios` ficaram só em produção, fora
 do repositório.
 
+**Coluna nova em `ec_linhas` exige mexer em `salvar_ec_completa`.** A função monta
+as linhas com `jsonb_populate_recordset` e insere com `select *`: chave ausente no
+JSON vira NULL na coluna, e o `default` não vale (o NULL é passado explicitamente).
+Com `not null`, uma aba aberta no bundle anterior derruba toda gravação de EC —
+foi o que aconteceu em 27/08/2026 com `valores_nao_aplicaveis`. A função hoje
+preenche os padrões antes de popular o registro (`v_padroes`); acrescente a coluna
+nova lá, e não só na lista do `on conflict do update`.
+
 **As migrations rodam UMA vez, na ordem do nome.** Reaplicar a pasta inteira do
 zero num banco que já a tem falha em algumas delas (elas assumem o estado
 anterior — por exemplo a que recria a view `ec_linhas_visiveis`). Isso é

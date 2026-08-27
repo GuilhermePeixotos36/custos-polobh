@@ -389,10 +389,15 @@ export function analisarEmissaoOs(linhas: EcLinha[]): AnaliseEmissaoOs {
   return { prontos, bloqueados };
 }
 
-/* ------------------- Aprovação em bloco dos itens da EC ------------------- */
+/* ---------------------- Aprovação dos itens da EC ---------------------- */
 
 /**
  * Aprova um item e, junto, deixa a OS pronta para ser emitida.
+ *
+ * É a regra ÚNICA da aprovação: vale tanto para o botão "Aprovar selecionados"
+ * quanto para quem troca o campo Aprovação do item para "OK" na mão. Antes o
+ * campo mudava sozinho, e o item aprovado ficava com a OS em "Pendente" — a
+ * emissão dependia de alguém lembrar de mexer no segundo campo.
  *
  * Duas travas, decididas com o cliente (23/08/2026):
  *   1. só mexe em item com Aprovação "Pendente" — item já aprovado que não

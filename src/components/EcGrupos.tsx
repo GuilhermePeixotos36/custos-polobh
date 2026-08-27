@@ -1056,7 +1056,19 @@ function ItemRow({
       {/* Linha 2: metadados */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-[0.7fr_2.6fr_1fr_1fr_1fr_1fr_0.7fr] items-end gap-2 px-2.5 pb-2.5 pt-1 border-t border-border-soft bg-[#FCFCFD] rounded-b-card min-w-0">
         <Campo label="Aprovação" className="w-full">
-          <Select className={cx("!h-9 !px-2 !text-[12.5px]", classeCampoStatus(l.statusAprovacao))} value={l.statusAprovacao} onChange={(e) => onUpd({ statusAprovacao: e.target.value as StatusAprovacao })}>
+          {/* Aprovar o item JÁ pede a OS: a mesma regra do botão "Aprovar
+              selecionados" (ver `aprovarLinha`), para o campo OS não ficar em
+              "Pendente" num item que o cliente já liberou. Voltar para Pendente
+              desfaz só a OS que a aprovação criou. */}
+          <Select
+            className={cx("!h-9 !px-2 !text-[12.5px]", classeCampoStatus(l.statusAprovacao))}
+            value={l.statusAprovacao}
+            onChange={(e) => {
+              const escolhido = e.target.value as StatusAprovacao;
+              const revisto = escolhido === "OK" ? aprovarLinha(l) : reverterAprovacaoLinha(l);
+              onUpd({ statusAprovacao: revisto.statusAprovacao, statusOs: revisto.statusOs });
+            }}
+          >
             <option>Pendente</option>
             <option>OK</option>
           </Select>

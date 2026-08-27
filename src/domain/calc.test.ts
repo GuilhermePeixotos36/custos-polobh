@@ -328,6 +328,22 @@ describe("aprovarLinha", () => {
   });
 });
 
+describe("aprovação pelo campo do item (mesma regra do botão em bloco)", () => {
+  it("marcar Aprovação como OK já pede a OS", () => {
+    // É o que a tela faz no onChange do campo Aprovação (ver EcGrupos).
+    const r = aprovarLinha(linha({ statusAprovacao: "Pendente", statusOs: "Pendente" }));
+    expect(r.statusAprovacao).toBe("OK");
+    expect(r.statusOs).toBe("Emitir");
+  });
+
+  it("voltar para Pendente desfaz só a OS que a aprovação criou", () => {
+    const r = reverterAprovacaoLinha(linha({ statusAprovacao: "OK", statusOs: "Emitir" }));
+    expect(r.statusOs).toBe("Pendente");
+    // OS já emitida não volta atrás por causa de um clique na aprovação.
+    expect(reverterAprovacaoLinha(linha({ statusAprovacao: "OK", statusOs: "OK" })).statusOs).toBe("OK");
+  });
+});
+
 describe("reverterAprovacaoLinha", () => {
   it("volta a aprovação e desfaz a OS que a aprovação tinha criado", () => {
     const r = reverterAprovacaoLinha(linha({ statusAprovacao: "OK", statusOs: "Emitir" }));
