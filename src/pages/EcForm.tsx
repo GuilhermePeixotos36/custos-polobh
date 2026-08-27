@@ -31,6 +31,7 @@ import {
   ROTULO_ENCARGOS_PADRAO,
 } from "@/domain/calc";
 import { itensDoTemplate } from "@/domain/ecTemplates";
+import { motivoBloqueioEc, situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
 import { projetoInfoVazio } from "@/domain/projeto";
 import { gerarEcExcel } from "@/lib/excel";
 import { consultarCnpj } from "@/lib/cnpj";
@@ -38,7 +39,10 @@ import { corrigirMaiusculas, corrigirMaiusculasHtml } from "@/lib/correcaoOrtogr
 import { useAuth } from "@/store/auth";
 import { RentabilidadeItens } from "@/components/RentabilidadeItens";
 import { EcGrupos } from "@/components/EcGrupos";
-import { NavegadorPendencias, linhasComPendencia } from "@/components/NavegadorPendencias";
+import { NavegadorPendencias } from "@/components/NavegadorPendencias";
+import { rotaDaPendencia } from "@/domain/pendencias";
+import { useMinhasPendencias } from "@/store/pendencias";
+import { useSugestoes } from "@/hooks/useSugestoes";
 import { EcSubGuias, type SubGuiaEc } from "@/components/EcSubGuias";
 import { flags } from "@/lib/flags";
 import { toast } from "@/store/toast";
@@ -63,6 +67,11 @@ const novaLinha = (ordem: number): EcLinha => ({
   valorPolobh: 0,
   valorCliente: 0,
   valorGasto: 0,
+  valorComBvNf: 0,
+  valorSemBvComNf: 0,
+  valorSemBvSemNf: 0,
+  valoresNaoAplicaveis: [],
+  opcaoValor: "",
   statusAprovacao: "Pendente",
   fornecedorRazao: "",
   fornecedorCnpj: "",
@@ -135,6 +144,9 @@ export function EcForm() {
   const produtoresResponsaveis = useResponsaveis(usuariosData);
   // OS's desta EC — alimentam automaticamente o "Gasto" da rentabilidade por item.
   const { data: ossData } = useAsync(() => (id ? repo.oss.porEc(id) : Promise.resolve([])), [id]);
+  const { itens: minhasPendencias } = useMinhasPendencias();
+  // Valores já usados nestes campos em outras ECs (ver `domain/sugestoes`).
+  const sugestoes = useSugestoes();
 
   // inicia o formulário e registra a "foto" base para detectar alterações
   const iniciar = (e: Ec) => {
@@ -202,7 +214,20 @@ export function EcForm() {
     [ec, ossData]
   );
   // Itens com observação em aberto — alimentam o navegador de pendências.
-  const idsPendencias = useMemo(() => linhasComPendencia(ec?.linhas ?? []), [ec?.linhas]);
+  // Pendências desta EC — a MESMA lista do badge vermelho da EC (ver
+  // `agregarPendencias`), e não mais "toda observação em aberto que existir aqui".
+  const pendenciasDaEc = useMemo(
+    () => minhasPendencias.filter((p) => p.ecId === id),
+    [minhasPendencias, id]
+  );
+  /** Quantas pendências o usuário tem em cada linha — vira o badge do item. */
+  const pendenciasPorLinha = useMemo(() => {
+    const mapa: Record<string, number> = {};
+    for (const p of pendenciasDaEc) {
+      if (p.ancora) mapa[p.ancora] = (mapa[p.ancora] ?? 0) + 1;
+    }
+    return mapa;
+  }, [pendenciasDaEc]);
 
   /**
    * Publica a altura real da barra de ações em `--altura-barra-ec`.
@@ -232,16 +257,18 @@ export function EcForm() {
     return <PageShell title="Carregando…">{null}</PageShell>;
   }
 
-  // Trava de edição: uma EC só é editável enquanto for a versão ativa do projeto e não
-  // estiver cancelada. Arquivada (superseded por nova versão) ou cancelada ficam bloqueadas —
-  // para alterar algo, gera-se uma nova versão a partir do detalhe.
-  if (editando && (!ec.ativa || ec.status === "Cancelada")) {
+  // Trava de edição: só o que já foi FINALIZADO fica preservado (arquivada ou
+  // cancelada). Rascunho é sempre editável, ativo ou não — é nele que nascem a
+  // importação e a duplicação, e antes elas caíam aqui sem nunca ter sido abertas.
+  // Ver `domain/ec`.
+  const bloqueio = motivoBloqueioEc(ec);
+  if (editando && bloqueio) {
     return (
       <PageShell title="Edição bloqueada">
         <Card>
           <CardTitle>Esta EC não pode mais ser editada</CardTitle>
           <p className="mt-2 text-sm text-ink-2">
-            A EC <b>{ec.numero}</b> está {ec.status === "Cancelada" ? "cancelada" : "arquivada (não é a versão ativa do projeto)"}. ECs finalizadas ficam
+            A EC <b>{tituloEc(ec)}</b> {bloqueio}. ECs finalizadas ficam
             preservadas — para alterar algo, gere uma nova versão (02, 03…) a partir do detalhe,
             que arquiva esta e abre uma cópia em Rascunho.
           </p>
@@ -393,13 +420,10 @@ export function EcForm() {
   );
 
   const voltarUrl = ec.projetoId ? `/projetos/${ec.projetoId}?aba=ec` : "/projetos";
-  // Mesmo critério do EcDetail: dentro do editor a EC está sempre ativa (edição só é
-  // permitida enquanto for a versão ativa), então o badge aqui é só por paridade visual.
-  const statusBadge = ec.status === "Cancelada"
-    ? <Badge tom="danger">Cancelada</Badge>
-    : ec.ativa
-      ? <Badge tom="success">Ativa</Badge>
-      : <Badge tom="neutral">Arquivada</Badge>;
+  // Mesma leitura do EcDetail e da lista do projeto (ver `domain/ec`): um rascunho
+  // que não é a versão ativa é "Rascunho", e não "Arquivada".
+  const situacao = situacaoEc(ec);
+  const statusBadge = <Badge tom={TOM_SITUACAO_EC[situacao]}>{ROTULO_SITUACAO_EC[situacao]}</Badge>;
 
   return (
     <PageShell title={tituloEc({ ...ec, numero })} titleAdornment={statusBadge}>
@@ -437,8 +461,18 @@ export function EcForm() {
 
       <EcSubGuias atual={subaba} onChange={setSubaba} temResumo={verFinanceiro} temRentabilidade={verFinanceiro} />
 
-      {/* Pill flutuante que salta entre as observações em aberto da EC. */}
-      {subaba === "ec" && <NavegadorPendencias ids={idsPendencias} />}
+      {/* Pílula flutuante que salta entre as pendências desta EC. */}
+      {subaba === "ec" && (
+        <NavegadorPendencias
+          pendencias={pendenciasDaEc}
+          aoSaltar={(p) => {
+            // Observação/cronograma de OS entram na conta desta EC, mas moram na
+            // tela da OS — saltar para lá é o que faz o número ser alcançável.
+            const rota = rotaDaPendencia(p);
+            if (!rota.startsWith(`/estimativas/${id}`)) navigate(rota);
+          }}
+        />
+      )}
 
       {verFinanceiro && subaba === "resumo" && <div className="space-y-4">{resumoCard}</div>}
       {verFinanceiro && subaba === "rentabilidade" && <div className="space-y-4">{rentabilidadeCard}</div>}
@@ -511,6 +545,8 @@ export function EcForm() {
               verFinanceiro={verFinanceiro}
               fornecedores={fornecedores}
               usuarios={usuarios}
+              sugestoes={sugestoes}
+              pendenciasPorLinha={pendenciasPorLinha}
               onValidarFornecedor={validarFornecedor}
             />
           </div>

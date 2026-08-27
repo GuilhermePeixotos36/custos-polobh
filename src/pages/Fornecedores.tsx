@@ -4,7 +4,7 @@ import {
   Card, CardTitle, Button, Field, Input, TelefoneInput, Select, Table, THead, Tr, Td,
   Badge, EmptyState, AvisoErro, Avatar, ThOrd, useOrdenacao,
 } from "@/components/ui";
-import { IcSearch, IcTrash } from "@/components/icons";
+import { IcSearch, IcTrash, IcPlus } from "@/components/icons";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import { consultarCnpj } from "@/lib/cnpj";
@@ -33,8 +33,24 @@ export function Fornecedores() {
 
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
-    return (data ?? []).filter((f) => !q ? true : [f.razaoSocial, f.cnpj, f.perfilTributario].join(" ").toLowerCase().includes(q));
+    if (!q) return data ?? [];
+    // A busca cobre o que a tela mostra: era possível ver "Som & Luz" na lista
+    // (nome fantasia) e não achar nada ao digitar exatamente isso.
+    return (data ?? []).filter((f) =>
+      [f.nomeFantasia, f.razaoSocial, f.cnpj, f.perfilTributario, f.email, f.telefone, ...(f.contatos ?? [])]
+        .join(" ")
+        .toLowerCase()
+        .includes(q)
+    );
   }, [data, busca]);
+
+  /** Fornecedor em branco — o cadastro manual, para quem ainda não veio de uma EC. */
+  const novoFornecedor = (): Fornecedor => ({
+    id: "", razaoSocial: "", nomeFantasia: "", cnpj: "", perfilTributario: "", endereco: "",
+    inscricaoEstadual: "", inscricaoMunicipal: "",
+    dadosBancarios: { tipoConta: "", banco: "", agencia: "", conta: "", chavePix: "" },
+    representante: "", telefone: "", email: "", contatos: [],
+  });
 
   const { ordem, ordenarPor, ordenados: lista } = useOrdenacao(
     filtrados,
@@ -59,18 +75,44 @@ export function Fornecedores() {
     }
   }
 
+  const [salvando, setSalvando] = useState(false);
+
   async function salvar() {
     if (!edit) return;
-    await repo.fornecedores.salvar(edit);
-    toast("Fornecedor salvo.", "success");
-    setEdit(null);
-    reload();
+    // Sem razão social nem CNPJ o cadastro não identifica ninguém — e era
+    // possível salvar assim, criando fornecedor fantasma na lista.
+    if (!edit.razaoSocial.trim() && !edit.cnpj.trim()) {
+      toast("Informe ao menos a razão social ou o CNPJ/CPF do fornecedor.", "warning");
+      return;
+    }
+    setSalvando(true);
+    try {
+      await repo.fornecedores.salvar(edit);
+      toast("Fornecedor salvo.", "success");
+      setEdit(null);
+      reload();
+    } catch (e) {
+      // A falha (RLS, rede) subia sem tratamento: a tela ficava parada, sem
+      // aviso nenhum, e a pessoa achava que tinha salvado.
+      toast(`Não foi possível salvar: ${(e as Error).message}`, "danger");
+    } finally {
+      setSalvando(false);
+    }
   }
 
   return (
     <PageShell
       title="Fornecedores"
       subtitle="Consulta e edição. Os fornecedores são registrados automaticamente ao serem usados nas ECs."
+      topAction={
+        podeEditar && (
+          // O cartão de edição já sabia dizer "Novo fornecedor", mas nada nesta
+          // tela criava um: só dava para cadastrar passando por uma EC.
+          <Button size="sm" icon={<IcPlus width={15} height={15} />} onClick={() => { setEdit(novoFornecedor()); setMsg(""); setNovoContato(""); }}>
+            Novo fornecedor
+          </Button>
+        )
+      }
     >
       <div className={cx(edit ? "grid lg:grid-cols-[1.5fr_1fr] gap-4 items-start" : "max-w-5xl mx-auto")}>
         <Card padded={false}>
@@ -182,7 +224,7 @@ export function Fornecedores() {
               </div>
 
               <div className="flex gap-2 pt-1">
-                {podeEditar && <Button block onClick={salvar}>Salvar</Button>}
+                {podeEditar && <Button block onClick={salvar} disabled={salvando}>{salvando ? "Salvando…" : "Salvar"}</Button>}
                 <Button variant="secondary" block={!podeEditar} onClick={() => setEdit(null)}>{podeEditar ? "Cancelar" : "Fechar"}</Button>
               </div>
             </div>

@@ -63,6 +63,52 @@ export const maskDoc = (raw: string): string => {
 
 export const onlyDigits = (s: string): string => (s || "").replace(/\D/g, "");
 
+/**
+ * Lê um número escrito à mão, à moda brasileira, do jeito que a pessoa digitou.
+ *
+ * O campo de valor não reformata nada enquanto se digita (ver `CurrencyInput`):
+ * quem interpreta o que foi escrito é esta função, ao sair do campo. As regras
+ * são as que a pessoa já usa no papel:
+ *
+ *   "1500"      -> 1500      (sem vírgula, tudo é parte inteira)
+ *   "1500,5"    -> 1500,50   (a vírgula manda: o que vem depois é centavo)
+ *   "1.500,50"  -> 1500,50   (ponto de milhar + vírgula decimal)
+ *   "12.50"     -> 12,50     (um ponto com 1-2 casas: teclado numérico, é decimal)
+ *   "1.500"     -> 1500      (um ponto com 3 casas: milhar)
+ *
+ * Devolve `null` quando não há número nenhum no texto (campo vazio, só lixo) —
+ * quem chama decide se isso vira zero ou "não mexe no valor".
+ */
+export function parseNumeroBR(texto: string): number | null {
+  const bruto = (texto || "").trim();
+  const negativo = bruto.startsWith("-");
+  const limpo = bruto.replace(/[^\d.,]/g, "");
+  if (!/\d/.test(limpo)) return null;
+
+  let normalizado: string;
+  if (limpo.includes(",")) {
+    // Com vírgula, ela é SEMPRE o separador decimal; os pontos são de milhar.
+    // Vírgula digitada duas vezes não invalida o número: vale a primeira.
+    const [inteiro, ...resto] = limpo.replace(/\./g, "").split(",");
+    normalizado = resto.length ? `${inteiro}.${resto.join("")}` : inteiro;
+  } else if (limpo.includes(".")) {
+    const partes = limpo.split(".");
+    const ultima = partes[partes.length - 1];
+    normalizado = partes.length === 2 && ultima.length > 0 && ultima.length <= 2
+      ? `${partes[0]}.${ultima}`   // "12.5" — ponto usado como decimal
+      : partes.join("");            // "1.234.567" — pontos de milhar
+  } else {
+    normalizado = limpo;
+  }
+
+  const n = Number(normalizado);
+  if (!Number.isFinite(n)) return null;
+  return negativo ? -n : n;
+}
+
+/** Só os caracteres que fazem sentido enquanto se digita um número (dígitos, vírgula, ponto e o sinal). */
+export const limparEntradaNumerica = (s: string): string => (s || "").replace(/[^\d.,-]/g, "");
+
 /** Máscara progressiva de CPF/CNPJ enquanto o usuário digita. */
 export const maskCpfCnpjInput = (raw: string): string => {
   const d = onlyDigits(raw).slice(0, 14);

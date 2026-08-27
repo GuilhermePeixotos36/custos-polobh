@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
         .from("oss")
         .select("id, fornecedor, credenciamento, ec:ecs(projeto)")
         .eq("slug_credenciamento", token)
-        .neq("status", "Arquivada")
+        .not("status", "in", "(\"Arquivada\",\"Cancelada\")")
         .maybeSingle();
       if (error) throw error;
       if (!os) return json({ error: "Link de credenciamento inválido." }, 404);
@@ -58,10 +58,15 @@ Deno.serve(async (req) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const cred = ((os as any).credenciamento ?? {}) as any;
 
+      const prazoLimite = (cred.prazoLimite ?? "") as string;
+      const limite = prazoLimite ? new Date(`${prazoLimite}T23:59:59-03:00`) : null;
       return json({
         evento: { titulo: proj.titulo ?? "", local: proj.local ?? "", data: proj.evento ?? "" },
         fornecedor: forn.razaoSocial ?? "",
-        prazoLimite: cred.prazoLimite ?? "",
+        prazoLimite,
+        // A tela precisa saber ANTES de a pessoa preencher tudo — descobrir só
+        // no envio, com o formulário cheio, é a pior hora de dar a notícia.
+        prazoEncerrado: !!limite && !isNaN(limite.getTime()) && new Date() > limite,
       });
     }
 
@@ -75,7 +80,7 @@ Deno.serve(async (req) => {
         .from("oss")
         .select("id, credenciamento")
         .eq("slug_credenciamento", token)
-        .neq("status", "Arquivada")
+        .not("status", "in", "(\"Arquivada\",\"Cancelada\")")
         .maybeSingle();
       if (error) throw error;
       if (!os) return json({ error: "Link de credenciamento inválido." }, 404);
@@ -83,7 +88,10 @@ Deno.serve(async (req) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const prazo = ((os as any).credenciamento ?? {}).prazoLimite as string | undefined;
       if (prazo) {
-        const limite = new Date(prazo + "T23:59:59");
+        // O prazo é uma data do calendário da Pólobh, não do servidor: sem o
+        // fuso de Brasília o formulário fechava às 21h do dia do prazo (o
+        // servidor roda em UTC) e o fornecedor perdia as últimas três horas.
+        const limite = new Date(`${prazo}T23:59:59-03:00`);
         if (!isNaN(limite.getTime()) && new Date() > limite) {
           return json({ error: "O prazo de credenciamento já encerrou." }, 403);
         }

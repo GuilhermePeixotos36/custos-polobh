@@ -243,6 +243,14 @@ export interface ProjetoInfo {
   roteiroOrdem: string[];
 }
 
+/**
+ * Opção de valor escolhida para o item ("" = a produção ainda não decidiu).
+ * Os rótulos de tela/planilha vivem em `OPCOES_VALOR_ITEM`, em domain/calc.
+ */
+export type OpcaoValorItem = "" | "comBvNf" | "semBvComNf" | "semBvSemNf";
+/** As três opções de fato — sem o "" de "ninguém escolheu ainda". */
+export type OpcaoValorDefinida = Exclude<OpcaoValorItem, "">;
+
 export interface EcLinha {
   id: string;
   grupo: string;
@@ -255,6 +263,22 @@ export interface EcLinha {
   valorCliente: number;
   /** Valor total gasto até a presente data no item (para rentabilidade). */
   valorGasto: number;
+  /**
+   * As três formas de cobrar ESTE item, preenchidas pela produção. A OS
+   * consolida vários itens, e cada um é negociado do seu jeito — um sai com
+   * nota, outro sem, outro com BV —, então a escolha mora no item, não na OS.
+   */
+  valorComBvNf: number;
+  valorSemBvComNf: number;
+  valorSemBvSemNf: number;
+  /**
+   * Opções que NÃO SE APLICAM a este item. Cada um dos três campos é uma coisa
+   * ou outra: um valor digitado ou "Não se aplica" — e as duas respostas são
+   * diferentes de "ainda não preenchi", que é o campo em branco.
+   */
+  valoresNaoAplicaveis: OpcaoValorDefinida[];
+  /** Qual das três vale. É ela que a planilha da OS imprime abaixo do valor da EC. */
+  opcaoValor: OpcaoValorItem;
   statusAprovacao: StatusAprovacao;
   fornecedorRazao: string;
   fornecedorCnpj: string;

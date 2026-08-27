@@ -25,6 +25,8 @@ import {
   LEI_INCENTIVO_PADRAO,
   FORMA_PAGAMENTO_PADRAO,
   OBS_CONTRATO_PADRAO,
+  opcaoEscolhidaDoItem,
+  valorItemNaEc,
 } from "@/domain/calc";
 import { ETAPAS_CRONOGRAMA } from "@/domain/projeto";
 import { useEmpresas } from "@/store/empresas";
@@ -37,7 +39,11 @@ import { brl, cx, dataBR, dataHoraBR, maskCpfCnpjInput } from "@/lib/format";
 import { useAuth } from "@/store/auth";
 import { toast } from "@/store/toast";
 import { confirmar } from "@/store/confirm";
-import { usePendencias } from "@/store/pendencias";
+import { usePendencias, useMinhasPendencias } from "@/store/pendencias";
+import { useSugestoes } from "@/hooks/useSugestoes";
+import { urlCredenciamento } from "@/lib/links";
+import { NavegadorPendencias } from "@/components/NavegadorPendencias";
+import { idAncoraPendencia } from "@/lib/destaque";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import type {
   DocumentoFiscal,
@@ -264,7 +270,9 @@ export function OsForm() {
         logistica: { transporteMaterial: "", transporteEquipe: "", hospedagem: "", alimentacao: "", estacionamentoCarga: "", estacionamentoEquipe: "", uniformizacao: "" },
         infraestrutura: { energia: "", internet: "", pontosEletricos: "", estruturas: "", servicosApoio: "", artLaudos: "" },
         observacoes: [],
-        credenciamento: { prazoLimite: "", linkFormulario: `https://forms.polobh.com.br/cred/${ec.id}-${seq}` },
+        // O link só existe depois de salvar: quem o monta é `urlCredenciamento`, a
+        // partir do token que o banco gera (ver lib/links).
+        credenciamento: { prazoLimite: "", linkFormulario: "" },
         orcamento: { valorEc, valorComBvNf: valorEc, valorSemBvComNf: valorEc, valorSemBvSemNf: valorEc, parcelas: [{ descricao: "Pagamento único", valor: valorEc }], documentoFiscal: "" },
         financeiro: { tomador: "", descritivoNf: "", cnae: "", codigoServico: "", valorUnitario: valorEc, valorTotal: valorEc, descontoNegociado: 0, valorAPagar: valorEc, bvPercentual: 0, bvValor: 0, bvJustificativa: "", acertoFinanceiro: "" },
         contrato: { contratante: "", descritivoServicos: "", informacoesComplementares: "", valorUnitario: valorEc, valorTotal: valorEc, descontoNegociado: 0, valorAPagar: valorEc, dataContrato: "", rubrica: "" },
@@ -277,12 +285,16 @@ export function OsForm() {
 
   const sujo = !!os && baseline !== "" && JSON.stringify(os) !== baseline;
   const guard = useUnsavedGuard(sujo);
+  // Pendências desta OS — mesma lista que alimenta o badge vermelho dela.
+  const { itens: pendenciasDoUsuario } = useMinhasPendencias();
+  // Valores já usados nestes campos em outras OSs (ver `domain/sugestoes`).
+  const sugestoes = useSugestoes();
 
   if (!os || !ecCtx) return <PageShell title="Carregando…">{null}</PageShell>;
 
   // Linhas da EC que esta OS consolida (mesmo fornecedor).
   const linhasConsolidadas = ecCtx.linhas.filter((l) => os.ecLinhaIds.includes(l.id));
-  const linkCredenciamento = os.slugCredenciamento ? `${location.origin}/credenciamento/${os.slugCredenciamento}` : "";
+  const linkCredenciamento = urlCredenciamento(os);
   // Justificativa do BV é obrigatória quando não há BV ou o percentual é < 15%.
   const bvPrecisaJustif = os.financeiro.bvPercentual < 15;
   const bvJustifFaltando = bvPrecisaJustif && !os.financeiro.bvJustificativa?.trim();
@@ -440,9 +452,7 @@ export function OsForm() {
         ? (os!.financeiro.valorTotal * os!.financeiro.bvPercentual) / 100
         : os!.financeiro.bvValor;
       // mantém o link de credenciamento coerente com o token da OS (p/ e-mail/impressão)
-      const linkCred = os!.slugCredenciamento
-        ? `${location.origin}/credenciamento/${os!.slugCredenciamento}`
-        : os!.credenciamento.linkFormulario;
+      const linkCred = urlCredenciamento(os!);
       let salvo = await repo.oss.salvar({
         ...os!,
         status: status === "Disparada" ? os!.status : (status ?? os!.status),
@@ -645,7 +655,7 @@ export function OsForm() {
               </button>
             )}
           </LinhaOs>
-          <LinhaOs label="Entrega"><Input value={os.entrega} onChange={(e) => setOs((o) => (o ? { ...o, entrega: e.target.value } : o))} placeholder="Instalação, operação, acompanhamento…" /></LinhaOs>
+          <LinhaOs label="Entrega"><Input value={os.entrega} sugestoes={sugestoes.valores.entrega} onChange={(e) => setOs((o) => (o ? { ...o, entrega: e.target.value } : o))} placeholder="Instalação, operação, acompanhamento…" /></LinhaOs>
           <LinhaOs label="Itens da EC" hint={`(${linhasConsolidadas.length} consolidado(s) — origem do descritivo)`}>
             <div className="py-2 space-y-1.5">
               {linhasConsolidadas.map((l) => (
@@ -692,30 +702,33 @@ export function OsForm() {
 
           <LinhaOs label="Logística do Fornecedor">
             <div className="py-1.5 grid sm:grid-cols-2 gap-2">
-              <Field label="Transporte Material"><Input className="!h-9" value={os.logistica.transporteMaterial} onChange={(e) => updLog({ transporteMaterial: e.target.value })} /></Field>
-              <Field label="Transporte Equipe"><Input className="!h-9" value={os.logistica.transporteEquipe} onChange={(e) => updLog({ transporteEquipe: e.target.value })} /></Field>
-              <Field label="Hospedagem Equipe"><Input className="!h-9" value={os.logistica.hospedagem} onChange={(e) => updLog({ hospedagem: e.target.value })} /></Field>
-              <Field label="Alimentação Equipe"><Input className="!h-9" value={os.logistica.alimentacao} onChange={(e) => updLog({ alimentacao: e.target.value })} /></Field>
-              <Field label="Estacionamento Carga"><Input className="!h-9" value={os.logistica.estacionamentoCarga} onChange={(e) => updLog({ estacionamentoCarga: e.target.value })} /></Field>
-              <Field label="Estacionamento Equipe"><Input className="!h-9" value={os.logistica.estacionamentoEquipe} onChange={(e) => updLog({ estacionamentoEquipe: e.target.value })} /></Field>
-              <Field label="Uniformização Equipe" className="sm:col-span-2"><Input className="!h-9" value={os.logistica.uniformizacao} onChange={(e) => updLog({ uniformizacao: e.target.value })} /></Field>
+              <Field label="Transporte Material"><Input className="!h-9" sugestoes={sugestoes.valores.transporteMaterial} value={os.logistica.transporteMaterial} onChange={(e) => updLog({ transporteMaterial: e.target.value })} /></Field>
+              <Field label="Transporte Equipe"><Input className="!h-9" sugestoes={sugestoes.valores.transporteEquipe} value={os.logistica.transporteEquipe} onChange={(e) => updLog({ transporteEquipe: e.target.value })} /></Field>
+              <Field label="Hospedagem Equipe"><Input className="!h-9" sugestoes={sugestoes.valores.hospedagem} value={os.logistica.hospedagem} onChange={(e) => updLog({ hospedagem: e.target.value })} /></Field>
+              <Field label="Alimentação Equipe"><Input className="!h-9" sugestoes={sugestoes.valores.alimentacao} value={os.logistica.alimentacao} onChange={(e) => updLog({ alimentacao: e.target.value })} /></Field>
+              <Field label="Estacionamento Carga"><Input className="!h-9" sugestoes={sugestoes.valores.estacionamentoCarga} value={os.logistica.estacionamentoCarga} onChange={(e) => updLog({ estacionamentoCarga: e.target.value })} /></Field>
+              <Field label="Estacionamento Equipe"><Input className="!h-9" sugestoes={sugestoes.valores.estacionamentoEquipe} value={os.logistica.estacionamentoEquipe} onChange={(e) => updLog({ estacionamentoEquipe: e.target.value })} /></Field>
+              <Field label="Uniformização Equipe" className="sm:col-span-2"><Input className="!h-9" sugestoes={sugestoes.valores.uniformizacao} value={os.logistica.uniformizacao} onChange={(e) => updLog({ uniformizacao: e.target.value })} /></Field>
             </div>
           </LinhaOs>
 
           <LinhaOs label="Infraestrutura">
             <div className="py-1.5 grid sm:grid-cols-2 gap-2">
-              <Field label="Energia"><Input className="!h-9" value={os.infraestrutura.energia} onChange={(e) => updInfra({ energia: e.target.value })} /></Field>
-              <Field label="Internet"><Input className="!h-9" value={os.infraestrutura.internet} onChange={(e) => updInfra({ internet: e.target.value })} /></Field>
-              <Field label="Pontos Elétricos"><Input className="!h-9" value={os.infraestrutura.pontosEletricos} onChange={(e) => updInfra({ pontosEletricos: e.target.value })} /></Field>
-              <Field label="Estruturas Diversas"><Input className="!h-9" value={os.infraestrutura.estruturas} onChange={(e) => updInfra({ estruturas: e.target.value })} /></Field>
-              <Field label="Serviços de Apoio"><Input className="!h-9" value={os.infraestrutura.servicosApoio} onChange={(e) => updInfra({ servicosApoio: e.target.value })} /></Field>
-              <Field label="ART, Laudos e Certificações"><Input className="!h-9" value={os.infraestrutura.artLaudos} onChange={(e) => updInfra({ artLaudos: e.target.value })} /></Field>
+              <Field label="Energia"><Input className="!h-9" sugestoes={sugestoes.valores.energia} value={os.infraestrutura.energia} onChange={(e) => updInfra({ energia: e.target.value })} /></Field>
+              <Field label="Internet"><Input className="!h-9" sugestoes={sugestoes.valores.internet} value={os.infraestrutura.internet} onChange={(e) => updInfra({ internet: e.target.value })} /></Field>
+              <Field label="Pontos Elétricos"><Input className="!h-9" sugestoes={sugestoes.valores.pontosEletricos} value={os.infraestrutura.pontosEletricos} onChange={(e) => updInfra({ pontosEletricos: e.target.value })} /></Field>
+              <Field label="Estruturas Diversas"><Input className="!h-9" sugestoes={sugestoes.valores.estruturas} value={os.infraestrutura.estruturas} onChange={(e) => updInfra({ estruturas: e.target.value })} /></Field>
+              <Field label="Serviços de Apoio"><Input className="!h-9" sugestoes={sugestoes.valores.servicosApoio} value={os.infraestrutura.servicosApoio} onChange={(e) => updInfra({ servicosApoio: e.target.value })} /></Field>
+              <Field label="ART, Laudos e Certificações"><Input className="!h-9" sugestoes={sugestoes.valores.artLaudos} value={os.infraestrutura.artLaudos} onChange={(e) => updInfra({ artLaudos: e.target.value })} /></Field>
             </div>
           </LinhaOs>
 
           <LinhaOs label="Observações Gerais">
-            <div className="py-1 -mx-1">
+            {/* Âncora da OS para o navegador de pendências (as observações da OS
+                são pendências como as da EC). */}
+            <div className="py-1 -mx-1" id={idAncoraPendencia(os.id)}>
               <ObservacoesThread
+                ancora={os.id}
                 observacoes={os.observacoes}
                 usuarios={usuarios}
                 onChange={(observacoes) => setOs((o) => (o ? { ...o, observacoes } : o))}
@@ -779,7 +792,42 @@ export function OsForm() {
           {/* ORÇAMENTO */}
           <CardOs>
             <Secao>Orçamento</Secao>
-            <LinhaOs label="Valor do Item na EC do Projeto"><Auto v={brl(os.orcamento.valorEc)} /></LinhaOs>
+            {/* Espelho do que a produção escolheu item a item lá na EC — é isto
+                que sai na planilha da OS, um bloco por item. Aqui é leitura:
+                para mudar, muda-se no item da EC. */}
+            <LinhaOs label="Por item (vindo da EC)" hint="(a opção marcada em cada item é a que sai na planilha)">
+              <div className="py-1.5 space-y-1.5">
+                {linhasConsolidadas.map((l) => {
+                  const escolha = opcaoEscolhidaDoItem(l);
+                  return (
+                    <div key={l.id} className="rounded-btn border border-border-soft bg-[#FAFAFB] px-2.5 py-1.5">
+                      <div className="flex items-baseline gap-2 flex-wrap">
+                        <span className="text-[12.5px] font-bold text-ink">{l.item || l.descricao || "Item"}</span>
+                        <span className="text-[11.5px] text-ink-3">
+                          Valor na EC: <b className="text-ink-2">{brl(valorItemNaEc(l))}</b>
+                        </span>
+                      </div>
+                      <div className="text-[12px] mt-0.5">
+                        {escolha ? (
+                          <span className="text-ink-2">
+                            <b className="text-primary-dark">{escolha.rotulo}:</b>{" "}
+                            {escolha.naoSeAplica ? <i className="text-ink-3">Não se aplica</i> : brl(escolha.valor)}
+                          </span>
+                        ) : (
+                          <span className="text-warning font-semibold">
+                            Sem opção de valor escolhida no item da EC.
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                {!linhasConsolidadas.length && (
+                  <span className="text-[12.5px] text-ink-3">Esta OS não está ligada a itens da EC.</span>
+                )}
+              </div>
+            </LinhaOs>
+            <LinhaOs label="Valor do Item na EC do Projeto" hint="(soma dos itens consolidados)"><Auto v={brl(os.orcamento.valorEc)} /></LinhaOs>
             <LinhaOs label="Valor com BV e NF" hint="(valor negociado — alimenta Faturamento e Contrato)">
               <NumberInput value={os.orcamento.valorComBvNf} onValue={setValorNegociado} />
             </LinhaOs>
@@ -989,6 +1037,9 @@ export function OsForm() {
           </CardOs>
         )}
       </div>
+
+      {/* Mesma pílula da EC: o número aqui é o do badge desta OS. */}
+      <NavegadorPendencias pendencias={pendenciasDoUsuario.filter((p) => p.osId === os.id)} />
     </PageShell>
   );
 

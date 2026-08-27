@@ -22,7 +22,10 @@ import { useAsync } from "@/hooks/useAsync";
 import { analisarEmissaoOs, calcularTotais, agruparPorFornecedor, descritivoConsolidado, gastoPorLinhaViaOSs, numeroOs, rotuloTaxa, tituloEc, ROTULO_HONORARIOS_PADRAO, ROTULO_ENCARGOS_PADRAO } from "@/domain/calc";
 import { RentabilidadeItens } from "@/components/RentabilidadeItens";
 import { EcSubGuias, type SubGuiaEc } from "@/components/EcSubGuias";
-import { NavegadorPendencias, linhasComPendencia } from "@/components/NavegadorPendencias";
+import { NavegadorPendencias } from "@/components/NavegadorPendencias";
+import { rotaDaPendencia } from "@/domain/pendencias";
+import { ecEditavel, situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
+import { useMinhasPendencias } from "@/store/pendencias";
 import { EcItemLeitura } from "@/components/EcItemLeitura";
 import { brl, dataBR } from "@/lib/format";
 import { gerarEcExcel } from "@/lib/excel";
@@ -51,6 +54,7 @@ export function EcDetail() {
   const papel = useAuth((s) => s.usuario?.papel);
   const { data: ec, loading } = useAsync(() => repo.ecs.obter(id), [id]);
   const { data: oss } = useAsync(() => repo.oss.porEc(id), [id]);
+  const { itens: minhasPendencias } = useMinhasPendencias();
   // Usuários do sistema — para exibir/atribuir observações dos itens.
   const { data: usuariosData } = useAsync(() => repo.auth.usuarios(), []);
   const usuarios = (usuariosData ?? []).map((u) => u.nome).filter(Boolean);
@@ -368,13 +372,10 @@ export function EcDetail() {
     </Card>
   ) : null;
 
-  // A EC hoje só tem dois estados que importam: Ativa ou Arquivada (Cancelada é um terceiro,
-  // explícito). O campo `status` bruto é legado do antigo fluxo de aprovação do cliente.
-  const statusBadge = ec.status === "Cancelada"
-    ? <Badge tom="danger">Cancelada</Badge>
-    : ec.ativa
-      ? <Badge tom="success">Ativa</Badge>
-      : <Badge tom="neutral">Arquivada</Badge>;
+  // Leitura única do par (status, ativa) — ver `domain/ec`. Um rascunho que não é
+  // a versão ativa (o caso da EC importada) é "Rascunho", não "Arquivada".
+  const situacao = situacaoEc(ec);
+  const statusBadge = <Badge tom={TOM_SITUACAO_EC[situacao]}>{ROTULO_SITUACAO_EC[situacao]}</Badge>;
 
   return (
     <PageShell title={tituloEc(ec)} titleAdornment={statusBadge}>
@@ -439,7 +440,7 @@ export function EcDetail() {
               Tornar EC ativa
             </Button>
           )}
-          {podeEditar && ec.ativa && ec.status !== "Cancelada" && (
+          {podeEditar && ecEditavel(ec) && (
             <Button size="sm" onClick={() => navigate(`/estimativas/${ec.id}/editar`)}>
               Editar EC
             </Button>
@@ -460,8 +461,17 @@ export function EcDetail() {
 
       {subaba === "ec" && (
         <div className="space-y-4">
-          {/* Pill flutuante que salta entre as observações em aberto da EC. */}
-          <NavegadorPendencias ids={linhasComPendencia(ec.linhas)} />
+          {/* Pílula flutuante que salta entre as pendências desta EC — mesmo
+              número do badge vermelho dela. */}
+          <NavegadorPendencias
+            pendencias={minhasPendencias.filter((p) => p.ecId === ec.id)}
+            aoSaltar={(p) => {
+              // Parte do que a EC contabiliza mora na OS (observação, cronograma):
+              // o salto vira navegação, e a tela de destino abre no item certo.
+              const rota = rotaDaPendencia(p);
+              if (!rota.startsWith(`/estimativas/${ec.id}`)) navigate(rota);
+            }}
+          />
           {estimativaCard}
           {ossCard}
 
@@ -528,7 +538,8 @@ function montarOsEmissao(ecAtual: Ec, linhas: EcLinha[], seq: number, fornCadast
     logistica: { transporteMaterial: "", transporteEquipe: "", hospedagem: "", alimentacao: "", estacionamentoCarga: "", estacionamentoEquipe: "", uniformizacao: "" },
     infraestrutura: { energia: "", internet: "", pontosEletricos: "", estruturas: "", servicosApoio: "", artLaudos: "" },
     observacoes: [],
-    credenciamento: { prazoLimite: "", linkFormulario: `https://forms.polobh.com.br/cred/${ecAtual.id}-${seq}` },
+    // Sem link montado à mão: ele nasce do token que o banco gera ao salvar.
+    credenciamento: { prazoLimite: "", linkFormulario: "" },
     orcamento: { valorEc, valorComBvNf: valorEc, valorSemBvComNf: valorEc, valorSemBvSemNf: valorEc, parcelas: [{ descricao: "Pagamento único", valor: valorEc }], documentoFiscal: "" },
     financeiro: { tomador: "", descritivoNf: "", cnae: "", codigoServico: "", valorUnitario: valorEc, valorTotal: valorEc, descontoNegociado: 0, valorAPagar: valorEc, bvPercentual: 0, bvValor: 0, bvJustificativa: "", acertoFinanceiro: "" },
     contrato: { contratante: "", descritivoServicos: "", informacoesComplementares: "", valorUnitario: valorEc, valorTotal: valorEc, descontoNegociado: 0, valorAPagar: valorEc, dataContrato: "", rubrica: "" },

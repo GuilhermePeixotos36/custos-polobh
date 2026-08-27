@@ -6,8 +6,11 @@ import type {
   SelectHTMLAttributes,
   TextareaHTMLAttributes,
 } from "react";
-import { useLayoutEffect, useRef } from "react";
-import { cx, maskTelefone, onlyDigits, colapsarEspacos, tituloProprio, capitalizarFrase } from "@/lib/format";
+import { useId, useLayoutEffect, useRef, useState } from "react";
+import {
+  cx, maskTelefone, onlyDigits, colapsarEspacos, tituloProprio, capitalizarFrase,
+  brl, limparEntradaNumerica, parseNumeroBR,
+} from "@/lib/format";
 
 const fieldBase =
   "w-full bg-surface border-[1.5px] border-[#BFC4CE] rounded-btn px-3.5 text-sm text-ink placeholder:text-ink-3 input-focus disabled:bg-[#EDEEF1] disabled:text-ink-2";
@@ -56,8 +59,6 @@ export function Field({
   );
 }
 
-const DATA_ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
-
 /**
  * Formatação aplicada ao SAIR do campo (blur), padronizando a informação:
  * - "titulo": Primeira Letra de Cada Palavra Maiúscula (nomes, endereços)
@@ -67,7 +68,16 @@ const DATA_ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
  */
 export type FormatoCampo = "titulo" | "titulo-empresa" | "frase";
 
-type InputProps = InputHTMLAttributes<HTMLInputElement> & { formato?: FormatoCampo; erro?: boolean };
+type InputProps = InputHTMLAttributes<HTMLInputElement> & {
+  formato?: FormatoCampo;
+  erro?: boolean;
+  /**
+   * Valores que a Pólobh já usou neste campo em outros projetos/ECs/OSs — vira
+   * uma lista de autocompletar do próprio navegador (ver `domain/sugestoes`).
+   * É atalho, não trava: qualquer texto novo continua valendo.
+   */
+  sugestoes?: string[];
+};
 
 function aplicarFormato(v: string, formato?: FormatoCampo): string {
   switch (formato) {
@@ -82,28 +92,11 @@ function aplicarFormato(v: string, formato?: FormatoCampo): string {
   }
 }
 
-export function Input({ className, type, onChange, value, onBlur, formato, erro, ...rest }: InputProps) {
+export function Input({ className, type, onChange, value, onBlur, formato, erro, sugestoes, ...rest }: InputProps) {
+  // Chamado sempre (antes de qualquer retorno): a lista precisa de um id estável.
+  const idLista = useId();
   if (type === "date") {
-    return (
-      <input
-        type="date"
-        min="1900-01-01"
-        max="2100-12-31"
-        className={cx(fieldBase, "h-11", erro && fieldErro, className)}
-        value={value}
-        onChange={(e) => {
-          const v = e.target.value;
-          // navegadores aceitam ano com mais de 4 dígitos ao digitar (ex.: "22226");
-          // rejeita e restaura o último valor válido no próprio input do DOM.
-          if (v !== "" && (!DATA_ISO_RE.test(v) || !dataIsoValida(v))) {
-            e.target.value = typeof value === "string" ? value : "";
-            return;
-          }
-          onChange?.(e);
-        }}
-        {...rest}
-      />
-    );
+    return <CampoData className={className} erro={erro} value={value} onChange={onChange} onBlur={onBlur} {...rest} />;
   }
   // Ao sair de um campo de texto, padroniza a formatação (espaços + capitalização).
   const semFormatacao = type === "email" || type === "password" || type === "url" || type === "number";
@@ -116,7 +109,31 @@ export function Input({ className, type, onChange, value, onBlur, formato, erro,
     }
     onBlur?.(e);
   };
-  return <input className={cx(fieldBase, "h-11", erro && fieldErro, className)} type={type} onChange={onChange} value={value} onBlur={handleBlur} {...rest} />;
+  const temSugestoes = !!sugestoes?.length;
+  const campo = (
+    <input
+      className={cx(fieldBase, "h-11", erro && fieldErro, className)}
+      type={type}
+      list={temSugestoes ? idLista : undefined}
+      onChange={onChange}
+      value={value}
+      onBlur={handleBlur}
+      {...rest}
+    />
+  );
+  if (!temSugestoes) return campo;
+  return (
+    <>
+      {campo}
+      {/* <datalist> nativo: filtra, navega pelo teclado e não rouba o campo de
+          quem quer digitar um valor novo. */}
+      <datalist id={idLista}>
+        {sugestoes!.map((v) => (
+          <option key={v} value={v} />
+        ))}
+      </datalist>
+    </>
+  );
 }
 
 /** Telefone em dois campos (DDD + número), mas guarda/emite uma única string mascarada — como antes. */
@@ -227,71 +244,132 @@ export function Select({
   );
 }
 
-/** Input numérico que mantém number no estado. */
-export function NumberInput({
-  value,
-  onValue,
-  className,
-  ...rest
-}: Omit<InputHTMLAttributes<HTMLInputElement>, "onChange" | "value"> & {
-  value: number;
-  onValue: (n: number) => void;
-}) {
+/* ========================= Motores de digitação ==========================
+ *
+ * Data e valor eram os dois campos que "bugavam" ao digitar, cada um por um
+ * motivo próprio — e os dois pelo mesmo vício: reescrever o que a pessoa está
+ * digitando, no meio da digitação. Aqui os dois passam a guardar um RASCUNHO
+ * enquanto o campo está em foco, e só interpretar/normalizar na saída.
+ * ======================================================================== */
+
+/**
+ * Campo de data (dd/mm/aaaa do próprio navegador) que não apaga o que já foi digitado.
+ *
+ * O bug: o navegador entrega o valor a cada tecla, e no meio do ano ele vem
+ * como "0002-08-25" (primeira tecla de "2026"). O código antigo rejeitava esse
+ * ano fora da faixa reescrevendo `e.target.value` — e escrever num input date
+ * LIMPA os três campos de uma vez. Resultado: começar a digitar o ano apagava
+ * o dia e o mês.
+ *
+ * Agora o input nunca é reescrito durante a digitação. O rascunho segue livre
+ * (o salto automático dia -> mês -> ano continua sendo o do navegador), só a
+ * data completa e plausível sobe para o formulário, e o que ficou pela metade
+ * é descartado ao sair do campo.
+ */
+function CampoData({ className, value, onChange, onBlur, erro, ...rest }: InputProps) {
+  const [rascunho, setRascunho] = useState<string | null>(null);
+  const externo = typeof value === "string" ? value : "";
+  const exibido = rascunho ?? externo;
+
   return (
     <input
-      type="number"
-      inputMode="decimal"
-      className={cx(fieldBase, "h-11 text-right", className)}
-      value={Number.isFinite(value) ? value : 0}
-      onChange={(e) => onValue(parseFloat(e.target.value) || 0)}
+      type="date"
+      min="1900-01-01"
+      max="2100-12-31"
+      className={cx(fieldBase, "h-11", erro && fieldErro, className)}
+      value={exibido}
+      onChange={(e) => {
+        setRascunho(e.target.value);
+        if (e.target.value === "" || dataIsoValida(e.target.value)) onChange?.(e);
+      }}
+      onBlur={(e) => {
+        if (rascunho !== null && rascunho !== "" && !dataIsoValida(rascunho)) {
+          onChange?.({ ...e, target: { ...e.target, value: "" } } as unknown as ChangeEvent<HTMLInputElement>);
+        }
+        setRascunho(null);
+        onBlur?.(e);
+      }}
       {...rest}
     />
   );
 }
 
+/** O número como texto editável: "1234,56" — sem R$ e sem ponto de milhar atrapalhando o cursor. */
+const textoEditavel = (n: number): string =>
+  Number.isFinite(n) ? n.toLocaleString("pt-BR", { maximumFractionDigits: 2, useGrouping: false }) : "";
+
 /**
- * Input de valor monetário (R$) — máscara progressiva ao digitar (os dígitos
- * viram centavos, padrão dos campos de valor no Brasil): digitar "150" mostra
- * "R$ 1,50"; "15000" mostra "R$ 150,00". Sempre exibe formatado.
+ * Digitação de números (valores e percentuais), com uma regra só: **em foco, é
+ * texto livre**.
+ *
+ * Nada é remascarado a cada tecla, então o cursor fica exatamente onde a pessoa
+ * o deixou — dá para clicar no meio do número, apagar um algarismo, digitar a
+ * vírgula depois. Com o campo zerado ele nasce VAZIO (e não "R$ 0,00" para
+ * sobrescrever). Quem lê o que foi escrito é `parseNumeroBR`, na saída: sem
+ * vírgula, tudo é parte inteira ("1500" = mil e quinhentos reais); com vírgula,
+ * o que vem depois é centavo.
+ *
+ * O valor sobe a cada tecla assim mesmo — os totais da EC continuam
+ * acompanhando a digitação, como antes.
  */
-export function CurrencyInput({
-  value,
-  onValue,
-  className,
-  ...rest
-}: Omit<InputHTMLAttributes<HTMLInputElement>, "onChange" | "value"> & {
+function useCampoNumerico(value: number, onValue: (n: number) => void, formatar: (n: number) => string) {
+  const [rascunho, setRascunho] = useState<string | null>(null);
+  return {
+    exibido: rascunho ?? formatar(value),
+    aoFocar: () => setRascunho(value ? textoEditavel(value) : ""),
+    aoDigitar: (texto: string) => {
+      const limpo = limparEntradaNumerica(texto);
+      setRascunho(limpo);
+      onValue(parseNumeroBR(limpo) ?? 0);
+    },
+    aoSair: () => {
+      if (rascunho !== null) onValue(parseNumeroBR(rascunho) ?? 0);
+      setRascunho(null);
+    },
+  };
+}
+
+type PropsNumerico = Omit<InputHTMLAttributes<HTMLInputElement>, "onChange" | "value" | "type"> & {
   value: number;
   onValue: (n: number) => void;
-}) {
-  const ref = useRef<HTMLInputElement>(null);
-  const centavos = Math.round((Number.isFinite(value) ? value : 0) * 100);
-  const exibido = (centavos / 100).toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-    minimumFractionDigits: 2,
-  });
+};
 
-  // mantém o cursor no fim (não faz sentido "editar o meio" de um valor mascarado)
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (el && document.activeElement === el) {
-      const fim = el.value.length;
-      el.setSelectionRange(fim, fim);
-    }
-  });
-
+/** Input numérico que mantém number no estado (quantidades, percentuais). */
+export function NumberInput({ value, onValue, className, onFocus, onBlur, ...rest }: PropsNumerico) {
+  const campo = useCampoNumerico(value, onValue, (n) =>
+    Number.isFinite(n) ? n.toLocaleString("pt-BR", { maximumFractionDigits: 2 }) : "0"
+  );
   return (
     <input
-      ref={ref}
       type="text"
-      inputMode="numeric"
+      inputMode="decimal"
       className={cx(fieldBase, "h-11 text-right", className)}
-      value={exibido}
-      onChange={(e) => {
-        const digitos = e.target.value.replace(/\D/g, "");
-        onValue(digitos ? parseInt(digitos, 10) / 100 : 0);
-      }}
       {...rest}
+      value={campo.exibido}
+      onFocus={(e) => { campo.aoFocar(); onFocus?.(e); }}
+      onChange={(e) => campo.aoDigitar(e.target.value)}
+      onBlur={(e) => { campo.aoSair(); onBlur?.(e); }}
+    />
+  );
+}
+
+/**
+ * Input de valor monetário (R$). Fora do foco mostra "R$ 1.500,00"; ao entrar,
+ * vira o número puro para editar (ou vazio, se for zero). Ver `useCampoNumerico`.
+ */
+export function CurrencyInput({ value, onValue, className, onFocus, onBlur, ...rest }: PropsNumerico) {
+  const campo = useCampoNumerico(value, onValue, brl);
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      placeholder="R$ 0,00"
+      className={cx(fieldBase, "h-11 text-right", className)}
+      {...rest}
+      value={campo.exibido}
+      onFocus={(e) => { campo.aoFocar(); onFocus?.(e); }}
+      onChange={(e) => campo.aoDigitar(e.target.value)}
+      onBlur={(e) => { campo.aoSair(); onBlur?.(e); }}
     />
   );
 }

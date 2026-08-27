@@ -61,6 +61,30 @@ export function regraRealce(
   } as ExcelJS.ConditionalFormattingRule;
 }
 
+/**
+ * Regra de realce por VALOR: pinta a célula quando o número é maior que zero.
+ *
+ * Mesmo estilo do "Emitir"/"Em andamento" (amarelo claro com texto escuro), pelo
+ * mesmo motivo: a célula preenchida é dinheiro já comprometido, e a planilha
+ * inteira passa a ser lida de relance — o que tem valor salta, o que está zerado
+ * some no branco. Vai como formatação condicional para acompanhar a edição.
+ */
+export function regraValorPreenchido(
+  realce: { fonte: string; fundo: string },
+  priority: number
+): ExcelJS.ConditionalFormattingRule {
+  return {
+    type: "cellIs",
+    operator: "greaterThan",
+    formulae: ["0"],
+    priority,
+    style: {
+      font: { color: { argb: realce.fonte } },
+      fill: { type: "pattern", pattern: "solid", bgColor: { argb: realce.fundo } },
+    },
+  } as ExcelJS.ConditionalFormattingRule;
+}
+
 /** Fontes da EC original da Pólobh (Excel usa fonte substituta automaticamente se não instalada). */
 export const FONT_BOLD = "Futura PT Bold";
 export const FONT_LIGHT = "Futura PT Light";
@@ -218,3 +242,20 @@ export const ALTURA_MAX_LINHA = 409.5;
 /** Converte um número de linhas visuais em altura de linha (pontos), com folga. */
 export const alturaParaLinhas = (linhas: number, ptPorLinha = 12.6, folga = 4): number =>
   Math.min(ALTURA_MAX_LINHA, Math.max(15, linhas * ptPorLinha + folga));
+
+/**
+ * Largura de coluna (unidades do Excel) necessária para o maior parágrafo do
+ * texto, entre um piso e um teto.
+ *
+ * É o "ajuste automático de coluna" que o Excel só faz quando a pessoa manda:
+ * as larguras do modelo entram como PISO, e uma coluna só cresce quando o
+ * conteúdo real não caberia nela — assim ninguém precisa arrastar a borda da
+ * coluna para ler um CNPJ ou um valor.
+ */
+export function larguraParaTexto(texto: string, min: number, max: number): number {
+  if (!texto) return min;
+  const maior = String(texto)
+    .split("\n")
+    .reduce((n, linha) => Math.max(n, linha.length), 0);
+  return Math.min(max, Math.max(min, maior + 2));
+}

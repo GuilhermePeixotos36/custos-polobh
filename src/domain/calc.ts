@@ -2,7 +2,7 @@
  * Cálculos da EC (seção 4 do brief) e helpers de numeração/consolidação.
  * Percentuais fixos: honorários 15%, encargos 16,33%.
  */
-import type { Ec, EcLinha, Producao, Fornecedor, Os, TaxaConfig } from "@/data/types";
+import type { Ec, EcLinha, OpcaoValorDefinida, OpcaoValorItem, Producao, Fornecedor, Os, TaxaConfig } from "@/data/types";
 import { brl, dataBRCurta } from "@/lib/format";
 
 export const HONORARIOS = 0.15;
@@ -140,15 +140,34 @@ const slug = (s: string, max = 18): string =>
     .slice(0, max)
     .trim();
 
-/** Numeração automática: "EC – {Cliente} – {Projeto} – V{NN}". */
+/** Comparação tolerante a caixa e acento — só para saber se um texto repete o outro. */
+const chaveTexto = (s: string) =>
+  s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase("pt-BR");
+
+/**
+ * Numeração automática: "EC – {Cliente} – {Projeto} – V{NN}".
+ *
+ * O nome do cliente é omitido quando o título do projeto JÁ começa por ele. Os
+ * títulos passaram a nascer como "{Apelido} – {Projeto} – {Ano}" (ver
+ * `compoeTituloProjeto`), e repetir o cliente produzia números como
+ * "EC – Instituto Aurora – Instituto Aurora – Festival… – V04" — que a pessoa lia
+ * como se fosse outra EC, não a que ela tinha acabado de importar.
+ */
 export function numeroEc(
   clienteNome: string,
   projetoTitulo: string,
   versao: number
 ): string {
   const v = String(versao).padStart(2, "0");
+  const cliente = slug(clienteNome);
   // título do projeto com folga maior (evita "comer" parte do título no número).
-  return `EC – ${slug(clienteNome)} – ${slug(projetoTitulo, 60)} – V${v}`;
+  const titulo = slug(projetoTitulo, 60);
+  // Compara com o PRIMEIRO trecho do título: ele traz o apelido ("ACME"), que é
+  // um pedaço do nome cadastrado ("ACME Comércio Ltda") — e vice-versa.
+  const primeiro = chaveTexto(titulo.split("–")[0] ?? "");
+  const alvo = chaveTexto(cliente);
+  const jaNoTitulo = !!primeiro && !!alvo && (alvo.startsWith(primeiro) || primeiro.startsWith(alvo));
+  return jaNoTitulo || !cliente ? `EC – ${titulo} – V${v}` : `EC – ${cliente} – ${titulo} – V${v}`;
 }
 
 /**
@@ -207,6 +226,64 @@ export function linhasProducaoLegado(p: Producao): { item: string; descricao: st
     { item: "Alimentação", descricao: "Alimentação da equipe de produção.", valorPolobh: r2(p.alimentacaoBH * p.qtdAlimentacaoBH + p.alimentacaoViagem * p.qtdAlimentacaoViagem) },
   ];
   return linhas.filter((l) => l.valorPolobh > 0);
+}
+
+/* --------------------- Opções de valor por item (OS) --------------------- */
+
+/**
+ * As três formas de cobrar um item, na ordem em que aparecem no modelo de OS da
+ * Pólobh. O rótulo é o mesmo na tela e na planilha — é ele que a OS imprime
+ * logo abaixo do valor do item na EC.
+ */
+export const OPCOES_VALOR_ITEM = [
+  { opcao: "comBvNf", rotulo: "Valor com BV e NF", campo: "valorComBvNf" },
+  { opcao: "semBvComNf", rotulo: "Valor Sem BV e Com Nota Fiscal", campo: "valorSemBvComNf" },
+  { opcao: "semBvSemNf", rotulo: "Valor Sem BV e Sem NF", campo: "valorSemBvSemNf" },
+] as const satisfies readonly { opcao: Exclude<OpcaoValorItem, "">; rotulo: string; campo: keyof EcLinha }[];
+
+/** "Valor do Item na EC do Projeto": o que o item custa na EC (Pólobh + Cliente). */
+export function valorItemNaEc(l: Pick<EcLinha, "valorPolobh" | "valorCliente">): number {
+  return r2((l.valorPolobh || 0) + (l.valorCliente || 0));
+}
+
+/**
+ * A opção foi marcada como "Não se aplica" neste item?
+ *
+ * É diferente de valor zero: "não se aplica" é uma RESPOSTA da produção (este
+ * item não é cobrado assim), e o campo em branco é uma pergunta sem resposta.
+ * A planilha da OS imprime as duas coisas de jeitos diferentes.
+ */
+export function opcaoNaoSeAplica(l: Pick<EcLinha, "valoresNaoAplicaveis">, opcao: OpcaoValorItem): boolean {
+  return !!opcao && !!l.valoresNaoAplicaveis?.includes(opcao as OpcaoValorDefinida);
+}
+
+/** Valor de uma das três opções do item — zero quando ela não se aplica. */
+export function valorDaOpcao(l: EcLinha, opcao: OpcaoValorItem): number {
+  const def = OPCOES_VALOR_ITEM.find((o) => o.opcao === opcao);
+  if (!def || opcaoNaoSeAplica(l, opcao)) return 0;
+  return Number(l[def.campo] ?? 0) || 0;
+}
+
+/**
+ * A opção que a produção escolheu para o item — rótulo e valor prontos para a
+ * planilha. `null` quando ninguém escolheu ainda: nesse caso a OS imprime só o
+ * valor do item na EC, sem inventar uma forma de cobrança.
+ *
+ * `naoSeAplica` marca a escolha que a produção respondeu com "Não se aplica":
+ * a planilha imprime o texto no lugar do número, e ela não entra em soma nenhuma.
+ */
+export function opcaoEscolhidaDoItem(
+  l: EcLinha
+): { opcao: OpcaoValorItem; rotulo: string; valor: number; naoSeAplica: boolean } | null {
+  const def = OPCOES_VALOR_ITEM.find((o) => o.opcao === l.opcaoValor);
+  if (!def) return null;
+  const naoSeAplica = opcaoNaoSeAplica(l, def.opcao);
+  return {
+    opcao: def.opcao,
+    rotulo: def.rotulo,
+    valor: naoSeAplica ? 0 : Number(l[def.campo] ?? 0) || 0,
+    naoSeAplica,
+  };
 }
 
 /* ------------------------- Rentabilidade ------------------------- */
@@ -312,10 +389,15 @@ export function analisarEmissaoOs(linhas: EcLinha[]): AnaliseEmissaoOs {
   return { prontos, bloqueados };
 }
 
-/* ------------------- Aprovação em bloco dos itens da EC ------------------- */
+/* ---------------------- Aprovação dos itens da EC ---------------------- */
 
 /**
  * Aprova um item e, junto, deixa a OS pronta para ser emitida.
+ *
+ * É a regra ÚNICA da aprovação: vale tanto para o botão "Aprovar selecionados"
+ * quanto para quem troca o campo Aprovação do item para "OK" na mão. Antes o
+ * campo mudava sozinho, e o item aprovado ficava com a OS em "Pendente" — a
+ * emissão dependia de alguém lembrar de mexer no segundo campo.
  *
  * Duas travas, decididas com o cliente (23/08/2026):
  *   1. só mexe em item com Aprovação "Pendente" — item já aprovado que não

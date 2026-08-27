@@ -3,6 +3,9 @@ import {
   calcularTotais,
   valorTaxa,
   numeroEc,
+  opcaoEscolhidaDoItem,
+  opcaoNaoSeAplica,
+  valorDaOpcao,
   descritivoConsolidado,
   textoObjetoContrato,
   honorariosPadrao,
@@ -28,7 +31,9 @@ const producaoZero: Producao = {
 function linha(p: Partial<EcLinha>): EcLinha {
   return {
     id: "l1", grupo: "G", item: "Item", descricao: "", descricaoCompleta: "",
-    valorPolobh: 0, valorCliente: 0, valorGasto: 0, statusAprovacao: "Pendente",
+    valorPolobh: 0, valorCliente: 0, valorGasto: 0,
+    valorComBvNf: 0, valorSemBvComNf: 0, valorSemBvSemNf: 0,
+    valoresNaoAplicaveis: [], opcaoValor: "", statusAprovacao: "Pendente",
     fornecedorRazao: "", fornecedorCnpj: "", fornecedorContato: "", faturaNf: "",
     codigoServico: "", pedidoCompra: "", statusOs: "Pendente", contratoStatus: "Pendente",
     observacao: "", observacoes: [], oculto: false, ordem: 0, ...p,
@@ -106,6 +111,53 @@ describe("numeroEc", () => {
     expect(n).toContain("V02");
     expect(n).toContain("Convencao Anual de Liderancas");
     expect(n).not.toMatch(/[çãáéíóú]/i);
+  });
+
+  it("mantém o cliente quando o título do projeto não o traz", () => {
+    expect(numeroEc("BANCO MERCANTIL", "Convencao Anual", 1)).toBe(
+      "EC – BANCO MERCANTIL – Convencao Anual – V01"
+    );
+  });
+
+  it("não repete o cliente quando o título já começa por ele", () => {
+    // O título nasce como "{Apelido} – {Projeto} – {Ano}": repetir dava
+    // "EC – Instituto Aurora – Instituto Aurora – Festival…", que parecia outra EC.
+    expect(numeroEc("Instituto Aurora", "Instituto Aurora – Festival de Inverno – 2026", 4)).toBe(
+      "EC – Instituto Aurora – Festival de Inverno – 2026 – V04"
+    );
+  });
+
+  it("reconhece o apelido como pedaço do nome cadastrado", () => {
+    expect(numeroEc("ACME Comércio Ltda", "ACME – Convenção – 2026", 1)).toBe(
+      "EC – ACME – Convencao – 2026 – V01"
+    );
+  });
+});
+
+describe("opções de valor do item", () => {
+  it("a opção escolhida sai com rótulo e valor", () => {
+    const escolha = opcaoEscolhidaDoItem(linha({ valorComBvNf: 9000, opcaoValor: "comBvNf" }));
+    expect(escolha).toMatchObject({ rotulo: "Valor com BV e NF", valor: 9000, naoSeAplica: false });
+  });
+
+  it("'Não se aplica' é resposta: zera o valor e se identifica", () => {
+    // O número digitado antes continua guardado (dá para voltar atrás), mas não
+    // vale mais nada — nem na planilha, nem em soma.
+    const l = linha({ valorComBvNf: 9000, opcaoValor: "comBvNf", valoresNaoAplicaveis: ["comBvNf"] });
+    expect(opcaoNaoSeAplica(l, "comBvNf")).toBe(true);
+    expect(valorDaOpcao(l, "comBvNf")).toBe(0);
+    expect(opcaoEscolhidaDoItem(l)).toMatchObject({ valor: 0, naoSeAplica: true });
+    expect(l.valorComBvNf).toBe(9000);
+  });
+
+  it("marcar uma opção não afeta as outras", () => {
+    const l = linha({ valorSemBvSemNf: 3600, opcaoValor: "semBvSemNf", valoresNaoAplicaveis: ["comBvNf"] });
+    expect(opcaoNaoSeAplica(l, "semBvSemNf")).toBe(false);
+    expect(valorDaOpcao(l, "semBvSemNf")).toBe(3600);
+  });
+
+  it("sem escolha nenhuma, não há opção para a OS imprimir", () => {
+    expect(opcaoEscolhidaDoItem(linha({ valorComBvNf: 9000 }))).toBeNull();
   });
 });
 
@@ -273,6 +325,22 @@ describe("aprovarLinha", () => {
     for (const os of ["Emitir", "Emitir Nova Versão", "OK", "Não se Aplica"] as const) {
       expect(aprovarLinha(linha({ statusAprovacao: "Pendente", statusOs: os })).statusOs).toBe(os);
     }
+  });
+});
+
+describe("aprovação pelo campo do item (mesma regra do botão em bloco)", () => {
+  it("marcar Aprovação como OK já pede a OS", () => {
+    // É o que a tela faz no onChange do campo Aprovação (ver EcGrupos).
+    const r = aprovarLinha(linha({ statusAprovacao: "Pendente", statusOs: "Pendente" }));
+    expect(r.statusAprovacao).toBe("OK");
+    expect(r.statusOs).toBe("Emitir");
+  });
+
+  it("voltar para Pendente desfaz só a OS que a aprovação criou", () => {
+    const r = reverterAprovacaoLinha(linha({ statusAprovacao: "OK", statusOs: "Emitir" }));
+    expect(r.statusOs).toBe("Pendente");
+    // OS já emitida não volta atrás por causa de um clique na aprovação.
+    expect(reverterAprovacaoLinha(linha({ statusAprovacao: "OK", statusOs: "OK" })).statusOs).toBe("OK");
   });
 });
 

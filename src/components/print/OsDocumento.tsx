@@ -1,5 +1,6 @@
 /** OS como documento A4 — visualização em tela + PDF. Espelha o modelo em Excel. */
 import type { Ec, Os } from "@/data/types";
+import { urlCredenciamento } from "@/lib/links";
 import { brl, dataBR } from "@/lib/format";
 import { textoObjetoContrato, FORMA_PAGAMENTO_PADRAO, OBS_CONTRATO_PADRAO } from "@/domain/calc";
 import { ETAPAS_CRONOGRAMA } from "@/domain/projeto";
@@ -219,7 +220,7 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
       </table>
 
       <Secao titulo="Credenciamento" />
-      <LV label="Link" valor={os.credenciamento.linkFormulario} />
+      <LV label="Link" valor={urlCredenciamento(os)} />
       <LV label="Prazo limite" valor={dataBR(os.credenciamento.prazoLimite)} />
 
       <Secao titulo="Orçamento" />

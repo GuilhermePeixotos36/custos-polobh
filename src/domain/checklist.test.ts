@@ -360,9 +360,14 @@ describe("pendências geradas pelo check-list", () => {
     expect(atraso?.titulo).toContain("Tarefa atrasada");
   });
 
-  it("avisa a tarefa que está vencendo, dentro da janela de alerta", () => {
-    expect(pendencias(comUmItem({ dataLimite: "2026-02-12" })).some((x) => x.tipo === "checklist.vencendo")).toBe(true);
-    // Fora da janela ainda não incomoda ninguém.
+  it("cobra a tarefa cujo prazo é hoje", () => {
+    expect(pendencias(comUmItem({ dataLimite: HOJE })).some((x) => x.tipo === "checklist.vencendo")).toBe(true);
+  });
+
+  it("o que ainda tem prazo não vira pendência — fica na Agenda", () => {
+    // Regra revista em 25/08/2026: pendência é o que precisa de ação HOJE. Antes
+    // os 3 dias seguintes já acendiam o badge, e ele vivia aceso sem ação a tomar.
+    expect(pendencias(comUmItem({ dataLimite: "2026-02-12" })).some((x) => x.tipo?.startsWith("checklist."))).toBe(false);
     expect(pendencias(comUmItem({ dataLimite: "2026-03-01" })).some((x) => x.tipo?.startsWith("checklist."))).toBe(false);
   });
 

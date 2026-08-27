@@ -9,6 +9,7 @@ import { IcPlus, IcBack, IcDownload, IcSearch, IcTrash, IcEye, IcEyeOff, IcDoc, 
 import { RichTextField } from "@/components/RichTextField";
 import { TimelineConsolidada, type ItemConsolidado } from "@/components/Timeline";
 import { NotifDot } from "@/components/NotifDot";
+import { NavegadorPendencias } from "@/components/NavegadorPendencias";
 import { ThPendencias, TdPendencias } from "@/components/ColunaPendencias";
 import { MoverSetas, moverNaLista } from "@/components/MoverSetas";
 import { ListaArrastavel, ItemArrastavel } from "@/components/ListaArrastavel";
@@ -17,6 +18,8 @@ import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import { useMinhasPendencias } from "@/store/pendencias";
 import { useResponsaveis } from "@/hooks/useResponsaveis";
+import { useSugestoes } from "@/hooks/useSugestoes";
+import { filhosDe, type CampoSugerido } from "@/domain/sugestoes";
 import { useAuth } from "@/store/auth";
 import { gerarCronogramaExcel } from "@/lib/excel";
 import { cnpjValido, consultarCnpj } from "@/lib/cnpj";
@@ -33,6 +36,8 @@ import { confirmar } from "@/store/confirm";
 import { corrigirRoteirosProjeto } from "@/lib/correcaoOrtografica";
 import { statusProjetoAutomatico } from "@/domain/statusProjeto";
 import type { Cliente, Ec, EcLinha, Projeto, ProjetoInfo, StatusProjeto } from "@/data/types";
+import { rotaDaPendencia, type Pendencia } from "@/domain/pendencias";
+import { situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
 
 const tomStatusProjeto: Record<StatusProjeto, Tom> = {
   Ativo: "success", Arquivado: "neutral", Concluido: "info", Cancelado: "danger",
@@ -49,11 +54,13 @@ const projetoVazio = (): Projeto => ({
 });
 
 type Aba = "dados" | "ec" | "os" | "checklist" | "cronograma" | "fornecedores";
+// O check-list vem logo depois de Dados Gerais: é a aba de acompanhamento diário
+// do projeto, consultada muito mais vezes que EC e OS (pedido de 25/08/2026).
 const ABAS: { key: Aba; label: string }[] = [
   { key: "dados", label: "Dados Gerais" },
+  { key: "checklist", label: "Check-list" },
   { key: "ec", label: "EC" },
   { key: "os", label: "OS" },
-  { key: "checklist", label: "Check-list" },
   { key: "cronograma", label: "Cronograma" },
   { key: "fornecedores", label: "Fornecedores" },
 ];
@@ -71,9 +78,12 @@ export function ProjetoDetail() {
   const novo = id === "novo";
   const abaParam = params.get("aba");
   const abaInicial: Aba = ABAS.some((a) => a.key === abaParam) ? (abaParam as Aba) : "dados";
-  const { porAba, porOs, porEc } = useMinhasPendencias();
+  const { porAba, porOs, porEc, itens: minhasPendencias } = useMinhasPendencias();
   const podeEditarProjeto = useAuth((s) => s.pode("projetos.editar"));
   const podeEditarChecklist = useAuth((s) => s.pode("checklists.editar"));
+  // Criar/importar EC grava uma EC nova — o banco recusa quem não tem o recurso,
+  // então o botão não pode existir para quem só consulta (era erro cru na cara).
+  const podeEditarEc = useAuth((s) => s.pode("ecs.editar"));
 
   const { data: existente, loading } = useAsync(() => (novo ? Promise.resolve(undefined) : repo.projetos.obter(id)), [id]);
   const { data: ecsAll } = useAsync(() => repo.ecs.listar(), []);
@@ -82,6 +92,8 @@ export function ProjetoDetail() {
   // Usuários elegíveis a Produtor Responsável — critério vem da área (ver useResponsaveis).
   const { data: usuariosAll } = useAsync(() => repo.auth.usuarios(), []);
   const produtoresResponsaveis = useResponsaveis(usuariosAll);
+  // O que a casa já usou nestes campos, em outros projetos — ver `domain/sugestoes`.
+  const sugestoes = useSugestoes();
   /** Nomes de todos os usuários — @menções e escolha de responsável no check-list. */
   const nomesUsuarios = useMemo(() => (usuariosAll ?? []).map((u) => u.nome).filter(Boolean), [usuariosAll]);
   // Lista completa (com e-mail real) — só carrega para quem tem permissão de configurações;
@@ -94,6 +106,13 @@ export function ProjetoDetail() {
   /** "Foto" do projeto como ele está salvo — serve para saber se há algo a salvar. */
   const [baseline, setBaseline] = useState("");
   const [aba, setAba] = useState<Aba>(abaInicial);
+  /**
+   * O sininho pode pedir OUTRA subguia do projeto que já está aberto — aí só a
+   * URL muda, o componente não remonta e a aba ficaria na anterior.
+   */
+  useEffect(() => {
+    if (abaParam && ABAS.some((a) => a.key === abaParam)) setAba(abaParam as Aba);
+  }, [abaParam]);
   const [salvando, setSalvando] = useState(false);
   const [filtroEc, setFiltroEc] = useState<"todas" | "ativas" | "arquivadas">("todas");
   const [cnpjLoading, setCnpjLoading] = useState(false);
@@ -142,16 +161,29 @@ export function ProjetoDetail() {
   const ecIds = useMemo(() => new Set(ecsDoProjeto.map((e) => e.id)), [ecsDoProjeto]);
   const ossDoProjeto = useMemo(() => (ossAll ?? []).filter((o) => ecIds.has(o.ecId)), [ossAll, ecIds]);
   const statusExibido = useMemo(() => statusProjetoAutomatico(p, ecsDoProjeto), [p, ecsDoProjeto]);
-  // Projetos de origem para importação (derivados das ECs existentes, exceto o atual).
-  // O rótulo traz APENAS o nome do projeto — o nome do cliente foi retirado por
-  // já estar embutido no título do projeto e só poluir a lista.
+  /**
+   * Projetos de origem da importação, derivados das ECs existentes.
+   *
+   * O PRÓPRIO projeto entra na lista, em primeiro lugar: reaproveitar uma versão
+   * arquivada da própria EC — voltar para uma estrutura de custos anterior sem
+   * reativá-la por cima da EC ativa — era o caso que a tela não deixava fazer.
+   *
+   * O rótulo traz APENAS o nome do projeto: o nome do cliente já está embutido
+   * no título e só poluía a lista.
+   */
   const projetosOrigem = useMemo(() => {
     const map = new Map<string, string>();
     for (const e of ecsAll ?? []) {
       if (!e.projetoId || e.projetoId === id) continue;
       if (!map.has(e.projetoId)) map.set(e.projetoId, e.projeto?.titulo || e.numero);
     }
-    return [...map].map(([projetoId, rotulo]) => ({ projetoId, rotulo })).sort((a, b) => a.rotulo.localeCompare(b.rotulo, "pt-BR"));
+    const outros = [...map]
+      .map(([projetoId, rotulo]) => ({ projetoId, rotulo }))
+      .sort((a, b) => a.rotulo.localeCompare(b.rotulo, "pt-BR"));
+    const temProprias = (ecsAll ?? []).some((e) => e.projetoId === id);
+    return temProprias
+      ? [{ projetoId: id, rotulo: "Este projeto (versões anteriores)" }, ...outros]
+      : outros;
   }, [ecsAll, id]);
   const ecsOrigem = useMemo(
     () => (ecsAll ?? []).filter((e) => e.projetoId === impProjetoId).sort((a, b) => Number(b.ativa) - Number(a.ativa) || b.versao - a.versao),
@@ -259,18 +291,17 @@ export function ProjetoDetail() {
 
   const updCli = (patch: Partial<Cliente>) => setP((x) => ({ ...x, cliente: { ...x.cliente, ...patch } }));
 
-  /** Aplica o cadastro central sem usar o representante como nome do projeto. */
+  /**
+   * Aplica o cadastro central do cliente (razão social, endereço, documentos,
+   * representante) — e SÓ isso.
+   *
+   * O apelido não vem junto de propósito: ele é decisão de quem cria o projeto,
+   * e herdá-lo do cadastro fazia todo projeto novo do mesmo cliente nascer com
+   * o apelido de um projeto antigo. O campo continua oferecendo os apelidos já
+   * usados como sugestão — a pessoa escolhe, o sistema não escolhe por ela.
+   */
   function aplicarClienteCadastrado(cliente: Cliente) {
-    setP((atual) => {
-      const info = cliente.apelido.trim()
-        ? {
-            ...atual.info,
-            clienteAbreviado: cliente.apelido,
-            titulo: compoeTituloProjeto(cliente.apelido, atual.info.nomeProjeto, atual.info.anoProjeto),
-          }
-        : atual.info;
-      return { ...atual, cliente, info, nome: info.titulo || atual.nome };
-    });
+    setP((atual) => ({ ...atual, cliente }));
     setCnpjFoco(false);
     setNomeClienteFoco(false);
     setCnpjMsg("");
@@ -332,7 +363,84 @@ export function ProjetoDetail() {
     const anoProjeto = patch.anoProjeto ?? p.info.anoProjeto;
     updInfo({ ...patch, titulo: compoeTituloProjeto(clienteAbreviado, nomeProjeto, anoProjeto) });
   };
-  const moverRoteiro = (id: string, direcao: -1 | 1) =>
+  /**
+   * Campos do projeto que são FILHOS de outro campo (ver `domain/sugestoes`).
+   * Só campos de texto entram aqui — é o que o vínculo sabe preencher.
+   */
+  type CampoFilhoInfo = "enderecoLocal" | "telefoneProdutora" | "emailProdutora";
+  const CAMPO_FILHO: Partial<Record<CampoSugerido, CampoFilhoInfo>> = {
+    enderecoLocal: "enderecoLocal",
+    telefoneProdutora: "telefoneProdutora",
+    emailProdutora: "emailProdutora",
+  };
+
+  /**
+   * Muda um campo PAI e traz junto o que a casa já usou com aquele valor.
+   *
+   * Escolher "Teatro Sesiminas" no Local preenche o Endereço do Local com o
+   * endereço que veio junto nos projetos anteriores. A regra de sobrescrita é
+   * conservadora: só preenche o filho VAZIO ou aquele que tinha vindo do
+   * vínculo anterior (trocar de local troca o endereço). O que a pessoa digitou
+   * à mão nunca é sobrescrito.
+   */
+  const comVinculo = (
+    pai: CampoSugerido,
+    valorAnterior: string,
+    valorNovo: string,
+    patch: Partial<ProjetoInfo>
+  ) => {
+    const antes = filhosDe(sugestoes, pai, valorAnterior);
+    const agora = filhosDe(sugestoes, pai, valorNovo);
+    const herdado: Partial<Pick<ProjetoInfo, CampoFilhoInfo>> = {};
+    for (const [chave, valorFilho] of Object.entries(agora)) {
+      const campo = CAMPO_FILHO[chave as CampoSugerido];
+      if (!campo) continue;
+      const atual = String(p.info[campo] ?? "");
+      const veioDoVinculo = !!antes[chave as CampoSugerido] && atual === antes[chave as CampoSugerido];
+      if (!atual || veioDoVinculo) herdado[campo] = valorFilho;
+    }
+    updInfo({ ...patch, ...herdado });
+  };
+
+  /** Mesma ideia para o representante do cliente (telefone e e-mail dele). */
+  const escolherRepresentante = (nome: string) => {
+    const antes = filhosDe(sugestoes, "representante", p.cliente.representante.nome);
+    const agora = filhosDe(sugestoes, "representante", nome);
+    const rep = { ...p.cliente.representante, nome };
+    const manter = (atual: string, anterior?: string) => !atual || (!!anterior && atual === anterior);
+    if (agora.representanteTelefone && manter(rep.telefones, antes.representanteTelefone)) {
+      rep.telefones = agora.representanteTelefone;
+    }
+    if (agora.representanteEmail && manter(rep.email, antes.representanteEmail)) {
+      rep.email = agora.representanteEmail;
+    }
+    updCli({ representante: rep });
+  };
+
+  /**
+   * Produtor(a) responsável: telefone e e-mail vêm do CADASTRO quando existe e,
+   * quando não existe, do que a casa já usou com essa pessoa em outros projetos.
+   *
+   * O e-mail só vem do cadastro para quem tem permissão de configurações (a
+   * lista completa); sem ela, o histórico cobre o campo em vez de deixá-lo
+   * vazio. Como nos demais vínculos, nada sobrescreve o que foi digitado à mão.
+   */
+  const escolherProdutora = (nome: string) => {
+    const antes = filhosDe(sugestoes, "produtoraResponsavel", p.info.produtoraResponsavel);
+    const agora = filhosDe(sugestoes, "produtoraResponsavel", nome);
+    const leve = produtoresResponsaveis.find((u) => u.nome === nome);
+    const completo = produtoresCompletos?.find((u) => u.nome === nome);
+    const manter = (atual: string, anterior?: string) => !atual || (!!anterior && atual === anterior);
+    const doHistorico = (campo: "telefoneProdutora" | "emailProdutora", atual: string) =>
+      agora[campo] && manter(atual, antes[campo]) ? agora[campo] : atual;
+    updInfo({
+      produtoraResponsavel: nome,
+      telefoneProdutora: leve?.telefone || doHistorico("telefoneProdutora", p.info.telefoneProdutora),
+      emailProdutora: completo?.email || doHistorico("emailProdutora", p.info.emailProdutora),
+    });
+  };
+
+  const moverRoteiro =(id: string, direcao: -1 | 1) =>
     updInfo({ roteiroOrdem: moverNaLista(p.info.roteiroOrdem, p.info.roteiroOrdem.indexOf(id), direcao) });
   const toggleRoteiroOculto = (secao: keyof ProjetoInfo["roteiros"]) =>
     updInfo({
@@ -382,6 +490,28 @@ export function ProjetoDetail() {
       throw new Error(`Não foi possível arquivar os dados do cliente: ${(erro as Error).message}`);
     }
   }
+
+  /**
+   * Pendências da ABA aberta — exatamente o número do badge vermelho dela. O
+   * navegador flutuante e o badge saem da mesma lista, então tudo o que é
+   * contado pode ser encontrado.
+   */
+  const pendenciasDaAba = useMemo(
+    () => minhasPendencias.filter((x) => x.projetoId === id && x.aba === aba),
+    [minhasPendencias, id, aba]
+  );
+
+  /**
+   * A pendência de uma EC ou de uma OS mora na tela dela, não aqui: o salto vira
+   * navegação — para o mesmo lugar que o sininho do topo abre (`rotaDaPendencia`).
+   * O alvo já ficou guardado em `focoPendencia`, e a tela de destino abre a
+   * observação certa assim que carregar. O que já mora nesta tela (check-list,
+   * cronograma) não navega: só rola até o item.
+   */
+  const saltarParaPendencia = (pendencia: Pendencia) => {
+    const rota = rotaDaPendencia(pendencia);
+    if (!rota.startsWith(`/projetos/${id}`)) navigate(rota);
+  };
 
   const camposObrigatoriosFaltando = () => camposObrigatoriosProjeto(p.info, p.cliente);
 
@@ -446,6 +576,13 @@ export function ProjetoDetail() {
     }
   }
 
+  /**
+   * Traz os itens de outra EC para este projeto como um RASCUNHO novo.
+   *
+   * Serve tanto para copiar de outro projeto quanto para retomar uma versão
+   * arquivada deste mesmo projeto — em nenhum dos dois casos a EC de origem é
+   * tocada, e a EC ativa daqui continua ativa (a cópia entra como rascunho).
+   */
   async function importarEc() {
     const origem = (ecsAll ?? []).find((e) => e.id === impEcId);
     if (!origem) { toast("Selecione a EC de origem.", "warning"); return; }
@@ -483,11 +620,19 @@ export function ProjetoDetail() {
         linhas,
       };
       const salvo = await repo.ecs.salvar(nova);
-      toast(`EC importada de "${origem.projeto?.titulo || origem.numero}" como rascunho.`, "success");
+      toast(`EC importada de "${tituloEc(origem)}" como rascunho (V${String(versao).padStart(2, "0")}).`, "success");
       setImportOpen(false);
       navigate(`/estimativas/${salvo.id}/editar`);
     } catch (e) {
-      toast(`Não foi possível importar: ${(e as Error).message}`, "danger");
+      const erro = (e as Error).message;
+      // O banco recusa a gravação para quem não edita EC — sem tradução, isso
+      // chegava como "Sem permissão" solto, sem dizer permissão de quê.
+      toast(
+        erro.includes("Sem permissão")
+          ? "Seu perfil pode consultar ECs, mas não criar. Peça a alguém da Direção ou da Produção."
+          : `Não foi possível importar: ${erro}`,
+        "danger"
+      );
     } finally {
       setImportando(false);
     }
@@ -630,17 +775,24 @@ export function ProjetoDetail() {
                     </Button>
                   </div>
                 </Field>
-                <Field label="Representante"><Input formato="titulo" value={p.cliente.representante.nome} onChange={(e) => updCli({ representante: { ...p.cliente.representante, nome: e.target.value } })} /></Field>
+                <Field label="Representante" hint="(telefone e e-mail vêm junto)">
+                  <Input
+                    formato="titulo"
+                    sugestoes={sugestoes.valores.representante}
+                    value={p.cliente.representante.nome}
+                    onChange={(e) => escolherRepresentante(e.target.value)}
+                  />
+                </Field>
                 <Field label="Telefone do representante"><TelefoneInput value={p.cliente.representante.telefones} onChange={(v) => updCli({ representante: { ...p.cliente.representante, telefones: v } })} /></Field>
-                <Field label="E-mail do representante"><Input value={p.cliente.representante.email} onChange={(e) => updCli({ representante: { ...p.cliente.representante, email: e.target.value } })} /></Field>
+                <Field label="E-mail do representante"><Input type="email" sugestoes={sugestoes.valores.representanteEmail} value={p.cliente.representante.email} onChange={(e) => updCli({ representante: { ...p.cliente.representante, email: e.target.value } })} /></Field>
               </div>
           </Card>
 
           <Card>
             <CardTitle>Informações do projeto</CardTitle>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <Field label="Cliente (apelido)"><Input erro={chavesComErro.has("clienteAbreviado")} value={p.info.clienteAbreviado} onChange={(e) => updTituloParte({ clienteAbreviado: e.target.value })} placeholder="Ex.: ACME" /></Field>
-              <Field label="Nome do projeto"><Input formato="titulo" erro={chavesComErro.has("nomeProjeto")} value={p.info.nomeProjeto} onChange={(e) => updTituloParte({ nomeProjeto: e.target.value })} /></Field>
+              <Field label="Cliente (apelido)"><Input erro={chavesComErro.has("clienteAbreviado")} sugestoes={sugestoes.valores.clienteApelido} value={p.info.clienteAbreviado} onChange={(e) => updTituloParte({ clienteAbreviado: e.target.value })} placeholder="Ex.: ACME" /></Field>
+              <Field label="Nome do projeto"><Input formato="titulo" erro={chavesComErro.has("nomeProjeto")} sugestoes={sugestoes.valores.nomeProjeto} value={p.info.nomeProjeto} onChange={(e) => updTituloParte({ nomeProjeto: e.target.value })} /></Field>
               <Field label="Ano"><Input erro={chavesComErro.has("anoProjeto")} value={p.info.anoProjeto} inputMode="numeric" onChange={(e) => updTituloParte({ anoProjeto: onlyDigits(e.target.value).slice(0, 4) })} placeholder="2026" /></Field>
               <Field label="Modalidade">
                 <Select erro={chavesComErro.has("modalidade")} value={p.info.modalidade} onChange={(e) => updInfo({ modalidade: e.target.value as ProjetoInfo["modalidade"] })}>
@@ -649,24 +801,21 @@ export function ProjetoDetail() {
                   <option value="Corporativo">Corporativo</option>
                 </Select>
               </Field>
-              <Field label="Local"><Input formato="titulo" erro={chavesComErro.has("local")} value={p.info.local} onChange={(e) => updInfo({ local: e.target.value })} /></Field>
-              <Field label="Endereço do local"><Input formato="titulo" value={p.info.enderecoLocal} onChange={(e) => updInfo({ enderecoLocal: e.target.value })} /></Field>
+              <Field label="Local" hint="(o endereço vem junto quando o local já foi usado)">
+                <Input
+                  formato="titulo"
+                  erro={chavesComErro.has("local")}
+                  sugestoes={sugestoes.valores.local}
+                  value={p.info.local}
+                  onChange={(e) => comVinculo("local", p.info.local, e.target.value, { local: e.target.value })}
+                />
+              </Field>
+              <Field label="Endereço do local"><Input formato="titulo" sugestoes={sugestoes.valores.enderecoLocal} value={p.info.enderecoLocal} onChange={(e) => updInfo({ enderecoLocal: e.target.value })} /></Field>
               <Field label="Nº de participantes"><Input type="number" value={p.info.participantes ?? ""} onChange={(e) => updInfo({ participantes: e.target.value ? Number(e.target.value) : null })} /></Field>
-              <Field label="Produtor Responsável">
+              <Field label="Produtor Responsável" hint="(telefone e e-mail vêm junto)">
                 <Select
                   value={p.info.produtoraResponsavel}
-                  onChange={(e) => {
-                    const nome = e.target.value;
-                    // Telefone vem sempre do cadastro; e-mail só quando a lista completa carregou
-                    // (exige permissão de configurações) — senão o campo de e-mail fica manual.
-                    const leve = produtoresResponsaveis.find((u) => u.nome === nome);
-                    const completo = produtoresCompletos?.find((u) => u.nome === nome);
-                    updInfo({
-                      produtoraResponsavel: nome,
-                      telefoneProdutora: leve?.telefone || p.info.telefoneProdutora,
-                      emailProdutora: completo?.email || p.info.emailProdutora,
-                    });
-                  }}
+                  onChange={(e) => escolherProdutora(e.target.value)}
                 >
                   <option value="">Selecione…</option>
                   {produtoresResponsaveis.map((u) => (
@@ -686,8 +835,8 @@ export function ProjetoDetail() {
                   </p>
                 )}
               </Field>
-              <Field label="Telefone da produtora responsável"><TelefoneInput value={p.info.telefoneProdutora} onChange={(v) => updInfo({ telefoneProdutora: v })} /></Field>
-              <Field label="E-mail da produtora responsável"><Input type="email" value={p.info.emailProdutora} onChange={(e) => updInfo({ emailProdutora: e.target.value })} /></Field>
+              <Field label="Telefone do(a) Produtor(a) Responsável"><TelefoneInput value={p.info.telefoneProdutora} onChange={(v) => updInfo({ telefoneProdutora: v })} /></Field>
+              <Field label="E-mail do(a) Produtor(a) Responsável"><Input type="email" sugestoes={sugestoes.valores.emailProdutora} value={p.info.emailProdutora} onChange={(e) => updInfo({ emailProdutora: e.target.value })} /></Field>
               {p.info.modalidade === "Cultural" && (
                 <Field label="Incentivos Fiscais" className="sm:col-span-2 lg:col-span-3"><Textarea value={p.info.incentivosFiscais} onChange={(e) => updInfo({ incentivosFiscais: e.target.value })} /></Field>
               )}
@@ -796,38 +945,43 @@ export function ProjetoDetail() {
         <Card padded={false}>
           <div className="p-5 flex items-center justify-between gap-3 flex-wrap">
             <CardTitle hint="Estimativas de custo deste projeto (incluindo versões)">Estimativas (EC)</CardTitle>
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                icon={<IcPlus width={16} height={16} />}
-                title={p.info.modalidade ? `Usa o modelo ${p.info.modalidade} (definido em Dados Gerais)` : "Defina a Modalidade em Dados Gerais para carregar um modelo automaticamente"}
-                onClick={() => navigate(`/estimativas/nova?projeto=${id}${p.info.modalidade ? `&template=${p.info.modalidade}` : ""}`)}
-              >
-                Nova EC
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                icon={<IcDoc width={16} height={16} />}
-                onClick={() => navigate(`/estimativas/nova?projeto=${id}`)}
-              >
-                EC em branco
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                icon={<IcCopy width={16} height={16} />}
-                onClick={() => { setImpProjetoId(""); setImpEcId(""); setImportOpen(true); }}
-              >
-                Importar EC
-              </Button>
-            </div>
+            {podeEditarEc && (
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  icon={<IcPlus width={16} height={16} />}
+                  title={p.info.modalidade ? `Usa o modelo ${p.info.modalidade} (definido em Dados Gerais)` : "Defina a Modalidade em Dados Gerais para carregar um modelo automaticamente"}
+                  onClick={() => navigate(`/estimativas/nova?projeto=${id}${p.info.modalidade ? `&template=${p.info.modalidade}` : ""}`)}
+                >
+                  Nova EC
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon={<IcDoc width={16} height={16} />}
+                  onClick={() => navigate(`/estimativas/nova?projeto=${id}`)}
+                >
+                  EC em branco
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon={<IcCopy width={16} height={16} />}
+                  title="Copia os itens e valores de outra EC — deste projeto ou de outro, ativa ou arquivada"
+                  onClick={() => { setImpProjetoId(""); setImpEcId(""); setImportOpen(true); }}
+                >
+                  Importar EC
+                </Button>
+              </div>
+            )}
           </div>
           <div className="px-5 pb-4 flex items-center gap-1 border-b border-border-soft" role="group" aria-label="Filtrar estimativas">
             {([
               ["todas", "Todas"],
               ["ativas", "Ativas"],
-              ["arquivadas", "Arquivadas"],
+              // Não é só "arquivadas": aqui caem também os rascunhos importados,
+              // que não são a versão ativa e continuam editáveis.
+              ["arquivadas", "Demais versões"],
             ] as const).map(([valor, rotulo]) => (
               <button
                 key={valor}
@@ -861,7 +1015,11 @@ export function ProjetoDetail() {
                     <TdPendencias n={porEc[e.id] ?? 0} title="Ações pendentes nesta EC" />
                     {/* Versão e data já vêm no próprio título ("EC – … (03) em 10 08 26"). */}
                     <Td className={cx("font-bold", e.ativa ? "text-primary-dark" : "text-ink")}>{tituloEc(e)}</Td>
-                    <Td align="center"><Badge tom={e.ativa ? "success" : "neutral"}>{e.ativa ? "Ativa" : "Arquivada"}</Badge></Td>
+                    {/* Rascunho não-ativo (a EC recém-importada) é "Rascunho", e não
+                        "Arquivada" — a leitura é uma só, em `domain/ec`. */}
+                    <Td align="center">
+                      <Badge tom={TOM_SITUACAO_EC[situacaoEc(e)]}>{ROTULO_SITUACAO_EC[situacaoEc(e)]}</Badge>
+                    </Td>
                   </Tr>
                 ))}
               </tbody>
@@ -874,8 +1032,8 @@ export function ProjetoDetail() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setImportOpen(false)}>
           <div className="w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
             <Card>
-              <CardTitle hint="Copia os itens e valores de uma EC de outro projeto para este, como um novo rascunho.">
-                Importar EC de outro projeto
+              <CardTitle hint="Copia os itens e valores de uma EC — deste projeto ou de outro, ativa ou arquivada — para cá, como um novo rascunho. A EC de origem não é alterada.">
+                Importar EC
               </CardTitle>
               <div className="mt-4 grid gap-4">
                 <Field label="Projeto de origem">
@@ -886,13 +1044,16 @@ export function ProjetoDetail() {
                     ))}
                   </Select>
                 </Field>
-                <Field label="EC (ativa ou arquivada)">
+                <Field label="EC de origem" hint="ativas e arquivadas">
                   <Select value={impEcId} onChange={(e) => setImpEcId(e.target.value)} disabled={!impProjetoId}>
                     <option value="">Selecione…</option>
                     {ecsOrigem.map((e) => (
-                      <option key={e.id} value={e.id}>{tituloEc(e)} — {e.ativa ? "Ativa" : "Arquivada"}</option>
+                      <option key={e.id} value={e.id}>{tituloEc(e)} — {ROTULO_SITUACAO_EC[situacaoEc(e)]}</option>
                     ))}
                   </Select>
+                  {!!impProjetoId && ecsOrigem.length === 0 && (
+                    <p className="text-[12px] text-ink-3 mt-1.5">Este projeto não tem nenhuma EC para copiar.</p>
+                  )}
                 </Field>
               </div>
               <div className="mt-5 flex justify-end gap-2">
@@ -935,7 +1096,13 @@ export function ProjetoDetail() {
       )}
 
       {aba === "checklist" && (
-        <ChecklistPainel estado={checklistProjeto} projeto={p} podeEditar={podeEditarChecklist} usuarios={nomesUsuarios} />
+        <ChecklistPainel
+          estado={checklistProjeto}
+          projeto={p}
+          podeEditar={podeEditarChecklist}
+          usuarios={nomesUsuarios}
+          pendencias={pendenciasDaAba}
+        />
       )}
 
       {aba === "cronograma" && (
@@ -953,6 +1120,9 @@ export function ProjetoDetail() {
           <TimelineConsolidada itens={etapas} />
         </Card>
       )}
+
+      {/* Pílula flutuante: as pendências da aba aberta, uma a uma. */}
+      {!novo && <NavegadorPendencias pendencias={pendenciasDaAba} aoSaltar={saltarParaPendencia} />}
 
       {aba === "fornecedores" && (
         <Card padded={false}>
@@ -994,13 +1164,25 @@ function ChecklistPainel({
   projeto,
   podeEditar,
   usuarios,
+  pendencias,
 }: {
   estado: ReturnType<typeof useChecklistProjeto>;
   projeto: Projeto;
   podeEditar: boolean;
   usuarios: string[];
+  /** Pendências do usuário nesta aba — viram o badge de cada tarefa. */
+  pendencias: Pendencia[];
 }) {
   const [confirmarRegenerar, setConfirmarRegenerar] = useState(false);
+  // Quantas pendências do usuário cada tarefa tem — o badge do item, o da aba e
+  // o navegador passam a contar a mesma coisa.
+  const pendenciasPorItem = useMemo(() => {
+    const mapa: Record<string, number> = {};
+    for (const p of pendencias) {
+      if (p.checklistItemId) mapa[p.checklistItemId] = (mapa[p.checklistItemId] ?? 0) + 1;
+    }
+    return mapa;
+  }, [pendencias]);
 
   if (!projeto.id) {
     return <EmptyState title="Salve o projeto primeiro" hint="O check-list é criado assim que o projeto existe." />;
@@ -1116,6 +1298,7 @@ function ChecklistPainel({
         onRemoverItem={(item) => void estado.removerItem(item)}
         onSincronizar={() => void estado.sincronizar()}
         itensNovosNoModelo={estado.itensNovosNoModelo}
+        pendenciasPorItem={pendenciasPorItem}
       />
     </div>
   );

@@ -3,7 +3,7 @@ import { PageShell } from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui";
 import {
   IcSearch, IcGrid, IcDoc, IcClipboard, IcCalendar, IcUsers, IcGear,
-  IcActivity, IcShield, IcSend, IcCheck, IcBook,
+  IcActivity, IcShield, IcSend, IcCheck, IcBook, IcClock, IcBell,
 } from "@/components/icons";
 import { cx } from "@/lib/format";
 
@@ -129,6 +129,57 @@ const MODULOS: Modulo[] = [
     ),
   },
   {
+    id: "pendencias",
+    icone: <IcBell />,
+    titulo: "Pendências (o que o sistema cobra de você)",
+    resumo: "Quem vê cada número vermelho, o sininho do topo e como saltar até a pendência.",
+    tags: ["pendência", "pendencias", "sininho", "sino", "badge", "número vermelho", "bolinha", "notificação", "cobrança", "responsável"],
+    conteudo: (
+      <>
+        <Secao titulo="De quem é a pendência">
+          <p>
+            O número vermelho é uma <b>lista de tarefa</b>, não um resumo do que anda acontecendo na casa. Por isso ele
+            só acende para <b>duas pessoas</b>:
+          </p>
+          <Passos>
+            <span>O(a) <b>Produtor(a) Responsável</b> do projeto — para ele conta <b>tudo</b> o que está pendente ali dentro, mesmo o que foi endereçado a outra pessoa. É quem responde pelo projeto inteiro.</span>
+            <span>O <b>destinatário</b> da cobrança — quem foi <b>@mencionado</b> ou escolhido como responsável do comentário, e quem é dono da tarefa do check-list.</span>
+          </Passos>
+          <Atencao>
+            Quem <b>escreveu</b> o comentário não carrega a pendência do outro: cobrar não é ter o que fazer. Acompanhe
+            pela própria thread do item ou pelo projeto.
+          </Atencao>
+        </Secao>
+        <Secao titulo="O que vira pendência">
+          <div className="flex flex-wrap gap-1.5">
+            <Tag tom="primary">Comentário em aberto</Tag><Tag tom="primary">Tarefa de hoje ou atrasada</Tag>
+            <Tag tom="primary">OS a emitir</Tag><Tag tom="primary">Contrato a emitir</Tag>
+            <Tag tom="primary">Cronograma da OS vazio</Tag><Tag tom="primary">Credenciamento sem resposta</Tag>
+            <Tag tom="primary">Projeto sem EC</Tag>
+          </div>
+          <p>
+            Nos itens da EC, <b>OS</b> ou <b>Contrato</b> em <Tag tom="warning">Emitir</Tag> ou
+            <Tag tom="warning">Emitir Nova Versão</Tag> viram pendência <b>item a item</b> — cada uma leva à linha certa
+            e faz o campo piscar.
+          </p>
+          <Atencao>Projeto <b>arquivado ou cancelado</b> encerra todas as pendências dele.</Atencao>
+        </Secao>
+        <Secao titulo="Achar a pendência na tela">
+          <p>
+            Todo número do sistema sai da <b>mesma lista</b>: o do sininho, o da aba, o do item e o da pílula do canto
+            inferior direito. O que é contado sempre pode ser encontrado.
+          </p>
+          <Passos>
+            <span>O <b>sininho</b> no canto superior direito abre tudo o que está pendente com você, agrupado por projeto. Clicar num bloco <b>abre a tela</b> da pendência com a câmera em cima dela.</span>
+            <span>A <b>pílula</b> do canto inferior direito anda pelas pendências <b>da tela aberta</b>, uma a uma, pelas setas ▲ ▼.</span>
+            <span>Ao chegar, o item <b>lateja em vermelho</b>: a cadeia de comentários abre e o comentário pendente pisca — ou o campo <b>OS/Contrato</b>, quando a pendência é emitir.</span>
+          </Passos>
+          <Dica>Duas pendências no mesmo item? A seta pisca de novo mesmo sem a tela rolar — é o sinal de que ela mudou de alvo.</Dica>
+        </Secao>
+      </>
+    ),
+  },
+  {
     id: "projetos",
     icone: <IcGrid />,
     titulo: "Projetos",
@@ -178,13 +229,49 @@ const MODULOS: Modulo[] = [
           </Tela>
           <Dica>Os percentuais são fixos: <b>honorários 15%</b> e <b>encargos 16,33%</b>. O valor total recalcula sozinho a cada mudança.</Dica>
         </Secao>
+        <Secao titulo="Aprovar o item">
+          <p>
+            Marcar a <b>Aprovação</b> do item como <Tag tom="success">OK</Tag> já muda o campo <b>OS</b> para
+            <Tag tom="warning">Emitir</Tag> — item liberado pelo cliente é item que precisa de OS. Vale tanto no campo
+            do item quanto no botão <b>Aprovar selecionados</b>.
+          </p>
+          <Passos>
+            <span>Voltar a Aprovação para <Tag tom="warning">Pendente</Tag> desfaz <b>só</b> a OS que a aprovação criou (a que está em "Emitir").</span>
+            <span>OS já em <Tag tom="success">OK</Tag>, em <Tag tom="warning">Emitir Nova Versão</Tag> ou em <Tag tom="success">Não se Aplica</Tag> não é tocada — esses estados vieram do processo real.</span>
+            <span>Item <b>já aprovado</b> não é reaprovado. Se o escopo mudou depois da OS, quem marca <b>Emitir Nova Versão</b> é você: só você sabe que houve alteração.</span>
+          </Passos>
+        </Secao>
+        <Secao titulo="Opções de valor do item (o que sai na OS)">
+          <p>
+            Dentro de cada item há um bloquinho com as <b>três formas de cobrar</b> aquele serviço — a OS junta vários
+            itens, e cada um é negociado do seu jeito:
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            <Tag tom="primary">Valor com BV e NF</Tag>
+            <Tag tom="primary">Valor Sem BV e Com Nota Fiscal</Tag>
+            <Tag tom="primary">Valor Sem BV e Sem NF</Tag>
+          </div>
+          <Passos>
+            <span>Em cada uma, ou você <b>digita o valor</b>, ou clica em <b>Não se aplica</b> — este item não é cobrado daquela forma. São respostas diferentes de deixar em branco.</span>
+            <span>O <b>rádio</b> marca qual das três <b>vale</b> para o item. É ela que a planilha da OS imprime, logo abaixo de "Valor do Item na EC do Projeto".</span>
+            <span>Marcar "Não se aplica" <b>não apaga</b> o valor digitado: dá para voltar atrás sem perder o que estava escrito.</span>
+          </Passos>
+          <Dica>Uma opção marcada como "Não se aplica" sai na planilha com esse texto e <b>não entra</b> no total das opções escolhidas.</Dica>
+        </Secao>
         <Secao titulo="Enviar para aprovação, versões e Excel">
           <Passos>
             <span>Na EC, em <b>Ações</b>, use <b>Enviar ao cliente para aprovação</b> — a EC vai para o status <Tag tom="warning">Aguardando</Tag>.</span>
             <span><b>Gerar nova versão (V02…)</b> cria uma cópia que “cancela e substitui” a anterior — use quando o escopo muda.</span>
             <span><b>Duplicar EC</b> cria uma nova estimativa (V01, Rascunho) a partir desta.</span>
+            <span><b>Importar EC</b> (na aba EC do projeto) copia os itens e valores de <b>qualquer</b> EC — deste projeto ou de outro, ativa ou arquivada — para cá, como um <Tag tom="info">Rascunho</Tag> novo. A EC de origem não é tocada.</span>
             <span><b>Excel Financeiro</b> exporta somente itens e valores; <b>Excel Completa</b> inclui todos os dados e as descrições completas.</span>
           </Passos>
+          <Dica>
+            Cada projeto tem <b>uma</b> EC <Tag tom="success">Ativa</Tag> — a versão que vale. As outras podem ser
+            <Tag tom="info">Rascunho</Tag> (cópia ou importação ainda em aberto, <b>editável</b>) ou
+            <Tag>Arquivada</Tag> (substituída por uma versão nova, preservada como está). Para promover um rascunho,
+            use <b>Tornar EC ativa</b> no detalhe.
+          </Dica>
           <Atencao>Arquivar e Cancelar <b>não apagam</b> a EC — ela continua consultável. Nada é excluído de fato.</Atencao>
         </Secao>
       </>
@@ -217,6 +304,95 @@ const MODULOS: Modulo[] = [
             <span><b>Baixar Excel</b> e <b>Ver / PDF</b> geram o documento da OS (o PDF respeita seu perfil quanto ao financeiro).</span>
           </Passos>
           <Atencao>O <b>envio de e-mail está aguardando a conexão com o Brevo</b> da Pólobh. Até lá, o disparo é <b>simulado</b> — a OS é salva e o status muda, mas nenhum e-mail sai de fato.</Atencao>
+        </Secao>
+      </>
+    ),
+  },
+  {
+    id: "checklist",
+    icone: <IcCheck />,
+    titulo: "Check-list do projeto (Work Flow)",
+    resumo: "Lista de tarefas com prazo e dono, gerada do modelo da modalidade.",
+    tags: ["check-list", "checklist", "work flow", "workflow", "tarefa", "tarefas", "prazo", "etapa", "modelo", "responsável", "concluir", "atrasada", "pendência"],
+    conteudo: (
+      <>
+        <Secao titulo="Para que serve">
+          <p>
+            O check-list é a <b>lista de tarefas do projeto</b>: o que precisa acontecer, <b>até quando</b> e
+            <b> de quem</b> é. Ele nasce sozinho a partir do modelo da <b>modalidade</b> (Cultural ou Corporativo)
+            e vira a pauta da reunião de produção.
+          </p>
+          <Passos>
+            <span>Preencha <b>Modalidade</b> e as <b>datas</b> em <b>Dados Gerais</b> e salve o projeto.</span>
+            <span>Abra a aba <b>Check-list</b> (a segunda, logo depois de Dados Gerais). A lista já vem pronta.</span>
+            <span>Ajuste responsável, prazo e status tarefa a tarefa. Dá para <b>adicionar tarefas</b> que só existem neste projeto.</span>
+          </Passos>
+          <Dica>Trocar as datas do projeto <b>não</b> mexe nos prazos sozinho: a tela avisa quantas tarefas mudariam e você decide com o botão <b>Recalcular prazos</b>.</Dica>
+        </Secao>
+        <Secao titulo="Prazo de cada tarefa">
+          <p>O modelo define a régua de cada tarefa, de dois jeitos:</p>
+          <Passos>
+            <span><b>Percentual</b> da janela do projeto — 0 % é o começo, 100 % é o dia do evento. Serve para o que acompanha o andamento (montar a EC, aprovar, contratar).</span>
+            <span><b>Âncora no evento</b> — tantos dias antes ou depois do dia D (ex.: −15 = quinze dias antes). Serve para o que é preso ao evento (credenciamento, montagem, prestação de contas).</span>
+          </Passos>
+          <p>
+            Uma data ajustada à mão fica marcada como <Tag>data ajustada à mão</Tag> e o recálculo <b>não</b> passa por cima dela.
+          </p>
+        </Secao>
+        <Secao titulo="Concluir e medir o prazo">
+          <p>
+            Ao marcar <Tag tom="success">Concluído</Tag>, o sistema carimba <b>data e hora</b> e o seu nome. Essa data é
+            <b> editável</b>: quem terminou na sexta e só marcou na segunda corrige, e o histórico não inventa atraso.
+          </p>
+          <p>Comparando o prazo com a conclusão, a tarefa mostra <Tag tom="success">no prazo</Tag> ou <Tag tom="warning">N dias de atraso</Tag>.</p>
+        </Secao>
+        <Secao titulo="Pendências">
+          <p>
+            Tarefa que <b>vence hoje ou já venceu</b> entra no quadro de pendências — o número vermelho na aba e a
+            pílula do canto inferior direito, que salta de uma pendência para a outra. A cobrança vai para o
+            <b> responsável da tarefa</b>; sem responsável, para o <b>Produtor Responsável</b> do projeto — que enxerga
+            tudo do projeto dele de qualquer jeito (ver <b>Pendências</b>).
+          </p>
+          <Atencao>Projeto <b>arquivado ou cancelado</b> encerra as pendências dele — inclusive as do check-list.</Atencao>
+        </Secao>
+        <Secao titulo="Modelos (quem edita)">
+          <p>
+            As listas padrão ficam em <b>Configurações → Check-list</b>, uma por modalidade, e só
+            <b> Direção</b> e <b>Administrador</b> editam. Mudar o modelo <b>não</b> mexe nos check-lists já gerados: dentro do
+            projeto aparece a ação <b>trazer itens novos</b>, que você aplica quando quiser.
+          </p>
+        </Secao>
+      </>
+    ),
+  },
+  {
+    id: "agenda",
+    icone: <IcClock />,
+    titulo: "Agenda",
+    resumo: "Todas as tarefas de todos os projetos, na ordem em que vencem.",
+    tags: ["agenda", "hoje", "semana", "atrasadas", "tarefas", "prazo", "check-list", "minhas tarefas", "pauta"],
+    conteudo: (
+      <>
+        <Secao titulo="O que a Agenda responde">
+          <p>
+            Dentro do projeto você vê <b>um projeto por vez</b>. A Agenda responde a outra pergunta:
+            <b> o que precisa acontecer esta semana na Pólobh inteira?</b>
+          </p>
+          <Tela titulo="Agenda">
+            <div className="space-y-2 text-[12px]">
+              <div className="flex items-center gap-2"><Tag tom="warning">Atrasadas</Tag><span className="text-ink-3">o que exige ação hoje</span></div>
+              <div className="flex items-center gap-2"><Tag tom="warning">Hoje</Tag><span className="text-ink-3">vence no dia</span></div>
+              <div className="flex items-center gap-2"><Tag tom="info">Próximos 7 dias</Tag><span className="text-ink-3">a semana à frente</span></div>
+              <div className="flex items-center gap-2"><Tag>Próximos 30 dias · Mais adiante · Sem data</Tag></div>
+            </div>
+          </Tela>
+        </Secao>
+        <Secao titulo="Como usar">
+          <Passos>
+            <span>A tela abre filtrada em <b>você</b> — a leitura mais frequente é "o que é meu".</span>
+            <span>Troque o filtro para <b>Todos</b> e ela vira a <b>pauta da reunião de produção</b>.</span>
+            <span>Marque a tarefa como concluída ali mesmo, ou clique nela para abrir o projeto na aba do check-list.</span>
+          </Passos>
         </Secao>
       </>
     ),

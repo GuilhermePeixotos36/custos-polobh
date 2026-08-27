@@ -18,7 +18,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Input, AutoTextarea, Select, CurrencyInput, Button } from "@/components/ui";
+import { Input, AutoTextarea, Select, CurrencyInput, Button, classeCampoStatus } from "@/components/ui";
 import { IcGrip, IcChevron, IcPlus, IcEye, IcEyeOff, IcSpark, IcCheck, IcBack } from "@/components/icons";
 import { FornecedorField } from "@/components/FornecedorField";
 import { RichTextField } from "@/components/RichTextField";
@@ -26,12 +26,12 @@ import { ObservacoesThread } from "@/components/ObservacoesPopup";
 import { ResumoPropostaModal } from "@/components/ResumoPropostaModal";
 import { NotifDot } from "@/components/NotifDot";
 import { MoverSetas } from "@/components/MoverSetas";
-import { idAncoraPendencia } from "@/components/NavegadorPendencias";
-import { destacarElemento, seguirElemento, idGrupoEc } from "@/lib/destaque";
-import { aprovarLinha, faltasParaEmitirOs, reverterAprovacaoLinha } from "@/domain/calc";
+import { destacarElemento, seguirElemento, idAncoraPendencia, idCampoPendencia, idGrupoEc } from "@/lib/destaque";
+import { aprovarLinha, faltasParaEmitirOs, reverterAprovacaoLinha, opcaoNaoSeAplica, OPCOES_VALOR_ITEM, valorItemNaEc } from "@/domain/calc";
 import { flags } from "@/lib/flags";
 import { brl, cx } from "@/lib/format";
-import type { DocumentoPg, EcLinha, Fornecedor, Observacao, StatusAprovacao, StatusOs } from "@/data/types";
+import type { DocumentoPg, EcLinha, Fornecedor, Observacao, OpcaoValorDefinida, OpcaoValorItem, StatusAprovacao, StatusOs } from "@/data/types";
+import type { Sugestoes } from "@/domain/sugestoes";
 
 /** Opções de status de OS e de Contrato — a mesma lista nos dois campos. */
 const OPCOES_STATUS_OS: StatusOs[] = ["Pendente", "Emitir", "Emitir Nova Versão", "OK", "Não se Aplica"];
@@ -54,7 +54,18 @@ const SETA_SELECT_ESTILO = {
  * em texto livre (fundo cinza), em vez de abrir um segundo campo abaixo. A seta
  * continua clicável para reabrir a lista e trocar de opção.
  */
-function SelectComTexto({ value, onChange, className }: { value: string; onChange: (v: string) => void; className?: string }) {
+function SelectComTexto({
+  value,
+  onChange,
+  className,
+  sugestoes,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  className?: string;
+  /** Valores já usados neste campo em outras ECs (modo "Outro"). */
+  sugestoes?: string[];
+}) {
   const [modoOutro, setModoOutro] = useState(false);
   const [menuAberto, setMenuAberto] = useState(false);
   const personalizado = value !== "" && !OPCOES_STATUS_TEXTO.includes(value);
@@ -80,8 +91,10 @@ function SelectComTexto({ value, onChange, className }: { value: string; onChang
       {emOutro ? (
         <Input
           autoFocus={modoOutro && !personalizado}
-          className={cx("!h-9 !pl-2 !pr-7 !text-[12.5px] !bg-[#EDEEF1]", className)}
+          // O preenchimento do status vem do esquema de cores; sem valor, o cinza de antes.
+          className={cx("!h-9 !pl-2 !pr-7 !text-[12.5px]", value ? classeCampoStatus(value) : "!bg-[#EDEEF1]", className)}
           value={value}
+          sugestoes={sugestoes}
           onChange={(e) => onChange(e.target.value)}
           placeholder="Outro (preencher)"
         />
@@ -93,6 +106,7 @@ function SelectComTexto({ value, onChange, className }: { value: string; onChang
           className={cx(
             "!h-9 w-full appearance-none bg-no-repeat bg-surface border-[1.5px] border-[#BFC4CE] rounded-btn pl-2 pr-7 text-[12.5px] text-left truncate",
             value ? "text-ink" : "text-ink-3",
+            classeCampoStatus(value),
             className,
           )}
         >
@@ -186,6 +200,11 @@ function novaLinhaBase(): EcLinha {
     valorPolobh: 0,
     valorCliente: 0,
     valorGasto: 0,
+    valorComBvNf: 0,
+    valorSemBvComNf: 0,
+    valorSemBvSemNf: 0,
+    valoresNaoAplicaveis: [],
+    opcaoValor: "",
     statusAprovacao: "Pendente",
     fornecedorRazao: "",
     fornecedorCnpj: "",
@@ -220,10 +239,20 @@ interface Props {
   fornecedores: Fornecedor[];
   /** Nomes dos usuários do sistema (para atribuir observações). */
   usuarios: string[];
+  /** O que a casa já escreveu nestes campos em outras ECs (ver `domain/sugestoes`). */
+  sugestoes: Sugestoes;
+  /**
+   * Pendências DO USUÁRIO por linha (id -> quantidade). O badge do item conta o
+   * mesmo que o badge da EC e o navegador: "o que é seu", não "o que existe".
+   */
+  pendenciasPorLinha?: Record<string, number>;
   onValidarFornecedor: (cnpj: string) => Promise<string | null>;
 }
 
-export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuarios, onValidarFornecedor }: Props) {
+export function EcGrupos({
+  linhas, onChange, verFinanceiro, fornecedores, usuarios, sugestoes,
+  pendenciasPorLinha = {}, onValidarFornecedor,
+}: Props) {
   const [grupos, setGrupos] = useState<Grupo[]>(() => agrupar(linhas));
   const [expandido, setExpandido] = useState<Record<string, boolean>>({});
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
@@ -278,6 +307,22 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
     commit([...grupos, { id, nome, itens: [linha] }]);
     setExpandido((e) => ({ ...e, [id]: true }));
     destacarElemento(idGrupoEc(id));
+  };
+
+  /**
+   * Move um GRUPO inteiro uma posição para cima ou para baixo.
+   *
+   * Mesmo par de setas dos itens, agora na barra do grupo: numa EC com muitos
+   * grupos, arrastar um card inteiro por cima dos outros é desconfortável, e a
+   * ordem dos grupos é justamente o que define a leitura da EC e do Excel.
+   */
+  const moverGrupo = (grupoId: string, direcao: -1 | 1) => {
+    const atual = grupos.findIndex((g) => g.id === grupoId);
+    const destino = atual + direcao;
+    if (atual < 0 || destino < 0 || destino >= grupos.length) return;
+    commit(arrayMove(grupos, atual, destino));
+    // A tela acompanha o grupo — senão ele sai de vista a cada toque na seta.
+    seguirElemento(idGrupoEc(grupoId));
   };
 
   /**
@@ -630,6 +675,8 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
                 verFinanceiro={verFinanceiro}
                 fornecedores={fornecedores}
                 usuarios={usuarios}
+                sugestoes={sugestoes}
+                pendenciasPorLinha={pendenciasPorLinha}
                 selecionados={selecionados}
                 onToggle={() => toggle(g.id)}
                 onRenomear={(v) => renomearGrupo(g.nome, v)}
@@ -640,6 +687,7 @@ export function EcGrupos({ linhas, onChange, verFinanceiro, fornecedores, usuari
                 onSelecionarItem={alternarSelecao}
                 onSelecionarGrupo={(marcar) => alternarSelecaoGrupo(g.id, marcar)}
                 onMoverItem={(itemId, direcao) => moverItem(g.id, itemId, direcao)}
+                onMoverGrupo={(direcao) => moverGrupo(g.id, direcao)}
                 onValidarFornecedor={onValidarFornecedor}              />
             ))}
           </div>
@@ -679,6 +727,8 @@ interface GrupoProps {
   verFinanceiro: boolean;
   fornecedores: Fornecedor[];
   usuarios: string[];
+  sugestoes: Sugestoes;
+  pendenciasPorLinha: Record<string, number>;
   selecionados: Set<string>;
   onToggle: () => void;
   onRenomear: (v: string) => void;
@@ -689,13 +739,15 @@ interface GrupoProps {
   onSelecionarItem: (id: string) => void;
   onSelecionarGrupo: (marcar: boolean) => void;
   onMoverItem: (itemId: string, direcao: -1 | 1) => void;
+  onMoverGrupo: (direcao: -1 | 1) => void;
   onValidarFornecedor: (cnpj: string) => Promise<string | null>;
 }
 
 function GrupoCard({
-  g, aberto, primeiroGrupo, ultimoGrupo, verFinanceiro, fornecedores, usuarios, selecionados,
+  g, aberto, primeiroGrupo, ultimoGrupo, verFinanceiro, fornecedores, usuarios, sugestoes,
+  pendenciasPorLinha, selecionados,
   onToggle, onRenomear, onAddItem, onUpdLinha, onOcultoItem, onOcultoGrupo,
-  onSelecionarItem, onSelecionarGrupo, onMoverItem, onValidarFornecedor,
+  onSelecionarItem, onSelecionarGrupo, onMoverItem, onMoverGrupo, onValidarFornecedor,
 }: GrupoProps) {
   const sortable = useSortable({ id: GID(g.id) });
   const droppable = useDroppable({ id: CID(g.id) });
@@ -749,10 +801,23 @@ function GrupoCard({
         >
           <IcGrip width={20} height={20} />
         </button>
+        {/* Mesmas setas dos itens: uma posição por vez, sem precisar arrastar o card. */}
+        <MoverSetas
+          rotulo={`o grupo ${g.nome}`}
+          podeSubir={!primeiroGrupo}
+          podeDescer={!ultimoGrupo}
+          onSubir={() => onMoverGrupo(-1)}
+          onDescer={() => onMoverGrupo(1)}
+        />
         <button onClick={onToggle} className="shrink-0 text-ink-2 hover:text-ink" title={aberto ? "Retrair" : "Expandir"}>
           <IcChevron width={20} height={20} className={cx("transition-transform duration-200", aberto && "rotate-90")} />
         </button>
-        <Input className="!h-10 !px-2.5 !text-[15px] !font-bold !uppercase max-w-sm" value={g.nome} onChange={(e) => onRenomear(e.target.value)} />
+        <Input
+          className="!h-10 !px-2.5 !text-[15px] !font-bold !uppercase max-w-sm"
+          value={g.nome}
+          sugestoes={sugestoes.valores.grupoEc}
+          onChange={(e) => onRenomear(e.target.value)}
+        />
         <span className="shrink-0 text-[12px] font-bold text-ink-3 bg-[#F0F1F4] rounded-pill px-2.5 py-1">
           {visiveis.length} {visiveis.length === 1 ? "item" : "itens"}
         </span>
@@ -786,6 +851,8 @@ function GrupoCard({
                 verFinanceiro={verFinanceiro}
                 fornecedores={fornecedores}
                 usuarios={usuarios}
+                sugestoes={sugestoes}
+                pendencias={pendenciasPorLinha[l.id] ?? 0}
                 selecionado={selecionados.has(l.id)}
                 // Na borda de um grupo do meio a seta continua ativa: ela leva o
                 // item para o grupo vizinho. Só trava nas pontas da EC ou quando
@@ -846,6 +913,9 @@ interface ItemProps {
   verFinanceiro: boolean;
   fornecedores: Fornecedor[];
   usuarios: string[];
+  sugestoes: Sugestoes;
+  /** Pendências do usuário nesta linha — o mesmo número do badge da EC. */
+  pendencias: number;
   selecionado: boolean;
   primeiro: boolean;
   ultimo: boolean;
@@ -859,14 +929,12 @@ interface ItemProps {
 }
 
 function ItemRow({
-  l, verFinanceiro, fornecedores, usuarios, selecionado, primeiro, ultimo, motivoBloqueio,
+  l, verFinanceiro, fornecedores, usuarios, sugestoes, pendencias, selecionado, primeiro, ultimo, motivoBloqueio,
   onUpd, onOcultar, onSelecionar, onMover, onValidarFornecedor,
 }: ItemProps) {
   const sortable = useSortable({ id: l.id });
   const style = { transform: CSS.Translate.toString(sortable.transform), transition: sortable.transition };
   const [resumoAberto, setResumoAberto] = useState(false);
-  // Pendências do item = observações direcionadas ainda não resolvidas (badge vermelho).
-  const pendencias = (l.observacoes ?? []).filter((o) => !o.resolvida && o.texto.trim()).length;
 
   const inserirResumo = (html: string) => {
     if (!html) return;
@@ -898,7 +966,7 @@ function ItemRow({
             aria-label={`Selecionar item ${l.item || "sem título"}`}
             title="Selecionar item para ações em bloco"
           />
-          <NotifDot inline n={pendencias} title={`${pendencias} pendência(s) neste item`} />
+          <NotifDot inline n={pendencias} title={`${pendencias} pendência(s) sua(s) neste item`} />
           <button
             ref={sortable.setActivatorNodeRef}
             {...sortable.listeners}
@@ -922,7 +990,13 @@ function ItemRow({
 
         <div className="min-w-0">
           <Campo label="Item">
-            <Input className="!h-10 !px-2.5 !text-[13.5px] !font-semibold" placeholder="Nome do item" value={l.item} onChange={(e) => onUpd({ item: e.target.value })} />
+            <Input
+              className="!h-10 !px-2.5 !text-[13.5px] !font-semibold"
+              placeholder="Nome do item"
+              value={l.item}
+              sugestoes={sugestoes.valores.itemEc}
+              onChange={(e) => onUpd({ item: e.target.value })}
+            />
           </Campo>
         </div>
 
@@ -982,7 +1056,19 @@ function ItemRow({
       {/* Linha 2: metadados */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-[0.7fr_2.6fr_1fr_1fr_1fr_1fr_0.7fr] items-end gap-2 px-2.5 pb-2.5 pt-1 border-t border-border-soft bg-[#FCFCFD] rounded-b-card min-w-0">
         <Campo label="Aprovação" className="w-full">
-          <Select className="!h-9 !px-2 !text-[12.5px]" value={l.statusAprovacao} onChange={(e) => onUpd({ statusAprovacao: e.target.value as StatusAprovacao })}>
+          {/* Aprovar o item JÁ pede a OS: a mesma regra do botão "Aprovar
+              selecionados" (ver `aprovarLinha`), para o campo OS não ficar em
+              "Pendente" num item que o cliente já liberou. Voltar para Pendente
+              desfaz só a OS que a aprovação criou. */}
+          <Select
+            className={cx("!h-9 !px-2 !text-[12.5px]", classeCampoStatus(l.statusAprovacao))}
+            value={l.statusAprovacao}
+            onChange={(e) => {
+              const escolhido = e.target.value as StatusAprovacao;
+              const revisto = escolhido === "OK" ? aprovarLinha(l) : reverterAprovacaoLinha(l);
+              onUpd({ statusAprovacao: revisto.statusAprovacao, statusOs: revisto.statusOs });
+            }}
+          >
             <option>Pendente</option>
             <option>OK</option>
           </Select>
@@ -1007,25 +1093,30 @@ function ItemRow({
           </Select>
         </Campo>
         <Campo label="Código de Serviço" className="w-full" obrigatorio>
-          <SelectComTexto value={l.codigoServico} onChange={(v) => onUpd({ codigoServico: v })} />
+          <SelectComTexto value={l.codigoServico} sugestoes={sugestoes.valores.codigoServico} onChange={(v) => onUpd({ codigoServico: v })} />
         </Campo>
         <Campo label="Pedido de Compra" className="w-full" obrigatorio>
-          <SelectComTexto value={l.pedidoCompra} onChange={(v) => onUpd({ pedidoCompra: v })} />
+          <SelectComTexto value={l.pedidoCompra} sugestoes={sugestoes.valores.pedidoCompra} onChange={(v) => onUpd({ pedidoCompra: v })} />
         </Campo>
-        <Campo label="OS" className="w-full">
-          <Select className="!h-9 !px-2 !text-[12.5px]" value={l.statusOs} onChange={(e) => onUpd({ statusOs: e.target.value as StatusOs })}>
+        {/* Os dois campos levam id próprio: "OS a emitir" é uma pendência, e o
+            navegador/sininho pisca exatamente este pedaço da linha. */}
+        <Campo label="OS" className="w-full" id={idCampoPendencia(l.id, "os")}>
+          <Select className={cx("!h-9 !px-2 !text-[12.5px]", classeCampoStatus(l.statusOs))} value={l.statusOs} onChange={(e) => onUpd({ statusOs: e.target.value as StatusOs })}>
             {OPCOES_STATUS_OS.map((o) => <option key={o}>{o}</option>)}
           </Select>
         </Campo>
         {/* Contrato usa exatamente a mesma lista da OS (inclui "Emitir Nova Versão"). */}
-        <Campo label="Contrato" className="w-full">
-          <Select className="!h-9 !px-2 !text-[12.5px]" value={l.contratoStatus} onChange={(e) => onUpd({ contratoStatus: e.target.value as StatusOs })}>
+        <Campo label="Contrato" className="w-full" id={idCampoPendencia(l.id, "contrato")}>
+          <Select className={cx("!h-9 !px-2 !text-[12.5px]", classeCampoStatus(l.contratoStatus))} value={l.contratoStatus} onChange={(e) => onUpd({ contratoStatus: e.target.value as StatusOs })}>
             {OPCOES_STATUS_OS.map((o) => <option key={o}>{o}</option>)}
           </Select>
         </Campo>
       </div>
 
+      {verFinanceiro && <OpcoesDeValor l={l} onUpd={onUpd} />}
+
       <ObservacoesThread
+        ancora={l.id}
         observacoes={l.observacoes}
         usuarios={usuarios}
         onChange={(obs: Observacao[]) => onUpd({ observacoes: obs })}
@@ -1036,10 +1127,111 @@ function ItemRow({
   );
 }
 
-/** Rótulo pequeno acima de um campo. `obrigatorio` marca com * vermelho (obrigatório só na emissão da OS). */
-function Campo({ label, className, children, obrigatorio }: { label: string; className?: string; children: React.ReactNode; obrigatorio?: boolean }) {
+/**
+ * Opções de valor do item — o "bloquinho" que a produção preenche.
+ *
+ * A OS consolida vários itens da EC, e cada um é negociado do seu jeito: um sai
+ * com nota, outro sem, outro com BV. Por isso as três formas de cobrar moram
+ * AQUI, no item, e não uma vez só no orçamento da OS.
+ *
+ * A opção marcada é a que a planilha da OS imprime, logo abaixo da linha
+ * "Valor do Item na EC do Projeto" — item a item, na ordem da EC.
+ */
+function OpcoesDeValor({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinha>) => void }) {
+  const escolher = (opcao: OpcaoValorDefinida) => {
+    // Clicar de novo na opção marcada desmarca: sem escolha, a OS imprime só o valor da EC.
+    if (l.opcaoValor === opcao) return onUpd({ opcaoValor: "" });
+    // Eleger uma opção é dizer que ela SE APLICA — as duas coisas não convivem.
+    onUpd({
+      opcaoValor: opcao,
+      valoresNaoAplicaveis: (l.valoresNaoAplicaveis ?? []).filter((o) => o !== opcao),
+    });
+  };
+
+  /**
+   * Alterna entre digitar o valor e responder "Não se aplica".
+   *
+   * O valor digitado NÃO é apagado ao marcar "não se aplica" — quem marcou por
+   * engano volta atrás sem perder o que tinha escrito.
+   */
+  const alternarNaoSeAplica = (opcao: OpcaoValorDefinida) => {
+    const atuais = l.valoresNaoAplicaveis ?? [];
+    const marcando = !atuais.includes(opcao);
+    onUpd({
+      valoresNaoAplicaveis: marcando ? [...atuais, opcao] : atuais.filter((o) => o !== opcao),
+      // O que não se aplica não pode seguir sendo "a opção que vale" para o item.
+      ...(marcando && l.opcaoValor === opcao ? { opcaoValor: "" as OpcaoValorItem } : {}),
+    });
+  };
+
   return (
-    <label className={cx("block", className)}>
+    <div className="px-2.5 pb-2.5 pt-2 border-t border-border-soft bg-[#FCFCFD]">
+      <div className="flex items-baseline gap-2 flex-wrap mb-1.5">
+        <span className="text-[10.5px] font-extrabold uppercase tracking-[0.05em] text-ink-3">
+          Opções de valor para a OS
+        </span>
+        <span className="text-[11px] text-ink-3">
+          Valor do item na EC: <b className="text-ink-2">{brl(valorItemNaEc(l))}</b> · marque a opção que vale para este item
+        </span>
+      </div>
+      <div className="grid sm:grid-cols-3 gap-2">
+        {OPCOES_VALOR_ITEM.map(({ opcao, rotulo, campo }) => {
+          const marcada = l.opcaoValor === opcao;
+          const naoSeAplica = opcaoNaoSeAplica(l, opcao);
+          return (
+            <div
+              key={opcao}
+              className={cx(
+                "rounded-btn border px-2 py-1.5 transition-colors",
+                marcada ? "border-primary bg-primary-soft/40" : "border-border-soft bg-surface"
+              )}
+            >
+              <label className="flex items-center gap-1.5 cursor-pointer mb-1">
+                <input
+                  type="radio"
+                  className="h-3.5 w-3.5 accent-[#F2820D] cursor-pointer"
+                  name={`opcao-valor-${l.id}`}
+                  checked={marcada}
+                  onChange={() => escolher(opcao)}
+                  onClick={() => marcada && escolher(opcao)}
+                />
+                <span className={cx("text-[11px] font-bold leading-tight", marcada ? "text-primary-dark" : "text-ink-2")}>
+                  {rotulo}
+                </span>
+              </label>
+              {/* Ou o valor, ou "Não se aplica" — as duas respostas possíveis. */}
+              {naoSeAplica ? (
+                <div className="h-8 flex items-center rounded-btn border border-border-soft bg-[#F1F2F5] px-2 text-[12.5px] font-bold text-ink-3">
+                  Não se aplica
+                </div>
+              ) : (
+                <CurrencyInput
+                  className="!h-8 !px-2 !text-[12.5px]"
+                  value={l[campo]}
+                  onValue={(v) => onUpd({ [campo]: v } as Partial<EcLinha>)}
+                  aria-label={`${rotulo} do item ${l.item || "sem título"}`}
+                />
+              )}
+              <button
+                type="button"
+                onClick={() => alternarNaoSeAplica(opcao)}
+                className="mt-1 text-[10.5px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded"
+                title={naoSeAplica ? "Voltar a informar um valor" : "Este item não é cobrado desta forma"}
+              >
+                {naoSeAplica ? "Informar valor" : "Não se aplica"}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** Rótulo pequeno acima de um campo. `obrigatorio` marca com * vermelho (obrigatório só na emissão da OS). */
+function Campo({ label, className, children, obrigatorio, id }: { label: string; className?: string; children: React.ReactNode; obrigatorio?: boolean; id?: string }) {
+  return (
+    <label id={id} className={cx("block", className)}>
       <span className="block text-[10.5px] font-extrabold uppercase tracking-[0.05em] text-ink-3 mb-1 truncate">
         {label}
         {obrigatorio && <span className="text-danger" title="Obrigatório para emitir a OS"> *</span>}

@@ -6,6 +6,14 @@ import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import { dataBR } from "@/lib/format";
 import { Timeline, TimelineConsolidada, type ItemConsolidado } from "@/components/Timeline";
+import { urlCronogramaPublico } from "@/lib/links";
+import type { Ec } from "@/data/types";
+
+/** EC encerrada não representa mais o projeto no seletor. */
+const EC_ENCERRADA = ["Cancelada", "Arquivada"];
+
+/** OS encerrada não entra na linha do tempo — o cronograma é do que vai acontecer. */
+const OS_ENCERRADA = ["Cancelada", "Arquivada"];
 
 export function Cronogramas() {
   const { data: ecs } = useAsync(() => repo.ecs.listar(), []);
@@ -13,11 +21,42 @@ export function Cronogramas() {
   const [ecId, setEcId] = useState<string>("");
   const [copiado, setCopiado] = useState(false);
 
-  const ecSel = (ecs ?? []).find((e) => e.id === ecId) ?? (ecs ?? [])[0];
-  const ossDoProjeto = useMemo(
-    () => (oss ?? []).filter((o) => o.ecId === ecSel?.id),
-    [oss, ecSel]
-  );
+  /**
+   * O seletor é por PROJETO, não por EC.
+   *
+   * Listar todas as ECs punha o mesmo projeto várias vezes na lista, com o
+   * mesmo rótulo (o título do projeto) — uma por versão, indistinguíveis —, e
+   * ainda misturava EC cancelada e arquivada. Aqui cada projeto aparece uma
+   * vez, representado pela EC ativa (ou a mais recente).
+   */
+  const opcoes = useMemo(() => {
+    const porProjeto = new Map<string, Ec>();
+    for (const e of ecs ?? []) {
+      if (EC_ENCERRADA.includes(e.status)) continue;
+      const chave = e.projetoId || e.id;
+      const atual = porProjeto.get(chave);
+      if (!atual || Number(e.ativa) - Number(atual.ativa) > 0 || (e.ativa === atual.ativa && e.versao > atual.versao)) {
+        porProjeto.set(chave, e);
+      }
+    }
+    return [...porProjeto.values()].sort((a, b) =>
+      (a.projeto.titulo || a.numero).localeCompare(b.projeto.titulo || b.numero, "pt-BR")
+    );
+  }, [ecs]);
+
+  const ecSel = opcoes.find((e) => e.id === ecId) ?? opcoes[0];
+  /**
+   * Todas as OSs do PROJETO, não só as da EC selecionada: uma OS emitida a
+   * partir de uma versão anterior continua valendo para o evento, e sumia da
+   * linha do tempo assim que a EC ganhava uma versão nova.
+   */
+  const ossDoProjeto = useMemo(() => {
+    if (!ecSel) return [];
+    const idsDoProjeto = new Set(
+      (ecs ?? []).filter((e) => (ecSel.projetoId ? e.projetoId === ecSel.projetoId : e.id === ecSel.id)).map((e) => e.id)
+    );
+    return (oss ?? []).filter((o) => idsDoProjeto.has(o.ecId) && !OS_ENCERRADA.includes(o.status));
+  }, [oss, ecs, ecSel]);
 
   // todas as etapas de todos os fornecedores, com o nome do fornecedor em cada uma
   const etapasConsolidadas = useMemo<ItemConsolidado[]>(
@@ -28,7 +67,7 @@ export function Cronogramas() {
     [ossDoProjeto]
   );
 
-  const linkPublico = ecSel?.slugPublico ? `${location.origin}/cronograma/${ecSel.slugPublico}` : "";
+  const linkPublico = ecSel ? urlCronogramaPublico(ecSel) : "";
 
   return (
     <PageShell
@@ -37,12 +76,18 @@ export function Cronogramas() {
       topAction={
         <div className="flex items-center gap-2">
           <Select className="!h-9 !w-auto min-w-[220px]" value={ecSel?.id ?? ""} onChange={(e) => setEcId(e.target.value)}>
-            {(ecs ?? []).map((e) => <option key={e.id} value={e.id}>{e.projeto.titulo}</option>)}
+            {opcoes.map((e) => (
+              <option key={e.id} value={e.id}>{e.projeto.titulo || e.numero}</option>
+            ))}
           </Select>
           <Button
             size="sm"
             variant="secondary"
             icon={<IcLink width={15} height={15} />}
+            // Sem token gerado não há link: copiar string vazia dava a impressão
+            // de que tinha funcionado.
+            disabled={!linkPublico}
+            title={linkPublico ? "Copiar o link público do cronograma" : "O link é gerado quando a EC é salva"}
             onClick={() => { navigator.clipboard?.writeText(linkPublico); setCopiado(true); setTimeout(() => setCopiado(false), 1800); }}
           >
             {copiado ? "Copiado!" : "Copiar link público"}
