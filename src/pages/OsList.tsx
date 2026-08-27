@@ -7,6 +7,8 @@ import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import { brl, cx } from "@/lib/format";
 import { ThPendencias, TdPendencias } from "@/components/ColunaPendencias";
+import { ThItensOs, TdItensOs } from "@/components/ColunaItensOs";
+import { itensDaOs } from "@/domain/os";
 import { useMinhasPendencias } from "@/store/pendencias";
 import { useAuth } from "@/store/auth";
 
@@ -18,6 +20,9 @@ export function OsList() {
   const navigate = useNavigate();
   const verFinanceiro = useAuth((s) => s.pode("financeiro"));
   const { data, loading, error, reload } = useAsync(() => repo.oss.listar(), [], { oQue: "as OSs" });
+  // As ECs entram só para saber QUAIS ITENS cada OS carrega (o "olhinho" da
+  // lista). Falha em silêncio: sem elas o atalho some, a lista continua.
+  const { data: ecs } = useAsync(() => repo.ecs.listar().catch(() => []), []);
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState<Filtro>("ativas");
   const { porOs } = useMinhasPendencias();
@@ -37,6 +42,13 @@ export function OsList() {
               .includes(q)
       );
   }, [data, busca, filtro]);
+
+  /** Itens da EC que cada OS consolida — conteúdo da caixinha do "olhinho". */
+  const itensPorOs = useMemo(() => {
+    const mapa: Record<string, ReturnType<typeof itensDaOs>> = {};
+    for (const o of data ?? []) mapa[o.id] = itensDaOs(o, ecs ?? []);
+    return mapa;
+  }, [data, ecs]);
 
   const { ordem, ordenarPor, ordenados: lista } = useOrdenacao(
     filtrados,
@@ -93,6 +105,8 @@ export function OsList() {
             <THead>
               <ThPendencias col="pendencias" ordem={ordem} onSort={ordenarPor} />
               <ThOrd col="numero" ordem={ordem} onSort={ordenarPor}>OS</ThOrd>
+              {/* Sem rótulo: é o atalho para ver os itens, não uma coluna de dado. */}
+              <ThItensOs />
               <ThOrd col="fornecedor" ordem={ordem} onSort={ordenarPor}>Fornecedor</ThOrd>
               <ThOrd col="ec" ordem={ordem} onSort={ordenarPor}>EC</ThOrd>
               <ThOrd col="modalidade" ordem={ordem} onSort={ordenarPor}>Modalidade</ThOrd>
@@ -104,6 +118,7 @@ export function OsList() {
                 <Tr key={o.id} onClick={() => navigate(`/ordens/${o.id}`)}>
                   <TdPendencias n={porOs[o.id] ?? 0} title="Esta OS tem ação pendente" />
                   <Td className="font-bold">{o.numero}</Td>
+                  <TdItensOs itens={itensPorOs[o.id] ?? []} />
                   <Td>{o.fornecedor.razaoSocial}</Td>
                   <Td className="text-[12.5px] text-ink-2">{o.ecNumero}</Td>
                   <Td>{o.modalidade || "—"}</Td>

@@ -158,6 +158,18 @@ Banco: `checklist_modelos`, `checklists`, `checklist_itens` (migração
   sobre a visualização em tela. Estilos `@media print` em `src/index.css`.
 - ExcelJS é carregado **sob demanda** (code-splitting) — não pesa no load inicial.
 
+## Listas de OS
+Cada OS consolida VÁRIAS linhas da EC do mesmo fornecedor, e saber quais era o
+que faltava nas listagens: só abrindo OS por OS. Uma coluna estreita **sem
+cabeçalho**, ao lado do número, guarda esse conteúdo atrás de um ícone — passar
+o mouse mostra, clicar prende (o caminho do toque), Esc/clique fora fecha.
+Componente em `components/ColunaItensOs.tsx`; o vínculo vem de
+`itensDaOs` (`domain/os.ts`), que casa `os.ecLinhaIds` com as linhas da EC.
+
+Escrever os nomes na própria linha não serve: uma OS com oito itens esticaria a
+linha e desalinharia a tabela. A caixinha é desenhada em portal com posição
+fixa, porque dentro da célula a tabela a cortaria na borda.
+
 ## Integrações (prontas)
 - **Consulta de CNPJ:** BrasilAPI para dados cadastrais e CNPJ.ws para Inscrição
   Estadual, ambas públicas e sem chave. Ligada por padrão (`VITE_FEATURE_CNPJ`).

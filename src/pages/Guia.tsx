@@ -296,6 +296,18 @@ const MODULOS: Modulo[] = [
     tags: ["os", "ordem de serviço", "fornecedor", "consolidar", "modalidade", "cronograma", "orçamento", "financeiro", "bv", "disparar", "pdf", "excel", "nota fiscal", "credenciamento"],
     conteudo: (
       <>
+        <Secao titulo="Ver os itens de cada OS na lista">
+          <p>
+            Na lista de OSs — dentro do projeto e em <b>Ordens de Serviço</b> — há um ícone discreto ao lado do número.
+            <b> Passe o mouse</b> nele e sai uma caixinha com os itens da EC que aquela OS consolida, em bullets, com o
+            grupo de cada um. <b>Clique</b> para prender a caixinha aberta (é assim no celular, onde não existe passar o
+            mouse); <b>Esc</b> ou um clique fora fecham.
+          </p>
+          <Dica>
+            Os nomes não são impressos na linha de propósito: uma OS com oito itens esticaria a linha e desalinharia a
+            tabela inteira. A lista longa rola dentro da própria caixinha.
+          </Dica>
+        </Secao>
         <Secao titulo="Como nasce uma OS">
           <p>A OS deriva da EC. Você seleciona as linhas de <b>um mesmo fornecedor</b> e gera a ordem para ele.</p>
           <Passos>

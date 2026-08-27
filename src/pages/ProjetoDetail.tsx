@@ -38,6 +38,8 @@ import { statusProjetoAutomatico } from "@/domain/statusProjeto";
 import type { Cliente, Ec, EcLinha, Projeto, ProjetoInfo, StatusProjeto } from "@/data/types";
 import { rotaDaPendencia, type Pendencia } from "@/domain/pendencias";
 import { situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
+import { itensDaOs } from "@/domain/os";
+import { ThItensOs, TdItensOs } from "@/components/ColunaItensOs";
 
 const tomStatusProjeto: Record<StatusProjeto, Tom> = {
   Ativo: "success", Arquivado: "neutral", Concluido: "info", Cancelado: "danger",
@@ -160,6 +162,16 @@ export function ProjetoDetail() {
   );
   const ecIds = useMemo(() => new Set(ecsDoProjeto.map((e) => e.id)), [ecsDoProjeto]);
   const ossDoProjeto = useMemo(() => (ossAll ?? []).filter((o) => ecIds.has(o.ecId)), [ossAll, ecIds]);
+  /**
+   * Itens da EC que cada OS consolida — o conteúdo da caixinha do "olhinho" na
+   * lista de OSs. Calculado uma vez para todas, e não por linha: a busca é na
+   * lista inteira de ECs.
+   */
+  const itensPorOs = useMemo(() => {
+    const mapa: Record<string, ReturnType<typeof itensDaOs>> = {};
+    for (const o of ossDoProjeto) mapa[o.id] = itensDaOs(o, ecsAll ?? []);
+    return mapa;
+  }, [ossDoProjeto, ecsAll]);
   const statusExibido = useMemo(() => statusProjetoAutomatico(p, ecsDoProjeto), [p, ecsDoProjeto]);
   /**
    * Projetos de origem da importação, derivados das ECs existentes.
@@ -1077,6 +1089,8 @@ export function ProjetoDetail() {
               <THead>
                 <ThPendencias col="pendencias" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor} />
                 <ThOrd col="numero" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor}>OS</ThOrd>
+                {/* Sem rótulo: é o atalho para ver os itens, não uma coluna de dado. */}
+                <ThItensOs />
                 <ThOrd col="fornecedor" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor}>Fornecedor</ThOrd>
                 <ThOrd col="status" align="center" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor}>Status</ThOrd>
               </THead>
@@ -1085,6 +1099,7 @@ export function ProjetoDetail() {
                   <Tr key={o.id} onClick={() => navigate(`/ordens/${o.id}`)}>
                     <TdPendencias n={porOs[o.id] ?? 0} title="Esta OS tem ação pendente" />
                     <Td className="font-bold">{o.numero}</Td>
+                    <TdItensOs itens={itensPorOs[o.id] ?? []} />
                     <Td>{o.fornecedor.razaoSocial || "—"}</Td>
                     <Td align="center"><Badge tom={tomStatusOs[o.status]}>{o.status}</Badge></Td>
                   </Tr>
