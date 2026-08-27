@@ -241,6 +241,17 @@ const MODULOS: Modulo[] = [
             <span>Item <b>já aprovado</b> não é reaprovado. Se o escopo mudou depois da OS, quem marca <b>Emitir Nova Versão</b> é você: só você sabe que houve alteração.</span>
           </Passos>
         </Secao>
+        <Secao titulo="Emitir OS a partir da EC">
+          <p>
+            O botão <b>Emitir OS</b> cria <b>uma OS por fornecedor</b> cujos itens já tenham sido aprovados. Item
+            marcado como <Tag tom="warning">Emitir Nova Versão</Tag> arquiva automaticamente a OS anterior daquele
+            fornecedor e gera a seguinte.
+          </p>
+          <Passos>
+            <span>Item que está marcado para emitir mas tem campo faltando (fornecedor, CNPJ, Documento PG, Código de Serviço, Pedido de Compra) fica <b>de fora</b>, e a tela <b>rola até ele e o faz piscar em vermelho</b>. A lista de faltas continua no topo, e clicar num item dela volta a apontá-lo.</span>
+            <span>Depois de emitir, <b>complete os dados fiscais</b> de cada OS — boa parte deles é preenchida à mão.</span>
+          </Passos>
+        </Secao>
         <Secao titulo="Opções de valor do item (o que sai na OS)">
           <p>
             Dentro de cada item há um bloquinho com as <b>três formas de cobrar</b> aquele serviço — a OS junta vários
@@ -293,6 +304,13 @@ const MODULOS: Modulo[] = [
             <span>Complete os dados do <b>Fornecedor</b> (use Consultar CNPJ), o <b>detalhamento</b>, o <b>cronograma</b> e o <b>orçamento</b>.</span>
             <span>Clique em <b>Salvar</b>.</span>
           </Passos>
+          <Dica>
+            O <b>título da OS</b> é montado sozinho:
+            <b> OS – Apelido do Cliente – Nome do Projeto – Ano – Apelido do Fornecedor – (NN) em DD MM AA</b>.
+            O <b>(NN)</b> é a versão daquela OS: a primeira emissão é (01), e cada "Emitir Nova Versão" para o mesmo
+            fornecedor avança para (02), (03)… O apelido do fornecedor vem da ficha dele em <b>Fornecedores</b>; sem
+            apelido, entra o nome fantasia e, por último, a razão social.
+          </Dica>
           <Atencao>Cada OS consolida linhas de <b>um único fornecedor</b>. Se você marcar fornecedores diferentes, o sistema avisa.</Atencao>
         </Secao>
         <Secao titulo="Bloco financeiro (restrito)">

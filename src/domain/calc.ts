@@ -182,10 +182,66 @@ export function tituloEc(ec: Ec): string {
   return data ? `${base} em ${data}` : base;
 }
 
-/** Numeração da OS derivada da EC: "{numeroEc} – OS-{NN}". */
-export function numeroOs(ec: Ec, seq: number): string {
-  const baseSemVersao = ec.numero.replace(/\s–\sV\d+$/, "");
-  return `${baseSemVersao} – OS-${String(seq).padStart(2, "0")}`;
+/**
+ * Apelido do fornecedor para a numeração — o nome curto pelo qual a casa o
+ * chama. Cai no nome fantasia e, por último, na razão social: fornecedor antigo,
+ * cadastrado antes do campo existir, continua gerando um título legível.
+ */
+export function apelidoFornecedor(
+  f: Pick<Fornecedor, "apelido" | "nomeFantasia" | "razaoSocial"> | string | undefined
+): string {
+  if (typeof f === "string") return f.trim();
+  return (f?.apelido || f?.nomeFantasia || f?.razaoSocial || "").trim();
+}
+
+/**
+ * Qual VERSÃO desta OS está sendo emitida.
+ *
+ * Conta as OSs que já existem para o mesmo par EC + fornecedor, inclusive as
+ * canceladas: "Emitir Nova Versão" arquiva a anterior e cria a seguinte, e é
+ * essa contagem que dá o (01), (02)… do título. Não confundir com `seq`, que é
+ * a ordem da OS dentro da EC (uma por fornecedor, na ordem em que saíram).
+ */
+export function versaoOs(oss: Os[], ecId: string, fornecedorCnpj: string, fornecedorRazao: string): number {
+  const digitos = (s: string) => (s || "").replace(/\D/g, "");
+  const chave = (s: string) => (s || "").trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
+  const cnpj = digitos(fornecedorCnpj);
+  const razao = chave(fornecedorRazao);
+  const mesmas = oss.filter((o) => {
+    if (o.ecId !== ecId) return false;
+    // CNPJ manda quando existe dos dois lados; senão, compara a razão social.
+    const cnpjOs = digitos(o.fornecedor?.cnpj ?? "");
+    if (cnpj && cnpjOs) return cnpj === cnpjOs;
+    return !!razao && chave(o.fornecedor?.razaoSocial ?? "") === razao;
+  });
+  return mesmas.length + 1;
+}
+
+/**
+ * Título da OS: "OS – {Apelido do Cliente} – {Projeto} – {Ano} – {Apelido do
+ * Fornecedor} – ({NN}) em {DD MM AA}".
+ *
+ * Segue o mesmo espírito do título da EC — o que identifica o documento é a
+ * linguagem da casa (apelidos), não um código —, com o fornecedor no meio, já
+ * que é ele quem recebe a OS, e a versão entre parênteses no fim.
+ *
+ * Cada pedaço tem um plano B: EC antiga, gravada antes de o projeto ter cliente
+ * abreviado / nome / ano separados, cai no título completo do projeto.
+ */
+export function numeroOs(
+  ec: Ec,
+  fornecedor: Pick<Fornecedor, "apelido" | "nomeFantasia" | "razaoSocial"> | string | undefined,
+  versao: number,
+  criadoEm: string = new Date().toISOString()
+): string {
+  const p = ec.projeto;
+  const cliente = (p.clienteAbreviado || ec.cliente?.apelido || ec.cliente?.nome || "").trim();
+  const projeto = (p.nomeProjeto || p.titulo || "").trim();
+  const ano = (p.anoProjeto || (p.evento || criadoEm || "").slice(0, 4)).trim();
+  const partes = [cliente, projeto, ano, apelidoFornecedor(fornecedor)].filter(Boolean);
+  const data = dataBRCurta(criadoEm);
+  const numero = `(${String(versao).padStart(2, "0")})`;
+  return `OS – ${partes.join(" – ")} – ${data ? `${numero} em ${data}` : numero}`;
 }
 
 export const producaoPadrao = (): Producao => ({

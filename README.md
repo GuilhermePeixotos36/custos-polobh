@@ -86,7 +86,12 @@ pílula do canto inferior direito —, e cada pendência carrega o endereço da 
 - `honorários` = 15% · `encargos` = 16,33% (sobre fornecedores)
 - `subTotalPolobh` = fornecedores + honorários + encargos
 - `valorTotalBruto` = subTotalPolobh + somaCliente + honoráriosCliente
-- Numeração: `EC – {Cliente} – {Projeto} – V{NN}`; OS: `… – OS-{NN}`.
+- Numeração da EC: `EC – {Cliente} – {Projeto} – V{NN}`.
+- Título da OS: `OS – {Apelido do Cliente} – {Projeto} – {Ano} – {Apelido do Fornecedor} – ({NN}) em DD MM AA`.
+  O `(NN)` é a **versão daquela OS** (primeira emissão (01); cada "Emitir Nova
+  Versão" do mesmo fornecedor avança) — não confundir com `oss.seq`, que é a
+  ordem da OS dentro da EC. O apelido do fornecedor vem de
+  `fornecedores.apelido`, com queda para nome fantasia e razão social.
 
 ## Check-list (Work Flow) do projeto
 Substitui a cobrança informal por uma lista de tarefas com prazo, dono e histórico.

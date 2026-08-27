@@ -37,7 +37,7 @@ export function Fornecedores() {
     // A busca cobre o que a tela mostra: era possível ver "Som & Luz" na lista
     // (nome fantasia) e não achar nada ao digitar exatamente isso.
     return (data ?? []).filter((f) =>
-      [f.nomeFantasia, f.razaoSocial, f.cnpj, f.perfilTributario, f.email, f.telefone, ...(f.contatos ?? [])]
+      [f.apelido, f.nomeFantasia, f.razaoSocial, f.cnpj, f.perfilTributario, f.email, f.telefone, ...(f.contatos ?? [])]
         .join(" ")
         .toLowerCase()
         .includes(q)
@@ -46,7 +46,7 @@ export function Fornecedores() {
 
   /** Fornecedor em branco — o cadastro manual, para quem ainda não veio de uma EC. */
   const novoFornecedor = (): Fornecedor => ({
-    id: "", razaoSocial: "", nomeFantasia: "", cnpj: "", perfilTributario: "", endereco: "",
+    id: "", razaoSocial: "", apelido: "", nomeFantasia: "", cnpj: "", perfilTributario: "", endereco: "",
     inscricaoEstadual: "", inscricaoMunicipal: "",
     dadosBancarios: { tipoConta: "", banco: "", agencia: "", conta: "", chavePix: "" },
     representante: "", telefone: "", email: "", contatos: [],
@@ -169,6 +169,14 @@ export function Fornecedores() {
               <Field label="CNPJ/CPF"><Input value={edit.cnpj} onChange={(e) => setEdit({ ...edit, cnpj: maskCpfCnpjInput(e.target.value) })} inputMode="numeric" placeholder="00.000.000/0000-00" /></Field>
               <Field label="Razão social"><Input formato="titulo-empresa" value={edit.razaoSocial} onChange={(e) => setEdit({ ...edit, razaoSocial: e.target.value })} /></Field>
               <Field label="Nome fantasia"><Input formato="titulo" value={edit.nomeFantasia} onChange={(e) => setEdit({ ...edit, nomeFantasia: e.target.value })} /></Field>
+              <Field label="Apelido" hint="(entra no título das OSs deste fornecedor)">
+                <Input
+                  formato="titulo"
+                  value={edit.apelido ?? ""}
+                  onChange={(e) => setEdit({ ...edit, apelido: e.target.value })}
+                  placeholder={edit.nomeFantasia || edit.razaoSocial || "Ex.: Som & Luz"}
+                />
+              </Field>
               <Field label="Perfil tributário">
                 <Select value={edit.perfilTributario} onChange={(e) => setEdit({ ...edit, perfilTributario: e.target.value })}>
                   <option value="">Selecione…</option>

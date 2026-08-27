@@ -112,6 +112,12 @@ export interface DadosBancarios {
 export interface Fornecedor {
   id: string;
   razaoSocial: string;
+  /**
+   * Nome curto pelo qual a casa chama o fornecedor — é ele que entra no título
+   * da OS (ver `numeroOs`). Diferente do nome fantasia, que vem do cadastro na
+   * Receita: aqui quem escolhe é a Pólobh.
+   */
+  apelido?: string;
   nomeFantasia?: string;
   cnpj: string;
   perfilTributario: string; // MEI / Simples / etc. (vem da consulta de CNPJ)
