@@ -516,9 +516,6 @@ export function EcForm() {
               <Select value={ec.projeto.produtoraResponsavel} onChange={(e) => updProj({ produtoraResponsavel: e.target.value })}>
                 <option value="">Selecione…</option>
                 {produtoresResponsaveis.map((u) => <option key={u.id} value={u.nome}>{u.nome}</option>)}
-                {ec.projeto.produtoraResponsavel && !produtoresResponsaveis.some((u) => u.nome === ec.projeto.produtoraResponsavel) && (
-                  <option value={ec.projeto.produtoraResponsavel}>{ec.projeto.produtoraResponsavel} (não cadastrado)</option>
-                )}
               </Select>
             </Field>
             <Field label="Pré-evento"><Input type="date" value={ec.projeto.preEvento} onChange={(e) => updProj({ preEvento: e.target.value })} /></Field>

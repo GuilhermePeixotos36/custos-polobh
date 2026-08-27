@@ -833,10 +833,6 @@ export function ProjetoDetail() {
                   {produtoresResponsaveis.map((u) => (
                     <option key={u.id} value={u.nome}>{u.nome}</option>
                   ))}
-                  {/* Preserva um valor legado que não corresponda a nenhum usuário atual (dado antigo/renomeado). */}
-                  {p.info.produtoraResponsavel && !produtoresResponsaveis.some((u) => u.nome === p.info.produtoraResponsavel) && (
-                    <option value={p.info.produtoraResponsavel}>{p.info.produtoraResponsavel} (não cadastrado)</option>
-                  )}
                 </Select>
               </Field>
               <Field label="Telefone do(a) Produtor(a) Responsável"><TelefoneInput value={p.info.telefoneProdutora} onChange={(v) => updInfo({ telefoneProdutora: v })} /></Field>
