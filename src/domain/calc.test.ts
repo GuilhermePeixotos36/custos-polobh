@@ -181,12 +181,18 @@ describe("numeroOs", () => {
     expect(n).toBe("OS – ACME – Convenção Anual – 2026 – Som & Luz – (01) em 27 08 26");
   });
 
-  it("sem apelido, cai no nome fantasia e depois na razão social", () => {
-    const fornecedor = { nomeFantasia: "Som e Luz", razaoSocial: "SOM & LUZ LTDA" };
-    expect(apelidoFornecedor(fornecedor)).toBe("Som e Luz");
-    expect(apelidoFornecedor({ razaoSocial: "SOM & LUZ LTDA" })).toBe("SOM & LUZ LTDA");
-    expect(numeroOs(comProjeto({}), fornecedor, 2, "2026-08-27T10:00:00.000Z"))
-      .toContain("– Som e Luz – (02) em");
+  it("sem apelido no cadastro, o sistema gera a partir do nome", () => {
+    // A redução mora em `domain/fornecedor` e tem os casos reais lá.
+    expect(apelidoFornecedor({ razaoSocial: "SOM & LUZ PRODUÇÕES LTDA" })).toBe("Som & Luz");
+    expect(apelidoFornecedor({ nomeFantasia: "Sonora AV", razaoSocial: "Sonora Áudio e Iluminação Ltda" }))
+      .toBe("Sonora AV");
+    expect(numeroOs(comProjeto({}), { razaoSocial: "MONTA TUDO ESTRUTURAS LTDA" }, 2, "2026-08-27T10:00:00.000Z"))
+      .toContain("– Monta Tudo – (02) em");
+  });
+
+  it("apelido preenchido à mão vence a geração automática", () => {
+    expect(apelidoFornecedor({ apelido: "Som&Luz BH", razaoSocial: "SOM & LUZ PRODUÇÕES LTDA" }))
+      .toBe("Som&Luz BH");
   });
 
   it("EC antiga, sem cliente/projeto/ano separados, cai no título do projeto", () => {

@@ -4,6 +4,7 @@
  */
 import type { Ec, EcLinha, OpcaoValorDefinida, OpcaoValorItem, Producao, Fornecedor, Os, TaxaConfig } from "@/data/types";
 import { brl, dataBRCurta } from "@/lib/format";
+import { gerarApelidoFornecedor } from "@/domain/fornecedor";
 
 export const HONORARIOS = 0.15;
 export const ENCARGOS = 0.1633;
@@ -183,15 +184,19 @@ export function tituloEc(ec: Ec): string {
 }
 
 /**
- * Apelido do fornecedor para a numeração — o nome curto pelo qual a casa o
- * chama. Cai no nome fantasia e, por último, na razão social: fornecedor antigo,
- * cadastrado antes do campo existir, continua gerando um título legível.
+ * Apelido do fornecedor para a numeração — o nome curto pelo qual a casa o chama.
+ *
+ * O sistema GERA sozinho a partir do nome (ver `gerarApelidoFornecedor`): razão
+ * social vem da Receita cheia de forma jurídica e descrição de atividade, e isso
+ * inchava o título da OS sem ajudar a identificar quem é. O campo `apelido` do
+ * cadastro só entra quando alguém preencheu à mão — é a saída para quando a
+ * redução automática não agrada.
  */
 export function apelidoFornecedor(
   f: Pick<Fornecedor, "apelido" | "nomeFantasia" | "razaoSocial"> | string | undefined
 ): string {
-  if (typeof f === "string") return f.trim();
-  return (f?.apelido || f?.nomeFantasia || f?.razaoSocial || "").trim();
+  if (typeof f === "string") return gerarApelidoFornecedor(f);
+  return (f?.apelido || "").trim() || gerarApelidoFornecedor(f?.nomeFantasia, f?.razaoSocial);
 }
 
 /**

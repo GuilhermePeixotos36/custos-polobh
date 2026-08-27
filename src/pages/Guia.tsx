@@ -308,8 +308,11 @@ const MODULOS: Modulo[] = [
             O <b>título da OS</b> é montado sozinho:
             <b> OS – Apelido do Cliente – Nome do Projeto – Ano – Apelido do Fornecedor – (NN) em DD MM AA</b>.
             O <b>(NN)</b> é a versão daquela OS: a primeira emissão é (01), e cada "Emitir Nova Versão" para o mesmo
-            fornecedor avança para (02), (03)… O apelido do fornecedor vem da ficha dele em <b>Fornecedores</b>; sem
-            apelido, entra o nome fantasia e, por último, a razão social.
+            fornecedor avança para (02), (03)… O <b>apelido do fornecedor é gerado pelo sistema</b> a partir do nome
+            dele — a razão social vem da Receita cheia de forma jurídica e descrição de atividade, e o sistema descarta
+            isso: <i>"SOM &amp; LUZ PRODUÇÕES LTDA"</i> vira <b>Som &amp; Luz</b>, <i>"LSPRO LOCACOES, SERVICOS E
+            EVENTOS LTDA"</i> vira <b>LSPRO</b>. Não gostou do resultado? O campo <b>Apelido</b>, em Fornecedores,
+            aceita o seu.
           </Dica>
           <Atencao>Cada OS consolida linhas de <b>um único fornecedor</b>. Se você marcar fornecedores diferentes, o sistema avisa.</Atencao>
         </Secao>

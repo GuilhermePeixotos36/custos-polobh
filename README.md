@@ -90,8 +90,11 @@ pílula do canto inferior direito —, e cada pendência carrega o endereço da 
 - Título da OS: `OS – {Apelido do Cliente} – {Projeto} – {Ano} – {Apelido do Fornecedor} – ({NN}) em DD MM AA`.
   O `(NN)` é a **versão daquela OS** (primeira emissão (01); cada "Emitir Nova
   Versão" do mesmo fornecedor avança) — não confundir com `oss.seq`, que é a
-  ordem da OS dentro da EC. O apelido do fornecedor vem de
-  `fornecedores.apelido`, com queda para nome fantasia e razão social.
+  ordem da OS dentro da EC. O apelido do fornecedor é **gerado** de `razao_social`
+  / `nome_fantasia` por `gerarApelidoFornecedor` (`domain/fornecedor.ts`), que
+  descarta forma jurídica, recheio corporativo e descrição de atividade — só
+  preservando a atividade quando ela faz parte do nome ("Casa da Cenografia").
+  `fornecedores.apelido` preenchido é uma escolha manual e vence a geração.
 
 ## Check-list (Work Flow) do projeto
 Substitui a cobrança informal por uma lista de tarefas com prazo, dono e histórico.
