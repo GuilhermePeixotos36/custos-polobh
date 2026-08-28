@@ -48,10 +48,16 @@ const relogios = new WeakMap<HTMLElement, number>();
  * clique que cria o elemento: se ele ainda não existe no DOM, tenta de novo
  * nos próximos quadros até o React terminar de renderizar.
  */
-export function destacarElemento(id: string, variante: VarianteDestaque = "novo"): void {
+export function destacarElemento(
+  id: string,
+  variante: VarianteDestaque = "novo",
+  opcoes: { rolar?: boolean } = {}
+): void {
   const classe = CLASSE[variante];
   comElemento(id, (el) => {
-    el.scrollIntoView({ behavior: semAnimacao() ? "auto" : "smooth", block: "center" });
+    // `rolar: false` para destacar VÁRIOS elementos de uma vez: só o primeiro
+    // leva a câmera; os outros piscam onde estão, sem as rolagens brigarem.
+    if (opcoes.rolar !== false) el.scrollIntoView({ behavior: semAnimacao() ? "auto" : "smooth", block: "center" });
     // Remover e forçar reflow reinicia a animação mesmo quando é o mesmo
     // elemento destacado duas vezes seguidas. O timer anterior é cancelado junto,
     // senão ele apagaria a classe no meio deste novo pisca.

@@ -21,6 +21,7 @@ import {
   agruparPorFornecedor,
   descritivoConsolidado,
   numeroOs,
+  versaoOs,
   textoObjetoContrato,
   LEI_INCENTIVO_PADRAO,
   FORMA_PAGAMENTO_PADRAO,
@@ -250,19 +251,21 @@ export function OsForm() {
     Promise.all([
       repo.oss.proximaSeq(ec.id),
       g?.fornecedorCnpj ? repo.fornecedores.porCnpj(g.fornecedorCnpj) : Promise.resolve(undefined),
-    ]).then(([seq, fornCadastro]) => {
+      repo.oss.porEc(ec.id),
+    ]).then(([seq, fornCadastro, ossDaEc]) => {
       const agora = new Date().toISOString();
+      const fornecedor = fornCadastro ?? fornecedorVazio(g?.fornecedorRazao, g?.fornecedorCnpj);
       setEcCtx(ec);
       iniciar(aplicarAutoPreenchimento({
         id: "",
-        numero: numeroOs(ec, seq),
+        numero: numeroOs(ec, fornecedor, versaoOs(ossDaEc ?? [], ec.id, fornecedor.cnpj, fornecedor.razaoSocial), agora),
         slugCredenciamento: "",
         seq,
         ecId: ec.id,
         ecNumero: ec.numero,
         ecLinhaIds: linhaIds,
         status: "Rascunho",
-        fornecedor: fornCadastro ?? fornecedorVazio(g?.fornecedorRazao, g?.fornecedorCnpj),
+        fornecedor,
         modalidade: "",
         descritivo: descritivoConsolidado(linhas),
         entrega: "",

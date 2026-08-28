@@ -115,6 +115,7 @@ const MODULOS: Modulo[] = [
             <span>Abra o endereço do sistema e digite seu <b>e-mail</b> e <b>senha</b>.</span>
             <span>Clique em <b>Entrar no painel</b>. Você cai direto na tela de <b>Projetos</b>.</span>
             <span>Para sair, use o botão <b>Sair</b> no canto superior direito.</span>
+            <span>O <b>cabeçalho da página</b> — título e botões de ação — fica <b>grudado no topo</b> enquanto você rola: em tela longa, Salvar, Excel e Voltar continuam à mão sem precisar subir de volta.</span>
           </Passos>
         </Secao>
         <Secao titulo="O menu lateral">
@@ -241,6 +242,17 @@ const MODULOS: Modulo[] = [
             <span>Item <b>já aprovado</b> não é reaprovado. Se o escopo mudou depois da OS, quem marca <b>Emitir Nova Versão</b> é você: só você sabe que houve alteração.</span>
           </Passos>
         </Secao>
+        <Secao titulo="Emitir OS a partir da EC">
+          <p>
+            O botão <b>Emitir OS</b> cria <b>uma OS por fornecedor</b> cujos itens já tenham sido aprovados. Item
+            marcado como <Tag tom="warning">Emitir Nova Versão</Tag> arquiva automaticamente a OS anterior daquele
+            fornecedor e gera a seguinte.
+          </p>
+          <Passos>
+            <span>Item que está marcado para emitir mas tem campo faltando (fornecedor, CNPJ, Documento PG, Código de Serviço, Pedido de Compra) fica <b>de fora</b>, e a tela <b>rola até ele e o faz piscar em vermelho</b>. A lista de faltas continua no topo, e clicar num item dela volta a apontá-lo.</span>
+            <span>Depois de emitir, <b>complete os dados fiscais</b> de cada OS — boa parte deles é preenchida à mão.</span>
+          </Passos>
+        </Secao>
         <Secao titulo="Opções de valor do item (o que sai na OS)">
           <p>
             Dentro de cada item há um bloquinho com as <b>três formas de cobrar</b> aquele serviço — a OS junta vários
@@ -285,6 +297,18 @@ const MODULOS: Modulo[] = [
     tags: ["os", "ordem de serviço", "fornecedor", "consolidar", "modalidade", "cronograma", "orçamento", "financeiro", "bv", "disparar", "pdf", "excel", "nota fiscal", "credenciamento"],
     conteudo: (
       <>
+        <Secao titulo="Ver os itens de cada OS na lista">
+          <p>
+            Na lista de OSs — dentro do projeto e em <b>Ordens de Serviço</b> — há um ícone discreto ao lado do número.
+            <b> Passe o mouse</b> nele e sai uma caixinha com os itens da EC que aquela OS consolida, em bullets, com o
+            grupo de cada um. <b>Clique</b> para prender a caixinha aberta (é assim no celular, onde não existe passar o
+            mouse); <b>Esc</b> ou um clique fora fecham.
+          </p>
+          <Dica>
+            Os nomes não são impressos na linha de propósito: uma OS com oito itens esticaria a linha e desalinharia a
+            tabela inteira. A lista longa rola dentro da própria caixinha.
+          </Dica>
+        </Secao>
         <Secao titulo="Como nasce uma OS">
           <p>A OS deriva da EC. Você seleciona as linhas de <b>um mesmo fornecedor</b> e gera a ordem para ele.</p>
           <Passos>
@@ -293,6 +317,16 @@ const MODULOS: Modulo[] = [
             <span>Complete os dados do <b>Fornecedor</b> (use Consultar CNPJ), o <b>detalhamento</b>, o <b>cronograma</b> e o <b>orçamento</b>.</span>
             <span>Clique em <b>Salvar</b>.</span>
           </Passos>
+          <Dica>
+            O <b>título da OS</b> é montado sozinho:
+            <b> OS – Apelido do Cliente – Nome do Projeto – Ano – Apelido do Fornecedor – (NN) em DD MM AA</b>.
+            O <b>(NN)</b> é a versão daquela OS: a primeira emissão é (01), e cada "Emitir Nova Versão" para o mesmo
+            fornecedor avança para (02), (03)… O <b>apelido do fornecedor é gerado pelo sistema</b> a partir do nome
+            dele — a razão social vem da Receita cheia de forma jurídica e descrição de atividade, e o sistema descarta
+            isso: <i>"SOM &amp; LUZ PRODUÇÕES LTDA"</i> vira <b>Som &amp; Luz</b>, <i>"LSPRO LOCACOES, SERVICOS E
+            EVENTOS LTDA"</i> vira <b>LSPRO</b>. Não gostou do resultado? O campo <b>Apelido</b>, em Fornecedores,
+            aceita o seu.
+          </Dica>
           <Atencao>Cada OS consolida linhas de <b>um único fornecedor</b>. Se você marcar fornecedores diferentes, o sistema avisa.</Atencao>
         </Secao>
         <Secao titulo="Bloco financeiro (restrito)">
@@ -579,7 +613,8 @@ export function Guia() {
 
       <div className="grid lg:grid-cols-[280px_1fr] gap-5 items-start">
         {/* TOC / lista de módulos */}
-        <nav className="lg:sticky lg:top-[86px] space-y-1.5">
+        {/* Abaixo da navegação + do cabeçalho grudado da página (ver PageShell). */}
+        <nav className="lg:sticky lg:top-[calc(var(--altura-topnav)+var(--altura-cabecalho)+16px)] space-y-1.5">
           <div className="px-1 mb-1 text-[10px] font-extrabold uppercase tracking-[0.14em] text-ink-3">
             {busca ? `${filtrados.length} resultado(s)` : "Módulos"}
           </div>

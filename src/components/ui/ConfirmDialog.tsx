@@ -28,7 +28,9 @@ export function ConfirmDialog() {
       />
       <div className="relative w-full max-w-[420px] bg-surface rounded-card-lg shadow-modal border border-border p-6 animate-[fadein_.12s_ease]">
         <h3 className="font-display font-bold text-[17px] text-ink tracking-[-0.3px]">{opts.titulo}</h3>
-        {opts.mensagem && <p className="text-ink-2 text-[13.5px] mt-2 leading-relaxed">{opts.mensagem}</p>}
+        {/* `whitespace-pre-line`: a mensagem às vezes traz um parágrafo extra
+            (ex.: os itens que ficaram de fora da emissão de OS). */}
+        {opts.mensagem && <p className="text-ink-2 text-[13.5px] mt-2 leading-relaxed whitespace-pre-line">{opts.mensagem}</p>}
 
         <div className="flex justify-end gap-2 mt-6">
           <button

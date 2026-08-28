@@ -3,6 +3,9 @@ import {
   calcularTotais,
   valorTaxa,
   numeroEc,
+  numeroOs,
+  versaoOs,
+  apelidoFornecedor,
   opcaoEscolhidaDoItem,
   opcaoNaoSeAplica,
   valorDaOpcao,
@@ -18,7 +21,7 @@ import {
   tituloEc,
   ENCARGOS,
 } from "./calc";
-import type { EcLinha, Producao } from "@/data/types";
+import type { Ec, EcLinha, Os, Producao } from "@/data/types";
 import { dataBR } from "@/lib/format";
 
 const producaoZero: Producao = {
@@ -158,6 +161,72 @@ describe("opções de valor do item", () => {
 
   it("sem escolha nenhuma, não há opção para a OS imprimir", () => {
     expect(opcaoEscolhidaDoItem(linha({ valorComBvNf: 9000 }))).toBeNull();
+  });
+});
+
+describe("numeroOs", () => {
+  const comProjeto = (p: Partial<Ec["projeto"]>): Ec =>
+    ({
+      id: "ec1", cliente: { apelido: "ACME", nome: "ACME LTDA" },
+      projeto: { clienteAbreviado: "ACME", nomeProjeto: "Convenção Anual", anoProjeto: "2026", ...p },
+    }) as unknown as Ec;
+
+  it("monta o título com apelidos, ano, fornecedor, versão e data", () => {
+    const n = numeroOs(
+      comProjeto({}),
+      { apelido: "Som & Luz", nomeFantasia: "Som e Luz Produções", razaoSocial: "SOM & LUZ LTDA" },
+      1,
+      "2026-08-27T10:00:00.000Z"
+    );
+    expect(n).toBe("OS – ACME – Convenção Anual – 2026 – Som & Luz – (01) em 27 08 26");
+  });
+
+  it("sem apelido no cadastro, o sistema gera a partir do nome", () => {
+    // A redução mora em `domain/fornecedor` e tem os casos reais lá.
+    expect(apelidoFornecedor({ razaoSocial: "SOM & LUZ PRODUÇÕES LTDA" })).toBe("Som & Luz");
+    expect(apelidoFornecedor({ nomeFantasia: "Sonora AV", razaoSocial: "Sonora Áudio e Iluminação Ltda" }))
+      .toBe("Sonora AV");
+    expect(numeroOs(comProjeto({}), { razaoSocial: "MONTA TUDO ESTRUTURAS LTDA" }, 2, "2026-08-27T10:00:00.000Z"))
+      .toContain("– Monta Tudo – (02) em");
+  });
+
+  it("apelido preenchido à mão vence a geração automática", () => {
+    expect(apelidoFornecedor({ apelido: "Som&Luz BH", razaoSocial: "SOM & LUZ PRODUÇÕES LTDA" }))
+      .toBe("Som&Luz BH");
+  });
+
+  it("EC antiga, sem cliente/projeto/ano separados, cai no título do projeto", () => {
+    const antiga = comProjeto({
+      clienteAbreviado: "", nomeProjeto: "", anoProjeto: "",
+      titulo: "ACME – Convenção Anual – 2026", evento: "2026-08-15",
+    });
+    const n = numeroOs(antiga, "Som & Luz", 1, "2026-08-27T10:00:00.000Z");
+    // O apelido vem do cliente cadastrado, e o ano da data do evento.
+    expect(n).toBe("OS – ACME – ACME – Convenção Anual – 2026 – 2026 – Som & Luz – (01) em 27 08 26");
+  });
+});
+
+describe("versaoOs", () => {
+  const os = (ecId: string, cnpj: string, razao = ""): Os =>
+    ({ ecId, fornecedor: { cnpj, razaoSocial: razao } }) as unknown as Os;
+
+  it("a primeira OS do fornecedor é a versão 1", () => {
+    expect(versaoOs([], "ec1", "12.345.678/0001-90", "SOM & LUZ")).toBe(1);
+  });
+
+  it("conta as anteriores do MESMO fornecedor, inclusive as arquivadas", () => {
+    const existentes = [os("ec1", "12345678000190"), os("ec1", "12345678000190")];
+    expect(versaoOs(existentes, "ec1", "12.345.678/0001-90", "SOM & LUZ")).toBe(3);
+  });
+
+  it("não conta outro fornecedor nem outra EC", () => {
+    const existentes = [os("ec1", "99999999000199"), os("ec2", "12345678000190")];
+    expect(versaoOs(existentes, "ec1", "12.345.678/0001-90", "SOM & LUZ")).toBe(1);
+  });
+
+  it("sem CNPJ dos dois lados, compara a razão social", () => {
+    const existentes = [os("ec1", "", "Som & Luz Produções")];
+    expect(versaoOs(existentes, "ec1", "", "SOM & LUZ PRODUÇÕES")).toBe(2);
   });
 });
 

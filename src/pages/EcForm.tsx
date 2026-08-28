@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { PageShell } from "@/components/layout/AppLayout";
 import {
@@ -229,27 +229,6 @@ export function EcForm() {
     return mapa;
   }, [pendenciasDaEc]);
 
-  /**
-   * Publica a altura real da barra de ações em `--altura-barra-ec`.
-   *
-   * A barra de seleção em massa (dentro de EcGrupos) gruda logo abaixo desta.
-   * Um número fixo no CSS quebraria em silêncio quando os botões quebrassem
-   * para uma segunda linha em tela estreita — aí a barra de seleção passaria
-   * por cima. Medindo, as duas seguem coladas em qualquer largura.
-   */
-  const observadorBarra = useRef<ResizeObserver | null>(null);
-  const medirBarra = useCallback((node: HTMLDivElement | null) => {
-    observadorBarra.current?.disconnect();
-    observadorBarra.current = null;
-    if (!node) return;
-    const aplicar = () =>
-      document.documentElement.style.setProperty("--altura-barra-ec", `${Math.round(node.getBoundingClientRect().height)}px`);
-    aplicar();
-    const observer = new ResizeObserver(aplicar);
-    observer.observe(node);
-    observadorBarra.current = observer;
-  }, []);
-
   const sujo = !!ec && baseline !== "" && JSON.stringify(ec) !== baseline;
   useUnsavedGuard(sujo);
 
@@ -426,12 +405,13 @@ export function EcForm() {
   const statusBadge = <Badge tom={TOM_SITUACAO_EC[situacao]}>{ROTULO_SITUACAO_EC[situacao]}</Badge>;
 
   return (
-    <PageShell title={tituloEc({ ...ec, numero })} titleAdornment={statusBadge}>
-      {/* Cabeçalho fixo: em EC longa, as ações continuam à mão enquanto se rola a
-          lista de itens. Título e status ficam só no cabeçalho da página, acima —
-          repeti-los aqui era informação duplicada. */}
-      <div ref={medirBarra} className="sticky top-[var(--altura-topnav)] z-20 -mx-[40px] mb-4 border-b border-border bg-surface px-[40px] py-2.5 shadow-card">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
+    <PageShell
+      title={tituloEc({ ...ec, numero })}
+      titleAdornment={statusBadge}
+      // As ações grudam junto com o título (ver PageShell): em EC longa, elas
+      // continuam à mão enquanto se rola a lista de itens.
+      acoes={
+        <>
           <button onClick={() => navigate(voltarUrl)} className="inline-flex items-center gap-1.5 text-sm text-ink-2 hover:text-ink font-semibold shrink-0">
             <IcBack width={16} height={16} /> Voltar ao projeto
           </button>
@@ -456,9 +436,9 @@ export function EcForm() {
               {salvando ? "Salvando…" : mostrarSalvo ? "Salvo" : "Salvar"}
             </Button>
           </div>
-        </div>
-      </div>
-
+        </>
+      }
+    >
       <EcSubGuias atual={subaba} onChange={setSubaba} temResumo={verFinanceiro} temRentabilidade={verFinanceiro} />
 
       {/* Pílula flutuante que salta entre as pendências desta EC. */}
@@ -516,9 +496,6 @@ export function EcForm() {
               <Select value={ec.projeto.produtoraResponsavel} onChange={(e) => updProj({ produtoraResponsavel: e.target.value })}>
                 <option value="">Selecione…</option>
                 {produtoresResponsaveis.map((u) => <option key={u.id} value={u.nome}>{u.nome}</option>)}
-                {ec.projeto.produtoraResponsavel && !produtoresResponsaveis.some((u) => u.nome === ec.projeto.produtoraResponsavel) && (
-                  <option value={ec.projeto.produtoraResponsavel}>{ec.projeto.produtoraResponsavel} (não cadastrado)</option>
-                )}
               </Select>
             </Field>
             <Field label="Pré-evento"><Input type="date" value={ec.projeto.preEvento} onChange={(e) => updProj({ preEvento: e.target.value })} /></Field>

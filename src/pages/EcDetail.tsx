@@ -19,11 +19,13 @@ import {
 import { IcBack, IcDownload, IcChevron, IcCopy } from "@/components/icons";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
-import { analisarEmissaoOs, calcularTotais, agruparPorFornecedor, descritivoConsolidado, gastoPorLinhaViaOSs, numeroOs, rotuloTaxa, tituloEc, ROTULO_HONORARIOS_PADRAO, ROTULO_ENCARGOS_PADRAO } from "@/domain/calc";
+import type { ItemEmissaoOs } from "@/domain/calc";
+import { analisarEmissaoOs, calcularTotais, agruparPorFornecedor, descritivoConsolidado, gastoPorLinhaViaOSs, numeroOs, versaoOs, rotuloTaxa, tituloEc, ROTULO_HONORARIOS_PADRAO, ROTULO_ENCARGOS_PADRAO } from "@/domain/calc";
 import { RentabilidadeItens } from "@/components/RentabilidadeItens";
 import { EcSubGuias, type SubGuiaEc } from "@/components/EcSubGuias";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
 import { rotaDaPendencia } from "@/domain/pendencias";
+import { destacarElemento, idAncoraPendencia } from "@/lib/destaque";
 import { ecEditavel, situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
 import { useMinhasPendencias } from "@/store/pendencias";
 import { EcItemLeitura } from "@/components/EcItemLeitura";
@@ -59,7 +61,8 @@ export function EcDetail() {
   const { data: usuariosData } = useAsync(() => repo.auth.usuarios(), []);
   const usuarios = (usuariosData ?? []).map((u) => u.nome).filter(Boolean);
   const [recolhidos, setRecolhidos] = useState<Set<string>>(new Set());
-  const [erro, setErro] = useState("");
+  /** Itens que ficaram fora da emissão, com o que falta em cada um. */
+  const [bloqueados, setBloqueados] = useState<ItemEmissaoOs[]>([]);
   const [subaba, setSubaba] = useState<SubGuiaEc>("ec");
   const [emitindo, setEmitindo] = useState(false);
 
@@ -168,30 +171,38 @@ export function EcDetail() {
    * valida os obrigatórios, agrupa por fornecedor e cria uma OS (rascunho) por fornecedor.
    * Linhas "Emitir Nova Versão" arquivam a OS anterior que as cobre e geram uma OS nova.
    */
+  /**
+   * Leva a tela até os itens que travaram a emissão e os faz piscar em vermelho.
+   *
+   * A lista de faltas por escrito não bastava: numa EC com dezenas de itens, a
+   * pessoa lia "falta o CNPJ em Acessibilidade" e ainda tinha de caçar o item na
+   * rolagem. Só o primeiro leva a câmera; os demais piscam onde estão.
+   */
+  const apontarBloqueados = (itens: ItemEmissaoOs[]) => {
+    itens.forEach((b, i) =>
+      destacarElemento(idAncoraPendencia(b.linha.id), "pendencia", { rolar: i === 0 })
+    );
+  };
+
   async function emitirOs() {
-    setErro("");
+    setBloqueados([]);
     // Só entram itens aprovados, com fornecedor identificado e marcados para
     // emitir; o resto é devolvido com o motivo exato de estar travado.
-    const { prontos, bloqueados } = analisarEmissaoOs(ec!.linhas);
-    if (!prontos.length && !bloqueados.length) {
+    const { prontos, bloqueados: travados } = analisarEmissaoOs(ec!.linhas);
+    if (!prontos.length && !travados.length) {
       toast("Nenhuma linha com status 'Emitir' ou 'Emitir Nova Versão'.", "info");
       return;
     }
-    const relatorioBloqueados = bloqueados.length
-      ? `${bloqueados.length} item(ns) fora da emissão — falta preencher:\n${bloqueados
-        .map((b) => `• ${b.linha.item || "(item sem nome)"}: ${b.faltas.join(", ")}`)
-        .join("\n")}`
-      : "";
-    if (!prontos.length) {
-      setErro(relatorioBloqueados);
-      return;
-    }
-    setErro(relatorioBloqueados);
+    setBloqueados(travados);
+    if (travados.length) apontarBloqueados(travados);
+    if (!prontos.length) return;
     if (!(await confirmar({
       titulo: `Emitir OS de ${prontos.length} item(ns)?`,
       mensagem: [
-        "Será criada uma OS (rascunho) por fornecedor, com os itens consolidados. Itens 'Emitir Nova Versão' arquivam a OS anterior e geram uma nova. Depois é só completar os dados fiscais de cada OS.",
-        bloqueados.length ? `\n${bloqueados.length} item(ns) marcado(s) para emitir ficam de fora por dados incompletos — a lista fica na tela.` : "",
+        "Será criada uma OS por fornecedor cujos itens já tenham sido aprovados. " +
+        "Ao solicitar a emissão de uma nova versão de OS previamente emitida, a anterior será " +
+        "automaticamente arquivada. Atenção para os dados a serem inseridos manualmente nas OS's.",
+        travados.length ? `\n\n${travados.length} item(ns) marcado(s) para emitir ficam de fora por dados incompletos — a lista fica na tela.` : "",
       ].join(""),
       confirmarTexto: "Emitir OS",
     }))) return;
@@ -215,7 +226,10 @@ export function EcDetail() {
         }
         const seq = await repo.oss.proximaSeq(ec!.id);
         const fornCadastro = g.fornecedorCnpj ? await repo.fornecedores.porCnpj(g.fornecedorCnpj) : undefined;
-        await repo.oss.salvar(montarOsEmissao(ec!, g.linhas, seq, fornCadastro));
+        // Qual versão desta OS: conta as que já existem para este fornecedor
+        // nesta EC, inclusive as que acabaram de ser arquivadas acima.
+        const versao = versaoOs(oss ?? [], ec!.id, g.fornecedorCnpj, g.fornecedorRazao);
+        await repo.oss.salvar(montarOsEmissao(ec!, g.linhas, seq, versao, fornCadastro));
         criadas += 1;
         g.linhas.forEach((l) => idsEmitidos.add(l.id));
       }
@@ -243,7 +257,27 @@ export function EcDetail() {
           <button onClick={() => setRecolhidos(new Set(gruposLinha.map((g) => g.nome)))} className="hover:text-ink">Retrair</button>
         </div>
       </div>
-      {erro && <div className="mx-5 mt-3 text-[13px] text-danger bg-danger-soft rounded-btn px-3 py-2 whitespace-pre-line">{erro}</div>}
+      {bloqueados.length > 0 && (
+        <div className="mx-5 mt-3 text-[13px] text-danger bg-danger-soft rounded-btn px-3 py-2">
+          <p className="font-bold">{bloqueados.length} item(ns) fora da emissão — falta preencher:</p>
+          <ul className="mt-1 space-y-0.5">
+            {bloqueados.map((b) => (
+              <li key={b.linha.id}>
+                {/* Clicar no item da lista leva de volta a ele — a EC é longa e
+                    o destaque do clique em "Emitir OS" já passou. */}
+                <button
+                  type="button"
+                  onClick={() => apontarBloqueados([b])}
+                  className="text-left hover:underline"
+                  title="Ir para o item"
+                >
+                  • <b>{b.linha.item || "(item sem nome)"}</b>: {b.faltas.join(", ")}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="p-3 space-y-2">
         {gruposLinha.map((g) => {
@@ -378,12 +412,17 @@ export function EcDetail() {
   const statusBadge = <Badge tom={TOM_SITUACAO_EC[situacao]}>{ROTULO_SITUACAO_EC[situacao]}</Badge>;
 
   return (
-    <PageShell title={tituloEc(ec)} titleAdornment={statusBadge}>
-      <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
-        <button onClick={() => navigate(voltarUrl)} className="inline-flex items-center gap-1.5 text-sm text-ink-2 hover:text-ink font-semibold">
-          <IcBack width={16} height={16} /> Voltar ao projeto
-        </button>
-        <div className="flex gap-2 flex-wrap">
+    <PageShell
+      title={tituloEc(ec)}
+      titleAdornment={statusBadge}
+      // Grudam junto com o título (ver PageShell): a EC é longa, e as ações
+      // sumiam de vista assim que se rolava a lista de itens.
+      acoes={
+        <>
+          <button onClick={() => navigate(voltarUrl)} className="inline-flex items-center gap-1.5 text-sm text-ink-2 hover:text-ink font-semibold">
+            <IcBack width={16} height={16} /> Voltar ao projeto
+          </button>
+          <div className="flex gap-2 flex-wrap">
           {podeEditar && ec.status !== "Cancelada" && (
             <Button variant="danger" size="sm"
               onClick={async () => {
@@ -440,14 +479,15 @@ export function EcDetail() {
               Tornar EC ativa
             </Button>
           )}
-          {podeEditar && ecEditavel(ec) && (
-            <Button size="sm" onClick={() => navigate(`/estimativas/${ec.id}/editar`)}>
-              Editar EC
-            </Button>
-          )}
-        </div>
-      </div>
-
+            {podeEditar && ecEditavel(ec) && (
+              <Button size="sm" onClick={() => navigate(`/estimativas/${ec.id}/editar`)}>
+                Editar EC
+              </Button>
+            )}
+          </div>
+        </>
+      }
+    >
       {verFinanceiro && (
         <EcSubGuias atual={subaba} onChange={setSubaba} temResumo temRentabilidade />
       )}
@@ -517,20 +557,27 @@ function fornecedorVazioEc(razao: string, cnpj: string): Fornecedor {
 }
 
 /** Constrói a OS (rascunho) consolidando as linhas de um fornecedor — espelha a criação do OsForm. */
-function montarOsEmissao(ecAtual: Ec, linhas: EcLinha[], seq: number, fornCadastro?: Fornecedor): Os {
+function montarOsEmissao(
+  ecAtual: Ec,
+  linhas: EcLinha[],
+  seq: number,
+  versao: number,
+  fornCadastro?: Fornecedor
+): Os {
   const agora = new Date().toISOString();
   const valorEc = linhas.reduce((s, l) => s + l.valorPolobh + l.valorCliente, 0);
   const g = agruparPorFornecedor(linhas)[0];
+  const fornecedor = fornCadastro ?? fornecedorVazioEc(g?.fornecedorRazao ?? "", g?.fornecedorCnpj ?? "");
   return {
     id: "",
-    numero: numeroOs(ecAtual, seq),
+    numero: numeroOs(ecAtual, fornecedor, versao, agora),
     slugCredenciamento: "",
     seq,
     ecId: ecAtual.id,
     ecNumero: ecAtual.numero,
     ecLinhaIds: linhas.map((l) => l.id),
     status: "Rascunho",
-    fornecedor: fornCadastro ?? fornecedorVazioEc(g?.fornecedorRazao ?? "", g?.fornecedorCnpj ?? ""),
+    fornecedor,
     modalidade: "",
     descritivo: descritivoConsolidado(linhas),
     entrega: "",

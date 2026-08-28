@@ -86,7 +86,15 @@ pílula do canto inferior direito —, e cada pendência carrega o endereço da 
 - `honorários` = 15% · `encargos` = 16,33% (sobre fornecedores)
 - `subTotalPolobh` = fornecedores + honorários + encargos
 - `valorTotalBruto` = subTotalPolobh + somaCliente + honoráriosCliente
-- Numeração: `EC – {Cliente} – {Projeto} – V{NN}`; OS: `… – OS-{NN}`.
+- Numeração da EC: `EC – {Cliente} – {Projeto} – V{NN}`.
+- Título da OS: `OS – {Apelido do Cliente} – {Projeto} – {Ano} – {Apelido do Fornecedor} – ({NN}) em DD MM AA`.
+  O `(NN)` é a **versão daquela OS** (primeira emissão (01); cada "Emitir Nova
+  Versão" do mesmo fornecedor avança) — não confundir com `oss.seq`, que é a
+  ordem da OS dentro da EC. O apelido do fornecedor é **gerado** de `razao_social`
+  / `nome_fantasia` por `gerarApelidoFornecedor` (`domain/fornecedor.ts`), que
+  descarta forma jurídica, recheio corporativo e descrição de atividade — só
+  preservando a atividade quando ela faz parte do nome ("Casa da Cenografia").
+  `fornecedores.apelido` preenchido é uma escolha manual e vence a geração.
 
 ## Check-list (Work Flow) do projeto
 Substitui a cobrança informal por uma lista de tarefas com prazo, dono e histórico.
@@ -149,6 +157,30 @@ Banco: `checklist_modelos`, `checklists`, `checklist_itens` (migração
 - **PDF:** `baixarPdfViaImpressao()` usa a impressão do navegador (`window.print`)
   sobre a visualização em tela. Estilos `@media print` em `src/index.css`.
 - ExcelJS é carregado **sob demanda** (code-splitting) — não pesa no load inicial.
+
+## Cabeçalho grudado
+`PageShell` (`components/layout/AppLayout.tsx`) mantém título e ações colados
+logo abaixo da TopNav enquanto a página rola — em tela longa (EC com dezenas de
+itens, check-list inteiro) era preciso voltar ao topo só para salvar. Quem tem
+fileira de ações própria passa por `acoes`; quem usa `topAction` já vem junto.
+
+A altura real do bloco é publicada em `--altura-cabecalho` (medida por
+`ResizeObserver`, porque os botões quebram para uma segunda linha em tela
+estreita). Todo elemento grudado DENTRO da página se posiciona por
+`calc(var(--altura-topnav) + var(--altura-cabecalho))` — é o caso da barra de
+seleção de itens da EC e do índice do Guia.
+
+## Listas de OS
+Cada OS consolida VÁRIAS linhas da EC do mesmo fornecedor, e saber quais era o
+que faltava nas listagens: só abrindo OS por OS. Uma coluna estreita **sem
+cabeçalho**, ao lado do número, guarda esse conteúdo atrás de um ícone — passar
+o mouse mostra, clicar prende (o caminho do toque), Esc/clique fora fecha.
+Componente em `components/ColunaItensOs.tsx`; o vínculo vem de
+`itensDaOs` (`domain/os.ts`), que casa `os.ecLinhaIds` com as linhas da EC.
+
+Escrever os nomes na própria linha não serve: uma OS com oito itens esticaria a
+linha e desalinharia a tabela. A caixinha é desenhada em portal com posição
+fixa, porque dentro da célula a tabela a cortaria na borda.
 
 ## Integrações (prontas)
 - **Consulta de CNPJ:** BrasilAPI para dados cadastrais e CNPJ.ws para Inscrição

@@ -175,7 +175,9 @@ body {
    Empilhamento: navegação (30) > barra da EC (20) > barra de seleção (10). */
 :root {
   --altura-topnav: 60px;
-  /* Valor de partida; o EcForm mede a barra e atualiza esta variável, porque
-     ela cresce quando os botões quebram para uma segunda linha. */
-  --altura-barra-ec: 60px;
+  /* Altura do cabeçalho grudado da página (título + ações). Valor de partida; o
+     PageShell mede o bloco e atualiza a variável, porque ela cresce quando os
+     botões quebram para uma segunda linha. Quem gruda DENTRO da página se
+     posiciona abaixo de topnav + cabeçalho. */
+  --altura-cabecalho: 96px;
 }

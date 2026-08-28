@@ -38,6 +38,8 @@ import { statusProjetoAutomatico } from "@/domain/statusProjeto";
 import type { Cliente, Ec, EcLinha, Projeto, ProjetoInfo, StatusProjeto } from "@/data/types";
 import { rotaDaPendencia, type Pendencia } from "@/domain/pendencias";
 import { situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
+import { itensDaOs } from "@/domain/os";
+import { ThItensOs, TdItensOs } from "@/components/ColunaItensOs";
 
 const tomStatusProjeto: Record<StatusProjeto, Tom> = {
   Ativo: "success", Arquivado: "neutral", Concluido: "info", Cancelado: "danger",
@@ -160,6 +162,16 @@ export function ProjetoDetail() {
   );
   const ecIds = useMemo(() => new Set(ecsDoProjeto.map((e) => e.id)), [ecsDoProjeto]);
   const ossDoProjeto = useMemo(() => (ossAll ?? []).filter((o) => ecIds.has(o.ecId)), [ossAll, ecIds]);
+  /**
+   * Itens da EC que cada OS consolida — o conteúdo da caixinha do "olhinho" na
+   * lista de OSs. Calculado uma vez para todas, e não por linha: a busca é na
+   * lista inteira de ECs.
+   */
+  const itensPorOs = useMemo(() => {
+    const mapa: Record<string, ReturnType<typeof itensDaOs>> = {};
+    for (const o of ossDoProjeto) mapa[o.id] = itensDaOs(o, ecsAll ?? []);
+    return mapa;
+  }, [ossDoProjeto, ecsAll]);
   const statusExibido = useMemo(() => statusProjetoAutomatico(p, ecsDoProjeto), [p, ecsDoProjeto]);
   /**
    * Projetos de origem da importação, derivados das ECs existentes.
@@ -642,28 +654,31 @@ export function ProjetoDetail() {
     <PageShell
       title={novo ? "Novo projeto" : p.nome || "Projeto"}
       titleAdornment={!novo ? <Badge tom={tomStatusProjeto[statusExibido]}>{statusExibido}</Badge> : undefined}
+      // Grudam junto com o título (ver PageShell): o projeto é uma tela longa, e
+      // era preciso voltar ao topo só para salvar.
+      acoes={
+        <>
+          <button onClick={() => navigate("/projetos")} className="inline-flex items-center gap-1.5 text-sm text-ink-2 hover:text-ink font-semibold">
+            <IcBack width={16} height={16} /> Voltar
+          </button>
+          {(aba === "dados" || novo) && podeEditarProjeto && (
+            <div className="flex gap-2">
+              {!novo && statusExibido !== "Arquivado" && (
+                <Button variant="secondary" size="sm" onClick={arquivarProjeto}>Arquivar projeto</Button>
+              )}
+              <Button
+                size="sm"
+                onClick={salvar}
+                disabled={salvando || !alterado}
+                title={alterado ? "Salvar as alterações do projeto" : "Nenhuma alteração para salvar"}
+              >
+                {salvando ? "Salvando…" : "Salvar projeto"}
+              </Button>
+            </div>
+          )}
+        </>
+      }
     >
-      <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
-        <button onClick={() => navigate("/projetos")} className="inline-flex items-center gap-1.5 text-sm text-ink-2 hover:text-ink font-semibold">
-          <IcBack width={16} height={16} /> Voltar
-        </button>
-        {(aba === "dados" || novo) && podeEditarProjeto && (
-          <div className="flex gap-2">
-            {!novo && statusExibido !== "Arquivado" && (
-              <Button variant="secondary" size="sm" onClick={arquivarProjeto}>Arquivar projeto</Button>
-            )}
-            <Button
-              size="sm"
-              onClick={salvar}
-              disabled={salvando || !alterado}
-              title={alterado ? "Salvar as alterações do projeto" : "Nenhuma alteração para salvar"}
-            >
-              {salvando ? "Salvando…" : "Salvar projeto"}
-            </Button>
-          </div>
-        )}
-      </div>
-
       {/* Subguias */}
       <div className="flex gap-1 border-b border-border mb-5 overflow-x-auto">
         {ABAS.map((a) => {
@@ -775,7 +790,7 @@ export function ProjetoDetail() {
                     </Button>
                   </div>
                 </Field>
-                <Field label="Representante" hint="(telefone e e-mail vêm junto)">
+                <Field label="Representante">
                   <Input
                     formato="titulo"
                     sugestoes={sugestoes.valores.representante}
@@ -801,7 +816,7 @@ export function ProjetoDetail() {
                   <option value="Corporativo">Corporativo</option>
                 </Select>
               </Field>
-              <Field label="Local" hint="(o endereço vem junto quando o local já foi usado)">
+              <Field label="Local">
                 <Input
                   formato="titulo"
                   erro={chavesComErro.has("local")}
@@ -812,7 +827,7 @@ export function ProjetoDetail() {
               </Field>
               <Field label="Endereço do local"><Input formato="titulo" sugestoes={sugestoes.valores.enderecoLocal} value={p.info.enderecoLocal} onChange={(e) => updInfo({ enderecoLocal: e.target.value })} /></Field>
               <Field label="Nº de participantes"><Input type="number" value={p.info.participantes ?? ""} onChange={(e) => updInfo({ participantes: e.target.value ? Number(e.target.value) : null })} /></Field>
-              <Field label="Produtor Responsável" hint="(telefone e e-mail vêm junto)">
+              <Field label="Produtor Responsável">
                 <Select
                   value={p.info.produtoraResponsavel}
                   onChange={(e) => escolherProdutora(e.target.value)}
@@ -821,19 +836,7 @@ export function ProjetoDetail() {
                   {produtoresResponsaveis.map((u) => (
                     <option key={u.id} value={u.nome}>{u.nome}</option>
                   ))}
-                  {/* Preserva um valor legado que não corresponda a nenhum usuário atual (dado antigo/renomeado). */}
-                  {p.info.produtoraResponsavel && !produtoresResponsaveis.some((u) => u.nome === p.info.produtoraResponsavel) && (
-                    <option value={p.info.produtoraResponsavel}>{p.info.produtoraResponsavel} (não cadastrado)</option>
-                  )}
                 </Select>
-                {/* As pendências do projeto são roteadas pelo nome cadastrado — um nome
-                    solto (dado antigo) gera pendência que não chega a ninguém. */}
-                {p.info.produtoraResponsavel && !produtoresResponsaveis.some((u) => u.nome === p.info.produtoraResponsavel) && (
-                  <p className="text-[12px] text-warning mt-1.5">
-                    "{p.info.produtoraResponsavel}" não é um usuário do sistema — as pendências deste projeto ficam sem dono.
-                    Escolha alguém da lista ou cadastre essa pessoa em Configurações → Usuários.
-                  </p>
-                )}
               </Field>
               <Field label="Telefone do(a) Produtor(a) Responsável"><TelefoneInput value={p.info.telefoneProdutora} onChange={(v) => updInfo({ telefoneProdutora: v })} /></Field>
               <Field label="E-mail do(a) Produtor(a) Responsável"><Input type="email" sugestoes={sugestoes.valores.emailProdutora} value={p.info.emailProdutora} onChange={(e) => updInfo({ emailProdutora: e.target.value })} /></Field>
@@ -1077,6 +1080,8 @@ export function ProjetoDetail() {
               <THead>
                 <ThPendencias col="pendencias" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor} />
                 <ThOrd col="numero" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor}>OS</ThOrd>
+                {/* Sem rótulo: é o atalho para ver os itens, não uma coluna de dado. */}
+                <ThItensOs />
                 <ThOrd col="fornecedor" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor}>Fornecedor</ThOrd>
                 <ThOrd col="status" align="center" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor}>Status</ThOrd>
               </THead>
@@ -1085,6 +1090,7 @@ export function ProjetoDetail() {
                   <Tr key={o.id} onClick={() => navigate(`/ordens/${o.id}`)}>
                     <TdPendencias n={porOs[o.id] ?? 0} title="Esta OS tem ação pendente" />
                     <Td className="font-bold">{o.numero}</Td>
+                    <TdItensOs itens={itensPorOs[o.id] ?? []} />
                     <Td>{o.fornecedor.razaoSocial || "—"}</Td>
                     <Td align="center"><Badge tom={tomStatusOs[o.status]}>{o.status}</Badge></Td>
                   </Tr>

@@ -155,6 +155,7 @@ function mapFornecedor(r: any): Fornecedor {
   return {
     id: r.id,
     razaoSocial: r.razao_social ?? "",
+    apelido: r.apelido ?? undefined,
     nomeFantasia: r.nome_fantasia ?? undefined,
     cnpj: r.cnpj ?? "",
     perfilTributario: r.perfil_tributario ?? "",
@@ -173,6 +174,7 @@ function mapFornecedor(r: any): Fornecedor {
 function fornecedorRow(f: Fornecedor) {
   return {
     razao_social: f.razaoSocial,
+    apelido: (f.apelido ?? "").trim() || null,
     nome_fantasia: f.nomeFantasia ?? null,
     cnpj: f.cnpj,
     perfil_tributario: f.perfilTributario,
