@@ -412,12 +412,17 @@ export function EcDetail() {
   const statusBadge = <Badge tom={TOM_SITUACAO_EC[situacao]}>{ROTULO_SITUACAO_EC[situacao]}</Badge>;
 
   return (
-    <PageShell title={tituloEc(ec)} titleAdornment={statusBadge}>
-      <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
-        <button onClick={() => navigate(voltarUrl)} className="inline-flex items-center gap-1.5 text-sm text-ink-2 hover:text-ink font-semibold">
-          <IcBack width={16} height={16} /> Voltar ao projeto
-        </button>
-        <div className="flex gap-2 flex-wrap">
+    <PageShell
+      title={tituloEc(ec)}
+      titleAdornment={statusBadge}
+      // Grudam junto com o título (ver PageShell): a EC é longa, e as ações
+      // sumiam de vista assim que se rolava a lista de itens.
+      acoes={
+        <>
+          <button onClick={() => navigate(voltarUrl)} className="inline-flex items-center gap-1.5 text-sm text-ink-2 hover:text-ink font-semibold">
+            <IcBack width={16} height={16} /> Voltar ao projeto
+          </button>
+          <div className="flex gap-2 flex-wrap">
           {podeEditar && ec.status !== "Cancelada" && (
             <Button variant="danger" size="sm"
               onClick={async () => {
@@ -474,14 +479,15 @@ export function EcDetail() {
               Tornar EC ativa
             </Button>
           )}
-          {podeEditar && ecEditavel(ec) && (
-            <Button size="sm" onClick={() => navigate(`/estimativas/${ec.id}/editar`)}>
-              Editar EC
-            </Button>
-          )}
-        </div>
-      </div>
-
+            {podeEditar && ecEditavel(ec) && (
+              <Button size="sm" onClick={() => navigate(`/estimativas/${ec.id}/editar`)}>
+                Editar EC
+              </Button>
+            )}
+          </div>
+        </>
+      }
+    >
       {verFinanceiro && (
         <EcSubGuias atual={subaba} onChange={setSubaba} temResumo temRentabilidade />
       )}

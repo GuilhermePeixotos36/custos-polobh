@@ -115,6 +115,7 @@ const MODULOS: Modulo[] = [
             <span>Abra o endereço do sistema e digite seu <b>e-mail</b> e <b>senha</b>.</span>
             <span>Clique em <b>Entrar no painel</b>. Você cai direto na tela de <b>Projetos</b>.</span>
             <span>Para sair, use o botão <b>Sair</b> no canto superior direito.</span>
+            <span>O <b>cabeçalho da página</b> — título e botões de ação — fica <b>grudado no topo</b> enquanto você rola: em tela longa, Salvar, Excel e Voltar continuam à mão sem precisar subir de volta.</span>
           </Passos>
         </Secao>
         <Secao titulo="O menu lateral">
@@ -612,7 +613,8 @@ export function Guia() {
 
       <div className="grid lg:grid-cols-[280px_1fr] gap-5 items-start">
         {/* TOC / lista de módulos */}
-        <nav className="lg:sticky lg:top-[86px] space-y-1.5">
+        {/* Abaixo da navegação + do cabeçalho grudado da página (ver PageShell). */}
+        <nav className="lg:sticky lg:top-[calc(var(--altura-topnav)+var(--altura-cabecalho)+16px)] space-y-1.5">
           <div className="px-1 mb-1 text-[10px] font-extrabold uppercase tracking-[0.14em] text-ink-3">
             {busca ? `${filtrados.length} resultado(s)` : "Módulos"}
           </div>

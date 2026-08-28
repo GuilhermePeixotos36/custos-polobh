@@ -654,28 +654,31 @@ export function ProjetoDetail() {
     <PageShell
       title={novo ? "Novo projeto" : p.nome || "Projeto"}
       titleAdornment={!novo ? <Badge tom={tomStatusProjeto[statusExibido]}>{statusExibido}</Badge> : undefined}
+      // Grudam junto com o título (ver PageShell): o projeto é uma tela longa, e
+      // era preciso voltar ao topo só para salvar.
+      acoes={
+        <>
+          <button onClick={() => navigate("/projetos")} className="inline-flex items-center gap-1.5 text-sm text-ink-2 hover:text-ink font-semibold">
+            <IcBack width={16} height={16} /> Voltar
+          </button>
+          {(aba === "dados" || novo) && podeEditarProjeto && (
+            <div className="flex gap-2">
+              {!novo && statusExibido !== "Arquivado" && (
+                <Button variant="secondary" size="sm" onClick={arquivarProjeto}>Arquivar projeto</Button>
+              )}
+              <Button
+                size="sm"
+                onClick={salvar}
+                disabled={salvando || !alterado}
+                title={alterado ? "Salvar as alterações do projeto" : "Nenhuma alteração para salvar"}
+              >
+                {salvando ? "Salvando…" : "Salvar projeto"}
+              </Button>
+            </div>
+          )}
+        </>
+      }
     >
-      <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
-        <button onClick={() => navigate("/projetos")} className="inline-flex items-center gap-1.5 text-sm text-ink-2 hover:text-ink font-semibold">
-          <IcBack width={16} height={16} /> Voltar
-        </button>
-        {(aba === "dados" || novo) && podeEditarProjeto && (
-          <div className="flex gap-2">
-            {!novo && statusExibido !== "Arquivado" && (
-              <Button variant="secondary" size="sm" onClick={arquivarProjeto}>Arquivar projeto</Button>
-            )}
-            <Button
-              size="sm"
-              onClick={salvar}
-              disabled={salvando || !alterado}
-              title={alterado ? "Salvar as alterações do projeto" : "Nenhuma alteração para salvar"}
-            >
-              {salvando ? "Salvando…" : "Salvar projeto"}
-            </Button>
-          </div>
-        )}
-      </div>
-
       {/* Subguias */}
       <div className="flex gap-1 border-b border-border mb-5 overflow-x-auto">
         {ABAS.map((a) => {
@@ -787,7 +790,7 @@ export function ProjetoDetail() {
                     </Button>
                   </div>
                 </Field>
-                <Field label="Representante" hint="(telefone e e-mail vêm junto)">
+                <Field label="Representante">
                   <Input
                     formato="titulo"
                     sugestoes={sugestoes.valores.representante}
@@ -813,7 +816,7 @@ export function ProjetoDetail() {
                   <option value="Corporativo">Corporativo</option>
                 </Select>
               </Field>
-              <Field label="Local" hint="(o endereço vem junto quando o local já foi usado)">
+              <Field label="Local">
                 <Input
                   formato="titulo"
                   erro={chavesComErro.has("local")}
@@ -824,7 +827,7 @@ export function ProjetoDetail() {
               </Field>
               <Field label="Endereço do local"><Input formato="titulo" sugestoes={sugestoes.valores.enderecoLocal} value={p.info.enderecoLocal} onChange={(e) => updInfo({ enderecoLocal: e.target.value })} /></Field>
               <Field label="Nº de participantes"><Input type="number" value={p.info.participantes ?? ""} onChange={(e) => updInfo({ participantes: e.target.value ? Number(e.target.value) : null })} /></Field>
-              <Field label="Produtor Responsável" hint="(telefone e e-mail vêm junto)">
+              <Field label="Produtor Responsável">
                 <Select
                   value={p.info.produtoraResponsavel}
                   onChange={(e) => escolherProdutora(e.target.value)}

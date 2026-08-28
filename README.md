@@ -158,6 +158,18 @@ Banco: `checklist_modelos`, `checklists`, `checklist_itens` (migração
   sobre a visualização em tela. Estilos `@media print` em `src/index.css`.
 - ExcelJS é carregado **sob demanda** (code-splitting) — não pesa no load inicial.
 
+## Cabeçalho grudado
+`PageShell` (`components/layout/AppLayout.tsx`) mantém título e ações colados
+logo abaixo da TopNav enquanto a página rola — em tela longa (EC com dezenas de
+itens, check-list inteiro) era preciso voltar ao topo só para salvar. Quem tem
+fileira de ações própria passa por `acoes`; quem usa `topAction` já vem junto.
+
+A altura real do bloco é publicada em `--altura-cabecalho` (medida por
+`ResizeObserver`, porque os botões quebram para uma segunda linha em tela
+estreita). Todo elemento grudado DENTRO da página se posiciona por
+`calc(var(--altura-topnav) + var(--altura-cabecalho))` — é o caso da barra de
+seleção de itens da EC e do índice do Guia.
+
 ## Listas de OS
 Cada OS consolida VÁRIAS linhas da EC do mesmo fornecedor, e saber quais era o
 que faltava nas listagens: só abrindo OS por OS. Uma coluna estreita **sem
