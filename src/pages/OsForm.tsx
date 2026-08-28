@@ -30,6 +30,7 @@ import {
   valorItemNaEc,
 } from "@/domain/calc";
 import { ETAPAS_CRONOGRAMA } from "@/domain/projeto";
+import { opcoesPerfilTributario } from "@/domain/fornecedor";
 import { useEmpresas } from "@/store/empresas";
 import { gerarOsExcel } from "@/lib/excel";
 import { consultarCnpj } from "@/lib/cnpj";
@@ -44,7 +45,9 @@ import { usePendencias, useMinhasPendencias } from "@/store/pendencias";
 import { useSugestoes } from "@/hooks/useSugestoes";
 import { urlCredenciamento } from "@/lib/links";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
+import { InscricaoMunicipalInput } from "@/components/InscricaoMunicipalInput";
 import { idAncoraPendencia } from "@/lib/destaque";
+import { pendenciasDaTela } from "@/domain/pendencias";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import type {
   DocumentoFiscal,
@@ -317,6 +320,15 @@ export function OsForm() {
   // na EC — então sugerimos pelo conteúdo dos itens, sem preencher sozinho.
   const modalidadeSugerida = sugerirModalidade(linhasConsolidadas, os.fornecedor);
 
+  /**
+   * O descritivo que a EC produziria AGORA. O campo é editável e nasce
+   * preenchido, então não dá para sobrescrevê-lo sozinho — mas a EC continua
+   * sendo mexida depois que a OS nasce (a Descrição Completa costuma ser escrita
+   * justamente aí), e sem isso a OS ficava com o texto do dia em que foi criada.
+   * Quando os dois divergem, aparece o atalho para trazer o atual.
+   */
+  const descritivoDaEc = descritivoConsolidado(linhasConsolidadas);
+
   // Cronograma do projeto (vindo da EC) — só etapas visíveis e com alguma faixa preenchida.
   const etapasProjeto = ETAPAS_CRONOGRAMA.filter(
     ({ key }) => !(ecCtx.projeto.etapasOcultas ?? []).includes(key)
@@ -559,9 +571,11 @@ export function OsForm() {
           <LinhaOs label="Incentivos Fiscais"><Auto v={ecCtx.projeto.incentivosFiscais} /></LinhaOs>
           <LinhaOs label="Data"><Auto v={dataBR(ecCtx.projeto.evento)} /></LinhaOs>
           <LinhaOs label="Horário"><Auto v={ecCtx.projeto.horario} /></LinhaOs>
+          {/* Endereço logo abaixo do Local: os dois são a mesma informação, e com
+              o Nº de Participantes no meio a leitura quebrava. */}
           <LinhaOs label="Local"><Auto v={ecCtx.projeto.local} /></LinhaOs>
-          <LinhaOs label="Nº Participantes"><Auto v={ecCtx.projeto.participantes ?? ""} /></LinhaOs>
           <LinhaOs label="Endereço do Local"><Auto v={ecCtx.projeto.enderecoLocal} /></LinhaOs>
+          <LinhaOs label="Nº Participantes"><Auto v={ecCtx.projeto.participantes ?? ""} /></LinhaOs>
           <LinhaOs label="Produtora Responsável"><Auto v={ecCtx.projeto.produtoraResponsavel} /></LinhaOs>
           <LinhaOs label="Telefone"><Auto v={ecCtx.projeto.telefoneProdutora} /></LinhaOs>
           <LinhaOs label="E-mail"><Auto v={ecCtx.projeto.emailProdutora} /></LinhaOs>
@@ -602,11 +616,23 @@ export function OsForm() {
           {cnpjMsg && <div className="m-3 text-[12.5px] text-info bg-info-soft rounded-btn px-3 py-2">{cnpjMsg}</div>}
           <LinhaOs label="Fornecedor" hint="(nome fantasia)"><Input formato="titulo" value={os.fornecedor.nomeFantasia ?? ""} onChange={(e) => updF({ nomeFantasia: e.target.value })} /></LinhaOs>
           <LinhaOs label="CNPJ/CPF"><Input value={os.fornecedor.cnpj} onChange={(e) => updF({ cnpj: maskCpfCnpjInput(e.target.value) })} inputMode="numeric" placeholder="00.000.000/0000-00" /></LinhaOs>
-          <LinhaOs label="Perfil" hint="(MEI / Simples / etc.)"><Input value={os.fornecedor.perfilTributario} onChange={(e) => updF({ perfilTributario: e.target.value })} placeholder="MEI / Simples…" /></LinhaOs>
+          <LinhaOs label="Perfil" hint="(regime tributário)">
+            <Select value={os.fornecedor.perfilTributario} onChange={(e) => updF({ perfilTributario: e.target.value })}>
+              <option value="">Selecione…</option>
+              {opcoesPerfilTributario(os.fornecedor.perfilTributario).map((perfil) => (
+                <option key={perfil}>{perfil}</option>
+              ))}
+            </Select>
+          </LinhaOs>
           <LinhaOs label="Razão Social"><Input formato="titulo-empresa" value={os.fornecedor.razaoSocial} onChange={(e) => updF({ razaoSocial: e.target.value })} /></LinhaOs>
           <LinhaOs label="Endereço"><Input formato="titulo" value={os.fornecedor.endereco} onChange={(e) => updF({ endereco: e.target.value })} /></LinhaOs>
           <LinhaOs label="Inscrição Estadual"><Input value={os.fornecedor.inscricaoEstadual} onChange={(e) => updF({ inscricaoEstadual: e.target.value })} /></LinhaOs>
-          <LinhaOs label="Inscrição Municipal"><Input value={os.fornecedor.inscricaoMunicipal} onChange={(e) => updF({ inscricaoMunicipal: e.target.value })} /></LinhaOs>
+          <LinhaOs label="Inscrição Municipal">
+            <InscricaoMunicipalInput
+              value={os.fornecedor.inscricaoMunicipal}
+              onChange={(inscricaoMunicipal) => updF({ inscricaoMunicipal })}
+            />
+          </LinhaOs>
           <LinhaOs label="Conta PJ / PF">
             <Select value={os.fornecedor.dadosBancarios.tipoConta} onChange={(e) => updB({ tipoConta: e.target.value as Fornecedor["dadosBancarios"]["tipoConta"] })}>
               <option value="">Selecione…</option>
@@ -651,7 +677,17 @@ export function OsForm() {
             )}
           </LinhaOs>
           <LinhaOs label="Descritivo" hint="(auto da EC)">
-            <Textarea className="min-h-[90px]" value={os.descritivo} onChange={(e) => setOs((o) => (o ? { ...o, descritivo: e.target.value } : o))} />
+            <Textarea className="min-h-[140px]" value={os.descritivo} onChange={(e) => setOs((o) => (o ? { ...o, descritivo: e.target.value } : o))} />
+            {descritivoDaEc && descritivoDaEc !== os.descritivo && (
+              <button
+                type="button"
+                onClick={() => setOs((o) => (o ? { ...o, descritivo: descritivoDaEc } : o))}
+                className="mt-1.5 inline-flex items-center gap-1.5 text-[12px] font-bold text-primary-dark hover:underline"
+                title="Substitui o texto acima pelo descritivo atual dos itens da EC (financeiro + detalhado)"
+              >
+                <IcSpark width={13} height={13} /> A EC mudou desde que esta OS nasceu — trazer o descritivo atual
+              </button>
+            )}
             {flags.descritivoIA && (
               <button onClick={descricaoIA} className="mt-2 inline-flex items-center gap-1.5 text-[12.5px] font-bold text-primary-dark hover:underline">
                 <IcSpark width={14} height={14} /> Gerar com IA
@@ -1041,8 +1077,9 @@ export function OsForm() {
         )}
       </div>
 
-      {/* Mesma pílula da EC: o número aqui é o do badge desta OS. */}
-      <NavegadorPendencias pendencias={pendenciasDoUsuario.filter((p) => p.osId === os.id)} />
+      {/* Mesma pílula da EC: as pendências desta OS que têm onde ser achadas.
+          O cronograma vazio é cobrado no sininho — ele não mora num item. */}
+      <NavegadorPendencias pendencias={pendenciasDaTela(pendenciasDoUsuario, { osId: os.id })} />
     </PageShell>
   );
 

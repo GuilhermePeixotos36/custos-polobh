@@ -7,6 +7,7 @@ import ExcelJS from "exceljs";
 import type { Ec } from "@/data/types";
 import { calcularTotais, rotuloTaxa, tituloEc } from "@/domain/calc";
 import { brl, dataBR } from "@/lib/format";
+import { htmlParaLinhas } from "@/lib/htmlTexto";
 import {
   COR, fill, gradeAuto, baixar, salvarComPicker, carregarLogo, encaixarLogo,
   REALCE, regraRealce, regraValorPreenchido,
@@ -99,25 +100,6 @@ const LARGURA_MAX: Record<string, number> = {
 const TITULO_DOCUMENTO = "Estimativa de Custos | Proposta Comercial";
 
 export type ModeloEcExcel = "financeiro" | "completa";
-
-/** Converte o HTML do rich-text (Descrição Completa) numa lista de linhas de texto. */
-function htmlParaLinhas(html: string): string[] {
-  if (!html) return [];
-  const txt = html
-    .replace(/<\/li>/gi, "\n")
-    .replace(/<\/(p|div|h[1-6])>/gi, "\n\n")
-    .replace(/<li[^>]*>/gi, "• ")
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">");
-  const linhas = txt.split(/\n/).map((l) => l.trim());
-  while (linhas[0] === "") linhas.shift();
-  while (linhas.at(-1) === "") linhas.pop();
-  return linhas;
-}
 
 export async function criarEcExcelBuffer(
   ec: Ec,

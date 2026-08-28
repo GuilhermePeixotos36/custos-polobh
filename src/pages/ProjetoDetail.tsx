@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { PageShell } from "@/components/layout/AppLayout";
+import { SubGuias } from "@/components/layout/SubGuias";
 import {
   Card, CardTitle, Button, Field, Input, Label, TelefoneInput, Textarea, Select, Badge,
   Table, THead, Tr, Td, EmptyState, ThOrd, useOrdenacao, tomStatusOs, type Tom,
 } from "@/components/ui";
 import { IcPlus, IcBack, IcDownload, IcSearch, IcTrash, IcEye, IcEyeOff, IcDoc, IcCopy, IcCalendar } from "@/components/icons";
 import { RichTextField } from "@/components/RichTextField";
+import { InscricaoMunicipalInput } from "@/components/InscricaoMunicipalInput";
 import { TimelineConsolidada, type ItemConsolidado } from "@/components/Timeline";
-import { NotifDot } from "@/components/NotifDot";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
 import { ThPendencias, TdPendencias } from "@/components/ColunaPendencias";
 import { MoverSetas, moverNaLista } from "@/components/MoverSetas";
@@ -36,7 +37,7 @@ import { confirmar } from "@/store/confirm";
 import { corrigirRoteirosProjeto } from "@/lib/correcaoOrtografica";
 import { statusProjetoAutomatico } from "@/domain/statusProjeto";
 import type { Cliente, Ec, EcLinha, Projeto, ProjetoInfo, StatusProjeto } from "@/data/types";
-import { rotaDaPendencia, type Pendencia } from "@/domain/pendencias";
+import { pendenciasDaTela, type Pendencia } from "@/domain/pendencias";
 import { situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
 import { itensDaOs } from "@/domain/os";
 import { ThItensOs, TdItensOs } from "@/components/ColunaItensOs";
@@ -504,26 +505,14 @@ export function ProjetoDetail() {
   }
 
   /**
-   * Pendências da ABA aberta — exatamente o número do badge vermelho dela. O
-   * navegador flutuante e o badge saem da mesma lista, então tudo o que é
-   * contado pode ser encontrado.
+   * O que esta aba resolve sozinha — o que a pílula flutuante alcança sem sair
+   * daqui, e o que vira badge nas tarefas do check-list. Pendência de uma EC ou
+   * de uma OS não entra: ela mora na tela dela, e é de lá que se responde.
    */
-  const pendenciasDaAba = useMemo(
-    () => minhasPendencias.filter((x) => x.projetoId === id && x.aba === aba),
+  const pendenciasDaTelaAtual = useMemo(
+    () => pendenciasDaTela(minhasPendencias, { projetoId: id, aba }),
     [minhasPendencias, id, aba]
   );
-
-  /**
-   * A pendência de uma EC ou de uma OS mora na tela dela, não aqui: o salto vira
-   * navegação — para o mesmo lugar que o sininho do topo abre (`rotaDaPendencia`).
-   * O alvo já ficou guardado em `focoPendencia`, e a tela de destino abre a
-   * observação certa assim que carregar. O que já mora nesta tela (check-list,
-   * cronograma) não navega: só rola até o item.
-   */
-  const saltarParaPendencia = (pendencia: Pendencia) => {
-    const rota = rotaDaPendencia(pendencia);
-    if (!rota.startsWith(`/projetos/${id}`)) navigate(rota);
-  };
 
   const camposObrigatoriosFaltando = () => camposObrigatoriosProjeto(p.info, p.cliente);
 
@@ -678,29 +667,23 @@ export function ProjetoDetail() {
           )}
         </>
       }
+      // Grudam com o cabeçalho: em projeto longo (check-list inteiro, lista de
+      // itens), trocar de aba não pode obrigar a voltar ao topo.
+      subabas={
+        <SubGuias
+          rotulo="Seções do projeto"
+          atual={aba}
+          onChange={setAba}
+          abas={ABAS.map((a) => ({
+            ...a,
+            // Projeto ainda não salvo: só Dados Gerais faz sentido — as demais
+            // dependem de um id que ainda não existe.
+            desabilitada: novo && a.key !== "dados",
+            pendencias: porAba[`${id}:${a.key}`] ?? 0,
+          }))}
+        />
+      }
     >
-      {/* Subguias */}
-      <div className="flex gap-1 border-b border-border mb-5 overflow-x-auto">
-        {ABAS.map((a) => {
-          const bloqueada = novo && a.key !== "dados";
-          return (
-            <button
-              key={a.key}
-              disabled={bloqueada}
-              onClick={() => setAba(a.key)}
-              className={cx(
-                "px-4 h-10 text-[13.5px] font-bold whitespace-nowrap border-b-2 -mb-px transition-colors inline-flex items-center gap-1.5",
-                bloqueada ? "text-ink-3/40 cursor-not-allowed border-transparent"
-                  : aba === a.key ? "text-primary-dark border-primary" : "text-ink-2 hover:text-ink border-transparent"
-              )}
-            >
-              {a.label}
-              <NotifDot inline n={novo ? 0 : porAba[`${id}:${a.key}`] ?? 0} title="Ações pendentes nesta etapa" />
-            </button>
-          );
-        })}
-      </div>
-
       {aba === "dados" && (
         <div className="space-y-4">
           <Card>
@@ -774,21 +757,10 @@ export function ProjetoDetail() {
                 <Field label="Endereço" className="sm:col-span-2"><Input formato="titulo" value={p.cliente.endereco} onChange={(e) => updCli({ endereco: e.target.value })} /></Field>
                 <Field label="Inscrição Estadual"><Input value={p.cliente.inscricaoEstadual} onChange={(e) => updCli({ inscricaoEstadual: e.target.value })} /></Field>
                 <Field label="Inscrição Municipal">
-                  <div className="flex gap-2">
-                    <Input value={p.cliente.inscricaoMunicipal} onChange={(e) => updCli({ inscricaoMunicipal: e.target.value })} />
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      className="shrink-0"
-                      title="Consultar Inscrição Municipal no portal da Prefeitura de Belo Horizonte"
-                      aria-label="Consultar Inscrição Municipal na Prefeitura de Belo Horizonte"
-                      icon={<IcSearch width={15} height={15} />}
-                      onClick={() => window.open("https://mobiliarioonline.pbh.gov.br/mobiliario-cadastro-publico/f/t/emiteficwebsel", "_blank", "noopener,noreferrer")}
-                    >
-                      Consultar na PBH
-                    </Button>
-                  </div>
+                  <InscricaoMunicipalInput
+                    value={p.cliente.inscricaoMunicipal}
+                    onChange={(inscricaoMunicipal) => updCli({ inscricaoMunicipal })}
+                  />
                 </Field>
                 <Field label="Representante">
                   <Input
@@ -1107,7 +1079,7 @@ export function ProjetoDetail() {
           projeto={p}
           podeEditar={podeEditarChecklist}
           usuarios={nomesUsuarios}
-          pendencias={pendenciasDaAba}
+          pendencias={pendenciasDaTelaAtual}
         />
       )}
 
@@ -1127,8 +1099,8 @@ export function ProjetoDetail() {
         </Card>
       )}
 
-      {/* Pílula flutuante: as pendências da aba aberta, uma a uma. */}
-      {!novo && <NavegadorPendencias pendencias={pendenciasDaAba} aoSaltar={saltarParaPendencia} />}
+      {/* Pílula flutuante: o que se resolve NESTA aba, uma de cada vez. */}
+      {!novo && <NavegadorPendencias pendencias={pendenciasDaTelaAtual} />}
 
       {aba === "fornecedores" && (
         <Card padded={false}>

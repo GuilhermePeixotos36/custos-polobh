@@ -26,8 +26,7 @@ const ETIQUETA: Record<string, string> = {
   "checklist.observacao": "Comentário",
   "checklist.atrasado": "Atrasada",
   "checklist.vencendo": "Para hoje",
-  "ec.os": "OS",
-  "ec.contrato": "Contrato",
+  "ec.emitir": "A emitir",
   "os.emitir": "Emitir OS",
   "os.cronograma": "Cronograma",
   "os.credenciamento": "Credenciamento",
@@ -82,7 +81,7 @@ export function SinoPendencias() {
    */
   const irPara = (p: Pendencia) => {
     setAberto(false);
-    if (p.ancora) focarPendencia({ ancora: p.ancora, observacaoId: p.observacaoId, campo: p.campo });
+    if (p.ancora) focarPendencia({ ancora: p.ancora, observacaoId: p.observacaoId, campos: p.campos });
     const rota = rotaDaPendencia(p);
     if (rota !== `${local.pathname}${local.search}`) navigate(rota);
   };

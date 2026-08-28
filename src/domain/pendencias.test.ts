@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { agregarPendencias, calcularPendencias, rotaDaPendencia, type Pendencia } from "./pendencias";
+import { agregarPendencias, calcularPendencias, pendenciasDaTela, rotaDaPendencia, type Pendencia } from "./pendencias";
 import { projetoInfoVazio } from "./projeto";
 import { honorariosPadrao, encargosPadrao, producaoZerada } from "./calc";
-import type { Checklist, Cliente, Ec, EcLinha, ItemChecklist, Observacao, Projeto } from "@/data/types";
+import type { Checklist, Cliente, Ec, EcLinha, ItemChecklist, Observacao, Os, Projeto } from "@/data/types";
 
 const HOJE = "2026-08-25";
 
@@ -146,14 +146,37 @@ describe("item de EC com OS ou Contrato a emitir", () => {
   it("cobra a emissão da OS do Produtor Responsável", () => {
     const itens = comStatus("statusOs", "Emitir");
     expect(de(itens, "Carla").total).toBe(1);
-    expect(de(itens, "Carla").itens[0].campo).toBe("os");
+    expect(de(itens, "Carla").itens[0].campos).toEqual(["os"]);
   });
 
   it("cobra também o contrato, e 'Emitir Nova Versão' conta igual", () => {
     const itens = comStatus("contratoStatus", "Emitir Nova Versão");
     const p = de(itens, "Carla").itens[0];
-    expect(p.campo).toBe("contrato");
+    expect(p.campos).toEqual(["contrato"]);
     expect(p.titulo).toContain("Emitir Nova Versão");
+  });
+
+  it("OS e Contrato do mesmo item são UMA pendência, não duas", () => {
+    const itens = calcularPendencias(
+      [projeto("Carla")],
+      [ec([{ ...linha([]), statusOs: "Emitir", contratoStatus: "Emitir" }])],
+      [], USUARIOS, [], [], HOJE
+    );
+    const meus = de(itens, "Carla");
+    expect(meus.total).toBe(1);
+    expect(meus.itens[0].campos).toEqual(["os", "contrato"]);
+    // Pedem a mesma coisa: falam juntos, em vez de repetir o status duas vezes.
+    expect(meus.itens[0].titulo).toContain("OS e Contrato — Emitir");
+  });
+
+  it("quando os dois pedem coisas diferentes, cada um traz o seu status", () => {
+    const itens = calcularPendencias(
+      [projeto("Carla")],
+      [ec([{ ...linha([]), statusOs: "Emitir", contratoStatus: "Emitir Nova Versão" }])],
+      [], USUARIOS, [], [], HOJE
+    );
+    const p = de(itens, "Carla").itens[0];
+    expect(p.titulo).toContain("OS — Emitir · Contrato — Emitir Nova Versão");
   });
 
   it("status resolvido não cobra nada", () => {
@@ -189,5 +212,58 @@ describe("agregação por tela", () => {
       [projeto("Carla")], [ec([linha([observacao({})])])], [], USUARIOS, [], [checklist([tarefa({})])], HOJE
     );
     for (const p of de(itens, "Carla").itens) expect(rotaDaPendencia(p)).not.toBe("/projetos");
+  });
+});
+
+/**
+ * O recorte da pílula do canto inferior direito. Ela anda em roda: uma pendência
+ * de outra tela quebrava a roda, porque o salto virava navegação e a tela de
+ * destino já não tinha a lista de onde se veio.
+ */
+describe("o que a pílula alcança sem sair da tela", () => {
+  const os = (o: Partial<Os>): Os =>
+    ({
+      id: "os1", ecId: "ec1", numero: "OS 01", seq: 1, status: "Rascunho",
+      fornecedorRazao: "", fornecedorCnpj: "", ecLinhaIds: [], observacoes: [], cronograma: [],
+      ...o,
+    }) as unknown as Os;
+
+  /** Uma EC com observação num item e a OS dela com observação própria. */
+  const tudo = () =>
+    calcularPendencias(
+      [projeto("Carla")],
+      [ec([linha([observacao({ responsavelNome: "Bruno" })])])],
+      [os({ observacoes: [observacao({ id: "obs-os", responsavelNome: "Bruno" })] })],
+      USUARIOS, [], [], HOJE
+    );
+
+  it("na EC, mostra as pendências do item — não as que moram na OS", () => {
+    const daEc = pendenciasDaTela(tudo(), { ecId: "ec1" });
+    expect(daEc.map((p) => p.tipo)).toEqual(["ec.observacao"]);
+  });
+
+  it("na OS, mostra as da OS — não as da EC que a originou", () => {
+    const daOs = pendenciasDaTela(tudo(), { osId: "os1" });
+    expect(daOs.every((p) => p.osId === "os1")).toBe(true);
+    expect(daOs.some((p) => p.tipo === "ec.observacao")).toBe(false);
+  });
+
+  it("no projeto, a aba EC não oferece o que se resolve dentro da EC", () => {
+    expect(pendenciasDaTela(tudo(), { projetoId: "p1", aba: "ec" })).toEqual([]);
+  });
+
+  it("no projeto, o check-list é da própria tela e continua na roda", () => {
+    const itens = calcularPendencias(
+      [projeto("Carla")], [], [], USUARIOS, [], [checklist([tarefa({})])], HOJE
+    );
+    const daAba = pendenciasDaTela(itens, { projetoId: "p1", aba: "checklist" });
+    expect(daAba.map((p) => p.ancora)).toEqual(["i1"]);
+  });
+
+  it("pendência sem âncora fica de fora: a seta não teria para onde levar", () => {
+    const semEc = calcularPendencias([projeto("Carla")], [], [], USUARIOS, [], [], HOJE);
+    // Ela existe e continua no sininho — só não entra na roda da tela.
+    expect(semEc.some((p) => p.tipo === "projeto.semEc")).toBe(true);
+    expect(pendenciasDaTela(semEc, { projetoId: "p1", aba: "ec" })).toEqual([]);
   });
 });

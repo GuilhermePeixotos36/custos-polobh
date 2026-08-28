@@ -56,7 +56,10 @@ export function AppLayout() {
  * baixo.
  *
  * Quem tem uma fileira de ações própria (Voltar, Salvar, Excel…) passa por
- * `acoes`, para ela grudar junto em vez de rolar embora.
+ * `acoes`, para ela grudar junto em vez de rolar embora. As subabas da tela
+ * (EC · Resumo dos Custos · Rentabilidade, as guias do projeto…) entram por
+ * `subabas` e grudam no mesmo bloco: trocar de subaba no meio de uma lista
+ * longa não pode exigir voltar ao topo.
  *
  * A altura real é publicada em `--altura-cabecalho`: outros elementos grudados
  * dentro da página (a barra de seleção de itens da EC, por exemplo) se
@@ -69,6 +72,7 @@ export function PageShell({
   subtitle,
   topAction,
   acoes,
+  subabas,
   children,
 }: {
   breadcrumb?: ReactNode;
@@ -78,6 +82,8 @@ export function PageShell({
   topAction?: ReactNode;
   /** Fileira de ações da página — gruda junto com o título. */
   acoes?: ReactNode;
+  /** Barra de subguias da tela (`<SubGuias />`) — gruda logo abaixo das ações. */
+  subabas?: ReactNode;
   children: ReactNode;
 }) {
   const medirCabecalho = useCallback((node: HTMLDivElement | null) => {
@@ -104,10 +110,13 @@ export function PageShell({
       <div
         ref={medirCabecalho}
         className={cx(
-          "sticky top-[var(--altura-topnav)] z-20 -mx-[40px] px-[40px] pt-3 pb-3 mb-4",
+          "sticky top-[var(--altura-topnav)] z-20 -mx-[40px] px-[40px] pt-3 mb-4",
           // Translúcido com desfoque: encosta no degradê do fundo sem virar uma
           // faixa chapada, e o conteúdo que passa por baixo continua legível.
-          "bg-bg/90 backdrop-blur-[6px] border-b border-border-soft"
+          "bg-bg/90 backdrop-blur-[6px]",
+          // Quem fecha o bloco embaixo é o fio da barra de subguias, quando ela
+          // existe: dois fios colados viravam uma faixa dupla.
+          subabas ? "pb-0" : "pb-3 border-b border-border-soft"
         )}
       >
         {breadcrumb && (
@@ -128,6 +137,11 @@ export function PageShell({
           {topAction && <div className="flex items-center gap-2.5 shrink-0">{topAction}</div>}
         </div>
         {acoes && <div className="mt-3 flex items-center justify-between gap-3 flex-wrap">{acoes}</div>}
+        {/* Sangra até as bordas para o fio virar a base do cabeçalho inteiro, e
+            rola na horizontal quando as guias não cabem na largura da tela. */}
+        {subabas && (
+          <div className="mt-3 -mx-[40px] px-[40px] border-b border-border overflow-x-auto">{subabas}</div>
+        )}
       </div>
       {children}
     </main>

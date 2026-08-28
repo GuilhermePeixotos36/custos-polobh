@@ -151,3 +151,46 @@ export function gerarApelidoFornecedor(nomeFantasia?: string, razaoSocial?: stri
   const final = cortadas.length ? cortadas : tokens.slice(0, 1);
   return ajustarCaixa(final, emCaixaAlta).join(" ").trim();
 }
+
+/* ------------------------- Perfil tributário ---------------------------- */
+
+/**
+ * Perfis tributários que um fornecedor pode ter — a lista do campo "Perfil" na
+ * OS, que antes era texto livre.
+ *
+ * Livre, o campo virava um dicionário particular: "simples", "SIMPLES NACIONAL",
+ * "Simples Nac.", "presumido" — tudo a mesma coisa, e nenhuma comparável com a
+ * outra. O perfil decide retenção e o que a nota precisa trazer, então ele
+ * precisa ser um valor conhecido, não uma frase.
+ *
+ * "Lucro Presumido/Real" não é imprecisão nossa: é o que a consulta de CNPJ
+ * consegue afirmar. As fontes públicas dizem se a empresa optou por MEI ou pelo
+ * Simples; entre Presumido e Real elas não distinguem, e o preenchimento
+ * automático cai nessa opção até alguém confirmar qual dos dois é (ver
+ * `lib/cnpj`). Por isso ela fica na lista, e não escondida como valor herdado.
+ *
+ * "Pessoa Física (RPA)" não é regime de empresa, mas é a classificação de quem
+ * emite RPA em vez de nota — comum em evento (técnico, operador, artista) e o
+ * que mais muda a conta do financeiro.
+ */
+export const PERFIS_TRIBUTARIOS = [
+  "MEI",
+  "Simples Nacional",
+  "Lucro Presumido",
+  "Lucro Real",
+  "Lucro Presumido/Real",
+  "Imune / Isenta",
+  "Pessoa Física (RPA)",
+] as const;
+
+/**
+ * Opções para o campo, com o valor JÁ GRAVADO na frente quando ele não estiver
+ * na lista. Um `<select>` cujo valor não existe entre as opções aparece vazio, e
+ * salvar a OS depois disso apagaria em silêncio o que estava lá — numa OS antiga
+ * cujo perfil foi digitado à mão, é dado perdido sem ninguém perceber.
+ */
+export function opcoesPerfilTributario(atual: string): string[] {
+  const valor = atual.trim();
+  const conhecido = PERFIS_TRIBUTARIOS.some((p) => p.toLocaleLowerCase("pt-BR") === valor.toLocaleLowerCase("pt-BR"));
+  return valor && !conhecido ? [valor, ...PERFIS_TRIBUTARIOS] : [...PERFIS_TRIBUTARIOS];
+}

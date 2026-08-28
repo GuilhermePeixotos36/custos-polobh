@@ -64,8 +64,11 @@ export interface Pendencia {
   ancora?: string;
   /** Observação exata que originou a pendência: o navegador abre a thread e pisca nela. */
   observacaoId?: string;
-  /** Campo do item que pisca quando a pendência é um status a emitir (OS/Contrato). */
-  campo?: CampoPendencia;
+  /**
+   * Campos do item que piscam quando a pendência é um status a emitir. São
+   * vários porque OS e Contrato entram numa pendência só (ver a emissão abaixo).
+   */
+  campos?: CampoPendencia[];
 }
 
 /**
@@ -80,8 +83,58 @@ export function rotaDaPendencia(p: Pendencia): string {
   return "/projetos";
 }
 
-/** Status de OS/Contrato que significam "falta emitir" (ver `Pendencia.campo`). */
+/**
+ * Qual tela está perguntando — o recorte da pílula do canto inferior direito.
+ * Espelha os três destinos de `rotaDaPendencia`.
+ */
+export type TelaPendencias =
+  | { ecId: string }
+  | { osId: string }
+  | { projetoId: string; aba: AbaProjeto };
+
+/**
+ * As pendências que a pílula pode alcançar SEM sair da tela.
+ *
+ * A pílula anda em círculo entre as pendências: quando uma delas morava em outra
+ * tela, o salto virava navegação e a viagem acabava ali — a tela de destino tem
+ * outra lista, sem as anteriores, e não havia como voltar para continuar. Então
+ * ela passa a listar só o que está ali na frente: a pendência de outra tela
+ * continua existindo no sininho, que é o lugar de atravessar o sistema.
+ *
+ * Duas condições, e as duas são necessárias:
+ *  · a pendência NASCE nesta tela (uma observação de item de EC é da EC, mesmo
+ *    quando aparece contada na aba EC do projeto);
+ *  · ela tem `ancora` — sem um elemento para procurar no DOM, a seta não teria
+ *    para onde levar a câmera.
+ */
+export function pendenciasDaTela(itens: Pendencia[], tela: TelaPendencias): Pendencia[] {
+  return itens.filter((p) => {
+    if (!p.ancora) return false;
+    if ("ecId" in tela) return p.ecId === tela.ecId && p.aba === "ec";
+    if ("osId" in tela) return p.osId === tela.osId;
+    // No projeto sobra o que é do próprio projeto: o check-list. O que pertence
+    // a uma EC ou a uma OS se resolve na tela dela.
+    return p.projetoId === tela.projetoId && p.aba === tela.aba && !p.ecId && !p.osId;
+  });
+}
+
+/** Status de OS/Contrato que significam "falta emitir" (ver `Pendencia.campos`). */
 const A_EMITIR: StatusOs[] = ["Emitir", "Emitir Nova Versão"];
+
+/**
+ * Como a emissão pendente de um item se anuncia.
+ *
+ * Quando OS e Contrato pedem a mesma coisa — o caso comum, porque os dois viram
+ * "Emitir" no mesmo gesto —, dizem isso juntos: "OS e Contrato — Emitir". Quando
+ * pedem coisas diferentes, cada um traz o seu status.
+ */
+function rotuloEmissao(faltando: { rotulo: string; status: StatusOs }[]): string {
+  const [primeiro, segundo] = faltando;
+  if (segundo && primeiro.status === segundo.status) {
+    return `${primeiro.rotulo} e ${segundo.rotulo} — ${primeiro.status}`;
+  }
+  return faltando.map((c) => `${c.rotulo} — ${c.status}`).join(" · ");
+}
 
 /** EC encerrada não cobra mais nada de ninguém. */
 const EC_ENCERRADA = ["Cancelada", "Arquivada"];
@@ -249,31 +302,35 @@ export function calcularPendencias(
         });
       });
     }
-    // Item marcado para emitir ("Emitir"/"Emitir Nova Versão"), na OS e no Contrato:
-    // uma pendência POR ITEM, e não mais uma por EC. É o que faz o número do badge
-    // bater com o que se acha na tela — cada uma leva à linha e pisca o campo exato
-    // (antes existia uma pendência solta "Emitir OS a partir da EC", sem âncora:
-    // o navegador contava e não tinha para onde rolar).
+    // Item marcado para emitir ("Emitir"/"Emitir Nova Versão"): uma pendência POR
+    // ITEM, e não uma por EC nem uma por campo. É o que faz o número do badge
+    // bater com o que se acha na tela — cada uma leva à linha e pisca os campos
+    // exatos (antes existia uma pendência solta "Emitir OS a partir da EC", sem
+    // âncora: o navegador contava e não tinha para onde rolar).
+    //
+    // OS e Contrato entram JUNTAS. Elas quase sempre viram "Emitir" no mesmo
+    // gesto, e cobrá-las em separado dobrava o número sem dizer nada a mais: na
+    // pílula do canto virava um item repetido, com a câmera parada na mesma
+    // linha. A pendência aponta quais dos dois campos faltam.
     // ECs encerradas já foram descartadas na entrada do laço.
     for (const linha of ec.linhas) {
-      for (const { campo, status, rotulo } of [
+      const faltando = [
         { campo: "os" as const, status: linha.statusOs, rotulo: "OS" },
         { campo: "contrato" as const, status: linha.contratoStatus, rotulo: "Contrato" },
-      ]) {
-        if (!A_EMITIR.includes(status)) continue;
-        out.push({
-          id: `ec.${campo}:${ec.id}:${linha.id}`,
-          tipo: `ec.${campo}`,
-          titulo: `${rotulo} — ${status}: ${linha.item || linha.grupo || "item sem nome"}`,
-          responsavelProjeto: respDe(ec.projetoId),
-          recurso: "projetos",
-          projetoId: ec.projetoId,
-          aba: "ec",
-          ecId: ec.id,
-          ancora: linha.id,
-          campo,
-        });
-      }
+      ].filter((c) => A_EMITIR.includes(c.status));
+      if (!faltando.length) continue;
+      out.push({
+        id: `ec.emitir:${ec.id}:${linha.id}`,
+        tipo: "ec.emitir",
+        titulo: `${rotuloEmissao(faltando)}: ${linha.item || linha.grupo || "item sem nome"}`,
+        responsavelProjeto: respDe(ec.projetoId),
+        recurso: "projetos",
+        projetoId: ec.projetoId,
+        aba: "ec",
+        ecId: ec.id,
+        ancora: linha.id,
+        campos: faltando.map((c) => c.campo),
+      });
     }
   }
 

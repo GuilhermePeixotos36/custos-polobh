@@ -24,7 +24,7 @@ import { analisarEmissaoOs, calcularTotais, agruparPorFornecedor, descritivoCons
 import { RentabilidadeItens } from "@/components/RentabilidadeItens";
 import { EcSubGuias, type SubGuiaEc } from "@/components/EcSubGuias";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
-import { rotaDaPendencia } from "@/domain/pendencias";
+import { pendenciasDaTela } from "@/domain/pendencias";
 import { destacarElemento, idAncoraPendencia } from "@/lib/destaque";
 import { ecEditavel, situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
 import { useMinhasPendencias } from "@/store/pendencias";
@@ -487,11 +487,10 @@ export function EcDetail() {
           </div>
         </>
       }
+      // Grudam com o cabeçalho: trocar de subaba no meio da lista de itens não
+      // pode obrigar a voltar ao topo.
+      subabas={verFinanceiro ? <EcSubGuias atual={subaba} onChange={setSubaba} temResumo temRentabilidade /> : undefined}
     >
-      {verFinanceiro && (
-        <EcSubGuias atual={subaba} onChange={setSubaba} temResumo temRentabilidade />
-      )}
-
       {verFinanceiro && subaba === "resumo" && (
         <div className="space-y-4">{totaisCard}</div>
       )}
@@ -501,17 +500,10 @@ export function EcDetail() {
 
       {subaba === "ec" && (
         <div className="space-y-4">
-          {/* Pílula flutuante que salta entre as pendências desta EC — mesmo
-              número do badge vermelho dela. */}
-          <NavegadorPendencias
-            pendencias={minhasPendencias.filter((p) => p.ecId === ec.id)}
-            aoSaltar={(p) => {
-              // Parte do que a EC contabiliza mora na OS (observação, cronograma):
-              // o salto vira navegação, e a tela de destino abre no item certo.
-              const rota = rotaDaPendencia(p);
-              if (!rota.startsWith(`/estimativas/${ec.id}`)) navigate(rota);
-            }}
-          />
+          {/* Pílula flutuante que salta entre as pendências DESTA EC. O que a EC
+              contabiliza mas mora na OS (observação, cronograma) fica de fora:
+              lá é outra tela, e o salto não teria volta. */}
+          <NavegadorPendencias pendencias={pendenciasDaTela(minhasPendencias, { ecId: ec.id })} />
           {estimativaCard}
           {ossCard}
 

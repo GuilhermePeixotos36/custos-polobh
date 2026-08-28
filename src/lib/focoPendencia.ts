@@ -18,8 +18,8 @@ export interface AlvoPendencia {
   ancora: string;
   /** Observação exata, quando a pendência é um comentário. */
   observacaoId?: string;
-  /** Campo de status do item, quando a pendência é "emitir OS/Contrato". */
-  campo?: string;
+  /** Campos de status do item, quando a pendência é "emitir OS/Contrato". */
+  campos?: string[];
 }
 
 /** Devolve `true` quando a thread é a dona daquela âncora e já tratou o salto. */
@@ -45,7 +45,11 @@ export function aoFocarPendencia(ouvinte: Ouvinte): () => void {
 
 /**
  * Faz latejar o que a pendência é: sempre o item, e — quando a pendência é um
- * status a emitir — também o campo OS/Contrato dentro dele.
+ * status a emitir — também os campos OS/Contrato dentro dele.
+ *
+ * Só o item leva a câmera. Os campos piscam onde estão (`rolar: false`): são
+ * dois, lado a lado na mesma linha, e três rolagens disputando o mesmo clique
+ * deixavam a tela dando solavanco.
  *
  * Fica separado de `focarPendencia` porque o salto vindo de OUTRA tela só é
  * atendido quando a tela de destino monta (ver `alvoPendente`): lá o destaque
@@ -53,7 +57,9 @@ export function aoFocarPendencia(ouvinte: Ouvinte): () => void {
  */
 export function destacarAlvo(alvo: AlvoPendencia): void {
   destacarElemento(idAncoraPendencia(alvo.ancora), "pendencia");
-  if (alvo.campo) destacarElemento(idCampoPendencia(alvo.ancora, alvo.campo), "pendencia");
+  for (const campo of alvo.campos ?? []) {
+    destacarElemento(idCampoPendencia(alvo.ancora, campo), "pendencia", { rolar: false });
+  }
 }
 
 /** Rola até o item, faz o card latejar e avisa a thread para abrir no comentário. */
@@ -71,9 +77,9 @@ export function focarPendencia(alvo: AlvoPendencia): void {
  */
 export function alvoPendente(ancora: string): AlvoPendencia | null {
   if (!pendente || pendente.ancora !== ancora) return null;
-  const { observacaoId, campo, em } = pendente;
+  const { observacaoId, campos, em } = pendente;
   pendente = null;
-  return Date.now() - em > VALIDADE_MS ? null : { ancora, observacaoId, campo };
+  return Date.now() - em > VALIDADE_MS ? null : { ancora, observacaoId, campos };
 }
 
 /** Destaca o comentário dentro da thread já aberta (usado pela própria thread). */
