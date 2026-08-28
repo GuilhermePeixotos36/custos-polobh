@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { gerarApelidoFornecedor, opcoesPerfilTributario } from "./fornecedor";
+import { doCadastro, gerarApelidoFornecedor, opcoesPerfilTributario, semVazios } from "./fornecedor";
+import type { Fornecedor } from "@/data/types";
 
 /**
  * Os casos abaixo são os fornecedores REAIS cadastrados na Pólobh (lidos do
@@ -92,5 +93,44 @@ describe("perfil tributário do fornecedor", () => {
 
   it("não duplica quando só a caixa difere", () => {
     expect(opcoesPerfilTributario("simples nacional")).toHaveLength(7);
+  });
+});
+
+describe("o cadastro do fornecedor preenchendo a OS", () => {
+  const completo = (p: Partial<Fornecedor> = {}): Fornecedor => ({
+    id: "f1", razaoSocial: "SOM & LUZ PRODUÇÕES LTDA", nomeFantasia: "Som & Luz",
+    cnpj: "12.345.678/0001-90", perfilTributario: "Simples Nacional",
+    endereco: "Rua da Bahia, 1200", inscricaoEstadual: "062.987.654.0011",
+    inscricaoMunicipal: "98765",
+    dadosBancarios: { tipoConta: "PJ", banco: "Banco do Brasil (001)", agencia: "1234-5", conta: "67890-1", chavePix: "12.345.678/0001-90" },
+    representante: "Roberto Dias", telefone: "(31) 98888-1122", email: "contato@someluz.com.br",
+    ...p,
+  });
+
+  it("devolve o que fonte pública nenhuma tem — IE, IM, banco e representante", () => {
+    const patch = doCadastro(completo());
+    expect(patch.inscricaoEstadual).toBe("062.987.654.0011");
+    expect(patch.inscricaoMunicipal).toBe("98765");
+    expect(patch.representante).toBe("Roberto Dias");
+    expect(patch.dadosBancarios?.banco).toBe("Banco do Brasil (001)");
+    expect(patch.dadosBancarios?.chavePix).toBe("12.345.678/0001-90");
+  });
+
+  it("campo vazio no cadastro não entra — não pode apagar o que está na tela", () => {
+    const patch = doCadastro(completo({ inscricaoMunicipal: "", representante: "   " }));
+    expect("inscricaoMunicipal" in patch).toBe(false);
+    expect("representante" in patch).toBe(false);
+    expect(patch.razaoSocial).toBe("SOM & LUZ PRODUÇÕES LTDA");
+  });
+
+  it("cadastro sem dado bancário nenhum não manda o bloco", () => {
+    const patch = doCadastro(completo({
+      dadosBancarios: { tipoConta: "", banco: "", agencia: "", conta: "", chavePix: "" },
+    }));
+    expect("dadosBancarios" in patch).toBe(false);
+  });
+
+  it("semVazios devolve só o que tem conteúdo de verdade", () => {
+    expect(semVazios({ a: "x", b: "", c: "   ", d: undefined })).toEqual({ a: "x" });
   });
 });

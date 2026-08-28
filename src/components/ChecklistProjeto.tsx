@@ -27,6 +27,7 @@ import {
   type SituacaoPrazo,
 } from "@/domain/checklist";
 import { useAuth } from "@/store/auth";
+import { useSugestoes } from "@/hooks/useSugestoes";
 import { colapsarEspacos, cx, dataBR } from "@/lib/format";
 import type { Checklist, ItemChecklist, Observacao, StatusChecklist } from "@/data/types";
 
@@ -88,6 +89,8 @@ export function ChecklistProjeto({
 }: Props) {
   const hoje = hojeIso();
   const nomeAtual = useAuth((s) => s.usuario?.nome ?? "");
+  // Memória dos campos: título e etapa de tarefa se repetem projeto a projeto.
+  const sugestoes = useSugestoes();
   const [verRecolhidas, setVerRecolhidas] = useState(false);
   const [agrupamento, setAgrupamento] = useState<Agrupamento>("etapa");
   const [filtroResponsavel, setFiltroResponsavel] = useState("");
@@ -279,6 +282,7 @@ export function ChecklistProjeto({
           {bloco.itens.map((item) => (
             <ItemCard
               key={item.id}
+              sugestoesTitulo={sugestoes.valores.tituloTarefa}
               item={item}
               hoje={hoje}
               usuarios={usuarios}
@@ -304,6 +308,7 @@ function ItemCard({
   hoje,
   usuarios,
   podeEditar,
+  sugestoesTitulo,
   pendencias,
   autoFoco,
   onAlterar,
@@ -315,6 +320,8 @@ function ItemCard({
   hoje: string;
   usuarios: string[];
   podeEditar: boolean;
+  /** Títulos de tarefa já usados na casa — o mesmo trabalho se repete a cada projeto. */
+  sugestoesTitulo: string[];
   /** Pendências do usuário nesta tarefa — o mesmo número do badge da aba. */
   pendencias: number;
   /** Tarefa recém-criada: o cursor vai direto para o título. */
@@ -384,6 +391,7 @@ function ItemCard({
             <Input
               autoFocus={autoFoco}
               className={cx("!h-8 !px-2 !text-[14px] !font-bold flex-1 min-w-[200px]", fechado && "line-through")}
+              sugestoes={sugestoesTitulo}
               value={titulo}
               placeholder="Descreva a tarefa"
               disabled={!podeEditar}

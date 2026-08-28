@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { filhosDe, montarSugestoes } from "./sugestoes";
+import { filhosDe, montarSugestoes, paresConsistentes, type BaseSugestoes } from "./sugestoes";
 import { projetoInfoVazio } from "./projeto";
 import { honorariosPadrao, encargosPadrao, producaoZerada } from "./calc";
-import type { Cliente, Ec, EcLinha, Os, Projeto } from "@/data/types";
+import type { Checklist, Cliente, Ec, EcLinha, ItemChecklist, Os, Projeto } from "@/data/types";
 
 const cliente = (representante = ""): Cliente => ({
   id: "c1", apelido: "ACME", nome: "ACME", razaoSocial: "", endereco: "", cnpjCpf: "",
@@ -63,13 +63,24 @@ const os = (p: Partial<Os["logistica"]>): Os => ({
   criadoEm: "", atualizadoEm: "",
 });
 
+/** Atalho dos testes: a base tem quatro listas e quase nenhum caso usa as quatro. */
+const base = (projetos: Projeto[], ecs: Ec[], oss: Os[], checklists: Checklist[] = []): BaseSugestoes =>
+  ({ projetos, ecs, oss, checklists });
+
+const tarefa = (p: Partial<ItemChecklist>): ItemChecklist => ({
+  id: "i1", checklistId: "cl1", origemModeloItemId: "", titulo: "", descricao: "", etapa: "",
+  status: "Pendente", dataLimite: "", dataManual: false, concluidoEm: "", concluidoPor: "",
+  responsavel: "", observacoes: [], oculto: false, ordem: 0, ...p,
+});
+
+const checklist = (itens: ItemChecklist[]): Checklist => ({
+  id: "cl1", projetoId: "p1", modalidade: "Corporativo", modeloId: "m1", itens,
+  criadoEm: "", atualizadoEm: "",
+});
+
 describe("montarSugestoes", () => {
   it("junta o que já foi escrito em projetos, ECs e OSs", () => {
-    const s = montarSugestoes(
-      [projeto("Teatro Sesiminas", "João Andrade")],
-      [ec([linha({ item: "Buffet", codigoServico: "17.02", pedidoCompra: "PC-100" })])],
-      [os({ hospedagem: "Hotel Ouro Minas" })]
-    );
+    const s = montarSugestoes(base([projeto("Teatro Sesiminas", "João Andrade")], [ec([linha({ item: "Buffet", codigoServico: "17.02", pedidoCompra: "PC-100" })])], [os({ hospedagem: "Hotel Ouro Minas" })]));
     expect(s.valores.local).toContain("Teatro Sesiminas");
     expect(s.valores.enderecoLocal).toContain("Rua Teatro Sesiminas");
     expect(s.valores.representante).toContain("João Andrade");
@@ -82,20 +93,17 @@ describe("montarSugestoes", () => {
   });
 
   it("o mais usado vem primeiro — repetição é sinal do valor certo da casa", () => {
-    const s = montarSugestoes(
-      [projeto("Expominas"), projeto("Expominas"), projeto("Minascentro")],
-      [], []
-    );
+    const s = montarSugestoes(base([projeto("Expominas"), projeto("Expominas"), projeto("Minascentro")], [], []));
     expect(s.valores.local[0]).toBe("Expominas");
   });
 
   it("mesma grafia com outra caixa/acento conta junto, e vale a primeira vista", () => {
-    const s = montarSugestoes([projeto("Expominas"), projeto("EXPOMINAS")], [], []);
+    const s = montarSugestoes(base([projeto("Expominas"), projeto("EXPOMINAS")], [], []));
     expect(s.valores.local).toEqual(["Expominas"]);
   });
 
   it("ignora vazio e texto longo demais para ser um valor repetível", () => {
-    const s = montarSugestoes([projeto(""), projeto("x".repeat(200))], [], []);
+    const s = montarSugestoes(base([projeto(""), projeto("x".repeat(200))], [], []));
     expect(s.valores.local).toEqual([]);
   });
 });
@@ -109,17 +117,17 @@ describe("vínculos entre campos que andam juntos", () => {
   });
 
   it("escolher o local traz o endereço que já foi usado com ele", () => {
-    const s = montarSugestoes([projeto("Teatro Sesiminas")], [], []);
+    const s = montarSugestoes(base([projeto("Teatro Sesiminas")], [], []));
     expect(filhosDe(s, "local", "Teatro Sesiminas")).toEqual({ enderecoLocal: "Rua Teatro Sesiminas" });
   });
 
   it("acha o vínculo mesmo com outra caixa ou acento no pai", () => {
-    const s = montarSugestoes([projeto("Teatro Sesiminas")], [], []);
+    const s = montarSugestoes(base([projeto("Teatro Sesiminas")], [], []));
     expect(filhosDe(s, "local", "teatro sesiminas").enderecoLocal).toBe("Rua Teatro Sesiminas");
   });
 
   it("a produtora responsável traz telefone e e-mail juntos", () => {
-    const s = montarSugestoes([comProdutora("Marisa", "(31) 98888-0000", "marisa@polobh.com.br")], [], []);
+    const s = montarSugestoes(base([comProdutora("Marisa", "(31) 98888-0000", "marisa@polobh.com.br")], [], []));
     expect(filhosDe(s, "produtoraResponsavel", "Marisa")).toEqual({
       telefoneProdutora: "(31) 98888-0000",
       emailProdutora: "marisa@polobh.com.br",
@@ -127,19 +135,16 @@ describe("vínculos entre campos que andam juntos", () => {
   });
 
   it("quando o histórico diverge, vence o que apareceu mais vezes", () => {
-    const s = montarSugestoes(
-      [
+    const s = montarSugestoes(base([
         comProdutora("Marisa", "(31) 98888-0000", "marisa@polobh.com.br"),
         comProdutora("Marisa", "(31) 98888-0000", "marisa@polobh.com.br"),
         comProdutora("Marisa", "(31) 90000-1111", "antigo@polobh.com.br"),
-      ],
-      [], []
-    );
+      ], [], []));
     expect(filhosDe(s, "produtoraResponsavel", "Marisa").telefoneProdutora).toBe("(31) 98888-0000");
   });
 
   it("valor que a casa nunca usou não inventa filho nenhum", () => {
-    const s = montarSugestoes([projeto("Expominas")], [], []);
+    const s = montarSugestoes(base([projeto("Expominas")], [], []));
     expect(filhosDe(s, "local", "Casa Nova")).toEqual({});
     expect(filhosDe(s, "local", "")).toEqual({});
   });
@@ -147,7 +152,108 @@ describe("vínculos entre campos que andam juntos", () => {
   it("as ECs também alimentam o vínculo — elas guardam projetos fora da lista", () => {
     const daEc = ec([], "Minascentro");
     daEc.projeto.enderecoLocal = "Av. Augusto de Lima, 785";
-    const s = montarSugestoes([], [daEc], []);
+    const s = montarSugestoes(base([], [daEc], []));
     expect(filhosDe(s, "local", "Minascentro").enderecoLocal).toBe("Av. Augusto de Lima, 785");
+  });
+});
+
+/**
+ * A cobertura é o ponto do pedido: "todo campo preenchido memoriza para os
+ * próximos usos". O que estes testes protegem não é o valor de um campo, é o
+ * catálogo continuar alcançando cada canto onde a casa escreve.
+ */
+describe("alcance da memória", () => {
+  it("guarda o que se escreve dentro das listas da OS — cronograma e parcelas", () => {
+    const comListas = os({});
+    comListas.cronograma = [
+      { id: "c1", etapa: "Montagem", data: "", horario: "08h às 18h", atividades: "Rigging e cabeamento" },
+    ];
+    comListas.orcamento.parcelas = [{ descricao: "50% na assinatura", valor: 0 }];
+    const s = montarSugestoes(base([], [], [comListas]));
+    expect(s.valores.etapaCronograma).toContain("Montagem");
+    expect(s.valores.horario).toContain("08h às 18h");
+    expect(s.valores.atividadesCronograma).toContain("Rigging e cabeamento");
+    expect(s.valores.descricaoParcela).toContain("50% na assinatura");
+  });
+
+  it("guarda o financeiro e o contrato da OS", () => {
+    const preenchida = os({});
+    preenchida.financeiro = {
+      ...preenchida.financeiro,
+      leiIncentivo: "Lei de Incentivo à Cultura",
+      projetoIncentivado: "Festival de Inverno",
+      cnae: "9001-9/06",
+      acertoFinanceiro: "Pagamento em 30 dias",
+    };
+    preenchida.contrato = {
+      ...preenchida.contrato,
+      formaPagamento: "À vista, no ato da emissão da nota fiscal",
+      observacoesGerais: "Valores revistos em caso de execução parcial.",
+      rubrica: "MMC",
+    };
+    const s = montarSugestoes(base([], [], [preenchida]));
+    expect(s.valores.leiIncentivo).toContain("Lei de Incentivo à Cultura");
+    expect(s.valores.projetoIncentivado).toContain("Festival de Inverno");
+    expect(s.valores.cnae).toContain("9001-9/06");
+    expect(s.valores.acertoFinanceiro).toContain("Pagamento em 30 dias");
+    expect(s.valores.formaPagamento).toContain("À vista, no ato da emissão da nota fiscal");
+    expect(s.valores.observacoesContrato).toContain("Valores revistos em caso de execução parcial.");
+    expect(s.valores.rubrica).toContain("MMC");
+  });
+
+  it("guarda o que se escreve nas tarefas do check-list", () => {
+    const s = montarSugestoes(
+      base([], [], [], [checklist([tarefa({ titulo: "Fechar buffet", etapa: "PRÉ-EVENTO" })])])
+    );
+    expect(s.valores.tituloTarefa).toContain("Fechar buffet");
+    expect(s.valores.etapaTarefa).toContain("PRÉ-EVENTO");
+  });
+
+  it("o mesmo vocabulário em dois lugares vira uma lista só", () => {
+    // Código de serviço: escrito no item da EC e no financeiro da OS.
+    const comCodigo = os({});
+    comCodigo.financeiro = { ...comCodigo.financeiro, codigoServico: "03.01" };
+    const s = montarSugestoes(base([], [ec([linha({ codigoServico: "17.02" })])], [comCodigo]));
+    expect(s.valores.codigoServico).toEqual(expect.arrayContaining(["17.02", "03.01"]));
+  });
+
+  it("o banco entra na memória; agência, conta e Pix não têm campo nenhum", () => {
+    const comBanco = os({});
+    comBanco.fornecedor.dadosBancarios = {
+      tipoConta: "PJ", banco: "Banco do Brasil (001)", agencia: "1234-5", conta: "67890-1", chavePix: "x@y.com",
+    };
+    const s = montarSugestoes(base([], [], [comBanco]));
+    expect(s.valores.bancoFornecedor).toContain("Banco do Brasil (001)");
+    // Dado que identifica UM fornecedor não vira sugestão para outro.
+    const chaves = Object.keys(s.valores);
+    expect(chaves).not.toContain("agencia");
+    expect(chaves).not.toContain("conta");
+    expect(chaves).not.toContain("chavePix");
+    expect(chaves).not.toContain("cnpj");
+  });
+
+  it("todo par pai/filho colhe da mesma fonte — senão o vínculo seria aleatório", () => {
+    const amostra = base(
+      [projeto("Expominas"), projeto("Minascentro")],
+      [ec([linha({})])],
+      [os({})],
+      [checklist([tarefa({})])]
+    );
+    expect(paresConsistentes(amostra)).toBe(true);
+  });
+
+  it("o nome do cliente traz razão social e endereço que vieram com ele", () => {
+    const comCliente = projeto("Expominas");
+    comCliente.cliente = {
+      ...comCliente.cliente,
+      nome: "Banco Mercantil",
+      razaoSocial: "BANCO MERCANTIL DO BRASIL S.A.",
+      endereco: "Rua Rio de Janeiro, 654 — Centro, Belo Horizonte/MG",
+    };
+    const s = montarSugestoes(base([comCliente], [], []));
+    expect(filhosDe(s, "clienteNome", "Banco Mercantil")).toEqual({
+      clienteRazaoSocial: "BANCO MERCANTIL DO BRASIL S.A.",
+      clienteEndereco: "Rua Rio de Janeiro, 654 — Centro, Belo Horizonte/MG",
+    });
   });
 });

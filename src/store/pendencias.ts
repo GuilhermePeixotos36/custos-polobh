@@ -4,16 +4,17 @@
  * filtram pelo papel do usuário para exibir os badges (bolinhas vermelhas).
  *
  * As listas cruas ficam guardadas de propósito. Elas são a carga mais pesada do
- * app, e as sugestões de preenchimento (`useSugestoes`) precisam exatamente dos
- * mesmos dados — buscá-los de novo, numa segunda store, seria pagar duas vezes
- * pela mesma consulta.
+ * app, e a memória dos campos (`useSugestoes`) precisa exatamente dos mesmos
+ * dados — buscá-los de novo, numa segunda store, seria pagar duas vezes pela
+ * mesma consulta. Vale inclusive para os check-lists: já eram carregados para as
+ * pendências, e agora ficam guardados para alimentar título e etapa de tarefa.
  */
 import { useMemo } from "react";
 import { create } from "zustand";
 import { repo } from "@/data";
 import { useAuth } from "@/store/auth";
 import { calcularPendencias, agregarPendencias, type Pendencia } from "@/domain/pendencias";
-import type { Ec, Os, Projeto } from "@/data/types";
+import type { Checklist, Ec, Os, Projeto } from "@/data/types";
 
 interface State {
   itens: Pendencia[];
@@ -21,6 +22,7 @@ interface State {
   projetos: Projeto[];
   ecs: Ec[];
   oss: Os[];
+  checklists: Checklist[];
   carregando: boolean;
   ultimoLoad: number;
   carregar: (force?: boolean) => Promise<void>;
@@ -31,6 +33,7 @@ export const usePendencias = create<State>((set, get) => ({
   projetos: [],
   ecs: [],
   oss: [],
+  checklists: [],
   carregando: false,
   ultimoLoad: 0,
   carregar: async (force = false) => {
@@ -53,6 +56,7 @@ export const usePendencias = create<State>((set, get) => ({
         projetos,
         ecs,
         oss,
+        checklists,
         ultimoLoad: Date.now(),
       });
     } catch (erro) {

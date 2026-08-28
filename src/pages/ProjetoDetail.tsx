@@ -9,6 +9,7 @@ import {
 import { IcPlus, IcBack, IcDownload, IcSearch, IcTrash, IcEye, IcEyeOff, IcDoc, IcCopy, IcCalendar } from "@/components/icons";
 import { RichTextField } from "@/components/RichTextField";
 import { InscricaoMunicipalInput } from "@/components/InscricaoMunicipalInput";
+import { TextosJaUsados } from "@/components/TextosJaUsados";
 import { TimelineConsolidada, type ItemConsolidado } from "@/components/Timeline";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
 import { ThPendencias, TdPendencias } from "@/components/ColunaPendencias";
@@ -753,8 +754,8 @@ export function ProjetoDetail() {
                     )}
                   </div>
                 </Field>
-                <Field label="Razão Social" className="sm:col-span-2"><Input formato="titulo-empresa" value={p.cliente.razaoSocial} onChange={(e) => updCli({ razaoSocial: e.target.value })} /></Field>
-                <Field label="Endereço" className="sm:col-span-2"><Input formato="titulo" value={p.cliente.endereco} onChange={(e) => updCli({ endereco: e.target.value })} /></Field>
+                <Field label="Razão Social" className="sm:col-span-2"><Input formato="titulo-empresa" sugestoes={sugestoes.valores.clienteRazaoSocial} value={p.cliente.razaoSocial} onChange={(e) => updCli({ razaoSocial: e.target.value })} /></Field>
+                <Field label="Endereço" className="sm:col-span-2"><Input formato="titulo" sugestoes={sugestoes.valores.clienteEndereco} value={p.cliente.endereco} onChange={(e) => updCli({ endereco: e.target.value })} /></Field>
                 <Field label="Inscrição Estadual"><Input value={p.cliente.inscricaoEstadual} onChange={(e) => updCli({ inscricaoEstadual: e.target.value })} /></Field>
                 <Field label="Inscrição Municipal">
                   <InscricaoMunicipalInput
@@ -780,7 +781,7 @@ export function ProjetoDetail() {
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <Field label="Cliente (apelido)"><Input erro={chavesComErro.has("clienteAbreviado")} sugestoes={sugestoes.valores.clienteApelido} value={p.info.clienteAbreviado} onChange={(e) => updTituloParte({ clienteAbreviado: e.target.value })} placeholder="Ex.: ACME" /></Field>
               <Field label="Nome do projeto"><Input formato="titulo" erro={chavesComErro.has("nomeProjeto")} sugestoes={sugestoes.valores.nomeProjeto} value={p.info.nomeProjeto} onChange={(e) => updTituloParte({ nomeProjeto: e.target.value })} /></Field>
-              <Field label="Ano"><Input erro={chavesComErro.has("anoProjeto")} value={p.info.anoProjeto} inputMode="numeric" onChange={(e) => updTituloParte({ anoProjeto: onlyDigits(e.target.value).slice(0, 4) })} placeholder="2026" /></Field>
+              <Field label="Ano"><Input erro={chavesComErro.has("anoProjeto")} sugestoes={sugestoes.valores.anoProjeto} value={p.info.anoProjeto} inputMode="numeric" onChange={(e) => updTituloParte({ anoProjeto: onlyDigits(e.target.value).slice(0, 4) })} placeholder="2026" /></Field>
               <Field label="Modalidade">
                 <Select erro={chavesComErro.has("modalidade")} value={p.info.modalidade} onChange={(e) => updInfo({ modalidade: e.target.value as ProjetoInfo["modalidade"] })}>
                   <option value="">Selecione</option>
@@ -813,7 +814,10 @@ export function ProjetoDetail() {
               <Field label="Telefone do(a) Produtor(a) Responsável"><TelefoneInput value={p.info.telefoneProdutora} onChange={(v) => updInfo({ telefoneProdutora: v })} /></Field>
               <Field label="E-mail do(a) Produtor(a) Responsável"><Input type="email" sugestoes={sugestoes.valores.emailProdutora} value={p.info.emailProdutora} onChange={(e) => updInfo({ emailProdutora: e.target.value })} /></Field>
               {p.info.modalidade === "Cultural" && (
-                <Field label="Incentivos Fiscais" className="sm:col-span-2 lg:col-span-3"><Textarea value={p.info.incentivosFiscais} onChange={(e) => updInfo({ incentivosFiscais: e.target.value })} /></Field>
+                <Field label="Incentivos Fiscais" className="sm:col-span-2 lg:col-span-3">
+                  <Textarea value={p.info.incentivosFiscais} onChange={(e) => updInfo({ incentivosFiscais: e.target.value })} />
+                  <TextosJaUsados valor={p.info.incentivosFiscais} opcoes={sugestoes.valores.incentivosFiscais} onEscolher={(incentivosFiscais) => updInfo({ incentivosFiscais })} />
+                </Field>
               )}
             </div>
           </Card>
@@ -878,7 +882,7 @@ export function ProjetoDetail() {
                               onSubir={() => moverRoteiro(id, -1)}
                               onDescer={() => moverRoteiro(id, 1)}
                             />
-                            {chave ? <Label>{label}</Label> : <Input formato="titulo" value={extra!.titulo} onChange={(e) => updInfo({ roteirosExtras: p.info.roteirosExtras.map((item) => item.id === id ? { ...item, titulo: e.target.value } : item) })} placeholder="Título da etapa" />}
+                            {chave ? <Label>{label}</Label> : <Input formato="titulo" sugestoes={sugestoes.valores.tituloRoteiro} value={extra!.titulo} onChange={(e) => updInfo({ roteirosExtras: p.info.roteirosExtras.map((item) => item.id === id ? { ...item, titulo: e.target.value } : item) })} placeholder="Título da etapa" />}
                           </div>
                           <div className="flex gap-1 shrink-0">
                             {chave ? (

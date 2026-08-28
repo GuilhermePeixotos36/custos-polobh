@@ -30,7 +30,7 @@ import {
   valorItemNaEc,
 } from "@/domain/calc";
 import { ETAPAS_CRONOGRAMA } from "@/domain/projeto";
-import { opcoesPerfilTributario } from "@/domain/fornecedor";
+import { doCadastro, opcoesPerfilTributario, semVazios } from "@/domain/fornecedor";
 import { useEmpresas } from "@/store/empresas";
 import { gerarOsExcel } from "@/lib/excel";
 import { consultarCnpj } from "@/lib/cnpj";
@@ -46,6 +46,7 @@ import { useSugestoes } from "@/hooks/useSugestoes";
 import { urlCredenciamento } from "@/lib/links";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
 import { InscricaoMunicipalInput } from "@/components/InscricaoMunicipalInput";
+import { TextosJaUsados } from "@/components/TextosJaUsados";
 import { idAncoraPendencia } from "@/lib/destaque";
 import { pendenciasDaTela } from "@/domain/pendencias";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
@@ -403,6 +404,11 @@ export function OsForm() {
           placeholder="Registre o motivo quando não houver BV ou for abaixo de 15% (ex.: condição negociada com o fornecedor)."
           className={bvJustifFaltando ? "!border-danger !bg-danger-soft" : ""}
         />
+        <TextosJaUsados
+          valor={os.financeiro.bvJustificativa ?? ""}
+          opcoes={sugestoes.valores.bvJustificativa}
+          onEscolher={(bvJustificativa) => updFin({ bvJustificativa })}
+        />
         {bvJustifFaltando && (
           <p className="mt-1 text-[12px] font-semibold text-danger">Obrigatória: o BV está {os.financeiro.bvPercentual <= 0 ? "zerado" : "abaixo de 15%"}.</p>
         )}
@@ -419,13 +425,43 @@ export function OsForm() {
   const updInfra = (patch: Partial<Os["infraestrutura"]>) => setOs((o) => (o ? { ...o, infraestrutura: { ...o.infraestrutura, ...patch } } : o));
   const updCt = (patch: Partial<Os["contrato"]>) => setOs((o) => (o ? { ...o, contrato: { ...o.contrato, ...patch } } : o));
 
+  /**
+   * Consulta do CNPJ: o CADASTRO da casa primeiro, a Receita depois.
+   *
+   * Antes ia direto à BrasilAPI, e isso desfazia memória: Inscrição Estadual e
+   * Municipal, dados bancários e representante não existem em fonte pública —
+   * alguém da casa digitou aquilo uma vez, e a consulta seguinte sobrescrevia o
+   * registro com o que a API tinha (menos). Agora o fornecedor já cadastrado
+   * devolve tudo o que a casa sabe dele, e a API só completa o que faltar.
+   *
+   * Nenhum dos dois apaga campo: valor vazio na fonte deixa o que está na tela.
+   */
   async function consultar() {
     setCnpjMsg("");
     setBusy(true);
     try {
-      const d = await consultarCnpj(os!.fornecedor.cnpj);
-      updF({ razaoSocial: d.razaoSocial, nomeFantasia: d.nomeFantasia, endereco: d.endereco, perfilTributario: d.perfilTributario, email: d.email, telefone: d.telefone, cnaes: d.cnaes });
-      setCnpjMsg(`Perfil: ${d.perfilTributario}. Dados preenchidos pela BrasilAPI.`);
+      const cnpj = os!.fornecedor.cnpj;
+      const cadastrado = await repo.fornecedores.porCnpj(cnpj).catch(() => undefined);
+      if (cadastrado) updF(doCadastro(cadastrado));
+
+      // Já cadastrado E com o essencial preenchido: não há o que buscar fora.
+      const completo = !!cadastrado?.razaoSocial && !!cadastrado?.endereco && !!cadastrado?.perfilTributario;
+      if (completo) {
+        setCnpjMsg(`Dados vindos do cadastro do fornecedor (${cadastrado.razaoSocial}). Perfil: ${cadastrado.perfilTributario}.`);
+        return;
+      }
+
+      const d = await consultarCnpj(cnpj);
+      updF(semVazios({
+        razaoSocial: d.razaoSocial, nomeFantasia: d.nomeFantasia, endereco: d.endereco,
+        perfilTributario: d.perfilTributario, email: d.email, telefone: d.telefone,
+      }));
+      if (d.cnaes?.length) updF({ cnaes: d.cnaes });
+      setCnpjMsg(
+        cadastrado
+          ? `Cadastro do fornecedor completado com os dados públicos. Perfil: ${d.perfilTributario}.`
+          : `Perfil: ${d.perfilTributario}. Dados preenchidos pela BrasilAPI.`
+      );
     } catch (e) {
       setCnpjMsg((e as Error).message);
     } finally {
@@ -640,7 +676,7 @@ export function OsForm() {
               <option value="PF">PF</option>
             </Select>
           </LinhaOs>
-          <LinhaOs label="Banco"><Input value={os.fornecedor.dadosBancarios.banco} onChange={(e) => updB({ banco: e.target.value })} /></LinhaOs>
+          <LinhaOs label="Banco"><Input value={os.fornecedor.dadosBancarios.banco} sugestoes={sugestoes.valores.bancoFornecedor} onChange={(e) => updB({ banco: e.target.value })} /></LinhaOs>
           <LinhaOs label="Agência"><Input value={os.fornecedor.dadosBancarios.agencia} onChange={(e) => updB({ agencia: e.target.value })} /></LinhaOs>
           <LinhaOs label="Conta Corrente"><Input value={os.fornecedor.dadosBancarios.conta} onChange={(e) => updB({ conta: e.target.value })} /></LinhaOs>
           <LinhaOs label="Chave Pix"><Input value={os.fornecedor.dadosBancarios.chavePix} onChange={(e) => updB({ chavePix: e.target.value })} /></LinhaOs>
@@ -729,9 +765,9 @@ export function OsForm() {
               {os.cronograma.map((c, i) => (
                 <div key={c.id ?? i} className="grid grid-cols-[150px_130px_1fr_1.5fr_auto] gap-2 items-center">
                   <Input className="!h-9" type="date" value={c.data} onChange={(e) => setCron(i, { data: e.target.value })} />
-                  <Input className="!h-9" placeholder="08h às 18h" value={c.horario} onChange={(e) => setCron(i, { horario: e.target.value })} />
-                  <Input className="!h-9" placeholder="Montagem, Ensaio…" value={c.etapa} onChange={(e) => setCron(i, { etapa: e.target.value })} />
-                  <Input className="!h-9" placeholder="Descritivo da contratação" value={c.atividades} onChange={(e) => setCron(i, { atividades: e.target.value })} />
+                  <Input className="!h-9" placeholder="08h às 18h" sugestoes={sugestoes.valores.horario} value={c.horario} onChange={(e) => setCron(i, { horario: e.target.value })} />
+                  <Input className="!h-9" placeholder="Montagem, Ensaio…" sugestoes={sugestoes.valores.etapaCronograma} value={c.etapa} onChange={(e) => setCron(i, { etapa: e.target.value })} />
+                  <Input className="!h-9" placeholder="Descritivo da contratação" sugestoes={sugestoes.valores.atividadesCronograma} value={c.atividades} onChange={(e) => setCron(i, { atividades: e.target.value })} />
                   <button className="text-ink-3 hover:text-danger px-2" onClick={() => setOs((o) => (o ? { ...o, cronograma: o.cronograma.filter((_, j) => j !== i) } : o))}>✕</button>
                 </div>
               ))}
@@ -883,7 +919,7 @@ export function OsForm() {
               <div className="py-1.5 space-y-2">
                 {os.orcamento.parcelas.map((pc, i) => (
                   <div key={pc.id ?? i} className="grid grid-cols-[1fr_150px_auto] gap-2 items-center">
-                    <Input className="!h-9" placeholder={`Descrição da ${i + 1}ª parcela`} value={pc.descricao} onChange={(e) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, descricao: e.target.value } : x)) })} />
+                    <Input className="!h-9" placeholder={`Descrição da ${i + 1}ª parcela`} sugestoes={sugestoes.valores.descricaoParcela} value={pc.descricao} onChange={(e) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, descricao: e.target.value } : x)) })} />
                     <NumberInput className="!h-9" value={pc.valor} onValue={(v) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, valor: v } : x)) })} />
                     <button className="text-ink-3 hover:text-danger px-2" title="Remover parcela" onClick={() => updOrc({ parcelas: os.orcamento.parcelas.filter((_, j) => j !== i) })}>✕</button>
                   </div>
@@ -953,13 +989,13 @@ export function OsForm() {
               <Textarea value={os.financeiro.descritivoNf} onChange={(e) => updFin({ descritivoNf: e.target.value })} />
             </LinhaOs>
             <LinhaOs label="Nome do Projeto Incentivado" hint="(auto do projeto)">
-              <Input value={os.financeiro.projetoIncentivado ?? ""} onChange={(e) => updFin({ projetoIncentivado: e.target.value })} placeholder="Nome do projeto incentivado" />
+              <Input value={os.financeiro.projetoIncentivado ?? ""} sugestoes={sugestoes.valores.projetoIncentivado} onChange={(e) => updFin({ projetoIncentivado: e.target.value })} placeholder="Nome do projeto incentivado" />
             </LinhaOs>
             <LinhaOs label="Lei de Incentivo à Cultura">
-              <Input value={os.financeiro.leiIncentivo ?? ""} onChange={(e) => updFin({ leiIncentivo: e.target.value })} placeholder="Ex.: Lei Federal de Incentivo à Cultura (Rouanet)" />
+              <Input value={os.financeiro.leiIncentivo ?? ""} sugestoes={sugestoes.valores.leiIncentivo} onChange={(e) => updFin({ leiIncentivo: e.target.value })} placeholder="Ex.: Lei Federal de Incentivo à Cultura (Rouanet)" />
             </LinhaOs>
             <LinhaOs label="Nº do Projeto Incentivado" hint={ecCtx.projeto.incentivosFiscais ? `EC: ${ecCtx.projeto.incentivosFiscais}` : undefined}>
-              <Input value={os.financeiro.numeroProjetoIncentivado ?? ""} onChange={(e) => updFin({ numeroProjetoIncentivado: e.target.value })} />
+              <Input value={os.financeiro.numeroProjetoIncentivado ?? ""} sugestoes={sugestoes.valores.numeroProjetoIncentivado} onChange={(e) => updFin({ numeroProjetoIncentivado: e.target.value })} />
             </LinhaOs>
             <LinhaOs label="CNAE" hint={os.fornecedor.cnaes?.length ? `(${os.fornecedor.cnaes.length} do CNPJ)` : "(consulte o CNPJ)"}>
               <Input
@@ -968,14 +1004,17 @@ export function OsForm() {
                 onChange={(e) => updFin({ cnae: e.target.value })}
                 placeholder="Selecione ou digite"
               />
+              {/* Os CNAEs DESTE CNPJ primeiro (são os certos), e atrás deles os que
+                  a casa já usou — fornecedor sem consulta de CNPJ feita continua
+                  tendo de onde escolher. */}
               <datalist id="cnae-fornecedor">
-                {(os.fornecedor.cnaes ?? []).map((c, i) => (
-                  <option key={i} value={c} />
+                {[...new Set([...(os.fornecedor.cnaes ?? []), ...sugestoes.valores.cnae])].map((c) => (
+                  <option key={c} value={c} />
                 ))}
               </datalist>
             </LinhaOs>
             <LinhaOs label="Código de Serviço" hint="(auto dos itens da EC)">
-              <Input value={os.financeiro.codigoServico} onChange={(e) => updFin({ codigoServico: e.target.value })} />
+              <Input value={os.financeiro.codigoServico} sugestoes={sugestoes.valores.codigoServico} onChange={(e) => updFin({ codigoServico: e.target.value })} />
             </LinhaOs>
             <LinhaOs label="Valor unitário"><NumberInput value={os.financeiro.valorUnitario} onValue={(v) => updFin({ valorUnitario: v })} /></LinhaOs>
             <LinhaOs label="Valor total" hint={finDessincronizado ? undefined : "(espelha o valor negociado no Orçamento)"}>
@@ -1000,6 +1039,7 @@ export function OsForm() {
             {bvBloco}
             <LinhaOs label="Acerto Financeiro">
               <Textarea value={os.financeiro.acertoFinanceiro} onChange={(e) => updFin({ acertoFinanceiro: e.target.value })} />
+              <TextosJaUsados valor={os.financeiro.acertoFinanceiro} opcoes={sugestoes.valores.acertoFinanceiro} onEscolher={(acertoFinanceiro) => updFin({ acertoFinanceiro })} />
             </LinhaOs>
 
             {/* DADOS PARA CONTRATO */}
@@ -1033,6 +1073,7 @@ export function OsForm() {
             </LinhaOs>
             <LinhaOs label="Informações Complementares">
               <Textarea value={os.contrato.informacoesComplementares} onChange={(e) => updCt({ informacoesComplementares: e.target.value })} />
+              <TextosJaUsados valor={os.contrato.informacoesComplementares} opcoes={sugestoes.valores.informacoesComplementares} onEscolher={(informacoesComplementares) => updCt({ informacoesComplementares })} />
             </LinhaOs>
             <LinhaOs label="Valor unitário"><NumberInput value={os.contrato.valorUnitario} onValue={(v) => updCt({ valorUnitario: v })} /></LinhaOs>
             <LinhaOs label="Valor total" hint={ctDessincronizado ? undefined : "(espelha o valor do Faturamento)"}>
@@ -1058,13 +1099,14 @@ export function OsForm() {
             <LinhaOs label="Desconto Especial Negociado"><NumberInput value={os.contrato.descontoNegociado} onValue={(v) => updCt({ descontoNegociado: v, valorAPagar: os.contrato.valorTotal - v })} /></LinhaOs>
             <LinhaOs label="Valor total a pagar"><Auto v={brl(os.contrato.valorAPagar)} /></LinhaOs>
             <LinhaOs label="Forma de Pagamento">
-              <Input value={os.contrato.formaPagamento ?? ""} onChange={(e) => updCt({ formaPagamento: e.target.value })} placeholder={FORMA_PAGAMENTO_PADRAO} />
+              <Input value={os.contrato.formaPagamento ?? ""} sugestoes={sugestoes.valores.formaPagamento} onChange={(e) => updCt({ formaPagamento: e.target.value })} placeholder={FORMA_PAGAMENTO_PADRAO} />
             </LinhaOs>
             <LinhaOs label="Observações Gerais">
               <Textarea value={os.contrato.observacoesGerais ?? ""} onChange={(e) => updCt({ observacoesGerais: e.target.value })} />
+              <TextosJaUsados valor={os.contrato.observacoesGerais ?? ""} opcoes={sugestoes.valores.observacoesContrato} onEscolher={(observacoesGerais) => updCt({ observacoesGerais })} />
             </LinhaOs>
             <LinhaOs label="Data do Contrato"><Input type="date" value={os.contrato.dataContrato} onChange={(e) => updCt({ dataContrato: e.target.value })} /></LinhaOs>
-            <LinhaOs label="Rubrica"><Input value={os.contrato.rubrica} onChange={(e) => updCt({ rubrica: e.target.value })} /></LinhaOs>
+            <LinhaOs label="Rubrica"><Input value={os.contrato.rubrica} sugestoes={sugestoes.valores.rubrica} onChange={(e) => updCt({ rubrica: e.target.value })} /></LinhaOs>
           </CardOs>
           </>
         ) : (

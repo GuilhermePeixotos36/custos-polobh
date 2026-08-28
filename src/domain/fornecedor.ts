@@ -19,6 +19,7 @@
  * curto escolhido pela empresa. Mas passa pela mesma peneira, porque muita ficha
  * traz "Som & Luz Produções Ltda" no campo de fantasia também.
  */
+import type { Fornecedor } from "@/data/types";
 
 /** Forma jurídica: sai sempre, esteja onde estiver. */
 const JURIDICO = new Set([
@@ -193,4 +194,51 @@ export function opcoesPerfilTributario(atual: string): string[] {
   const valor = atual.trim();
   const conhecido = PERFIS_TRIBUTARIOS.some((p) => p.toLocaleLowerCase("pt-BR") === valor.toLocaleLowerCase("pt-BR"));
   return valor && !conhecido ? [valor, ...PERFIS_TRIBUTARIOS] : [...PERFIS_TRIBUTARIOS];
+}
+
+/* --------------------- o cadastro preenchendo a OS ---------------------- */
+
+/** Tira do patch o que está vazio: fonte sem valor não apaga o que está na tela. */
+export function semVazios<T extends Record<string, string | undefined>>(patch: T): Partial<T> {
+  return Object.fromEntries(Object.entries(patch).filter(([, v]) => !!v?.trim())) as Partial<T>;
+}
+
+/**
+ * O que o cadastro do fornecedor tem a dizer sobre ele, pronto para preencher a
+ * OS.
+ *
+ * Inclui justamente o que NENHUMA fonte pública devolve — Inscrição Estadual e
+ * Municipal, dados bancários, representante. É por isso que o cadastro vem
+ * antes da Receita numa consulta de CNPJ: ele é a memória da casa, e a API não
+ * tem como reconstituí-lo.
+ *
+ * Campo vazio no cadastro não entra, para não apagar o que já está na tela.
+ */
+export function doCadastro(f: Fornecedor): Partial<Fornecedor> {
+  const texto = semVazios({
+    razaoSocial: f.razaoSocial,
+    nomeFantasia: f.nomeFantasia,
+    perfilTributario: f.perfilTributario,
+    endereco: f.endereco,
+    inscricaoEstadual: f.inscricaoEstadual,
+    inscricaoMunicipal: f.inscricaoMunicipal,
+    representante: f.representante,
+    telefone: f.telefone,
+    email: f.email,
+  });
+  const bancarios = semVazios({
+    tipoConta: f.dadosBancarios?.tipoConta,
+    banco: f.dadosBancarios?.banco,
+    agencia: f.dadosBancarios?.agencia,
+    conta: f.dadosBancarios?.conta,
+    chavePix: f.dadosBancarios?.chavePix,
+  });
+  return {
+    ...texto,
+    ...(f.cnaes?.length ? { cnaes: f.cnaes } : {}),
+    // Os bancários vêm como bloco: a OS guarda o objeto inteiro.
+    ...(Object.keys(bancarios).length
+      ? { dadosBancarios: { ...f.dadosBancarios, ...bancarios } as Fornecedor["dadosBancarios"] }
+      : {}),
+  };
 }

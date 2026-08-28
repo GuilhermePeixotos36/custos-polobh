@@ -464,13 +464,13 @@ export function EcForm() {
           {cnpjMsg && <div className="mb-3 text-[12.5px] text-info bg-info-soft rounded-btn px-3 py-2">{cnpjMsg}</div>}
           <div className="grid md:grid-cols-2 gap-4">
             <Field label="CNPJ/CPF"><Input value={ec.cliente.cnpjCpf} onChange={(e) => updCli({ cnpjCpf: maskCpfCnpjInput(e.target.value) })} inputMode="numeric" placeholder="00.000.000/0000-00" /></Field>
-            <Field label="Cliente (nome)"><Input formato="titulo" value={ec.cliente.nome} onChange={(e) => updCli({ nome: e.target.value })} /></Field>
-            <Field label="Razão Social" className="md:col-span-2"><Input formato="titulo-empresa" value={ec.cliente.razaoSocial} onChange={(e) => updCli({ razaoSocial: e.target.value })} /></Field>
-            <Field label="Endereço" className="md:col-span-2"><Input formato="titulo" value={ec.cliente.endereco} onChange={(e) => updCli({ endereco: e.target.value })} /></Field>
+            <Field label="Cliente (nome)"><Input formato="titulo" sugestoes={sugestoes.valores.clienteNome} value={ec.cliente.nome} onChange={(e) => updCli({ nome: e.target.value })} /></Field>
+            <Field label="Razão Social" className="md:col-span-2"><Input formato="titulo-empresa" sugestoes={sugestoes.valores.clienteRazaoSocial} value={ec.cliente.razaoSocial} onChange={(e) => updCli({ razaoSocial: e.target.value })} /></Field>
+            <Field label="Endereço" className="md:col-span-2"><Input formato="titulo" sugestoes={sugestoes.valores.clienteEndereco} value={ec.cliente.endereco} onChange={(e) => updCli({ endereco: e.target.value })} /></Field>
             <Field label="Inscrição Estadual"><Input value={ec.cliente.inscricaoEstadual} onChange={(e) => updCli({ inscricaoEstadual: e.target.value })} /></Field>
             <Field label="Inscrição Municipal"><Input value={ec.cliente.inscricaoMunicipal} onChange={(e) => updCli({ inscricaoMunicipal: e.target.value })} /></Field>
-            <Field label="Representante"><Input formato="titulo" value={ec.cliente.representante.nome} onChange={(e) => updCli({ representante: { ...ec.cliente.representante, nome: e.target.value } })} /></Field>
-            <Field label="E-mail do representante"><Input value={ec.cliente.representante.email} onChange={(e) => updCli({ representante: { ...ec.cliente.representante, email: e.target.value } })} /></Field>
+            <Field label="Representante"><Input formato="titulo" sugestoes={sugestoes.valores.representante} value={ec.cliente.representante.nome} onChange={(e) => updCli({ representante: { ...ec.cliente.representante, nome: e.target.value } })} /></Field>
+            <Field label="E-mail do representante"><Input sugestoes={sugestoes.valores.representanteEmail} value={ec.cliente.representante.email} onChange={(e) => updCli({ representante: { ...ec.cliente.representante, email: e.target.value } })} /></Field>
           </div>
         </Card>
 
@@ -478,9 +478,9 @@ export function EcForm() {
         <Card>
           <CardTitle>Projeto</CardTitle>
           <div className="grid md:grid-cols-2 gap-4">
-            <Field label="Título do evento" className="md:col-span-2"><Input value={ec.projeto.titulo} onChange={(e) => updProj({ titulo: e.target.value })} /></Field>
-            <Field label="Local"><Input formato="titulo" value={ec.projeto.local} onChange={(e) => updProj({ local: e.target.value })} /></Field>
-            <Field label="Endereço do local"><Input formato="titulo" value={ec.projeto.enderecoLocal} onChange={(e) => updProj({ enderecoLocal: e.target.value })} /></Field>
+            <Field label="Título do evento" className="md:col-span-2"><Input sugestoes={sugestoes.valores.nomeProjeto} value={ec.projeto.titulo} onChange={(e) => updProj({ titulo: e.target.value })} /></Field>
+            <Field label="Local"><Input formato="titulo" sugestoes={sugestoes.valores.local} value={ec.projeto.local} onChange={(e) => updProj({ local: e.target.value })} /></Field>
+            <Field label="Endereço do local"><Input formato="titulo" sugestoes={sugestoes.valores.enderecoLocal} value={ec.projeto.enderecoLocal} onChange={(e) => updProj({ enderecoLocal: e.target.value })} /></Field>
             <Field label="Nº de participantes"><Input type="number" value={ec.projeto.participantes ?? ""} onChange={(e) => updProj({ participantes: e.target.value ? Number(e.target.value) : null })} /></Field>
             {/* Seletor, não texto livre: este nome é quem recebe as pendências do projeto. */}
             <Field label="Produtora responsável">
@@ -492,7 +492,7 @@ export function EcForm() {
             <Field label="Pré-evento"><Input type="date" value={ec.projeto.preEvento} onChange={(e) => updProj({ preEvento: e.target.value })} /></Field>
             <Field label="Evento"><Input type="date" value={ec.projeto.evento} onChange={(e) => updProj({ evento: e.target.value })} /></Field>
             <Field label="Pós-evento"><Input type="date" value={ec.projeto.posEvento} onChange={(e) => updProj({ posEvento: e.target.value })} /></Field>
-            <Field label="Horário"><Input value={ec.projeto.horario} onChange={(e) => updProj({ horario: e.target.value })} placeholder="08h às 18h" /></Field>
+            <Field label="Horário"><Input sugestoes={sugestoes.valores.horario} value={ec.projeto.horario} onChange={(e) => updProj({ horario: e.target.value })} placeholder="08h às 18h" /></Field>
             <Field label="Roteiro" className="md:col-span-2"><Textarea value={ec.projeto.roteiro} onChange={(e) => updProj({ roteiro: e.target.value })} /></Field>
           </div>
         </Card>

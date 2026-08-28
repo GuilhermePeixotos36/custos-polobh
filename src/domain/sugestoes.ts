@@ -1,65 +1,191 @@
 /**
- * Sugestões de preenchimento a partir do que a Pólobh já usou.
+ * A memória dos campos: o que a casa já escreveu volta como sugestão.
  *
- * A casa repete muito: o mesmo local, o mesmo endereço, o mesmo fornecedor de
- * energia, o mesmo "Item" de EC, o mesmo texto de hospedagem. Antes, cada campo
- * era digitado de novo em cada projeto — com variações ("Teatro Sesiminas",
- * "teatro sesi minas") que depois estragam relatório e busca.
+ * A Pólobh repete muito — o mesmo local, o mesmo endereço, a mesma etapa de
+ * cronograma, o mesmo texto de hospedagem, o mesmo código de serviço. Digitado
+ * de novo a cada projeto, isso vira variação ("Teatro Sesiminas", "teatro sesi
+ * minas") que depois estraga relatório e busca.
  *
- * Aqui cada campo de texto livre passa a oferecer o que já foi escrito em
- * OUTROS projetos, ECs e OSs. É sugestão, não trava: dá para digitar qualquer
- * coisa nova, e a lista simplesmente cresce.
+ * Aqui cada campo de texto livre passa a oferecer o que JÁ FOI ESCRITO no
+ * sistema — por qualquer pessoa, em qualquer projeto, EC, OS ou check-list. É
+ * sugestão, não trava: dá para digitar coisa nova, e a lista cresce sozinha.
  *
  * Ordem: o mais USADO primeiro (repetição é sinal de que é o valor certo da
  * casa), desempatando em ordem alfabética.
  *
- * Além da lista por campo, o módulo guarda os VÍNCULOS entre campos que sempre
- * andam juntos (ver `PARES`): escolher "Teatro Sesiminas" no Local traz o
- * endereço que foi usado com ele; escolher a produtora responsável traz o
- * telefone e o e-mail dela. É o mesmo princípio das sugestões — o que a casa já
- * fez —, só que puxando o campo filho junto com o pai.
+ * ── COMO ACRESCENTAR UM CAMPO ──────────────────────────────────────────────
+ * Uma linha no `CATALOGO` abaixo, e `sugestoes={sugestoes.valores.<chave>}` no
+ * `<Input>` da tela. Só isso. O tipo `CampoSugerido`, a lista de campos e a
+ * varredura saem todos da mesma tabela — antes eram quatro lugares para editar
+ * em dois arquivos, e foi por isso que a memória cobria 29 campos de mais de
+ * cem.
+ *
+ * ── O QUE NÃO ENTRA ────────────────────────────────────────────────────────
+ * Campo que IDENTIFICA uma entidade específica: CNPJ, Inscrição Estadual e
+ * Municipal, agência, conta corrente, chave Pix. Oferecer a conta bancária de
+ * um fornecedor enquanto se preenche a de outro não é memória, é risco de pagar
+ * a pessoa errada. Esses dados têm memória melhor no cadastro do fornecedor e
+ * do cliente, que preenche o registro INTEIRO de uma vez a partir do CNPJ.
  */
-import type { Ec, Os, Projeto } from "@/data/types";
+import type { Checklist, Cliente, Ec, EcLinha, ItemChecklist, Os, Projeto, ProjetoInfo } from "@/data/types";
 
-/** Campos que oferecem sugestão. A chave é usada pela tela ao pedir a lista. */
-export type CampoSugerido =
-  // Projeto
-  | "local"
-  | "enderecoLocal"
-  | "nomeProjeto"
-  | "clienteApelido"
-  | "representante"
-  | "representanteTelefone"
-  | "representanteEmail"
-  | "produtoraResponsavel"
-  | "telefoneProdutora"
-  | "emailProdutora"
-  | "horario"
-  // EC
-  | "itemEc"
-  | "grupoEc"
-  | "codigoServico"
-  | "pedidoCompra"
-  // OS
-  | "entrega"
-  | "transporteMaterial"
-  | "transporteEquipe"
-  | "hospedagem"
-  | "alimentacao"
-  | "estacionamentoCarga"
-  | "estacionamentoEquipe"
-  | "uniformizacao"
-  | "energia"
-  | "internet"
-  | "pontosEletricos"
-  | "estruturas"
-  | "servicosApoio"
-  | "artLaudos";
+/** Tudo o que o sistema já gravou — a matéria-prima da memória dos campos. */
+export interface BaseSugestoes {
+  projetos: Projeto[];
+  ecs: Ec[];
+  oss: Os[];
+  checklists: Checklist[];
+}
+
+/** Onde um campo vai buscar o que já foi escrito nele. */
+type Coletor = (base: BaseSugestoes) => (string | null | undefined)[];
+
+/* ----------------------- de onde cada campo colhe ------------------------ */
 
 /**
- * Campos que andam juntos: escolher o PAI preenche o FILHO com o valor que já
- * foi usado junto com ele. Para acrescentar um vínculo novo, basta somar um par
- * aqui — a coleta e a consulta seguem funcionando sozinhas.
+ * Bloco "Informações do Projeto" — lido no projeto E na cópia que cada EC
+ * carrega. As ECs entram de propósito: cada uma guarda o retrato do projeto no
+ * momento em que foi feita, então cobrem também projeto que saiu da lista.
+ */
+const infosDeProjeto = (b: BaseSugestoes): ProjetoInfo[] => [
+  ...b.projetos.map((p) => p.info),
+  ...b.ecs.map((e) => e.projeto),
+];
+const doProjeto = (ler: (i: ProjetoInfo) => string | null | undefined): Coletor => (b) =>
+  infosDeProjeto(b).map(ler);
+
+/** Cadastro do cliente — mesma dupla origem (projeto + cópia na EC). */
+const clientes = (b: BaseSugestoes): Cliente[] => [
+  ...b.projetos.map((p) => p.cliente),
+  ...b.ecs.map((e) => e.cliente),
+];
+const doCliente = (ler: (c: Cliente | undefined) => string | null | undefined): Coletor => (b) =>
+  clientes(b).map(ler);
+
+const daLinhaEc = (ler: (l: EcLinha) => string | null | undefined): Coletor => (b) =>
+  b.ecs.flatMap((e) => (e.linhas ?? []).map(ler));
+
+const daOs = (ler: (o: Os) => string | null | undefined): Coletor => (b) => b.oss.map(ler);
+
+/** Para o que mora numa LISTA dentro da OS (cronograma, parcelas). */
+const deCadaOs = (ler: (o: Os) => (string | null | undefined)[]): Coletor => (b) => b.oss.flatMap(ler);
+
+const daTarefa = (ler: (t: ItemChecklist) => string | null | undefined): Coletor => (b) =>
+  b.checklists.flatMap((c) => (c.itens ?? []).map(ler));
+
+/** Junta fontes diferentes sob a mesma chave — o mesmo vocabulário em dois lugares. */
+const juntando = (...coletores: Coletor[]): Coletor => (b) => coletores.flatMap((c) => c(b));
+
+/* ------------------------------ o catálogo ------------------------------- */
+
+/**
+ * Uma entrada por campo. A chave é o nome pelo qual a tela pede a lista.
+ *
+ * Chaves compartilhadas são de propósito: "Código de Serviço" é o mesmo
+ * vocabulário no item da EC e no financeiro da OS, e a etapa do cronograma é a
+ * mesma palavra no projeto e na OS. Quem escreve num lugar ajuda quem escreve
+ * no outro.
+ */
+const CATALOGO = {
+  /* -- Projeto ---------------------------------------------------------- */
+  local: doProjeto((i) => i.local),
+  enderecoLocal: doProjeto((i) => i.enderecoLocal),
+  nomeProjeto: doProjeto((i) => i.nomeProjeto),
+  clienteApelido: doProjeto((i) => i.clienteAbreviado),
+  anoProjeto: doProjeto((i) => i.anoProjeto),
+  incentivosFiscais: doProjeto((i) => i.incentivosFiscais),
+  produtoraResponsavel: doProjeto((i) => i.produtoraResponsavel),
+  telefoneProdutora: doProjeto((i) => i.telefoneProdutora),
+  emailProdutora: doProjeto((i) => i.emailProdutora),
+  // Horário do evento e horário de etapa de cronograma são a mesma escrita
+  // ("08h às 18h") — quem preenche um alimenta o outro.
+  horario: juntando(
+    doProjeto((i) => i.horario),
+    deCadaOs((o) => (o.cronograma ?? []).map((c) => c.horario))
+  ),
+
+  /* -- Cliente ---------------------------------------------------------- */
+  clienteNome: doCliente((c) => c?.nome),
+  clienteRazaoSocial: doCliente((c) => c?.razaoSocial),
+  clienteEndereco: doCliente((c) => c?.endereco),
+  representante: doCliente((c) => c?.representante?.nome),
+  representanteTelefone: doCliente((c) => c?.representante?.telefones),
+  representanteEmail: doCliente((c) => c?.representante?.email),
+
+  /* -- Blocos livres que a pessoa nomeia -------------------------------- */
+  // Etapa de cronograma: os blocos extras do projeto e as etapas da OS.
+  etapaCronograma: juntando(
+    (b) => infosDeProjeto(b).flatMap((i) => (i.cronogramaExtras ?? []).map((x) => x.titulo)),
+    deCadaOs((o) => (o.cronograma ?? []).map((c) => c.etapa))
+  ),
+  atividadesCronograma: deCadaOs((o) => (o.cronograma ?? []).map((c) => c.atividades)),
+  tituloRoteiro: (b) => infosDeProjeto(b).flatMap((i) => (i.roteirosExtras ?? []).map((x) => x.titulo)),
+
+  /* -- Item da EC ------------------------------------------------------- */
+  itemEc: daLinhaEc((l) => l.item),
+  grupoEc: daLinhaEc((l) => l.grupo),
+  pedidoCompra: daLinhaEc((l) => l.pedidoCompra),
+  // Item da EC e financeiro da OS falam o mesmo código ("03.01").
+  codigoServico: juntando(
+    daLinhaEc((l) => l.codigoServico),
+    daOs((o) => o.financeiro?.codigoServico)
+  ),
+
+  /* -- OS: contratação -------------------------------------------------- */
+  entrega: daOs((o) => o.entrega),
+  // O banco se repete entre fornecedores diferentes ("Banco do Brasil (001)").
+  // Agência, conta e Pix NÃO entram: identificam um fornecedor só.
+  bancoFornecedor: daOs((o) => o.fornecedor?.dadosBancarios?.banco),
+
+  /* -- OS: logística e infraestrutura ----------------------------------- */
+  transporteMaterial: daOs((o) => o.logistica?.transporteMaterial),
+  transporteEquipe: daOs((o) => o.logistica?.transporteEquipe),
+  hospedagem: daOs((o) => o.logistica?.hospedagem),
+  alimentacao: daOs((o) => o.logistica?.alimentacao),
+  estacionamentoCarga: daOs((o) => o.logistica?.estacionamentoCarga),
+  estacionamentoEquipe: daOs((o) => o.logistica?.estacionamentoEquipe),
+  uniformizacao: daOs((o) => o.logistica?.uniformizacao),
+  energia: daOs((o) => o.infraestrutura?.energia),
+  internet: daOs((o) => o.infraestrutura?.internet),
+  pontosEletricos: daOs((o) => o.infraestrutura?.pontosEletricos),
+  estruturas: daOs((o) => o.infraestrutura?.estruturas),
+  servicosApoio: daOs((o) => o.infraestrutura?.servicosApoio),
+  artLaudos: daOs((o) => o.infraestrutura?.artLaudos),
+
+  /* -- OS: orçamento, financeiro e contrato ----------------------------- */
+  descricaoParcela: deCadaOs((o) => (o.orcamento?.parcelas ?? []).map((p) => p.descricao)),
+  projetoIncentivado: daOs((o) => o.financeiro?.projetoIncentivado),
+  leiIncentivo: daOs((o) => o.financeiro?.leiIncentivo),
+  numeroProjetoIncentivado: daOs((o) => o.financeiro?.numeroProjetoIncentivado),
+  cnae: daOs((o) => o.financeiro?.cnae),
+  acertoFinanceiro: daOs((o) => o.financeiro?.acertoFinanceiro),
+  bvJustificativa: daOs((o) => o.financeiro?.bvJustificativa),
+  formaPagamento: daOs((o) => o.contrato?.formaPagamento),
+  observacoesContrato: daOs((o) => o.contrato?.observacoesGerais),
+  informacoesComplementares: daOs((o) => o.contrato?.informacoesComplementares),
+  rubrica: daOs((o) => o.contrato?.rubrica),
+
+  /* -- Check-list ------------------------------------------------------- */
+  tituloTarefa: daTarefa((t) => t.titulo),
+  etapaTarefa: daTarefa((t) => t.etapa),
+} satisfies Record<string, Coletor>;
+
+/** Campos que oferecem sugestão — sai do próprio catálogo, sem lista paralela. */
+export type CampoSugerido = keyof typeof CATALOGO;
+
+const CAMPOS = Object.keys(CATALOGO) as CampoSugerido[];
+
+/* ------------------------ campos que andam juntos ------------------------ */
+
+/**
+ * Pares pai → filho: escolher o pai preenche o filho com o valor que já foi
+ * usado junto com ele. Escolher "Teatro Sesiminas" no Local traz o endereço;
+ * escolher a produtora responsável traz telefone e e-mail dela.
+ *
+ * A co-ocorrência sai de ler os dois campos NO MESMO REGISTRO — por isso pai e
+ * filho precisam colher da mesma fonte (os dois `doProjeto`, ou os dois
+ * `doCliente`). Fontes diferentes devolvem listas de tamanhos diferentes e o
+ * emparelhamento não significaria nada; `paresConsistentes` cobre isso no teste.
  */
 export const PARES: ReadonlyArray<{ pai: CampoSugerido; filho: CampoSugerido }> = [
   { pai: "local", filho: "enderecoLocal" },
@@ -67,6 +193,8 @@ export const PARES: ReadonlyArray<{ pai: CampoSugerido; filho: CampoSugerido }> 
   { pai: "produtoraResponsavel", filho: "emailProdutora" },
   { pai: "representante", filho: "representanteTelefone" },
   { pai: "representante", filho: "representanteEmail" },
+  { pai: "clienteNome", filho: "clienteRazaoSocial" },
+  { pai: "clienteNome", filho: "clienteEndereco" },
 ] as const;
 
 /** Chave de um par no mapa de vínculos ("local>enderecoLocal"). */
@@ -84,146 +212,75 @@ const LIMITE = 40;
 /** Texto muito longo não é "valor repetível": é redação, e polui a lista. */
 const TAMANHO_MAX = 120;
 
-const CAMPOS: CampoSugerido[] = [
-  "local", "enderecoLocal", "nomeProjeto", "clienteApelido",
-  "representante", "representanteTelefone", "representanteEmail",
-  "produtoraResponsavel", "telefoneProdutora", "emailProdutora", "horario",
-  "itemEc", "grupoEc", "codigoServico", "pedidoCompra",
-  "entrega", "transporteMaterial", "transporteEquipe", "hospedagem", "alimentacao",
-  "estacionamentoCarga", "estacionamentoEquipe", "uniformizacao",
-  "energia", "internet", "pontosEletricos", "estruturas", "servicosApoio", "artLaudos",
-];
-
-/** Uma entrada: a grafia que vai para a tela e quantas vezes ela apareceu. */
-interface Contagem {
-  texto: string;
-  vezes: number;
-}
-/** Chave normalizada (sem acento, sem caixa) -> contagem. */
-type Balde = Map<string, Contagem>;
-
-const vazio = (): Record<CampoSugerido, Balde> =>
-  Object.fromEntries(CAMPOS.map((c) => [c, new Map<string, Contagem>()])) as Record<CampoSugerido, Balde>;
-
 const chaveDe = (texto: string): string =>
   texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
 
+const limpo = (valor: string | null | undefined): string => {
+  const texto = (valor ?? "").trim();
+  return texto && texto.length <= TAMANHO_MAX ? texto : "";
+};
+
 /**
- * Conta mais uma aparição do valor.
+ * Os valores de um campo, do mais usado para o menos usado.
  *
- * A contagem é por chave normalizada para que "Teatro SESI" e "teatro sesi"
+ * A contagem é por chave normalizada, para que "Teatro SESI" e "teatro sesi"
  * somem — mas o que vai para a tela é a PRIMEIRA grafia vista, e não uma versão
  * descaracterizada.
  */
-function contar(balde: Balde, valor: string | undefined | null): void {
-  const texto = (valor ?? "").trim();
-  if (!texto || texto.length > TAMANHO_MAX) return;
-  const chave = chaveDe(texto);
-  const atual = balde.get(chave);
-  if (atual) atual.vezes += 1;
-  else balde.set(chave, { texto, vezes: 1 });
-}
-
-const ordenar = (balde: Balde): string[] =>
-  [...balde.values()]
+function ordenarPorUso(valores: (string | null | undefined)[]): string[] {
+  const balde = new Map<string, { texto: string; vezes: number }>();
+  for (const valor of valores) {
+    const texto = limpo(valor);
+    if (!texto) continue;
+    const chave = chaveDe(texto);
+    const atual = balde.get(chave);
+    if (atual) atual.vezes += 1;
+    else balde.set(chave, { texto, vezes: 1 });
+  }
+  return [...balde.values()]
     .sort((a, b) => b.vezes - a.vezes || a.texto.localeCompare(b.texto, "pt-BR"))
     .slice(0, LIMITE)
     .map((c) => c.texto);
+}
 
-/** Registro de um par pai->filho: quantas vezes cada valor do filho apareceu. */
-type BaldeVinculo = Map<string, Map<string, number>>;
-
-const contarVinculo = (balde: BaldeVinculo, pai: string | undefined | null, filho: string | undefined | null) => {
-  const p = (pai ?? "").trim();
-  const f = (filho ?? "").trim();
-  if (!p || !f || f.length > TAMANHO_MAX) return;
-  const chave = chaveDe(p);
-  const porValor = balde.get(chave) ?? new Map<string, number>();
-  porValor.set(f, (porValor.get(f) ?? 0) + 1);
-  balde.set(chave, porValor);
-};
-
-/** Resolve cada valor do pai para o valor do filho que mais apareceu com ele. */
-const resolverVinculo = (balde: BaldeVinculo): Record<string, string> => {
+/**
+ * Para cada valor do pai, o valor do filho que mais apareceu ao lado dele.
+ *
+ * As duas listas vêm da mesma fonte e na mesma ordem, então a posição `i` de
+ * uma é o mesmo registro da posição `i` da outra — é daí que sai a
+ * co-ocorrência, sem precisar de uma segunda varredura.
+ */
+function emparelhar(pais: (string | null | undefined)[], filhos: (string | null | undefined)[]): Record<string, string> {
+  const contagem = new Map<string, Map<string, number>>();
+  for (let i = 0; i < pais.length; i++) {
+    const pai = limpo(pais[i]);
+    const filho = limpo(filhos[i]);
+    if (!pai || !filho) continue;
+    const chave = chaveDe(pai);
+    const porValor = contagem.get(chave) ?? new Map<string, number>();
+    porValor.set(filho, (porValor.get(filho) ?? 0) + 1);
+    contagem.set(chave, porValor);
+  }
   const out: Record<string, string> = {};
-  for (const [chave, porValor] of balde) {
+  for (const [chave, porValor] of contagem) {
     const melhor = [...porValor.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "pt-BR"))[0];
     if (melhor) out[chave] = melhor[0];
   }
   return out;
-};
+}
 
-/**
- * Varre projetos, ECs e OSs e devolve, por campo, os valores já usados — e os
- * vínculos entre os campos que andam juntos.
- *
- * As ECs entram na conta de propósito: cada uma carrega uma cópia dos dados do
- * projeto no momento em que foi feita, então elas cobrem também os projetos que
- * não estão na lista carregada.
- */
-export function montarSugestoes(projetos: Projeto[], ecs: Ec[], oss: Os[]): Sugestoes {
-  const acc = vazio();
-  const baldes = new Map<string, BaldeVinculo>(PARES.map((p) => [chavePar(p.pai, p.filho), new Map()]));
-  const vincular = (pai: CampoSugerido, filho: CampoSugerido, valorPai?: string | null, valorFilho?: string | null) =>
-    contarVinculo(baldes.get(chavePar(pai, filho))!, valorPai, valorFilho);
-
-  const doProjetoInfo = (info: Projeto["info"] | undefined) => {
-    if (!info) return;
-    contar(acc.local, info.local);
-    contar(acc.enderecoLocal, info.enderecoLocal);
-    contar(acc.nomeProjeto, info.nomeProjeto);
-    contar(acc.clienteApelido, info.clienteAbreviado);
-    contar(acc.horario, info.horario);
-    contar(acc.produtoraResponsavel, info.produtoraResponsavel);
-    contar(acc.telefoneProdutora, info.telefoneProdutora);
-    contar(acc.emailProdutora, info.emailProdutora);
-    // O endereço do local pertence ao local; o contato pertence à produtora.
-    vincular("local", "enderecoLocal", info.local, info.enderecoLocal);
-    vincular("produtoraResponsavel", "telefoneProdutora", info.produtoraResponsavel, info.telefoneProdutora);
-    vincular("produtoraResponsavel", "emailProdutora", info.produtoraResponsavel, info.emailProdutora);
-  };
-
-  const doCliente = (cliente: Projeto["cliente"] | undefined) => {
-    const rep = cliente?.representante;
-    if (!rep) return;
-    contar(acc.representante, rep.nome);
-    contar(acc.representanteTelefone, rep.telefones);
-    contar(acc.representanteEmail, rep.email);
-    vincular("representante", "representanteTelefone", rep.nome, rep.telefones);
-    vincular("representante", "representanteEmail", rep.nome, rep.email);
-  };
-
-  for (const p of projetos) {
-    doProjetoInfo(p.info);
-    doCliente(p.cliente);
-  }
-
-  for (const ec of ecs) {
-    doProjetoInfo(ec.projeto);
-    doCliente(ec.cliente);
-    for (const linha of ec.linhas ?? []) {
-      contar(acc.itemEc, linha.item);
-      contar(acc.grupoEc, linha.grupo);
-      contar(acc.codigoServico, linha.codigoServico);
-      contar(acc.pedidoCompra, linha.pedidoCompra);
-    }
-  }
-
-  for (const os of oss) {
-    contar(acc.entrega, os.entrega);
-    for (const [campo, valor] of Object.entries(os.logistica ?? {})) {
-      const chave = campo as CampoSugerido;
-      if (chave in acc) contar(acc[chave], valor as string);
-    }
-    for (const [campo, valor] of Object.entries(os.infraestrutura ?? {})) {
-      const chave = campo as CampoSugerido;
-      if (chave in acc) contar(acc[chave], valor as string);
-    }
-  }
-
+/** Varre tudo o que o sistema gravou e devolve, por campo, os valores já usados. */
+export function montarSugestoes(base: BaseSugestoes): Sugestoes {
+  const colhido = new Map<CampoSugerido, (string | null | undefined)[]>(
+    CAMPOS.map((campo) => [campo, CATALOGO[campo](base)])
+  );
   return {
-    valores: Object.fromEntries(CAMPOS.map((c) => [c, ordenar(acc[c])])) as Record<CampoSugerido, string[]>,
-    vinculos: Object.fromEntries([...baldes].map(([chave, balde]) => [chave, resolverVinculo(balde)])),
+    valores: Object.fromEntries(
+      CAMPOS.map((campo) => [campo, ordenarPorUso(colhido.get(campo)!)])
+    ) as Record<CampoSugerido, string[]>,
+    vinculos: Object.fromEntries(
+      PARES.map((par) => [chavePar(par.pai, par.filho), emparelhar(colhido.get(par.pai)!, colhido.get(par.filho)!)])
+    ),
   };
 }
 
@@ -244,6 +301,15 @@ export function filhosDe(sugestoes: Sugestoes, pai: CampoSugerido, valorPai: str
     if (valor) out[par.filho] = valor;
   }
   return out;
+}
+
+/**
+ * Todo par colhe pai e filho da mesma fonte? É a condição para o emparelhamento
+ * por posição significar alguma coisa. Existe para o teste conferir — um par
+ * escrito errado devolveria vínculos aleatórios em silêncio.
+ */
+export function paresConsistentes(base: BaseSugestoes): boolean {
+  return PARES.every((par) => CATALOGO[par.pai](base).length === CATALOGO[par.filho](base).length);
 }
 
 /** Sugestões vazias — usado enquanto a carga não terminou. */
