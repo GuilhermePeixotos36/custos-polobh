@@ -36,7 +36,7 @@ import { confirmar } from "@/store/confirm";
 import { corrigirRoteirosProjeto } from "@/lib/correcaoOrtografica";
 import { statusProjetoAutomatico } from "@/domain/statusProjeto";
 import type { Cliente, Ec, EcLinha, Projeto, ProjetoInfo, StatusProjeto } from "@/data/types";
-import { rotaDaPendencia, type Pendencia } from "@/domain/pendencias";
+import { pendenciasDaTela, type Pendencia } from "@/domain/pendencias";
 import { situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
 import { itensDaOs } from "@/domain/os";
 import { ThItensOs, TdItensOs } from "@/components/ColunaItensOs";
@@ -504,26 +504,14 @@ export function ProjetoDetail() {
   }
 
   /**
-   * Pendências da ABA aberta — exatamente o número do badge vermelho dela. O
-   * navegador flutuante e o badge saem da mesma lista, então tudo o que é
-   * contado pode ser encontrado.
+   * O que esta aba resolve sozinha — o que a pílula flutuante alcança sem sair
+   * daqui, e o que vira badge nas tarefas do check-list. Pendência de uma EC ou
+   * de uma OS não entra: ela mora na tela dela, e é de lá que se responde.
    */
-  const pendenciasDaAba = useMemo(
-    () => minhasPendencias.filter((x) => x.projetoId === id && x.aba === aba),
+  const pendenciasDaTelaAtual = useMemo(
+    () => pendenciasDaTela(minhasPendencias, { projetoId: id, aba }),
     [minhasPendencias, id, aba]
   );
-
-  /**
-   * A pendência de uma EC ou de uma OS mora na tela dela, não aqui: o salto vira
-   * navegação — para o mesmo lugar que o sininho do topo abre (`rotaDaPendencia`).
-   * O alvo já ficou guardado em `focoPendencia`, e a tela de destino abre a
-   * observação certa assim que carregar. O que já mora nesta tela (check-list,
-   * cronograma) não navega: só rola até o item.
-   */
-  const saltarParaPendencia = (pendencia: Pendencia) => {
-    const rota = rotaDaPendencia(pendencia);
-    if (!rota.startsWith(`/projetos/${id}`)) navigate(rota);
-  };
 
   const camposObrigatoriosFaltando = () => camposObrigatoriosProjeto(p.info, p.cliente);
 
@@ -1101,7 +1089,7 @@ export function ProjetoDetail() {
           projeto={p}
           podeEditar={podeEditarChecklist}
           usuarios={nomesUsuarios}
-          pendencias={pendenciasDaAba}
+          pendencias={pendenciasDaTelaAtual}
         />
       )}
 
@@ -1121,8 +1109,8 @@ export function ProjetoDetail() {
         </Card>
       )}
 
-      {/* Pílula flutuante: as pendências da aba aberta, uma a uma. */}
-      {!novo && <NavegadorPendencias pendencias={pendenciasDaAba} aoSaltar={saltarParaPendencia} />}
+      {/* Pílula flutuante: o que se resolve NESTA aba, uma de cada vez. */}
+      {!novo && <NavegadorPendencias pendencias={pendenciasDaTelaAtual} />}
 
       {aba === "fornecedores" && (
         <Card padded={false}>

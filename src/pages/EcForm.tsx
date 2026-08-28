@@ -40,7 +40,7 @@ import { useAuth } from "@/store/auth";
 import { RentabilidadeItens } from "@/components/RentabilidadeItens";
 import { EcGrupos } from "@/components/EcGrupos";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
-import { rotaDaPendencia } from "@/domain/pendencias";
+import { pendenciasDaTela } from "@/domain/pendencias";
 import { useMinhasPendencias } from "@/store/pendencias";
 import { useSugestoes } from "@/hooks/useSugestoes";
 import { EcSubGuias, type SubGuiaEc } from "@/components/EcSubGuias";
@@ -213,11 +213,11 @@ export function EcForm() {
     () => (ec ? gastoPorLinhaViaOSs(ec.linhas, ossData ?? []) : {}),
     [ec, ossData]
   );
-  // Itens com observação em aberto — alimentam o navegador de pendências.
-  // Pendências desta EC — a MESMA lista do badge vermelho da EC (ver
-  // `agregarPendencias`), e não mais "toda observação em aberto que existir aqui".
+  // Pendências que se resolvem NESTA tela: as observações dos itens e os status
+  // a emitir. O que a EC contabiliza mas mora na OS fica de fora — a pílula anda
+  // em roda e não pode sair da tela no meio da volta (ver `pendenciasDaTela`).
   const pendenciasDaEc = useMemo(
-    () => minhasPendencias.filter((p) => p.ecId === id),
+    () => pendenciasDaTela(minhasPendencias, { ecId: id ?? "" }),
     [minhasPendencias, id]
   );
   /** Quantas pendências o usuário tem em cada linha — vira o badge do item. */
@@ -443,17 +443,7 @@ export function EcForm() {
       subabas={<EcSubGuias atual={subaba} onChange={setSubaba} temResumo={verFinanceiro} temRentabilidade={verFinanceiro} />}
     >
       {/* Pílula flutuante que salta entre as pendências desta EC. */}
-      {subaba === "ec" && (
-        <NavegadorPendencias
-          pendencias={pendenciasDaEc}
-          aoSaltar={(p) => {
-            // Observação/cronograma de OS entram na conta desta EC, mas moram na
-            // tela da OS — saltar para lá é o que faz o número ser alcançável.
-            const rota = rotaDaPendencia(p);
-            if (!rota.startsWith(`/estimativas/${id}`)) navigate(rota);
-          }}
-        />
-      )}
+      {subaba === "ec" && <NavegadorPendencias pendencias={pendenciasDaEc} />}
 
       {verFinanceiro && subaba === "resumo" && <div className="space-y-4">{resumoCard}</div>}
       {verFinanceiro && subaba === "rentabilidade" && <div className="space-y-4">{rentabilidadeCard}</div>}

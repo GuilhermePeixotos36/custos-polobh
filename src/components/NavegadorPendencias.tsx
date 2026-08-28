@@ -1,17 +1,23 @@
 /**
  * Navegador de pendências — a pílula flutuante do canto inferior direito.
  *
- * O número dela é EXATAMENTE o mesmo do badge vermelho da tela em que está: as
- * duas leituras saem da mesma lista (`useMinhasPendencias`), recortada pelo que
- * a tela mostra. Antes não era assim — o badge contava as pendências da pessoa
- * (inclusive as do projeto pelo qual ela responde) e a pílula varria só as
- * observações em aberto da EC aberta. Quem era Produtor Responsável via um
- * número que não conseguia localizar.
+ * Ela conta e mostra exatamente o que se ALCANÇA daqui: as pendências desta
+ * tela, com um elemento para a câmera achar (ver `pendenciasDaTela`). Sai da
+ * mesma lista dos badges (`useMinhasPendencias`), então tudo que ela conta pode
+ * ser encontrado — que é o ponto: antes o badge contava as pendências da pessoa
+ * e a pílula varria só as observações da EC aberta, e quem era Produtor
+ * Responsável via um número que não conseguia localizar.
+ *
+ * O recorte por tela também é o que mantém o círculo fechado. A pílula anda em
+ * roda, e uma pendência de outra tela quebrava a roda: o salto virava navegação,
+ * a tela de destino trazia outra lista, e não havia como voltar para continuar
+ * de onde se parou. Atravessar o sistema é papel do sininho, que existe para
+ * isso; aqui a promessa é menor e inteira — dar conta do que está na frente.
  *
  * As setas ▲ / ▼ saltam de uma para a outra: a tela rola até o item, ele "lateja"
  * duas vezes e, quando a pendência é um comentário, a thread daquele item se
  * abre e o comentário exato pisca em vermelho (ver `focarPendencia`); quando é
- * "OS/Contrato a emitir", quem pisca é o campo de status.
+ * "OS/Contrato a emitir", quem pisca são os campos de status.
  *
  * O pisca acontece a CADA clique, inclusive quando as duas pendências moram no
  * mesmo item e a câmera não precisa se mexer — é o único sinal de que a seta fez
@@ -26,18 +32,7 @@ import { focarPendencia } from "@/lib/focoPendencia";
 import { cx } from "@/lib/format";
 import type { Pendencia } from "@/domain/pendencias";
 
-export function NavegadorPendencias({
-  pendencias,
-  aoSaltar,
-}: {
-  pendencias: Pendencia[];
-  /**
-   * Chance de a tela tratar o salto por conta própria — usada no projeto, onde a
-   * pendência de uma EC/OS mora em outra tela e o salto vira uma navegação. O
-   * alvo fica guardado em `focoPendencia` e a tela de destino o consome ao abrir.
-   */
-  aoSaltar?: (pendencia: Pendencia) => void;
-}) {
+export function NavegadorPendencias({ pendencias }: { pendencias: Pendencia[] }) {
   const [posicao, setPosicao] = useState(0);
 
   // A lista muda conforme observações são resolvidas/criadas: o índice precisa
@@ -54,8 +49,8 @@ export function NavegadorPendencias({
     const alvo = (indice + pendencias.length) % pendencias.length; // circular: do fim volta ao início
     setPosicao(alvo);
     const p = pendencias[alvo];
-    if (p.ancora) focarPendencia({ ancora: p.ancora, observacaoId: p.observacaoId, campo: p.campo });
-    aoSaltar?.(p);
+    // `pendenciasDaTela` já garantiu a âncora: toda seta tem para onde levar.
+    if (p.ancora) focarPendencia({ ancora: p.ancora, observacaoId: p.observacaoId, campos: p.campos });
   };
 
   return (
@@ -72,8 +67,8 @@ export function NavegadorPendencias({
           {pendencias.length} {pendencias.length === 1 ? "pendência" : "pendências"}
           <span className="font-bold text-ink-3"> · {posicao + 1} de {pendencias.length}</span>
         </div>
-        {/* O título vem junto: pendência sem lugar para rolar (emitir OS, projeto
-            sem EC) pelo menos se identifica, em vez de virar um número mudo. */}
+        {/* O título vem junto: diz o que a próxima seta vai mostrar, em vez de
+            deixar a pessoa saltar às cegas para descobrir. */}
         <div className="text-[11px] text-ink-2 truncate" title={atual.titulo}>
           {atual.titulo}
         </div>

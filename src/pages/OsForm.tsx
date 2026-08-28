@@ -45,6 +45,7 @@ import { useSugestoes } from "@/hooks/useSugestoes";
 import { urlCredenciamento } from "@/lib/links";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
 import { idAncoraPendencia } from "@/lib/destaque";
+import { pendenciasDaTela } from "@/domain/pendencias";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import type {
   DocumentoFiscal,
@@ -1041,8 +1042,9 @@ export function OsForm() {
         )}
       </div>
 
-      {/* Mesma pílula da EC: o número aqui é o do badge desta OS. */}
-      <NavegadorPendencias pendencias={pendenciasDoUsuario.filter((p) => p.osId === os.id)} />
+      {/* Mesma pílula da EC: as pendências desta OS que têm onde ser achadas.
+          O cronograma vazio é cobrado no sininho — ele não mora num item. */}
+      <NavegadorPendencias pendencias={pendenciasDaTela(pendenciasDoUsuario, { osId: os.id })} />
     </PageShell>
   );
 
