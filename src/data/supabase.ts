@@ -5,7 +5,7 @@
  * coluna→objeto é direto. Snapshots embutidos: `ecs.cliente` e `oss.fornecedor`.
  */
 import { supabase } from "@/lib/supabaseClient";
-import { numeroEc, producaoPadrao, producaoZerada, linhasProducaoLegado, honorariosPadrao, encargosPadrao } from "@/domain/calc";
+import { numeroEc, producaoPadrao, producaoZerada, linhasProducaoLegado, honorariosPadrao, encargosPadrao, bvVazio } from "@/domain/calc";
 import { normalizarProjetoInfo, sincronizarCamposLegados } from "@/domain/projeto";
 import { onlyDigits } from "@/lib/format";
 import { auditar } from "@/store/logs";
@@ -287,6 +287,8 @@ function mapLinha(r: any): EcLinha {
     valorSemBvSemNf: Number(r.valor_sem_bv_sem_nf) || 0,
     valoresNaoAplicaveis: Array.isArray(r.valores_nao_aplicaveis) ? r.valores_nao_aplicaveis : [],
     opcaoValor: r.opcao_valor ?? "",
+    // BV mascarado (null) para quem não vê financeiro — vira o vazio, nunca undefined.
+    bv: r.bv ?? bvVazio(),
     statusAprovacao: r.status_aprovacao ?? "Pendente",
     fornecedorRazao: r.fornecedor_razao ?? "",
     fornecedorCnpj: r.fornecedor_cnpj ?? "",
@@ -319,6 +321,7 @@ function linhaRow(ecId: string, l: EcLinha) {
     valor_sem_bv_sem_nf: l.valorSemBvSemNf ?? 0,
     valores_nao_aplicaveis: l.valoresNaoAplicaveis ?? [],
     opcao_valor: l.opcaoValor ?? "",
+    bv: l.bv ?? bvVazio(),
     status_aprovacao: l.statusAprovacao,
     fornecedor_razao: l.fornecedorRazao,
     fornecedor_cnpj: l.fornecedorCnpj,
@@ -340,7 +343,7 @@ function linhaMigrada(o: { id: string; grupo: string; item: string; descricao: s
   return {
     id: o.id, grupo: o.grupo, item: o.item, descricao: o.descricao, descricaoCompleta: "",
     valorPolobh: o.valorPolobh, valorCliente: 0, valorGasto: 0,
-    valorComBvNf: 0, valorSemBvComNf: 0, valorSemBvSemNf: 0, valoresNaoAplicaveis: [], opcaoValor: "",
+    valorComBvNf: 0, valorSemBvComNf: 0, valorSemBvSemNf: 0, valoresNaoAplicaveis: [], opcaoValor: "", bv: bvVazio(),
     statusAprovacao: "Pendente", fornecedorRazao: "", fornecedorCnpj: "", fornecedorContato: "",
     faturaNf: "", codigoServico: "", pedidoCompra: "", statusOs: "Pendente", contratoStatus: "Pendente",
     observacao: "", observacoes: [], oculto: false, ordem: o.ordem,

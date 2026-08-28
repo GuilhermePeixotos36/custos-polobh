@@ -257,6 +257,22 @@ export type OpcaoValorItem = "" | "comBvNf" | "semBvComNf" | "semBvSemNf";
 /** As três opções de fato — sem o "" de "ninguém escolheu ainda". */
 export type OpcaoValorDefinida = Exclude<OpcaoValorItem, "">;
 
+/**
+ * BV do item: a bonificação que o fornecedor dá à Pólobh.
+ *
+ * Vale só quando a forma de cobrança escolhida é "com BV e NF" — nas outras
+ * duas, por definição, não há BV, e o que resta é a justificativa de por quê.
+ * Mesmo formato de honorários e encargos da EC, para ser o mesmo raciocínio.
+ */
+export interface BvItem {
+  /** Percentual sobre o valor com BV do item, ou valor fixo em R$. */
+  modo: "percentual" | "fixo";
+  /** O número combinado: % quando percentual, R$ quando fixo. */
+  valor: number;
+  /** Por que o BV está fora do padrão da casa (sem BV, ou abaixo de 15%). */
+  justificativa: string;
+}
+
 export interface EcLinha {
   id: string;
   grupo: string;
@@ -285,6 +301,14 @@ export interface EcLinha {
   valoresNaoAplicaveis: OpcaoValorDefinida[];
   /** Qual das três vale. É ela que a planilha da OS imprime abaixo do valor da EC. */
   opcaoValor: OpcaoValorItem;
+  /**
+   * BV combinado com o fornecedor NESTE item.
+   *
+   * Ele é negociado junto com o valor, e uma OS consolida vários itens do mesmo
+   * fornecedor — cada um podendo ter saído com um BV diferente. Por isso mora
+   * aqui, e a OS soma o dos itens que consolida.
+   */
+  bv: BvItem;
   statusAprovacao: StatusAprovacao;
   fornecedorRazao: string;
   fornecedorCnpj: string;

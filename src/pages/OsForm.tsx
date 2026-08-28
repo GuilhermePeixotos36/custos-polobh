@@ -20,6 +20,8 @@ import { useAsync } from "@/hooks/useAsync";
 import {
   agruparPorFornecedor,
   descritivoConsolidado,
+  bvConsolidado,
+  BV_PADRAO_PERCENTUAL,
   numeroOs,
   versaoOs,
   textoObjetoContrato,
@@ -155,6 +157,19 @@ function aplicarAutoPreenchimento(os: Os, ec: Ec): Os {
 
   const descritivoNf = os.financeiro.descritivoNf || descritivo;
 
+  /**
+   * BV: vem pronto do que foi combinado item a item na EC.
+   *
+   * Somar os valores em reais é o único jeito exato quando os itens saíram com
+   * BVs diferentes — o percentual é recomposto sobre o total. Só preenche o que
+   * está zerado/vazio, como todo o resto deste auto-preenchimento: OS antiga
+   * com BV ajustado à mão não é desfeita.
+   */
+  const bvEc = bvConsolidado(linhas);
+  const bvPercentual = os.financeiro.bvPercentual || bvEc.percentual;
+  const bvValor = os.financeiro.bvValor || bvEc.valor;
+  const bvJustificativa = os.financeiro.bvJustificativa || bvEc.justificativa;
+
   // OSs antigas nasciam com uma única linha "Evento" gerada automaticamente.
   // Ela conta como não-preenchida, para dar lugar ao cronograma real do projeto.
   const so1 = os.cronograma.length === 1 ? os.cronograma[0] : undefined;
@@ -183,6 +198,9 @@ function aplicarAutoPreenchimento(os: Os, ec: Ec): Os {
       projetoIncentivado:
         os.financeiro.projetoIncentivado || ec.projeto.nomeProjeto || ec.projeto.titulo,
       leiIncentivo: os.financeiro.leiIncentivo || LEI_INCENTIVO_PADRAO,
+      bvPercentual,
+      bvValor,
+      bvJustificativa,
     },
     contrato: {
       ...os.contrato,
@@ -302,8 +320,10 @@ export function OsForm() {
   // Linhas da EC que esta OS consolida (mesmo fornecedor).
   const linhasConsolidadas = ecCtx.linhas.filter((l) => os.ecLinhaIds.includes(l.id));
   const linkCredenciamento = urlCredenciamento(os);
+  /** O BV combinado nos itens desta OS — a origem do que está nos campos abaixo. */
+  const bvDaEc = bvConsolidado(linhasConsolidadas);
   // Justificativa do BV é obrigatória quando não há BV ou o percentual é < 15%.
-  const bvPrecisaJustif = os.financeiro.bvPercentual < 15;
+  const bvPrecisaJustif = os.financeiro.bvPercentual < BV_PADRAO_PERCENTUAL;
   const bvJustifFaltando = bvPrecisaJustif && !os.financeiro.bvJustificativa?.trim();
 
   // Parcelas: a soma tem que fechar com o valor negociado, senão a OS sai errada.
@@ -389,9 +409,16 @@ export function OsForm() {
   // BV Pólobh — quem negocia com o fornecedor é a Produção, então o bloco precisa
   // continuar acessível a todos os perfis (o salvamento exige a justificativa).
   // Vai dentro de "Dados de Faturamento" para o financeiro e em card próprio para os demais.
+  //
+  // Os três campos já nascem preenchidos pelo que foi combinado ITEM A ITEM na
+  // EC (ver `bvConsolidado`): aqui é o lugar de conferir e ajustar, não de
+  // lembrar de cabeça o que se negociou semanas atrás.
   const bvBloco = (
     <>
-      <LinhaOs label="BV Pólobh — Percentual">
+      <LinhaOs
+        label="BV Pólobh — Percentual"
+        hint={bvDaEc.valor > 0 ? `(EC: ${brl(bvDaEc.valor)})` : undefined}
+      >
         <NumberInput value={os.financeiro.bvPercentual} onValue={(v) => updFin({ bvPercentual: v, bvValor: (os.financeiro.valorTotal * v) / 100 })} />
       </LinhaOs>
       <LinhaOs label="BV Pólobh — Valor">

@@ -20,6 +20,13 @@ import {
   reverterAprovacaoLinha,
   tituloEc,
   ENCARGOS,
+  bvVazio,
+  faltasParaEmitirOs,
+  bvDaLinha,
+  bvExigeJustificativa,
+  bvJustificativaFaltando,
+  bvConsolidado,
+  BV_PADRAO_PERCENTUAL,
 } from "./calc";
 import type { Ec, EcLinha, Os, Producao } from "@/data/types";
 import { dataBR } from "@/lib/format";
@@ -36,7 +43,7 @@ function linha(p: Partial<EcLinha>): EcLinha {
     id: "l1", grupo: "G", item: "Item", descricao: "", descricaoCompleta: "",
     valorPolobh: 0, valorCliente: 0, valorGasto: 0,
     valorComBvNf: 0, valorSemBvComNf: 0, valorSemBvSemNf: 0,
-    valoresNaoAplicaveis: [], opcaoValor: "", statusAprovacao: "Pendente",
+    valoresNaoAplicaveis: [], opcaoValor: "", bv: bvVazio(), statusAprovacao: "Pendente",
     fornecedorRazao: "", fornecedorCnpj: "", fornecedorContato: "", faturaNf: "",
     codigoServico: "", pedidoCompra: "", statusOs: "Pendente", contratoStatus: "Pendente",
     observacao: "", observacoes: [], oculto: false, ordem: 0, ...p,
@@ -463,5 +470,104 @@ describe("reverterAprovacaoLinha", () => {
   it("aprovar e reverter em seguida devolve o item ao estado original", () => {
     const l = linha({ statusAprovacao: "Pendente", statusOs: "Pendente" });
     expect(reverterAprovacaoLinha(aprovarLinha(l))).toEqual(l);
+  });
+});
+
+/**
+ * BV por item: a bonificação é combinada junto com o valor, no item da EC, e a
+ * OS soma o dos itens que consolida.
+ */
+describe("BV do item da EC", () => {
+  const comBv = (p: Partial<EcLinha["bv"]>, resto: Partial<EcLinha> = {}) =>
+    linha({ valorComBvNf: 10000, opcaoValor: "comBvNf", bv: { ...bvVazio(), ...p }, ...resto });
+
+  it("percentual vira reais sobre o valor com BV do item", () => {
+    expect(bvDaLinha(comBv({ modo: "percentual", valor: 15 }))).toEqual({
+      base: 10000, valor: 1500, percentual: 15,
+    });
+  });
+
+  it("valor fixo vira percentual, para os dois lados da conta ficarem à vista", () => {
+    expect(bvDaLinha(comBv({ modo: "fixo", valor: 1200 }))).toEqual({
+      base: 10000, valor: 1200, percentual: 12,
+    });
+  });
+
+  it("sem BV não há base: as outras duas formas de cobrança zeram o cálculo", () => {
+    const semBv = linha({ valorComBvNf: 10000, valorSemBvComNf: 9000, opcaoValor: "semBvComNf", bv: { modo: "percentual", valor: 15, justificativa: "" } });
+    expect(bvDaLinha(semBv).valor).toBe(0);
+  });
+
+  it("opção marcada como \"não se aplica\" também zera — ela não vale para o item", () => {
+    const naoSeAplica = comBv({ modo: "percentual", valor: 15 }, { valoresNaoAplicaveis: ["comBvNf"] });
+    expect(bvDaLinha(naoSeAplica).valor).toBe(0);
+  });
+
+  describe("quando a justificativa é exigida", () => {
+    it("BV no padrão da casa não pede explicação", () => {
+      expect(bvExigeJustificativa(comBv({ modo: "percentual", valor: BV_PADRAO_PERCENTUAL }))).toBe(false);
+    });
+
+    it("BV abaixo do padrão pede", () => {
+      expect(bvExigeJustificativa(comBv({ modo: "percentual", valor: 10 }))).toBe(true);
+    });
+
+    it("sem BV pede — é o caso que mais precisa de motivo escrito", () => {
+      expect(bvExigeJustificativa(linha({ valorSemBvSemNf: 8000, opcaoValor: "semBvSemNf" }))).toBe(true);
+    });
+
+    it("item sem forma de pagamento escolhida NÃO pede nada ainda", () => {
+      // Senão toda linha recém-criada nasceria com um alerta vermelho.
+      expect(bvExigeJustificativa(linha({ valorComBvNf: 10000 }))).toBe(false);
+    });
+
+    it("exigida e em branco é o que trava a emissão da OS", () => {
+      const semMotivo = linha({ valorSemBvSemNf: 8000, opcaoValor: "semBvSemNf" });
+      expect(bvJustificativaFaltando(semMotivo)).toBe(true);
+      const comMotivo = linha({
+        valorSemBvSemNf: 8000, opcaoValor: "semBvSemNf",
+        bv: { ...bvVazio(), justificativa: "Fornecedor não trabalha com BV." },
+      });
+      expect(bvJustificativaFaltando(comMotivo)).toBe(false);
+    });
+
+    it("a falta entra na lista que a EC mostra item a item", () => {
+      const pronto = linha({
+        statusAprovacao: "OK", fornecedorRazao: "SOM & LUZ LTDA", fornecedorCnpj: "12.345.678/0001-90",
+        faturaNf: "Nota Fiscal", codigoServico: "03.01", pedidoCompra: "PC-1",
+        valorSemBvSemNf: 8000, opcaoValor: "semBvSemNf",
+      });
+      expect(faltasParaEmitirOs(pronto)).toEqual(["Justificativa do BV"]);
+    });
+  });
+});
+
+describe("BV consolidado na OS", () => {
+  const item = (valor: number, bv: Partial<EcLinha["bv"]>) =>
+    linha({ valorComBvNf: valor, opcaoValor: "comBvNf", bv: { ...bvVazio(), ...bv } });
+
+  it("soma os reais e recompõe o percentual sobre o total", () => {
+    // 15% de 10.000 = 1.500 · R$ 500 fixos sobre 5.000 = 10%. Juntos: 2.000/15.000.
+    const r = bvConsolidado([
+      item(10000, { modo: "percentual", valor: 15 }),
+      item(5000, { modo: "fixo", valor: 500 }),
+    ]);
+    expect(r.valor).toBe(2000);
+    expect(r.percentual).toBeCloseTo(13.33, 2);
+  });
+
+  it("junta as justificativas distintas — cada uma explica um item", () => {
+    const r = bvConsolidado([
+      item(10000, { modo: "percentual", valor: 10, justificativa: "Negociado a 10%." }),
+      item(5000, { modo: "percentual", valor: 10, justificativa: "Negociado a 10%." }),
+      item(2000, { modo: "percentual", valor: 0, justificativa: "Fornecedor sem BV." }),
+    ]);
+    expect(r.justificativa).toBe("Negociado a 10%. · Fornecedor sem BV.");
+  });
+
+  it("OS sem nenhum item com BV não inventa percentual", () => {
+    expect(bvConsolidado([linha({ opcaoValor: "semBvComNf", valorSemBvComNf: 900 })])).toEqual({
+      valor: 0, percentual: 0, justificativa: "",
+    });
   });
 });

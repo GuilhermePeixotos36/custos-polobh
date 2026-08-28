@@ -241,6 +241,12 @@ foi o que aconteceu em 27/08/2026 com `valores_nao_aplicaveis`. A função hoje
 preenche os padrões antes de popular o registro (`v_padroes`); acrescente a coluna
 nova lá, e não só na lista do `on conflict do update`.
 
+O mesmo vale para a view `ec_linhas_visiveis` e para `nova_versao_ec`, que
+listam as colunas uma a uma. Quando a coluna nova é dinheiro (foi o caso de
+`bv`, em 28/08/2026), ela precisa entrar MASCARADA na view e protegida no
+`on conflict` — senão quem não enxerga o financeiro lê `null` e grava esse
+`null` por cima do que estava lá.
+
 **As migrations rodam UMA vez, na ordem do nome.** Reaplicar a pasta inteira do
 zero num banco que já a tem falha em algumas delas (elas assumem o estado
 anterior — por exemplo a que recria a view `ec_linhas_visiveis`). Isso é

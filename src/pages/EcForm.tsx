@@ -41,6 +41,7 @@ import { RentabilidadeItens } from "@/components/RentabilidadeItens";
 import { EcGrupos } from "@/components/EcGrupos";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
 import { pendenciasDaTela } from "@/domain/pendencias";
+import { bvVazio } from "@/domain/calc";
 import { useMinhasPendencias } from "@/store/pendencias";
 import { useSugestoes } from "@/hooks/useSugestoes";
 import { EcSubGuias, type SubGuiaEc } from "@/components/EcSubGuias";
@@ -72,6 +73,7 @@ const novaLinha = (ordem: number): EcLinha => ({
   valorSemBvSemNf: 0,
   valoresNaoAplicaveis: [],
   opcaoValor: "",
+  bv: bvVazio(),
   statusAprovacao: "Pendente",
   fornecedorRazao: "",
   fornecedorCnpj: "",

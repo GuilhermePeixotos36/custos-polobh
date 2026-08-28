@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { filhosDe, montarSugestoes, paresConsistentes, type BaseSugestoes } from "./sugestoes";
 import { projetoInfoVazio } from "./projeto";
-import { honorariosPadrao, encargosPadrao, producaoZerada } from "./calc";
+import { honorariosPadrao, encargosPadrao, producaoZerada,
+  bvVazio,
+} from "./calc";
 import type { Checklist, Cliente, Ec, EcLinha, ItemChecklist, Os, Projeto } from "@/data/types";
 
 const cliente = (representante = ""): Cliente => ({
@@ -19,7 +21,7 @@ const projeto = (local: string, representante = ""): Projeto => ({
 const linha = (p: Partial<EcLinha>): EcLinha => ({
   id: "l", grupo: "PRODUÇÃO", item: "", descricao: "", descricaoCompleta: "",
   valorPolobh: 0, valorCliente: 0, valorGasto: 0,
-  valorComBvNf: 0, valorSemBvComNf: 0, valorSemBvSemNf: 0, valoresNaoAplicaveis: [], opcaoValor: "",
+  valorComBvNf: 0, valorSemBvComNf: 0, valorSemBvSemNf: 0, valoresNaoAplicaveis: [], opcaoValor: "", bv: bvVazio(),
   statusAprovacao: "Pendente",
   fornecedorRazao: "", fornecedorCnpj: "", fornecedorContato: "", faturaNf: "",
   codigoServico: "", pedidoCompra: "", statusOs: "Pendente", contratoStatus: "Pendente",

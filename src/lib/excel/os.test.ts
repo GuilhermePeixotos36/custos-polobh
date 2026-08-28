@@ -3,7 +3,9 @@ import ExcelJS from "exceljs";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { criarOsExcelBuffer } from "./os";
-import { honorariosPadrao, encargosPadrao, producaoZerada } from "@/domain/calc";
+import { honorariosPadrao, encargosPadrao, producaoZerada,
+  bvVazio,
+} from "@/domain/calc";
 import { projetoInfoVazio } from "@/domain/projeto";
 import type { Ec, EcLinha, Os } from "@/data/types";
 
@@ -19,7 +21,7 @@ beforeAll(() => {
 const linha = (p: Partial<EcLinha>): EcLinha => ({
   id: "l1", grupo: "PRODUÇÃO", item: "Item", descricao: "", descricaoCompleta: "",
   valorPolobh: 0, valorCliente: 0, valorGasto: 0,
-  valorComBvNf: 0, valorSemBvComNf: 0, valorSemBvSemNf: 0, valoresNaoAplicaveis: [], opcaoValor: "",
+  valorComBvNf: 0, valorSemBvComNf: 0, valorSemBvSemNf: 0, valoresNaoAplicaveis: [], opcaoValor: "", bv: bvVazio(),
   statusAprovacao: "OK", fornecedorRazao: "Som & Luz LTDA", fornecedorCnpj: "12.345.678/0001-95",
   fornecedorContato: "", faturaNf: "Nota Fiscal", codigoServico: "17.02", pedidoCompra: "PC-1",
   statusOs: "OK", contratoStatus: "OK", observacao: "", observacoes: [], oculto: false, ordem: 0, ...p,
