@@ -8,6 +8,7 @@ import {
 } from "@/components/ui";
 import { IcPlus, IcBack, IcDownload, IcSearch, IcTrash, IcEye, IcEyeOff, IcDoc, IcCopy, IcCalendar } from "@/components/icons";
 import { RichTextField } from "@/components/RichTextField";
+import { InscricaoMunicipalInput } from "@/components/InscricaoMunicipalInput";
 import { TimelineConsolidada, type ItemConsolidado } from "@/components/Timeline";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
 import { ThPendencias, TdPendencias } from "@/components/ColunaPendencias";
@@ -756,21 +757,10 @@ export function ProjetoDetail() {
                 <Field label="Endereço" className="sm:col-span-2"><Input formato="titulo" value={p.cliente.endereco} onChange={(e) => updCli({ endereco: e.target.value })} /></Field>
                 <Field label="Inscrição Estadual"><Input value={p.cliente.inscricaoEstadual} onChange={(e) => updCli({ inscricaoEstadual: e.target.value })} /></Field>
                 <Field label="Inscrição Municipal">
-                  <div className="flex gap-2">
-                    <Input value={p.cliente.inscricaoMunicipal} onChange={(e) => updCli({ inscricaoMunicipal: e.target.value })} />
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      className="shrink-0"
-                      title="Consultar Inscrição Municipal no portal da Prefeitura de Belo Horizonte"
-                      aria-label="Consultar Inscrição Municipal na Prefeitura de Belo Horizonte"
-                      icon={<IcSearch width={15} height={15} />}
-                      onClick={() => window.open("https://mobiliarioonline.pbh.gov.br/mobiliario-cadastro-publico/f/t/emiteficwebsel", "_blank", "noopener,noreferrer")}
-                    >
-                      Consultar na PBH
-                    </Button>
-                  </div>
+                  <InscricaoMunicipalInput
+                    value={p.cliente.inscricaoMunicipal}
+                    onChange={(inscricaoMunicipal) => updCli({ inscricaoMunicipal })}
+                  />
                 </Field>
                 <Field label="Representante">
                   <Input

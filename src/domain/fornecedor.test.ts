@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { gerarApelidoFornecedor } from "./fornecedor";
+import { gerarApelidoFornecedor, opcoesPerfilTributario } from "./fornecedor";
 
 /**
  * Os casos abaixo são os fornecedores REAIS cadastrados na Pólobh (lidos do
@@ -68,5 +68,29 @@ describe("o que a redução preserva", () => {
   it("nome de uma palavra só continua inteiro", () => {
     expect(gerarApelidoFornecedor("", "REINECKE")).toBe("Reinecke");
     expect(gerarApelidoFornecedor("", "PRODUCOES LTDA")).toBe("Producoes");
+  });
+});
+
+describe("perfil tributário do fornecedor", () => {
+  it("oferece os regimes que um fornecedor de evento realmente tem", () => {
+    expect(opcoesPerfilTributario("")).toEqual([
+      "MEI", "Simples Nacional", "Lucro Presumido", "Lucro Real",
+      "Lucro Presumido/Real", "Imune / Isenta", "Pessoa Física (RPA)",
+    ]);
+  });
+
+  it("mantém o que a consulta de CNPJ preenche sozinha", () => {
+    // `lib/cnpj` não distingue Presumido de Real: o valor tem de continuar válido.
+    expect(opcoesPerfilTributario("Lucro Presumido/Real")).toEqual([...opcoesPerfilTributario("")]);
+  });
+
+  it("põe na frente o valor antigo que não está na lista, em vez de apagá-lo", () => {
+    const opcoes = opcoesPerfilTributario("Simples Nac.");
+    expect(opcoes[0]).toBe("Simples Nac.");
+    expect(opcoes).toHaveLength(8);
+  });
+
+  it("não duplica quando só a caixa difere", () => {
+    expect(opcoesPerfilTributario("simples nacional")).toHaveLength(7);
   });
 });

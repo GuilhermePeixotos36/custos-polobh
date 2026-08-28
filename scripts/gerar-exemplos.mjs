@@ -32,7 +32,7 @@ const carregar = (caminho) => servidor.ssrLoadModule(caminho);
 
 const { criarEcExcelBuffer } = await carregar("/src/lib/excel/ec.ts");
 const { criarOsExcelBuffer } = await carregar("/src/lib/excel/os.ts");
-const { honorariosPadrao, encargosPadrao, producaoPadrao } = await carregar("/src/domain/calc.ts");
+const { honorariosPadrao, encargosPadrao, producaoPadrao, descritivoConsolidado } = await carregar("/src/domain/calc.ts");
 const { projetoInfoVazio } = await carregar("/src/domain/projeto.ts");
 
 /* ------------------------- dados de exemplo ------------------------- */
@@ -132,9 +132,9 @@ const os = {
     representante: "Roberto Dias", telefone: "(31) 9 8888-1122", email: "contato@someluz.com.br",
   },
   modalidade: "Locação + Serviço",
-  descritivo:
-    "• Sonorização — Sistema de som line array para auditório de 300 lugares, 2 técnicos.\n" +
-    "• Iluminação cênica — Projeto de luz com moving heads e operação durante o evento.",
+  // Sai do mesmo código que a tela da OS usa: o exemplo mostra o descritivo real
+  // (financeiro + detalhamento da produção), não uma versão escrita à mão aqui.
+  descritivo: descritivoConsolidado(linhas.filter((l) => ["l1", "l2"].includes(l.id))),
   entrega: "Instalação, operação e acompanhamento técnico.",
   cronograma: [
     { id: "c1", etapa: "Montagem", data: "2026-08-14", horario: "08h", atividades: "Rigging e cabeamento" },

@@ -27,12 +27,14 @@ import {
 } from "@/domain/calc";
 import { ETAPAS_CRONOGRAMA } from "@/domain/projeto";
 import { urlCredenciamento } from "@/lib/links";
-import { COR, fill, FONT_LIGHT, baixar, nomeArquivo, carregarLogo, encaixarLogo } from "./shared";
+import { COR, fill, FONT_LIGHT, baixar, nomeArquivo, carregarLogo, encaixarLogo, linhasVisuais, alturaParaLinhas } from "./shared";
 
 const moeda = '"R$" #,##0.00';
 const PT = 11;
 /** Última coluna da faixa de valores — o modelo vai de B até O. */
 const FIM = "O";
+/** Largura útil da faixa de valor (B:O, 14 colunas de 6,5) — base do cálculo de altura. */
+const LARGURA_VALOR = 14 * 6.5;
 const COLS = ["A","B","C","D","E","F","G","H","I","J","K","L","M","N","O"];
 
 /** Borda fina embaixo, como nas linhas de dado do modelo. */
@@ -289,7 +291,12 @@ export async function criarOsExcelBuffer(
   /* --------------------- DETALHAMENTO DA CONTRATAÇÃO ------------------- */
   secao("DETALHAMENTO DA CONTRATAÇÃO");
   linha("Modalidade:", os.modalidade);
-  linha("Descritivo:", os.descritivo, { altura: 60 });
+  // O descritivo traz o texto do financeiro E o detalhamento da produção de cada
+  // item consolidado (ver `descritivoConsolidado`): pode passar de dez linhas, e
+  // com altura fixa o fornecedor recebia a OS com o serviço cortado ao meio.
+  linha("Descritivo:", os.descritivo, {
+    altura: Math.max(60, alturaParaLinhas(linhasVisuais(os.descritivo, LARGURA_VALOR))),
+  });
   linha("Entrega:", os.entrega, { altura: 40 });
 
   const cron = [...(os.cronograma ?? [])].sort((a, c) => (a.data || "").localeCompare(c.data || ""));

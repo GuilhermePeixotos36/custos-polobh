@@ -238,6 +238,33 @@ describe("descritivoConsolidado", () => {
     ]);
     expect(txt).toBe("• Som — PA line array");
   });
+
+  it("traz os DOIS descritivos: o do financeiro e o detalhado da produção", () => {
+    const txt = descritivoConsolidado([
+      linha({
+        id: "a",
+        item: "Comunicação visual",
+        descricao: "Banners e backdrop",
+        descricaoCompleta: "<ul><li>Backdrop 6x3m em lona</li><li>2 roll-ups</li></ul>",
+      }),
+    ]);
+    expect(txt).toBe("• Comunicação visual — Banners e backdrop\n  • Backdrop 6x3m em lona\n  • 2 roll-ups");
+  });
+
+  it("o detalhamento fica recuado sob o item, para a OS com vários itens não embaralhar", () => {
+    const txt = descritivoConsolidado([
+      linha({ id: "a", item: "Som", descricao: "PA", descricaoCompleta: "<p>8 caixas</p>" }),
+      linha({ id: "b", item: "Luz", descricao: "Refletores" }),
+    ]);
+    expect(txt.split("\n")).toEqual(["• Som — PA", "  8 caixas", "• Luz — Refletores"]);
+  });
+
+  it("item só com detalhamento não vira marcador vazio", () => {
+    const txt = descritivoConsolidado([
+      linha({ id: "a", item: "", descricao: "", descricaoCompleta: "<p>Montagem no dia anterior</p>" }),
+    ]);
+    expect(txt).toBe("Montagem no dia anterior");
+  });
 });
 
 describe("textoObjetoContrato", () => {

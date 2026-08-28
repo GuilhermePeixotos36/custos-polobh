@@ -4,6 +4,7 @@
  */
 import type { Ec, EcLinha, OpcaoValorDefinida, OpcaoValorItem, Producao, Fornecedor, Os, TaxaConfig } from "@/data/types";
 import { brl, dataBRCurta } from "@/lib/format";
+import { htmlParaLinhas } from "@/lib/htmlTexto";
 import { gerarApelidoFornecedor } from "@/domain/fornecedor";
 
 export const HONORARIOS = 0.15;
@@ -520,11 +521,32 @@ export function agruparPorFornecedor(linhas: EcLinha[]): LinhaFornecedorGrupo[] 
   return [...mapa.values()];
 }
 
-/** Junta os descritivos das linhas consolidadas num único bloco. */
+/**
+ * Descritivo da contratação a partir dos itens consolidados na OS.
+ *
+ * O item da EC tem DOIS descritivos, e os dois precisam chegar ao fornecedor:
+ * a "Descrição Financeiro" (a linha curta, que também vai para a nota) e a
+ * "Descrição Completa" (o detalhamento da produção, escrito em texto rico). A
+ * OS só levava a primeira, e era justamente a segunda que dizia o que tem de ser
+ * entregue — quem recebia a OS ficava com o resumo e sem a especificação.
+ *
+ * Cada item vira um marcador com nome e descrição curta; o detalhamento entra
+ * recuado logo abaixo, que é o que mantém a leitura hierárquica quando a OS
+ * consolida vários itens. Item sem nada escrito não vira linha vazia.
+ */
 export function descritivoConsolidado(linhas: EcLinha[]): string {
   return linhas
-    .map((l) => `• ${l.item ? l.item + " — " : ""}${l.descricao}`.trim())
-    .filter((s) => s !== "•")
+    .map((l) => {
+      const cabeca = `• ${l.item ? l.item + " — " : ""}${l.descricao}`.trim();
+      const detalhe = htmlParaLinhas(l.descricaoCompleta)
+        .filter(Boolean)
+        .map((t) => `  ${t}`);
+      // Sem nome nem descrição curta, o detalhamento sobe e vira o marcador —
+      // some a linha "•" solta que existia antes.
+      if (cabeca === "•") return detalhe.map((t) => t.trimStart()).join("\n");
+      return [cabeca, ...detalhe].join("\n");
+    })
+    .filter(Boolean)
     .join("\n");
 }
 
