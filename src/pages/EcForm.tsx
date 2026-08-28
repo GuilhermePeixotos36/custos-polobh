@@ -438,9 +438,10 @@ export function EcForm() {
           </div>
         </>
       }
+      // Grudam com o cabeçalho: trocar de subaba no meio da lista de itens não
+      // pode obrigar a voltar ao topo.
+      subabas={<EcSubGuias atual={subaba} onChange={setSubaba} temResumo={verFinanceiro} temRentabilidade={verFinanceiro} />}
     >
-      <EcSubGuias atual={subaba} onChange={setSubaba} temResumo={verFinanceiro} temRentabilidade={verFinanceiro} />
-
       {/* Pílula flutuante que salta entre as pendências desta EC. */}
       {subaba === "ec" && (
         <NavegadorPendencias

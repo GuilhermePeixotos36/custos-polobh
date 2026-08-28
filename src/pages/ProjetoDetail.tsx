@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { PageShell } from "@/components/layout/AppLayout";
+import { SubGuias } from "@/components/layout/SubGuias";
 import {
   Card, CardTitle, Button, Field, Input, Label, TelefoneInput, Textarea, Select, Badge,
   Table, THead, Tr, Td, EmptyState, ThOrd, useOrdenacao, tomStatusOs, type Tom,
@@ -8,7 +9,6 @@ import {
 import { IcPlus, IcBack, IcDownload, IcSearch, IcTrash, IcEye, IcEyeOff, IcDoc, IcCopy, IcCalendar } from "@/components/icons";
 import { RichTextField } from "@/components/RichTextField";
 import { TimelineConsolidada, type ItemConsolidado } from "@/components/Timeline";
-import { NotifDot } from "@/components/NotifDot";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
 import { ThPendencias, TdPendencias } from "@/components/ColunaPendencias";
 import { MoverSetas, moverNaLista } from "@/components/MoverSetas";
@@ -678,29 +678,23 @@ export function ProjetoDetail() {
           )}
         </>
       }
+      // Grudam com o cabeçalho: em projeto longo (check-list inteiro, lista de
+      // itens), trocar de aba não pode obrigar a voltar ao topo.
+      subabas={
+        <SubGuias
+          rotulo="Seções do projeto"
+          atual={aba}
+          onChange={setAba}
+          abas={ABAS.map((a) => ({
+            ...a,
+            // Projeto ainda não salvo: só Dados Gerais faz sentido — as demais
+            // dependem de um id que ainda não existe.
+            desabilitada: novo && a.key !== "dados",
+            pendencias: porAba[`${id}:${a.key}`] ?? 0,
+          }))}
+        />
+      }
     >
-      {/* Subguias */}
-      <div className="flex gap-1 border-b border-border mb-5 overflow-x-auto">
-        {ABAS.map((a) => {
-          const bloqueada = novo && a.key !== "dados";
-          return (
-            <button
-              key={a.key}
-              disabled={bloqueada}
-              onClick={() => setAba(a.key)}
-              className={cx(
-                "px-4 h-10 text-[13.5px] font-bold whitespace-nowrap border-b-2 -mb-px transition-colors inline-flex items-center gap-1.5",
-                bloqueada ? "text-ink-3/40 cursor-not-allowed border-transparent"
-                  : aba === a.key ? "text-primary-dark border-primary" : "text-ink-2 hover:text-ink border-transparent"
-              )}
-            >
-              {a.label}
-              <NotifDot inline n={novo ? 0 : porAba[`${id}:${a.key}`] ?? 0} title="Ações pendentes nesta etapa" />
-            </button>
-          );
-        })}
-      </div>
-
       {aba === "dados" && (
         <div className="space-y-4">
           <Card>

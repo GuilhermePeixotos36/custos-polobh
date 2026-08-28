@@ -487,11 +487,10 @@ export function EcDetail() {
           </div>
         </>
       }
+      // Grudam com o cabeçalho: trocar de subaba no meio da lista de itens não
+      // pode obrigar a voltar ao topo.
+      subabas={verFinanceiro ? <EcSubGuias atual={subaba} onChange={setSubaba} temResumo temRentabilidade /> : undefined}
     >
-      {verFinanceiro && (
-        <EcSubGuias atual={subaba} onChange={setSubaba} temResumo temRentabilidade />
-      )}
-
       {verFinanceiro && subaba === "resumo" && (
         <div className="space-y-4">{totaisCard}</div>
       )}

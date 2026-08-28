@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ChecklistModelosCard } from "@/components/ChecklistModelosCard";
 import { createPortal } from "react-dom";
 import { PageShell } from "@/components/layout/AppLayout";
+import { SubGuias } from "@/components/layout/SubGuias";
 import { Card, CardTitle, Toggle, Badge, Field, Input, TelefoneInput, Select, Button, Table, THead, Th, Tr, Td, EmptyState } from "@/components/ui";
 import { IcPlus, IcPencil, IcTrash, IcBloqueio, IcFechar, IcCheck } from "@/components/icons";
 import { ROTULO_PAPEL, PAPEIS_AREA, TELAS, PERMISSOES_ESPECIAIS, useAuth, type Recurso } from "@/store/auth";
@@ -27,22 +28,12 @@ export function Configuracoes() {
   const [arquivamentoAuto, setArquivamentoAuto] = useState(true);
 
   return (
-    <PageShell title="Configurações" subtitle="Empresas de emissão, áreas de acesso, usuários e retenção de dados.">
-      <div className="flex gap-1 border-b border-border mb-5">
-        {ABAS.map((a) => (
-          <button
-            key={a.key}
-            onClick={() => setAba(a.key)}
-            className={cx(
-              "px-4 h-10 text-[13.5px] font-bold whitespace-nowrap border-b-2 -mb-px transition-colors",
-              aba === a.key ? "text-primary-dark border-primary" : "text-ink-2 hover:text-ink border-transparent"
-            )}
-          >
-            {a.label}
-          </button>
-        ))}
-      </div>
-
+    <PageShell
+      title="Configurações"
+      subtitle="Empresas de emissão, áreas de acesso, usuários e retenção de dados."
+      // Grudam com o cabeçalho, como nas demais telas com subabas.
+      subabas={<SubGuias rotulo="Seções das configurações" atual={aba} onChange={setAba} abas={ABAS} />}
+    >
       {aba === "geral" && (
         <div className="space-y-4">
           <EmpresasGrupoCard />
