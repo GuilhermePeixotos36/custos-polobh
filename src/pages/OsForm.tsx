@@ -730,7 +730,10 @@ export function OsForm() {
               </button>
             )}
           </LinhaOs>
-          <LinhaOs label="Entrega"><Input value={os.entrega} sugestoes={sugestoes.valores.entrega} onChange={(e) => setOs((o) => (o ? { ...o, entrega: e.target.value } : o))} placeholder="Instalação, operação, acompanhamento…" /></LinhaOs>
+          {/* Sem memória de preenchimento, por decisão: a entrega é específica de
+              cada contratação, e oferecer a de outra OS convidava a repetir o
+              que não vale para esta. */}
+          <LinhaOs label="Entrega"><Input value={os.entrega} onChange={(e) => setOs((o) => (o ? { ...o, entrega: e.target.value } : o))} placeholder="Instalação, operação, acompanhamento…" /></LinhaOs>
           <LinhaOs label="Itens da EC" hint={`(${linhasConsolidadas.length} consolidado(s) — origem do descritivo)`}>
             <div className="py-2 space-y-1.5">
               {linhasConsolidadas.map((l) => (

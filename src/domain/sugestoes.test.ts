@@ -88,8 +88,14 @@ describe("montarSugestoes", () => {
     expect(s.valores.codigoServico).toContain("17.02");
     expect(s.valores.pedidoCompra).toContain("PC-100");
     expect(s.valores.hospedagem).toContain("Hotel Ouro Minas");
-    expect(s.valores.entrega).toContain("Instalação e operação");
     expect(s.valores.energia).toContain("220V trifásico");
+  });
+
+  it("\"Entrega\" fica de fora: é específica de cada contratação", () => {
+    // A OS de exemplo tem entrega preenchida; ainda assim o campo não existe no
+    // catálogo, porque repetir a entrega de outra OS não ajuda ninguém.
+    const s = montarSugestoes(base([], [], [os({})]));
+    expect(Object.keys(s.valores)).not.toContain("entrega");
   });
 
   it("o mais usado vem primeiro — repetição é sinal do valor certo da casa", () => {

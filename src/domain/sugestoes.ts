@@ -132,7 +132,8 @@ const CATALOGO = {
   ),
 
   /* -- OS: contratação -------------------------------------------------- */
-  entrega: daOs((o) => o.entrega),
+  // "Entrega" NÃO entra: é específica de cada contratação, e oferecer a de
+  // outra OS convidava a repetir o que não vale para esta (pedido de 28/08/2026).
   // O banco se repete entre fornecedores diferentes ("Banco do Brasil (001)").
   // Agência, conta e Pix NÃO entram: identificam um fornecedor só.
   bancoFornecedor: daOs((o) => o.fornecedor?.dadosBancarios?.banco),
