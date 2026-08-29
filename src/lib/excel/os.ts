@@ -26,6 +26,7 @@ import {
   opcaoEscolhidaDoItem, valorItemNaEc,
 } from "@/domain/calc";
 import { ETAPAS_CRONOGRAMA } from "@/domain/projeto";
+import { logisticaVisivel } from "@/domain/os";
 import { urlCredenciamento } from "@/lib/links";
 import { COR, fill, FONT_LIGHT, baixar, nomeArquivo, carregarLogo, encaixarLogo, linhasVisuais, alturaParaLinhas } from "./shared";
 
@@ -314,21 +315,16 @@ export async function criarOsExcelBuffer(
   }
   agruparRotulo(primeiraCronF, r - 1);
 
-  const lg = os.logistica;
-  const logistica: [string, string][] = [
-    ["Transporte Material", lg.transporteMaterial],
-    ["Transporte Equipe", lg.transporteEquipe],
-    ["Hospedagem Equipe", lg.hospedagem],
-    ["Alimentação Equipe", lg.alimentacao],
-    ["Estacionamento Carga", lg.estacionamentoCarga],
-    ["Estacionamento Equipe", lg.estacionamentoEquipe],
-    ["Uniformização Equipe", lg.uniformizacao],
-  ];
-  const primeiraLog = r;
-  logistica.forEach(([nome, val], i) =>
-    linhaBlocos("Logística do Fornecedor:", [nome, val || "", "", ""], { semRotulo: i > 0 })
-  );
-  agruparRotulo(primeiraLog, r - 1);
+  // Item marcado como "não se aplica" não vira linha na planilha (ver
+  // `logisticaVisivel`); com nada aplicável, a seção inteira fica de fora.
+  const logistica = logisticaVisivel(os.logistica);
+  if (logistica.length) {
+    const primeiraLog = r;
+    logistica.forEach(({ rotulo, valor }, i) =>
+      linhaBlocos("Logística do Fornecedor:", [rotulo, valor || "", "", ""], { semRotulo: i > 0 })
+    );
+    agruparRotulo(primeiraLog, r - 1);
+  }
 
   const inf = os.infraestrutura;
   const infra: [string, string][] = [

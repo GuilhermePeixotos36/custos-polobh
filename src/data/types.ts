@@ -441,6 +441,16 @@ export interface CronogramaItem {
   atividades: string;
 }
 
+/** Um dos itens de Logística do Fornecedor (ver `CAMPOS_LOGISTICA` em domain/os). */
+export type CampoLogistica =
+  | "transporteMaterial"
+  | "transporteEquipe"
+  | "hospedagem"
+  | "alimentacao"
+  | "estacionamentoCarga"
+  | "estacionamentoEquipe"
+  | "uniformizacao";
+
 export interface Logistica {
   transporteMaterial: string;
   transporteEquipe: string;
@@ -449,6 +459,16 @@ export interface Logistica {
   estacionamentoCarga: string;
   estacionamentoEquipe: string;
   uniformizacao: string;
+  /**
+   * Itens que NÃO SE APLICAM a esta OS. Eles somem do documento impresso, do
+   * que vai por e-mail e da planilha — "Hospedagem: ____" numa OS de locação
+   * só faz o fornecedor procurar o que responder.
+   *
+   * É diferente de campo vazio: vazio é pergunta sem resposta, "não se aplica"
+   * é resposta. O valor digitado não é apagado ao marcar (quem marcou por
+   * engano volta atrás sem perder o que escreveu).
+   */
+  naoAplicaveis?: CampoLogistica[];
 }
 
 export interface Infraestrutura {

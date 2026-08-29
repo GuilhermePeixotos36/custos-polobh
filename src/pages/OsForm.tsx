@@ -53,6 +53,7 @@ import { InscricaoMunicipalInput } from "@/components/InscricaoMunicipalInput";
 import { TextosJaUsados } from "@/components/TextosJaUsados";
 import { idAncoraPendencia } from "@/lib/destaque";
 import { pendenciasDaTela } from "@/domain/pendencias";
+import { CAMPOS_LOGISTICA, alternarLogisticaNaoSeAplica, logisticaNaoSeAplica } from "@/domain/os";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import type {
   DocumentoFiscal,
@@ -322,6 +323,9 @@ export function OsForm() {
   // Linhas da EC que esta OS consolida (mesmo fornecedor).
   const linhasConsolidadas = ecCtx.linhas.filter((l) => os.ecLinhaIds.includes(l.id));
   const linkCredenciamento = urlCredenciamento(os);
+  /** Quantos itens de logística ficam fora do documento — some no rótulo do bloco. */
+  const naoAplicaveisLogistica = os.logistica.naoAplicaveis?.length ?? 0;
+
   /** Ordem atual do cronograma, pelas chaves que o arraste manipula. */
   const idsCronograma = os.cronograma.map(idDaEtapa);
 
@@ -839,15 +843,23 @@ export function OsForm() {
             </div>
           </LinhaOs>
 
-          <LinhaOs label="Logística do Fornecedor">
+          <LinhaOs
+            label="Logística do Fornecedor"
+            hint={naoAplicaveisLogistica ? `(${naoAplicaveisLogistica} fora do documento)` : undefined}
+          >
             <div className="py-1.5 grid sm:grid-cols-2 gap-2">
-              <Field label="Transporte Material"><Input className="!h-9" sugestoes={sugestoes.valores.transporteMaterial} value={os.logistica.transporteMaterial} onChange={(e) => updLog({ transporteMaterial: e.target.value })} /></Field>
-              <Field label="Transporte Equipe"><Input className="!h-9" sugestoes={sugestoes.valores.transporteEquipe} value={os.logistica.transporteEquipe} onChange={(e) => updLog({ transporteEquipe: e.target.value })} /></Field>
-              <Field label="Hospedagem Equipe"><Input className="!h-9" sugestoes={sugestoes.valores.hospedagem} value={os.logistica.hospedagem} onChange={(e) => updLog({ hospedagem: e.target.value })} /></Field>
-              <Field label="Alimentação Equipe"><Input className="!h-9" sugestoes={sugestoes.valores.alimentacao} value={os.logistica.alimentacao} onChange={(e) => updLog({ alimentacao: e.target.value })} /></Field>
-              <Field label="Estacionamento Carga"><Input className="!h-9" sugestoes={sugestoes.valores.estacionamentoCarga} value={os.logistica.estacionamentoCarga} onChange={(e) => updLog({ estacionamentoCarga: e.target.value })} /></Field>
-              <Field label="Estacionamento Equipe"><Input className="!h-9" sugestoes={sugestoes.valores.estacionamentoEquipe} value={os.logistica.estacionamentoEquipe} onChange={(e) => updLog({ estacionamentoEquipe: e.target.value })} /></Field>
-              <Field label="Uniformização Equipe" className="sm:col-span-2"><Input className="!h-9" sugestoes={sugestoes.valores.uniformizacao} value={os.logistica.uniformizacao} onChange={(e) => updLog({ uniformizacao: e.target.value })} /></Field>
+              {CAMPOS_LOGISTICA.map(({ campo, rotulo }) => (
+                <CampoLogisticaOs
+                  key={campo}
+                  rotulo={rotulo}
+                  valor={os.logistica[campo]}
+                  sugestoes={sugestoes.valores[campo]}
+                  naoSeAplica={logisticaNaoSeAplica(os.logistica, campo)}
+                  className={campo === "uniformizacao" ? "sm:col-span-2" : undefined}
+                  onValor={(v) => updLog({ [campo]: v } as Partial<Os["logistica"]>)}
+                  onAlternar={() => setOs((o) => (o ? { ...o, logistica: alternarLogisticaNaoSeAplica(o.logistica, campo) } : o))}
+                />
+              ))}
             </div>
           </LinhaOs>
 
@@ -1289,6 +1301,58 @@ function LinhaOs({
         {acao && <div className="shrink-0 hidden md:block pt-1">{acao}</div>}
       </div>
     </div>
+  );
+}
+
+/**
+ * Um item de Logística com a resposta "Não se aplica".
+ *
+ * Mesma interação das opções de valor do item da EC, e pelo mesmo motivo: ou a
+ * pessoa escreve o combinado, ou responde que aquilo não vale para esta OS. O
+ * que não se aplica some do documento e da planilha (ver `logisticaVisivel`) —
+ * então a tela precisa deixar isso explícito, e não parecer um campo apagado.
+ *
+ * O texto digitado NÃO é apagado ao marcar: quem marcou por engano volta atrás
+ * sem perder o que escreveu.
+ */
+function CampoLogisticaOs({
+  rotulo,
+  valor,
+  sugestoes,
+  naoSeAplica,
+  className,
+  onValor,
+  onAlternar,
+}: {
+  rotulo: string;
+  valor: string;
+  sugestoes: string[];
+  naoSeAplica: boolean;
+  className?: string;
+  onValor: (v: string) => void;
+  onAlternar: () => void;
+}) {
+  return (
+    // Sem dica no rótulo: "não entra no documento" quebrava o nome em duas
+    // linhas e desalinhava as colunas do bloco. Quem diz isso é a caixa cinza,
+    // o contador no cabeçalho e a dica do botão.
+    <Field label={rotulo} className={className}>
+      {naoSeAplica ? (
+        <div className="h-9 flex items-center rounded-btn border border-border-soft bg-[#F1F2F5] px-2.5 text-[12.5px] font-bold text-ink-3">
+          Não se aplica
+        </div>
+      ) : (
+        <Input className="!h-9" sugestoes={sugestoes} value={valor} onChange={(e) => onValor(e.target.value)} />
+      )}
+      <button
+        type="button"
+        onClick={onAlternar}
+        className="mt-1 text-[10.5px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded"
+        title={naoSeAplica ? "Voltar a informar este item" : "Este item não se aplica — some do documento e da planilha"}
+      >
+        {naoSeAplica ? "Informar" : "Não se aplica"}
+      </button>
+    </Field>
   );
 }
 

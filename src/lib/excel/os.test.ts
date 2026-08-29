@@ -65,7 +65,7 @@ const os = (ecLinhaIds: string[]): Os => ({
   modalidade: "Serviço", descritivo: "Sonorização completa", entrega: "Instalação e operação",
   cronograma: [{ etapa: "Montagem", data: "2026-09-08", horario: "08:00", atividades: "Rigging e som" }],
   logistica: {
-    transporteMaterial: "Caminhão próprio", transporteEquipe: "Van", hospedagem: "Não se aplica",
+    transporteMaterial: "Caminhão próprio", transporteEquipe: "Van", hospedagem: "Hotel Ouro Minas",
     alimentacao: "Por conta do fornecedor", estacionamentoCarga: "Doca 2", estacionamentoEquipe: "Térreo",
     uniformizacao: "Camiseta preta",
   },
@@ -136,6 +136,32 @@ describe("Excel da OS — modelo novo", () => {
     // fictício que a OS carregava por padrão (forms.polobh.com.br).
     expect(texto).toContain("/credenciamento/abc");
     expect(texto).not.toContain("forms.polobh.com.br");
+  });
+
+  it("item de logística marcado como 'não se aplica' não vira linha na planilha", async () => {
+    const semHospedagem = os(["l1"]);
+    semHospedagem.logistica = { ...semHospedagem.logistica, naoAplicaveis: ["hospedagem", "estacionamentoCarga"] };
+    const { texto } = await abrir(semHospedagem, ec([linha({ id: "l1", valorPolobh: 1000 })]));
+    expect(texto).not.toContain("Hospedagem Equipe");
+    expect(texto).not.toContain("Hotel Ouro Minas");
+    expect(texto).not.toContain("Estacionamento Carga");
+    expect(texto).not.toContain("Doca 2");
+    // O que continua valendo segue saindo, com rótulo e valor.
+    expect(texto).toContain("Transporte Material");
+    expect(texto).toContain("Caminhão próprio");
+  });
+
+  it("com nada aplicável, a seção de logística some inteira", async () => {
+    const semLogistica = os(["l1"]);
+    semLogistica.logistica = {
+      ...semLogistica.logistica,
+      naoAplicaveis: ["transporteMaterial", "transporteEquipe", "hospedagem", "alimentacao",
+        "estacionamentoCarga", "estacionamentoEquipe", "uniformizacao"],
+    };
+    const { texto } = await abrir(semLogistica, ec([linha({ id: "l1", valorPolobh: 1000 })]));
+    expect(texto).not.toContain("Logística do Fornecedor");
+    // A seção seguinte continua no lugar — some a logística, não o resto.
+    expect(texto).toContain("220V trifásico");
   });
 
   it("não exporta a coluna de OBSERVAÇÕES do modelo (era só o guia de preenchimento)", async () => {

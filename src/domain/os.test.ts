@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { itensDaOs } from "./os";
-import type { Ec, EcLinha, Os } from "@/data/types";
+import {
+  itensDaOs,
+  CAMPOS_LOGISTICA,
+  logisticaVisivel,
+  logisticaNaoSeAplica,
+  alternarLogisticaNaoSeAplica,
+} from "./os";
+import type { Ec, EcLinha, Logistica, Os } from "@/data/types";
 
 const linha = (p: Partial<EcLinha>): EcLinha =>
   ({
@@ -42,5 +48,78 @@ describe("itens que cada OS consolida", () => {
     const itens = itensDaOs(os(["x", "y"]), [ec(semNome)]);
     expect(itens[0].item).toBe("Locação de praticáveis");
     expect(itens[1].item).toBe("(item sem nome)");
+  });
+});
+
+/**
+ * "Não se aplica" na Logística: o item some do documento impresso, do que vai
+ * por e-mail e da planilha. As três saídas leem daqui — é o que impede uma
+ * delas de continuar imprimindo o que a tela já escondeu.
+ */
+describe("logística que não se aplica", () => {
+  const logistica = (p: Partial<Logistica> = {}): Logistica => ({
+    transporteMaterial: "Por conta do fornecedor",
+    transporteEquipe: "Por conta do fornecedor",
+    hospedagem: "Hotel Ouro Minas",
+    alimentacao: "",
+    estacionamentoCarga: "Liberado pelo local",
+    estacionamentoEquipe: "",
+    uniformizacao: "Camisa preta",
+    ...p,
+  });
+
+  it("sem nada marcado, os sete itens saem — na ordem da tela", () => {
+    const visiveis = logisticaVisivel(logistica());
+    expect(visiveis).toHaveLength(CAMPOS_LOGISTICA.length);
+    expect(visiveis[0]).toEqual({ campo: "transporteMaterial", rotulo: "Transporte Material", valor: "Por conta do fornecedor" });
+  });
+
+  it("o item marcado some da lista que vira documento e planilha", () => {
+    const visiveis = logisticaVisivel(logistica({ naoAplicaveis: ["hospedagem", "alimentacao"] }));
+    expect(visiveis.map((i) => i.campo)).not.toContain("hospedagem");
+    expect(visiveis.map((i) => i.campo)).not.toContain("alimentacao");
+    expect(visiveis).toHaveLength(5);
+  });
+
+  it("item VAZIO continua saindo — vazio é pergunta em aberto, não resposta", () => {
+    // Esconder o vazio daria por respondido o que ninguém respondeu; a linha
+    // sai em branco no documento para o fornecedor preencher.
+    const visiveis = logisticaVisivel(logistica({ alimentacao: "" }));
+    expect(visiveis.map((i) => i.campo)).toContain("alimentacao");
+  });
+
+  it("tudo marcado devolve lista vazia — a seção inteira fica fora", () => {
+    const tudo = logistica({ naoAplicaveis: CAMPOS_LOGISTICA.map((c) => c.campo) });
+    expect(logisticaVisivel(tudo)).toEqual([]);
+  });
+
+  it("OS antiga, sem a lista, se comporta como nada marcado", () => {
+    const antiga = logistica();
+    delete antiga.naoAplicaveis;
+    expect(logisticaVisivel(antiga)).toHaveLength(CAMPOS_LOGISTICA.length);
+    expect(logisticaNaoSeAplica(antiga, "hospedagem")).toBe(false);
+    expect(logisticaVisivel(undefined)).toHaveLength(CAMPOS_LOGISTICA.length);
+  });
+
+  describe("marcar e desmarcar", () => {
+    it("marcar NÃO apaga o que foi digitado", () => {
+      const marcada = alternarLogisticaNaoSeAplica(logistica(), "hospedagem");
+      expect(logisticaNaoSeAplica(marcada, "hospedagem")).toBe(true);
+      expect(marcada.hospedagem).toBe("Hotel Ouro Minas");
+    });
+
+    it("desmarcar devolve o item — com o texto intacto", () => {
+      const marcada = alternarLogisticaNaoSeAplica(logistica(), "hospedagem");
+      const voltou = alternarLogisticaNaoSeAplica(marcada, "hospedagem");
+      expect(logisticaNaoSeAplica(voltou, "hospedagem")).toBe(false);
+      expect(voltou.hospedagem).toBe("Hotel Ouro Minas");
+      expect(logisticaVisivel(voltou).map((i) => i.campo)).toContain("hospedagem");
+    });
+
+    it("marcar duas vezes não duplica a entrada na lista", () => {
+      const uma = alternarLogisticaNaoSeAplica(logistica(), "hospedagem");
+      const outra = alternarLogisticaNaoSeAplica(uma, "alimentacao");
+      expect(outra.naoAplicaveis).toEqual(["hospedagem", "alimentacao"]);
+    });
   });
 });

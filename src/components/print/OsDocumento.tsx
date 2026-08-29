@@ -1,4 +1,5 @@
 /** OS como documento A4 — visualização em tela + PDF. Espelha o modelo em Excel. */
+import { logisticaVisivel } from "@/domain/os";
 import type { Ec, Os } from "@/data/types";
 import { urlCredenciamento } from "@/lib/links";
 import { brl, dataBR } from "@/lib/format";
@@ -71,6 +72,8 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
   const f = os.fornecedor;
   const b = f.dadosBancarios;
   const consolidadas = ec.linhas.filter((l) => os.ecLinhaIds.includes(l.id));
+  /** Só o que se aplica a esta OS — o resto não vira linha para o fornecedor ler. */
+  const logistica = logisticaVisivel(os.logistica);
   const tom = fiscaisDe(os.financeiro.tomador, ec);
   const contr = fiscaisDe(os.contrato.contratante, ec);
 
@@ -160,18 +163,14 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
       <LV label="Modalidade" valor={os.modalidade} />
       <LV label="Descritivo" valor={os.descritivo} />
       <LV label="Entrega" valor={os.entrega} />
-      <LV
-        label="Logística do Fornecedor"
-        valor={[
-          ["Transporte Material", os.logistica.transporteMaterial],
-          ["Transporte Equipe", os.logistica.transporteEquipe],
-          ["Hospedagem Equipe", os.logistica.hospedagem],
-          ["Alimentação Equipe", os.logistica.alimentacao],
-          ["Estacionamento Carga", os.logistica.estacionamentoCarga],
-          ["Estacionamento Equipe", os.logistica.estacionamentoEquipe],
-          ["Uniformização Equipe", os.logistica.uniformizacao],
-        ].map(([n, v]) => `${n}: ${v || "____"}`).join("\n")}
-      />
+      {/* Item marcado como "não se aplica" nem aparece — ver `logisticaVisivel`.
+          Bloco inteiro fora do documento quando nada se aplica. */}
+      {logistica.length > 0 && (
+        <LV
+          label="Logística do Fornecedor"
+          valor={logistica.map(({ rotulo, valor }) => `${rotulo}: ${valor || "____"}`).join("\n")}
+        />
+      )}
       <LV
         label="Infraestrutura"
         valor={[
