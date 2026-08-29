@@ -42,6 +42,7 @@ import { pendenciasDaTela, type Pendencia } from "@/domain/pendencias";
 import { situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
 import { itensDaOs } from "@/domain/os";
 import { ThItensOs, TdItensOs } from "@/components/ColunaItensOs";
+import { CredenciamentoProjeto } from "@/components/CredenciamentoProjeto";
 
 const tomStatusProjeto: Record<StatusProjeto, Tom> = {
   Ativo: "success", Arquivado: "neutral", Concluido: "info", Cancelado: "danger",
@@ -57,7 +58,7 @@ const projetoVazio = (): Projeto => ({
   docsUrl: "", status: "Ativo", criadoEm: "", atualizadoEm: "",
 });
 
-type Aba = "dados" | "ec" | "os" | "checklist" | "cronograma" | "fornecedores";
+type Aba = "dados" | "ec" | "os" | "checklist" | "cronograma" | "credenciamento" | "fornecedores";
 // O check-list vem logo depois de Dados Gerais: é a aba de acompanhamento diário
 // do projeto, consultada muito mais vezes que EC e OS (pedido de 25/08/2026).
 const ABAS: { key: Aba; label: string }[] = [
@@ -66,6 +67,9 @@ const ABAS: { key: Aba; label: string }[] = [
   { key: "ec", label: "EC" },
   { key: "os", label: "OS" },
   { key: "cronograma", label: "Cronograma" },
+  // O credenciamento é do EVENTO: um painel de todos os fornecedores de uma vez,
+  // e não uma pergunta repetida dentro de cada OS.
+  { key: "credenciamento", label: "Credenciamento" },
   { key: "fornecedores", label: "Fornecedores" },
 ];
 
@@ -1105,6 +1109,10 @@ export function ProjetoDetail() {
 
       {/* Pílula flutuante: o que se resolve NESTA aba, uma de cada vez. */}
       {!novo && <NavegadorPendencias pendencias={pendenciasDaTelaAtual} />}
+
+      {aba === "credenciamento" && (
+        <CredenciamentoProjeto oss={ossDoProjeto} ecs={ecsAll ?? []} />
+      )}
 
       {aba === "fornecedores" && (
         <Card padded={false}>

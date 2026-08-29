@@ -27,7 +27,6 @@ import {
 } from "@/domain/calc";
 import { ETAPAS_CRONOGRAMA } from "@/domain/projeto";
 import { itensVisiveis, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA } from "@/domain/os";
-import { urlCredenciamento } from "@/lib/links";
 import { COR, fill, FONT_LIGHT, baixar, nomeArquivo, carregarLogo, encaixarLogo, linhasVisuais, alturaParaLinhas } from "./shared";
 
 const moeda = '"R$" #,##0.00';
@@ -348,14 +347,8 @@ export async function criarOsExcelBuffer(
     altura: Math.max(40, alturaParaLinhas(linhasVisuais(os.observacoesGerais ?? "", LARGURA_VALOR))),
   });
 
-  /* ---------------------------- CREDENCIAMENTO ------------------------- */
-  secao("CREDENCIAMENTO");
-  linha(
-    "Favor acessar o link abaixo e preencher o formulário de credenciamento com os dados de todos os profissionais e veículos de sua equipe.",
-    urlCredenciamento(os) || "O link é gerado ao salvar a OS.",
-    { altura: 42 }
-  );
-  linha("Prazo Limite para o Credenciamento:", dataBR(os.credenciamento.prazoLimite));
+  // O CREDENCIAMENTO saiu da OS (29/08/2026): virou subaba do Projeto, e o link
+  // chega ao fornecedor por e-mail, disparado de lá para todos de uma vez.
 
   /* -------------------------- RESUMO DOS CUSTOS ------------------------ */
   // Tabela: o item e as TRÊS formas de cobrá-lo, lado a lado. As colunas são

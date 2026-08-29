@@ -1,7 +1,6 @@
 /** OS como documento A4 — visualização em tela + PDF. Espelha o modelo em Excel. */
 import { itensVisiveis, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA } from "@/domain/os";
 import type { Ec, Os } from "@/data/types";
-import { urlCredenciamento } from "@/lib/links";
 import { brl, dataBR } from "@/lib/format";
 import { textoObjetoContrato, resumoDeCustos, FORMA_PAGAMENTO_PADRAO, OBS_CONTRATO_PADRAO } from "@/domain/calc";
 import { ETAPAS_CRONOGRAMA } from "@/domain/projeto";
@@ -211,9 +210,8 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
         </tbody>
       </table>
 
-      <Secao titulo="Credenciamento" />
-      <LV label="Link" valor={urlCredenciamento(os)} />
-      <LV label="Prazo limite" valor={dataBR(os.credenciamento.prazoLimite)} />
+      {/* O CREDENCIAMENTO saiu da OS (29/08/2026): virou subaba do Projeto, e o
+          link chega ao fornecedor por e-mail. */}
 
       <Secao titulo="Resumo dos Custos" />
       {/* O item e as TRÊS formas de cobrá-lo, lado a lado. As colunas são

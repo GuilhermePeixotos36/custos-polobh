@@ -13,7 +13,7 @@ import {
   tomStatusOs,
   AvisoEmailPendente,
 } from "@/components/ui";
-import { IcDownload, IcSearch, IcSend, IcChevron, IcSpark, IcLink } from "@/components/icons";
+import { IcDownload, IcSearch, IcSend, IcChevron, IcSpark } from "@/components/icons";
 import { ObservacoesThread } from "@/components/ObservacoesPopup";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
@@ -36,9 +36,9 @@ import { useEmpresas } from "@/store/empresas";
 import { gerarOsExcel } from "@/lib/excel";
 import { consultarCnpj } from "@/lib/cnpj";
 import { gerarDescritivo } from "@/lib/ai";
-import { dispararOsPorEmail, enviarCredenciamento } from "@/lib/email";
+import { dispararOsPorEmail } from "@/lib/email";
 import { flags } from "@/lib/flags";
-import { brl, cx, dataBR, dataHoraBR, maskCpfCnpjInput } from "@/lib/format";
+import { brl, cx, dataBR, maskCpfCnpjInput } from "@/lib/format";
 import { useAuth } from "@/store/auth";
 import { toast } from "@/store/toast";
 import { confirmar } from "@/store/confirm";
@@ -226,7 +226,6 @@ export function OsForm() {
   const empresaPolobh = empresas.find((e) => e.padrao) ?? empresas[0];
 
   const { data: osExistente } = useAsync(() => (id ? repo.oss.obter(id) : Promise.resolve(undefined)), [id]);
-  const { data: credResp } = useAsync(() => (id ? repo.oss.credenciamentos(id) : Promise.resolve([])), [id]);
   // Usuários do sistema — para atribuir/mencionar em Observações.
   const { data: usuariosData } = useAsync(() => repo.auth.usuarios(), []);
   const usuarios = (usuariosData ?? []).map((u) => u.nome).filter(Boolean);
@@ -243,7 +242,6 @@ export function OsForm() {
   const [baseline, setBaseline] = useState("");
   const [cnpjMsg, setCnpjMsg] = useState("");
   const [busy, setBusy] = useState(false);
-  const [copiadoCred, setCopiadoCred] = useState(false);
 
   const iniciar = (o: Os) => {
     setOs(o);
@@ -323,7 +321,6 @@ export function OsForm() {
 
   // Linhas da EC que esta OS consolida (mesmo fornecedor).
   const linhasConsolidadas = ecCtx.linhas.filter((l) => os.ecLinhaIds.includes(l.id));
-  const linkCredenciamento = urlCredenciamento(os);
   /** Quantos itens de cada bloco ficam fora do documento — some no rótulo dele. */
   const foraDoDocumento = (n: number) => (n ? `(${n} fora do documento)` : undefined);
   const naoAplicaveisLogistica = os.logistica.naoAplicaveis?.length ?? 0;
@@ -570,24 +567,6 @@ export function OsForm() {
       navigate(`/ordens/${salvo.id}`);
     } catch (e) {
       toast(`Erro ao salvar a OS: ${(e as Error).message}`, "danger");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function enviarLinkCredenciamento() {
-    const destino = os!.fornecedor.email || "o fornecedor (sem e-mail cadastrado)";
-    if (!(await confirmar({
-      titulo: "Enviar credenciamento ao fornecedor?",
-      mensagem: `Será enviado um e-mail com o link do formulário para ${destino}.`,
-      confirmarTexto: "Enviar",
-    }))) return;
-    setBusy(true);
-    try {
-      const r = await enviarCredenciamento(os!, ecCtx!);
-      if (!r.ok) toast(`Não foi possível enviar: ${r.motivo}`, "warning");
-      else if (r.simulado) toast(`Credenciamento simulado (Brevo não configurado) para ${r.destinatarios.join(", ") || "—"}.`, "info");
-      else toast(`Link de credenciamento enviado para ${r.destinatarios.join(", ")}.`, "success");
     } finally {
       setBusy(false);
     }
@@ -916,58 +895,10 @@ export function OsForm() {
           </LinhaOs>
         </CardOs>
 
-        {/* CREDENCIAMENTO */}
+        {/* O CREDENCIAMENTO saiu daqui (29/08/2026): virou subaba do Projeto, onde
+            se vê a fila inteira e se dispara para todos os fornecedores de uma
+            vez. O link continua sendo o desta OS — o que mudou foi o comando. */}
         <div className="space-y-4">
-          <CardOs>
-            <Secao
-              acao={
-                <Button variant="soft" size="sm" icon={<IcSend width={15} height={15} />} onClick={enviarLinkCredenciamento} disabled={busy || !os.slugCredenciamento}>
-                  Enviar ao fornecedor
-                </Button>
-              }
-            >
-              Credenciamento
-            </Secao>
-            <LinhaOs label="Formulário de Credenciamento" hint="(o fornecedor cadastra equipe e veículos)">
-              {os.slugCredenciamento ? (
-                <div className="flex gap-2">
-                  <Input readOnly value={linkCredenciamento} onFocus={(e) => e.currentTarget.select()} className="!text-[12.5px]" />
-                  <Button type="button" variant="secondary" size="sm" icon={<IcLink width={15} height={15} />}
-                    onClick={() => { navigator.clipboard?.writeText(linkCredenciamento); setCopiadoCred(true); setTimeout(() => setCopiadoCred(false), 1800); }}>
-                    {copiadoCred ? "Copiado!" : "Copiar"}
-                  </Button>
-                </div>
-              ) : (
-                <p className="text-[12.5px] text-ink-3 bg-bg rounded-btn px-3 py-2.5">Salve a OS para gerar o link de credenciamento.</p>
-              )}
-            </LinhaOs>
-            <LinhaOs label="Prazo Limite">
-              <Input type="date" value={os.credenciamento.prazoLimite} onChange={(e) => setOs((o) => (o ? { ...o, credenciamento: { ...o.credenciamento, prazoLimite: e.target.value } } : o))} />
-            </LinhaOs>
-
-            {(credResp ?? []).length > 0 && (
-              <LinhaOs label="Credenciamentos Recebidos" hint={`(${(credResp ?? []).length})`}>
-                <div className="py-2 space-y-3">
-                  {(credResp ?? []).map((c) => (
-                    <div key={c.id} className="rounded-btn bg-[#FAFAFB] border border-border-soft p-3">
-                      <div className="text-[11.5px] text-ink-3 mb-1.5">Enviado em {dataHoraBR(c.enviadoEm)}</div>
-                      {c.equipe.length > 0 && (
-                        <div className="text-[12.5px] text-ink mb-1">
-                          <b>Equipe:</b> {c.equipe.map((p) => `${p.nome}${p.funcao ? ` (${p.funcao})` : ""}${p.cpf ? ` — ${p.cpf}` : ""}`).join("; ")}
-                        </div>
-                      )}
-                      {c.veiculos.length > 0 && (
-                        <div className="text-[12.5px] text-ink">
-                          <b>Veículos:</b> {c.veiculos.map((v) => `${v.modelo}${v.placa ? ` — ${v.placa}` : ""}`).join("; ")}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </LinhaOs>
-            )}
-          </CardOs>
-
           {/* RESUMO DOS CUSTOS */}
           <CardOs>
             <Secao>Resumo dos Custos</Secao>

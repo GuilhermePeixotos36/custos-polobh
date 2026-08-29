@@ -133,9 +133,10 @@ describe("Excel da OS — modelo novo", () => {
     expect(texto).toContain("Itaú");
     expect(texto).toContain("220V trifásico");
     expect(texto).toContain("Camiseta preta");
-    // Credenciamento: o link sai do token gerado pelo banco, nunca do domínio
-    // fictício que a OS carregava por padrão (forms.polobh.com.br).
-    expect(texto).toContain("/credenciamento/abc");
+    // O credenciamento saiu da OS (virou subaba do Projeto): nem o link nem o
+    // prazo aparecem mais na planilha que o fornecedor recebe.
+    expect(texto).not.toContain("CREDENCIAMENTO");
+    expect(texto).not.toContain("/credenciamento/abc");
     expect(texto).not.toContain("forms.polobh.com.br");
   });
 
@@ -267,6 +268,6 @@ describe("Excel da OS — modelo novo", () => {
     expect(texto).not.toContain("BV Pólobh");
     // ...mas o que o fornecedor precisa ler continua lá.
     expect(texto).toContain("DETALHAMENTO DA CONTRATAÇÃO");
-    expect(texto).toContain("CREDENCIAMENTO");
+    expect(texto).toContain("RESUMO DOS CUSTOS");
   });
 });

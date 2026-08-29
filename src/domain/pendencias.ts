@@ -35,7 +35,7 @@ import { statusProjetoAutomatico } from "@/domain/statusProjeto";
 import { encerrado as itemEncerrado, situacaoPrazo } from "@/domain/checklist";
 
 /** Chave da subguia dentro do detalhe do projeto (espelha ProjetoDetail). */
-export type AbaProjeto = "dados" | "ec" | "os" | "checklist" | "cronograma" | "fornecedores";
+export type AbaProjeto = "dados" | "ec" | "os" | "checklist" | "cronograma" | "credenciamento" | "fornecedores";
 
 /** Campo do item que é a pendência em si (quando ela não é um comentário). */
 export type CampoPendencia = "os" | "contrato";
@@ -264,10 +264,11 @@ export function calcularPendencias(
         responsavelProjeto: responsavel,
         recurso: "projetos",
         projetoId: ec.projetoId,
-        aba: "os",
+        // Cobrada na subaba do PROJETO: é de lá que se reenvia o link, e é lá
+        // que se vê quem ainda falta. Sem `osId`, senão a rota levaria à OS,
+        // que não fala mais de credenciamento.
+        aba: "credenciamento",
         ecId: os.ecId,
-        osId: os.id,
-        ancora: os.id,
       });
     }
   }
