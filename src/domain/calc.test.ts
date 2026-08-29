@@ -21,6 +21,7 @@ import {
   tituloEc,
   ENCARGOS,
   bvVazio,
+  resumoDeCustos,
   faltasParaEmitirOs,
   bvDaLinha,
   bvExigeJustificativa,
@@ -568,6 +569,62 @@ describe("BV consolidado na OS", () => {
   it("OS sem nenhum item com BV não inventa percentual", () => {
     expect(bvConsolidado([linha({ opcaoValor: "semBvComNf", valorSemBvComNf: 900 })])).toEqual({
       valor: 0, percentual: 0, justificativa: "",
+    });
+  });
+});
+
+/**
+ * Resumo dos Custos da OS: o item e as três formas de cobrá-lo lado a lado.
+ * As colunas são cenários alternativos, não parcelas de um mesmo total.
+ */
+describe("resumoDeCustos", () => {
+  const item = (id: string, nome: string, p: Partial<EcLinha> = {}) =>
+    linha({ id, item: nome, valorComBvNf: 0, valorSemBvComNf: 0, valorSemBvSemNf: 0, ...p });
+
+  it("traz cada item com as três formas e soma cada coluna", () => {
+    const r = resumoDeCustos([
+      item("a", "Som", { valorComBvNf: 10000, valorSemBvComNf: 9000, valorSemBvSemNf: 8000 }),
+      item("b", "Luz", { valorComBvNf: 5000, valorSemBvComNf: 4500, valorSemBvSemNf: 4000 }),
+    ]);
+    expect(r.linhas.map((l) => l.item)).toEqual(["Som", "Luz"]);
+    expect(r.totais).toEqual({ comBvNf: 15000, semBvComNf: 13500, semBvSemNf: 12000 });
+  });
+
+  it("\"não se aplica\" vira null — diferente de zero, e fora do total", () => {
+    const r = resumoDeCustos([
+      item("a", "Som", { valorComBvNf: 10000, valorSemBvSemNf: 8000, valoresNaoAplicaveis: ["semBvComNf"] }),
+    ]);
+    expect(r.linhas[0].semBvComNf).toBeNull();
+    expect(r.linhas[0].comBvNf).toBe(10000);
+    expect(r.totais.semBvComNf).toBe(0);
+  });
+
+  it("zero preenchido continua sendo zero, e não \"não se aplica\"", () => {
+    const r = resumoDeCustos([item("a", "Som", { valorComBvNf: 0 })]);
+    expect(r.linhas[0].comBvNf).toBe(0);
+  });
+
+  it("o que gera nota fiscal são as duas colunas com NF, somadas", () => {
+    const r = resumoDeCustos([
+      item("a", "Som", { valorComBvNf: 10000, valorSemBvComNf: 9000, valorSemBvSemNf: 8000 }),
+    ]);
+    expect(r.totalComNota).toBe(19000);
+    // A coluna sem NF fica de fora — é ela que não vira nota.
+    expect(r.totalComNota).not.toBe(r.totais.comBvNf + r.totais.semBvComNf + r.totais.semBvSemNf);
+  });
+
+  it("item sem nome se identifica pela descrição, e em último caso se anuncia", () => {
+    const r = resumoDeCustos([
+      item("a", "", { descricao: "Locação de praticáveis" }),
+      item("b", "", { descricao: "" }),
+    ]);
+    expect(r.linhas[0].item).toBe("Locação de praticáveis");
+    expect(r.linhas[1].item).toBe("(item sem nome)");
+  });
+
+  it("OS sem itens devolve totais zerados, e não quebra", () => {
+    expect(resumoDeCustos([])).toEqual({
+      linhas: [], totais: { comBvNf: 0, semBvComNf: 0, semBvSemNf: 0 }, totalComNota: 0,
     });
   });
 });

@@ -585,7 +585,16 @@ export interface Os {
   cronograma: CronogramaItem[];
   logistica: Logistica;
   infraestrutura: Infraestrutura;
-  /** Observações da OS (thread com menções — mesmo padrão dos itens da EC). */
+  /**
+   * Observações gerais da OS em TEXTO LIVRE, escritas para o fornecedor ler.
+   * Saem no documento impresso, no e-mail e na planilha.
+   */
+  observacoesGerais: string;
+  /**
+   * Thread INTERNA de comentários e pendências da OS (mesmo padrão dos itens da
+   * EC, com @menção e responsável). Não sai em documento, e-mail nem planilha —
+   * para isso existe `observacoesGerais`.
+   */
   observacoes: Observacao[];
   credenciamento: Credenciamento;
   orcamento: Orcamento;

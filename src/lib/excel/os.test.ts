@@ -73,6 +73,7 @@ const os = (ecLinhaIds: string[]): Os => ({
     energia: "220V trifásico", internet: "Wi-Fi do local", pontosEletricos: "8 pontos",
     estruturas: "Praticável 2x1", servicosApoio: "Carregadores", artLaudos: "ART emitida",
   },
+  observacoesGerais: "",
   observacoes: [],
   credenciamento: { prazoLimite: "2026-09-01", linkFormulario: "https://forms.polobh.com.br/cred/abc" }, // link legado, fictício
   orcamento: {
@@ -182,46 +183,58 @@ describe("Excel da OS — modelo novo", () => {
     expect(ws.columnCount).toBeLessThanOrEqual(15);
   });
 
-  it("o ORÇAMENTO sai item a item, com a opção escolhida logo abaixo do valor da EC", async () => {
+  it("o RESUMO DOS CUSTOS sai como tabela: o item e as três formas, lado a lado", async () => {
     const linhas = [
-      linha({ id: "l1", item: "Som", valorPolobh: 10000, valorComBvNf: 9000, opcaoValor: "comBvNf" }),
-      linha({ id: "l2", item: "Luz", valorPolobh: 4000, valorSemBvSemNf: 3600, opcaoValor: "semBvSemNf" }),
+      linha({ id: "l1", item: "Som", valorPolobh: 10000, valorComBvNf: 9000, valorSemBvComNf: 8500, valorSemBvSemNf: 8000 }),
+      linha({ id: "l2", item: "Luz", valorPolobh: 4000, valorComBvNf: 4000, valorSemBvComNf: 3800, valorSemBvSemNf: 3600 }),
     ];
     const { linhas: linhasTxt } = await abrir(os(["l1", "l2"]), ec(linhas));
-    const i = linhasTxt.findIndex((l) => l?.startsWith("ORÇAMENTO"));
+    const i = linhasTxt.findIndex((l) => l?.startsWith("RESUMO DOS CUSTOS"));
     expect(i).toBeGreaterThan(0);
-    // Bloco do primeiro item: nome, valor na EC e a opção marcada.
-    expect(linhasTxt[i + 1]).toContain("Som");
-    expect(linhasTxt[i + 2]).toContain("Valor do Item na EC do Projeto");
-    expect(linhasTxt[i + 2]).toContain("10000");
-    expect(linhasTxt[i + 3]).toContain("Valor com BV e NF");
-    expect(linhasTxt[i + 3]).toContain("9000");
-    // ...e o do segundo, na sequência.
-    expect(linhasTxt[i + 4]).toContain("Luz");
-    expect(linhasTxt[i + 5]).toContain("4000");
-    expect(linhasTxt[i + 6]).toContain("Valor Sem BV e Sem NF");
-    expect(linhasTxt[i + 6]).toContain("3600");
-    // As opções não escolhidas não entram — é a decisão da produção que sai.
-    expect(linhasTxt[i + 3]).not.toContain("Sem BV");
+    // Cabeçalho da tabela, depois um item por linha com as três formas.
+    expect(linhasTxt[i + 1]).toContain("VALOR COM BV E NF");
+    expect(linhasTxt[i + 1]).toContain("VALOR SEM BV E SEM NF");
+    expect(linhasTxt[i + 2]).toContain("Som");
+    expect(linhasTxt[i + 2]).toContain("9.000,00");
+    expect(linhasTxt[i + 2]).toContain("8.500,00");
+    expect(linhasTxt[i + 2]).toContain("8.000,00");
+    expect(linhasTxt[i + 3]).toContain("Luz");
+  });
+
+  it("fecha com o total de cada coluna — cada uma é um cenário inteiro", async () => {
+    const linhas = [
+      linha({ id: "l1", item: "Som", valorComBvNf: 9000, valorSemBvComNf: 8500, valorSemBvSemNf: 8000 }),
+      linha({ id: "l2", item: "Luz", valorComBvNf: 4000, valorSemBvComNf: 3800, valorSemBvSemNf: 3600 }),
+    ];
+    const { linhas: linhasTxt, texto } = await abrir(os(["l1", "l2"]), ec(linhas));
+    const total = linhasTxt.find((l) => l?.includes("TOTAL POR FORMA DE COBRANÇA"))!;
+    expect(total).toContain("13.000,00"); // com BV e NF
+    expect(total).toContain("12.300,00"); // sem BV, com NF
+    expect(total).toContain("11.600,00"); // sem BV, sem NF
+    // E o que vira nota fiscal são só as duas colunas COM nota.
+    expect(texto).toContain("Total a Faturar");
+    expect(texto).toContain("25300"); // 13.000 + 12.300
   });
 
   it("opção marcada como 'Não se aplica' sai como texto, e não como valor", async () => {
     const l = linha({
       id: "l1", item: "Som", valorPolobh: 10000,
-      valorComBvNf: 9000, opcaoValor: "comBvNf", valoresNaoAplicaveis: ["comBvNf"],
+      valorComBvNf: 9000, valorSemBvComNf: 8500, valoresNaoAplicaveis: ["comBvNf"],
     });
-    const { linhas: linhasTxt, texto } = await abrir(os(["l1"]), ec([l]));
-    const i = linhasTxt.findIndex((x) => x?.startsWith("ORÇAMENTO"));
-    expect(linhasTxt[i + 3]).toContain("Valor com BV e NF");
-    expect(linhasTxt[i + 3]).toContain("Não se aplica");
+    const { linhas: linhasTxt } = await abrir(os(["l1"]), ec([l]));
+    const doItem = linhasTxt.find((x) => x?.includes("Som") && x?.includes("Não se aplica"))!;
+    expect(doItem).toBeTruthy();
     // O 9000 continua guardado na EC, mas não pode aparecer como se fosse cobrança.
-    expect(linhasTxt[i + 3]).not.toContain("9000");
-    expect(texto).toContain("Total das opções escolhidas");
+    expect(doItem).not.toContain("9.000,00");
+    expect(doItem).toContain("8.500,00");
   });
 
-  it("item sem opção escolhida diz isso, em vez de inventar uma forma de cobrança", async () => {
-    const { texto } = await abrir(os(["l1"]), ec([linha({ id: "l1", item: "Som", valorPolobh: 10000 })]));
-    expect(texto).toContain("A produção ainda não escolheu a forma de cobrança deste item.");
+  it("os dados para pagamento vão no fim, junto do que se fatura", async () => {
+    const { texto } = await abrir(os(["l1"]), ec([linha({ id: "l1", valorComBvNf: 1000 })]));
+    expect(texto).toContain("Dados para Pagamento");
+    expect(texto).toContain("Itaú");
+    expect(texto).toContain("Ag. 1234");
+    expect(texto).toContain("Prazo de Pagamento");
   });
 
   it("mantém as fórmulas vivas do bloco financeiro apontando para as células certas", async () => {

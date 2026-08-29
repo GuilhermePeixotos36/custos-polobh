@@ -21,6 +21,7 @@ import {
   agruparPorFornecedor,
   descritivoConsolidado,
   bvConsolidado,
+  resumoDeCustos,
   BV_PADRAO_PERCENTUAL,
   numeroOs,
   versaoOs,
@@ -28,8 +29,6 @@ import {
   LEI_INCENTIVO_PADRAO,
   FORMA_PAGAMENTO_PADRAO,
   OBS_CONTRATO_PADRAO,
-  opcaoEscolhidaDoItem,
-  valorItemNaEc,
 } from "@/domain/calc";
 import { ETAPAS_CRONOGRAMA } from "@/domain/projeto";
 import { doCadastro, opcoesPerfilTributario, semVazios } from "@/domain/fornecedor";
@@ -55,6 +54,7 @@ import { idAncoraPendencia } from "@/lib/destaque";
 import { pendenciasDaTela } from "@/domain/pendencias";
 import { CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, alternarNaoSeAplica, naoSeAplica } from "@/domain/os";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
+import type { ResumoCustos } from "@/domain/calc";
 import type {
   DocumentoFiscal,
   Ec,
@@ -297,6 +297,7 @@ export function OsForm() {
         cronograma: [{ etapa: "Evento", data: ec.projeto.evento, horario: ec.projeto.horario, atividades: "" }],
         logistica: { transporteMaterial: "", transporteEquipe: "", hospedagem: "", alimentacao: "", estacionamentoCarga: "", estacionamentoEquipe: "", uniformizacao: "" },
         infraestrutura: { energia: "", internet: "", pontosEletricos: "", estruturas: "", servicosApoio: "", artLaudos: "" },
+        observacoesGerais: "",
         observacoes: [],
         // O link só existe depois de salvar: quem o monta é `urlCredenciamento`, a
         // partir do token que o banco gera (ver lib/links).
@@ -330,6 +331,9 @@ export function OsForm() {
 
   /** Ordem atual do cronograma, pelas chaves que o arraste manipula. */
   const idsCronograma = os.cronograma.map(idDaEtapa);
+
+  /** Resumo dos Custos: cada item e as três formas de cobrá-lo, com os totais. */
+  const resumo = resumoDeCustos(linhasConsolidadas);
 
   /** O BV combinado nos itens desta OS — a origem do que está nos campos abaixo. */
   const bvDaEc = bvConsolidado(linhasConsolidadas);
@@ -878,9 +882,29 @@ export function OsForm() {
             </div>
           </LinhaOs>
 
-          <LinhaOs label="Observações Gerais">
-            {/* Âncora da OS para o navegador de pendências (as observações da OS
-                são pendências como as da EC). */}
+          {/* Texto livre, escrito PARA O FORNECEDOR: sai no documento, no e-mail
+              e na planilha. A conversa interna da equipe fica no card próprio,
+              logo abaixo — eram a mesma coisa, e a thread interna acabava
+              impressa no documento que o fornecedor recebe. */}
+          <LinhaOs label="Observações Gerais" hint="(sai no documento e na planilha)">
+            <Textarea
+              className="min-h-[90px]"
+              value={os.observacoesGerais}
+              onChange={(e) => setOs((o) => (o ? { ...o, observacoesGerais: e.target.value } : o))}
+              placeholder="O que o fornecedor precisa saber e não coube nos outros campos."
+            />
+          </LinhaOs>
+        </CardOs>
+
+        {/* COMENTÁRIOS INTERNOS — não saem em documento, e-mail ou planilha */}
+        <CardOs>
+          <Secao>Comentários Internos</Secao>
+          <LinhaOs
+            label="Pendências e combinados"
+            hint="(só a equipe vê — @menção cobra alguém)"
+          >
+            {/* Âncora da OS para o navegador de pendências (os comentários da OS
+                são pendências como os dos itens da EC). */}
             <div className="py-1 -mx-1" id={idAncoraPendencia(os.id)}>
               <ObservacoesThread
                 ancora={os.id}
@@ -944,44 +968,20 @@ export function OsForm() {
             )}
           </CardOs>
 
-          {/* ORÇAMENTO */}
+          {/* RESUMO DOS CUSTOS */}
           <CardOs>
-            <Secao>Orçamento</Secao>
-            {/* Espelho do que a produção escolheu item a item lá na EC — é isto
-                que sai na planilha da OS, um bloco por item. Aqui é leitura:
-                para mudar, muda-se no item da EC. */}
-            <LinhaOs label="Por item (vindo da EC)" hint="(a opção marcada em cada item é a que sai na planilha)">
-              <div className="py-1.5 space-y-1.5">
-                {linhasConsolidadas.map((l) => {
-                  const escolha = opcaoEscolhidaDoItem(l);
-                  return (
-                    <div key={l.id} className="rounded-btn border border-border-soft bg-[#FAFAFB] px-2.5 py-1.5">
-                      <div className="flex items-baseline gap-2 flex-wrap">
-                        <span className="text-[12.5px] font-bold text-ink">{l.item || l.descricao || "Item"}</span>
-                        <span className="text-[11.5px] text-ink-3">
-                          Valor na EC: <b className="text-ink-2">{brl(valorItemNaEc(l))}</b>
-                        </span>
-                      </div>
-                      <div className="text-[12px] mt-0.5">
-                        {escolha ? (
-                          <span className="text-ink-2">
-                            <b className="text-primary-dark">{escolha.rotulo}:</b>{" "}
-                            {escolha.naoSeAplica ? <i className="text-ink-3">Não se aplica</i> : brl(escolha.valor)}
-                          </span>
-                        ) : (
-                          <span className="text-warning font-semibold">
-                            Sem opção de valor escolhida no item da EC.
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-                {!linhasConsolidadas.length && (
-                  <span className="text-[12.5px] text-ink-3">Esta OS não está ligada a itens da EC.</span>
-                )}
-              </div>
+            <Secao>Resumo dos Custos</Secao>
+            {/* As três formas de cobrar cada item, lado a lado — o que a produção
+                preencheu lá na EC. Aqui é leitura: para mudar, muda-se no item.
+                As colunas são CENÁRIOS alternativos, não parcelas de um total:
+                por isso os totais não se somam entre si. */}
+            <LinhaOs label="Por item (vindo da EC)" hint="(as três formas, item a item)">
+              <TabelaResumoCustos resumo={resumo} />
             </LinhaOs>
+            {/* Os números acima são o que a EC registrou; os de baixo são o que
+                foi NEGOCIADO com o fornecedor, e é deles que vivem o Faturamento
+                e o Contrato. Separados para não se lerem como repetição. */}
+            <SubSecao>Valores negociados</SubSecao>
             <LinhaOs label="Valor do Item na EC do Projeto" hint="(soma dos itens consolidados)"><Auto v={brl(os.orcamento.valorEc)} /></LinhaOs>
             <LinhaOs label="Valor com BV e NF" hint="(valor negociado — alimenta Faturamento e Contrato)">
               <NumberInput value={os.orcamento.valorComBvNf} onValue={setValorNegociado} />
@@ -1357,6 +1357,58 @@ function CampoOpcionalOs({
         {naoSeAplica ? "Informar" : "Não se aplica"}
       </button>
     </Field>
+  );
+}
+
+/**
+ * Tabela do Resumo dos Custos: o item e as três formas de cobrá-lo.
+ *
+ * As colunas são CENÁRIOS alternativos para o mesmo item — a soma de uma
+ * responde "quanto sairia se tudo fosse cobrado assim". Por isso a linha de
+ * totais não fecha uma conta entre elas, e a de baixo separa o que gera nota
+ * fiscal (as duas colunas "com NF") do que não gera.
+ *
+ * Célula vazia é "não se aplica", e é diferente de R$ 0,00: uma é resposta da
+ * produção, a outra é um valor.
+ */
+function TabelaResumoCustos({ resumo }: { resumo: ResumoCustos }) {
+  if (!resumo.linhas.length) {
+    return <p className="py-2 text-[12.5px] text-ink-3">Esta OS não está ligada a itens da EC.</p>;
+  }
+  const celula = (v: number | null) =>
+    v === null ? <i className="text-ink-3 font-normal">Não se aplica</i> : brl(v);
+
+  return (
+    <div className="py-1.5 overflow-x-auto">
+      <table className="w-full text-[12.5px] border-collapse">
+        <thead>
+          <tr className="text-[10.5px] font-extrabold uppercase tracking-[0.05em] text-ink-3">
+            <th className="text-left font-extrabold pb-1.5 pr-2">Item</th>
+            <th className="text-right font-extrabold pb-1.5 px-2 whitespace-nowrap">Com BV e NF</th>
+            <th className="text-right font-extrabold pb-1.5 px-2 whitespace-nowrap">Sem BV e Com NF</th>
+            <th className="text-right font-extrabold pb-1.5 pl-2 whitespace-nowrap">Sem BV e Sem NF</th>
+          </tr>
+        </thead>
+        <tbody>
+          {resumo.linhas.map((l) => (
+            <tr key={l.id} className="border-t border-border-soft">
+              <td className="py-1.5 pr-2 font-semibold text-ink">{l.item}</td>
+              <td className="py-1.5 px-2 text-right font-display text-ink">{celula(l.comBvNf)}</td>
+              <td className="py-1.5 px-2 text-right font-display text-ink">{celula(l.semBvComNf)}</td>
+              <td className="py-1.5 pl-2 text-right font-display text-ink">{celula(l.semBvSemNf)}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr className="border-t-2 border-border font-bold text-ink">
+            <td className="py-1.5 pr-2">Total por forma de cobrança</td>
+            <td className="py-1.5 px-2 text-right font-display">{brl(resumo.totais.comBvNf)}</td>
+            <td className="py-1.5 px-2 text-right font-display">{brl(resumo.totais.semBvComNf)}</td>
+            <td className="py-1.5 pl-2 text-right font-display">{brl(resumo.totais.semBvSemNf)}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
   );
 }
 

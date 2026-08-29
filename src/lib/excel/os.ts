@@ -23,7 +23,7 @@ import type { Ec, EcLinha, Os } from "@/data/types";
 import { dataBR } from "@/lib/format";
 import {
   textoObjetoContrato, FORMA_PAGAMENTO_PADRAO, OBS_CONTRATO_PADRAO,
-  opcaoEscolhidaDoItem, valorItemNaEc,
+  resumoDeCustos,
 } from "@/domain/calc";
 import { ETAPAS_CRONOGRAMA } from "@/domain/projeto";
 import { itensVisiveis, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA } from "@/domain/os";
@@ -31,6 +31,8 @@ import { urlCredenciamento } from "@/lib/links";
 import { COR, fill, FONT_LIGHT, baixar, nomeArquivo, carregarLogo, encaixarLogo, linhasVisuais, alturaParaLinhas } from "./shared";
 
 const moeda = '"R$" #,##0.00';
+/** Dinheiro em TEXTO — as faixas mescladas de `linhaBlocos` não aceitam numFmt. */
+const dinheiro = (v: number) => `R$ ${(v || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
 const PT = 11;
 /** Última coluna da faixa de valores — o modelo vai de B até O. */
 const FIM = "O";
@@ -165,7 +167,11 @@ export async function criarOsExcelBuffer(
    * Linha repartida em blocos, como as do cronograma no modelo:
    * A = rótulo | B:D | E:I | J:L | M:O.
    */
-  const linhaBlocos = (rotulo: string, blocos: [string, string, string, string], o: { semRotulo?: boolean } = {}) => {
+  const linhaBlocos = (
+    rotulo: string,
+    blocos: [string, string, string, string],
+    o: { semRotulo?: boolean; forte?: boolean } = {}
+  ) => {
     const a = ws.getCell(`A${r}`);
     if (!o.semRotulo) a.value = rotulo;
     estiloRotulo(a);
@@ -174,8 +180,9 @@ export async function criarOsExcelBuffer(
       ws.mergeCells(`${ini}${r}:${fim}${r}`);
       const c = ws.getCell(`${ini}${r}`);
       c.value = blocos[i];
-      // A primeira faixa nomeia a etapa: no modelo ela vem em negrito.
-      c.font = { name: FONT_LIGHT, bold: i === 0, size: PT, color: { argb: COR.ink } };
+      // A primeira faixa nomeia a etapa: no modelo ela vem em negrito. `forte`
+      // põe a linha inteira em negrito — é a linha de totais da tabela.
+      c.font = { name: FONT_LIGHT, bold: o.forte || i === 0, size: PT, color: { argb: COR.ink } };
       c.alignment = { vertical: "middle", horizontal: "left", wrapText: true };
     });
     for (const col of COLS.slice(1)) ws.getCell(`${col}${r}`).border = linhaFina;
@@ -335,11 +342,11 @@ export async function criarOsExcelBuffer(
     agruparRotulo(primeiraInf, r - 1);
   }
 
-  const obsTexto = (os.observacoes ?? [])
-    .filter((o) => o.texto.trim())
-    .map((o) => `${o.texto}${o.autorNome ? " — " + o.autorNome : ""}${o.resolvida ? " (resolvida)" : ""}`)
-    .join("\n");
-  linha("Observações Gerais:", obsTexto, { altura: 40 });
+  // Só o campo LIVRE. A thread de `os.observacoes` é conversa interna da equipe
+  // e saía impressa aqui — no documento que o fornecedor recebe.
+  linha("Observações Gerais:", os.observacoesGerais ?? "", {
+    altura: Math.max(40, alturaParaLinhas(linhasVisuais(os.observacoesGerais ?? "", LARGURA_VALOR))),
+  });
 
   /* ---------------------------- CREDENCIAMENTO ------------------------- */
   secao("CREDENCIAMENTO");
@@ -350,12 +357,15 @@ export async function criarOsExcelBuffer(
   );
   linha("Prazo Limite para o Credenciamento:", dataBR(os.credenciamento.prazoLimite));
 
-  /* ------------------------------ ORÇAMENTO ---------------------------- */
-  // Item a item: o valor do item na EC e, logo abaixo, a opção escolhida para
-  // ele. É esta a leitura que a Pólobh faz na hora de pagar o fornecedor.
+  /* -------------------------- RESUMO DOS CUSTOS ------------------------ */
+  // Tabela: o item e as TRÊS formas de cobrá-lo, lado a lado. As colunas são
+  // cenários alternativos — a soma de uma responde "quanto sairia se tudo fosse
+  // cobrado assim" —, por isso os totais não fecham uma conta entre si.
   const orc = os.orcamento;
   const itens: EcLinha[] = (ec.linhas ?? []).filter((l) => (os.ecLinhaIds ?? []).includes(l.id));
-  secao("ORÇAMENTO");
+  const resumo = resumoDeCustos(itens);
+  secao("RESUMO DOS CUSTOS");
+
   if (!itens.length) {
     // OS antiga (ou avulsa): cai no consolidado que já existia na própria OS.
     linha("Valor do Item na EC do Projeto:", orc.valorEc, { money: true });
@@ -363,28 +373,37 @@ export async function criarOsExcelBuffer(
     linha("Valor Sem BV e Com Nota Fiscal:", orc.valorSemBvComNf, { money: true });
     linha("Valor Sem BV e Sem NF:", orc.valorSemBvSemNf, { money: true });
   } else {
-    for (const item of itens) {
-      // Nome do item como faixa, para separar um bloco do outro.
-      ws.mergeCells(`A${r}:${FIM}${r}`);
-      const cab = ws.getCell(`A${r}`);
-      cab.value = item.item || item.descricao || "Item";
-      cab.font = { name: FONT_LIGHT, bold: true, size: PT, color: { argb: COR.ink } };
-      cab.fill = fill(COR.groupGray);
-      cab.alignment = { vertical: "middle", horizontal: "left", wrapText: true };
-      for (const col of COLS) ws.getCell(`${col}${r}`).border = linhaFina;
-      ws.getRow(r).height = 16.5;
-      r++;
-      linha("Valor do Item na EC do Projeto:", valorItemNaEc(item), { money: true });
-      const escolha = opcaoEscolhidaDoItem(item);
-      // "Não se aplica" é resposta, não valor: sai como texto e não entra na soma.
-      if (escolha?.naoSeAplica) linha(`${escolha.rotulo}:`, "Não se aplica", { fixo: true });
-      else if (escolha) linha(`${escolha.rotulo}:`, escolha.valor, { money: true });
-      else linha("Opção de valor:", "A produção ainda não escolheu a forma de cobrança deste item.", { fixo: true });
+    /** Célula vazia é "não se aplica" — resposta da produção, diferente de R$ 0,00. */
+    const cel = (v: number | null) => (v === null ? "Não se aplica" : dinheiro(v));
+    const primeira = r;
+    linhaBlocos("Resumo dos Custos:", [
+      "ITEM", "VALOR COM BV E NF", "VALOR SEM BV E COM NF", "VALOR SEM BV E SEM NF",
+    ], { forte: true });
+    for (const l of resumo.linhas) {
+      linhaBlocos("", [l.item, cel(l.comBvNf), cel(l.semBvComNf), cel(l.semBvSemNf)], { semRotulo: true });
     }
-    // Fechamento do bloco: o que a OS soma das opções escolhidas.
-    const somaEscolhida = itens.reduce((s, i) => s + (opcaoEscolhidaDoItem(i)?.valor ?? 0), 0);
-    linha("Total das opções escolhidas:", somaEscolhida, { money: true });
+    linhaBlocos("", [
+      "TOTAL POR FORMA DE COBRANÇA",
+      dinheiro(resumo.totais.comBvNf),
+      dinheiro(resumo.totais.semBvComNf),
+      dinheiro(resumo.totais.semBvSemNf),
+    ], { semRotulo: true, forte: true });
+    agruparRotulo(primeira, r - 1);
   }
+
+  /* ------- Fechamento: o que vira nota fiscal e como se paga ----------- */
+  // Só as duas colunas COM nota entram aqui: é sobre elas que a emissão fala.
+  linha("Total a Faturar — Com BV e NF + Sem BV e Com NF:", resumo.totalComNota, { money: true });
+  linha("Total Sem Nota Fiscal — Sem BV e Sem NF:", resumo.totais.semBvSemNf, { money: true });
+  linha("Documento Fiscal:", orc.documentoFiscal);
+
+  const banco = os.fornecedor?.dadosBancarios;
+  linhaBlocos("Dados para Pagamento:", [
+    banco?.tipoConta ? `Conta ${banco.tipoConta}` : "Conta",
+    banco?.banco || "",
+    [banco?.agencia && `Ag. ${banco.agencia}`, banco?.conta && `C/C ${banco.conta}`].filter(Boolean).join("  ·  "),
+    banco?.chavePix ? `Pix: ${banco.chavePix}` : "",
+  ]);
 
   if (!orc.parcelas?.length) {
     linhaBlocos("Prazo de Pagamento:", ["Parcela única", "", "", ""]);
@@ -393,18 +412,12 @@ export async function criarOsExcelBuffer(
     orc.parcelas.forEach((x, i) =>
       linhaBlocos(
         "Prazo de Pagamento:",
-        [
-          `${i + 1}ª — ${x.descricao || "Parcela"}`,
-          `R$ ${(x.valor || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
-          "",
-          "",
-        ],
+        [`${i + 1}ª — ${x.descricao || "Parcela"}`, dinheiro(x.valor || 0), "", ""],
         { semRotulo: i > 0 }
       )
     );
     agruparRotulo(primeiraParc, r - 1);
   }
-  linha("Documento Fiscal:", orc.documentoFiscal);
 
   /* ----------- INFORMAÇÕES A SEREM PREENCHIDAS PELO FINANCEIRO --------- */
   if (incluirFinanceiro) {

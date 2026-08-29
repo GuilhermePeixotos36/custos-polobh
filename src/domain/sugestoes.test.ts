@@ -51,6 +51,7 @@ const os = (p: Partial<Os["logistica"]>): Os => ({
     estacionamentoCarga: "", estacionamentoEquipe: "", uniformizacao: "", ...p,
   },
   infraestrutura: { energia: "220V trifásico", internet: "", pontosEletricos: "", estruturas: "", servicosApoio: "", artLaudos: "" },
+  observacoesGerais: "",
   observacoes: [],
   credenciamento: { prazoLimite: "", linkFormulario: "" },
   orcamento: { valorEc: 0, valorComBvNf: 0, valorSemBvComNf: 0, valorSemBvSemNf: 0, parcelas: [], documentoFiscal: "" },
