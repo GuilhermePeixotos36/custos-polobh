@@ -30,9 +30,10 @@ src/
   data/                      types, repository e implementação Supabase
   domain/calc.ts             cálculos da EC, numeração, consolidação EC→OS
   domain/checklist.ts        régua de prazos e estados do check-list (Work Flow)
+  domain/calendario.ts       período do projeto e recorte mês a mês do quadro do ano
   domain/pendencias.ts       motor de pendências que alimenta os badges vermelhos
   lib/                       format, cnpj (BrasilAPI), ai (flag), flags, excel/
-  pages/                     telas (Login, Projetos, EC*, OS*, Agenda, Cronogramas…)
+  pages/                     telas (Login, Projetos, EC*, OS*, Calendário, Agenda…)
   store/auth.ts              perfil + matriz de permissões
 supabase/schema.sql          schema completo + RLS
 supabase/migrations/         atualizações incrementais do banco
@@ -42,6 +43,7 @@ supabase/migrations/         atualizações incrementais do banco
 | Recurso | Direção | Produção | Administrativo |
 |---|:--:|:--:|:--:|
 | Dashboard / ECs (consulta) / OSs / Cronogramas / Fornecedores | ✅ | ✅ | ✅ |
+| Calendário do ano (mesma permissão de Projetos) | ✅ | ✅ | ✅ |
 | Check-list do projeto / Agenda (ver e editar) | ✅ | ✅ | ✅ |
 | Editar EC | ✅ | ✅ | — |
 | Modelos de check-list (Configurações) | ✅ | — | — |
@@ -117,6 +119,35 @@ Substitui a cobrança informal por uma lista de tarefas com prazo, dono e histó
 
 Banco: `checklist_modelos`, `checklists`, `checklist_itens` (migração
 `20260823100000_checklist_workflow.sql`).
+
+## Calendário do ano (quadro dos projetos)
+Substitui o quadro preto de parede onde a produção anotava, à mão, tudo o que
+aconteceria no ano — agora preenchido sozinho pelos projetos já cadastrados.
+
+- **O que entra:** só a **data do projeto**, isto é, a etapa **Evento** do
+  cronograma (`info.cronograma.evento`). Montagem, alinhamentos, ensaios e
+  desmontagem **não** entram: o quadro é de "quando o projeto acontece". O
+  período é do **menor ao maior dia** da etapa (evento de um dia = um dia só);
+  projeto anterior ao cronograma por faixas cai no campo legado `info.evento`.
+- **Vista Calendário:** doze cards de mês, cada um com a mancha do mês em
+  trilhas (projetos que se sobrepõem caem em linhas diferentes), a contagem e os
+  nomes. **Vista Lista:** o mesmo conteúdo escrito, mês a mês — a leitura de
+  bater o olho e imprimir.
+- **Detalhamento do mês** (clicar no card): régua de 1 a 31, uma linha por
+  projeto, e a **barra correndo do primeiro ao último dia**. Ponta reta + seta =
+  o projeto começa antes ou termina depois daquele mês (ele aparece nos dois).
+  Fim de semana sombreado, coluna de hoje em destaque; ←/→ folheiam os meses e
+  viram o ano, Esc fecha.
+- **Cor por projeto** é fixa (hash do id): a mesma no card, na barra e na lista,
+  para reconhecer o projeto de longe.
+- **Ano, mês aberto e vista moram na URL** (`/calendario?ano=2026&mes=3&vista=lista`)
+  — o link mandado para a colega abre no que você está vendo.
+- **Projeto sem data de evento** não some em silêncio: é cobrado na faixa do
+  rodapé, com atalho para abrir e preencher.
+
+Sem tabela nova no banco: o quadro é uma leitura de `projetos`
+(`domain/calendario.ts`), com o status de cada projeto vindo de
+`statusProjetoAutomatico`.
 
 ## Geração de Excel
 - **EC e OS:** ambas são **remontadas com a marca Pólobh** via ExcelJS (que aplica

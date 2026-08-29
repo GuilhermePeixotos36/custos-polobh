@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { Recurso } from "@/store/auth";
 import {
   IcFolder,
+  IcCalendar,
   IcClipboard,
   IcUsers,
   IcGear,
@@ -21,6 +22,9 @@ export interface NavItem {
 // viram subguias dentro do projeto (não ficam no menu principal).
 export const NAV: NavItem[] = [
   { to: "/projetos", label: "Projetos", icon: <IcFolder />, recurso: "projetos", grupo: "Operação" },
+  // O quadro do ano: vem logo depois de Projetos porque é a mesma informação
+  // vista de outro jeito — "quando cada projeto acontece", em vez de "onde está".
+  { to: "/calendario", label: "Calendário", icon: <IcCalendar />, recurso: "projetos", grupo: "Operação" },
   // A agenda fica ao lado de Projetos de propósito: é a tela de "o que fazer
   // hoje", enquanto Projetos é a de "onde está cada coisa".
   { to: "/agenda", label: "Agenda", icon: <IcClipboard />, recurso: "checklists", grupo: "Operação" },
