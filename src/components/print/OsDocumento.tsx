@@ -1,5 +1,5 @@
 /** OS como documento A4 — visualização em tela + PDF. Espelha o modelo em Excel. */
-import { logisticaVisivel } from "@/domain/os";
+import { itensVisiveis, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA } from "@/domain/os";
 import type { Ec, Os } from "@/data/types";
 import { urlCredenciamento } from "@/lib/links";
 import { brl, dataBR } from "@/lib/format";
@@ -73,7 +73,8 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
   const b = f.dadosBancarios;
   const consolidadas = ec.linhas.filter((l) => os.ecLinhaIds.includes(l.id));
   /** Só o que se aplica a esta OS — o resto não vira linha para o fornecedor ler. */
-  const logistica = logisticaVisivel(os.logistica);
+  const logistica = itensVisiveis(os.logistica, CAMPOS_LOGISTICA);
+  const infraestrutura = itensVisiveis(os.infraestrutura, CAMPOS_INFRAESTRUTURA);
   const tom = fiscaisDe(os.financeiro.tomador, ec);
   const contr = fiscaisDe(os.contrato.contratante, ec);
 
@@ -163,7 +164,7 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
       <LV label="Modalidade" valor={os.modalidade} />
       <LV label="Descritivo" valor={os.descritivo} />
       <LV label="Entrega" valor={os.entrega} />
-      {/* Item marcado como "não se aplica" nem aparece — ver `logisticaVisivel`.
+      {/* Item marcado como "não se aplica" nem aparece — ver `itensVisiveis`.
           Bloco inteiro fora do documento quando nada se aplica. */}
       {logistica.length > 0 && (
         <LV
@@ -171,17 +172,12 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
           valor={logistica.map(({ rotulo, valor }) => `${rotulo}: ${valor || "____"}`).join("\n")}
         />
       )}
-      <LV
-        label="Infraestrutura"
-        valor={[
-          ["Energia", os.infraestrutura.energia],
-          ["Internet", os.infraestrutura.internet],
-          ["Pontos Elétricos", os.infraestrutura.pontosEletricos],
-          ["Estruturas Diversas", os.infraestrutura.estruturas],
-          ["Serviços de Apoio", os.infraestrutura.servicosApoio],
-          ["ART, Laudos e Certificações", os.infraestrutura.artLaudos],
-        ].map(([n, v]) => `${n}: ${v || "____"}`).join("\n")}
-      />
+      {infraestrutura.length > 0 && (
+        <LV
+          label="Infraestrutura"
+          valor={infraestrutura.map(({ rotulo, valor }) => `${rotulo}: ${valor || "____"}`).join("\n")}
+        />
+      )}
       <LV
         label="Observações Gerais"
         valor={(os.observacoes ?? [])

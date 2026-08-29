@@ -161,6 +161,16 @@ describe("Excel da OS — modelo novo", () => {
     const { texto } = await abrir(semLogistica, ec([linha({ id: "l1", valorPolobh: 1000 })]));
     expect(texto).not.toContain("Logística do Fornecedor");
     // A seção seguinte continua no lugar — some a logística, não o resto.
+    expect(texto).toContain("Infraestrutura");
+    expect(texto).toContain("220V trifásico");
+  });
+
+  it("infraestrutura marcada como 'não se aplica' também some da planilha", async () => {
+    const semInternet = os(["l1"]);
+    semInternet.infraestrutura = { ...semInternet.infraestrutura, naoAplicaveis: ["internet", "artLaudos"] };
+    const { texto } = await abrir(semInternet, ec([linha({ id: "l1", valorPolobh: 1000 })]));
+    expect(texto).not.toContain("Wi-Fi do local");
+    expect(texto).not.toContain("ART, Laudos e Certificações");
     expect(texto).toContain("220V trifásico");
   });
 

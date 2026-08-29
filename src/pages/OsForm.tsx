@@ -53,7 +53,7 @@ import { InscricaoMunicipalInput } from "@/components/InscricaoMunicipalInput";
 import { TextosJaUsados } from "@/components/TextosJaUsados";
 import { idAncoraPendencia } from "@/lib/destaque";
 import { pendenciasDaTela } from "@/domain/pendencias";
-import { CAMPOS_LOGISTICA, alternarLogisticaNaoSeAplica, logisticaNaoSeAplica } from "@/domain/os";
+import { CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, alternarNaoSeAplica, naoSeAplica } from "@/domain/os";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import type {
   DocumentoFiscal,
@@ -323,8 +323,10 @@ export function OsForm() {
   // Linhas da EC que esta OS consolida (mesmo fornecedor).
   const linhasConsolidadas = ecCtx.linhas.filter((l) => os.ecLinhaIds.includes(l.id));
   const linkCredenciamento = urlCredenciamento(os);
-  /** Quantos itens de logística ficam fora do documento — some no rótulo do bloco. */
+  /** Quantos itens de cada bloco ficam fora do documento — some no rótulo dele. */
+  const foraDoDocumento = (n: number) => (n ? `(${n} fora do documento)` : undefined);
   const naoAplicaveisLogistica = os.logistica.naoAplicaveis?.length ?? 0;
+  const naoAplicaveisInfra = os.infraestrutura.naoAplicaveis?.length ?? 0;
 
   /** Ordem atual do cronograma, pelas chaves que o arraste manipula. */
   const idsCronograma = os.cronograma.map(idDaEtapa);
@@ -843,34 +845,36 @@ export function OsForm() {
             </div>
           </LinhaOs>
 
-          <LinhaOs
-            label="Logística do Fornecedor"
-            hint={naoAplicaveisLogistica ? `(${naoAplicaveisLogistica} fora do documento)` : undefined}
-          >
+          <LinhaOs label="Logística do Fornecedor" hint={foraDoDocumento(naoAplicaveisLogistica)}>
             <div className="py-1.5 grid sm:grid-cols-2 gap-2">
               {CAMPOS_LOGISTICA.map(({ campo, rotulo }) => (
-                <CampoLogisticaOs
+                <CampoOpcionalOs
                   key={campo}
                   rotulo={rotulo}
                   valor={os.logistica[campo]}
                   sugestoes={sugestoes.valores[campo]}
-                  naoSeAplica={logisticaNaoSeAplica(os.logistica, campo)}
+                  naoSeAplica={naoSeAplica(os.logistica, campo)}
                   className={campo === "uniformizacao" ? "sm:col-span-2" : undefined}
                   onValor={(v) => updLog({ [campo]: v } as Partial<Os["logistica"]>)}
-                  onAlternar={() => setOs((o) => (o ? { ...o, logistica: alternarLogisticaNaoSeAplica(o.logistica, campo) } : o))}
+                  onAlternar={() => setOs((o) => (o ? { ...o, logistica: alternarNaoSeAplica(o.logistica, campo) } : o))}
                 />
               ))}
             </div>
           </LinhaOs>
 
-          <LinhaOs label="Infraestrutura">
+          <LinhaOs label="Infraestrutura" hint={foraDoDocumento(naoAplicaveisInfra)}>
             <div className="py-1.5 grid sm:grid-cols-2 gap-2">
-              <Field label="Energia"><Input className="!h-9" sugestoes={sugestoes.valores.energia} value={os.infraestrutura.energia} onChange={(e) => updInfra({ energia: e.target.value })} /></Field>
-              <Field label="Internet"><Input className="!h-9" sugestoes={sugestoes.valores.internet} value={os.infraestrutura.internet} onChange={(e) => updInfra({ internet: e.target.value })} /></Field>
-              <Field label="Pontos Elétricos"><Input className="!h-9" sugestoes={sugestoes.valores.pontosEletricos} value={os.infraestrutura.pontosEletricos} onChange={(e) => updInfra({ pontosEletricos: e.target.value })} /></Field>
-              <Field label="Estruturas Diversas"><Input className="!h-9" sugestoes={sugestoes.valores.estruturas} value={os.infraestrutura.estruturas} onChange={(e) => updInfra({ estruturas: e.target.value })} /></Field>
-              <Field label="Serviços de Apoio"><Input className="!h-9" sugestoes={sugestoes.valores.servicosApoio} value={os.infraestrutura.servicosApoio} onChange={(e) => updInfra({ servicosApoio: e.target.value })} /></Field>
-              <Field label="ART, Laudos e Certificações"><Input className="!h-9" sugestoes={sugestoes.valores.artLaudos} value={os.infraestrutura.artLaudos} onChange={(e) => updInfra({ artLaudos: e.target.value })} /></Field>
+              {CAMPOS_INFRAESTRUTURA.map(({ campo, rotulo }) => (
+                <CampoOpcionalOs
+                  key={campo}
+                  rotulo={rotulo}
+                  valor={os.infraestrutura[campo]}
+                  sugestoes={sugestoes.valores[campo]}
+                  naoSeAplica={naoSeAplica(os.infraestrutura, campo)}
+                  onValor={(v) => updInfra({ [campo]: v } as Partial<Os["infraestrutura"]>)}
+                  onAlternar={() => setOs((o) => (o ? { ...o, infraestrutura: alternarNaoSeAplica(o.infraestrutura, campo) } : o))}
+                />
+              ))}
             </div>
           </LinhaOs>
 
@@ -1305,17 +1309,17 @@ function LinhaOs({
 }
 
 /**
- * Um item de Logística com a resposta "Não se aplica".
+ * Item de Logística ou de Infraestrutura, com a resposta "Não se aplica".
  *
  * Mesma interação das opções de valor do item da EC, e pelo mesmo motivo: ou a
  * pessoa escreve o combinado, ou responde que aquilo não vale para esta OS. O
- * que não se aplica some do documento e da planilha (ver `logisticaVisivel`) —
+ * que não se aplica some do documento e da planilha (ver `itensVisiveis`) —
  * então a tela precisa deixar isso explícito, e não parecer um campo apagado.
  *
  * O texto digitado NÃO é apagado ao marcar: quem marcou por engano volta atrás
  * sem perder o que escreveu.
  */
-function CampoLogisticaOs({
+function CampoOpcionalOs({
   rotulo,
   valor,
   sugestoes,

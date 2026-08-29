@@ -9,7 +9,7 @@
  * na ordem em que os itens aparecem na EC — a mesma ordem da planilha, para
  * quem lê os dois lados não precisar reconciliar nada.
  */
-import type { CampoLogistica, Ec, Logistica, Os } from "@/data/types";
+import type { CampoInfraestrutura, CampoLogistica, Ec, Os } from "@/data/types";
 
 export interface ItemDaOs {
   id: string;
@@ -40,17 +40,29 @@ export function itensDaOs(os: Pick<Os, "ecId" | "ecLinhaIds">, ecs: Ec[]): ItemD
     }));
 }
 
-/* --------------------- Logística do Fornecedor --------------------------- */
+/* ------------- Blocos com a resposta "Não se aplica" (OS) ---------------- */
 
 /**
- * Os itens de Logística, na ordem em que aparecem. Rótulo junto: é o MESMO na
- * tela, no documento impresso e na planilha.
+ * Logística e Infraestrutura são o mesmo desenho: uma lista fixa de itens de
+ * texto que o fornecedor precisa saber, e cada um podendo ser respondido com
+ * "não se aplica" — caso em que ele NÃO sai no documento impresso, no que vai
+ * por e-mail nem na planilha.
  *
- * A lista existia em triplicata — uma cópia em cada um desses três lugares —, e
- * foi juntada aqui quando o "não se aplica" chegou: com três cópias, bastava um
- * deles esquecer de filtrar para o item some da tela e continuar no documento
- * que o fornecedor recebe.
+ * As duas listas, com os rótulos, existiam em triplicata: uma cópia na tela,
+ * uma no documento e uma na planilha. Foram juntadas aqui, e as três saídas
+ * passam por `itensVisiveis`. Com as cópias soltas, bastava uma delas esquecer
+ * de filtrar para o item sumir da tela e continuar no papel que o fornecedor
+ * recebe — que é justamente o erro que este recurso não pode cometer.
  */
+type BlocoOpcional = { naoAplicaveis?: string[] };
+/**
+ * O campo válido para um bloco sai do PRÓPRIO bloco. É o que faz
+ * `naoSeAplica(os.logistica, "energia")` ser erro de tipo: "energia" é de
+ * Infraestrutura, e o compilador sabe disso sem ninguém repetir a lista.
+ */
+type CampoDoBloco<B> = B extends { naoAplicaveis?: (infer C)[] } ? C : never;
+
+/** Itens de Logística do Fornecedor, na ordem em que aparecem. */
 export const CAMPOS_LOGISTICA = [
   { campo: "transporteMaterial", rotulo: "Transporte Material" },
   { campo: "transporteEquipe", rotulo: "Transporte Equipe" },
@@ -61,22 +73,39 @@ export const CAMPOS_LOGISTICA = [
   { campo: "uniformizacao", rotulo: "Uniformização Equipe" },
 ] as const satisfies readonly { campo: CampoLogistica; rotulo: string }[];
 
+/** Itens de Infraestrutura, na ordem em que aparecem. */
+export const CAMPOS_INFRAESTRUTURA = [
+  { campo: "energia", rotulo: "Energia" },
+  { campo: "internet", rotulo: "Internet" },
+  { campo: "pontosEletricos", rotulo: "Pontos Elétricos" },
+  { campo: "estruturas", rotulo: "Estruturas Diversas" },
+  { campo: "servicosApoio", rotulo: "Serviços de Apoio" },
+  { campo: "artLaudos", rotulo: "ART, Laudos e Certificações" },
+] as const satisfies readonly { campo: CampoInfraestrutura; rotulo: string }[];
+
 /** Este item foi marcado como "não se aplica" nesta OS? */
-export function logisticaNaoSeAplica(l: Logistica | undefined, campo: CampoLogistica): boolean {
-  return !!l?.naoAplicaveis?.includes(campo);
+export function naoSeAplica<B extends BlocoOpcional>(bloco: B | undefined, campo: CampoDoBloco<B>): boolean {
+  return !!bloco?.naoAplicaveis?.includes(campo as string);
 }
 
 /**
- * Os itens de logística que ENTRAM no documento e na planilha.
+ * Os itens que ENTRAM no documento e na planilha.
  *
- * O que não se aplica some — é o pedido. Item vazio CONTINUA aparecendo, com a
+ * O que não se aplica some — é o pedido. Item VAZIO continua saindo, com a
  * linha em branco para o fornecedor preencher: vazio é pergunta em aberto, e
  * escondê-la seria dar por respondida uma coisa que ninguém respondeu.
  */
-export function logisticaVisivel(l: Logistica | undefined): { campo: CampoLogistica; rotulo: string; valor: string }[] {
-  return CAMPOS_LOGISTICA
-    .filter(({ campo }) => !logisticaNaoSeAplica(l, campo))
-    .map(({ campo, rotulo }) => ({ campo, rotulo, valor: l?.[campo] ?? "" }));
+export function itensVisiveis<C extends string>(
+  // `Record`, e não `Partial<Record>`: o bloco precisa TER os campos da lista.
+  // Com Partial, passar `os.logistica` junto de `CAMPOS_INFRAESTRUTURA` seria
+  // aceito e devolveria seis linhas vazias, sem ninguém reclamar.
+  bloco: (Record<C, string> & BlocoOpcional) | undefined,
+  campos: readonly { campo: C; rotulo: string }[]
+): { campo: C; rotulo: string; valor: string }[] {
+  const fora = new Set<string>(bloco?.naoAplicaveis ?? []);
+  return campos
+    .filter(({ campo }) => !fora.has(campo))
+    .map(({ campo, rotulo }) => ({ campo, rotulo, valor: bloco?.[campo] ?? "" }));
 }
 
 /**
@@ -85,10 +114,11 @@ export function logisticaVisivel(l: Logistica | undefined): { campo: CampoLogist
  * Não mexe no valor digitado: quem marcou por engano desmarca e encontra o que
  * tinha escrito, exatamente como nas opções de valor do item da EC.
  */
-export function alternarLogisticaNaoSeAplica(l: Logistica, campo: CampoLogistica): Logistica {
-  const atuais = l.naoAplicaveis ?? [];
+export function alternarNaoSeAplica<B extends BlocoOpcional>(bloco: B, campo: CampoDoBloco<B>): B {
+  const atuais: string[] = bloco.naoAplicaveis ?? [];
+  const alvo = campo as string;
   return {
-    ...l,
-    naoAplicaveis: atuais.includes(campo) ? atuais.filter((c) => c !== campo) : [...atuais, campo],
+    ...bloco,
+    naoAplicaveis: atuais.includes(alvo) ? atuais.filter((c) => c !== alvo) : [...atuais, alvo],
   };
 }

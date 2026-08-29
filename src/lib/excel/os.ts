@@ -26,7 +26,7 @@ import {
   opcaoEscolhidaDoItem, valorItemNaEc,
 } from "@/domain/calc";
 import { ETAPAS_CRONOGRAMA } from "@/domain/projeto";
-import { logisticaVisivel } from "@/domain/os";
+import { itensVisiveis, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA } from "@/domain/os";
 import { urlCredenciamento } from "@/lib/links";
 import { COR, fill, FONT_LIGHT, baixar, nomeArquivo, carregarLogo, encaixarLogo, linhasVisuais, alturaParaLinhas } from "./shared";
 
@@ -316,8 +316,8 @@ export async function criarOsExcelBuffer(
   agruparRotulo(primeiraCronF, r - 1);
 
   // Item marcado como "não se aplica" não vira linha na planilha (ver
-  // `logisticaVisivel`); com nada aplicável, a seção inteira fica de fora.
-  const logistica = logisticaVisivel(os.logistica);
+  // `itensVisiveis`); com nada aplicável, a seção inteira fica de fora.
+  const logistica = itensVisiveis(os.logistica, CAMPOS_LOGISTICA);
   if (logistica.length) {
     const primeiraLog = r;
     logistica.forEach(({ rotulo, valor }, i) =>
@@ -326,18 +326,14 @@ export async function criarOsExcelBuffer(
     agruparRotulo(primeiraLog, r - 1);
   }
 
-  const inf = os.infraestrutura;
-  const infra: [string, string][] = [
-    ["Energia", inf.energia],
-    ["Internet", inf.internet],
-    ["Pontos Elétricos", inf.pontosEletricos],
-    ["Estruturas Diversas", inf.estruturas],
-    ["Serviços de Apoio", inf.servicosApoio],
-    ["ART, Laudos e Certificações", inf.artLaudos],
-  ];
-  const primeiraInf = r;
-  infra.forEach(([nome, val], i) => linhaBlocos("Infraestrutura:", [nome, val || "", "", ""], { semRotulo: i > 0 }));
-  agruparRotulo(primeiraInf, r - 1);
+  const infra = itensVisiveis(os.infraestrutura, CAMPOS_INFRAESTRUTURA);
+  if (infra.length) {
+    const primeiraInf = r;
+    infra.forEach(({ rotulo, valor }, i) =>
+      linhaBlocos("Infraestrutura:", [rotulo, valor || "", "", ""], { semRotulo: i > 0 })
+    );
+    agruparRotulo(primeiraInf, r - 1);
+  }
 
   const obsTexto = (os.observacoes ?? [])
     .filter((o) => o.texto.trim())

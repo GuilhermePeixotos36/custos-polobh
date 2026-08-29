@@ -471,6 +471,15 @@ export interface Logistica {
   naoAplicaveis?: CampoLogistica[];
 }
 
+/** Um dos itens de Infraestrutura (ver `CAMPOS_INFRAESTRUTURA` em domain/os). */
+export type CampoInfraestrutura =
+  | "energia"
+  | "internet"
+  | "pontosEletricos"
+  | "estruturas"
+  | "servicosApoio"
+  | "artLaudos";
+
 export interface Infraestrutura {
   energia: string;
   internet: string;
@@ -478,6 +487,8 @@ export interface Infraestrutura {
   estruturas: string;
   servicosApoio: string;
   artLaudos: string;
+  /** Itens que não se aplicam a esta OS — mesma regra da Logística. */
+  naoAplicaveis?: CampoInfraestrutura[];
 }
 
 export interface Parcela {
