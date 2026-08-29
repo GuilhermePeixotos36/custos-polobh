@@ -721,7 +721,8 @@ export const OBS_CONTRATO_PADRAO =
  */
 export function textoObjetoContrato(fin: Os["financeiro"]): string {
   const projeto = fin.projetoIncentivado?.trim() || "[projeto incentivado]";
+  // `leiIncentivo` já traz a lei COM o número ("… (Rouanet) — PRONAC 26 1234"),
+  // então não há mais um "sob o número" a costurar aqui: o campo é a frase.
   const lei = fin.leiIncentivo?.trim() || LEI_INCENTIVO_PADRAO;
-  const numero = fin.numeroProjetoIncentivado?.trim() || "[número do projeto incentivado]";
-  return `O objeto do presente é a viabilização do projeto ${projeto}, idealizado pela CONTRATANTE e aprovado pela ${lei} sob o número ${numero}, sendo:`;
+  return `O objeto do presente é a viabilização do projeto ${projeto}, idealizado pela CONTRATANTE e aprovado pela ${lei}, sendo:`;
 }

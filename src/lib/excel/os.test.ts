@@ -256,6 +256,38 @@ describe("Excel da OS — modelo novo", () => {
     expect(referencias.some((f) => f.includes("/100"))).toBe(true); // o BV continua vivo
   });
 
+  it("o bloco de emissão termina no valor a pagar — BV e acerto vão para Acertos Financeiros", async () => {
+    const { linhas } = await abrir(os(["l1"]), ec([linha({ id: "l1", valorPolobh: 10000 })]));
+    const onde = (t: string) => linhas.findIndex((l) => l?.includes(t));
+
+    const pagar = onde("Valor total a pagar");
+    const acertos = onde("ACERTOS FINANCEIROS");
+    const contrato = onde("DADOS PARA CONTRATO");
+    const bv = onde("BV Pólobh");
+    expect(pagar).toBeGreaterThan(0);
+
+    // Nada entre o valor a pagar e o fim do bloco de emissão: era ali que BV e
+    // acerto ficavam, no meio dos dados da nota.
+    expect(contrato).toBe(pagar + 1);
+    // O grupo novo vem depois do contrato, e leva o BV e as observações.
+    expect(acertos).toBeGreaterThan(contrato);
+    expect(bv).toBeGreaterThan(acertos);
+    expect(onde("Observações:")).toBeGreaterThan(bv);
+    expect(linhas.slice(acertos).join("\n")).toContain("Depósito em 30 dias");
+  });
+
+  it("lei de incentivo sai em UMA linha, com o número dentro", async () => {
+    const comLei = os(["l1"]);
+    comLei.financeiro = {
+      ...comLei.financeiro,
+      leiIncentivo: "Lei Federal de Incentivo à Cultura (Rouanet) — PRONAC 26 1234",
+    };
+    const { texto } = await abrir(comLei, ec([linha({ id: "l1", valorPolobh: 1000 })]));
+    expect(texto).toContain("Lei de Incentivo à Cultura: Lei Federal de Incentivo à Cultura (Rouanet) — PRONAC 26 1234");
+    // O campo separado deixou de existir: nem rótulo vazio sobra na planilha.
+    expect(texto).not.toContain("Nº Projeto Incentivado");
+  });
+
   it("sem acesso ao financeiro, os blocos restritos não saem na planilha", async () => {
     const { buffer } = await criarOsExcelBuffer(os(["l1"]), ec([linha({ id: "l1", valorPolobh: 1000 })]), {
       incluirFinanceiro: false,

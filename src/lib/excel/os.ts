@@ -437,8 +437,8 @@ export async function criarOsExcelBuffer(
     linha("", `Dados do Projeto: ${p.titulo}`, { semRotulo: true });
     // Projeto incentivado: campos próprios da OS; OSs antigas caem no texto único da EC.
     linha("", `Nome Projeto Incentivado: ${fin.projetoIncentivado || (p.incentivosFiscais ? p.incentivosFiscais : "")}`, { semRotulo: true });
-    linha("", `Lei de Incentivo à Cultura: ${fin.leiIncentivo || ""}`, { semRotulo: true });
-    linha("", `Nº Projeto Incentivado: ${fin.numeroProjetoIncentivado || ""}`, { semRotulo: true });
+    // A lei já vem com o número do projeto na mesma string — uma linha só.
+    linha("", `Lei de Incentivo à Cultura: ${fin.leiIncentivo || p.incentivosFiscais || ""}`, { semRotulo: true });
     linha("", `CNAE: ${fin.cnae || ""}`, { semRotulo: true });
     const ultimaNf = linha("", `Código de Serviço: ${fin.codigoServico || ""}`, { semRotulo: true });
     agruparRotulo(primeiraNf, ultimaNf);
@@ -452,14 +452,9 @@ export async function criarOsExcelBuffer(
     const rPagarF = linha("", (fin.valorTotal || 0) - (fin.descontoNegociado || 0), {
       semRotulo: true, money: true, rotuloInterno: "Valor total a pagar", formula: `M${rTotF}-M${rDescF}`,
     });
+    // O bloco de emissão TERMINA aqui, no valor a pagar: BV e acerto não são
+    // dado de nota fiscal, e foram para a seção "Acertos Financeiros" no fim.
     agruparRotulo(primeiraVal, rPagarF);
-
-    const rPctF = linha("BV Pólobh:", fin.bvPercentual ?? 0, { numFmt: '0.##"%"', rotuloInterno: "Percentual" });
-    const rBvF = linha("", ((fin.valorTotal || 0) * (fin.bvPercentual || 0)) / 100, {
-      semRotulo: true, money: true, rotuloInterno: "Valor", formula: `M${rTotF}*M${rPctF}/100`,
-    });
-    agruparRotulo(rPctF, rBvF);
-    linha("Acerto Financeiro:", fin.acertoFinanceiro);
 
     /* ------------------------- DADOS PARA CONTRATO --------------------- */
     const ct = os.contrato;
@@ -500,6 +495,17 @@ export async function criarOsExcelBuffer(
     linha("Observações Gerais:", ct.observacoesGerais || OBS_CONTRATO_PADRAO, { fixo: !ct.observacoesGerais });
     linha("Data do Contrato:", dataBR(ct.dataContrato));
     linha("Rubrica:", ct.rubrica);
+
+    /* ------------------------ ACERTOS FINANCEIROS ---------------------- */
+    // O que a Pólobh acerta por dentro — BV e as observações do acerto. Fica no
+    // fim, depois de emissão e contrato, porque é consequência dos dois.
+    secao("ACERTOS FINANCEIROS");
+    const rPctF = linha("BV Pólobh:", fin.bvPercentual ?? 0, { numFmt: '0.##"%"', rotuloInterno: "Percentual" });
+    const rBvF = linha("", ((fin.valorTotal || 0) * (fin.bvPercentual || 0)) / 100, {
+      semRotulo: true, money: true, rotuloInterno: "Valor", formula: `M${rTotF}*M${rPctF}/100`,
+    });
+    agruparRotulo(rPctF, rBvF);
+    linha("Observações:", fin.acertoFinanceiro);
   }
 
   ws.pageSetup.printArea = `A1:${FIM}${r - 1}`;

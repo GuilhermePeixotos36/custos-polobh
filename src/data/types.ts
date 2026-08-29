@@ -513,10 +513,17 @@ export interface FinanceiroOs {
   descritivoNf: string;
   /** Nome do projeto incentivado (aparece no descritivo da NF e no contrato). */
   projetoIncentivado?: string;
-  /** Lei de incentivo à cultura aplicável (ex.: Lei Rouanet / Lei Municipal). */
+  /**
+   * Lei de incentivo à cultura COM o número do projeto — um campo só.
+   *
+   * Eram dois (`leiIncentivo` + `numeroProjetoIncentivado`), e a separação não
+   * pagava o que custava: a lei e o número nunca aparecem um sem o outro, e o
+   * Projeto já guarda os dois juntos numa string (`incentivosFiscais`:
+   * "Lei Federal de Incentivo à Cultura (Rouanet) — PRONAC 26 1234"). Partir
+   * isso em dois obrigava a redigitar na OS o que a EC já sabia. Agora este
+   * campo nasce preenchido com a string inteira do Projeto.
+   */
   leiIncentivo?: string;
-  /** Número do projeto incentivado (usado no texto padrão do contrato). */
-  numeroProjetoIncentivado?: string;
   cnae: string;
   codigoServico: string;
   valorUnitario: number;

@@ -196,11 +196,18 @@ function aplicarAutoPreenchimento(os: Os, ec: Ec): Os {
     financeiro: {
       ...os.financeiro,
       descritivoNf,
+      // Tomador: quem contrata o fornecedor é a Pólobh — é ela que emite a OS e
+      // recebe a nota. Deixar em branco só obrigava a escolher a única resposta
+      // óbvia antes de os dados fiscais aparecerem; segue trocável para Cliente
+      // quando o faturamento vai direto para ele.
+      tomador: os.financeiro.tomador || "Polobh",
       codigoServico: os.financeiro.codigoServico || codigoServico,
       cnae: os.financeiro.cnae || cnaeUnico,
       projetoIncentivado:
         os.financeiro.projetoIncentivado || ec.projeto.nomeProjeto || ec.projeto.titulo,
-      leiIncentivo: os.financeiro.leiIncentivo || LEI_INCENTIVO_PADRAO,
+      // Lei COM o número do projeto: é assim que o Projeto já guarda
+      // ("Lei Federal de Incentivo à Cultura (Rouanet) — PRONAC 26 1234").
+      leiIncentivo: os.financeiro.leiIncentivo || ec.projeto.incentivosFiscais || LEI_INCENTIVO_PADRAO,
       bvPercentual,
       bvValor,
       bvJustificativa,
@@ -337,6 +344,18 @@ export function OsForm() {
   // Justificativa do BV é obrigatória quando não há BV ou o percentual é < 15%.
   const bvPrecisaJustif = os.financeiro.bvPercentual < BV_PADRAO_PERCENTUAL;
   const bvJustifFaltando = bvPrecisaJustif && !os.financeiro.bvJustificativa?.trim();
+  /**
+   * O BV daqui nasce do Resumo dos Custos e segue editável. Quando alguém o
+   * altera, ou quando os itens da EC mudam depois, os dois divergem — e sem
+   * dizer isso o campo passaria a mentir sobre o que foi combinado.
+   */
+  const bvDivergeDaEc = bvDaEc.percentual > 0 && Math.abs(os.financeiro.bvPercentual - bvDaEc.percentual) >= 0.01;
+
+  /** Empresa emissora não cadastrada: os dados da nota sairiam em branco calados. */
+  const faltaCadastroTomador = os.financeiro.tomador === "Polobh" && !empresaPolobh;
+  /** A lei de incentivo da OS ficou diferente do que o Projeto guarda. */
+  const leiDivergeDaEc =
+    !!ecCtx.projeto.incentivosFiscais && (os.financeiro.leiIncentivo ?? "") !== ecCtx.projeto.incentivosFiscais;
 
   // Parcelas: a soma tem que fechar com o valor negociado, senão a OS sai errada.
   const somaParcelas = os.orcamento.parcelas.reduce((s, p) => s + (p.valor || 0), 0);
@@ -429,9 +448,21 @@ export function OsForm() {
     <>
       <LinhaOs
         label="BV Pólobh — Percentual"
-        hint={bvDaEc.valor > 0 ? `(EC: ${brl(bvDaEc.valor)})` : undefined}
+        hint={bvDaEc.valor > 0 ? `(do Resumo dos Custos: ${bvDaEc.percentual}% · ${brl(bvDaEc.valor)})` : "(do Resumo dos Custos)"}
       >
         <NumberInput value={os.financeiro.bvPercentual} onValue={(v) => updFin({ bvPercentual: v, bvValor: (os.financeiro.valorTotal * v) / 100 })} />
+        {bvDivergeDaEc && (
+          <div className="mt-1.5 flex items-center gap-2 flex-wrap text-[12px] text-warning">
+            <span className="font-semibold">Diferente do combinado nos itens ({bvDaEc.percentual}%).</span>
+            <button
+              type="button"
+              onClick={() => updFin({ bvPercentual: bvDaEc.percentual, bvValor: (os.financeiro.valorTotal * bvDaEc.percentual) / 100 })}
+              className="font-bold text-primary-dark hover:underline"
+            >
+              Usar o BV do Resumo dos Custos
+            </button>
+          </div>
+        )}
       </LinhaOs>
       <LinhaOs label="BV Pólobh — Valor">
         <Auto v={brl((os.financeiro.valorTotal * os.financeiro.bvPercentual) / 100)} />
@@ -484,7 +515,17 @@ export function OsForm() {
       if (cadastrado) updF(doCadastro(cadastrado));
 
       // Já cadastrado E com o essencial preenchido: não há o que buscar fora.
-      const completo = !!cadastrado?.razaoSocial && !!cadastrado?.endereco && !!cadastrado?.perfilTributario;
+      //
+      // Os CNAEs contam como essencial. O cadastro da casa é ANTERIOR a eles,
+      // então o fornecedor já cadastrado caía aqui e voltava sem atividade
+      // nenhuma — e a lista de CNAE da nota ficava vazia para sempre, por mais
+      // vezes que se consultasse o CNPJ. É o que dava a impressão de que a
+      // busca por cartão CNPJ não trazia as opções certas: ela não era feita.
+      const completo =
+        !!cadastrado?.razaoSocial &&
+        !!cadastrado?.endereco &&
+        !!cadastrado?.perfilTributario &&
+        !!cadastrado?.cnaes?.length;
       if (completo) {
         setCnpjMsg(`Dados vindos do cadastro do fornecedor (${cadastrado.razaoSocial}). Perfil: ${cadastrado.perfilTributario}.`);
         return;
@@ -495,7 +536,14 @@ export function OsForm() {
         razaoSocial: d.razaoSocial, nomeFantasia: d.nomeFantasia, endereco: d.endereco,
         perfilTributario: d.perfilTributario, email: d.email, telefone: d.telefone,
       }));
-      if (d.cnaes?.length) updF({ cnaes: d.cnaes });
+      if (d.cnaes?.length) {
+        updF({ cnaes: d.cnaes });
+        // Devolve ao cadastro o que a Receita disse: a próxima OS deste
+        // fornecedor já abre com as atividades certas, sem nova consulta.
+        if (cadastrado && !cadastrado.cnaes?.length) {
+          await repo.fornecedores.salvar({ ...cadastrado, cnaes: d.cnaes }).catch(() => undefined);
+        }
+      }
       setCnpjMsg(
         cadastrado
           ? `Cadastro do fornecedor completado com os dados públicos. Perfil: ${d.perfilTributario}.`
@@ -990,6 +1038,14 @@ export function OsForm() {
                 <LinhaOs label="CNPJ/CPF"><Auto v={dadosTomador.cnpjCpf} /></LinhaOs>
                 <LinhaOs label="Inscrição Estadual"><Auto v={dadosTomador.inscricaoEstadual} /></LinhaOs>
                 <LinhaOs label="Inscrição Municipal"><Auto v={dadosTomador.inscricaoMunicipal} /></LinhaOs>
+                {faltaCadastroTomador && (
+                  <LinhaOs label="">
+                    <p className="py-2 text-[12.5px] font-semibold text-warning">
+                      A empresa emissora da Pólobh ainda não está cadastrada — os dados da nota saem em branco.
+                      Cadastre em Configurações › Empresas do Grupo.
+                    </p>
+                  </LinhaOs>
+                )}
               </>
             ) : (
               <LinhaOs label="Dados do Tomador">
@@ -1002,27 +1058,34 @@ export function OsForm() {
             <LinhaOs label="Nome do Projeto Incentivado" hint="(auto do projeto)">
               <Input value={os.financeiro.projetoIncentivado ?? ""} sugestoes={sugestoes.valores.projetoIncentivado} onChange={(e) => updFin({ projetoIncentivado: e.target.value })} placeholder="Nome do projeto incentivado" />
             </LinhaOs>
-            <LinhaOs label="Lei de Incentivo à Cultura">
-              <Input value={os.financeiro.leiIncentivo ?? ""} sugestoes={sugestoes.valores.leiIncentivo} onChange={(e) => updFin({ leiIncentivo: e.target.value })} placeholder="Ex.: Lei Federal de Incentivo à Cultura (Rouanet)" />
+            {/* Um campo só, com a lei E o número: é a forma como o dado existe no
+                mundo ("Rouanet — PRONAC 26 1234") e como o Projeto já o guarda.
+                Separado em dois, obrigava a redigitar aqui o que a EC sabia. */}
+            <LinhaOs
+              label="Lei de Incentivo à Cultura"
+              hint={leiDivergeDaEc ? `EC: ${ecCtx.projeto.incentivosFiscais}` : "(lei e nº do projeto)"}
+            >
+              <Input value={os.financeiro.leiIncentivo ?? ""} sugestoes={sugestoes.valores.leiIncentivo} onChange={(e) => updFin({ leiIncentivo: e.target.value })} placeholder="Ex.: Lei Federal de Incentivo à Cultura (Rouanet) — PRONAC 26 1234" />
+              {leiDivergeDaEc && (
+                <button
+                  type="button"
+                  onClick={() => updFin({ leiIncentivo: ecCtx.projeto.incentivosFiscais })}
+                  className="mt-1.5 text-[12px] font-bold text-primary-dark hover:underline"
+                >
+                  Usar o que está no Projeto
+                </button>
+              )}
             </LinhaOs>
-            <LinhaOs label="Nº do Projeto Incentivado" hint={ecCtx.projeto.incentivosFiscais ? `EC: ${ecCtx.projeto.incentivosFiscais}` : undefined}>
-              <Input value={os.financeiro.numeroProjetoIncentivado ?? ""} sugestoes={sugestoes.valores.numeroProjetoIncentivado} onChange={(e) => updFin({ numeroProjetoIncentivado: e.target.value })} />
-            </LinhaOs>
-            <LinhaOs label="CNAE" hint={os.fornecedor.cnaes?.length ? `(${os.fornecedor.cnaes.length} do CNPJ)` : "(consulte o CNPJ)"}>
-              <Input
-                list="cnae-fornecedor"
-                value={os.financeiro.cnae}
-                onChange={(e) => updFin({ cnae: e.target.value })}
-                placeholder="Selecione ou digite"
+            <LinhaOs
+              label="CNAE"
+              hint={os.fornecedor.cnaes?.length ? `(${os.fornecedor.cnaes.length} do cartão CNPJ)` : "(consulte o CNPJ do fornecedor)"}
+            >
+              <CnaeDoFornecedor
+                valor={os.financeiro.cnae}
+                doCnpj={os.fornecedor.cnaes ?? []}
+                jaUsados={sugestoes.valores.cnae}
+                onValor={(cnae) => updFin({ cnae })}
               />
-              {/* Os CNAEs DESTE CNPJ primeiro (são os certos), e atrás deles os que
-                  a casa já usou — fornecedor sem consulta de CNPJ feita continua
-                  tendo de onde escolher. */}
-              <datalist id="cnae-fornecedor">
-                {[...new Set([...(os.fornecedor.cnaes ?? []), ...sugestoes.valores.cnae])].map((c) => (
-                  <option key={c} value={c} />
-                ))}
-              </datalist>
             </LinhaOs>
             <LinhaOs label="Código de Serviço" hint="(auto dos itens da EC)">
               <Input value={os.financeiro.codigoServico} sugestoes={sugestoes.valores.codigoServico} onChange={(e) => updFin({ codigoServico: e.target.value })} />
@@ -1046,12 +1109,10 @@ export function OsForm() {
               )}
             </LinhaOs>
             <LinhaOs label="Desconto Especial Negociado"><NumberInput value={os.financeiro.descontoNegociado} onValue={(v) => updFin({ descontoNegociado: v, valorAPagar: os.financeiro.valorTotal - v })} /></LinhaOs>
+            {/* O bloco de emissão TERMINA aqui: o que vem depois do valor a
+                pagar (BV, acerto) não é dado de nota — foi para "Acertos
+                Financeiros", grupo próprio no fim da tela. */}
             <LinhaOs label="Valor total a pagar"><Auto v={brl(os.financeiro.valorAPagar)} /></LinhaOs>
-            {bvBloco}
-            <LinhaOs label="Acerto Financeiro">
-              <Textarea value={os.financeiro.acertoFinanceiro} onChange={(e) => updFin({ acertoFinanceiro: e.target.value })} />
-              <TextosJaUsados valor={os.financeiro.acertoFinanceiro} opcoes={sugestoes.valores.acertoFinanceiro} onEscolher={(acertoFinanceiro) => updFin({ acertoFinanceiro })} />
-            </LinhaOs>
 
             {/* DADOS PARA CONTRATO */}
             <SubSecao>Dados para Contrato</SubSecao>
@@ -1121,13 +1182,29 @@ export function OsForm() {
           </CardOs>
           </>
         ) : (
-          /* Sem acesso ao financeiro: só o BV, que é negociado pela Produção. */
           <CardOs>
-            <Secao>Acerto Financeiro — BV</Secao>
-            {bvBloco}
+            <Secao>Faturamento e Contrato</Secao>
             <p className="p-4 text-sm text-ink-2">Os blocos de faturamento e contrato são restritos ao seu perfil.</p>
           </CardOs>
         )}
+
+        {/* ACERTOS FINANCEIROS — o que a Pólobh acerta por dentro.
+            Fica FORA do bloco restrito de propósito: quem negocia o BV com o
+            fornecedor é a Produção, então este grupo aparece para todo perfil.
+            O salvamento continua exigindo a justificativa quando o BV foge do
+            padrão, para qualquer um. */}
+        <CardOs>
+          <Secao>Acertos Financeiros</Secao>
+          {bvBloco}
+          <LinhaOs label="Observações">
+            <Textarea
+              value={os.financeiro.acertoFinanceiro}
+              onChange={(e) => updFin({ acertoFinanceiro: e.target.value })}
+              placeholder="O que ficou combinado no acerto (compensações, adiantamentos, retenções…)."
+            />
+            <TextosJaUsados valor={os.financeiro.acertoFinanceiro} opcoes={sugestoes.valores.acertoFinanceiro} onEscolher={(acertoFinanceiro) => updFin({ acertoFinanceiro })} />
+          </LinhaOs>
+        </CardOs>
       </div>
 
       {/* Mesma pílula da EC: as pendências desta OS que têm onde ser achadas.
@@ -1340,6 +1417,75 @@ function TabelaResumoCustos({ resumo }: { resumo: ResumoCustos }) {
         </tfoot>
       </table>
     </div>
+  );
+}
+
+/**
+ * CNAE da nota: as atividades DESTE CNPJ, e não uma lista geral.
+ *
+ * Antes era um campo de texto com `datalist`, misturando os CNAEs do cartão
+ * CNPJ do fornecedor com todos os que a casa já digitou em qualquer OS. Como o
+ * `datalist` só filtra enquanto se digita, e ninguém sabe de cor o código, na
+ * prática a lista não ajudava — e ainda oferecia o CNAE de OUTRA empresa como
+ * se fosse deste fornecedor, que é o erro que a nota não pode ter.
+ *
+ * Com o cartão CNPJ consultado, isto vira uma lista fechada das atividades
+ * daquele CNPJ (a principal primeiro, como a Receita devolve), com escape para
+ * digitar — o cartão pode estar desatualizado, e o financeiro precisa poder
+ * corrigir. Sem consulta feita, volta a ser texto livre com a memória da casa.
+ */
+function CnaeDoFornecedor({
+  valor,
+  doCnpj,
+  jaUsados,
+  onValor,
+}: {
+  valor: string;
+  doCnpj: string[];
+  jaUsados: string[];
+  onValor: (v: string) => void;
+}) {
+  const [digitando, setDigitando] = useState(false);
+  const OUTRO = "__outro__";
+  // Valor gravado que não está no cartão (CNAE antigo, ou digitado à mão) entra
+  // como opção: `select` com valor fora das opções aparece vazio, e salvar
+  // depois disso apagaria o dado sem ninguém ver.
+  const opcoes = valor && !doCnpj.includes(valor) ? [valor, ...doCnpj] : doCnpj;
+
+  if (!doCnpj.length || digitando) {
+    return (
+      <>
+        <Input
+          value={valor}
+          sugestoes={jaUsados}
+          onChange={(e) => onValor(e.target.value)}
+          placeholder="Ex.: 9001-9/06 - Atividades de sonorização e de iluminação"
+        />
+        {doCnpj.length > 0 && (
+          <button type="button" onClick={() => setDigitando(false)} className="mt-1.5 text-[12px] font-bold text-primary-dark hover:underline">
+            Voltar às atividades do CNPJ
+          </button>
+        )}
+      </>
+    );
+  }
+  return (
+    <Select
+      value={valor}
+      onChange={(e) => {
+        if (e.target.value === OUTRO) {
+          setDigitando(true);
+          return;
+        }
+        onValor(e.target.value);
+      }}
+    >
+      <option value="">Selecione…</option>
+      {opcoes.map((c) => (
+        <option key={c} value={c}>{c}</option>
+      ))}
+      <option value={OUTRO}>Outro (digitar)…</option>
+    </Select>
   );
 }
 

@@ -157,7 +157,6 @@ const CATALOGO = {
   descricaoParcela: deCadaOs((o) => (o.orcamento?.parcelas ?? []).map((p) => p.descricao)),
   projetoIncentivado: daOs((o) => o.financeiro?.projetoIncentivado),
   leiIncentivo: daOs((o) => o.financeiro?.leiIncentivo),
-  numeroProjetoIncentivado: daOs((o) => o.financeiro?.numeroProjetoIncentivado),
   cnae: daOs((o) => o.financeiro?.cnae),
   acertoFinanceiro: daOs((o) => o.financeiro?.acertoFinanceiro),
   bvJustificativa: daOs((o) => o.financeiro?.bvJustificativa),

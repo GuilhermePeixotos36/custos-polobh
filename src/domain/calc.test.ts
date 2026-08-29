@@ -286,19 +286,21 @@ describe("textoObjetoContrato", () => {
     const txt = textoObjetoContrato({
       ...base,
       projetoIncentivado: "Festival X",
-      leiIncentivo: "Lei Rouanet",
-      numeroProjetoIncentivado: "12345",
+      leiIncentivo: "Lei Federal de Incentivo à Cultura (Rouanet) — PRONAC 26 1234",
     });
     expect(txt).toContain("projeto Festival X");
-    expect(txt).toContain("aprovado pela Lei Rouanet");
-    expect(txt).toContain("sob o número 12345");
+    // A lei e o número saem juntos, do jeito que foram digitados: um campo só.
+    expect(txt).toContain("aprovado pela Lei Federal de Incentivo à Cultura (Rouanet) — PRONAC 26 1234");
     expect(txt).toContain("CONTRATANTE");
   });
 
   it("marca visivelmente o que falta em vez de mentir", () => {
     const txt = textoObjetoContrato(base);
     expect(txt).toContain("[projeto incentivado]");
-    expect(txt).toContain("[número do projeto incentivado]");
+  });
+
+  it("sem lei preenchida, cai no texto padrão em vez de deixar buraco na frase", () => {
+    expect(textoObjetoContrato(base)).toContain("aprovado pela Lei de Incentivo à Cultura");
   });
 });
 

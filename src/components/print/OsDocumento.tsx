@@ -290,21 +290,15 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
           <LV label="Inscrição Municipal" valor={tom?.im ?? ""} />
           <LV label="Descritivo Nota Fiscal" valor={os.financeiro.descritivoNf} />
           <LV label="Nome do Projeto Incentivado" valor={os.financeiro.projetoIncentivado || p.incentivosFiscais} />
-          <LV label="Lei de Incentivo à Cultura" valor={os.financeiro.leiIncentivo} />
-          <LV label="Nº do Projeto Incentivado" valor={os.financeiro.numeroProjetoIncentivado} />
+          {/* A lei já traz o número do projeto na mesma linha ("… — PRONAC 26 1234"). */}
+          <LV label="Lei de Incentivo à Cultura" valor={os.financeiro.leiIncentivo || p.incentivosFiscais} />
           <LV label="CNAE" valor={os.financeiro.cnae} />
           <LV label="Código de Serviço" valor={os.financeiro.codigoServico} />
           <LV label="Valor unitário" valor={brl(os.financeiro.valorUnitario)} />
           <LV label="Valor total" valor={brl(os.financeiro.valorTotal)} />
           <LV label="Desconto Especial Negociado" valor={brl(os.financeiro.descontoNegociado)} />
+          {/* O bloco de emissão termina no valor a pagar — BV e acerto vão no fim. */}
           <LV label="Valor total a pagar" valor={brl(os.financeiro.valorAPagar)} />
-          <LV label="BV Pólobh — Percentual" valor={`${os.financeiro.bvPercentual || 0}%`} />
-          {/* Recalculado, como no Excel — não depende do valor gravado. */}
-          <LV
-            label="BV Pólobh — Valor"
-            valor={brl(((os.financeiro.valorTotal || 0) * (os.financeiro.bvPercentual || 0)) / 100)}
-          />
-          <LV label="Acerto Financeiro" valor={os.financeiro.acertoFinanceiro} />
 
           <SubSecao titulo="Dados para Contrato" />
           <LV label="Contratante" valor={contr?.rotulo ?? ""} />
@@ -327,6 +321,15 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
           <LV label="Observações Gerais" valor={os.contrato.observacoesGerais || OBS_CONTRATO_PADRAO} />
           <LV label="Data do Contrato" valor={dataBR(os.contrato.dataContrato)} />
           <LV label="Rubrica" valor={os.contrato.rubrica} />
+
+          <Secao titulo="Acertos Financeiros" />
+          <LV label="BV Pólobh — Percentual" valor={`${os.financeiro.bvPercentual || 0}%`} />
+          {/* Recalculado, como no Excel — não depende do valor gravado. */}
+          <LV
+            label="BV Pólobh — Valor"
+            valor={brl(((os.financeiro.valorTotal || 0) * (os.financeiro.bvPercentual || 0)) / 100)}
+          />
+          <LV label="Observações" valor={os.financeiro.acertoFinanceiro} />
         </>
       )}
 
