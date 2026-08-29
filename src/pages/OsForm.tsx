@@ -47,6 +47,8 @@ import { usePendencias, useMinhasPendencias } from "@/store/pendencias";
 import { useSugestoes } from "@/hooks/useSugestoes";
 import { urlCredenciamento } from "@/lib/links";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
+import { ListaArrastavel, ItemArrastavel } from "@/components/ListaArrastavel";
+import { MoverSetas, moverNaLista } from "@/components/MoverSetas";
 import { InscricaoMunicipalInput } from "@/components/InscricaoMunicipalInput";
 import { TextosJaUsados } from "@/components/TextosJaUsados";
 import { idAncoraPendencia } from "@/lib/destaque";
@@ -320,6 +322,9 @@ export function OsForm() {
   // Linhas da EC que esta OS consolida (mesmo fornecedor).
   const linhasConsolidadas = ecCtx.linhas.filter((l) => os.ecLinhaIds.includes(l.id));
   const linkCredenciamento = urlCredenciamento(os);
+  /** Ordem atual do cronograma, pelas chaves que o arraste manipula. */
+  const idsCronograma = os.cronograma.map(idDaEtapa);
+
   /** O BV combinado nos itens desta OS — a origem do que está nos campos abaixo. */
   const bvDaEc = bvConsolidado(linhasConsolidadas);
   // Justificativa do BV é obrigatória quando não há BV ou o percentual é < 15%.
@@ -788,19 +793,48 @@ export function OsForm() {
               <Button variant="secondary" size="sm" onClick={() => setOs((o) => (o ? { ...o, cronograma: [...o.cronograma, { id: novoId(), etapa: "", data: "", horario: "", atividades: "" }] } : o))}>+ Etapa</Button>
             }
           >
-            <div className="py-1.5 space-y-2">
-              <div className="grid grid-cols-[150px_130px_1fr_1.5fr_auto] gap-2 text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3 px-1">
+            <div className="py-1.5">
+              {/* Duas colunas vazias na frente: a alça de arraste e as setas. */}
+              <div className={cx(GRADE_CRONOGRAMA, "mb-2 text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3 px-1")}>
+                <span /><span />
                 <span>Data</span><span>Horário</span><span>Etapa</span><span>Descritivo da contratação</span><span />
               </div>
-              {os.cronograma.map((c, i) => (
-                <div key={c.id ?? i} className="grid grid-cols-[150px_130px_1fr_1.5fr_auto] gap-2 items-center">
-                  <Input className="!h-9" type="date" value={c.data} onChange={(e) => setCron(i, { data: e.target.value })} />
-                  <Input className="!h-9" placeholder="08h às 18h" sugestoes={sugestoes.valores.horario} value={c.horario} onChange={(e) => setCron(i, { horario: e.target.value })} />
-                  <Input className="!h-9" placeholder="Montagem, Ensaio…" sugestoes={sugestoes.valores.etapaCronograma} value={c.etapa} onChange={(e) => setCron(i, { etapa: e.target.value })} />
-                  <Input className="!h-9" placeholder="Descritivo da contratação" sugestoes={sugestoes.valores.atividadesCronograma} value={c.atividades} onChange={(e) => setCron(i, { atividades: e.target.value })} />
-                  <button className="text-ink-3 hover:text-danger px-2" onClick={() => setOs((o) => (o ? { ...o, cronograma: o.cronograma.filter((_, j) => j !== i) } : o))}>✕</button>
-                </div>
-              ))}
+              {/* Arraste para saltos grandes, setas para uma posição por vez — o
+                  mesmo par do cronograma do projeto e dos itens da EC. */}
+              <ListaArrastavel ids={idsCronograma} onReordenar={reordenarCronograma} className="space-y-2">
+                {os.cronograma.map((c, i) => {
+                  const rotulo = `a etapa ${c.etapa?.trim() || i + 1}`;
+                  return (
+                    <ItemArrastavel key={idDaEtapa(c, i)} id={idDaEtapa(c, i)} className={cx(GRADE_CRONOGRAMA, "items-center")}>
+                      {(alca) => (
+                        <>
+                          <span className="flex items-center justify-center">{alca}</span>
+                          <MoverSetas
+                            rotulo={rotulo}
+                            podeSubir={i > 0}
+                            podeDescer={i < os.cronograma.length - 1}
+                            onSubir={() => moverCronograma(i, -1)}
+                            onDescer={() => moverCronograma(i, 1)}
+                          />
+                          <Input className="!h-9" type="date" value={c.data} onChange={(e) => setCron(i, { data: e.target.value })} />
+                          <Input className="!h-9" placeholder="08h às 18h" sugestoes={sugestoes.valores.horario} value={c.horario} onChange={(e) => setCron(i, { horario: e.target.value })} />
+                          <Input className="!h-9" placeholder="Montagem, Ensaio…" sugestoes={sugestoes.valores.etapaCronograma} value={c.etapa} onChange={(e) => setCron(i, { etapa: e.target.value })} />
+                          <Input className="!h-9" placeholder="Descritivo da contratação" sugestoes={sugestoes.valores.atividadesCronograma} value={c.atividades} onChange={(e) => setCron(i, { atividades: e.target.value })} />
+                          <button
+                            type="button"
+                            className="text-ink-3 hover:text-danger px-2"
+                            aria-label={`Excluir ${rotulo}`}
+                            title="Excluir etapa"
+                            onClick={() => removerEtapaCronograma(i)}
+                          >
+                            ✕
+                          </button>
+                        </>
+                      )}
+                    </ItemArrastavel>
+                  );
+                })}
+              </ListaArrastavel>
               {os.cronograma.length === 0 && <p className="text-[12.5px] text-ink-3 px-1">Nenhuma etapa. Use “+ Etapa” para adicionar.</p>}
             </div>
           </LinhaOs>
@@ -1158,7 +1192,38 @@ export function OsForm() {
   function setCron(i: number, patch: Partial<Os["cronograma"][number]>) {
     setOs((o) => (o ? { ...o, cronograma: o.cronograma.map((c, j) => (j === i ? { ...c, ...patch } : c)) } : o));
   }
+
+  function removerEtapaCronograma(i: number) {
+    setOs((o) => (o ? { ...o, cronograma: o.cronograma.filter((_, j) => j !== i) } : o));
+  }
+
+  /** Setas: uma posição por vez. A lista é plana, então não há bloco vizinho para atravessar. */
+  function moverCronograma(i: number, direcao: -1 | 1) {
+    setOs((o) => (o ? { ...o, cronograma: moverNaLista(o.cronograma, i, direcao) } : o));
+  }
+
+  /** Arraste: o `ListaArrastavel` devolve a ordem nova dos ids; o resto segue por eles. */
+  function reordenarCronograma(ids: string[]) {
+    setOs((o) => {
+      if (!o) return o;
+      const porId = new Map(o.cronograma.map((c, i) => [idDaEtapa(c, i), c]));
+      const ordenado = ids.map((id) => porId.get(id)).filter((c): c is Os["cronograma"][number] => !!c);
+      // Só aceita a reordenação que preserva a lista inteira: id que não bateu
+      // significaria etapa sumindo do cronograma, e nenhum arraste faz isso.
+      return ordenado.length === o.cronograma.length ? { ...o, cronograma: ordenado } : o;
+    });
+  }
 }
+
+/** Colunas do cronograma do fornecedor — cabeçalho e linhas usam a MESMA grade. */
+const GRADE_CRONOGRAMA = "grid grid-cols-[auto_auto_150px_130px_1fr_1.5fr_auto] gap-2";
+
+/**
+ * Chave estável da etapa. O `id` é preenchido no carregamento da OS (ver
+ * `aplicarAutoPreenchimento`); o índice fica só como rede para o caso de uma
+ * etapa nova aparecer antes disso — sem chave, o arraste não teria o que mover.
+ */
+const idDaEtapa = (c: Os["cronograma"][number], i: number) => c.id ?? `etapa-${i}`;
 
 /* ---------------------------------------------------------------------------
  * Layout espelhando o "Modelo Novo" da Pólobh em Excel: faixas de seção e
