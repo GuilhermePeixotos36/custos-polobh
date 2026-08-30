@@ -50,6 +50,7 @@ import { MoverSetas, moverNaLista } from "@/components/MoverSetas";
 import { InscricaoMunicipalInput } from "@/components/InscricaoMunicipalInput";
 import { TextosJaUsados } from "@/components/TextosJaUsados";
 import { destacarCampo, idAncoraPendencia, idCampoTrava } from "@/lib/destaque";
+import { Chevron, idSecao, useAcoesRecolher, useSecaoRecolhivel } from "@/components/layout/Recolher";
 import { pendenciasDaTela } from "@/domain/pendencias";
 import { CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, alternarNaoSeAplica, naoSeAplica, temContrato } from "@/domain/os";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
@@ -360,6 +361,9 @@ export function OsForm() {
    */
   const bvDivergeDaEc = bvDaEc.percentual > 0 && Math.abs(os.financeiro.bvPercentual - bvDaEc.percentual) >= 0.01;
 
+  /** Para abrir o bloco certo quando um aviso precisa levar a pessoa a um campo. */
+  const recolher = useAcoesRecolher();
+
   /** Esta OS tem contrato? Quem decide é a coluna Contrato dos itens, na EC. */
   const haContrato = temContrato(os, linhasConsolidadas);
 
@@ -586,6 +590,9 @@ export function OsForm() {
     // aviso agora LEVA até ele — rola, pisca em vermelho e põe o cursor.
     if (bvJustifFaltando) {
       toast("Informe a justificativa do BV — obrigatória quando não há BV ou é menor que 15%.", "warning");
+      // O bloco pode estar recolhido — abrir antes, senão a rolagem vai parar
+      // num título fechado e o campo continuará escondido.
+      recolher?.expandir(idSecao(SECAO_ACERTOS));
       destacarCampo(TRAVA_BV);
       return;
     }
@@ -670,8 +677,7 @@ export function OsForm() {
 
       <div className="space-y-4">
         {/* Cabeçalho do modelo em Excel */}
-        <CardOs>
-          <Secao>Ordem de Serviço</Secao>
+        <CardOs secao="Ordem de Serviço">
           <LinhaOs label="Número da OS"><Auto v={os.numero} /></LinhaOs>
           <LinhaOs label="Projeto"><Auto v={ecCtx.projeto.titulo} /></LinhaOs>
           <LinhaOs label="Data de emissão"><Auto v={dataBR(os.criadoEm)} /></LinhaOs>
@@ -684,8 +690,7 @@ export function OsForm() {
         </CardOs>
 
         {/* DADOS DO CLIENTE — automático da EC */}
-        <CardOs>
-          <Secao>Dados do Cliente</Secao>
+        <CardOs secao="Dados do Cliente">
           <LinhaOs label="Cliente"><Auto v={ecCtx.cliente.nome} /></LinhaOs>
           <LinhaOs label="Razão Social"><Auto v={ecCtx.cliente.razaoSocial} /></LinhaOs>
           <LinhaOs label="Endereço"><Auto v={ecCtx.cliente.endereco} /></LinhaOs>
@@ -695,8 +700,7 @@ export function OsForm() {
         </CardOs>
 
         {/* DADOS DO PROJETO — automático da EC, com o cronograma do projeto */}
-        <CardOs>
-          <Secao>Dados do Projeto</Secao>
+        <CardOs secao="Dados do Projeto">
           <LinhaOs label="Título"><Auto v={ecCtx.projeto.titulo} /></LinhaOs>
           <LinhaOs label="Modalidade"><Auto v={ecCtx.projeto.modalidade} /></LinhaOs>
           <LinhaOs label="Incentivos Fiscais"><Auto v={ecCtx.projeto.incentivosFiscais} /></LinhaOs>
@@ -734,16 +738,14 @@ export function OsForm() {
         </CardOs>
 
         {/* DADOS DO FORNECEDOR */}
-        <CardOs>
-          <Secao
-            acao={
-              <Button variant="soft" size="sm" icon={<IcSearch width={15} height={15} />} onClick={consultar} disabled={busy || !flags.consultaCnpj}>
-                Consultar CNPJ
-              </Button>
-            }
-          >
-            Dados do Fornecedor
-          </Secao>
+        <CardOs
+          secao="Dados do Fornecedor"
+          acaoSecao={
+            <Button variant="soft" size="sm" icon={<IcSearch width={15} height={15} />} onClick={consultar} disabled={busy || !flags.consultaCnpj}>
+              Consultar CNPJ
+            </Button>
+          }
+        >
           {cnpjMsg && <div className="m-3 text-[12.5px] text-info bg-info-soft rounded-btn px-3 py-2">{cnpjMsg}</div>}
           <LinhaOs label="Fornecedor" hint="(nome fantasia)"><Input formato="titulo" value={os.fornecedor.nomeFantasia ?? ""} onChange={(e) => updF({ nomeFantasia: e.target.value })} /></LinhaOs>
           <LinhaOs label="CNPJ/CPF"><Input value={os.fornecedor.cnpj} onChange={(e) => updF({ cnpj: maskCpfCnpjInput(e.target.value) })} inputMode="numeric" placeholder="00.000.000/0000-00" /></LinhaOs>
@@ -781,8 +783,7 @@ export function OsForm() {
         </CardOs>
 
         {/* DETALHAMENTO DA CONTRATAÇÃO */}
-        <CardOs>
-          <Secao>Detalhamento da Contratação</Secao>
+        <CardOs secao="Detalhamento da Contratação">
           <LinhaOs label="Modalidade" hint="(obrigatória)">
             <Select
               value={os.modalidade}
@@ -950,8 +951,7 @@ export function OsForm() {
         </CardOs>
 
         {/* COMENTÁRIOS INTERNOS — não saem em documento, e-mail ou planilha */}
-        <CardOs>
-          <Secao>Comentários Internos</Secao>
+        <CardOs secao="Comentários Internos">
           <LinhaOs
             label="Pendências e combinados"
             hint="(só a equipe vê — @menção cobra alguém)"
@@ -974,8 +974,7 @@ export function OsForm() {
             vez. O link continua sendo o desta OS — o que mudou foi o comando. */}
         <div className="space-y-4">
           {/* RESUMO DOS CUSTOS */}
-          <CardOs>
-            <Secao>Resumo dos Custos</Secao>
+          <CardOs secao="Resumo dos Custos">
             {/* As três formas de cobrar cada item, lado a lado — o que a produção
                 preencheu lá na EC. Aqui é leitura: para mudar, muda-se no item.
                 As colunas são CENÁRIOS alternativos, não parcelas de um total:
@@ -1046,8 +1045,7 @@ export function OsForm() {
         {/* INFORMAÇÕES A SEREM PREENCHIDAS PELO FINANCEIRO DA PÓLOBH */}
         {verFinanceiro ? (
           <>
-          <CardOs className="border-active-border">
-            <Secao>Informações a serem preenchidas pelo Financeiro da Pólobh</Secao>
+          <CardOs className="border-active-border" secao="Informações a serem preenchidas pelo Financeiro da Pólobh">
             <SubSecao>Dados Emissão — Recibo Simples | Fatura | Nota Fiscal | Fatura e Nota Fiscal</SubSecao>
 
             <LinhaOs label="Tomador dos Serviços">
@@ -1223,8 +1221,7 @@ export function OsForm() {
           </CardOs>
           </>
         ) : (
-          <CardOs>
-            <Secao>Faturamento e Contrato</Secao>
+          <CardOs secao="Faturamento e Contrato">
             <p className="p-4 text-sm text-ink-2">Os blocos de faturamento e contrato são restritos ao seu perfil.</p>
           </CardOs>
         )}
@@ -1234,8 +1231,7 @@ export function OsForm() {
             fornecedor é a Produção, então este grupo aparece para todo perfil.
             O salvamento continua exigindo a justificativa quando o BV foge do
             padrão, para qualquer um. */}
-        <CardOs>
-          <Secao>Acertos Financeiros</Secao>
+        <CardOs secao={SECAO_ACERTOS}>
           {bvBloco}
           <LinhaOs label="Observações">
             <Textarea
@@ -1282,6 +1278,8 @@ export function OsForm() {
 
 /** Âncora da justificativa do BV — o único campo que hoje trava o salvamento. */
 const TRAVA_BV = idCampoTrava("bv-justificativa");
+/** Bloco onde ela mora — o aviso precisa abri-lo antes de rolar até lá. */
+const SECAO_ACERTOS = "Acertos Financeiros";
 
 /** Colunas do cronograma do fornecedor — cabeçalho e linhas usam a MESMA grade. */
 const GRADE_CRONOGRAMA = "grid grid-cols-[auto_auto_150px_130px_1fr_1.5fr_auto] gap-2";
@@ -1298,26 +1296,43 @@ const idDaEtapa = (c: Os["cronograma"][number], i: number) => c.id ?? `etapa-${i
  * linhas em duas colunas (RÓTULO | VALOR), na mesma ordem da planilha.
  * ------------------------------------------------------------------------- */
 
-/** Bloco/quadro de uma seção — equivale a um trecho da planilha. */
-function CardOs({ className, children }: { className?: string; children: ReactNode }) {
+/**
+ * Bloco/quadro de uma seção — equivale a um trecho da planilha, e RECOLHE.
+ *
+ * A OS aberta é uma folha de quinze blocos; quem entra para conferir um deles
+ * rolava por todos os outros. A faixa cinza (a mesma barra de seção do modelo
+ * em Excel) virou o botão que abre e fecha o bloco, e com tudo fechado a tela
+ * é o sumário da OS. A ação da seção, quando existe, fica fora do botão: quem
+ * clica em "Consultar CNPJ" não quer fechar o bloco.
+ */
+function CardOs({
+  className,
+  secao,
+  acaoSecao,
+  children,
+}: {
+  className?: string;
+  /** Título da faixa — é ele que identifica o bloco no recolher/expandir. */
+  secao: string;
+  acaoSecao?: ReactNode;
+  children: ReactNode;
+}) {
+  const { recolhida, alternar } = useSecaoRecolhivel(idSecao(secao));
   return (
     <div className={cx("bg-surface border border-border rounded-card shadow-card overflow-hidden", className)}>
-      {children}
-    </div>
-  );
-}
-
-/**
- * Faixa de seção — cinza das barras do modelo original Pólobh
- * (COR.sectionGray em lib/excel/shared.ts), texto escuro, igual à EC.
- */
-function Secao({ children, acao }: { children: ReactNode; acao?: ReactNode }) {
-  return (
-    <div className="bg-[#C0C0C0] px-4 py-2 flex items-center justify-between gap-3">
-      <h3 className="font-display font-bold text-[12.5px] uppercase tracking-[0.05em] text-ink flex-1">
-        {children}
-      </h3>
-      {acao && <div className="shrink-0">{acao}</div>}
+      <div className="bg-[#C0C0C0] px-4 py-2 flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={alternar}
+          aria-expanded={!recolhida}
+          className="flex items-center gap-2 flex-1 min-w-0 text-left text-ink hover:opacity-80 transition-opacity"
+        >
+          <Chevron aberta={!recolhida} />
+          <h3 className="font-display font-bold text-[12.5px] uppercase tracking-[0.05em] text-ink">{secao}</h3>
+        </button>
+        {acaoSecao && <div className="shrink-0">{acaoSecao}</div>}
+      </div>
+      {!recolhida && children}
     </div>
   );
 }
