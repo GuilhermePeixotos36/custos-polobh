@@ -81,6 +81,51 @@ function Tag({ children, tom = "neutral" }: { children: ReactNode; tom?: "neutra
   return <span className={cx("inline-flex items-center rounded-pill px-2 py-0.5 text-[11px] font-bold", tons[tom])}>{children}</span>;
 }
 
+/**
+ * De onde vem o valor de um campo. É a informação que a pessoa procura primeiro
+ * ao abrir uma tela nova: "isso eu preencho ou o sistema traz?".
+ */
+type Origem = "auto" | "escolha" | "equipe" | "calculado";
+
+const ORIGEM: Record<Origem, { rotulo: string; tom: "primary" | "info" | "warning" | "success"; explica: string }> = {
+  auto: { rotulo: "Automático", tom: "primary", explica: "O sistema preenche a partir do Projeto, da EC ou do cadastro. Você pode alterar." },
+  escolha: { rotulo: "Seleção", tom: "info", explica: "Lista fechada de opções — evita duas grafias para a mesma coisa." },
+  equipe: { rotulo: "Preencher", tom: "warning", explica: "Só a equipe sabe: ninguém consegue adivinhar por você." },
+  calculado: { rotulo: "Calculado", tom: "success", explica: "Resultado de uma conta. Não se digita." },
+};
+
+/** Legenda das origens — abre os módulos que usam `Campos`. */
+function LegendaOrigem() {
+  return (
+    <div className="grid sm:grid-cols-2 gap-2">
+      {(Object.keys(ORIGEM) as Origem[]).map((o) => (
+        <div key={o} className="flex items-start gap-2 rounded-card border border-border-soft bg-[#FAFAFB] px-3 py-2">
+          <Tag tom={ORIGEM[o].tom}>{ORIGEM[o].rotulo}</Tag>
+          <span className="text-[12px] text-ink-2 leading-snug">{ORIGEM[o].explica}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Uma tabela de campos de um bloco: nome, origem e o que ele significa. */
+function Campos({ bloco, itens }: { bloco: string; itens: [string, Origem, string][] }) {
+  return (
+    <div className="rounded-card border border-border overflow-hidden">
+      <div className="bg-[#EDEEF1] px-3 py-2 text-[11.5px] font-extrabold uppercase tracking-[0.05em] text-ink-2">{bloco}</div>
+      <div className="divide-y divide-border-soft">
+        {itens.map(([nome, origem, o_que]) => (
+          <div key={nome} className="grid sm:grid-cols-[13rem_6.5rem_minmax(0,1fr)] gap-x-3 gap-y-1 px-3 py-2 items-start">
+            <span className="text-[12.5px] font-bold text-ink">{nome}</span>
+            <span><Tag tom={ORIGEM[origem].tom}>{ORIGEM[origem].rotulo}</Tag></span>
+            <span className="text-[12.5px] text-ink-2 leading-snug">{o_que}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ============================== Conteúdo ================================ */
 
 interface Modulo {
@@ -118,13 +163,276 @@ const MODULOS: Modulo[] = [
             <span>O <b>cabeçalho da página</b> — título e botões de ação — fica <b>grudado no topo</b> enquanto você rola: em tela longa, Salvar, Excel e Voltar continuam à mão sem precisar subir de volta.</span>
           </Passos>
         </Secao>
-        <Secao titulo="O menu lateral">
-          <p>À esquerda fica o menu. Os itens visíveis dependem do seu perfil — você só vê o que tem permissão de usar.</p>
+        <Secao titulo="A barra de navegação">
+          <p>
+            A navegação fica no <b>topo</b>, e o que ela mostra depende do seu perfil — você só vê o que tem
+            permissão de usar.
+          </p>
           <div className="flex flex-wrap gap-1.5">
-            <Tag tom="primary">Projetos</Tag><Tag>Estimativas (EC)</Tag><Tag>Ordens de Serviço</Tag>
-            <Tag>Cronogramas</Tag><Tag>Fornecedores</Tag><Tag>Configurações</Tag><Tag>Logs</Tag><Tag>Guia</Tag>
+            <Tag tom="primary">Projetos</Tag><Tag>Calendário</Tag><Tag>Agenda</Tag>
+            <Tag>Fornecedores</Tag><Tag>Configurações</Tag><Tag>Logs</Tag><Tag>Guia</Tag>
           </div>
+          <p>
+            <b>Tudo parte do Projeto.</b> EC, OS, Cronograma, Check-list, Credenciamento e Fornecedores não são telas
+            soltas do menu: são <b>subabas dentro do projeto</b>, porque é lá que elas fazem sentido juntas. O menu
+            guarda só o que atravessa projetos — o calendário do ano, a agenda do dia, o cadastro de fornecedores.
+          </p>
           <Dica>Está com dúvida em algum módulo? Volte sempre aqui no <b>Guia</b> e use a busca no topo.</Dica>
+        </Secao>
+        <Secao titulo="Avisos no computador e no celular">
+          <p>
+            Em <b>Configurações › Geral</b> há o cartão <b>Notificações no aparelho</b>. Autorizado, o sistema avisa
+            na barra do Windows (ou na do telefone) quando aparece <b>pendência nova para você</b> — mesmo com o app
+            em outra aba ou minimizado. Clicar no aviso abre direto o lugar da pendência.
+          </p>
+          <Atencao>
+            A autorização é <b>por aparelho e por navegador</b>: quem usa no computador e no celular precisa
+            autorizar nos dois. E o aviso só aparece com o app aberto em alguma aba.
+          </Atencao>
+        </Secao>
+        <Secao titulo="Usar pelo celular">
+          <p>
+            O app funciona no telefone. Para ficar com ícone na tela de início e receber as notificações na barra,
+            use o menu do navegador: <b>Instalar aplicativo</b> (Chrome) ou <b>Adicionar à Tela de Início</b>
+            (Safari). As tabelas largas — como o cronograma da OS — <b>rolam para o lado</b> no celular, em vez de
+            espremer as colunas.
+          </p>
+        </Secao>
+      </>
+    ),
+  },
+  {
+    id: "como-ler",
+    icone: <IcGrid />,
+    titulo: "Como ler as telas",
+    resumo: "As convenções que se repetem em todo o app: rótulos, cores, o que gruda e o que avisa.",
+    tags: ["rótulo", "rotulo", "convenção", "convencao", "cores", "status", "recolher", "expandir", "cabeçalho", "grudado", "pendência", "setas", "arraste", "memória", "sugestão", "navegação"],
+    conteudo: (
+      <>
+        <Secao titulo="O que o rótulo de um campo está te dizendo">
+          <p>
+            Debaixo do nome de cada campo, em letra pequena, o sistema diz de onde aquele valor vem. É a resposta
+            para a pergunta que se faz ao abrir qualquer tela: <i>isso eu preencho ou já vem pronto?</i>
+          </p>
+          <LegendaOrigem />
+          <p>
+            Na prática, os textos que você vai ver são <b>(auto do projeto)</b>, <b>(auto da EC)</b>,
+            <b> (espelha o valor do Faturamento)</b>, <b>(padrão do modelo — editável)</b> e <b>(preencher)</b>.
+            Quando o rótulo diz <b>auto</b>, o campo continua editável: o sistema traz a melhor resposta, você
+            confirma ou troca.
+          </p>
+          <Dica>
+            Quando um valor automático fica <b>diferente</b> da origem, o sistema não corrige por trás: ele avisa em
+            laranja e oferece o atalho — “Usar o valor do Orçamento”, “Usar o BV do Resumo dos Custos”, “Usar o que
+            está no Projeto”. Quem decide é você.
+          </Dica>
+        </Secao>
+
+        <Secao titulo="As cores dos status">
+          <p>A mesma régua vale em EC, OS e Contrato:</p>
+          <div className="flex flex-wrap gap-2">
+            <Tag tom="success">OK</Tag>
+            <Tag tom="warning">Emitir · Emitir Nova Versão</Tag>
+            <Tag tom="neutral">Pendente</Tag>
+            <Tag tom="success">Não se aplica</Tag>
+          </div>
+          <p>
+            <b>Não se aplica</b> é verde junto com OK de propósito: os dois querem dizer “não há nada a fazer aqui”.
+            O vermelho fica reservado para o que exige ação de alguém.
+          </p>
+        </Secao>
+
+        <Secao titulo="O cabeçalho acompanha a rolagem">
+          <p>
+            O título da tela, os botões de ação e as subabas ficam <b>grudados</b> no topo. Numa EC com dezenas de
+            itens você não precisa voltar ao começo para salvar, exportar ou trocar de subaba. Nas listagens, o
+            <b> cabeçalho das colunas</b> também gruda — como o congelamento de painéis da planilha.
+          </p>
+        </Secao>
+
+        <Secao titulo="Recolher e expandir">
+          <p>
+            Uma OS aberta é uma folha de quinze blocos. A faixa cinza de cada bloco é um <b>botão</b>: clique para
+            fechar ou abrir aquele bloco. No cabeçalho da tela há o <b>Recolher tudo</b> — com tudo fechado, a tela
+            vira o sumário da OS, e você abre só o que veio conferir.
+          </p>
+        </Secao>
+
+        <Secao titulo="A pílula de pendências">
+          <p>
+            No canto inferior direito aparece uma pílula vermelha com as pendências <b>daquela tela</b>. As setas
+            andam de uma para a outra: a tela rola até o item, ele pisca e, quando a pendência é um comentário, a
+            conversa abre no ponto certo. Ela nunca leva você para outra tela — o que é de outra tela se resolve lá.
+          </p>
+          <Dica>
+            Se o salvamento for barrado por um campo obrigatório, o aviso também <b>leva você até ele</b>: a tela
+            rola, o bloco abre se estiver recolhido, o campo pisca em vermelho e já recebe o cursor.
+          </Dica>
+        </Secao>
+
+        <Secao titulo="Ordenar: setas e arraste">
+          <p>
+            Itens da EC, etapas do cronograma, tarefas do check-list e blocos do roteiro se movem de dois jeitos:
+            as <b>setas</b> andam uma posição por vez (bom para o ajuste fino) e o <b>arraste</b> pela alça leva para
+            longe de uma vez. O item acompanhado pela tela não escapa do campo de visão.
+          </p>
+        </Secao>
+
+        <Secao titulo="O sistema lembra o que você já digitou">
+          <p>
+            Campo preenchido uma vez vira sugestão nos próximos — para <b>todos os usuários</b>. Ao digitar num campo
+            de texto, o navegador oferece o que a casa já usou ali (nomes, endereços, telefones, formas de pagamento,
+            descritivos). É atalho, não trava: qualquer valor novo continua valendo.
+          </p>
+        </Secao>
+
+        <Secao titulo="Sair sem salvar">
+          <p>
+            Telas de edição avisam quando você tenta sair com alteração pendente. O aviso é do navegador, então ele
+            aparece igual ao trocar de tela, fechar a aba ou voltar.
+          </p>
+        </Secao>
+      </>
+    ),
+  },
+  {
+    id: "dicionario",
+    icone: <IcDoc />,
+    titulo: "Dicionário de campos",
+    resumo: "Campo a campo, bloco a bloco: o que é, de onde vem e quem preenche.",
+    tags: ["campo", "dicionário", "dicionario", "referência", "referencia", "bv", "cnae", "tomador", "contratante", "rubrica", "honorários", "encargos", "descritivo", "inscrição", "perfil tributário"],
+    conteudo: (
+      <>
+        <Secao titulo="Como ler este dicionário">
+          <LegendaOrigem />
+        </Secao>
+
+        <Secao titulo="Projeto — Dados Gerais">
+          <Campos
+            bloco="Identificação"
+            itens={[
+              ["Cliente (apelido)", "equipe", "Nome curto do cliente. Entra no título da EC e da OS. Uma vez definido para aquele cliente, o sistema oferece nos próximos projetos."],
+              ["Nome do Projeto", "equipe", "Como a casa chama o evento. Compõe o título dos documentos."],
+              ["Modalidade", "escolha", "Corporativo ou Cultural. Decide qual lista padrão de check-list o projeto recebe e qual modelo de EC é usado."],
+              ["Data do evento / Pré / Pós", "equipe", "A janela do projeto. É dela que saem os prazos das tarefas em percentual."],
+              ["Local e Endereço do Local", "equipe", "Vão para a OS e para o cronograma público."],
+              ["Produtora Responsável", "escolha", "Quem responde pelo projeto. Recebe as pendências que não são de mais ninguém."],
+              ["Incentivos Fiscais", "equipe", "Lei e número do projeto incentivado, na mesma linha. A OS puxa isso pronto para a nota."],
+            ]}
+          />
+        </Secao>
+
+        <Secao titulo="EC — cada item da tabela">
+          <Campos
+            bloco="Item"
+            itens={[
+              ["Grupo e Item", "equipe", "O que está sendo contratado. O grupo agrupa na tela, no Excel e no resumo."],
+              ["Descrição / Descritivo completo", "equipe", "A curta identifica; a completa (texto rico) descreve para valer. As duas vão juntas para o Descritivo da OS."],
+              ["Valor Pólobh / Valor Cliente", "equipe", "De que lado o custo entra. Só um dos dois por item."],
+              ["Fornecedor (razão social e CNPJ)", "auto", "Vem do cadastro ao escolher o fornecedor; a consulta de CNPJ completa o que falta."],
+              ["Aprovação", "escolha", "Pendente ou Aprovado. Só item aprovado entra na emissão de OS."],
+              ["OS / Contrato", "escolha", "Pendente, Emitir, Emitir Nova Versão, OK ou Não se aplica. É o Contrato aqui que decide se a OS terá o bloco Dados para Contrato."],
+              ["Documento PG", "escolha", "Recibo, Fatura, Nota Fiscal… A OS nasce com o que estiver aqui."],
+              ["Código de Serviço", "equipe", "Vai para a emissão da nota na OS."],
+              ["Bloco de valores (com BV e NF / sem BV com NF / sem BV sem NF)", "equipe", "Como aquele item será pago. Cada opção aceita “Não se aplica” ou um valor."],
+              ["BV — percentual ou valor fixo", "equipe", "Só na opção com BV e NF. É daqui que sai o BV consolidado da OS."],
+              ["Justificativa do BV", "equipe", "Obrigatória quando não há BV ou ele é menor que 15%. Sem ela a OS não salva."],
+              ["Observações do item", "equipe", "Conversa interna com @menção. Vira pendência para quem foi mencionado. Não sai em documento."],
+            ]}
+          />
+          <Campos
+            bloco="Fechamento da EC"
+            itens={[
+              ["Honorários Pólobh", "equipe", "Percentual e taxa mínima. O sistema adota sempre o maior dos dois."],
+              ["Encargos", "equipe", "Percentual sobre a base. Não aceita valor fora do padrão de 100%."],
+              ["Total Bruto / Rentabilidade", "calculado", "Somatório e margem, item a item."],
+            ]}
+          />
+        </Secao>
+
+        <Secao titulo="OS — bloco a bloco">
+          <Campos
+            bloco="Dados do Fornecedor"
+            itens={[
+              ["CNPJ + Consultar CNPJ", "equipe", "O botão busca o cadastro da casa primeiro e a Receita depois. Traz razão social, endereço, perfil e as atividades (CNAE)."],
+              ["Perfil (regime tributário)", "escolha", "MEI, Simples, Lucro Presumido, Lucro Real, Imune/Isenta, Pessoa Física (RPA). Decide retenção e o que a nota precisa trazer."],
+              ["Inscrição Municipal", "equipe", "Tem botão de busca, como o do cliente."],
+              ["Dados bancários / Pix", "equipe", "Nenhuma fonte pública tem isso: é memória da casa, e a consulta de CNPJ nunca apaga."],
+            ]}
+          />
+          <Campos
+            bloco="Detalhamento da Contratação"
+            itens={[
+              ["Descritivo", "auto", "O descritivo financeiro e o detalhado da produção, um abaixo do outro, vindos dos itens da EC."],
+              ["Entrega", "equipe", "Campo livre — deixou de ter preenchimento automático."],
+              ["Cronograma", "auto", "Nasce do cronograma do projeto. Reordenável por setas e arraste."],
+              ["Logística e Infraestrutura", "equipe", "Cada linha aceita “Não se aplica”: marcada, ela some do documento impresso e da planilha."],
+              ["Observações Gerais", "equipe", "Texto livre que SAI no documento e no Excel — é para o fornecedor ler."],
+            ]}
+          />
+          <Campos
+            bloco="Resumo dos Custos"
+            itens={[
+              ["Tabela por item", "auto", "Cada item da EC nas três colunas de valor. “Não se aplica” aparece vazio."],
+              ["Totais por coluna", "calculado", "Somatório de cada forma de pagamento."],
+              ["Valor negociado / parcelas", "equipe", "A soma das parcelas precisa fechar com o valor negociado; o sistema avisa se não fechar."],
+              ["Documento Fiscal", "auto", "Vem do Documento PG dos itens da EC."],
+            ]}
+          />
+          <Campos
+            bloco="Dados Emissão — Nota Fiscal (restrito)"
+            itens={[
+              ["Tomador dos Serviços", "auto", "Nasce “Pólobh” e traz razão social, endereço, CNPJ e inscrições. Troque para Cliente quando o faturamento for direto."],
+              ["Descritivo Nota Fiscal", "auto", "Vem do descritivo da EC."],
+              ["Nome do Projeto Incentivado", "auto", "Do projeto."],
+              ["Lei de Incentivo à Cultura", "auto", "Lei e número na MESMA linha, como o Projeto guarda. Avisa quando fica diferente do Projeto."],
+              ["CNAE", "escolha", "As atividades daquele CNPJ, vindas do cartão. Tem escape para digitar quando o cartão está desatualizado."],
+              ["Valor total a pagar", "calculado", "Fecha o bloco de emissão."],
+            ]}
+          />
+          <Campos
+            bloco="Dados para Contrato (restrito, e só quando a EC pede)"
+            itens={[
+              ["Contratante", "auto", "Nasce “Pólobh”, com os dados fiscais junto."],
+              ["Descritivo dos Serviços", "auto", "Vem do descritivo da NF. Acima dele o sistema monta o objeto do contrato."],
+              ["Informações Complementares", "equipe", "O que este contrato tem de particular."],
+              ["Valores e desconto", "auto", "Espelham o Faturamento enquanto ninguém os altera."],
+              ["Forma de Pagamento / Observações Gerais", "auto", "Texto padrão do modelo, editável."],
+              ["Data do Contrato", "auto", "A data de emissão da OS."],
+              ["Rubrica", "equipe", "Iniciais de quem responde pelo contrato."],
+            ]}
+          />
+          <Campos
+            bloco="Acertos Financeiros"
+            itens={[
+              ["BV Pólobh — Percentual", "auto", "Vem do que foi combinado item a item na EC. Avisa e oferece o atalho quando diverge."],
+              ["BV Pólobh — Valor", "calculado", "Percentual sobre o valor total."],
+              ["Justificativa do BV", "equipe", "Obrigatória sem BV ou abaixo de 15% — para qualquer perfil."],
+              ["Observações", "equipe", "O que ficou combinado no acerto."],
+            ]}
+          />
+          <Atencao>
+            Os blocos de <b>emissão</b> e de <b>contrato</b> só aparecem para Direção, Administrativo e Administrador.
+            <b> Acertos Financeiros</b> aparece para todos de propósito: quem negocia o BV com o fornecedor é a Produção.
+          </Atencao>
+        </Secao>
+
+        <Secao titulo="Check-list — modelos (Configurações)">
+          <Campos
+            bloco="Cada tarefa da lista padrão"
+            itens={[
+              ["Título", "equipe", "O nome da tarefa como ela aparecerá no projeto."],
+              ["Descrição", "equipe", "A instrução: é o que transforma “Fechar fornecedores” em algo que a pessoa consegue seguir sozinha."],
+              ["Etapa", "equipe", "Agrupador na tela (PRÉ-PRODUÇÃO, MONTAGEM, PÓS-EVENTO…)."],
+              ["Modo do prazo", "escolha", "% do projeto (a tarefa estica com o período) ou Dias do evento (fica grudada no dia D)."],
+              ["Percentual / Dias", "equipe", "O número do prazo. A linha abaixo do campo traduz em português o que ele significa."],
+              ["Responsável padrão", "escolha", "Da lista real de usuários — nome digitado à mão não bate com o cadastro."],
+            ]}
+          />
+          <Dica>
+            Alterar a lista padrão <b>não mexe</b> nos check-lists já criados. Cada projeto em andamento recebe um
+            aviso e decide quando trazer as tarefas novas.
+          </Dica>
         </Secao>
       </>
     ),
@@ -332,12 +640,27 @@ const MODULOS: Modulo[] = [
         <Secao titulo="Bloco financeiro (restrito)">
           <p>O bloco <b>Financeiro Pólobh</b> (BV, valor a pagar, margem) só aparece para os perfis <b>Direção</b>, <b>Administrativo</b> e <b>Administrador</b>. A <b>Produção</b> não vê esses valores — nem na tela, nem pela API.</p>
         </Secao>
-        <Secao titulo="Disparar e exportar">
-          <Passos>
-            <span><b>Disparar OS</b> muda o status para <Tag tom="success">Disparada</Tag> e envia a OS ao fornecedor por e-mail.</span>
-            <span><b>Baixar PDF</b> gera o documento da OS já na janela de salvar (o PDF respeita seu perfil quanto ao financeiro).</span>
-          </Passos>
-          <Atencao>O <b>envio de e-mail está aguardando a conexão com o Brevo</b> da Pólobh. Até lá, o disparo é <b>simulado</b> — a OS é salva e o status muda, mas nenhum e-mail sai de fato.</Atencao>
+        <Secao titulo="O documento da OS">
+          <p>
+            A OS tem <b>uma</b> ação de documento: <b>Baixar PDF</b>, que já abre a janela de salvar. O PDF respeita
+            o seu perfil — quem não vê o bloco financeiro também não o vê no arquivo.
+          </p>
+          <Dica>
+            A opção “OS em Excel” saiu do menu. A planilha continua sendo gerada como <b>anexo do e-mail</b> que o
+            fornecedor recebe, sem o bloco financeiro.
+          </Dica>
+        </Secao>
+        <Secao titulo="Disparar ao fornecedor">
+          <p>
+            <b>Disparar OS</b> muda o status para <Tag tom="success">Disparada</Tag> e manda a OS ao fornecedor por
+            e-mail, com a planilha anexada.
+          </p>
+          <Atencao>
+            Enquanto o sistema está em <b>homologação</b>, o botão de disparar fica <b>desabilitado</b> e nenhum
+            e-mail chega a fornecedor ou cliente: o que for enviado por qualquer tela vai para a caixa de teste da
+            equipe, com o destinatário original no assunto. É uma trava de publicação — nem o Administrador liga ou
+            desliga pela interface.
+          </Atencao>
         </Secao>
       </>
     ),
@@ -506,6 +829,21 @@ const MODULOS: Modulo[] = [
           </Passos>
           <Dica>O link usa um código único e não-adivinhável. Cada projeto tem o seu.</Dica>
         </Secao>
+        <Secao titulo="Mandar o cronograma a cada fornecedor">
+          <p>
+            Abaixo da linha do tempo há o painel <b>Envio dos cronogramas</b> — o mesmo desenho do credenciamento.
+            Cada fornecedor recebe o cronograma <b>da OS dele</b>: o texto padrão da Pólobh com as etapas, datas e
+            horários daquele contrato.
+          </p>
+          <Passos>
+            <span><b>Enviar a todos</b> alcança quem tem e-mail e cronograma montado.</span>
+            <span><b>Marque</b> fornecedores para alcançar só eles — inclusive quem ainda está com as etapas em branco, quando a intenção é justamente avisar que o dele está para sair.</span>
+          </Passos>
+          <Atencao>
+            Em homologação este botão fica <b>desabilitado</b>, como o de disparar OS, e nada chega a fornecedor
+            nenhum.
+          </Atencao>
+        </Secao>
       </>
     ),
   },
@@ -524,8 +862,14 @@ const MODULOS: Modulo[] = [
             <span>Abra o Projeto e vá na subaba <b>Credenciamento</b>.</span>
             <span>Defina o <b>prazo-limite</b> — ele costuma ser o mesmo para o evento inteiro, e há um campo que aplica a todas as OSs.</span>
             <span>Clique em <b>Enviar a todos</b>. Quem já respondeu e quem está sem e-mail cadastrado ficam de fora; para um só, use o <b>Enviar</b> da linha.</span>
+            <span>Precisa alcançar só alguns? <b>Marque</b> os fornecedores na lista — o botão passa a ser “Enviar aos marcados”. Marcar vale inclusive para <b>reenviar</b> a quem já respondeu, quando o formulário voltou errado.</span>
             <span>As respostas aparecem em <b>Credenciamentos recebidos</b>, na mesma subaba.</span>
           </Passos>
+          <Dica>
+            <b>Baixar Excel</b> gera a folha da <b>portaria</b>: uma linha por pessoa (fornecedor, nome, CPF, função)
+            e outra tabela de veículos, mais a lista de quem <b>ainda não respondeu</b> — sem ela, a ausência de um
+            nome no portão vira dúvida na hora de liberar a entrada.
+          </Dica>
           <Tela titulo="custos-polobh.vercel.app/credenciamento/…">
             <div className="space-y-2 text-[12px]">
               <div className="font-display font-bold text-ink">Equipe</div>
@@ -554,6 +898,22 @@ const MODULOS: Modulo[] = [
             <span>Complete contato e dados bancários e <b>Salve</b>.</span>
           </Passos>
           <Dica>Use a busca no topo da lista para achar um fornecedor por nome, CNPJ ou perfil tributário.</Dica>
+          <Atencao>
+            A consulta de CNPJ olha o <b>cadastro da casa primeiro</b> e a Receita depois, e nunca apaga campo
+            preenchido: inscrições, dados bancários e representante não existem em fonte pública — alguém da casa
+            digitou aquilo uma vez.
+          </Atencao>
+        </Secao>
+        <Secao titulo="Dados Úteis do projeto">
+          <p>
+            Dentro de cada <b>Projeto</b>, a subaba <b>Fornecedores</b> é outra coisa: é a folha de contatos do
+            evento — <b>Nome Fantasia · Itens da EC · Nome · Telefone · E-mail</b>, uma linha por fornecedor, com os
+            serviços das várias OSs dele juntos.
+          </p>
+          <Dica>
+            <b>Baixar Excel</b> gera essa folha em paisagem, para ir na prancheta no dia da montagem. Quem procura
+            um telefone às sete da manhã não abre OS.
+          </Dica>
         </Secao>
       </>
     ),
