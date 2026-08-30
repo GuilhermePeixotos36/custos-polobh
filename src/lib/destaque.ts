@@ -77,6 +77,31 @@ export function destacarElemento(
 }
 
 /**
+ * Leva a pessoa ao CAMPO que travou uma ação, e deixa o cursor nele.
+ *
+ * Um aviso dizendo "falta a justificativa do BV" não resolve nada numa tela de
+ * quinze blocos: a pessoa lê o aviso e ainda tem de caçar o campo na rolagem —
+ * o mesmo problema que a pílula de pendências resolve no resto do sistema.
+ * Aqui o aviso e o campo passam a ser a mesma coisa: a tela rola até ele, ele
+ * pisca em vermelho e já recebe o cursor.
+ *
+ * O foco vai com `preventScroll`: sem isso o navegador daria o seu próprio
+ * pulo até o campo, atropelando a rolagem suave que acabou de começar.
+ */
+export function destacarCampo(id: string): void {
+  destacarElemento(id, "pendencia", { rolar: true });
+  comElemento(id, (el) => {
+    const alvo = el.matches(SELETOR_FOCAVEL)
+      ? el
+      : el.querySelector<HTMLElement>(SELETOR_FOCAVEL);
+    alvo?.focus({ preventScroll: true });
+  });
+}
+
+/** O que conta como "o campo" dentro do bloco destacado. */
+const SELETOR_FOCAVEL = "input, textarea, select, [contenteditable=true]";
+
+/**
  * Faz a tela acompanhar um elemento que acabou de se mover, mantendo-o SEMPRE no
  * centro — a pessoa aperta a seta várias vezes seguidas e o item nunca escapa do
  * campo de visão. Diferente de `destacarElemento`, não pisca: aqui o objetivo é
@@ -129,6 +154,12 @@ export const idComentario = (id: string) => `comentario-${limpar(id)}`;
  * pisca, e não a linha inteira.
  */
 export const idCampoPendencia = (ancora: string, campo: string) => `pendencia-campo-${limpar(ancora)}-${campo}`;
+
+/**
+ * Âncora de um campo que TRAVA uma ação (salvar, disparar). É o que o aviso
+ * usa para levar a pessoa até lá — ver `destacarCampo`.
+ */
+export const idCampoTrava = (campo: string) => `trava-${limpar(campo)}`;
 
 export const idBlocoCronograma = (id: string) => `bloco-cronograma-${limpar(id)}`;
 export const idFaixaCronograma = (id: string) => `faixa-cronograma-${limpar(id)}`;

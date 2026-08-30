@@ -335,7 +335,7 @@ const MODULOS: Modulo[] = [
         <Secao titulo="Disparar e exportar">
           <Passos>
             <span><b>Disparar OS</b> muda o status para <Tag tom="success">Disparada</Tag> e envia a OS ao fornecedor por e-mail.</span>
-            <span><b>Baixar Excel</b> e <b>Ver / PDF</b> geram o documento da OS (o PDF respeita seu perfil quanto ao financeiro).</span>
+            <span><b>Baixar PDF</b> gera o documento da OS já na janela de salvar (o PDF respeita seu perfil quanto ao financeiro).</span>
           </Passos>
           <Atencao>O <b>envio de e-mail está aguardando a conexão com o Brevo</b> da Pólobh. Até lá, o disparo é <b>simulado</b> — a OS é salva e o status muda, mas nenhum e-mail sai de fato.</Atencao>
         </Secao>

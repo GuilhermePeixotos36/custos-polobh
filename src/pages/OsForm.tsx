@@ -33,7 +33,6 @@ import {
 import { ETAPAS_CRONOGRAMA } from "@/domain/projeto";
 import { doCadastro, opcoesPerfilTributario, semVazios } from "@/domain/fornecedor";
 import { useEmpresas } from "@/store/empresas";
-import { gerarOsExcel } from "@/lib/excel";
 import { consultarCnpj } from "@/lib/cnpj";
 import { gerarDescritivo } from "@/lib/ai";
 import { dispararOsPorEmail } from "@/lib/email";
@@ -50,7 +49,7 @@ import { ListaArrastavel, ItemArrastavel } from "@/components/ListaArrastavel";
 import { MoverSetas, moverNaLista } from "@/components/MoverSetas";
 import { InscricaoMunicipalInput } from "@/components/InscricaoMunicipalInput";
 import { TextosJaUsados } from "@/components/TextosJaUsados";
-import { idAncoraPendencia } from "@/lib/destaque";
+import { destacarCampo, idAncoraPendencia, idCampoTrava } from "@/lib/destaque";
 import { pendenciasDaTela } from "@/domain/pendencias";
 import { CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, alternarNaoSeAplica, naoSeAplica, temContrato } from "@/domain/os";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
@@ -480,7 +479,7 @@ export function OsForm() {
       <LinhaOs label="BV Pólobh — Valor">
         <Auto v={brl((os.financeiro.valorTotal * os.financeiro.bvPercentual) / 100)} />
       </LinhaOs>
-      <LinhaOs label="Justificativa do BV" hint={bvPrecisaJustif ? "(obrigatória)" : "(opcional)"}>
+      <LinhaOs label="Justificativa do BV" hint={bvPrecisaJustif ? "(obrigatória)" : "(opcional)"} id={TRAVA_BV}>
         <Textarea
           value={os.financeiro.bvJustificativa ?? ""}
           onChange={(e) => updFin({ bvJustificativa: e.target.value })}
@@ -581,8 +580,13 @@ export function OsForm() {
 
   async function salvar(status?: Os["status"]) {
     // BV fora do padrão (sem BV ou < 15%) exige justificativa — para qualquer perfil.
+    //
+    // O aviso sozinho não bastava: numa tela de quinze blocos, ler "falta a
+    // justificativa" e ter de caçar o campo é o mesmo trabalho de antes. O
+    // aviso agora LEVA até ele — rola, pisca em vermelho e põe o cursor.
     if (bvJustifFaltando) {
       toast("Informe a justificativa do BV — obrigatória quando não há BV ou é menor que 15%.", "warning");
+      destacarCampo(TRAVA_BV);
       return;
     }
     if (status === "Disparada") {
@@ -646,8 +650,17 @@ export function OsForm() {
       subtitle={os.numero}
       topAction={
         <div className="flex gap-2">
-          <Button variant="secondary" size="sm" icon={<IcDownload width={16} height={16} />} onClick={() => gerarOsExcel(os, ecCtx, { incluirFinanceiro: verFinanceiro })}>Baixar Excel</Button>
-          <Button variant="secondary" size="sm" onClick={() => os.id ? navigate(`/ordens/${os.id}/imprimir`) : toast("Salve a OS antes de visualizar o PDF.", "info")}>Ver / PDF</Button>
+          {/* Uma ação só para o documento: antes eram duas (Excel e "Ver / PDF"),
+              e a do PDF ainda pedia um segundo clique depois de abrir a tela.
+              O Excel da OS saiu — o documento do fornecedor é o PDF. */}
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={<IcDownload width={16} height={16} />}
+            onClick={() => os.id ? navigate(`/ordens/${os.id}/imprimir?auto=1`) : toast("Salve a OS antes de baixar o PDF.", "info")}
+          >
+            Baixar PDF
+          </Button>
           {podeEditar && <Button variant="secondary" size="sm" onClick={() => salvar()} disabled={busy}>Salvar</Button>}
           {podeEditar && <Button size="sm" icon={<IcSend width={15} height={15} />} onClick={() => salvar("Disparada")} disabled={busy}>Disparar OS</Button>}
         </div>
@@ -1267,6 +1280,9 @@ export function OsForm() {
   }
 }
 
+/** Âncora da justificativa do BV — o único campo que hoje trava o salvamento. */
+const TRAVA_BV = idCampoTrava("bv-justificativa");
+
 /** Colunas do cronograma do fornecedor — cabeçalho e linhas usam a MESMA grade. */
 const GRADE_CRONOGRAMA = "grid grid-cols-[auto_auto_150px_130px_1fr_1.5fr_auto] gap-2";
 
@@ -1320,15 +1336,18 @@ function LinhaOs({
   label,
   hint,
   acao,
+  id,
   children,
 }: {
   label: string;
   hint?: string;
   acao?: ReactNode;
+  /** Âncora do destaque — usada quando este campo trava o salvamento. */
+  id?: string;
   children: ReactNode;
 }) {
   return (
-    <div className="grid md:grid-cols-[240px_minmax(0,1fr)] gap-x-4 items-start px-4 py-2 border-b border-border-soft last:border-b-0">
+    <div id={id} className="grid md:grid-cols-[240px_minmax(0,1fr)] gap-x-4 items-start px-4 py-2 border-b border-border-soft last:border-b-0">
       <div className="md:py-3 flex items-start justify-between gap-2">
         <div className="min-w-0">
           <span className="block text-[11.5px] font-extrabold uppercase tracking-[0.03em] text-ink-2">{label}</span>

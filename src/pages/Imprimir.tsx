@@ -89,8 +89,10 @@ function Moldura({
         <button onClick={() => navigate(voltarPara)} className="inline-flex items-center gap-1.5 text-sm text-ink-2 hover:text-ink font-semibold">
           <IcBack width={16} height={16} /> Voltar
         </button>
+        {/* A OS chega aqui com ?auto=1 e a janela de salvar já abre sozinha;
+            este botão é para reabrir sem voltar e clicar de novo. */}
         <Button size="sm" icon={<IcDownload width={16} height={16} />} onClick={() => window.print()}>
-          Imprimir / salvar PDF
+          Baixar PDF
         </Button>
       </div>
 
