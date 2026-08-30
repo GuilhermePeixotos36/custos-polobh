@@ -109,6 +109,32 @@ export async function gerarCronogramaExcel(dados: CronogramaExcelDados): Promise
   return r;
 }
 
+/** Folha de contatos do evento (ExcelJS sob demanda). */
+export async function gerarDadosUteisExcel(dados: import("./dadosUteis").DadosUteisExcel): Promise<void> {
+  const { gerarDadosUteisExcel: fn } = await import("./dadosUteis");
+  const r = await fn(dados);
+  auditar({
+    categoria: "Exportação",
+    acao: "dadosUteis.excel",
+    mensagem: `Dados Úteis exportados para Excel (${dados.titulo || dados.nomeArquivo})`,
+  });
+  return r;
+}
+
+/** Folha de credenciados para a portaria (ExcelJS sob demanda). */
+export async function gerarCredenciamentoExcel(
+  dados: import("./credenciamento").CredenciamentoExcelDados
+): Promise<void> {
+  const { gerarCredenciamentoExcel: fn } = await import("./credenciamento");
+  const r = await fn(dados);
+  auditar({
+    categoria: "Exportação",
+    acao: "credenciamento.excel",
+    mensagem: `Credenciamento exportado para Excel (${dados.titulo || dados.nomeArquivo})`,
+  });
+  return r;
+}
+
 /** "Baixar PDF": usa a impressão do navegador sobre a visualização em tela.
  *  Funciona em qualquer navegador e mantém o armazenamento de arquivos mínimo. */
 export function baixarPdfViaImpressao() {

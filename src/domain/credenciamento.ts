@@ -11,7 +11,7 @@
  * de lugar é o comando, não o dado.
  */
 import { urlCredenciamento } from "@/lib/links";
-import type { Ec, Os } from "@/data/types";
+import type { CredenciamentoResposta, Ec, Os } from "@/data/types";
 
 /** Uma OS na fila, já com o que a tela mostra e o que o disparo precisa decidir. */
 export interface NaFila {
@@ -57,5 +57,71 @@ export function filaDeCredenciamento(oss: Os[], ecs: Ec[], responderam: string[]
  * que faltam.
  */
 export function podeReceberLink(f: NaFila): boolean {
-  return !!f.link && !!f.email && !!f.ec && !f.respondeu;
+  return podeEnviar(f) && !f.respondeu;
+}
+
+/**
+ * O e-mail chega a sair? São os requisitos técnicos, e só eles: link (a OS
+ * precisa estar salva), endereço e a EC que o texto cita.
+ *
+ * Separado de `podeReceberLink` porque a ESCOLHA da pessoa é outra coisa: ao
+ * marcar alguém na lista, ela pode estar justamente reenviando a quem já
+ * respondeu — o formulário voltou errado, o fornecedor trocou de equipe. Aí
+ * "já respondeu" não é motivo para barrar; falta de e-mail é.
+ */
+export function podeEnviar(f: NaFila): boolean {
+  return !!f.link && !!f.email && !!f.ec;
+}
+
+/* ------------------- a folha de credenciados, para o portão ---------------- */
+
+export interface PessoaCredenciada {
+  fornecedor: string;
+  nome: string;
+  cpf: string;
+  funcao: string;
+}
+
+export interface VeiculoCredenciado {
+  fornecedor: string;
+  modelo: string;
+  placa: string;
+}
+
+/**
+ * O que os fornecedores mandaram, achatado em duas listas: gente e veículos.
+ *
+ * É o formato em que a informação é USADA — uma folha na portaria, conferida
+ * nome a nome. Guardada por OS, como chega, ela obrigaria o porteiro a saber de
+ * qual fornecedor é cada pessoa antes de procurá-la.
+ *
+ * `semResposta` vai junto de propósito: a folha precisa dizer quem ainda não
+ * mandou, senão a ausência de um nome vira dúvida na hora de liberar a entrada.
+ */
+export function credenciadosDaFila(
+  fila: NaFila[],
+  respostasPorOs: Map<string, CredenciamentoResposta[]>
+): { equipe: PessoaCredenciada[]; veiculos: VeiculoCredenciado[]; semResposta: string[] } {
+  const equipe: PessoaCredenciada[] = [];
+  const veiculos: VeiculoCredenciado[] = [];
+  const semResposta: string[] = [];
+
+  for (const f of fila) {
+    const respostas = respostasPorOs.get(f.os.id) ?? [];
+    if (!respostas.length) {
+      semResposta.push(f.fornecedor);
+      continue;
+    }
+    for (const r of respostas) {
+      for (const p of r.equipe) {
+        if (!p.nome?.trim()) continue;
+        equipe.push({ fornecedor: f.fornecedor, nome: p.nome, cpf: p.cpf ?? "", funcao: p.funcao ?? "" });
+      }
+      for (const v of r.veiculos) {
+        if (!v.modelo?.trim() && !v.placa?.trim()) continue;
+        veiculos.push({ fornecedor: f.fornecedor, modelo: v.modelo ?? "", placa: v.placa ?? "" });
+      }
+    }
+  }
+  return { equipe, veiculos, semResposta };
 }

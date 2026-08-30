@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { filaDeCredenciamento, podeReceberLink } from "./credenciamento";
-import type { Ec, Os } from "@/data/types";
+import { credenciadosDaFila, filaDeCredenciamento, podeEnviar, podeReceberLink } from "./credenciamento";
+import type { CredenciamentoResposta, Ec, Os } from "@/data/types";
 
 const ec = (id: string): Ec => ({ id, projetoId: "p1" }) as Ec;
 
@@ -84,5 +84,77 @@ describe("fila de credenciamento do projeto", () => {
       expect(semEc.ec).toBeUndefined();
       expect(podeReceberLink(semEc)).toBe(false);
     });
+  });
+});
+
+/**
+ * A folha da portaria: gente e veículos achatados, com o fornecedor em cada
+ * linha, mais quem ainda não mandou nada.
+ */
+describe("credenciados para a portaria", () => {
+  const resposta = (p: Partial<CredenciamentoResposta>): CredenciamentoResposta => ({
+    id: "r1", enviadoEm: "2026-09-01T10:00:00Z", equipe: [], veiculos: [], ...p,
+  });
+
+  const fila = () =>
+    filaDeCredenciamento(
+      [
+        os({ id: "a", fornecedor: { apelido: "Som & Luz" } }),
+        os({ id: "b", fornecedor: { apelido: "Buffet Sabor" } }),
+      ],
+      [ec("ec1")],
+      ["a"]
+    );
+
+  it("cada pessoa vira uma linha, com o fornecedor ao lado", () => {
+    const { equipe } = credenciadosDaFila(
+      fila(),
+      new Map([["a", [resposta({ equipe: [{ nome: "Ana", cpf: "111", funcao: "Técnica" }, { nome: "Bruno", cpf: "222", funcao: "Roadie" }] })]]])
+    );
+    expect(equipe).toEqual([
+      { fornecedor: "Som & Luz", nome: "Ana", cpf: "111", funcao: "Técnica" },
+      { fornecedor: "Som & Luz", nome: "Bruno", cpf: "222", funcao: "Roadie" },
+    ]);
+  });
+
+  it("veículos saem na sua própria lista", () => {
+    const { veiculos } = credenciadosDaFila(
+      fila(),
+      new Map([["a", [resposta({ veiculos: [{ modelo: "Sprinter", placa: "ABC1D23" }] })]]])
+    );
+    expect(veiculos).toEqual([{ fornecedor: "Som & Luz", modelo: "Sprinter", placa: "ABC1D23" }]);
+  });
+
+  /** Sem esta lista, a ausência de um nome na portaria vira dúvida. */
+  it("quem não respondeu sai nomeado, e não some da folha", () => {
+    const { semResposta } = credenciadosDaFila(fila(), new Map([["a", [resposta({})]]]));
+    expect(semResposta).toEqual(["Buffet Sabor"]);
+  });
+
+  it("linha em branco do formulário não vira credenciado", () => {
+    const { equipe, veiculos } = credenciadosDaFila(
+      fila(),
+      new Map([["a", [resposta({ equipe: [{ nome: "   ", cpf: "", funcao: "" }], veiculos: [{ modelo: "", placa: "" }] })]]])
+    );
+    expect(equipe).toEqual([]);
+    expect(veiculos).toEqual([]);
+  });
+});
+
+/**
+ * Marcar alguém na lista é uma escolha, e ela pode ser justamente reenviar a
+ * quem já respondeu — o formulário voltou errado, a equipe mudou.
+ */
+describe("podeEnviar x podeReceberLink", () => {
+  const so = (p: OsDeTeste, responderam: string[] = []) => filaDeCredenciamento([os(p)], [ec("ec1")], responderam)[0];
+
+  it("quem já respondeu sai do disparo automático, mas pode ser marcado à mão", () => {
+    const respondeu = so({ id: "os1" }, ["os1"]);
+    expect(podeReceberLink(respondeu)).toBe(false);
+    expect(podeEnviar(respondeu)).toBe(true);
+  });
+
+  it("sem e-mail não sai por caminho nenhum — nem marcado", () => {
+    expect(podeEnviar(so({ fornecedor: { email: "" } }))).toBe(false);
   });
 });
