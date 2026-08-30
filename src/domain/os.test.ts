@@ -6,6 +6,8 @@ import {
   itensVisiveis,
   naoSeAplica,
   alternarNaoSeAplica,
+  temContrato,
+  contratoPreenchido,
 } from "./os";
 import type { Ec, EcLinha, Infraestrutura, Logistica, Os } from "@/data/types";
 
@@ -171,5 +173,62 @@ describe("infraestrutura que não se aplica", () => {
       "Energia", "Internet", "Pontos Elétricos", "Estruturas Diversas",
       "Serviços de Apoio", "ART, Laudos e Certificações",
     ]);
+  });
+});
+
+/**
+ * Quem decide se a OS tem contrato é a EC, na coluna Contrato de cada item.
+ * Antes o bloco saía em toda OS — inclusive na do fornecedor que só emite nota,
+ * e aí o documento dele descrevia com valores e data um contrato inexistente.
+ */
+describe("a OS tem contrato?", () => {
+  const contratoVazio = {
+    contratante: "" as const, descritivoServicos: "", informacoesComplementares: "",
+    valorUnitario: 0, valorTotal: 0, descontoNegociado: 0, valorAPagar: 0,
+    dataContrato: "", rubrica: "",
+  };
+  const comContrato = (ct: Partial<Os["contrato"]> = {}) => ({ contrato: { ...contratoVazio, ...ct } });
+  const item = (contratoStatus: EcLinha["contratoStatus"]) => ({ contratoStatus });
+
+  it("basta UM item pedindo contrato — a OS é uma só, o contrato também", () => {
+    expect(temContrato(comContrato(), [item("Não se Aplica"), item("Emitir")])).toBe(true);
+    expect(temContrato(comContrato(), [item("Emitir Nova Versão")])).toBe(true);
+  });
+
+  it("com todos em 'Não se Aplica', não há contrato nenhum", () => {
+    expect(temContrato(comContrato(), [item("Não se Aplica"), item("Não se Aplica")])).toBe(false);
+  });
+
+  it("'Pendente' e 'OK' não pedem emissão — o bloco espera a decisão na EC", () => {
+    expect(temContrato(comContrato(), [item("Pendente")])).toBe(false);
+    expect(temContrato(comContrato(), [item("OK")])).toBe(false);
+  });
+
+  it("OS sem item vinculado não inventa contrato", () => {
+    expect(temContrato(comContrato(), [])).toBe(false);
+  });
+
+  /**
+   * A trava que impede o dado de sumir: o que a equipe escreveu no contrato
+   * segura o bloco na tela mesmo que alguém mexa no status da linha depois.
+   */
+  it("contrato já escrito pela equipe continua aparecendo, mudem o status ou não", () => {
+    expect(temContrato(comContrato({ rubrica: "MC" }), [item("Não se Aplica")])).toBe(true);
+    expect(temContrato(comContrato({ informacoesComplementares: "Multa de 10%" }), [item("OK")])).toBe(true);
+  });
+
+  /**
+   * Só valem os campos que ninguém preenche sozinho. Contratante, descritivo,
+   * valores, forma de pagamento e data entram automaticamente em toda OS COM
+   * contrato — se contassem aqui, "tem contrato" responderia sempre que sim.
+   */
+  it("o que o sistema preenche sozinho não conta como contrato escrito", () => {
+    expect(contratoPreenchido({ ...contratoVazio, contratante: "Polobh" })).toBe(false);
+    expect(contratoPreenchido({ ...contratoVazio, descritivoServicos: "Sonorização" })).toBe(false);
+    expect(contratoPreenchido({ ...contratoVazio, dataContrato: "2026-08-20" })).toBe(false);
+    expect(contratoPreenchido({ ...contratoVazio, valorTotal: 10000, valorAPagar: 10000 })).toBe(false);
+    expect(contratoPreenchido({ ...contratoVazio, formaPagamento: "À vista" })).toBe(false);
+    // ...e espaço em branco não é texto escrito.
+    expect(contratoPreenchido({ ...contratoVazio, rubrica: "   " })).toBe(false);
   });
 });

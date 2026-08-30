@@ -288,6 +288,45 @@ describe("Excel da OS — modelo novo", () => {
     expect(texto).not.toContain("Nº Projeto Incentivado");
   });
 
+  it("item com contrato 'Não se Aplica' na EC tira o bloco de contrato da planilha", async () => {
+    const semContrato = os(["l1"]);
+    // Contrato que ninguém escreveu: só o que o sistema preenche sozinho.
+    semContrato.contrato = { ...semContrato.contrato, rubrica: "", informacoesComplementares: "" };
+    const { texto } = await abrir(
+      semContrato,
+      ec([linha({ id: "l1", valorPolobh: 10000, contratoStatus: "Não se Aplica" })])
+    );
+    expect(texto).not.toContain("DADOS PARA CONTRATO");
+    expect(texto).not.toContain("Data do Contrato");
+    expect(texto).not.toContain("O objeto do presente");
+    // A emissão da nota e os acertos continuam saindo — some o contrato, não o resto.
+    expect(texto).toContain("Valor total a pagar");
+    expect(texto).toContain("ACERTOS FINANCEIROS");
+  });
+
+  it("basta um item pedindo contrato para o bloco voltar", async () => {
+    const misto = os(["l1", "l2"]);
+    misto.contrato = { ...misto.contrato, rubrica: "", informacoesComplementares: "" };
+    const { texto } = await abrir(
+      misto,
+      ec([
+        linha({ id: "l1", valorPolobh: 10000, contratoStatus: "Não se Aplica" }),
+        linha({ id: "l2", valorPolobh: 2000, contratoStatus: "Emitir" }),
+      ])
+    );
+    expect(texto).toContain("DADOS PARA CONTRATO");
+  });
+
+  it("contrato já escrito pela equipe não some da planilha se o status mudar depois", async () => {
+    // A OS de teste tem rubrica "MC" — alguém escreveu este contrato.
+    const { texto } = await abrir(
+      os(["l1"]),
+      ec([linha({ id: "l1", valorPolobh: 10000, contratoStatus: "Não se Aplica" })])
+    );
+    expect(texto).toContain("DADOS PARA CONTRATO");
+    expect(texto).toContain("Rubrica");
+  });
+
   it("sem acesso ao financeiro, os blocos restritos não saem na planilha", async () => {
     const { buffer } = await criarOsExcelBuffer(os(["l1"]), ec([linha({ id: "l1", valorPolobh: 1000 })]), {
       incluirFinanceiro: false,

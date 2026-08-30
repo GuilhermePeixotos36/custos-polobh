@@ -52,7 +52,7 @@ import { InscricaoMunicipalInput } from "@/components/InscricaoMunicipalInput";
 import { TextosJaUsados } from "@/components/TextosJaUsados";
 import { idAncoraPendencia } from "@/lib/destaque";
 import { pendenciasDaTela } from "@/domain/pendencias";
-import { CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, alternarNaoSeAplica, naoSeAplica } from "@/domain/os";
+import { CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, alternarNaoSeAplica, naoSeAplica, temContrato } from "@/domain/os";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import type { ResumoCustos } from "@/domain/calc";
 import type {
@@ -212,12 +212,22 @@ function aplicarAutoPreenchimento(os: Os, ec: Ec): Os {
       bvValor,
       bvJustificativa,
     },
-    contrato: {
-      ...os.contrato,
-      descritivoServicos: os.contrato.descritivoServicos || descritivoNf,
-      formaPagamento: os.contrato.formaPagamento || FORMA_PAGAMENTO_PADRAO,
-      observacoesGerais: os.contrato.observacoesGerais || OBS_CONTRATO_PADRAO,
-    },
+    // Contrato: só se preenche o que existe. Sem contrato pedido na EC, os
+    // padrões do modelo não entram — senão a OS nasce descrevendo com valores,
+    // forma de pagamento e data um contrato que ninguém vai fazer.
+    contrato: temContrato(os, linhas)
+      ? {
+          ...os.contrato,
+          // Quem contrata o fornecedor é a Pólobh, mesma resposta do tomador.
+          contratante: os.contrato.contratante || "Polobh",
+          descritivoServicos: os.contrato.descritivoServicos || descritivoNf,
+          formaPagamento: os.contrato.formaPagamento || FORMA_PAGAMENTO_PADRAO,
+          observacoesGerais: os.contrato.observacoesGerais || OBS_CONTRATO_PADRAO,
+          // A data do contrato é a da emissão da OS, não a de hoje: abrir a OS
+          // três meses depois não pode reescrever quando ela foi feita.
+          dataContrato: os.contrato.dataContrato || (os.criadoEm || new Date().toISOString()).slice(0, 10),
+        }
+      : os.contrato,
   };
 }
 
@@ -350,6 +360,9 @@ export function OsForm() {
    * dizer isso o campo passaria a mentir sobre o que foi combinado.
    */
   const bvDivergeDaEc = bvDaEc.percentual > 0 && Math.abs(os.financeiro.bvPercentual - bvDaEc.percentual) >= 0.01;
+
+  /** Esta OS tem contrato? Quem decide é a coluna Contrato dos itens, na EC. */
+  const haContrato = temContrato(os, linhasConsolidadas);
 
   /** Empresa emissora não cadastrada: os dados da nota sairiam em branco calados. */
   const faltaCadastroTomador = os.financeiro.tomador === "Polobh" && !empresaPolobh;
@@ -1114,9 +1127,22 @@ export function OsForm() {
                 Financeiros", grupo próprio no fim da tela. */}
             <LinhaOs label="Valor total a pagar"><Auto v={brl(os.financeiro.valorAPagar)} /></LinhaOs>
 
-            {/* DADOS PARA CONTRATO */}
+            {/* DADOS PARA CONTRATO — só entra quando a EC pede contrato.
+                Marcado "Não se Aplica" lá, o grupo inteiro não existe aqui: não
+                é campo em branco à toa, é um contrato inexistente descrito com
+                valores, forma de pagamento e data no documento do fornecedor. */}
+            {!haContrato ? (
+              <>
+                <SubSecao>Dados para Contrato</SubSecao>
+                <p className="px-4 py-3 text-[12.5px] text-ink-2">
+                  Nenhum item desta OS pede contrato. Para incluí-lo, marque <b>Emitir</b> ou{" "}
+                  <b>Emitir Nova Versão</b> na coluna <b>Contrato</b> dos itens, na EC.
+                </p>
+              </>
+            ) : (
+            <>
             <SubSecao>Dados para Contrato</SubSecao>
-            <LinhaOs label="Contratante">
+            <LinhaOs label="Contratante" hint="(auto — quem contrata o fornecedor)">
               <Select value={os.contrato.contratante} onChange={(e) => updCt({ contratante: e.target.value as Os["contrato"]["contratante"] })}>
                 <option value="">Selecione…</option>
                 <option value="Polobh">Pólobh</option>
@@ -1143,8 +1169,8 @@ export function OsForm() {
               </p>
               <Textarea value={os.contrato.descritivoServicos} onChange={(e) => updCt({ descritivoServicos: e.target.value })} placeholder="Padrão: vem do Descritivo NF — editável" />
             </LinhaOs>
-            <LinhaOs label="Informações Complementares">
-              <Textarea value={os.contrato.informacoesComplementares} onChange={(e) => updCt({ informacoesComplementares: e.target.value })} />
+            <LinhaOs label="Informações Complementares" hint="(preencher)">
+              <Textarea value={os.contrato.informacoesComplementares} onChange={(e) => updCt({ informacoesComplementares: e.target.value })} placeholder="O que este contrato tem de particular e não está no descritivo." />
               <TextosJaUsados valor={os.contrato.informacoesComplementares} opcoes={sugestoes.valores.informacoesComplementares} onEscolher={(informacoesComplementares) => updCt({ informacoesComplementares })} />
             </LinhaOs>
             <LinhaOs label="Valor unitário"><NumberInput value={os.contrato.valorUnitario} onValue={(v) => updCt({ valorUnitario: v })} /></LinhaOs>
@@ -1170,15 +1196,17 @@ export function OsForm() {
             </LinhaOs>
             <LinhaOs label="Desconto Especial Negociado"><NumberInput value={os.contrato.descontoNegociado} onValue={(v) => updCt({ descontoNegociado: v, valorAPagar: os.contrato.valorTotal - v })} /></LinhaOs>
             <LinhaOs label="Valor total a pagar"><Auto v={brl(os.contrato.valorAPagar)} /></LinhaOs>
-            <LinhaOs label="Forma de Pagamento">
+            <LinhaOs label="Forma de Pagamento" hint="(padrão do modelo — editável)">
               <Input value={os.contrato.formaPagamento ?? ""} sugestoes={sugestoes.valores.formaPagamento} onChange={(e) => updCt({ formaPagamento: e.target.value })} placeholder={FORMA_PAGAMENTO_PADRAO} />
             </LinhaOs>
-            <LinhaOs label="Observações Gerais">
+            <LinhaOs label="Observações Gerais" hint="(padrão do modelo — editável)">
               <Textarea value={os.contrato.observacoesGerais ?? ""} onChange={(e) => updCt({ observacoesGerais: e.target.value })} />
               <TextosJaUsados valor={os.contrato.observacoesGerais ?? ""} opcoes={sugestoes.valores.observacoesContrato} onEscolher={(observacoesGerais) => updCt({ observacoesGerais })} />
             </LinhaOs>
-            <LinhaOs label="Data do Contrato"><Input type="date" value={os.contrato.dataContrato} onChange={(e) => updCt({ dataContrato: e.target.value })} /></LinhaOs>
-            <LinhaOs label="Rubrica"><Input value={os.contrato.rubrica} sugestoes={sugestoes.valores.rubrica} onChange={(e) => updCt({ rubrica: e.target.value })} /></LinhaOs>
+            <LinhaOs label="Data do Contrato" hint="(auto — data da emissão da OS)"><Input type="date" value={os.contrato.dataContrato} onChange={(e) => updCt({ dataContrato: e.target.value })} /></LinhaOs>
+            <LinhaOs label="Rubrica" hint="(preencher)"><Input value={os.contrato.rubrica} sugestoes={sugestoes.valores.rubrica} onChange={(e) => updCt({ rubrica: e.target.value })} placeholder="Iniciais de quem responde pelo contrato" /></LinhaOs>
+            </>
+            )}
           </CardOs>
           </>
         ) : (

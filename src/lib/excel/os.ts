@@ -26,7 +26,7 @@ import {
   resumoDeCustos,
 } from "@/domain/calc";
 import { ETAPAS_CRONOGRAMA } from "@/domain/projeto";
-import { itensVisiveis, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA } from "@/domain/os";
+import { itensVisiveis, temContrato, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA } from "@/domain/os";
 import { COR, fill, FONT_LIGHT, baixar, nomeArquivo, carregarLogo, encaixarLogo, linhasVisuais, alturaParaLinhas } from "./shared";
 
 const moeda = '"R$" #,##0.00';
@@ -457,7 +457,11 @@ export async function criarOsExcelBuffer(
     agruparRotulo(primeiraVal, rPagarF);
 
     /* ------------------------- DADOS PARA CONTRATO --------------------- */
+    // Sai da planilha inteiro quando a EC não pediu contrato para nenhum item
+    // desta OS: descrever com valores e data um contrato que não existe é pior
+    // do que não falar dele.
     const ct = os.contrato;
+    if (temContrato(os, itens)) {
     const contr =
       ct.contratante === "Cliente"
         ? { nome: cli.nome || "Cliente", razao: cli.razaoSocial, end: cli.endereco, doc: cli.cnpjCpf, ie: cli.inscricaoEstadual, im: cli.inscricaoMunicipal }
@@ -495,6 +499,7 @@ export async function criarOsExcelBuffer(
     linha("Observações Gerais:", ct.observacoesGerais || OBS_CONTRATO_PADRAO, { fixo: !ct.observacoesGerais });
     linha("Data do Contrato:", dataBR(ct.dataContrato));
     linha("Rubrica:", ct.rubrica);
+    }
 
     /* ------------------------ ACERTOS FINANCEIROS ---------------------- */
     // O que a Pólobh acerta por dentro — BV e as observações do acerto. Fica no

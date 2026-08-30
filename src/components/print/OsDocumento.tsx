@@ -1,5 +1,5 @@
 /** OS como documento A4 — visualização em tela + PDF. Espelha o modelo em Excel. */
-import { itensVisiveis, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA } from "@/domain/os";
+import { itensVisiveis, temContrato, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA } from "@/domain/os";
 import type { Ec, Os } from "@/data/types";
 import { brl, dataBR } from "@/lib/format";
 import { textoObjetoContrato, resumoDeCustos, FORMA_PAGAMENTO_PADRAO, OBS_CONTRATO_PADRAO } from "@/domain/calc";
@@ -300,6 +300,10 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
           {/* O bloco de emissão termina no valor a pagar — BV e acerto vão no fim. */}
           <LV label="Valor total a pagar" valor={brl(os.financeiro.valorAPagar)} />
 
+          {/* Contrato só sai quando a EC pediu contrato para algum item desta
+              OS — ver `temContrato`. */}
+          {temContrato(os, consolidadas) && (
+          <>
           <SubSecao titulo="Dados para Contrato" />
           <LV label="Contratante" valor={contr?.rotulo ?? ""} />
           <LV label="Razão Social" valor={contr?.razao ?? ""} />
@@ -321,6 +325,8 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
           <LV label="Observações Gerais" valor={os.contrato.observacoesGerais || OBS_CONTRATO_PADRAO} />
           <LV label="Data do Contrato" valor={dataBR(os.contrato.dataContrato)} />
           <LV label="Rubrica" valor={os.contrato.rubrica} />
+          </>
+          )}
 
           <Secao titulo="Acertos Financeiros" />
           <LV label="BV Pólobh — Percentual" valor={`${os.financeiro.bvPercentual || 0}%`} />

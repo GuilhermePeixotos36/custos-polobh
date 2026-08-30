@@ -9,7 +9,7 @@
  * na ordem em que os itens aparecem na EC — a mesma ordem da planilha, para
  * quem lê os dois lados não precisar reconciliar nada.
  */
-import type { CampoInfraestrutura, CampoLogistica, Ec, Os } from "@/data/types";
+import type { CampoInfraestrutura, CampoLogistica, Ec, EcLinha, Os, StatusOs } from "@/data/types";
 
 export interface ItemDaOs {
   id: string;
@@ -121,4 +121,43 @@ export function alternarNaoSeAplica<B extends BlocoOpcional>(bloco: B, campo: Ca
     ...bloco,
     naoAplicaveis: atuais.includes(alvo) ? atuais.filter((c) => c !== alvo) : [...atuais, alvo],
   };
+}
+
+/* ----------------------- Contrato: entra ou não entra ---------------------- */
+
+/**
+ * Status de Contrato que significam "vai haver contrato" — os mesmos dois que
+ * pedem emissão na EC.
+ */
+const CONTRATO_A_EMITIR: StatusOs[] = ["Emitir", "Emitir Nova Versão"];
+
+/**
+ * Esta OS tem contrato?
+ *
+ * Quem decide é a EC, item a item, na coluna Contrato: "Emitir" ou "Emitir
+ * Nova Versão" querem contrato; "Não se Aplica" não quer. Antes o bloco "Dados
+ * para Contrato" saía em TODA OS — inclusive nas de fornecedor que só emite
+ * nota —, e ali ele não é campo em branco à toa: é um contrato inexistente
+ * descrito com valores, forma de pagamento e data, no documento que vai para o
+ * fornecedor.
+ *
+ * A segunda condição é o que impede o dado de sumir: uma OS cujo contrato a
+ * equipe já escreveu continua mostrando o bloco mesmo que alguém mexa no
+ * status da linha na EC depois.
+ */
+export function temContrato(os: Pick<Os, "contrato">, linhas: Pick<EcLinha, "contratoStatus">[]): boolean {
+  return linhas.some((l) => CONTRATO_A_EMITIR.includes(l.contratoStatus)) || contratoPreenchido(os.contrato);
+}
+
+/**
+ * A equipe já pôs a mão neste contrato?
+ *
+ * Olha SÓ os dois campos que o sistema nunca preenche sozinho — informações
+ * complementares e rubrica. Os outros (contratante, descritivo, valores, forma
+ * de pagamento, observações, data) entram automaticamente em toda OS com
+ * contrato, então usá-los aqui faria "tem contrato" responder sempre que sim,
+ * inclusive depois de alguém marcar "Não se Aplica" na EC.
+ */
+export function contratoPreenchido(ct: Os["contrato"]): boolean {
+  return !!(ct.informacoesComplementares?.trim() || ct.rubrica?.trim());
 }
