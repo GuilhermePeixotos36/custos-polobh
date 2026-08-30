@@ -106,9 +106,12 @@ export function CredenciamentoPublico() {
                 <h3 className="font-display font-bold text-ink">Equipe</h3>
                 <Button type="button" variant="secondary" size="sm" onClick={() => setEquipe((l) => [...l, membroVazio()])}>+ Pessoa</Button>
               </div>
+              {/* Empilha no celular: este formulário é preenchido PELO
+                  FORNECEDOR, quase sempre pelo telefone, e em colunas fixas o
+                  campo de nome ficava com uns 90px. */}
               <div className="space-y-2">
                 {equipe.map((m, i) => (
-                  <div key={i} className="grid grid-cols-[1fr_120px_1fr_auto] gap-2 items-center">
+                  <div key={i} className="grid grid-cols-1 sm:grid-cols-[1fr_120px_1fr_auto] gap-2 sm:items-center">
                     <Input placeholder="Nome completo" value={m.nome} onChange={(e) => setEquipe((l) => l.map((x, j) => (j === i ? { ...x, nome: e.target.value } : x)))} />
                     <Input placeholder="CPF" inputMode="numeric" value={m.cpf} onChange={(e) => setEquipe((l) => l.map((x, j) => (j === i ? { ...x, cpf: maskCpfCnpjInput(e.target.value) } : x)))} />
                     <Input placeholder="Função" value={m.funcao} onChange={(e) => setEquipe((l) => l.map((x, j) => (j === i ? { ...x, funcao: e.target.value } : x)))} />
@@ -126,7 +129,7 @@ export function CredenciamentoPublico() {
               </div>
               <div className="space-y-2">
                 {veiculos.map((v, i) => (
-                  <div key={i} className="grid grid-cols-[1fr_140px_auto] gap-2 items-center">
+                  <div key={i} className="grid grid-cols-1 sm:grid-cols-[1fr_140px_auto] gap-2 sm:items-center">
                     <Input placeholder="Modelo / descrição" value={v.modelo} onChange={(e) => setVeiculos((l) => l.map((x, j) => (j === i ? { ...x, modelo: e.target.value } : x)))} />
                     <Input placeholder="Placa" value={v.placa} onChange={(e) => setVeiculos((l) => l.map((x, j) => (j === i ? { ...x, placa: maskPlaca(e.target.value) } : x)))} />
                     <button type="button" className="text-ink-3 hover:text-danger px-2" onClick={() => setVeiculos((l) => l.filter((_, j) => j !== i))} aria-label="Remover">✕</button>

@@ -870,7 +870,10 @@ export function OsForm() {
               <Button variant="secondary" size="sm" onClick={() => setOs((o) => (o ? { ...o, cronograma: [...o.cronograma, { id: novoId(), etapa: "", data: "", horario: "", atividades: "" }] } : o))}>+ Etapa</Button>
             }
           >
-            <div className="py-1.5">
+            {/* No celular a tabela rola na horizontal em vez de espremer sete
+                colunas; `overflow-x-auto` só abaixo de md, para não criar
+                container de rolagem onde não precisa (ver ui/Table). */}
+            <div className="py-1.5 overflow-x-auto md:overflow-visible">
               {/* Duas colunas vazias na frente: a alça de arraste e as setas. */}
               <div className={cx(GRADE_CRONOGRAMA, "mb-2 text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3 px-1")}>
                 <span /><span />
@@ -1295,7 +1298,17 @@ const TRAVA_BV = idCampoTrava("bv-justificativa");
 const SECAO_ACERTOS = "Acertos Financeiros";
 
 /** Colunas do cronograma do fornecedor — cabeçalho e linhas usam a MESMA grade. */
-const GRADE_CRONOGRAMA = "grid grid-cols-[auto_auto_150px_130px_1fr_1.5fr_auto] gap-2";
+/**
+ * Colunas do cronograma do fornecedor — cabeçalho e linhas usam a MESMA grade.
+ *
+ * As sete colunas somam bem mais que a largura de um celular, e empilhá-las
+ * quebraria o alinhamento entre o cabeçalho e as linhas — que é o que faz a
+ * tabela ser legível. Então no celular ela ROLA na horizontal, com uma largura
+ * mínima que preserva a grade; o container da rolagem é o `div` de fora (ver
+ * onde `GRADE_CRONOGRAMA` é usado).
+ */
+const GRADE_CRONOGRAMA =
+  "grid grid-cols-[auto_auto_150px_130px_1fr_1.5fr_auto] gap-2 min-w-[860px] md:min-w-0";
 
 /**
  * Chave estável da etapa. O `id` é preenchido no carregamento da OS (ver

@@ -26,13 +26,44 @@
  * O contrato com quem renderiza os itens é só um: cada item precisa ter
  * `id={idAncoraPendencia(id)}`.
  */
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { IcChevron, IcComment } from "@/components/icons";
 import { focarPendencia } from "@/lib/focoPendencia";
 import { cx } from "@/lib/format";
 import type { Pendencia } from "@/domain/pendencias";
 
+/**
+ * Altura da pílula, publicada em `--altura-pilula`.
+ *
+ * A pílula e os avisos (toasts) moram no MESMO canto — embaixo à direita — e o
+ * toast, que vem por cima, tapava exatamente o comando que a pessoa ia usar em
+ * seguida. Em vez de escolher um canto pior para um dos dois, o toast se
+ * empilha ACIMA da pílula, lendo esta medida. Mesmo mecanismo do cabeçalho
+ * grudado (`--altura-cabecalho`).
+ */
+function usarMedidaDaPilula() {
+  return useCallback((node: HTMLDivElement | null) => {
+    const raiz = document.documentElement;
+    observadorPilula?.disconnect();
+    observadorPilula = null;
+    if (!node) {
+      raiz.style.setProperty("--altura-pilula", "0px");
+      return;
+    }
+    const publicar = () =>
+      raiz.style.setProperty("--altura-pilula", `${Math.round(node.getBoundingClientRect().height)}px`);
+    publicar();
+    // A altura muda: o título da pendência atual quebra em duas linhas.
+    observadorPilula = new ResizeObserver(publicar);
+    observadorPilula.observe(node);
+  }, []);
+}
+
+/** Uma pílula por vez na tela — um observador basta. */
+let observadorPilula: ResizeObserver | null = null;
+
 export function NavegadorPendencias({ pendencias }: { pendencias: Pendencia[] }) {
+  const medirPilula = usarMedidaDaPilula();
   const [posicao, setPosicao] = useState(0);
 
   // A lista muda conforme observações são resolvidas/criadas: o índice precisa
@@ -55,6 +86,7 @@ export function NavegadorPendencias({ pendencias }: { pendencias: Pendencia[] })
 
   return (
     <div
+      ref={medirPilula}
       className="fixed right-5 bottom-5 z-40 flex items-center gap-2 rounded-card border border-danger/30 bg-white px-3 py-2 shadow-modal max-w-[min(28rem,calc(100vw-2.5rem))]"
       role="group"
       aria-label="Navegar pelas pendências desta tela"

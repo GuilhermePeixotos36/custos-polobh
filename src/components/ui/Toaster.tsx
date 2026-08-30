@@ -11,7 +11,10 @@ const tons: Record<ToastTom, string> = {
 export function Toaster() {
   const { toasts, dismiss } = useToast();
   return (
-    <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2 no-print">
+    // Sobe acima da pílula de pendências quando ela existe (ver
+    // NavegadorPendencias): os dois dividem o canto inferior direito, e o
+    // aviso tapava justamente o comando que a pessoa ia usar em seguida.
+    <div className="fixed right-5 bottom-[calc(1.25rem+var(--altura-pilula,0px)+0.5rem)] z-50 flex flex-col gap-2 no-print">
       {toasts.map((t) => (
         <button
           key={t.id}
