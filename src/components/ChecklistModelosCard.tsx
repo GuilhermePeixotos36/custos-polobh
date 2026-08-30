@@ -19,7 +19,10 @@ import { Button, Card, CardTitle, EmptyState, Input, NumberInput, Select } from 
 import { IcPlus, IcTrash } from "@/components/icons";
 import { MoverSetas } from "@/components/MoverSetas";
 import { repo } from "@/data";
+import { useAsync } from "@/hooks/useAsync";
+import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import { toast } from "@/store/toast";
+import { confirmar } from "@/store/confirm";
 import { useAuth } from "@/store/auth";
 import { useSugestoes } from "@/hooks/useSugestoes";
 import { cx } from "@/lib/format";
@@ -36,6 +39,10 @@ export function ChecklistModelosCard() {
   // Título e etapa saem das tarefas reais dos projetos: é o mesmo vocabulário,
   // e a lista padrão nasce justamente do que a casa já faz em cada evento.
   const sugestoes = useSugestoes();
+  // Responsável padrão sai da lista real de usuários: digitado à mão, o nome
+  // não bateria com o do cadastro e a tarefa nasceria sem dono de verdade.
+  const { data: usuariosData } = useAsync(() => repo.auth.usuarios(), []);
+  const usuarios = (usuariosData ?? []).map((u) => u.nome).filter(Boolean);
   const [modelos, setModelos] = useState<ModeloChecklist[]>([]);
   const [modalidade, setModalidade] = useState<ModalidadeProjeto>("Corporativo");
   const [itens, setItens] = useState<ItemModeloChecklist[]>([]);
@@ -56,6 +63,8 @@ export function ChecklistModelosCard() {
   }, []);
 
   const modelo = useMemo(() => modelos.find((m) => m.modalidade === modalidade), [modelos, modalidade]);
+  // Sair da tela com a lista alterada apagava o trabalho em silêncio.
+  useUnsavedGuard(sujo);
 
   // Troca de modalidade recarrega a lista da tela a partir do modelo escolhido.
   useEffect(() => {
@@ -102,6 +111,22 @@ export function ChecklistModelosCard() {
     setSujo(true);
   };
 
+  /**
+   * Trocar de modalidade recarrega a lista da tela — e, com alteração pendente,
+   * isso apagava o que a pessoa tinha acabado de escrever, sem aviso. A trava
+   * de saída da página não pega este caso: a navegação é interna.
+   */
+  const trocarModalidade = async (m: ModalidadeProjeto) => {
+    if (m === modalidade) return;
+    if (sujo && !(await confirmar({
+      titulo: "Trocar de lista sem salvar?",
+      mensagem: "As alterações feitas nesta lista padrão serão perdidas.",
+      confirmarTexto: "Trocar e descartar",
+      tom: "danger",
+    }))) return;
+    setModalidade(m);
+  };
+
   const salvar = async () => {
     if (!modelo) return;
     setSalvando(true);
@@ -138,7 +163,7 @@ export function ChecklistModelosCard() {
         {MODALIDADES.map((m) => (
           <button
             key={m}
-            onClick={() => setModalidade(m)}
+            onClick={() => void trocarModalidade(m)}
             className={cx(
               "rounded-btn px-3 h-9 text-[13px] font-bold border-[1.5px] transition-colors",
               modalidade === m
@@ -244,6 +269,36 @@ export function ChecklistModelosCard() {
                         aria-label="Dias em relação ao evento (negativo = antes)"
                       />
                     )}
+                  </div>
+                  {/* Descrição e responsável padrão JÁ eram copiados para a
+                      tarefa de cada projeto (ver `itemDoModelo`), mas não havia
+                      onde preenchê-los: a lista nascia sempre sem explicação e
+                      sem dono. São o que transforma "Fechar fornecedores" numa
+                      instrução que a pessoa consegue seguir sozinha. */}
+                  <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_13rem]">
+                    <Input
+                      className="!h-8 !px-2 !text-[12.5px]"
+                      value={item.descricao}
+                      disabled={!podeEditar}
+                      onChange={(e) => alterar(item.id, { descricao: e.target.value })}
+                      placeholder="O que precisa ser feito (aparece na tarefa do projeto)"
+                      aria-label="Descrição da tarefa padrão"
+                    />
+                    <Select
+                      className="!h-8 !px-2 !text-[12.5px]"
+                      value={item.responsavelPadrao}
+                      disabled={!podeEditar}
+                      onChange={(e) => alterar(item.id, { responsavelPadrao: e.target.value })}
+                      aria-label="Responsável padrão pela tarefa"
+                    >
+                      <option value="">Sem responsável padrão</option>
+                      {/* Nome já gravado que saiu do quadro de usuários continua
+                          na lista: sem isto o `select` apareceria vazio e salvar
+                          apagaria o responsável sem ninguém ver. */}
+                      {[...new Set([item.responsavelPadrao, ...usuarios].filter(Boolean))].map((u) => (
+                        <option key={u} value={u}>{u}</option>
+                      ))}
+                    </Select>
                   </div>
                   <p className="text-[11.5px] font-bold text-ink-3">
                     {item.prazo.modo === "percentual"
