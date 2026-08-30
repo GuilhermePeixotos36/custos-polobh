@@ -3,7 +3,9 @@ import ExcelJS from "exceljs";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { criarOsExcelBuffer } from "./os";
-import { honorariosPadrao, encargosPadrao, producaoZerada } from "@/domain/calc";
+import { honorariosPadrao, encargosPadrao, producaoZerada,
+  bvVazio,
+} from "@/domain/calc";
 import { projetoInfoVazio } from "@/domain/projeto";
 import type { Ec, EcLinha, Os } from "@/data/types";
 
@@ -19,7 +21,7 @@ beforeAll(() => {
 const linha = (p: Partial<EcLinha>): EcLinha => ({
   id: "l1", grupo: "PRODUÇÃO", item: "Item", descricao: "", descricaoCompleta: "",
   valorPolobh: 0, valorCliente: 0, valorGasto: 0,
-  valorComBvNf: 0, valorSemBvComNf: 0, valorSemBvSemNf: 0, valoresNaoAplicaveis: [], opcaoValor: "",
+  valorComBvNf: 0, valorSemBvComNf: 0, valorSemBvSemNf: 0, valoresNaoAplicaveis: [], opcaoValor: "", bv: bvVazio(),
   statusAprovacao: "OK", fornecedorRazao: "Som & Luz LTDA", fornecedorCnpj: "12.345.678/0001-95",
   fornecedorContato: "", faturaNf: "Nota Fiscal", codigoServico: "17.02", pedidoCompra: "PC-1",
   statusOs: "OK", contratoStatus: "OK", observacao: "", observacoes: [], oculto: false, ordem: 0, ...p,
@@ -63,7 +65,7 @@ const os = (ecLinhaIds: string[]): Os => ({
   modalidade: "Serviço", descritivo: "Sonorização completa", entrega: "Instalação e operação",
   cronograma: [{ etapa: "Montagem", data: "2026-09-08", horario: "08:00", atividades: "Rigging e som" }],
   logistica: {
-    transporteMaterial: "Caminhão próprio", transporteEquipe: "Van", hospedagem: "Não se aplica",
+    transporteMaterial: "Caminhão próprio", transporteEquipe: "Van", hospedagem: "Hotel Ouro Minas",
     alimentacao: "Por conta do fornecedor", estacionamentoCarga: "Doca 2", estacionamentoEquipe: "Térreo",
     uniformizacao: "Camiseta preta",
   },
@@ -71,6 +73,7 @@ const os = (ecLinhaIds: string[]): Os => ({
     energia: "220V trifásico", internet: "Wi-Fi do local", pontosEletricos: "8 pontos",
     estruturas: "Praticável 2x1", servicosApoio: "Carregadores", artLaudos: "ART emitida",
   },
+  observacoesGerais: "",
   observacoes: [],
   credenciamento: { prazoLimite: "2026-09-01", linkFormulario: "https://forms.polobh.com.br/cred/abc" }, // link legado, fictício
   orcamento: {
@@ -130,10 +133,47 @@ describe("Excel da OS — modelo novo", () => {
     expect(texto).toContain("Itaú");
     expect(texto).toContain("220V trifásico");
     expect(texto).toContain("Camiseta preta");
-    // Credenciamento: o link sai do token gerado pelo banco, nunca do domínio
-    // fictício que a OS carregava por padrão (forms.polobh.com.br).
-    expect(texto).toContain("/credenciamento/abc");
+    // O credenciamento saiu da OS (virou subaba do Projeto): nem o link nem o
+    // prazo aparecem mais na planilha que o fornecedor recebe.
+    expect(texto).not.toContain("CREDENCIAMENTO");
+    expect(texto).not.toContain("/credenciamento/abc");
     expect(texto).not.toContain("forms.polobh.com.br");
+  });
+
+  it("item de logística marcado como 'não se aplica' não vira linha na planilha", async () => {
+    const semHospedagem = os(["l1"]);
+    semHospedagem.logistica = { ...semHospedagem.logistica, naoAplicaveis: ["hospedagem", "estacionamentoCarga"] };
+    const { texto } = await abrir(semHospedagem, ec([linha({ id: "l1", valorPolobh: 1000 })]));
+    expect(texto).not.toContain("Hospedagem Equipe");
+    expect(texto).not.toContain("Hotel Ouro Minas");
+    expect(texto).not.toContain("Estacionamento Carga");
+    expect(texto).not.toContain("Doca 2");
+    // O que continua valendo segue saindo, com rótulo e valor.
+    expect(texto).toContain("Transporte Material");
+    expect(texto).toContain("Caminhão próprio");
+  });
+
+  it("com nada aplicável, a seção de logística some inteira", async () => {
+    const semLogistica = os(["l1"]);
+    semLogistica.logistica = {
+      ...semLogistica.logistica,
+      naoAplicaveis: ["transporteMaterial", "transporteEquipe", "hospedagem", "alimentacao",
+        "estacionamentoCarga", "estacionamentoEquipe", "uniformizacao"],
+    };
+    const { texto } = await abrir(semLogistica, ec([linha({ id: "l1", valorPolobh: 1000 })]));
+    expect(texto).not.toContain("Logística do Fornecedor");
+    // A seção seguinte continua no lugar — some a logística, não o resto.
+    expect(texto).toContain("Infraestrutura");
+    expect(texto).toContain("220V trifásico");
+  });
+
+  it("infraestrutura marcada como 'não se aplica' também some da planilha", async () => {
+    const semInternet = os(["l1"]);
+    semInternet.infraestrutura = { ...semInternet.infraestrutura, naoAplicaveis: ["internet", "artLaudos"] };
+    const { texto } = await abrir(semInternet, ec([linha({ id: "l1", valorPolobh: 1000 })]));
+    expect(texto).not.toContain("Wi-Fi do local");
+    expect(texto).not.toContain("ART, Laudos e Certificações");
+    expect(texto).toContain("220V trifásico");
   });
 
   it("não exporta a coluna de OBSERVAÇÕES do modelo (era só o guia de preenchimento)", async () => {
@@ -144,46 +184,58 @@ describe("Excel da OS — modelo novo", () => {
     expect(ws.columnCount).toBeLessThanOrEqual(15);
   });
 
-  it("o ORÇAMENTO sai item a item, com a opção escolhida logo abaixo do valor da EC", async () => {
+  it("o RESUMO DOS CUSTOS sai como tabela: o item e as três formas, lado a lado", async () => {
     const linhas = [
-      linha({ id: "l1", item: "Som", valorPolobh: 10000, valorComBvNf: 9000, opcaoValor: "comBvNf" }),
-      linha({ id: "l2", item: "Luz", valorPolobh: 4000, valorSemBvSemNf: 3600, opcaoValor: "semBvSemNf" }),
+      linha({ id: "l1", item: "Som", valorPolobh: 10000, valorComBvNf: 9000, valorSemBvComNf: 8500, valorSemBvSemNf: 8000 }),
+      linha({ id: "l2", item: "Luz", valorPolobh: 4000, valorComBvNf: 4000, valorSemBvComNf: 3800, valorSemBvSemNf: 3600 }),
     ];
     const { linhas: linhasTxt } = await abrir(os(["l1", "l2"]), ec(linhas));
-    const i = linhasTxt.findIndex((l) => l?.startsWith("ORÇAMENTO"));
+    const i = linhasTxt.findIndex((l) => l?.startsWith("RESUMO DOS CUSTOS"));
     expect(i).toBeGreaterThan(0);
-    // Bloco do primeiro item: nome, valor na EC e a opção marcada.
-    expect(linhasTxt[i + 1]).toContain("Som");
-    expect(linhasTxt[i + 2]).toContain("Valor do Item na EC do Projeto");
-    expect(linhasTxt[i + 2]).toContain("10000");
-    expect(linhasTxt[i + 3]).toContain("Valor com BV e NF");
-    expect(linhasTxt[i + 3]).toContain("9000");
-    // ...e o do segundo, na sequência.
-    expect(linhasTxt[i + 4]).toContain("Luz");
-    expect(linhasTxt[i + 5]).toContain("4000");
-    expect(linhasTxt[i + 6]).toContain("Valor Sem BV e Sem NF");
-    expect(linhasTxt[i + 6]).toContain("3600");
-    // As opções não escolhidas não entram — é a decisão da produção que sai.
-    expect(linhasTxt[i + 3]).not.toContain("Sem BV");
+    // Cabeçalho da tabela, depois um item por linha com as três formas.
+    expect(linhasTxt[i + 1]).toContain("VALOR COM BV E NF");
+    expect(linhasTxt[i + 1]).toContain("VALOR SEM BV E SEM NF");
+    expect(linhasTxt[i + 2]).toContain("Som");
+    expect(linhasTxt[i + 2]).toContain("9.000,00");
+    expect(linhasTxt[i + 2]).toContain("8.500,00");
+    expect(linhasTxt[i + 2]).toContain("8.000,00");
+    expect(linhasTxt[i + 3]).toContain("Luz");
+  });
+
+  it("fecha com o total de cada coluna — cada uma é um cenário inteiro", async () => {
+    const linhas = [
+      linha({ id: "l1", item: "Som", valorComBvNf: 9000, valorSemBvComNf: 8500, valorSemBvSemNf: 8000 }),
+      linha({ id: "l2", item: "Luz", valorComBvNf: 4000, valorSemBvComNf: 3800, valorSemBvSemNf: 3600 }),
+    ];
+    const { linhas: linhasTxt, texto } = await abrir(os(["l1", "l2"]), ec(linhas));
+    const total = linhasTxt.find((l) => l?.includes("TOTAL POR FORMA DE COBRANÇA"))!;
+    expect(total).toContain("13.000,00"); // com BV e NF
+    expect(total).toContain("12.300,00"); // sem BV, com NF
+    expect(total).toContain("11.600,00"); // sem BV, sem NF
+    // E o que vira nota fiscal são só as duas colunas COM nota.
+    expect(texto).toContain("Total a Faturar");
+    expect(texto).toContain("25300"); // 13.000 + 12.300
   });
 
   it("opção marcada como 'Não se aplica' sai como texto, e não como valor", async () => {
     const l = linha({
       id: "l1", item: "Som", valorPolobh: 10000,
-      valorComBvNf: 9000, opcaoValor: "comBvNf", valoresNaoAplicaveis: ["comBvNf"],
+      valorComBvNf: 9000, valorSemBvComNf: 8500, valoresNaoAplicaveis: ["comBvNf"],
     });
-    const { linhas: linhasTxt, texto } = await abrir(os(["l1"]), ec([l]));
-    const i = linhasTxt.findIndex((x) => x?.startsWith("ORÇAMENTO"));
-    expect(linhasTxt[i + 3]).toContain("Valor com BV e NF");
-    expect(linhasTxt[i + 3]).toContain("Não se aplica");
+    const { linhas: linhasTxt } = await abrir(os(["l1"]), ec([l]));
+    const doItem = linhasTxt.find((x) => x?.includes("Som") && x?.includes("Não se aplica"))!;
+    expect(doItem).toBeTruthy();
     // O 9000 continua guardado na EC, mas não pode aparecer como se fosse cobrança.
-    expect(linhasTxt[i + 3]).not.toContain("9000");
-    expect(texto).toContain("Total das opções escolhidas");
+    expect(doItem).not.toContain("9.000,00");
+    expect(doItem).toContain("8.500,00");
   });
 
-  it("item sem opção escolhida diz isso, em vez de inventar uma forma de cobrança", async () => {
-    const { texto } = await abrir(os(["l1"]), ec([linha({ id: "l1", item: "Som", valorPolobh: 10000 })]));
-    expect(texto).toContain("A produção ainda não escolheu a forma de cobrança deste item.");
+  it("os dados para pagamento vão no fim, junto do que se fatura", async () => {
+    const { texto } = await abrir(os(["l1"]), ec([linha({ id: "l1", valorComBvNf: 1000 })]));
+    expect(texto).toContain("Dados para Pagamento");
+    expect(texto).toContain("Itaú");
+    expect(texto).toContain("Ag. 1234");
+    expect(texto).toContain("Prazo de Pagamento");
   });
 
   it("mantém as fórmulas vivas do bloco financeiro apontando para as células certas", async () => {
@@ -204,6 +256,77 @@ describe("Excel da OS — modelo novo", () => {
     expect(referencias.some((f) => f.includes("/100"))).toBe(true); // o BV continua vivo
   });
 
+  it("o bloco de emissão termina no valor a pagar — BV e acerto vão para Acertos Financeiros", async () => {
+    const { linhas } = await abrir(os(["l1"]), ec([linha({ id: "l1", valorPolobh: 10000 })]));
+    const onde = (t: string) => linhas.findIndex((l) => l?.includes(t));
+
+    const pagar = onde("Valor total a pagar");
+    const acertos = onde("ACERTOS FINANCEIROS");
+    const contrato = onde("DADOS PARA CONTRATO");
+    const bv = onde("BV Pólobh");
+    expect(pagar).toBeGreaterThan(0);
+
+    // Nada entre o valor a pagar e o fim do bloco de emissão: era ali que BV e
+    // acerto ficavam, no meio dos dados da nota.
+    expect(contrato).toBe(pagar + 1);
+    // O grupo novo vem depois do contrato, e leva o BV e as observações.
+    expect(acertos).toBeGreaterThan(contrato);
+    expect(bv).toBeGreaterThan(acertos);
+    expect(onde("Observações:")).toBeGreaterThan(bv);
+    expect(linhas.slice(acertos).join("\n")).toContain("Depósito em 30 dias");
+  });
+
+  it("lei de incentivo sai em UMA linha, com o número dentro", async () => {
+    const comLei = os(["l1"]);
+    comLei.financeiro = {
+      ...comLei.financeiro,
+      leiIncentivo: "Lei Federal de Incentivo à Cultura (Rouanet) — PRONAC 26 1234",
+    };
+    const { texto } = await abrir(comLei, ec([linha({ id: "l1", valorPolobh: 1000 })]));
+    expect(texto).toContain("Lei de Incentivo à Cultura: Lei Federal de Incentivo à Cultura (Rouanet) — PRONAC 26 1234");
+    // O campo separado deixou de existir: nem rótulo vazio sobra na planilha.
+    expect(texto).not.toContain("Nº Projeto Incentivado");
+  });
+
+  it("item com contrato 'Não se Aplica' na EC tira o bloco de contrato da planilha", async () => {
+    const semContrato = os(["l1"]);
+    // Contrato que ninguém escreveu: só o que o sistema preenche sozinho.
+    semContrato.contrato = { ...semContrato.contrato, rubrica: "", informacoesComplementares: "" };
+    const { texto } = await abrir(
+      semContrato,
+      ec([linha({ id: "l1", valorPolobh: 10000, contratoStatus: "Não se Aplica" })])
+    );
+    expect(texto).not.toContain("DADOS PARA CONTRATO");
+    expect(texto).not.toContain("Data do Contrato");
+    expect(texto).not.toContain("O objeto do presente");
+    // A emissão da nota e os acertos continuam saindo — some o contrato, não o resto.
+    expect(texto).toContain("Valor total a pagar");
+    expect(texto).toContain("ACERTOS FINANCEIROS");
+  });
+
+  it("basta um item pedindo contrato para o bloco voltar", async () => {
+    const misto = os(["l1", "l2"]);
+    misto.contrato = { ...misto.contrato, rubrica: "", informacoesComplementares: "" };
+    const { texto } = await abrir(
+      misto,
+      ec([
+        linha({ id: "l1", valorPolobh: 10000, contratoStatus: "Não se Aplica" }),
+        linha({ id: "l2", valorPolobh: 2000, contratoStatus: "Emitir" }),
+      ])
+    );
+    expect(texto).toContain("DADOS PARA CONTRATO");
+  });
+
+  it("contrato já escrito pela equipe não some da planilha se o status mudar depois", async () => {
+    // A OS de teste tem rubrica "MC" — alguém escreveu este contrato.
+    const { texto } = await abrir(
+      os(["l1"]),
+      ec([linha({ id: "l1", valorPolobh: 10000, contratoStatus: "Não se Aplica" })])
+    );
+    expect(texto).toContain("DADOS PARA CONTRATO");
+    expect(texto).toContain("Rubrica");
+  });
+
   it("sem acesso ao financeiro, os blocos restritos não saem na planilha", async () => {
     const { buffer } = await criarOsExcelBuffer(os(["l1"]), ec([linha({ id: "l1", valorPolobh: 1000 })]), {
       incluirFinanceiro: false,
@@ -216,6 +339,6 @@ describe("Excel da OS — modelo novo", () => {
     expect(texto).not.toContain("BV Pólobh");
     // ...mas o que o fornecedor precisa ler continua lá.
     expect(texto).toContain("DETALHAMENTO DA CONTRATAÇÃO");
-    expect(texto).toContain("CREDENCIAMENTO");
+    expect(texto).toContain("RESUMO DOS CUSTOS");
   });
 });

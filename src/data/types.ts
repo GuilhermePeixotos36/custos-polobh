@@ -257,6 +257,22 @@ export type OpcaoValorItem = "" | "comBvNf" | "semBvComNf" | "semBvSemNf";
 /** As três opções de fato — sem o "" de "ninguém escolheu ainda". */
 export type OpcaoValorDefinida = Exclude<OpcaoValorItem, "">;
 
+/**
+ * BV do item: a bonificação que o fornecedor dá à Pólobh.
+ *
+ * Vale só quando a forma de cobrança escolhida é "com BV e NF" — nas outras
+ * duas, por definição, não há BV, e o que resta é a justificativa de por quê.
+ * Mesmo formato de honorários e encargos da EC, para ser o mesmo raciocínio.
+ */
+export interface BvItem {
+  /** Percentual sobre o valor com BV do item, ou valor fixo em R$. */
+  modo: "percentual" | "fixo";
+  /** O número combinado: % quando percentual, R$ quando fixo. */
+  valor: number;
+  /** Por que o BV está fora do padrão da casa (sem BV, ou abaixo de 15%). */
+  justificativa: string;
+}
+
 export interface EcLinha {
   id: string;
   grupo: string;
@@ -285,6 +301,14 @@ export interface EcLinha {
   valoresNaoAplicaveis: OpcaoValorDefinida[];
   /** Qual das três vale. É ela que a planilha da OS imprime abaixo do valor da EC. */
   opcaoValor: OpcaoValorItem;
+  /**
+   * BV combinado com o fornecedor NESTE item.
+   *
+   * Ele é negociado junto com o valor, e uma OS consolida vários itens do mesmo
+   * fornecedor — cada um podendo ter saído com um BV diferente. Por isso mora
+   * aqui, e a OS soma o dos itens que consolida.
+   */
+  bv: BvItem;
   statusAprovacao: StatusAprovacao;
   fornecedorRazao: string;
   fornecedorCnpj: string;
@@ -417,6 +441,16 @@ export interface CronogramaItem {
   atividades: string;
 }
 
+/** Um dos itens de Logística do Fornecedor (ver `CAMPOS_LOGISTICA` em domain/os). */
+export type CampoLogistica =
+  | "transporteMaterial"
+  | "transporteEquipe"
+  | "hospedagem"
+  | "alimentacao"
+  | "estacionamentoCarga"
+  | "estacionamentoEquipe"
+  | "uniformizacao";
+
 export interface Logistica {
   transporteMaterial: string;
   transporteEquipe: string;
@@ -425,7 +459,26 @@ export interface Logistica {
   estacionamentoCarga: string;
   estacionamentoEquipe: string;
   uniformizacao: string;
+  /**
+   * Itens que NÃO SE APLICAM a esta OS. Eles somem do documento impresso, do
+   * que vai por e-mail e da planilha — "Hospedagem: ____" numa OS de locação
+   * só faz o fornecedor procurar o que responder.
+   *
+   * É diferente de campo vazio: vazio é pergunta sem resposta, "não se aplica"
+   * é resposta. O valor digitado não é apagado ao marcar (quem marcou por
+   * engano volta atrás sem perder o que escreveu).
+   */
+  naoAplicaveis?: CampoLogistica[];
 }
+
+/** Um dos itens de Infraestrutura (ver `CAMPOS_INFRAESTRUTURA` em domain/os). */
+export type CampoInfraestrutura =
+  | "energia"
+  | "internet"
+  | "pontosEletricos"
+  | "estruturas"
+  | "servicosApoio"
+  | "artLaudos";
 
 export interface Infraestrutura {
   energia: string;
@@ -434,6 +487,8 @@ export interface Infraestrutura {
   estruturas: string;
   servicosApoio: string;
   artLaudos: string;
+  /** Itens que não se aplicam a esta OS — mesma regra da Logística. */
+  naoAplicaveis?: CampoInfraestrutura[];
 }
 
 export interface Parcela {
@@ -458,10 +513,17 @@ export interface FinanceiroOs {
   descritivoNf: string;
   /** Nome do projeto incentivado (aparece no descritivo da NF e no contrato). */
   projetoIncentivado?: string;
-  /** Lei de incentivo à cultura aplicável (ex.: Lei Rouanet / Lei Municipal). */
+  /**
+   * Lei de incentivo à cultura COM o número do projeto — um campo só.
+   *
+   * Eram dois (`leiIncentivo` + `numeroProjetoIncentivado`), e a separação não
+   * pagava o que custava: a lei e o número nunca aparecem um sem o outro, e o
+   * Projeto já guarda os dois juntos numa string (`incentivosFiscais`:
+   * "Lei Federal de Incentivo à Cultura (Rouanet) — PRONAC 26 1234"). Partir
+   * isso em dois obrigava a redigitar na OS o que a EC já sabia. Agora este
+   * campo nasce preenchido com a string inteira do Projeto.
+   */
   leiIncentivo?: string;
-  /** Número do projeto incentivado (usado no texto padrão do contrato). */
-  numeroProjetoIncentivado?: string;
   cnae: string;
   codigoServico: string;
   valorUnitario: number;
@@ -530,7 +592,16 @@ export interface Os {
   cronograma: CronogramaItem[];
   logistica: Logistica;
   infraestrutura: Infraestrutura;
-  /** Observações da OS (thread com menções — mesmo padrão dos itens da EC). */
+  /**
+   * Observações gerais da OS em TEXTO LIVRE, escritas para o fornecedor ler.
+   * Saem no documento impresso, no e-mail e na planilha.
+   */
+  observacoesGerais: string;
+  /**
+   * Thread INTERNA de comentários e pendências da OS (mesmo padrão dos itens da
+   * EC, com @menção e responsável). Não sai em documento, e-mail nem planilha —
+   * para isso existe `observacoesGerais`.
+   */
   observacoes: Observacao[];
   credenciamento: Credenciamento;
   orcamento: Orcamento;

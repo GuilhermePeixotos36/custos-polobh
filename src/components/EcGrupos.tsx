@@ -18,7 +18,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Input, AutoTextarea, Select, CurrencyInput, Button, classeCampoStatus } from "@/components/ui";
+import { Input, AutoTextarea, Select, CurrencyInput, NumberInput, Button, classeCampoStatus } from "@/components/ui";
 import { IcGrip, IcChevron, IcPlus, IcEye, IcEyeOff, IcSpark, IcCheck, IcBack } from "@/components/icons";
 import { FornecedorField } from "@/components/FornecedorField";
 import { RichTextField } from "@/components/RichTextField";
@@ -27,10 +27,10 @@ import { ResumoPropostaModal } from "@/components/ResumoPropostaModal";
 import { NotifDot } from "@/components/NotifDot";
 import { MoverSetas } from "@/components/MoverSetas";
 import { destacarElemento, seguirElemento, idAncoraPendencia, idCampoPendencia, idGrupoEc } from "@/lib/destaque";
-import { aprovarLinha, faltasParaEmitirOs, reverterAprovacaoLinha, opcaoNaoSeAplica, OPCOES_VALOR_ITEM, valorItemNaEc } from "@/domain/calc";
+import { aprovarLinha, faltasParaEmitirOs, reverterAprovacaoLinha, opcaoNaoSeAplica, OPCOES_VALOR_ITEM, valorItemNaEc, bvVazio, bvDaLinha, bvExigeJustificativa, limitarBvPercentual, BV_PADRAO_PERCENTUAL } from "@/domain/calc";
 import { flags } from "@/lib/flags";
 import { brl, cx } from "@/lib/format";
-import type { DocumentoPg, EcLinha, Fornecedor, Observacao, OpcaoValorDefinida, OpcaoValorItem, StatusAprovacao, StatusOs } from "@/data/types";
+import type { BvItem, DocumentoPg, EcLinha, Fornecedor, Observacao, OpcaoValorDefinida, OpcaoValorItem, StatusAprovacao, StatusOs } from "@/data/types";
 import type { Sugestoes } from "@/domain/sugestoes";
 
 /** Opções de status de OS e de Contrato — a mesma lista nos dois campos. */
@@ -205,6 +205,7 @@ function novaLinhaBase(): EcLinha {
     valorSemBvSemNf: 0,
     valoresNaoAplicaveis: [],
     opcaoValor: "",
+    bv: bvVazio(),
     statusAprovacao: "Pendente",
     fornecedorRazao: "",
     fornecedorCnpj: "",
@@ -1136,6 +1137,13 @@ function ItemRow({
  *
  * A opção marcada é a que a planilha da OS imprime, logo abaixo da linha
  * "Valor do Item na EC do Projeto" — item a item, na ordem da EC.
+ *
+ * O BV entra AQUI, e não só na OS, porque é aqui que ele é combinado: quem
+ * negocia o valor negocia a bonificação no mesmo gesto. Ele aparece dentro da
+ * opção "com BV e NF" (nas outras duas não existe BV, por definição) e a
+ * justificativa fica embaixo, uma por item — só uma das três formas vale, então
+ * três justificativas seriam duas mortas. A OS soma o BV dos itens que
+ * consolida (ver `bvConsolidado`) e já nasce com tudo preenchido.
  */
 function OpcoesDeValor({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinha>) => void }) {
   const escolher = (opcao: OpcaoValorDefinida) => {
@@ -1220,10 +1228,112 @@ function OpcoesDeValor({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinh
               >
                 {naoSeAplica ? "Informar valor" : "Não se aplica"}
               </button>
+              {/* O BV só existe na cobrança COM BV, e só depois de ela valer para
+                  o item: fora daí seria um campo pedindo número que não existe. */}
+              {opcao === "comBvNf" && marcada && !naoSeAplica && <CamposBv l={l} onUpd={onUpd} />}
             </div>
           );
         })}
       </div>
+      <JustificativaBv l={l} onUpd={onUpd} />
+    </div>
+  );
+}
+
+/**
+ * Percentual ou valor fixo do BV, dentro da opção "com BV e NF".
+ *
+ * Os dois modos existem porque a casa negocia dos dois jeitos — "15% sobre o
+ * item" e "R$ 1.200 fechados" —, e converter um no outro à mão é onde o número
+ * se perde. É o mesmo par modo/valor de honorários e encargos da EC.
+ */
+function CamposBv({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinha>) => void }) {
+  const bv = l.bv ?? bvVazio();
+  const calculado = bvDaLinha(l);
+  const abaixoDoPadrao = calculado.percentual < BV_PADRAO_PERCENTUAL;
+  const mudar = (patch: Partial<BvItem>) => onUpd({ bv: { ...bv, ...patch } });
+
+  return (
+    <div className="mt-2 pt-2 border-t border-border-soft space-y-1.5">
+      <div className="flex items-center gap-1.5">
+        <span className="text-[10px] font-extrabold uppercase tracking-[0.05em] text-ink-3">BV</span>
+        {/* Dois botões, não um <select>: são duas opções, e a escolhida precisa
+            ser lida de relance enquanto se digita o número ao lado. */}
+        <div className="flex rounded-btn border border-border-soft overflow-hidden">
+          {(["percentual", "fixo"] as const).map((modo) => (
+            <button
+              key={modo}
+              type="button"
+              onClick={() => mudar({ modo })}
+              className={cx(
+                "px-1.5 py-0.5 text-[10px] font-bold transition-colors",
+                bv.modo === modo ? "bg-primary text-white" : "bg-surface text-ink-3 hover:text-ink"
+              )}
+            >
+              {modo === "percentual" ? "%" : "R$"}
+            </button>
+          ))}
+        </div>
+      </div>
+      {bv.modo === "percentual" ? (
+        <NumberInput
+          className="!h-8 !px-2 !text-[12.5px]"
+          value={bv.valor}
+          onValue={(v: number) => mudar({ valor: limitarBvPercentual(v) })}
+          aria-label={`Percentual do BV do item ${l.item || "sem título"}`}
+        />
+      ) : (
+        <CurrencyInput
+          className="!h-8 !px-2 !text-[12.5px]"
+          value={bv.valor}
+          onValue={(v: number) => mudar({ valor: v })}
+          aria-label={`Valor fixo do BV do item ${l.item || "sem título"}`}
+        />
+      )}
+      {/* O outro lado da conta, sempre à vista: quem digita % quer conferir o
+          reais, e quem digita reais quer conferir o percentual. */}
+      <p className={cx("text-[10.5px] font-semibold", abaixoDoPadrao ? "text-warning" : "text-ink-3")}>
+        {bv.modo === "percentual" ? brl(calculado.valor) : `${calculado.percentual.toLocaleString("pt-BR")}%`}
+        {abaixoDoPadrao && ` · abaixo de ${BV_PADRAO_PERCENTUAL}%`}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Justificativa do BV — uma por item, embaixo das três opções.
+ *
+ * Aparece quando o BV está fora do padrão da casa: sem BV (as duas opções que
+ * dizem isso no nome) ou abaixo de 15%. Some quando o BV está no padrão, e some
+ * também enquanto ninguém escolheu a forma de pagamento — a pergunta "por que
+ * não há BV?" não faz sentido antes de dizer como o item é pago.
+ *
+ * Continua visível se já tiver texto escrito, mesmo deixando de ser obrigatória:
+ * nada some da tela levando junto o que alguém escreveu.
+ */
+function JustificativaBv({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinha>) => void }) {
+  const bv = l.bv ?? bvVazio();
+  const exigida = bvExigeJustificativa(l);
+  const escrita = (bv.justificativa ?? "").trim();
+  if (!exigida && !escrita) return null;
+  const faltando = exigida && !escrita;
+
+  return (
+    <div className="mt-2 pt-2 border-t border-border-soft">
+      <Campo label="Justificativa do BV" obrigatorio={exigida}>
+        <AutoTextarea
+          className={cx("!text-[12.5px]", faltando && "!border-danger !bg-danger-soft")}
+          rows={2}
+          value={bv.justificativa ?? ""}
+          onChange={(e) => onUpd({ bv: { ...bv, justificativa: e.target.value } })}
+          placeholder="Por que este item sai sem BV ou abaixo de 15% (ex.: condição negociada com o fornecedor)."
+        />
+      </Campo>
+      {faltando && (
+        <p className="mt-1 text-[10.5px] font-bold text-danger">
+          Obrigatória: o BV deste item está {bvDaLinha(l).valor > 0 ? `abaixo de ${BV_PADRAO_PERCENTUAL}%` : "zerado"}.
+        </p>
+      )}
     </div>
   );
 }

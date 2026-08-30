@@ -6,6 +6,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useAuth } from "@/store/auth";
 import { usePendencias } from "@/store/pendencias";
 import { useEmpresas } from "@/store/empresas";
+import { BotaoRecolherTudo, ProvedorRecolher } from "./Recolher";
 import { cx } from "@/lib/format";
 
 /** Casca autenticada: sidebar + área de conteúdo. */
@@ -106,6 +107,7 @@ export function PageShell({
   }, []);
 
   return (
+    <ProvedorRecolher>
     <main className="flex-1 px-[40px] py-[30px] max-w-[1720px] w-full mx-auto">
       <div
         ref={medirCabecalho}
@@ -134,7 +136,12 @@ export function PageShell({
             </div>
             {subtitle && <p className="text-ink-2 text-[15px] mt-2">{subtitle}</p>}
           </div>
-          {topAction && <div className="flex items-center gap-2.5 shrink-0">{topAction}</div>}
+          {/* O comando de recolher/expandir nasce aqui e some sozinho na tela
+              que não tem blocos recolhíveis — nenhuma página precisa pedir. */}
+          <div className="flex items-center gap-2.5 shrink-0">
+            <BotaoRecolherTudo />
+            {topAction}
+          </div>
         </div>
         {acoes && <div className="mt-3 flex items-center justify-between gap-3 flex-wrap">{acoes}</div>}
         {/* Sangra até as bordas para o fio virar a base do cabeçalho inteiro, e
@@ -145,6 +152,7 @@ export function PageShell({
       </div>
       {children}
     </main>
+    </ProvedorRecolher>
   );
 }
 

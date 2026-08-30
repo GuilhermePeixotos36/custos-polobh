@@ -2,7 +2,7 @@
  * Cálculos da EC (seção 4 do brief) e helpers de numeração/consolidação.
  * Percentuais fixos: honorários 15%, encargos 16,33%.
  */
-import type { Ec, EcLinha, OpcaoValorDefinida, OpcaoValorItem, Producao, Fornecedor, Os, TaxaConfig } from "@/data/types";
+import type { BvItem, Ec, EcLinha, OpcaoValorDefinida, OpcaoValorItem, Producao, Fornecedor, Os, TaxaConfig } from "@/data/types";
 import { brl, dataBRCurta } from "@/lib/format";
 import { htmlParaLinhas } from "@/lib/htmlTexto";
 import { gerarApelidoFornecedor } from "@/domain/fornecedor";
@@ -348,6 +348,151 @@ export function opcaoEscolhidaDoItem(
   };
 }
 
+/* ----------------------- Resumo dos Custos da OS -------------------------- */
+
+/** Uma linha do resumo: o item e o que ele custa em cada uma das três formas. */
+export interface LinhaResumoCustos {
+  id: string;
+  item: string;
+  /** `null` = a produção respondeu "não se aplica" para esta forma neste item. */
+  comBvNf: number | null;
+  semBvComNf: number | null;
+  semBvSemNf: number | null;
+}
+
+export interface ResumoCustos {
+  linhas: LinhaResumoCustos[];
+  /** Soma de cada coluna — quanto sairia se TUDO fosse cobrado daquela forma. */
+  totais: { comBvNf: number; semBvComNf: number; semBvSemNf: number };
+  /**
+   * O que gera nota fiscal: as duas colunas "com NF" somadas. É este valor que
+   * acompanha os dados de emissão no fim do resumo.
+   */
+  totalComNota: number;
+}
+
+/**
+ * Resumo dos Custos da OS: cada item consolidado e as três formas de cobrá-lo,
+ * lado a lado, com os totais por coluna.
+ *
+ * As três colunas são ALTERNATIVAS para o mesmo item — a soma de uma coluna
+ * responde "quanto sairia se tudo fosse cobrado assim". Por isso os totais não
+ * se somam entre si: cada um é um cenário inteiro.
+ *
+ * `null` na célula é diferente de zero: é a produção tendo respondido "não se
+ * aplica" àquela forma naquele item (ver `opcaoNaoSeAplica`), e ele não entra
+ * no total da coluna.
+ */
+export function resumoDeCustos(linhas: EcLinha[]): ResumoCustos {
+  const valor = (l: EcLinha, opcao: OpcaoValorDefinida, campo: keyof EcLinha): number | null =>
+    opcaoNaoSeAplica(l, opcao) ? null : Number(l[campo] ?? 0) || 0;
+
+  const out: LinhaResumoCustos[] = linhas.map((l) => ({
+    id: l.id,
+    item: l.item?.trim() || l.descricao?.trim() || "(item sem nome)",
+    comBvNf: valor(l, "comBvNf", "valorComBvNf"),
+    semBvComNf: valor(l, "semBvComNf", "valorSemBvComNf"),
+    semBvSemNf: valor(l, "semBvSemNf", "valorSemBvSemNf"),
+  }));
+
+  const somar = (ler: (r: LinhaResumoCustos) => number | null) =>
+    r2(out.reduce((s, r) => s + (ler(r) ?? 0), 0));
+
+  const totais = {
+    comBvNf: somar((r) => r.comBvNf),
+    semBvComNf: somar((r) => r.semBvComNf),
+    semBvSemNf: somar((r) => r.semBvSemNf),
+  };
+  return { linhas: out, totais, totalComNota: r2(totais.comBvNf + totais.semBvComNf) };
+}
+
+/* --------------------------- BV por item --------------------------------- */
+
+/**
+ * BV padrão da casa, em porcento. Abaixo dele — inclusive zero — a Pólobh
+ * precisa registrar POR QUÊ: é a regra que a OS já aplicava, agora aplicada
+ * onde o BV é de fato combinado, no item da EC.
+ */
+export const BV_PADRAO_PERCENTUAL = 15;
+
+export const bvVazio = (): BvItem => ({ modo: "percentual", valor: 0, justificativa: "" });
+
+/**
+ * Trava do percentual do BV entre 0 e 100.
+ *
+ * Não reaproveita `limitarPercentual`: aquele trabalha em FRAÇÃO (0,15 = 15%),
+ * como honorários e encargos guardam; o BV é escrito em porcento inteiro (15),
+ * que é o formato que a OS já usava e que a pessoa digita.
+ */
+export const limitarBvPercentual = (pct: number): number =>
+  Math.min(100, Math.max(0, Number.isFinite(pct) ? pct : 0));
+
+/**
+ * O BV deste item, em reais e em porcento.
+ *
+ * Só existe quando a forma de cobrança escolhida é "com BV e NF" — nas outras
+ * duas o nome já diz que não há BV, e o que resta é a justificativa. A base é o
+ * valor COM BV do item: é dele que sai a bonificação.
+ *
+ * Devolve `base` junto porque a tela precisa dizer sobre o quê o percentual
+ * incide, e a OS precisa somar as bases para recompor o percentual do conjunto.
+ */
+export function bvDaLinha(l: EcLinha): { base: number; valor: number; percentual: number } {
+  const temBv = l.opcaoValor === "comBvNf" && !opcaoNaoSeAplica(l, "comBvNf");
+  const base = temBv ? Number(l.valorComBvNf ?? 0) || 0 : 0;
+  const bv = l.bv ?? bvVazio();
+  if (!base) return { base: 0, valor: 0, percentual: 0 };
+  const valor = bv.modo === "fixo" ? Number(bv.valor ?? 0) || 0 : r2((base * (Number(bv.valor ?? 0) || 0)) / 100);
+  return { base, valor: r2(valor), percentual: r2((valor / base) * 100) };
+}
+
+/**
+ * A justificativa do BV é obrigatória neste item?
+ *
+ * Sim quando a forma de pagamento já foi escolhida E o BV está abaixo do padrão
+ * — o que inclui as duas opções "sem BV", onde ele é zero por definição.
+ *
+ * O item ainda sem opção escolhida NÃO cobra nada: a pergunta "por que não há
+ * BV?" só faz sentido depois de dizer como o item é pago, e cobrá-la antes
+ * acenderia um alerta em toda linha recém-criada.
+ */
+export function bvExigeJustificativa(l: EcLinha): boolean {
+  if (!l.opcaoValor) return false;
+  return bvDaLinha(l).percentual < BV_PADRAO_PERCENTUAL;
+}
+
+/** Item com a justificativa pendente — o que trava a emissão da OS. */
+export function bvJustificativaFaltando(l: EcLinha): boolean {
+  return bvExigeJustificativa(l) && !(l.bv?.justificativa ?? "").trim();
+}
+
+/**
+ * O BV do conjunto de itens que uma OS consolida.
+ *
+ * A OS tem um campo só, e os itens podem ter sido negociados com BVs
+ * diferentes. Somar os VALORES em reais é o único jeito exato: o percentual é
+ * recomposto sobre o total, de forma que o dinheiro bata mesmo quando os itens
+ * divergem. As justificativas distintas entram todas, porque cada uma explica
+ * um item.
+ */
+export function bvConsolidado(linhas: EcLinha[]): { valor: number; percentual: number; justificativa: string } {
+  let valor = 0;
+  let base = 0;
+  const motivos: string[] = [];
+  for (const l of linhas) {
+    const bv = bvDaLinha(l);
+    valor += bv.valor;
+    base += bv.base;
+    const texto = (l.bv?.justificativa ?? "").trim();
+    if (texto && !motivos.includes(texto)) motivos.push(texto);
+  }
+  return {
+    valor: r2(valor),
+    percentual: base ? r2((valor / base) * 100) : 0,
+    justificativa: motivos.join(" · "),
+  };
+}
+
 /* ------------------------- Rentabilidade ------------------------- */
 
 export interface RentabilidadeItem {
@@ -427,6 +572,10 @@ export function faltasParaEmitirOs(l: EcLinha): string[] {
   if (!l.faturaNf?.trim()) faltas.push("Documento PG");
   if (!l.codigoServico?.trim()) faltas.push("Código de Serviço");
   if (!l.pedidoCompra?.trim()) faltas.push("Pedido de Compra");
+  // O BV fora do padrão precisa de motivo escrito ANTES da OS sair: depois de
+  // emitida, quem lê o documento não tem a quem perguntar por que a Pólobh
+  // abriu mão da bonificação neste item.
+  if (bvJustificativaFaltando(l)) faltas.push("Justificativa do BV");
   return faltas;
 }
 
@@ -572,7 +721,8 @@ export const OBS_CONTRATO_PADRAO =
  */
 export function textoObjetoContrato(fin: Os["financeiro"]): string {
   const projeto = fin.projetoIncentivado?.trim() || "[projeto incentivado]";
+  // `leiIncentivo` já traz a lei COM o número ("… (Rouanet) — PRONAC 26 1234"),
+  // então não há mais um "sob o número" a costurar aqui: o campo é a frase.
   const lei = fin.leiIncentivo?.trim() || LEI_INCENTIVO_PADRAO;
-  const numero = fin.numeroProjetoIncentivado?.trim() || "[número do projeto incentivado]";
-  return `O objeto do presente é a viabilização do projeto ${projeto}, idealizado pela CONTRATANTE e aprovado pela ${lei} sob o número ${numero}, sendo:`;
+  return `O objeto do presente é a viabilização do projeto ${projeto}, idealizado pela CONTRATANTE e aprovado pela ${lei}, sendo:`;
 }

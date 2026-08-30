@@ -29,6 +29,7 @@ import {
 import { SortableContext, useSortable, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Button, Field, Input } from "@/components/ui";
+import { useSugestoes } from "@/hooks/useSugestoes";
 import { IcGrip, IcPlus, IcTrash, IcEye, IcEyeOff } from "@/components/icons";
 import { MoverSetas, moverNaLista } from "@/components/MoverSetas";
 import {
@@ -105,6 +106,9 @@ export function CronogramaProjetoEditor({
   /** Destaca em vermelho as datas do bloco Evento quando o obrigatório não foi preenchido. */
   eventoComErro: boolean;
 }) {
+  // Memória dos campos: o nome do bloco livre é a mesma palavra que a casa usa
+  // nas etapas de cronograma da OS ("Montagem", "Ensaio", "Desmontagem").
+  const sugestoesEtapa = useSugestoes().valores.etapaCronograma;
   const [blocos, setBlocos] = useState<Bloco[]>(() => montarBlocos(info));
   const [ativo, setAtivo] = useState<{ tipo: "bloco" | "faixa"; chave: string } | null>(null);
   const arrastandoRef = useRef(false);
@@ -268,6 +272,7 @@ export function CronogramaProjetoEditor({
             {blocos.map((bloco, iBloco) => (
               <BlocoCard
                 key={bloco.id}
+                sugestoesEtapa={sugestoesEtapa}
                 bloco={bloco}
                 oculto={!!bloco.etapa && info.etapasOcultas.includes(bloco.etapa)}
                 temBlocoAcima={proximoBlocoVisivel(iBloco, -1) >= 0}
@@ -313,6 +318,7 @@ export function CronogramaProjetoEditor({
 
 function BlocoCard({
   bloco,
+  sugestoesEtapa,
   oculto,
   temBlocoAcima,
   temBlocoAbaixo,
@@ -326,6 +332,8 @@ function BlocoCard({
   onMoverFaixa,
 }: {
   bloco: Bloco;
+  /** Etapas de cronograma já usadas na casa — vale para o bloco livre. */
+  sugestoesEtapa: string[];
   oculto: boolean;
   /** Há bloco visível antes/depois deste — a seta na borda leva a data para lá. */
   temBlocoAcima: boolean;
@@ -378,6 +386,7 @@ function BlocoCard({
           <Input
             className="!h-9 !text-[13.5px] !font-bold max-w-xs"
             formato="titulo"
+            sugestoes={sugestoesEtapa}
             value={bloco.titulo}
             onChange={(e) => onTitulo(e.target.value)}
             placeholder="Título do bloco"

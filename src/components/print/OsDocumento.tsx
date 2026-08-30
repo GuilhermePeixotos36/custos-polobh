@@ -1,8 +1,8 @@
 /** OS como documento A4 — visualização em tela + PDF. Espelha o modelo em Excel. */
+import { itensVisiveis, temContrato, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA } from "@/domain/os";
 import type { Ec, Os } from "@/data/types";
-import { urlCredenciamento } from "@/lib/links";
 import { brl, dataBR } from "@/lib/format";
-import { textoObjetoContrato, FORMA_PAGAMENTO_PADRAO, OBS_CONTRATO_PADRAO } from "@/domain/calc";
+import { textoObjetoContrato, resumoDeCustos, FORMA_PAGAMENTO_PADRAO, OBS_CONTRATO_PADRAO } from "@/domain/calc";
 import { ETAPAS_CRONOGRAMA } from "@/domain/projeto";
 import { empresaPadrao } from "@/store/empresas";
 
@@ -71,6 +71,10 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
   const f = os.fornecedor;
   const b = f.dadosBancarios;
   const consolidadas = ec.linhas.filter((l) => os.ecLinhaIds.includes(l.id));
+  /** Só o que se aplica a esta OS — o resto não vira linha para o fornecedor ler. */
+  const logistica = itensVisiveis(os.logistica, CAMPOS_LOGISTICA);
+  const resumo = resumoDeCustos(consolidadas);
+  const infraestrutura = itensVisiveis(os.infraestrutura, CAMPOS_INFRAESTRUTURA);
   const tom = fiscaisDe(os.financeiro.tomador, ec);
   const contr = fiscaisDe(os.contrato.contratante, ec);
 
@@ -160,36 +164,23 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
       <LV label="Modalidade" valor={os.modalidade} />
       <LV label="Descritivo" valor={os.descritivo} />
       <LV label="Entrega" valor={os.entrega} />
-      <LV
-        label="Logística do Fornecedor"
-        valor={[
-          ["Transporte Material", os.logistica.transporteMaterial],
-          ["Transporte Equipe", os.logistica.transporteEquipe],
-          ["Hospedagem Equipe", os.logistica.hospedagem],
-          ["Alimentação Equipe", os.logistica.alimentacao],
-          ["Estacionamento Carga", os.logistica.estacionamentoCarga],
-          ["Estacionamento Equipe", os.logistica.estacionamentoEquipe],
-          ["Uniformização Equipe", os.logistica.uniformizacao],
-        ].map(([n, v]) => `${n}: ${v || "____"}`).join("\n")}
-      />
-      <LV
-        label="Infraestrutura"
-        valor={[
-          ["Energia", os.infraestrutura.energia],
-          ["Internet", os.infraestrutura.internet],
-          ["Pontos Elétricos", os.infraestrutura.pontosEletricos],
-          ["Estruturas Diversas", os.infraestrutura.estruturas],
-          ["Serviços de Apoio", os.infraestrutura.servicosApoio],
-          ["ART, Laudos e Certificações", os.infraestrutura.artLaudos],
-        ].map(([n, v]) => `${n}: ${v || "____"}`).join("\n")}
-      />
-      <LV
-        label="Observações Gerais"
-        valor={(os.observacoes ?? [])
-          .filter((o) => o.texto.trim())
-          .map((o) => `${o.texto}${o.autorNome ? " — " + o.autorNome : ""}${o.resolvida ? " (resolvida)" : ""}`)
-          .join("\n")}
-      />
+      {/* Item marcado como "não se aplica" nem aparece — ver `itensVisiveis`.
+          Bloco inteiro fora do documento quando nada se aplica. */}
+      {logistica.length > 0 && (
+        <LV
+          label="Logística do Fornecedor"
+          valor={logistica.map(({ rotulo, valor }) => `${rotulo}: ${valor || "____"}`).join("\n")}
+        />
+      )}
+      {infraestrutura.length > 0 && (
+        <LV
+          label="Infraestrutura"
+          valor={infraestrutura.map(({ rotulo, valor }) => `${rotulo}: ${valor || "____"}`).join("\n")}
+        />
+      )}
+      {/* Só o campo LIVRE. A thread de `os.observacoes` é conversa interna da
+          equipe e saía impressa aqui, no documento que o fornecedor recebe. */}
+      <LV label="Observações Gerais" valor={os.observacoesGerais} />
 
       <Secao titulo="Cronograma Específico do Fornecedor" />
       <table className="w-full text-[11px] border-collapse">
@@ -219,15 +210,65 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
         </tbody>
       </table>
 
-      <Secao titulo="Credenciamento" />
-      <LV label="Link" valor={urlCredenciamento(os)} />
-      <LV label="Prazo limite" valor={dataBR(os.credenciamento.prazoLimite)} />
+      {/* O CREDENCIAMENTO saiu da OS (29/08/2026): virou subaba do Projeto, e o
+          link chega ao fornecedor por e-mail. */}
 
-      <Secao titulo="Orçamento" />
-      <LV label="Valor do Item na EC do Projeto" valor={brl(os.orcamento.valorEc)} />
-      <LV label="Valor com BV e NF" valor={brl(os.orcamento.valorComBvNf)} />
-      <LV label="Valor Sem BV e Com Nota Fiscal" valor={brl(os.orcamento.valorSemBvComNf)} />
-      <LV label="Valor Sem BV e Sem NF" valor={brl(os.orcamento.valorSemBvSemNf)} />
+      <Secao titulo="Resumo dos Custos" />
+      {/* O item e as TRÊS formas de cobrá-lo, lado a lado. As colunas são
+          cenários alternativos — a soma de uma responde "quanto sairia se tudo
+          fosse cobrado assim" —, por isso os totais não fecham entre si. */}
+      {resumo.linhas.length > 0 ? (
+        <table className="w-full text-[11px] border-collapse">
+          <thead>
+            <tr className="bg-[#F2F2F2] font-bold">
+              <th className="text-left px-3 py-1.5 border-b border-border-soft">Item</th>
+              <th className="text-right px-3 py-1.5 border-b border-border-soft">Com BV e NF</th>
+              <th className="text-right px-3 py-1.5 border-b border-border-soft">Sem BV e Com NF</th>
+              <th className="text-right px-3 py-1.5 border-b border-border-soft">Sem BV e Sem NF</th>
+            </tr>
+          </thead>
+          <tbody>
+            {resumo.linhas.map((l) => (
+              <tr key={l.id}>
+                <td className="px-3 py-1 border-b border-border-soft">{l.item}</td>
+                {[l.comBvNf, l.semBvComNf, l.semBvSemNf].map((v, i) => (
+                  <td key={i} className="px-3 py-1 border-b border-border-soft text-right">
+                    {v === null ? "Não se aplica" : brl(v)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="font-bold">
+              <td className="px-3 py-1.5">Total por forma de cobrança</td>
+              <td className="px-3 py-1.5 text-right">{brl(resumo.totais.comBvNf)}</td>
+              <td className="px-3 py-1.5 text-right">{brl(resumo.totais.semBvComNf)}</td>
+              <td className="px-3 py-1.5 text-right">{brl(resumo.totais.semBvSemNf)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      ) : (
+        <>
+          <LV label="Valor do Item na EC do Projeto" valor={brl(os.orcamento.valorEc)} />
+          <LV label="Valor com BV e NF" valor={brl(os.orcamento.valorComBvNf)} />
+          <LV label="Valor Sem BV e Com Nota Fiscal" valor={brl(os.orcamento.valorSemBvComNf)} />
+          <LV label="Valor Sem BV e Sem NF" valor={brl(os.orcamento.valorSemBvSemNf)} />
+        </>
+      )}
+      {/* Só as duas colunas COM nota entram aqui: é sobre elas que a emissão fala. */}
+      <LV label="Total a Faturar — Com BV e NF + Sem BV e Com NF" valor={brl(resumo.totalComNota)} />
+      <LV label="Total Sem Nota Fiscal — Sem BV e Sem NF" valor={brl(resumo.totais.semBvSemNf)} />
+      <LV label="Documento Fiscal" valor={os.orcamento.documentoFiscal} />
+      <LV
+        label="Dados para Pagamento"
+        valor={[
+          b.tipoConta && `Conta ${b.tipoConta}`,
+          b.banco,
+          [b.agencia && `Ag. ${b.agencia}`, b.conta && `C/C ${b.conta}`].filter(Boolean).join("  ·  "),
+          b.chavePix && `Pix: ${b.chavePix}`,
+        ].filter(Boolean).join("\n")}
+      />
       <LV
         label="Prazo de Pagamento"
         valor={
@@ -236,7 +277,6 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
             : os.orcamento.parcelas.map((x, i) => `${i + 1}ª — ${x.descricao || "Parcela"}: ${brl(x.valor)}`).join("\n")
         }
       />
-      <LV label="Documento Fiscal" valor={os.orcamento.documentoFiscal} />
 
       {restrito && (
         <>
@@ -250,22 +290,20 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
           <LV label="Inscrição Municipal" valor={tom?.im ?? ""} />
           <LV label="Descritivo Nota Fiscal" valor={os.financeiro.descritivoNf} />
           <LV label="Nome do Projeto Incentivado" valor={os.financeiro.projetoIncentivado || p.incentivosFiscais} />
-          <LV label="Lei de Incentivo à Cultura" valor={os.financeiro.leiIncentivo} />
-          <LV label="Nº do Projeto Incentivado" valor={os.financeiro.numeroProjetoIncentivado} />
+          {/* A lei já traz o número do projeto na mesma linha ("… — PRONAC 26 1234"). */}
+          <LV label="Lei de Incentivo à Cultura" valor={os.financeiro.leiIncentivo || p.incentivosFiscais} />
           <LV label="CNAE" valor={os.financeiro.cnae} />
           <LV label="Código de Serviço" valor={os.financeiro.codigoServico} />
           <LV label="Valor unitário" valor={brl(os.financeiro.valorUnitario)} />
           <LV label="Valor total" valor={brl(os.financeiro.valorTotal)} />
           <LV label="Desconto Especial Negociado" valor={brl(os.financeiro.descontoNegociado)} />
+          {/* O bloco de emissão termina no valor a pagar — BV e acerto vão no fim. */}
           <LV label="Valor total a pagar" valor={brl(os.financeiro.valorAPagar)} />
-          <LV label="BV Pólobh — Percentual" valor={`${os.financeiro.bvPercentual || 0}%`} />
-          {/* Recalculado, como no Excel — não depende do valor gravado. */}
-          <LV
-            label="BV Pólobh — Valor"
-            valor={brl(((os.financeiro.valorTotal || 0) * (os.financeiro.bvPercentual || 0)) / 100)}
-          />
-          <LV label="Acerto Financeiro" valor={os.financeiro.acertoFinanceiro} />
 
+          {/* Contrato só sai quando a EC pediu contrato para algum item desta
+              OS — ver `temContrato`. */}
+          {temContrato(os, consolidadas) && (
+          <>
           <SubSecao titulo="Dados para Contrato" />
           <LV label="Contratante" valor={contr?.rotulo ?? ""} />
           <LV label="Razão Social" valor={contr?.razao ?? ""} />
@@ -287,6 +325,17 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
           <LV label="Observações Gerais" valor={os.contrato.observacoesGerais || OBS_CONTRATO_PADRAO} />
           <LV label="Data do Contrato" valor={dataBR(os.contrato.dataContrato)} />
           <LV label="Rubrica" valor={os.contrato.rubrica} />
+          </>
+          )}
+
+          <Secao titulo="Acertos Financeiros" />
+          <LV label="BV Pólobh — Percentual" valor={`${os.financeiro.bvPercentual || 0}%`} />
+          {/* Recalculado, como no Excel — não depende do valor gravado. */}
+          <LV
+            label="BV Pólobh — Valor"
+            valor={brl(((os.financeiro.valorTotal || 0) * (os.financeiro.bvPercentual || 0)) / 100)}
+          />
+          <LV label="Observações" valor={os.financeiro.acertoFinanceiro} />
         </>
       )}
 

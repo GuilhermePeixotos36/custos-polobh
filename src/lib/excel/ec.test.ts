@@ -4,7 +4,9 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { criarEcExcelBuffer } from "./ec";
 import { encaixarLogo, larguraParaTexto, linhasVisuais } from "./shared";
-import { honorariosPadrao, encargosPadrao, producaoZerada } from "@/domain/calc";
+import { honorariosPadrao, encargosPadrao, producaoZerada,
+  bvVazio,
+} from "@/domain/calc";
 import type { Ec, EcLinha } from "@/data/types";
 import { projetoInfoVazio } from "@/domain/projeto";
 
@@ -20,7 +22,7 @@ beforeAll(() => {
 const linha = (p: Partial<EcLinha>): EcLinha => ({
   id: "l1", grupo: "PRODUÇÃO", item: "Item", descricao: "", descricaoCompleta: "",
   valorPolobh: 0, valorCliente: 0, valorGasto: 0,
-  valorComBvNf: 0, valorSemBvComNf: 0, valorSemBvSemNf: 0, valoresNaoAplicaveis: [], opcaoValor: "",
+  valorComBvNf: 0, valorSemBvComNf: 0, valorSemBvSemNf: 0, valoresNaoAplicaveis: [], opcaoValor: "", bv: bvVazio(),
   statusAprovacao: "Pendente",
   fornecedorRazao: "", fornecedorCnpj: "", fornecedorContato: "", faturaNf: "",
   codigoServico: "", pedidoCompra: "", statusOs: "Pendente", contratoStatus: "Pendente",

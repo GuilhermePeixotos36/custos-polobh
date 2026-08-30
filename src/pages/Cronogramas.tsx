@@ -7,6 +7,7 @@ import { useAsync } from "@/hooks/useAsync";
 import { dataBR } from "@/lib/format";
 import { Timeline, TimelineConsolidada, type ItemConsolidado } from "@/components/Timeline";
 import { urlCronogramaPublico } from "@/lib/links";
+import { EnvioCronograma } from "@/components/EnvioCronograma";
 import type { Ec } from "@/data/types";
 
 /** EC encerrada não representa mais o projeto no seletor. */
@@ -127,6 +128,9 @@ export function Cronogramas() {
                 </CardTitle>
                 <TimelineConsolidada itens={etapasConsolidadas} />
               </Card>
+
+              {/* Disparo dos cronogramas — cada fornecedor recebe o seu. */}
+              <EnvioCronograma oss={ossDoProjeto} ecs={ecs ?? []} />
 
               {/* Detalhe por fornecedor */}
               <div className="text-[10.5px] font-extrabold uppercase tracking-[0.14em] text-ink-3 px-1 pt-1">Por fornecedor</div>

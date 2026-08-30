@@ -9,7 +9,7 @@
  * na ordem em que os itens aparecem na EC — a mesma ordem da planilha, para
  * quem lê os dois lados não precisar reconciliar nada.
  */
-import type { Ec, Os } from "@/data/types";
+import type { CampoInfraestrutura, CampoLogistica, Ec, EcLinha, Os, StatusOs } from "@/data/types";
 
 export interface ItemDaOs {
   id: string;
@@ -38,4 +38,126 @@ export function itensDaOs(os: Pick<Os, "ecId" | "ecLinhaIds">, ecs: Ec[]): ItemD
       grupo: l.grupo?.trim() ?? "",
       item: l.item?.trim() || l.descricao?.trim() || "(item sem nome)",
     }));
+}
+
+/* ------------- Blocos com a resposta "Não se aplica" (OS) ---------------- */
+
+/**
+ * Logística e Infraestrutura são o mesmo desenho: uma lista fixa de itens de
+ * texto que o fornecedor precisa saber, e cada um podendo ser respondido com
+ * "não se aplica" — caso em que ele NÃO sai no documento impresso, no que vai
+ * por e-mail nem na planilha.
+ *
+ * As duas listas, com os rótulos, existiam em triplicata: uma cópia na tela,
+ * uma no documento e uma na planilha. Foram juntadas aqui, e as três saídas
+ * passam por `itensVisiveis`. Com as cópias soltas, bastava uma delas esquecer
+ * de filtrar para o item sumir da tela e continuar no papel que o fornecedor
+ * recebe — que é justamente o erro que este recurso não pode cometer.
+ */
+type BlocoOpcional = { naoAplicaveis?: string[] };
+/**
+ * O campo válido para um bloco sai do PRÓPRIO bloco. É o que faz
+ * `naoSeAplica(os.logistica, "energia")` ser erro de tipo: "energia" é de
+ * Infraestrutura, e o compilador sabe disso sem ninguém repetir a lista.
+ */
+type CampoDoBloco<B> = B extends { naoAplicaveis?: (infer C)[] } ? C : never;
+
+/** Itens de Logística do Fornecedor, na ordem em que aparecem. */
+export const CAMPOS_LOGISTICA = [
+  { campo: "transporteMaterial", rotulo: "Transporte Material" },
+  { campo: "transporteEquipe", rotulo: "Transporte Equipe" },
+  { campo: "hospedagem", rotulo: "Hospedagem Equipe" },
+  { campo: "alimentacao", rotulo: "Alimentação Equipe" },
+  { campo: "estacionamentoCarga", rotulo: "Estacionamento Carga" },
+  { campo: "estacionamentoEquipe", rotulo: "Estacionamento Equipe" },
+  { campo: "uniformizacao", rotulo: "Uniformização Equipe" },
+] as const satisfies readonly { campo: CampoLogistica; rotulo: string }[];
+
+/** Itens de Infraestrutura, na ordem em que aparecem. */
+export const CAMPOS_INFRAESTRUTURA = [
+  { campo: "energia", rotulo: "Energia" },
+  { campo: "internet", rotulo: "Internet" },
+  { campo: "pontosEletricos", rotulo: "Pontos Elétricos" },
+  { campo: "estruturas", rotulo: "Estruturas Diversas" },
+  { campo: "servicosApoio", rotulo: "Serviços de Apoio" },
+  { campo: "artLaudos", rotulo: "ART, Laudos e Certificações" },
+] as const satisfies readonly { campo: CampoInfraestrutura; rotulo: string }[];
+
+/** Este item foi marcado como "não se aplica" nesta OS? */
+export function naoSeAplica<B extends BlocoOpcional>(bloco: B | undefined, campo: CampoDoBloco<B>): boolean {
+  return !!bloco?.naoAplicaveis?.includes(campo as string);
+}
+
+/**
+ * Os itens que ENTRAM no documento e na planilha.
+ *
+ * O que não se aplica some — é o pedido. Item VAZIO continua saindo, com a
+ * linha em branco para o fornecedor preencher: vazio é pergunta em aberto, e
+ * escondê-la seria dar por respondida uma coisa que ninguém respondeu.
+ */
+export function itensVisiveis<C extends string>(
+  // `Record`, e não `Partial<Record>`: o bloco precisa TER os campos da lista.
+  // Com Partial, passar `os.logistica` junto de `CAMPOS_INFRAESTRUTURA` seria
+  // aceito e devolveria seis linhas vazias, sem ninguém reclamar.
+  bloco: (Record<C, string> & BlocoOpcional) | undefined,
+  campos: readonly { campo: C; rotulo: string }[]
+): { campo: C; rotulo: string; valor: string }[] {
+  const fora = new Set<string>(bloco?.naoAplicaveis ?? []);
+  return campos
+    .filter(({ campo }) => !fora.has(campo))
+    .map(({ campo, rotulo }) => ({ campo, rotulo, valor: bloco?.[campo] ?? "" }));
+}
+
+/**
+ * Marca/desmarca um item como "não se aplica".
+ *
+ * Não mexe no valor digitado: quem marcou por engano desmarca e encontra o que
+ * tinha escrito, exatamente como nas opções de valor do item da EC.
+ */
+export function alternarNaoSeAplica<B extends BlocoOpcional>(bloco: B, campo: CampoDoBloco<B>): B {
+  const atuais: string[] = bloco.naoAplicaveis ?? [];
+  const alvo = campo as string;
+  return {
+    ...bloco,
+    naoAplicaveis: atuais.includes(alvo) ? atuais.filter((c) => c !== alvo) : [...atuais, alvo],
+  };
+}
+
+/* ----------------------- Contrato: entra ou não entra ---------------------- */
+
+/**
+ * Status de Contrato que significam "vai haver contrato" — os mesmos dois que
+ * pedem emissão na EC.
+ */
+const CONTRATO_A_EMITIR: StatusOs[] = ["Emitir", "Emitir Nova Versão"];
+
+/**
+ * Esta OS tem contrato?
+ *
+ * Quem decide é a EC, item a item, na coluna Contrato: "Emitir" ou "Emitir
+ * Nova Versão" querem contrato; "Não se Aplica" não quer. Antes o bloco "Dados
+ * para Contrato" saía em TODA OS — inclusive nas de fornecedor que só emite
+ * nota —, e ali ele não é campo em branco à toa: é um contrato inexistente
+ * descrito com valores, forma de pagamento e data, no documento que vai para o
+ * fornecedor.
+ *
+ * A segunda condição é o que impede o dado de sumir: uma OS cujo contrato a
+ * equipe já escreveu continua mostrando o bloco mesmo que alguém mexa no
+ * status da linha na EC depois.
+ */
+export function temContrato(os: Pick<Os, "contrato">, linhas: Pick<EcLinha, "contratoStatus">[]): boolean {
+  return linhas.some((l) => CONTRATO_A_EMITIR.includes(l.contratoStatus)) || contratoPreenchido(os.contrato);
+}
+
+/**
+ * A equipe já pôs a mão neste contrato?
+ *
+ * Olha SÓ os dois campos que o sistema nunca preenche sozinho — informações
+ * complementares e rubrica. Os outros (contratante, descritivo, valores, forma
+ * de pagamento, observações, data) entram automaticamente em toda OS com
+ * contrato, então usá-los aqui faria "tem contrato" responder sempre que sim,
+ * inclusive depois de alguém marcar "Não se Aplica" na EC.
+ */
+export function contratoPreenchido(ct: Os["contrato"]): boolean {
+  return !!(ct.informacoesComplementares?.trim() || ct.rubrica?.trim());
 }

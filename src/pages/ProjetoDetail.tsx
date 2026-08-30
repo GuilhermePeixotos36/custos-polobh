@@ -9,6 +9,7 @@ import {
 import { IcPlus, IcBack, IcDownload, IcSearch, IcTrash, IcEye, IcEyeOff, IcDoc, IcCopy, IcCalendar } from "@/components/icons";
 import { RichTextField } from "@/components/RichTextField";
 import { InscricaoMunicipalInput } from "@/components/InscricaoMunicipalInput";
+import { TextosJaUsados } from "@/components/TextosJaUsados";
 import { TimelineConsolidada, type ItemConsolidado } from "@/components/Timeline";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
 import { ThPendencias, TdPendencias } from "@/components/ColunaPendencias";
@@ -22,7 +23,7 @@ import { useResponsaveis } from "@/hooks/useResponsaveis";
 import { useSugestoes } from "@/hooks/useSugestoes";
 import { filhosDe, type CampoSugerido } from "@/domain/sugestoes";
 import { useAuth } from "@/store/auth";
-import { gerarCronogramaExcel } from "@/lib/excel";
+import { gerarCronogramaExcel, gerarDadosUteisExcel } from "@/lib/excel";
 import { cnpjValido, consultarCnpj } from "@/lib/cnpj";
 import { numeroEc, tituloEc } from "@/domain/calc";
 import { camposObrigatoriosProjeto, compoeTituloProjeto, novoRoteiroExtra, projetoInfoVazio, sincronizarCamposLegados } from "@/domain/projeto";
@@ -41,6 +42,9 @@ import { pendenciasDaTela, type Pendencia } from "@/domain/pendencias";
 import { situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
 import { itensDaOs } from "@/domain/os";
 import { ThItensOs, TdItensOs } from "@/components/ColunaItensOs";
+import { CredenciamentoProjeto } from "@/components/CredenciamentoProjeto";
+import { dadosUteisDosFornecedores } from "@/domain/dadosUteis";
+import { EnvioCronograma } from "@/components/EnvioCronograma";
 
 const tomStatusProjeto: Record<StatusProjeto, Tom> = {
   Ativo: "success", Arquivado: "neutral", Concluido: "info", Cancelado: "danger",
@@ -56,7 +60,7 @@ const projetoVazio = (): Projeto => ({
   docsUrl: "", status: "Ativo", criadoEm: "", atualizadoEm: "",
 });
 
-type Aba = "dados" | "ec" | "os" | "checklist" | "cronograma" | "fornecedores";
+type Aba = "dados" | "ec" | "os" | "checklist" | "cronograma" | "credenciamento" | "fornecedores";
 // O check-list vem logo depois de Dados Gerais: é a aba de acompanhamento diário
 // do projeto, consultada muito mais vezes que EC e OS (pedido de 25/08/2026).
 const ABAS: { key: Aba; label: string }[] = [
@@ -65,6 +69,9 @@ const ABAS: { key: Aba; label: string }[] = [
   { key: "ec", label: "EC" },
   { key: "os", label: "OS" },
   { key: "cronograma", label: "Cronograma" },
+  // O credenciamento é do EVENTO: um painel de todos os fornecedores de uma vez,
+  // e não uma pergunta repetida dentro de cada OS.
+  { key: "credenciamento", label: "Credenciamento" },
   { key: "fornecedores", label: "Fornecedores" },
 ];
 
@@ -207,15 +214,16 @@ export function ProjetoDetail() {
     () => ossDoProjeto.flatMap((o) => o.cronograma.map((c) => ({ ...c, fornecedor: o.fornecedor.razaoSocial || "Fornecedor" }))),
     [ossDoProjeto]
   );
-  const fornecedores = useMemo(() => {
-    const m = new Map<string, { razao: string; cnpj: string; email: string }>();
-    for (const o of ossDoProjeto) {
-      const f = o.fornecedor;
-      const chave = f.cnpj || f.razaoSocial;
-      if (chave && !m.has(chave)) m.set(chave, { razao: f.razaoSocial, cnpj: f.cnpj, email: f.email });
-    }
-    return [...m.values()];
-  }, [ossDoProjeto]);
+  /**
+   * Folha de Dados Úteis: quem está no projeto, o que entrega e como se fala
+   * com ele. Antes esta aba mostrava razão social, CNPJ e e-mail — sem
+   * telefone, sem nome de gente e sem dizer o que o fornecedor faz ali, que é
+   * exatamente o que se procura no dia da montagem.
+   */
+  const fornecedores = useMemo(
+    () => dadosUteisDosFornecedores(ossDoProjeto, ecsAll ?? []),
+    [ossDoProjeto, ecsAll]
+  );
 
   // Ordenação de todas as listagens desta tela — mesmo mecanismo da lista de Projetos.
   const ecsOrdenadas = useOrdenacao(
@@ -243,8 +251,14 @@ export function ProjetoDetail() {
   );
   const fornecedoresOrdenados = useOrdenacao(
     fornecedores,
-    { razao: (f) => f.razao, cnpj: (f) => f.cnpj, email: (f) => f.email },
-    { col: "razao", dir: "asc" }
+    {
+      fornecedor: (f) => f.fornecedor,
+      itens: (f) => f.itens.join(", "),
+      contato: (f) => f.contato,
+      telefone: (f) => f.telefone,
+      email: (f) => f.email,
+    },
+    { col: "fornecedor", dir: "asc" }
   );
 
   // Linhas do cronograma (uma por etapa da OS, com Data e Horário próprios).
@@ -299,6 +313,23 @@ export function ProjetoDetail() {
       toast("Cronograma exportado para Excel.", "success");
     } catch (e) {
       toast(`Erro ao gerar o cronograma: ${(e as Error).message}`, "danger");
+    }
+  }
+
+  async function baixarDadosUteis() {
+    const info = p.info;
+    try {
+      await gerarDadosUteisExcel({
+        cliente: p.cliente.nome,
+        titulo: info.titulo,
+        evento: dataBR(info.evento),
+        local: [info.local, info.enderecoLocal].filter(Boolean).join(" — "),
+        fornecedores,
+        nomeArquivo: `Dados Uteis - ${p.nome || info.titulo || "Projeto"}`,
+      });
+      toast("Dados Úteis exportados para Excel.", "success");
+    } catch (e) {
+      toast(`Erro ao gerar a planilha: ${(e as Error).message}`, "danger");
     }
   }
 
@@ -753,8 +784,8 @@ export function ProjetoDetail() {
                     )}
                   </div>
                 </Field>
-                <Field label="Razão Social" className="sm:col-span-2"><Input formato="titulo-empresa" value={p.cliente.razaoSocial} onChange={(e) => updCli({ razaoSocial: e.target.value })} /></Field>
-                <Field label="Endereço" className="sm:col-span-2"><Input formato="titulo" value={p.cliente.endereco} onChange={(e) => updCli({ endereco: e.target.value })} /></Field>
+                <Field label="Razão Social" className="sm:col-span-2"><Input formato="titulo-empresa" sugestoes={sugestoes.valores.clienteRazaoSocial} value={p.cliente.razaoSocial} onChange={(e) => updCli({ razaoSocial: e.target.value })} /></Field>
+                <Field label="Endereço" className="sm:col-span-2"><Input formato="titulo" sugestoes={sugestoes.valores.clienteEndereco} value={p.cliente.endereco} onChange={(e) => updCli({ endereco: e.target.value })} /></Field>
                 <Field label="Inscrição Estadual"><Input value={p.cliente.inscricaoEstadual} onChange={(e) => updCli({ inscricaoEstadual: e.target.value })} /></Field>
                 <Field label="Inscrição Municipal">
                   <InscricaoMunicipalInput
@@ -780,7 +811,7 @@ export function ProjetoDetail() {
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <Field label="Cliente (apelido)"><Input erro={chavesComErro.has("clienteAbreviado")} sugestoes={sugestoes.valores.clienteApelido} value={p.info.clienteAbreviado} onChange={(e) => updTituloParte({ clienteAbreviado: e.target.value })} placeholder="Ex.: ACME" /></Field>
               <Field label="Nome do projeto"><Input formato="titulo" erro={chavesComErro.has("nomeProjeto")} sugestoes={sugestoes.valores.nomeProjeto} value={p.info.nomeProjeto} onChange={(e) => updTituloParte({ nomeProjeto: e.target.value })} /></Field>
-              <Field label="Ano"><Input erro={chavesComErro.has("anoProjeto")} value={p.info.anoProjeto} inputMode="numeric" onChange={(e) => updTituloParte({ anoProjeto: onlyDigits(e.target.value).slice(0, 4) })} placeholder="2026" /></Field>
+              <Field label="Ano"><Input erro={chavesComErro.has("anoProjeto")} sugestoes={sugestoes.valores.anoProjeto} value={p.info.anoProjeto} inputMode="numeric" onChange={(e) => updTituloParte({ anoProjeto: onlyDigits(e.target.value).slice(0, 4) })} placeholder="2026" /></Field>
               <Field label="Modalidade">
                 <Select erro={chavesComErro.has("modalidade")} value={p.info.modalidade} onChange={(e) => updInfo({ modalidade: e.target.value as ProjetoInfo["modalidade"] })}>
                   <option value="">Selecione</option>
@@ -813,7 +844,10 @@ export function ProjetoDetail() {
               <Field label="Telefone do(a) Produtor(a) Responsável"><TelefoneInput value={p.info.telefoneProdutora} onChange={(v) => updInfo({ telefoneProdutora: v })} /></Field>
               <Field label="E-mail do(a) Produtor(a) Responsável"><Input type="email" sugestoes={sugestoes.valores.emailProdutora} value={p.info.emailProdutora} onChange={(e) => updInfo({ emailProdutora: e.target.value })} /></Field>
               {p.info.modalidade === "Cultural" && (
-                <Field label="Incentivos Fiscais" className="sm:col-span-2 lg:col-span-3"><Textarea value={p.info.incentivosFiscais} onChange={(e) => updInfo({ incentivosFiscais: e.target.value })} /></Field>
+                <Field label="Incentivos Fiscais" className="sm:col-span-2 lg:col-span-3">
+                  <Textarea value={p.info.incentivosFiscais} onChange={(e) => updInfo({ incentivosFiscais: e.target.value })} />
+                  <TextosJaUsados valor={p.info.incentivosFiscais} opcoes={sugestoes.valores.incentivosFiscais} onEscolher={(incentivosFiscais) => updInfo({ incentivosFiscais })} />
+                </Field>
               )}
             </div>
           </Card>
@@ -878,7 +912,7 @@ export function ProjetoDetail() {
                               onSubir={() => moverRoteiro(id, -1)}
                               onDescer={() => moverRoteiro(id, 1)}
                             />
-                            {chave ? <Label>{label}</Label> : <Input formato="titulo" value={extra!.titulo} onChange={(e) => updInfo({ roteirosExtras: p.info.roteirosExtras.map((item) => item.id === id ? { ...item, titulo: e.target.value } : item) })} placeholder="Título da etapa" />}
+                            {chave ? <Label>{label}</Label> : <Input formato="titulo" sugestoes={sugestoes.valores.tituloRoteiro} value={extra!.titulo} onChange={(e) => updInfo({ roteirosExtras: p.info.roteirosExtras.map((item) => item.id === id ? { ...item, titulo: e.target.value } : item) })} placeholder="Título da etapa" />}
                           </div>
                           <div className="flex gap-1 shrink-0">
                             {chave ? (
@@ -1084,6 +1118,7 @@ export function ProjetoDetail() {
       )}
 
       {aba === "cronograma" && (
+        <div className="space-y-4">
         <Card>
           <CardTitle
             hint="Linha do tempo consolidada. Baixe o Excel no modelo Pólobh (cabeçalho automático da EC; datas/horários/produtor em branco para a equipe)."
@@ -1097,28 +1132,62 @@ export function ProjetoDetail() {
           </CardTitle>
           <TimelineConsolidada itens={etapas} />
         </Card>
+
+        {/* O mesmo painel da tela de Cronogramas: quem recebe o seu cronograma
+            por e-mail, marcado a marcado ou de uma vez. */}
+        <EnvioCronograma oss={ossDoProjeto} ecs={ecsAll ?? []} />
+        </div>
       )}
 
       {/* Pílula flutuante: o que se resolve NESTA aba, uma de cada vez. */}
       {!novo && <NavegadorPendencias pendencias={pendenciasDaTelaAtual} />}
 
+      {aba === "credenciamento" && (
+        <CredenciamentoProjeto oss={ossDoProjeto} ecs={ecsAll ?? []} />
+      )}
+
       {aba === "fornecedores" && (
         <Card padded={false}>
-          <div className="p-5"><CardTitle hint="Fornecedores presentes nas OSs deste projeto">Fornecedores do projeto</CardTitle></div>
+          <div className="p-5">
+            <CardTitle
+              hint="Quem está no projeto, o que entrega e como se fala com ele — a folha que vai na prancheta no dia da montagem"
+              action={
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon={<IcDownload width={16} height={16} />}
+                  disabled={!fornecedores.length}
+                  onClick={baixarDadosUteis}
+                >
+                  Baixar Excel
+                </Button>
+              }
+            >
+              Dados Úteis
+            </CardTitle>
+          </div>
           {fornecedores.length === 0 ? (
             <div className="p-6"><EmptyState title="Nenhum fornecedor" hint="Aparecem aqui os fornecedores das OSs do projeto." /></div>
           ) : (
             <Table>
               <THead>
-                <ThOrd col="razao" ordem={fornecedoresOrdenados.ordem} onSort={fornecedoresOrdenados.ordenarPor}>Fornecedor</ThOrd>
-                <ThOrd col="cnpj" ordem={fornecedoresOrdenados.ordem} onSort={fornecedoresOrdenados.ordenarPor}>CNPJ</ThOrd>
-                <ThOrd col="email" ordem={fornecedoresOrdenados.ordem} onSort={fornecedoresOrdenados.ordenarPor}>Contato</ThOrd>
+                <ThOrd col="fornecedor" ordem={fornecedoresOrdenados.ordem} onSort={fornecedoresOrdenados.ordenarPor}>Nome Fantasia</ThOrd>
+                <ThOrd col="itens" ordem={fornecedoresOrdenados.ordem} onSort={fornecedoresOrdenados.ordenarPor}>Itens da EC</ThOrd>
+                <ThOrd col="contato" ordem={fornecedoresOrdenados.ordem} onSort={fornecedoresOrdenados.ordenarPor}>Nome</ThOrd>
+                <ThOrd col="telefone" ordem={fornecedoresOrdenados.ordem} onSort={fornecedoresOrdenados.ordenarPor}>Telefone</ThOrd>
+                <ThOrd col="email" ordem={fornecedoresOrdenados.ordem} onSort={fornecedoresOrdenados.ordenarPor}>E-mail</ThOrd>
               </THead>
               <tbody>
                 {fornecedoresOrdenados.ordenados.map((f, i) => (
                   <Tr key={i}>
-                    <Td className="font-bold text-ink">{f.razao || "—"}</Td>
-                    <Td className="text-[12.5px]">{f.cnpj || "—"}</Td>
+                    <Td className="font-bold text-ink">{f.fornecedor}</Td>
+                    {/* Um item por linha: a lista corrida vira um bloco de texto
+                        que ninguém bate com o olho. */}
+                    <Td className="text-[12.5px]">
+                      {f.itens.length ? f.itens.map((it) => <div key={it}>{it}</div>) : "—"}
+                    </Td>
+                    <Td className="text-[12.5px]">{f.contato || "—"}</Td>
+                    <Td className="text-[12.5px] whitespace-nowrap">{f.telefone || "—"}</Td>
                     <Td className="text-[12.5px]">{f.email || "—"}</Td>
                   </Tr>
                 ))}

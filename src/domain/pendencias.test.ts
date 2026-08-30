@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { agregarPendencias, calcularPendencias, pendenciasDaTela, rotaDaPendencia, type Pendencia } from "./pendencias";
 import { projetoInfoVazio } from "./projeto";
-import { honorariosPadrao, encargosPadrao, producaoZerada } from "./calc";
+import { honorariosPadrao, encargosPadrao, producaoZerada,
+  bvVazio,
+} from "./calc";
 import type { Checklist, Cliente, Ec, EcLinha, ItemChecklist, Observacao, Os, Projeto } from "@/data/types";
 
 const HOJE = "2026-08-25";
@@ -27,7 +29,7 @@ const observacao = (o: Partial<Observacao>): Observacao => ({
 const linha = (obs: Observacao[]): EcLinha => ({
   id: "l1", grupo: "PRODUÇÃO", item: "Buffet", descricao: "", descricaoCompleta: "",
   valorPolobh: 0, valorCliente: 0, valorGasto: 0,
-  valorComBvNf: 0, valorSemBvComNf: 0, valorSemBvSemNf: 0, valoresNaoAplicaveis: [], opcaoValor: "",
+  valorComBvNf: 0, valorSemBvComNf: 0, valorSemBvSemNf: 0, valoresNaoAplicaveis: [], opcaoValor: "", bv: bvVazio(),
   statusAprovacao: "Pendente",
   fornecedorRazao: "", fornecedorCnpj: "", fornecedorContato: "", faturaNf: "",
   codigoServico: "", pedidoCompra: "", statusOs: "Pendente", contratoStatus: "Pendente",

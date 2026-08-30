@@ -20,6 +20,14 @@ import {
   reverterAprovacaoLinha,
   tituloEc,
   ENCARGOS,
+  bvVazio,
+  resumoDeCustos,
+  faltasParaEmitirOs,
+  bvDaLinha,
+  bvExigeJustificativa,
+  bvJustificativaFaltando,
+  bvConsolidado,
+  BV_PADRAO_PERCENTUAL,
 } from "./calc";
 import type { Ec, EcLinha, Os, Producao } from "@/data/types";
 import { dataBR } from "@/lib/format";
@@ -36,7 +44,7 @@ function linha(p: Partial<EcLinha>): EcLinha {
     id: "l1", grupo: "G", item: "Item", descricao: "", descricaoCompleta: "",
     valorPolobh: 0, valorCliente: 0, valorGasto: 0,
     valorComBvNf: 0, valorSemBvComNf: 0, valorSemBvSemNf: 0,
-    valoresNaoAplicaveis: [], opcaoValor: "", statusAprovacao: "Pendente",
+    valoresNaoAplicaveis: [], opcaoValor: "", bv: bvVazio(), statusAprovacao: "Pendente",
     fornecedorRazao: "", fornecedorCnpj: "", fornecedorContato: "", faturaNf: "",
     codigoServico: "", pedidoCompra: "", statusOs: "Pendente", contratoStatus: "Pendente",
     observacao: "", observacoes: [], oculto: false, ordem: 0, ...p,
@@ -278,19 +286,21 @@ describe("textoObjetoContrato", () => {
     const txt = textoObjetoContrato({
       ...base,
       projetoIncentivado: "Festival X",
-      leiIncentivo: "Lei Rouanet",
-      numeroProjetoIncentivado: "12345",
+      leiIncentivo: "Lei Federal de Incentivo à Cultura (Rouanet) — PRONAC 26 1234",
     });
     expect(txt).toContain("projeto Festival X");
-    expect(txt).toContain("aprovado pela Lei Rouanet");
-    expect(txt).toContain("sob o número 12345");
+    // A lei e o número saem juntos, do jeito que foram digitados: um campo só.
+    expect(txt).toContain("aprovado pela Lei Federal de Incentivo à Cultura (Rouanet) — PRONAC 26 1234");
     expect(txt).toContain("CONTRATANTE");
   });
 
   it("marca visivelmente o que falta em vez de mentir", () => {
     const txt = textoObjetoContrato(base);
     expect(txt).toContain("[projeto incentivado]");
-    expect(txt).toContain("[número do projeto incentivado]");
+  });
+
+  it("sem lei preenchida, cai no texto padrão em vez de deixar buraco na frase", () => {
+    expect(textoObjetoContrato(base)).toContain("aprovado pela Lei de Incentivo à Cultura");
   });
 });
 
@@ -463,5 +473,160 @@ describe("reverterAprovacaoLinha", () => {
   it("aprovar e reverter em seguida devolve o item ao estado original", () => {
     const l = linha({ statusAprovacao: "Pendente", statusOs: "Pendente" });
     expect(reverterAprovacaoLinha(aprovarLinha(l))).toEqual(l);
+  });
+});
+
+/**
+ * BV por item: a bonificação é combinada junto com o valor, no item da EC, e a
+ * OS soma o dos itens que consolida.
+ */
+describe("BV do item da EC", () => {
+  const comBv = (p: Partial<EcLinha["bv"]>, resto: Partial<EcLinha> = {}) =>
+    linha({ valorComBvNf: 10000, opcaoValor: "comBvNf", bv: { ...bvVazio(), ...p }, ...resto });
+
+  it("percentual vira reais sobre o valor com BV do item", () => {
+    expect(bvDaLinha(comBv({ modo: "percentual", valor: 15 }))).toEqual({
+      base: 10000, valor: 1500, percentual: 15,
+    });
+  });
+
+  it("valor fixo vira percentual, para os dois lados da conta ficarem à vista", () => {
+    expect(bvDaLinha(comBv({ modo: "fixo", valor: 1200 }))).toEqual({
+      base: 10000, valor: 1200, percentual: 12,
+    });
+  });
+
+  it("sem BV não há base: as outras duas formas de cobrança zeram o cálculo", () => {
+    const semBv = linha({ valorComBvNf: 10000, valorSemBvComNf: 9000, opcaoValor: "semBvComNf", bv: { modo: "percentual", valor: 15, justificativa: "" } });
+    expect(bvDaLinha(semBv).valor).toBe(0);
+  });
+
+  it("opção marcada como \"não se aplica\" também zera — ela não vale para o item", () => {
+    const naoSeAplica = comBv({ modo: "percentual", valor: 15 }, { valoresNaoAplicaveis: ["comBvNf"] });
+    expect(bvDaLinha(naoSeAplica).valor).toBe(0);
+  });
+
+  describe("quando a justificativa é exigida", () => {
+    it("BV no padrão da casa não pede explicação", () => {
+      expect(bvExigeJustificativa(comBv({ modo: "percentual", valor: BV_PADRAO_PERCENTUAL }))).toBe(false);
+    });
+
+    it("BV abaixo do padrão pede", () => {
+      expect(bvExigeJustificativa(comBv({ modo: "percentual", valor: 10 }))).toBe(true);
+    });
+
+    it("sem BV pede — é o caso que mais precisa de motivo escrito", () => {
+      expect(bvExigeJustificativa(linha({ valorSemBvSemNf: 8000, opcaoValor: "semBvSemNf" }))).toBe(true);
+    });
+
+    it("item sem forma de pagamento escolhida NÃO pede nada ainda", () => {
+      // Senão toda linha recém-criada nasceria com um alerta vermelho.
+      expect(bvExigeJustificativa(linha({ valorComBvNf: 10000 }))).toBe(false);
+    });
+
+    it("exigida e em branco é o que trava a emissão da OS", () => {
+      const semMotivo = linha({ valorSemBvSemNf: 8000, opcaoValor: "semBvSemNf" });
+      expect(bvJustificativaFaltando(semMotivo)).toBe(true);
+      const comMotivo = linha({
+        valorSemBvSemNf: 8000, opcaoValor: "semBvSemNf",
+        bv: { ...bvVazio(), justificativa: "Fornecedor não trabalha com BV." },
+      });
+      expect(bvJustificativaFaltando(comMotivo)).toBe(false);
+    });
+
+    it("a falta entra na lista que a EC mostra item a item", () => {
+      const pronto = linha({
+        statusAprovacao: "OK", fornecedorRazao: "SOM & LUZ LTDA", fornecedorCnpj: "12.345.678/0001-90",
+        faturaNf: "Nota Fiscal", codigoServico: "03.01", pedidoCompra: "PC-1",
+        valorSemBvSemNf: 8000, opcaoValor: "semBvSemNf",
+      });
+      expect(faltasParaEmitirOs(pronto)).toEqual(["Justificativa do BV"]);
+    });
+  });
+});
+
+describe("BV consolidado na OS", () => {
+  const item = (valor: number, bv: Partial<EcLinha["bv"]>) =>
+    linha({ valorComBvNf: valor, opcaoValor: "comBvNf", bv: { ...bvVazio(), ...bv } });
+
+  it("soma os reais e recompõe o percentual sobre o total", () => {
+    // 15% de 10.000 = 1.500 · R$ 500 fixos sobre 5.000 = 10%. Juntos: 2.000/15.000.
+    const r = bvConsolidado([
+      item(10000, { modo: "percentual", valor: 15 }),
+      item(5000, { modo: "fixo", valor: 500 }),
+    ]);
+    expect(r.valor).toBe(2000);
+    expect(r.percentual).toBeCloseTo(13.33, 2);
+  });
+
+  it("junta as justificativas distintas — cada uma explica um item", () => {
+    const r = bvConsolidado([
+      item(10000, { modo: "percentual", valor: 10, justificativa: "Negociado a 10%." }),
+      item(5000, { modo: "percentual", valor: 10, justificativa: "Negociado a 10%." }),
+      item(2000, { modo: "percentual", valor: 0, justificativa: "Fornecedor sem BV." }),
+    ]);
+    expect(r.justificativa).toBe("Negociado a 10%. · Fornecedor sem BV.");
+  });
+
+  it("OS sem nenhum item com BV não inventa percentual", () => {
+    expect(bvConsolidado([linha({ opcaoValor: "semBvComNf", valorSemBvComNf: 900 })])).toEqual({
+      valor: 0, percentual: 0, justificativa: "",
+    });
+  });
+});
+
+/**
+ * Resumo dos Custos da OS: o item e as três formas de cobrá-lo lado a lado.
+ * As colunas são cenários alternativos, não parcelas de um mesmo total.
+ */
+describe("resumoDeCustos", () => {
+  const item = (id: string, nome: string, p: Partial<EcLinha> = {}) =>
+    linha({ id, item: nome, valorComBvNf: 0, valorSemBvComNf: 0, valorSemBvSemNf: 0, ...p });
+
+  it("traz cada item com as três formas e soma cada coluna", () => {
+    const r = resumoDeCustos([
+      item("a", "Som", { valorComBvNf: 10000, valorSemBvComNf: 9000, valorSemBvSemNf: 8000 }),
+      item("b", "Luz", { valorComBvNf: 5000, valorSemBvComNf: 4500, valorSemBvSemNf: 4000 }),
+    ]);
+    expect(r.linhas.map((l) => l.item)).toEqual(["Som", "Luz"]);
+    expect(r.totais).toEqual({ comBvNf: 15000, semBvComNf: 13500, semBvSemNf: 12000 });
+  });
+
+  it("\"não se aplica\" vira null — diferente de zero, e fora do total", () => {
+    const r = resumoDeCustos([
+      item("a", "Som", { valorComBvNf: 10000, valorSemBvSemNf: 8000, valoresNaoAplicaveis: ["semBvComNf"] }),
+    ]);
+    expect(r.linhas[0].semBvComNf).toBeNull();
+    expect(r.linhas[0].comBvNf).toBe(10000);
+    expect(r.totais.semBvComNf).toBe(0);
+  });
+
+  it("zero preenchido continua sendo zero, e não \"não se aplica\"", () => {
+    const r = resumoDeCustos([item("a", "Som", { valorComBvNf: 0 })]);
+    expect(r.linhas[0].comBvNf).toBe(0);
+  });
+
+  it("o que gera nota fiscal são as duas colunas com NF, somadas", () => {
+    const r = resumoDeCustos([
+      item("a", "Som", { valorComBvNf: 10000, valorSemBvComNf: 9000, valorSemBvSemNf: 8000 }),
+    ]);
+    expect(r.totalComNota).toBe(19000);
+    // A coluna sem NF fica de fora — é ela que não vira nota.
+    expect(r.totalComNota).not.toBe(r.totais.comBvNf + r.totais.semBvComNf + r.totais.semBvSemNf);
+  });
+
+  it("item sem nome se identifica pela descrição, e em último caso se anuncia", () => {
+    const r = resumoDeCustos([
+      item("a", "", { descricao: "Locação de praticáveis" }),
+      item("b", "", { descricao: "" }),
+    ]);
+    expect(r.linhas[0].item).toBe("Locação de praticáveis");
+    expect(r.linhas[1].item).toBe("(item sem nome)");
+  });
+
+  it("OS sem itens devolve totais zerados, e não quebra", () => {
+    expect(resumoDeCustos([])).toEqual({
+      linhas: [], totais: { comBvNf: 0, semBvComNf: 0, semBvSemNf: 0 }, totalComNota: 0,
+    });
   });
 });

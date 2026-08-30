@@ -335,7 +335,7 @@ const MODULOS: Modulo[] = [
         <Secao titulo="Disparar e exportar">
           <Passos>
             <span><b>Disparar OS</b> muda o status para <Tag tom="success">Disparada</Tag> e envia a OS ao fornecedor por e-mail.</span>
-            <span><b>Baixar Excel</b> e <b>Ver / PDF</b> geram o documento da OS (o PDF respeita seu perfil quanto ao financeiro).</span>
+            <span><b>Baixar PDF</b> gera o documento da OS já na janela de salvar (o PDF respeita seu perfil quanto ao financeiro).</span>
           </Passos>
           <Atencao>O <b>envio de e-mail está aguardando a conexão com o Brevo</b> da Pólobh. Até lá, o disparo é <b>simulado</b> — a OS é salva e o status muda, mas nenhum e-mail sai de fato.</Atencao>
         </Secao>
@@ -513,16 +513,18 @@ const MODULOS: Modulo[] = [
     id: "credenciamento",
     icone: <IcSend />,
     titulo: "Credenciamento de fornecedores",
-    resumo: "Link público para o fornecedor cadastrar equipe e veículos; respostas aparecem na OS.",
-    tags: ["credenciamento", "fornecedor", "equipe", "veículos", "placa", "cpf", "link", "formulário", "acesso ao local"],
+    resumo: "Subaba do Projeto: dispara o link a todos os fornecedores de uma vez e mostra quem já respondeu.",
+    tags: ["credenciamento", "fornecedor", "equipe", "veículos", "placa", "cpf", "link", "formulário", "acesso ao local", "projeto"],
     conteudo: (
       <>
         <Secao titulo="Como funciona">
-          <p>Cada OS tem um <b>link de credenciamento</b>. O fornecedor abre esse link (sem login), informa a <b>equipe</b> (nome, CPF, função) e os <b>veículos</b> (modelo, placa), e os dados caem direto no sistema.</p>
+          <p>O credenciamento é do <b>evento</b>, não de cada contrato: ele vive na subaba <b>Credenciamento</b> do Projeto, onde se vê a fila de todos os fornecedores e quem ainda falta responder.</p>
+          <p>Cada fornecedor recebe o <b>link da OS dele</b> — é esse link que diz ao formulário quem está respondendo. Ele abre sem login, informa a <b>equipe</b> (nome, CPF, função) e os <b>veículos</b> (modelo, placa), e os dados caem direto no sistema.</p>
           <Passos>
-            <span>Na OS, no cartão <b>Credenciamento</b>, copie o <b>link público</b> (aparece após salvar a OS).</span>
-            <span>Envie o link ao fornecedor (defina também o <b>prazo limite</b>).</span>
-            <span>Quando ele enviar, as respostas surgem em <b>Credenciamentos recebidos</b>, na própria OS.</span>
+            <span>Abra o Projeto e vá na subaba <b>Credenciamento</b>.</span>
+            <span>Defina o <b>prazo-limite</b> — ele costuma ser o mesmo para o evento inteiro, e há um campo que aplica a todas as OSs.</span>
+            <span>Clique em <b>Enviar a todos</b>. Quem já respondeu e quem está sem e-mail cadastrado ficam de fora; para um só, use o <b>Enviar</b> da linha.</span>
+            <span>As respostas aparecem em <b>Credenciamentos recebidos</b>, na mesma subaba.</span>
           </Passos>
           <Tela titulo="custos-polobh.vercel.app/credenciamento/…">
             <div className="space-y-2 text-[12px]">

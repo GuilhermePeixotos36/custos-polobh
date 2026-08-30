@@ -21,6 +21,7 @@ import { MoverSetas } from "@/components/MoverSetas";
 import { repo } from "@/data";
 import { toast } from "@/store/toast";
 import { useAuth } from "@/store/auth";
+import { useSugestoes } from "@/hooks/useSugestoes";
 import { cx } from "@/lib/format";
 import type { ItemModeloChecklist, ModalidadeProjeto, ModeloChecklist } from "@/data/types";
 
@@ -32,6 +33,9 @@ export function ChecklistModelosCard() {
   // Administrativo via o botão "Salvar" habilitado e tomava erro do banco.
   const papel = useAuth((s) => s.usuario?.papel);
   const podeEditar = papel === "Admin" || papel === "Direcao";
+  // Título e etapa saem das tarefas reais dos projetos: é o mesmo vocabulário,
+  // e a lista padrão nasce justamente do que a casa já faz em cada evento.
+  const sugestoes = useSugestoes();
   const [modelos, setModelos] = useState<ModeloChecklist[]>([]);
   const [modalidade, setModalidade] = useState<ModalidadeProjeto>("Corporativo");
   const [itens, setItens] = useState<ItemModeloChecklist[]>([]);
@@ -175,6 +179,7 @@ export function ChecklistModelosCard() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <Input
                       className="!h-8 !px-2 !text-[13.5px] !font-bold flex-1 min-w-[220px]"
+                      sugestoes={sugestoes.valores.tituloTarefa}
                       value={item.titulo}
                       disabled={!podeEditar}
                       onChange={(e) => alterar(item.id, { titulo: e.target.value })}
@@ -194,6 +199,7 @@ export function ChecklistModelosCard() {
                   <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_9rem_9rem]">
                     <Input
                       className="!h-8 !px-2 !text-[12.5px] !uppercase"
+                      sugestoes={sugestoes.valores.etapaTarefa}
                       value={item.etapa}
                       disabled={!podeEditar}
                       onChange={(e) => alterar(item.id, { etapa: e.target.value })}

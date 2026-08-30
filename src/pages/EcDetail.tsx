@@ -576,6 +576,7 @@ function montarOsEmissao(
     cronograma: [{ etapa: "Evento", data: ecAtual.projeto.evento, horario: ecAtual.projeto.horario, atividades: "" }],
     logistica: { transporteMaterial: "", transporteEquipe: "", hospedagem: "", alimentacao: "", estacionamentoCarga: "", estacionamentoEquipe: "", uniformizacao: "" },
     infraestrutura: { energia: "", internet: "", pontosEletricos: "", estruturas: "", servicosApoio: "", artLaudos: "" },
+    observacoesGerais: "",
     observacoes: [],
     // Sem link montado à mão: ele nasce do token que o banco gera ao salvar.
     credenciamento: { prazoLimite: "", linkFormulario: "" },
