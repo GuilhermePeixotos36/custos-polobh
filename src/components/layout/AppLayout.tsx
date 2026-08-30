@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/Toaster";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useAuth } from "@/store/auth";
 import { usePendencias } from "@/store/pendencias";
+import { useAvisosPendencias } from "@/hooks/useAvisosPendencias";
 import { useEmpresas } from "@/store/empresas";
 import { BotaoRecolherTudo, ProvedorRecolher } from "./Recolher";
 import { cx } from "@/lib/format";
@@ -26,6 +27,9 @@ export function AppLayout() {
   useEffect(() => {
     if (usuario) carregarEmpresas();
   }, [usuario, carregarEmpresas]);
+
+  // Avisos do sistema operacional para pendência nova (ver o hook).
+  useAvisosPendencias();
 
   // Aguarda a sessão inicial resolver antes de decidir redirecionar.
   if (carregando) {

@@ -12,6 +12,9 @@ import { repo } from "@/data";
 import { toast } from "@/store/toast";
 import { confirmar } from "@/store/confirm";
 import { cx } from "@/lib/format";
+import {
+  notificar, pedirPermissao, permissaoAtual, type PermissaoNotificacao,
+} from "@/lib/notificacoes";
 import type { Area, Papel, Usuario } from "@/data/types";
 
 type AbaConfig = "geral" | "checklist" | "areas" | "usuarios";
@@ -38,6 +41,8 @@ export function Configuracoes() {
         <div className="space-y-4">
           <EmpresasGrupoCard />
 
+          <NotificacoesCard />
+
           <Card>
             <CardTitle hint="Arquivar ≠ apagar — registros arquivados continuam consultáveis">Retenção de dados</CardTitle>
             <div className="space-y-4">
@@ -60,6 +65,88 @@ export function Configuracoes() {
       {aba === "areas" && <AreasCard />}
       {aba === "usuarios" && <UsuariosCard />}
     </PageShell>
+  );
+}
+
+/**
+ * Notificações do sistema — a do canto do Windows, a da barra do celular.
+ *
+ * A permissão mora AQUI, atrás de um clique, e não no carregamento do app: os
+ * navegadores só aceitam o pedido a partir de um gesto da pessoa e, quando o
+ * site tenta sozinho, o Chrome bloqueia o pedido de vez. Uma tentativa mal
+ * colocada custaria a permissão para sempre naquele navegador.
+ *
+ * A permissão é por NAVEGADOR e por aparelho: quem usa no computador e no
+ * celular precisa autorizar nos dois, e é isso que o texto explica.
+ */
+function NotificacoesCard() {
+  const [permissao, setPermissao] = useState<PermissaoNotificacao>(() => permissaoAtual());
+  const [testando, setTestando] = useState(false);
+
+  async function autorizar() {
+    const r = await pedirPermissao();
+    setPermissao(r);
+    if (r === "concedida") {
+      await notificar({
+        titulo: "Notificações ligadas",
+        corpo: "É assim que o Pólobh vai avisar quando aparecer pendência para você.",
+        tag: "polobh-teste",
+      });
+    }
+  }
+
+  async function testar() {
+    setTestando(true);
+    const foi = await notificar({
+      titulo: "Teste do Pólobh",
+      corpo: "Se você está vendo isto, as notificações estão funcionando neste aparelho.",
+      url: "/projetos",
+      tag: "polobh-teste",
+    });
+    setTestando(false);
+    if (!foi) toast("Não foi possível mostrar a notificação neste navegador.", "warning");
+  }
+
+  return (
+    <Card>
+      <CardTitle hint="Avisos fora do app: a notificação do Windows e a da barra do celular">
+        Notificações no aparelho
+      </CardTitle>
+      <div className="space-y-3">
+        {permissao === "sem-suporte" ? (
+          <p className="text-[12.5px] text-ink-2">
+            Este navegador não sabe mostrar notificações do sistema. O sino no topo do app continua funcionando.
+          </p>
+        ) : permissao === "negada" ? (
+          <p className="text-[12.5px] text-ink-2">
+            As notificações foram <b>bloqueadas</b> para este endereço. Para reativar, abra as permissões do site
+            no navegador (o cadeado ao lado do endereço) e libere "Notificações" — daqui não dá para pedir de novo.
+          </p>
+        ) : permissao === "concedida" ? (
+          <>
+            <p className="text-[12.5px] text-ink-2">
+              <b>Ligadas neste aparelho.</b> Quando aparecer pendência nova para você, o aviso chega mesmo com o
+              app em outra aba ou minimizado. Clicar no aviso abre direto o lugar da pendência.
+            </p>
+            <Button variant="secondary" size="sm" onClick={() => void testar()} disabled={testando}>
+              {testando ? "Enviando…" : "Enviar uma notificação de teste"}
+            </Button>
+          </>
+        ) : (
+          <>
+            <p className="text-[12.5px] text-ink-2">
+              Receba um aviso do sistema quando aparecer pendência para você — sem precisar estar com o app aberto
+              na frente. A autorização é <b>por aparelho</b>: se você usa no computador e no celular, autorize nos dois.
+            </p>
+            <Button size="sm" onClick={() => void autorizar()}>Ativar notificações</Button>
+          </>
+        )}
+        <p className="text-[11.5px] text-ink-3">
+          No celular, para o aviso aparecer na barra do telefone, adicione o Pólobh à tela de início pelo menu do
+          navegador ("Instalar aplicativo" ou "Adicionar à tela inicial").
+        </p>
+      </div>
+    </Card>
   );
 }
 

@@ -1,0 +1,16 @@
+{
+  "name": "Pólobh — Estimativas & Ordens de Serviço",
+  "short_name": "Pólobh",
+  "description": "Estimativas de custo, ordens de serviço e check-list dos projetos da Pólobh.",
+  "start_url": "/projetos",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#E8EAEE",
+  "theme_color": "#F2820D",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "/icone-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icone-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
