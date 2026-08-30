@@ -14,6 +14,7 @@ const EcDetail = lazyComRecuperacao(() => import("@/pages/EcDetail").then((m) =>
 const OsForm = lazyComRecuperacao(() => import("@/pages/OsForm").then((m) => ({ default: m.OsForm })));
 const OsList = lazyComRecuperacao(() => import("@/pages/OsList").then((m) => ({ default: m.OsList })));
 const Agenda = lazyComRecuperacao(() => import("@/pages/Agenda").then((m) => ({ default: m.Agenda })));
+const Calendario = lazyComRecuperacao(() => import("@/pages/Calendario").then((m) => ({ default: m.Calendario })));
 const Cronogramas = lazyComRecuperacao(() => import("@/pages/Cronogramas").then((m) => ({ default: m.Cronogramas })));
 const CronogramaPublico = lazyComRecuperacao(() => import("@/pages/CronogramaPublico").then((m) => ({ default: m.CronogramaPublico })));
 const CredenciamentoPublico = lazyComRecuperacao(() => import("@/pages/CredenciamentoPublico").then((m) => ({ default: m.CredenciamentoPublico })));
@@ -51,6 +52,7 @@ export const router = createBrowserRouter([
       { path: "estimativas/:ecId/os/nova", element: <RequireRecurso r="oss.editar"><OsForm /></RequireRecurso> },
       { path: "ordens/:id", element: <RequireRecurso r="oss"><OsForm /></RequireRecurso> },
       { path: "agenda", element: <RequireRecurso r="checklists"><Agenda /></RequireRecurso> },
+      { path: "calendario", element: <RequireRecurso r="projetos"><Calendario /></RequireRecurso> },
       { path: "cronogramas", element: <RequireRecurso r="cronogramas"><Cronogramas /></RequireRecurso> },
       { path: "fornecedores", element: <RequireRecurso r="fornecedores"><Fornecedores /></RequireRecurso> },
       { path: "configuracoes", element: <RequireRecurso r="configuracoes"><Configuracoes /></RequireRecurso> },

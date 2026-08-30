@@ -400,6 +400,59 @@ const MODULOS: Modulo[] = [
     ),
   },
   {
+    id: "calendario",
+    icone: <IcCalendar />,
+    titulo: "Calendário",
+    resumo: "O ano inteiro num quadro só: quando cada projeto acontece.",
+    tags: ["calendário", "calendario", "ano", "anual", "quadro", "meses", "mês", "datas", "quando", "barrinha", "linha do tempo", "quadro preto"],
+    conteudo: (
+      <>
+        <Secao titulo="O que o Calendário responde">
+          <p>
+            É o <b>quadro do ano</b> — o mesmo que a produção mantinha à mão na parede, agora
+            preenchido sozinho. Responde de bate-pronto: <b>o que acontece em cada mês do ano?</b>
+          </p>
+          <Tela titulo="Calendário — 2026">
+            <div className="space-y-2 text-[12px]">
+              <div className="flex items-center gap-2">
+                <Tag tom="primary">‹ 2026 ›</Tag>
+                <span className="text-ink-3">a seta troca o ano</span>
+              </div>
+              <div className="flex items-center gap-2"><Tag>Calendário</Tag><Tag>Lista</Tag><span className="text-ink-3">duas leituras do mesmo quadro</span></div>
+              <div className="flex items-center gap-2">
+                <span className="text-ink-3">Março</span>
+                <span className="h-2 w-24 rounded-pill bg-primary" />
+                <span className="text-ink-3">05 a 08</span>
+              </div>
+            </div>
+          </Tela>
+        </Secao>
+        <Secao titulo="Como usar">
+          <Passos>
+            <span>Use as <b>setas ao lado do ano</b> para ir e voltar no tempo. Os doze meses aparecem em cards.</span>
+            <span>Cada card mostra <b>quantos projetos</b> o mês tem e os nomes, com a cor de cada projeto.</span>
+            <span>Clique no mês para abrir a <b>régua de dias</b>: cada projeto vira uma barra que corre do primeiro ao último dia. Barra com <b>seta na ponta</b> = o projeto começa antes ou termina depois daquele mês.</span>
+            <span>A vista <b>Lista</b> mostra o ano inteiro escrito, mês a mês — é a leitura de quem quer bater o olho ou imprimir.</span>
+          </Passos>
+        </Secao>
+        <Secao titulo="De onde vêm as datas">
+          <p>
+            Do próprio projeto: a etapa <b>Evento</b> do cronograma (aba Dados Gerais). É a data do
+            projeto acontecendo — <b>montagem, ensaios e desmontagem não entram</b> no quadro.
+          </p>
+          <Atencao>
+            Projeto sem data de evento não tem onde ser desenhado. Ele não some: aparece na faixa
+            amarela no rodapé da tela, para alguém preencher a data.
+          </Atencao>
+          <Dica>
+            Ninguém digita nada duas vezes. Cadastrou a data do evento no projeto, o calendário se
+            preenche sozinho — e a cor de cada projeto é sempre a mesma, em todas as telas do quadro.
+          </Dica>
+        </Secao>
+      </>
+    ),
+  },
+  {
     id: "agenda",
     icone: <IcClock />,
     titulo: "Agenda",
