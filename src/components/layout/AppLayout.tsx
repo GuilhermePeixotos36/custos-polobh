@@ -7,6 +7,7 @@ import { useAuth } from "@/store/auth";
 import { usePendencias } from "@/store/pendencias";
 import { useAvisosPendencias } from "@/hooks/useAvisosPendencias";
 import { useMonitorPendencias } from "@/hooks/useMonitorPendencias";
+import { useRealtimePendencias } from "@/hooks/useRealtimePendencias";
 import { useEmpresas } from "@/store/empresas";
 import { BotaoRecolherTudo, ProvedorRecolher } from "./Recolher";
 import { cx } from "@/lib/format";
@@ -29,8 +30,10 @@ export function AppLayout() {
     if (usuario) carregarEmpresas();
   }, [usuario, carregarEmpresas]);
 
-  // Mantém as pendências frescas mesmo com a aba parada em segundo plano —
-  // sem isto o aviso do sistema operacional nunca dispararia (ver o hook).
+  // Duas camadas, e as duas precisam existir: o Realtime avisa na hora quando
+  // outra pessoa mexe em algo, e o relógio garante a atualização quando o
+  // socket cai, a rede oscila ou a aba dorme.
+  useRealtimePendencias(!!usuario);
   useMonitorPendencias(!!usuario);
 
   // Avisos do sistema operacional para pendência nova (ver o hook).
