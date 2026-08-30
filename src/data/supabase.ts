@@ -415,9 +415,30 @@ function ecRow(ec: Ec) {
 // A gravação continua pela RPC `salvar_ec_completa`, que é SECURITY DEFINER.
 const SELECT_EC = "*, linhas:ec_linhas_visiveis(*)";
 
+/**
+ * Projeção LEVE das linhas, para o painel de pendências e a memória de campos.
+ *
+ * Estas duas coisas recarregam a cada navegação e leem a base INTEIRA de ECs.
+ * Com `*` nas linhas isso significa baixar, a cada clique de menu, o descritivo
+ * rico de cada item de cada EC já feita pela casa — o campo mais pesado da
+ * tabela, e o único que nenhuma das duas usa. Com poucas ECs não se nota; com
+ * um ano de operação é o que faz o app parecer travado.
+ *
+ * As colunas aqui são exatamente o que `calcularPendencias` (observações,
+ * status de OS e de Contrato) e `montarSugestoes` (item, grupo, pedido de
+ * compra, código de serviço) leem. `observacao` vem junto por causa do formato
+ * antigo, que `mapObservacoes` ainda converte.
+ */
+const SELECT_EC_PAINEL =
+  "*, linhas:ec_linhas_visiveis(id,grupo,item,pedido_compra,codigo_servico,status_os,contrato_status,status_aprovacao,observacao,observacoes,oculto,ordem)";
+
 const ecRepo: EcRepository = {
   async listar() {
     const data = ok(await supabase.from("ecs").select(SELECT_EC).order("criado_em", { ascending: false }));
+    return (data ?? []).map(mapEc);
+  },
+  async listarPainel() {
+    const data = ok(await supabase.from("ecs").select(SELECT_EC_PAINEL).order("criado_em", { ascending: false }));
     return (data ?? []).map(mapEc);
   },
   async obter(id) {

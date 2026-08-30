@@ -103,7 +103,7 @@ export function useChecklistProjeto(
         const novo = gerarChecklist(projeto, modelo);
         setChecklist(await repo.checklists.criar(novo));
         toast(`Check-list ${modalidade} criado com ${novo.itens.length} tarefas.`, "success");
-        void recarregarPendencias();
+        void recarregarPendencias(true);
       } catch {
         // Corrida entre duas abas: o índice único de projeto_id barra a segunda.
         // Recarregar resolve — quem perdeu a corrida passa a ver a lista da outra.
@@ -138,7 +138,7 @@ export function useChecklistProjeto(
       setChecklist((c) => (c ? { ...c, itens: c.itens.map((i) => (i.id === item.id ? item : i)) } : c));
       try {
         await repo.checklists.salvarItem(item);
-        void recarregarPendencias();
+        void recarregarPendencias(true);
       } catch (erro) {
         toast(`Não foi possível salvar a tarefa: ${(erro as Error).message}`, "danger");
         await carregar(); // volta ao que está no banco em vez de mentir na tela
@@ -185,7 +185,7 @@ export function useChecklistProjeto(
       setChecklist((c) => (c ? { ...c, itens: c.itens.filter((i) => i.id !== item.id) } : c));
       try {
         await repo.checklists.removerItem(item.id);
-        void recarregarPendencias();
+        void recarregarPendencias(true);
       } catch (erro) {
         toast(`Não foi possível excluir a tarefa: ${(erro as Error).message}`, "danger");
         await carregar();
@@ -203,7 +203,7 @@ export function useChecklistProjeto(
     try {
       await repo.checklists.salvarItens(mudaram);
       toast(`${mudaram.length} prazo(s) recalculado(s) a partir das datas do projeto.`, "success");
-      void recarregarPendencias();
+      void recarregarPendencias(true);
     } catch (erro) {
       toast(`Não foi possível recalcular: ${(erro as Error).message}`, "danger");
       await carregar();
@@ -238,7 +238,7 @@ export function useChecklistProjeto(
       const novo = gerarChecklist(projeto, modelo);
       setChecklist(await repo.checklists.criar(novo));
       toast(`Check-list refeito no modelo ${modelo.modalidade}.`, "success");
-      void recarregarPendencias();
+      void recarregarPendencias(true);
     } catch (erro) {
       toast(`Não foi possível refazer o check-list: ${(erro as Error).message}`, "danger");
       await carregar();

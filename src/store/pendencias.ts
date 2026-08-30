@@ -20,7 +20,12 @@ interface State {
   itens: Pendencia[];
   /** Listas cruas da última carga — base das pendências e das sugestões de campo. */
   projetos: Projeto[];
-  ecs: Ec[];
+  /**
+   * ECs com as linhas PARCIAIS (ver `repo.ecs.listarPainel`): só os campos que
+   * as pendências e a memória de campos leem. Descritivo, valores e dados de
+   * fornecedor vêm vazios — não use esta lista para copiar dados de uma EC.
+   */
+  ecsPainel: Ec[];
   oss: Os[];
   checklists: Checklist[];
   carregando: boolean;
@@ -31,7 +36,7 @@ interface State {
 export const usePendencias = create<State>((set, get) => ({
   itens: [],
   projetos: [],
-  ecs: [],
+  ecsPainel: [],
   oss: [],
   checklists: [],
   carregando: false,
@@ -39,12 +44,19 @@ export const usePendencias = create<State>((set, get) => ({
   carregar: async (force = false) => {
     const { carregando, ultimoLoad } = get();
     if (carregando) return;
-    if (!force && Date.now() - ultimoLoad < 4000) return; // evita recargas em rajada
+    // Janela de silêncio da navegação. Era de 4s, e isso tinha dois problemas:
+    // navegar entre telas recarregava a base inteira quase a cada clique, e a
+    // recarga PÓS-AÇÃO (concluir tarefa, salvar OS) caía dentro da janela e não
+    // acontecia — o badge só mudava depois. Agora quem muda dado chama com
+    // `force`, e a navegação pode esperar bem mais.
+    if (!force && Date.now() - ultimoLoad < 20000) return;
     set({ carregando: true });
     try {
       const [projetos, ecs, oss, usuarios, credenciados, checklists] = await Promise.all([
         repo.projetos.listar(),
-        repo.ecs.listar(),
+        // Listagem leve: o painel recarrega a cada navegação e o descritivo
+        // rico das linhas — o campo mais pesado da base — não é lido aqui.
+        repo.ecs.listarPainel(),
         repo.oss.listar(),
         repo.auth.usuarios(),
         repo.oss.osComCredenciamento(),
@@ -54,7 +66,7 @@ export const usePendencias = create<State>((set, get) => ({
       set({
         itens: calcularPendencias(projetos, ecs, oss, nomes, credenciados, checklists),
         projetos,
-        ecs,
+        ecsPainel: ecs,
         oss,
         checklists,
         ultimoLoad: Date.now(),

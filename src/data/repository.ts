@@ -32,6 +32,15 @@ export interface FornecedorRepository {
 
 export interface EcRepository {
   listar(): Promise<Ec[]>;
+  /**
+   * Listagem LEVE para o painel de pendências e a memória de campos.
+   *
+   * As linhas vêm PARCIAIS de propósito — só o que essas duas coisas leem (ver
+   * `SELECT_EC_PAINEL`). Descritivo, valores e dados de fornecedor voltam
+   * vazios. NUNCA use esta lista para copiar dados de uma EC (importação, nova
+   * versão, Excel): para isso existe `obter`, que traz a EC inteira.
+   */
+  listarPainel(): Promise<Ec[]>;
   obter(id: string): Promise<Ec | undefined>;
   salvar(ec: Ec): Promise<Ec>;
   duplicar(id: string): Promise<Ec>;

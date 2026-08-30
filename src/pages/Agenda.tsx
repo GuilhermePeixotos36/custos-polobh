@@ -160,7 +160,7 @@ export function Agenda() {
     setConcluidasAgora((s) => new Set(s).add(t.item.id));
     try {
       await repo.checklists.salvarItem(atualizado);
-      void recarregarPendencias();
+      void recarregarPendencias(true);
     } catch (erro) {
       toast(`Não foi possível concluir a tarefa: ${(erro as Error).message}`, "danger");
       // Devolve o item à lista: a tela não pode dizer que concluiu se não gravou.

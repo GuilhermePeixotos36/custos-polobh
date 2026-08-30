@@ -32,7 +32,7 @@ function sugestoesDe(base: BaseSugestoes): Sugestoes {
 
 export function useSugestoes(): Sugestoes {
   const projetos = usePendencias((s) => s.projetos);
-  const ecs = usePendencias((s) => s.ecs);
+  const ecs = usePendencias((s) => s.ecsPainel);
   const oss = usePendencias((s) => s.oss);
   const checklists = usePendencias((s) => s.checklists);
   const carregar = usePendencias((s) => s.carregar);
