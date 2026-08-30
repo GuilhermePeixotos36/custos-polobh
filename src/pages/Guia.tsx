@@ -185,9 +185,15 @@ const MODULOS: Modulo[] = [
             na barra do Windows (ou na do telefone) quando aparece <b>pendência nova para você</b> — mesmo com o app
             em outra aba ou minimizado. Clicar no aviso abre direto o lugar da pendência.
           </p>
+          <p>
+            Basta o Pólobh estar <b>aberto em alguma aba</b> — ele não precisa estar na frente. O sistema consulta as
+            pendências de tempos em tempos por conta própria e avisa quando aparece coisa nova, mesmo com a janela
+            minimizada ou você trabalhando em outro programa.
+          </p>
           <Atencao>
             A autorização é <b>por aparelho e por navegador</b>: quem usa no computador e no celular precisa
-            autorizar nos dois. E o aviso só aparece com o app aberto em alguma aba.
+            autorizar nos dois. Com o app <b>fechado</b> não chega aviso — para isso seria preciso um envio pelo
+            servidor, que fica para uma etapa seguinte.
           </Atencao>
         </Secao>
         <Secao titulo="Usar pelo celular">

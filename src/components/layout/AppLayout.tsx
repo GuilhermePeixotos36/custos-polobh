@@ -6,6 +6,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useAuth } from "@/store/auth";
 import { usePendencias } from "@/store/pendencias";
 import { useAvisosPendencias } from "@/hooks/useAvisosPendencias";
+import { useMonitorPendencias } from "@/hooks/useMonitorPendencias";
 import { useEmpresas } from "@/store/empresas";
 import { BotaoRecolherTudo, ProvedorRecolher } from "./Recolher";
 import { cx } from "@/lib/format";
@@ -27,6 +28,10 @@ export function AppLayout() {
   useEffect(() => {
     if (usuario) carregarEmpresas();
   }, [usuario, carregarEmpresas]);
+
+  // Mantém as pendências frescas mesmo com a aba parada em segundo plano —
+  // sem isto o aviso do sistema operacional nunca dispararia (ver o hook).
+  useMonitorPendencias(!!usuario);
 
   // Avisos do sistema operacional para pendência nova (ver o hook).
   useAvisosPendencias();
