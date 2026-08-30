@@ -11,6 +11,7 @@
  * para construir e testar todo o fluxo antes de plugar o Brevo.
  */
 import { flags } from "@/lib/flags";
+import { EMAIL_TESTE, destinoRealLiberado, protegerDestinatarios } from "./seguranca";
 import { supabase } from "@/lib/supabaseClient";
 import { criarOsExcelBuffer } from "@/lib/excel/os";
 import { criarEcExcelBuffer } from "@/lib/excel/ec";
@@ -39,7 +40,10 @@ function bufferParaBase64(buffer: ArrayBuffer): string {
 export interface ResultadoEmail {
   ok: boolean;
   simulado: boolean;
+  /** Saiu, mas para a caixa de homologação em vez do destinatário real. */
+  desviado?: boolean;
   motivo?: string;
+  /** Quem o app QUERIA alcançar — não necessariamente quem recebeu. */
   destinatarios: string[];
 }
 
@@ -48,12 +52,19 @@ export interface ResultadoEmail {
  * Brevo). Usa `supabase.functions.invoke`, então o header de autenticação vai
  * automático (sessão do usuário / anon key). Não lança — devolve o resultado.
  */
-export async function enviarEmail(msg: MensagemEmail): Promise<ResultadoEmail> {
-  const destinatarios = msg.para.map((p) => p.email);
+export async function enviarEmail(bruta: MensagemEmail): Promise<ResultadoEmail> {
+  // Quem o app QUERIA alcançar — é isso que a tela mostra de volta, mesmo
+  // quando a trava desvia a mensagem para a caixa de homologação.
+  const destinatarios = bruta.para.map((p) => p.email);
 
   if (destinatarios.length === 0) {
     return { ok: false, simulado: true, motivo: "Sem e-mail de destino.", destinatarios };
   }
+
+  // A trava de homologação vem ANTES de qualquer envio, e é o último ponto por
+  // onde toda mensagem passa: caminho novo escrito amanhã já nasce protegido.
+  const msg = protegerDestinatarios(bruta);
+  const desviado = !destinoRealLiberado();
 
   // Modo simulação: enquanto a flag estiver desligada, nada sai (útil em dev/testes).
   if (!flags.email) {
@@ -80,10 +91,31 @@ export async function enviarEmail(msg: MensagemEmail): Promise<ResultadoEmail> {
     if (data && (data as { ok?: boolean }).ok === false) {
       return { ok: false, simulado: false, motivo: (data as { erro?: string }).erro ?? "Falha no envio.", destinatarios };
     }
-    return { ok: true, simulado: false, destinatarios };
+    return {
+      ok: true,
+      simulado: false,
+      desviado,
+      motivo: desviado ? `Homologação: a mensagem foi para ${EMAIL_TESTE}, não para o destinatário.` : undefined,
+      destinatarios,
+    };
   } catch (e) {
     return { ok: false, simulado: false, motivo: (e as Error).message, destinatarios };
   }
+}
+
+/**
+ * O que dizer na tela depois de um envio.
+ *
+ * Importa porque a trava de homologação desvia a mensagem: avisar "link enviado
+ * para o fornecedor" quando ela caiu na caixa de teste é pior do que não avisar
+ * nada — a pessoa vai cobrar uma resposta que nunca vai chegar.
+ */
+export function resumoDoEnvio(r: ResultadoEmail, quantos = 1): string {
+  const alvo = quantos > 1 ? `${quantos} fornecedor(es)` : r.destinatarios[0] || "o destinatário";
+  if (!r.ok) return `Não foi possível enviar: ${r.motivo ?? "falha no envio"}.`;
+  if (r.simulado) return `Envio simulado — nada saiu (destino seria ${alvo}).`;
+  if (r.desviado) return `Enviado para a caixa de TESTE, não para ${alvo} — o sistema está em homologação.`;
+  return `Enviado para ${alvo}.`;
 }
 
 /* ----------------------- Helpers de alto nível ----------------------- */

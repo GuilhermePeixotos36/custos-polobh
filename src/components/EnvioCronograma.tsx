@@ -10,9 +10,13 @@
  * o e-mail é montado a partir da OS dele.
  */
 import { useMemo, useState } from "react";
-import { Button, Card, CardTitle, Table, THead, Th, Tr, Td, EmptyState, Badge } from "@/components/ui";
+import {
+  Button, Card, CardTitle, Table, THead, Th, Tr, Td, EmptyState, Badge,
+  AvisoHomologacaoEmail, MOTIVO_DISPARO_DESLIGADO,
+} from "@/components/ui";
+import { flags } from "@/lib/flags";
 import { IcSend } from "@/components/icons";
-import { enviarLembreteCronograma } from "@/lib/email";
+import { enviarLembreteCronograma, resumoDoEnvio } from "@/lib/email";
 import { toast } from "@/store/toast";
 import { confirmar } from "@/store/confirm";
 import { cx } from "@/lib/format";
@@ -36,10 +40,9 @@ export function EnvioCronograma({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
   const marcaveis = fila.filter(podeEnviarCronograma);
   const todosMarcados = marcaveis.length > 0 && marcaveis.every((f) => marcados.has(f.os.id));
 
-  async function enviar(f: NaFilaCronograma): Promise<boolean> {
-    if (!f.ec || !f.email) return false;
-    const r = await enviarLembreteCronograma(f.os, f.ec);
-    return r.ok;
+  async function enviar(f: NaFilaCronograma) {
+    if (!f.ec || !f.email) return { ok: false, simulado: true, destinatarios: [] };
+    return enviarLembreteCronograma(f.os, f.ec);
   }
 
   async function enviarUm(f: NaFilaCronograma) {
@@ -50,8 +53,8 @@ export function EnvioCronograma({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
     }))) return;
     setEnviando(f.os.id);
     try {
-      const ok = await enviar(f);
-      toast(ok ? `Cronograma enviado para ${f.email}.` : "Não foi possível enviar.", ok ? "success" : "warning");
+      const r = await enviar(f);
+      toast(resumoDoEnvio(r), r.ok && !r.desviado ? "success" : "warning");
     } finally {
       setEnviando("");
     }
@@ -70,12 +73,15 @@ export function EnvioCronograma({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
     setEnviando("lote");
     try {
       const resultados = await Promise.all(alvos.map(enviar));
-      const ok = resultados.filter(Boolean).length;
+      const ok = resultados.filter((r) => r.ok).length;
+      const desviados = resultados.filter((r) => r.desviado).length;
       toast(
-        ok === resultados.length
-          ? `Cronograma enviado a ${ok} fornecedor(es).`
-          : `${ok} de ${resultados.length} enviados — os demais falharam.`,
-        ok === resultados.length ? "success" : "warning"
+        ok < resultados.length
+          ? `${ok} de ${resultados.length} enviados — os demais falharam.`
+          : desviados
+            ? `${ok} cronograma(s) foram para a caixa de TESTE, não para os fornecedores — o sistema está em homologação.`
+            : `Cronograma enviado a ${ok} fornecedor(es).`,
+        ok === resultados.length && !desviados ? "success" : "warning"
       );
       if (ok) setMarcados(new Set());
     } finally {
@@ -105,9 +111,11 @@ export function EnvioCronograma({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
               size="sm"
               icon={<IcSend width={15} height={15} />}
               onClick={enviarLote}
-              disabled={!alvos.length || !!enviando}
+              disabled={!alvos.length || !!enviando || !flags.disparoFornecedor}
               title={
-                marcados.size
+                !flags.disparoFornecedor
+                  ? MOTIVO_DISPARO_DESLIGADO
+                  : marcados.size
                   ? `${alvos.length} marcado(s) com e-mail cadastrado`
                   : alvos.length
                     ? `${alvos.length} fornecedor(es) com cronograma montado`
@@ -124,6 +132,7 @@ export function EnvioCronograma({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
         >
           Envio dos cronogramas
         </CardTitle>
+        <AvisoHomologacaoEmail />
       </div>
 
       <Table>
@@ -184,8 +193,14 @@ export function EnvioCronograma({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
                 <Button
                   variant="secondary"
                   size="sm"
-                  disabled={!podeEnviarCronograma(f) || !!enviando}
-                  title={f.email ? "Enviar só para este fornecedor" : "Fornecedor sem e-mail cadastrado"}
+                  disabled={!podeEnviarCronograma(f) || !!enviando || !flags.disparoFornecedor}
+                  title={
+                    !flags.disparoFornecedor
+                      ? MOTIVO_DISPARO_DESLIGADO
+                      : f.email
+                        ? "Enviar só para este fornecedor"
+                        : "Fornecedor sem e-mail cadastrado"
+                  }
                   onClick={() => enviarUm(f)}
                 >
                   {enviando === f.os.id ? "Enviando…" : "Enviar"}

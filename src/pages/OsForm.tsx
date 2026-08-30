@@ -12,6 +12,8 @@ import {
   Badge,
   tomStatusOs,
   AvisoEmailPendente,
+  AvisoHomologacaoEmail,
+  MOTIVO_DISPARO_DESLIGADO,
 } from "@/components/ui";
 import { IcDownload, IcSearch, IcSend, IcChevron, IcSpark } from "@/components/icons";
 import { ObservacoesThread } from "@/components/ObservacoesPopup";
@@ -669,11 +671,22 @@ export function OsForm() {
             Baixar PDF
           </Button>
           {podeEditar && <Button variant="secondary" size="sm" onClick={() => salvar()} disabled={busy}>Salvar</Button>}
-          {podeEditar && <Button size="sm" icon={<IcSend width={15} height={15} />} onClick={() => salvar("Disparada")} disabled={busy}>Disparar OS</Button>}
+          {podeEditar && (
+            <Button
+              size="sm"
+              icon={<IcSend width={15} height={15} />}
+              onClick={() => salvar("Disparada")}
+              disabled={busy || !flags.disparoFornecedor}
+              title={flags.disparoFornecedor ? "Salva a OS e envia ao fornecedor" : MOTIVO_DISPARO_DESLIGADO}
+            >
+              Disparar OS
+            </Button>
+          )}
         </div>
       }
     >
       <AvisoEmailPendente className="mb-4" />
+      <AvisoHomologacaoEmail className="mb-4" />
 
       <div className="space-y-4">
         {/* Cabeçalho do modelo em Excel */}

@@ -20,11 +20,14 @@
  *    conferida nome a nome (ver `lib/excel/credenciamento`).
  */
 import { useMemo, useState } from "react";
-import { Button, Card, CardTitle, Input, Table, THead, Th, Tr, Td, EmptyState, Badge } from "@/components/ui";
+import {
+  Button, Card, CardTitle, Input, Table, THead, Th, Tr, Td, EmptyState, Badge,
+  AvisoHomologacaoEmail,
+} from "@/components/ui";
 import { IcSend, IcLink, IcCheck, IcDownload } from "@/components/icons";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
-import { enviarCredenciamento } from "@/lib/email";
+import { enviarCredenciamento, resumoDoEnvio } from "@/lib/email";
 import { gerarCredenciamentoExcel } from "@/lib/excel";
 import { toast } from "@/store/toast";
 import { confirmar } from "@/store/confirm";
@@ -74,10 +77,9 @@ export function CredenciamentoProjeto({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
     });
   }
 
-  async function enviar(f: NaFila): Promise<boolean> {
-    if (!f.ec || !f.link || !f.email) return false;
-    const r = await enviarCredenciamento(f.os, f.ec);
-    return r.ok;
+  async function enviar(f: NaFila) {
+    if (!f.ec || !f.link || !f.email) return { ok: false, simulado: true, destinatarios: [] };
+    return enviarCredenciamento(f.os, f.ec);
   }
 
   async function enviarUm(f: NaFila) {
@@ -88,8 +90,8 @@ export function CredenciamentoProjeto({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
     }))) return;
     setEnviando(f.os.id);
     try {
-      const ok = await enviar(f);
-      toast(ok ? `Link enviado para ${f.email}.` : "Não foi possível enviar.", ok ? "success" : "warning");
+      const r = await enviar(f);
+      toast(resumoDoEnvio(r), r.ok && !r.desviado ? "success" : "warning");
     } finally {
       setEnviando("");
       recarregar();
@@ -109,12 +111,15 @@ export function CredenciamentoProjeto({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
     setEnviando("lote");
     try {
       const resultados = await Promise.all(alvos.map(enviar));
-      const ok = resultados.filter(Boolean).length;
+      const ok = resultados.filter((r) => r.ok).length;
+      const desviados = resultados.filter((r) => r.desviado).length;
       toast(
-        ok === resultados.length
-          ? `Link enviado a ${ok} fornecedor(es).`
-          : `${ok} de ${resultados.length} enviados — os demais falharam.`,
-        ok === resultados.length ? "success" : "warning"
+        ok < resultados.length
+          ? `${ok} de ${resultados.length} enviados — os demais falharam.`
+          : desviados
+            ? `${ok} mensagem(ns) foram para a caixa de TESTE, não para os fornecedores — o sistema está em homologação.`
+            : `Link enviado a ${ok} fornecedor(es).`,
+        ok === resultados.length && !desviados ? "success" : "warning"
       );
       if (ok) setMarcados(new Set());
     } finally {
@@ -198,6 +203,7 @@ export function CredenciamentoProjeto({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
           >
             Credenciamento dos Fornecedores
           </CardTitle>
+          <AvisoHomologacaoEmail />
         </div>
 
         <Table>

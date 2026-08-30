@@ -88,6 +88,34 @@ export function AvisoEmailPendente({ className }: { className?: string }) {
 }
 
 /**
+ * Aviso de que o app está em homologação e nenhum e-mail chega a quem deveria.
+ *
+ * Fica ao lado dos botões de envio, e não escondido nas Configurações: quem
+ * clica em "Enviar a todos" precisa saber ANTES que aquilo não vai sair para os
+ * fornecedores — descobrir depois, pelo silêncio deles, é pior do que não ter o
+ * botão.
+ */
+export function AvisoHomologacaoEmail({ className }: { className?: string }) {
+  if (flags.emailDestinoReal) return null;
+  return (
+    <div className={cx("flex items-start gap-2 rounded-btn bg-warning-soft text-warning px-3 py-2 text-[12.5px]", className)}>
+      <span className="mt-0.5 shrink-0" aria-hidden>🔒</span>
+      <span>
+        <b>Sistema em homologação.</b> Nenhum e-mail chega a fornecedor ou cliente: o que for
+        enviado vai para a caixa de teste da equipe, com o destinatário original no assunto.
+        {!flags.disparoFornecedor && (
+          <> Os disparos de <b>OS</b> e de <b>cronograma</b> estão desabilitados até a virada.</>
+        )}
+      </span>
+    </div>
+  );
+}
+
+/** Motivo do botão de envio desabilitado — o mesmo texto em todas as telas. */
+export const MOTIVO_DISPARO_DESLIGADO =
+  "Disparo por e-mail desativado enquanto o sistema está em homologação.";
+
+/**
  * Falha de carregamento — some com o "lista vazia parece que não tem dados".
  * Sempre que uma tela usa `useAsync`, mostre isto quando `error` vier
  * preenchido, em vez de cair no estado vazio.
