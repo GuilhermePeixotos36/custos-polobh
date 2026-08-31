@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { PageShell } from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui";
 import {
@@ -999,11 +999,99 @@ const MODULOS: Modulo[] = [
   },
 ];
 
+/**
+ * O passo seguinte (ou o anterior) da leitura, no pé do módulo.
+ *
+ * Mostra o TÍTULO do módulo vizinho, e não só "próximo": a pessoa decide se
+ * quer continuar sabendo para onde vai.
+ */
+function PassoModulo({
+  lado,
+  modulo,
+  onClick,
+}: {
+  lado: "anterior" | "proximo";
+  modulo: Modulo;
+  onClick: () => void;
+}) {
+  const proximo = lado === "proximo";
+  return (
+    <button
+      onClick={onClick}
+      className={cx(
+        "flex-1 min-w-[13rem] flex items-center gap-3 px-4 py-3 rounded-card border border-border bg-surface",
+        "hover:bg-[#FAFAFB] transition-colors text-left",
+        proximo ? "flex-row-reverse text-right" : ""
+      )}
+    >
+      <span className="text-ink-3 text-lg leading-none shrink-0">{proximo ? "→" : "←"}</span>
+      <span className="min-w-0">
+        <span className="block text-[10px] font-extrabold uppercase tracking-[0.14em] text-ink-3">
+          {proximo ? "Próximo módulo" : "Módulo anterior"}
+        </span>
+        <span className="block text-[13.5px] font-bold text-ink leading-tight mt-0.5 truncate">{modulo.titulo}</span>
+      </span>
+    </button>
+  );
+}
+
 /* ================================ Página ================================ */
+
+/**
+ * Distância do topo da janela até onde o conteúdo pode começar: a barra de
+ * navegação mais o cabeçalho grudado da página, que ficam por cima de tudo.
+ * Sem descontar os dois, "rolar até o topo do módulo" enfiaria o título do
+ * módulo embaixo do cabeçalho.
+ */
+function alturaDasCamadas(): number {
+  const estilo = getComputedStyle(document.documentElement);
+  const px = (nome: string) => parseFloat(estilo.getPropertyValue(nome)) || 0;
+  return px("--altura-topnav") + px("--altura-cabecalho") + 16;
+}
 
 export function Guia() {
   const [busca, setBusca] = useState("");
   const [ativoId, setAtivoId] = useState("primeiros-passos");
+  const conteudo = useRef<HTMLDivElement>(null);
+  const lista = useRef<HTMLDivElement>(null);
+
+  /**
+   * Trocar de módulo tem de recomeçar a leitura no COMEÇO do módulo novo.
+   *
+   * A lista de módulos agora acompanha a rolagem, então o clique no próximo
+   * módulo acontece lá no fundo da página — e, sem isto, a pessoa continuava
+   * exatamente na mesma altura, caindo no meio de um texto que ela nunca leu.
+   * Só rola quando já está ABAIXO do começo do conteúdo: quem clica com a
+   * página no topo não é empurrado para lugar nenhum.
+   */
+  function abrirModulo(id: string) {
+    setAtivoId(id);
+    trazerParaALista(id);
+    const card = conteudo.current;
+    if (!card) return;
+    const alvo = window.scrollY + card.getBoundingClientRect().top - alturaDasCamadas();
+    if (window.scrollY <= alvo + 4) return;
+    const suave = !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({ top: Math.max(alvo, 0), behavior: suave ? "smooth" : "auto" });
+  }
+
+  /**
+   * Deixa o módulo escolhido VISÍVEL dentro da lista que rola.
+   *
+   * Importa quando a escolha não veio da própria lista: avançando pelos botões
+   * do pé do texto, o módulo aberto ia parar fora da parte visível da lista, e
+   * o realce ficava num lugar que ninguém via. Mexe só na rolagem da lista —
+   * a da página é assunto de `abrirModulo`.
+   */
+  function trazerParaALista(id: string) {
+    const caixa = lista.current;
+    const alvo = caixa?.querySelector<HTMLElement>(`[data-modulo="${id}"]`);
+    if (!caixa || !alvo) return;
+    const item = alvo.getBoundingClientRect();
+    const janela = caixa.getBoundingClientRect();
+    if (item.top < janela.top) caixa.scrollTop += item.top - janela.top - 8;
+    else if (item.bottom > janela.bottom) caixa.scrollTop += item.bottom - janela.bottom + 8;
+  }
 
   const filtrados = useMemo(() => {
     const termos = busca.trim().toLowerCase().split(/\s+/).filter(Boolean);
@@ -1015,6 +1103,18 @@ export function Guia() {
   }, [busca]);
 
   const ativo = filtrados.find((m) => m.id === ativoId) ?? filtrados[0] ?? null;
+
+  /**
+   * Vizinhos do módulo aberto, para ler em sequência.
+   *
+   * No celular a lista fica ACIMA do texto e não acompanha a rolagem — quem
+   * termina de ler está a uma tela inteira de distância do próximo módulo.
+   * Estes dois botões fecham esse caminho: o passo seguinte nasce onde a
+   * leitura termina.
+   */
+  const posicao = ativo ? filtrados.findIndex((m) => m.id === ativo.id) : -1;
+  const anterior = posicao > 0 ? filtrados[posicao - 1] : null;
+  const proximo = posicao >= 0 && posicao < filtrados.length - 1 ? filtrados[posicao + 1] : null;
 
   return (
     <PageShell
@@ -1035,19 +1135,42 @@ export function Guia() {
       <div className="grid lg:grid-cols-[280px_1fr] gap-5 items-start">
         {/* TOC / lista de módulos */}
         {/* Abaixo da navegação + do cabeçalho grudado da página (ver PageShell). */}
-        <nav className="lg:sticky lg:top-[calc(var(--altura-topnav)+var(--altura-cabecalho)+16px)] space-y-1.5">
-          <div className="px-1 mb-1 text-[10px] font-extrabold uppercase tracking-[0.14em] text-ink-3">
+        {/* A lista tem rolagem PRÓPRIA, e isso não é enfeite: são dezessete
+            módulos, mais alto que qualquer tela. Grudada sem rolar, os últimos
+            ficavam fora do campo de visão para sempre — para clicar em
+            "Configurações" era preciso subir a página inteira, ler, e descer
+            tudo de novo. Com rolagem própria, a lista inteira fica ao alcance
+            em qualquer altura do texto. */}
+        <nav
+          className={cx(
+            "flex flex-col gap-1.5 min-h-0",
+            // No computador: acompanha a rolagem, limitada ao que sobra da tela.
+            "lg:sticky lg:top-[calc(var(--altura-topnav)+var(--altura-cabecalho)+16px)]",
+            "lg:max-h-[calc(100vh-var(--altura-topnav)-var(--altura-cabecalho)-2rem)]",
+            // No celular a lista fica em cima do conteúdo: limitar a meia tela é
+            // o que impede o texto de nascer a mil pixels de distância. A regra
+            // do `lg` está numa media query, então ela vence esta aqui embaixo.
+            "max-h-[46vh]"
+          )}
+        >
+          <div className="px-1 mb-1 text-[10px] font-extrabold uppercase tracking-[0.14em] text-ink-3 shrink-0">
             {busca ? `${filtrados.length} resultado(s)` : "Módulos"}
           </div>
           {filtrados.length === 0 && (
             <p className="text-[13px] text-ink-3 px-1">Nada encontrado para “{busca}”. Tente outro termo.</p>
           )}
+          {/* `min-h-0` é o que faz a rolagem existir: sem ele o filho de um flex
+              nunca encolhe abaixo do próprio conteúdo, e a barra não aparece.
+              O `px-1 -mx-1` devolve o espaço que o corte da rolagem comeria do
+              anel de foco do botão. */}
+          <div ref={lista} className="flex-1 min-h-0 overflow-y-auto space-y-1.5 px-1 -mx-1 pb-1">
           {filtrados.map((m) => {
             const sel = ativo?.id === m.id;
             return (
               <button
                 key={m.id}
-                onClick={() => setAtivoId(m.id)}
+                data-modulo={m.id}
+                onClick={() => abrirModulo(m.id)}
                 className={cx(
                   "w-full text-left flex items-start gap-3 px-3 py-2.5 rounded-card border transition-colors",
                   sel ? "bg-primary-soft border-active-border" : "bg-surface border-border hover:bg-[#FAFAFB]"
@@ -1061,9 +1184,11 @@ export function Guia() {
               </button>
             );
           })}
+          </div>
         </nav>
 
         {/* Conteúdo */}
+        <div ref={conteudo} className="min-w-0">
         {ativo ? (
           <Card className="!p-6 md:!p-8">
             <div className="flex items-center gap-3 mb-5 pb-5 border-b border-border-soft">
@@ -1074,10 +1199,18 @@ export function Guia() {
               </div>
             </div>
             <div className="space-y-7">{ativo.conteudo}</div>
+
+            {(anterior || proximo) && (
+              <div className="mt-8 pt-5 border-t border-border-soft flex flex-wrap items-stretch gap-2.5">
+                {anterior && <PassoModulo lado="anterior" modulo={anterior} onClick={() => abrirModulo(anterior.id)} />}
+                {proximo && <PassoModulo lado="proximo" modulo={proximo} onClick={() => abrirModulo(proximo.id)} />}
+              </div>
+            )}
           </Card>
         ) : (
           <Card><p className="text-ink-3 text-sm">Selecione um módulo ou refine a busca.</p></Card>
         )}
+        </div>
       </div>
     </PageShell>
   );
