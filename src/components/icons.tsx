@@ -41,6 +41,13 @@ export const IcHelp = (p: P) => (
     <path d="M12 17h.01" />
   </I>
 );
+/** Bússola — o tour guiado: "por onde eu começo?". */
+export const IcCompass = (p: P) => (
+  <I {...p}>
+    <circle cx="12" cy="12" r="10" />
+    <path d="m16.2 7.8-2.9 6.5-6.5 2.9 2.9-6.5 6.5-2.9z" />
+  </I>
+);
 export const IcBook = (p: P) => (
   <I {...p}>
     <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />

@@ -201,7 +201,10 @@ export const useAuth = create<AuthState>((set, get) => {
       // recurso marcado), vale a matriz padrão do papel.
       const daArea = get().recursos;
       if (daArea && daArea.length) return daArea.includes(r);
-      return PERMISSOES[u.papel].includes(r);
+      // Papel que não está na matriz (cadastro novo, dado torto) devolvia
+      // `undefined` e derrubava a tela inteira num `.includes` de nada.
+      // Sem permissão é uma resposta; tela branca não é.
+      return (PERMISSOES[u.papel] ?? []).includes(r);
     },
 
     entrarComEmail: async (email, senha) => {

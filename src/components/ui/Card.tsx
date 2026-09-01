@@ -5,13 +5,17 @@ export function Card({
   children,
   className,
   padded = true,
+  /** Âncora do tour guiado (src/tour) — só uma marca de posição no DOM. */
+  "data-tour": marcaTour,
 }: {
   children: ReactNode;
   className?: string;
   padded?: boolean;
+  "data-tour"?: string;
 }) {
   return (
     <div
+      data-tour={marcaTour}
       className={cx(
         "bg-surface border border-border rounded-card shadow-card",
         padded && "p-5 md:p-6",

@@ -9,13 +9,21 @@
 import { useEffect, useRef } from "react";
 import { useBlocker } from "react-router-dom";
 import { confirmar } from "@/store/confirm";
+import { tourNavegando } from "@/tour/store";
 
 export function useUnsavedGuard(sujo: boolean) {
   const bypass = useRef(false);
 
   const blocker = useBlocker(
     ({ currentLocation, nextLocation }) =>
-      sujo && !bypass.current && currentLocation.pathname !== nextLocation.pathname
+      sujo &&
+      !bypass.current &&
+      // O tour guiado passa por formulários que nascem "mexidos" (uma EC nova
+      // já vem com os itens do modelo). Sem esta saída, cada passo do tour
+      // esbarraria num "Sair sem salvar?" por cima da sobreposição — e não há
+      // trabalho de verdade para proteger: o tour não digita nada.
+      !tourNavegando() &&
+      currentLocation.pathname !== nextLocation.pathname
   );
 
   useEffect(() => {

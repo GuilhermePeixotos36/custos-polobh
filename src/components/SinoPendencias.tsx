@@ -89,6 +89,7 @@ export function SinoPendencias() {
   return (
     <div className="relative shrink-0" ref={caixa}>
       <button
+        data-tour="sino"
         type="button"
         onClick={() => setAberto((v) => !v)}
         aria-label={`${itens.length} pendência(s)`}

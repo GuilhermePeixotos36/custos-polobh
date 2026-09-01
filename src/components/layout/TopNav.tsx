@@ -21,10 +21,13 @@ export function TopNav() {
     <header className="no-print sticky top-0 z-30 h-[var(--altura-topnav)] bg-surface border-b border-border flex items-center gap-3 px-3 md:px-5">
       <img src="/polobh-logo.png" alt="Pólobh" className="h-6 w-auto object-contain shrink-0" />
 
-      <nav className="flex items-center gap-1 overflow-x-auto flex-1 min-w-0">
+      {/* `data-tour`: âncoras do tour guiado (src/tour). São só marcas de
+          posição — nada de comportamento depende delas. */}
+      <nav data-tour="topnav" className="flex items-center gap-1 overflow-x-auto flex-1 min-w-0">
         {itens.map((i) => (
           <NavLink
             key={i.to}
+            data-tour={`nav-${i.to.replace("/", "")}`}
             to={i.to}
             end={i.to === "/"}
             className={({ isActive }) =>

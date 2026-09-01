@@ -717,7 +717,7 @@ export function ProjetoDetail() {
     >
       {aba === "dados" && (
         <div className="space-y-4">
-          <Card>
+          <Card data-tour="projeto-cliente">
               <CardTitle action={
                 <Button variant="soft" size="sm" icon={<IcSearch width={15} height={15} />} onClick={() => consultarCnpjCliente()} disabled={cnpjLoading || !flags.consultaCnpj}>
                   {cnpjLoading ? "Consultando…" : "Consultar CNPJ"}
@@ -955,7 +955,7 @@ export function ProjetoDetail() {
           <div className="p-5 flex items-center justify-between gap-3 flex-wrap">
             <CardTitle hint="Estimativas de custo deste projeto (incluindo versões)">Estimativas (EC)</CardTitle>
             {podeEditarEc && (
-              <div className="flex items-center gap-2">
+              <div data-tour="acoes-ec" className="flex items-center gap-2">
                 <Button
                   size="sm"
                   icon={<IcPlus width={16} height={16} />}

@@ -85,7 +85,7 @@ export function Projetos() {
         ) : undefined
       }
     >
-      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+      <div data-tour="projetos-filtros" className="flex items-center justify-between gap-3 mb-4 flex-wrap">
         <div className="flex gap-1.5">
           {FILTROS.map((f) => (
             <button

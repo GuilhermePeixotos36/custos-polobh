@@ -521,7 +521,7 @@ export function EcForm() {
               Estimativa de custos
             </CardTitle>
           </div>
-          <div className="px-5 pb-5">
+          <div data-tour="ec-grupos" className="px-5 pb-5">
             <EcGrupos
               linhas={ec.linhas}
               onChange={(linhas) => upd({ linhas })}

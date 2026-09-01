@@ -10,6 +10,7 @@ import { useMonitorPendencias } from "@/hooks/useMonitorPendencias";
 import { useRealtimePendencias } from "@/hooks/useRealtimePendencias";
 import { useEmpresas } from "@/store/empresas";
 import { BotaoRecolherTudo, ProvedorRecolher } from "./Recolher";
+import { TourOverlay } from "@/tour/TourOverlay";
 import { cx } from "@/lib/format";
 
 /** Casca autenticada: sidebar + área de conteúdo. */
@@ -55,6 +56,9 @@ export function AppLayout() {
       </div>
       <Toaster />
       <ConfirmDialog />
+      {/* O tour atravessa várias rotas: a sobreposição precisa viver AQUI, na
+          casca, senão ela morreria na primeira troca de tela. */}
+      <TourOverlay />
     </div>
   );
 }
@@ -150,7 +154,7 @@ export function PageShell({
           </div>
           {/* O comando de recolher/expandir nasce aqui e some sozinho na tela
               que não tem blocos recolhíveis — nenhuma página precisa pedir. */}
-          <div className="flex items-center gap-2.5 shrink-0">
+          <div data-tour="acoes-tela" className="flex items-center gap-2.5 shrink-0">
             <BotaoRecolherTudo />
             {topAction}
           </div>
@@ -159,7 +163,7 @@ export function PageShell({
         {/* Sangra até as bordas para o fio virar a base do cabeçalho inteiro, e
             rola na horizontal quando as guias não cabem na largura da tela. */}
         {subabas && (
-          <div className="mt-3 -mx-[var(--gutter)] px-[var(--gutter)] border-b border-border overflow-x-auto">{subabas}</div>
+          <div data-tour="subguias" className="mt-3 -mx-[var(--gutter)] px-[var(--gutter)] border-b border-border overflow-x-auto">{subabas}</div>
         )}
       </div>
       {children}

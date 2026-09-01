@@ -663,6 +663,7 @@ export function OsForm() {
               e a do PDF ainda pedia um segundo clique depois de abrir a tela.
               O Excel da OS saiu — o documento do fornecedor é o PDF. */}
           <Button
+            data-tour="baixar-pdf"
             variant="secondary"
             size="sm"
             icon={<IcDownload width={16} height={16} />}

@@ -1,11 +1,12 @@
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { PageShell } from "@/components/layout/AppLayout";
-import { Card } from "@/components/ui";
+import { Button, Card } from "@/components/ui";
 import {
   IcSearch, IcGrid, IcDoc, IcClipboard, IcCalendar, IcUsers, IcGear,
-  IcActivity, IcShield, IcSend, IcCheck, IcBook, IcClock, IcBell,
+  IcActivity, IcShield, IcSend, IcCheck, IcBook, IcClock, IcBell, IcCompass,
 } from "@/components/icons";
 import { cx } from "@/lib/format";
+import { useTour } from "@/tour/store";
 
 /* ============================== Componentes ============================== */
 
@@ -146,6 +147,17 @@ const MODULOS: Modulo[] = [
     tags: ["login", "entrar", "senha", "perfil", "acesso", "menu", "navegação", "sair", "logout", "começar"],
     conteudo: (
       <>
+        <Secao titulo="Antes de ler: faça o tour">
+          <p>
+            Se esta é a sua primeira semana no Pólobh, comece pelo <b>tour guiado</b> — o botão fica no alto desta
+            tela. Ele percorre o app inteiro nas telas de verdade, mostrando onde cada coisa é criada, na ordem em
+            que o trabalho acontece. São uns 10 minutos, e nada é alterado no sistema.
+          </p>
+          <Dica>
+            O Guia e o tour se completam: o tour mostra <b>o caminho</b>; os módulos aqui embaixo explicam
+            <b> cada campo</b> de cada tela.
+          </Dica>
+        </Secao>
         <Secao titulo="Entrar no sistema">
           <p>O acesso é por <b>e-mail e senha</b>. Cada pessoa tem um <b>perfil</b> que define o que ela pode ver e fazer.</p>
           <Tela titulo="custos-polobh.vercel.app/login">
@@ -1061,6 +1073,57 @@ function PassoModulo({
   );
 }
 
+/**
+ * O convite para o tour guiado.
+ *
+ * Fica ACIMA da busca de propósito: quem chega ao Guia pela primeira vez não
+ * sabe o que procurar — pesquisar pressupõe já conhecer o nome da coisa. O tour
+ * é a porta de quem ainda não conhece nada; a busca é a de quem já conhece.
+ */
+function ConviteTour() {
+  const abrir = useTour((s) => s.abrir);
+  const [jaFez, setJaFez] = useState(() => {
+    try {
+      return localStorage.getItem(CHAVE_TOUR) === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  function comecar() {
+    try {
+      localStorage.setItem(CHAVE_TOUR, "1");
+    } catch {
+      /* navegador sem armazenamento: o convite só volta a aparecer como novo */
+    }
+    setJaFez(true);
+    abrir();
+  }
+
+  return (
+    <div className="mb-5 rounded-card border border-active-border bg-primary-soft/50 p-4 md:p-5 flex items-center gap-4 flex-wrap">
+      <span className="h-11 w-11 rounded-card bg-surface text-primary-dark grid place-items-center shrink-0 shadow-card">
+        <IcCompass width={22} height={22} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <h2 className="font-display font-bold text-ink text-[17px] leading-tight">
+          {jaFez ? "Refazer o tour guiado" : "Comece pelo tour guiado"}
+        </h2>
+        <p className="text-[13px] text-ink-2 mt-1">
+          O caminho inteiro de um evento — <b>Projeto → EC → OS → acompanhamento</b> — mostrado nas telas de
+          verdade, passo a passo. Uns 10 minutos, e nada é alterado no sistema.
+        </p>
+      </div>
+      <Button onClick={comecar} icon={<IcCompass width={16} height={16} />}>
+        {jaFez ? "Refazer" : "Começar o tour"}
+      </Button>
+    </div>
+  );
+}
+
+/** Lembra que esta pessoa já conhece o tour — só muda o convite, nada mais. */
+const CHAVE_TOUR = "polobh:tour-feito";
+
 /* ================================ Página ================================ */
 
 /**
@@ -1147,6 +1210,8 @@ export function Guia() {
       title="Guia do aplicativo"
       subtitle="Documentação completa e didática de cada módulo. Pesquise para ir direto ao ponto."
     >
+      <ConviteTour />
+
       {/* Busca */}
       <div className="relative max-w-xl mb-5">
         <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-3"><IcSearch width={18} height={18} /></span>

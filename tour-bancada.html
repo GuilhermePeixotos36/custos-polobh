@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Bancada do tour</title>
+    <!--
+      Página de TESTE do tour guiado — não faz parte do app e não entra no
+      build de produção (o Vite só empacota o index.html).
+
+      Para que serve: conferir, num navegador de verdade, que o foco do tour cai
+      exatamente em cima do elemento de cada passo e que o balão nunca sai da
+      janela. É a única forma de verificar isso — a conta de posição tem teste
+      unitário (src/tour/geometria.test.ts), mas alinhamento só se prova medindo
+      elementos renderizados.
+
+      Como rodar:  npm run dev  →  http://localhost:5173/tour-bancada.html
+    -->
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/tour/__bancada/main.tsx"></script>
+  </body>
+</html>

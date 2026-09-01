@@ -461,6 +461,7 @@ export function EcDetail() {
           </Button>
           {pode("oss.editar") && ec.ativa && (emissao.prontos.length > 0 || emissao.bloqueados.length > 0) && (
             <Button
+              data-tour="emitir-os"
               variant="primary"
               size="sm"
               onClick={emitirOs}

@@ -43,6 +43,7 @@ export function SubGuias<K extends string>({
       {abas.map((a) => (
         <button
           key={a.key}
+          data-subguia={a.key}
           type="button"
           role="tab"
           aria-selected={atual === a.key}
