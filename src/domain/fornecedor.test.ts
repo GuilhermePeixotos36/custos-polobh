@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { doCadastro, gerarApelidoFornecedor, opcoesPerfilTributario, semVazios } from "./fornecedor";
+import {
+  contatoDeTexto, doCadastro, gerarApelidoFornecedor, limparContatos, mesclarContatos,
+  normalizarContatos, opcoesPerfilTributario, semVazios, textoDoContato,
+} from "./fornecedor";
 import type { Fornecedor } from "@/data/types";
 
 /**
@@ -132,5 +135,114 @@ describe("o cadastro do fornecedor preenchendo a OS", () => {
 
   it("semVazios devolve só o que tem conteúdo de verdade", () => {
     expect(semVazios({ a: "x", b: "", c: "   ", d: undefined })).toEqual({ a: "x" });
+  });
+});
+
+/**
+ * Os contatos do fornecedor já foram uma lista de FRASES, e o banco ainda tem
+ * as antigas. O que estes casos garantem é a promessa que a mudança faz: nada
+ * do que foi digitado até hoje se perde, e o que era uma linha só passa a ter
+ * nome, telefone e e-mail em lugares separados.
+ */
+describe("contatos do fornecedor: lendo as frases antigas", () => {
+  const casos: [string, { nome: string; telefone?: string; email?: string }][] = [
+    ["Maria — (31) 99999-0000", { nome: "Maria", telefone: "(31) 99999-0000" }],
+    ["Maria · (31) 99999-0000", { nome: "Maria", telefone: "(31) 99999-0000" }],
+    ["João Paulo 31 3333-4444", { nome: "João Paulo", telefone: "31 3333-4444" }],
+    ["Carlos / carlos@fornecedor.com.br", { nome: "Carlos", email: "carlos@fornecedor.com.br" }],
+    [
+      "Ana Lúcia — (31) 98888-1111 — ana@som.com",
+      { nome: "Ana Lúcia", telefone: "(31) 98888-1111", email: "ana@som.com" },
+    ],
+    ["financeiro@fornecedor.com", { nome: "", email: "financeiro@fornecedor.com" }],
+    ["(31) 99999-0000", { nome: "", telefone: "(31) 99999-0000" }],
+    ["+55 31 99999-0000 Pedro", { nome: "Pedro", telefone: "+55 31 99999-0000" }],
+    ["Só o nome mesmo", { nome: "Só o nome mesmo" }],
+  ];
+
+  for (const [frase, esperado] of casos) {
+    it(`"${frase}" vira ${JSON.stringify(esperado)}`, () => {
+      const c = contatoDeTexto(frase)!;
+      expect(c.nome).toBe(esperado.nome);
+      expect(c.telefone ?? "").toBe(esperado.telefone ?? "");
+      expect(c.email ?? "").toBe(esperado.email ?? "");
+    });
+  }
+
+  it("frase sem nada dentro não vira contato", () => {
+    expect(contatoDeTexto("")).toBeNull();
+    expect(contatoDeTexto("   —  · ")).toBeNull();
+  });
+
+  it("lê a lista antiga e a nova no mesmo lugar — nenhum cadastro se perde", () => {
+    const lidos = normalizarContatos([
+      "Maria — (31) 99999-0000",
+      { nome: "Bruno", funcao: "Financeiro", email: "bruno@x.com" },
+    ]);
+    expect(lidos).toEqual([
+      { nome: "Maria", telefone: "(31) 99999-0000" },
+      { nome: "Bruno", funcao: "Financeiro", email: "bruno@x.com" },
+    ]);
+  });
+
+  it("lixo no banco não derruba a tela", () => {
+    expect(normalizarContatos(null)).toEqual([]);
+    expect(normalizarContatos("nem é lista")).toEqual([]);
+    expect(normalizarContatos([null, 7, {}, { nome: "   " }])).toEqual([]);
+  });
+
+  it("o que vai para o banco não leva bloco em branco nem repetido", () => {
+    const guardar = limparContatos([
+      { nome: " Maria " },
+      { nome: "" },
+      { nome: "Maria" },
+      { nome: "", funcao: "", telefone: "", email: "" },
+    ]);
+    expect(guardar).toEqual([{ nome: "Maria" }]);
+  });
+});
+
+describe("contatos do fornecedor: juntando o que vem das ECs", () => {
+  it("mesmo nome COMPLETA o contato em vez de virar uma segunda pessoa", () => {
+    const juntos = mesclarContatos(
+      [{ nome: "Maria" }],
+      [{ nome: "Maria", telefone: "(31) 99999-0000" }]
+    );
+    expect(juntos).toEqual([{ nome: "Maria", telefone: "(31) 99999-0000" }]);
+  });
+
+  it("o que a equipe digitou no cadastro manda — a EC não sobrescreve", () => {
+    const juntos = mesclarContatos(
+      [{ nome: "Maria", telefone: "(31) 3333-4444", funcao: "Produção" }],
+      [{ nome: "Maria", telefone: "(31) 99999-0000", email: "maria@x.com" }]
+    );
+    expect(juntos).toEqual([
+      { nome: "Maria", funcao: "Produção", telefone: "(31) 3333-4444", email: "maria@x.com" },
+    ]);
+  });
+
+  it("pessoa nova entra como linha nova", () => {
+    const juntos = mesclarContatos([{ nome: "Maria" }], [{ nome: "Bruno", funcao: "Financeiro" }]);
+    expect(juntos.map((c) => c.nome)).toEqual(["Maria", "Bruno"]);
+  });
+
+  it("o mesmo telefone escrito de dois jeitos é a mesma pessoa", () => {
+    // A EC quase nunca digita o telefone igual ao cadastro. Comparar por
+    // dígitos é o que impede a agenda de encher de repetidos por causa de um
+    // parêntese: fica UMA linha, com a formatação que já estava guardada.
+    const juntos = mesclarContatos(
+      [{ nome: "", telefone: "(31) 99999-0000" }],
+      [{ nome: "", telefone: "31999990000" }]
+    );
+    expect(juntos).toEqual([{ nome: "", telefone: "(31) 99999-0000" }]);
+  });
+
+  it("contato vazio vindo da EC não polui a agenda", () => {
+    expect(mesclarContatos([{ nome: "Maria" }], [{ nome: "" }])).toEqual([{ nome: "Maria" }]);
+  });
+
+  it("texto de uma linha serve à busca da tela", () => {
+    expect(textoDoContato({ nome: "Maria", funcao: "Produção", telefone: "(31) 99999-0000" }))
+      .toBe("Maria · Produção · (31) 99999-0000");
   });
 });

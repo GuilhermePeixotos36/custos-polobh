@@ -58,7 +58,11 @@ create table if not exists fornecedores (
   dados_bancarios jsonb,
   contato jsonb,
   cnaes jsonb,
-  contatos jsonb not null default '[]'::jsonb, -- contatos acumulados a partir das ECs
+  -- agenda do fornecedor: [{nome, funcao, telefone, email}], acumulada a partir
+  -- das ECs e editável no cadastro. Registros antigos guardam uma lista de
+  -- frases ("Maria — (31) 9…"); a leitura do app entende os dois formatos
+  -- (ver domain/fornecedor: normalizarContatos) e grava sempre o novo.
+  contatos jsonb not null default '[]'::jsonb,
   criado_em timestamptz default now()
 );
 

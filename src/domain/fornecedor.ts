@@ -19,7 +19,7 @@
  * curto escolhido pela empresa. Mas passa pela mesma peneira, porque muita ficha
  * traz "Som & Luz Produções Ltda" no campo de fantasia também.
  */
-import type { Fornecedor } from "@/data/types";
+import type { ContatoFornecedor, Fornecedor } from "@/data/types";
 
 /** Forma jurídica: sai sempre, esteja onde estiver. */
 const JURIDICO = new Set([
@@ -241,4 +241,152 @@ export function doCadastro(f: Fornecedor): Partial<Fornecedor> {
       ? { dadosBancarios: { ...f.dadosBancarios, ...bancarios } as Fornecedor["dadosBancarios"] }
       : {}),
   };
+}
+
+/* ------------------------- Contatos do fornecedor ----------------------- */
+
+/**
+ * Os contatos já foram uma LISTA DE FRASES ("Maria — (31) 9…"), e o banco
+ * guarda o que foi gravado na época. Estas funções são a ponte: leem os dois
+ * formatos e gravam sempre o novo.
+ *
+ * A conversão acontece na LEITURA, não numa migração de banco. Uma frase só
+ * vira nome/telefone/e-mail depois de passar por uma leitura que entende
+ * telefone brasileiro e endereço de e-mail — coisa que se faz bem em código e
+ * mal em SQL. Assim nenhum registro antigo se perde e nenhum precisa ser
+ * convertido de véspera: ele se acerta sozinho quando alguém salva o cadastro.
+ */
+
+/** E-mail dentro de uma frase. */
+const RE_EMAIL = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/;
+
+/**
+ * Telefone brasileiro dentro de uma frase, com ou sem DDI, parênteses e
+ * separadores: "(31) 99999-0000", "31 3333-4444", "+55 31 999990000".
+ */
+const RE_TELEFONE = /(?:\+?55[\s.-]*)?\(?\d{2}\)?[\s.-]*\d{4,5}[\s.-]?\d{4}/;
+
+/** Sobras de pontuação que separavam os pedaços da frase. */
+const SEPARADORES = /^[\s·•—–\-|/,;:]+|[\s·•—–\-|/,;:]+$/g;
+
+const texto = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
+
+/**
+ * Lê uma frase antiga e devolve o contato separado. Devolve `null` quando não
+ * sobra nada de útil — string vazia, ou só pontuação.
+ */
+export function contatoDeTexto(frase: string): ContatoFornecedor | null {
+  let resto = frase ?? "";
+  const email = resto.match(RE_EMAIL)?.[0] ?? "";
+  if (email) resto = resto.replace(email, " ");
+  const telefone = resto.match(RE_TELEFONE)?.[0] ?? "";
+  if (telefone) resto = resto.replace(telefone, " ");
+  const nome = resto.replace(/\s+/g, " ").replace(SEPARADORES, "").trim();
+  if (!nome && !telefone && !email) return null;
+  return semCamposVazios({ nome, telefone: telefone.trim(), email: email.trim() });
+}
+
+/** Tira os campos vazios para o objeto gravado não carregar `""` à toa. */
+function semCamposVazios(c: ContatoFornecedor): ContatoFornecedor {
+  return {
+    nome: (c.nome ?? "").trim(),
+    ...(c.funcao?.trim() ? { funcao: c.funcao.trim() } : {}),
+    ...(c.telefone?.trim() ? { telefone: c.telefone.trim() } : {}),
+    ...(c.email?.trim() ? { email: c.email.trim() } : {}),
+  };
+}
+
+/**
+ * Lê o que veio do banco, seja qual for o formato: a lista de frases antiga ou
+ * a lista de contatos separados. Lixo é descartado em silêncio — uma linha
+ * estranha no meio da agenda não pode derrubar a tela de fornecedores.
+ */
+export function normalizarContatos(cru: unknown): ContatoFornecedor[] {
+  if (!Array.isArray(cru)) return [];
+  const lidos: ContatoFornecedor[] = [];
+  for (const item of cru) {
+    if (typeof item === "string") {
+      const c = contatoDeTexto(item);
+      if (c) lidos.push(c);
+      continue;
+    }
+    if (!item || typeof item !== "object") continue;
+    const o = item as Record<string, unknown>;
+    const c = semCamposVazios({
+      nome: texto(o.nome),
+      funcao: texto(o.funcao),
+      telefone: texto(o.telefone),
+      email: texto(o.email),
+    });
+    if (!contatoVazio(c)) lidos.push(c);
+  }
+  return semRepetidos(lidos);
+}
+
+/** Contato sem nada dentro — some ao salvar, em vez de virar uma linha em branco. */
+export function contatoVazio(c: ContatoFornecedor): boolean {
+  return !`${c.nome ?? ""}${c.funcao ?? ""}${c.telefone ?? ""}${c.email ?? ""}`.trim();
+}
+
+/**
+ * A identidade de um contato: nome, telefone (só os dígitos) e e-mail. O
+ * telefone entra por dígitos porque "(31) 99999-0000" e "31999990000" são a
+ * mesma pessoa, e a EC nem sempre digita igual ao cadastro.
+ */
+export function chaveContato(c: ContatoFornecedor): string {
+  const nome = (c.nome ?? "").trim().toLocaleLowerCase("pt-BR");
+  return `${nome}|${(c.telefone ?? "").replace(/\D/g, "")}|${(c.email ?? "").trim().toLowerCase()}`;
+}
+
+function semRepetidos(lista: ContatoFornecedor[]): ContatoFornecedor[] {
+  const vistos = new Set<string>();
+  return lista.filter((c) => {
+    const k = chaveContato(c);
+    if (vistos.has(k)) return false;
+    vistos.add(k);
+    return true;
+  });
+}
+
+/** O que vai para o banco: sem os vazios, sem repetidos, sem espaço sobrando. */
+export function limparContatos(lista: ContatoFornecedor[]): ContatoFornecedor[] {
+  return semRepetidos(lista.map(semCamposVazios).filter((c) => !contatoVazio(c)));
+}
+
+/**
+ * Junta o que veio das ECs com o que já está no cadastro.
+ *
+ * A regra que faz diferença: contato com o MESMO NOME não vira uma segunda
+ * linha — ele COMPLETA a que existe. A EC quase sempre traz um pedaço só
+ * ("Maria" numa linha, "Maria (31) 9…" em outra), e sem isto a agenda de um
+ * fornecedor antigo viraria cinco Marias, cada uma com metade do contato.
+ * Só preenche o que está em branco: o que a equipe digitou no cadastro manda.
+ */
+export function mesclarContatos(
+  existentes: ContatoFornecedor[],
+  novos: ContatoFornecedor[]
+): ContatoFornecedor[] {
+  const saida = existentes.map(semCamposVazios);
+  for (const novo of novos.map(semCamposVazios)) {
+    if (contatoVazio(novo)) continue;
+    const nome = novo.nome.trim().toLocaleLowerCase("pt-BR");
+    const alvo = saida.find(
+      (c) =>
+        chaveContato(c) === chaveContato(novo) ||
+        (!!nome && c.nome.trim().toLocaleLowerCase("pt-BR") === nome)
+    );
+    if (!alvo) {
+      saida.push(novo);
+      continue;
+    }
+    if (!alvo.funcao && novo.funcao) alvo.funcao = novo.funcao;
+    if (!alvo.telefone && novo.telefone) alvo.telefone = novo.telefone;
+    if (!alvo.email && novo.email) alvo.email = novo.email;
+  }
+  return semRepetidos(saida);
+}
+
+/** O contato em uma linha — para a busca da tela e para textos corridos. */
+export function textoDoContato(c: ContatoFornecedor): string {
+  return [c.nome, c.funcao, c.telefone, c.email].map((p) => (p ?? "").trim()).filter(Boolean).join(" · ");
 }

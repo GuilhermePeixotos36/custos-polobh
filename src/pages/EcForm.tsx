@@ -42,6 +42,7 @@ import { EcGrupos } from "@/components/EcGrupos";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
 import { pendenciasDaTela } from "@/domain/pendencias";
 import { bvVazio } from "@/domain/calc";
+import { contatoDeTexto, mesclarContatos } from "@/domain/fornecedor";
 import { useMinhasPendencias } from "@/store/pendencias";
 import { useSugestoes } from "@/hooks/useSugestoes";
 import { EcSubGuias, type SubGuiaEc } from "@/components/EcSubGuias";
@@ -51,6 +52,7 @@ import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import { brl, cx, maskCpfCnpjInput, onlyDigits } from "@/lib/format";
 import type {
   Cliente,
+  ContatoFornecedor,
   Ec,
   EcLinha,
   Fornecedor,
@@ -285,27 +287,38 @@ export function EcForm() {
     }
   }
 
-  /** Ao salvar a EC, garante o cadastro de cada fornecedor citado e acumula os contatos. */
+  /**
+   * Ao salvar a EC, garante o cadastro de cada fornecedor citado e acumula os
+   * contatos.
+   *
+   * O campo da EC é uma linha de texto solta ("Maria (31) 99999-0000"), então
+   * ela é separada em nome/telefone/e-mail antes de entrar na agenda do
+   * fornecedor — e um contato de mesmo nome COMPLETA o que já existe em vez de
+   * virar uma segunda Maria (ver `mesclarContatos`).
+   */
   async function acumularFornecedores(linhas: EcLinha[]) {
-    const porCnpj = new Map<string, { cnpjRaw: string; razao: string; contatos: Set<string> }>();
+    const porCnpj = new Map<string, { cnpjRaw: string; razao: string; contatos: ContatoFornecedor[] }>();
     for (const l of linhas) {
       const d = onlyDigits(l.fornecedorCnpj);
       if (d.length !== 14) continue;
-      if (!porCnpj.has(d)) porCnpj.set(d, { cnpjRaw: l.fornecedorCnpj, razao: l.fornecedorRazao, contatos: new Set() });
+      if (!porCnpj.has(d)) porCnpj.set(d, { cnpjRaw: l.fornecedorCnpj, razao: l.fornecedorRazao, contatos: [] });
       const e = porCnpj.get(d)!;
       if (!e.razao && l.fornecedorRazao) e.razao = l.fornecedorRazao;
-      const c = l.fornecedorContato.trim();
-      if (c) e.contatos.add(c);
+      const c = contatoDeTexto(l.fornecedorContato);
+      if (c) e.contatos = mesclarContatos(e.contatos, [c]);
     }
     for (const [digits, info] of porCnpj) {
       const existente = fornecedores.find((f) => onlyDigits(f.cnpj) === digits);
       if (existente) {
-        const atuais = new Set(existente.contatos ?? []);
-        const antes = atuais.size;
-        info.contatos.forEach((c) => atuais.add(c));
-        if (atuais.size !== antes) await repo.fornecedores.salvar({ ...existente, contatos: [...atuais] });
+        const atuais = existente.contatos ?? [];
+        const juntos = mesclarContatos(atuais, info.contatos);
+        // Só grava se mudou de fato: sem isto, salvar a mesma EC duas vezes
+        // reescreveria todos os fornecedores dela sem nenhum motivo.
+        if (JSON.stringify(juntos) !== JSON.stringify(atuais)) {
+          await repo.fornecedores.salvar({ ...existente, contatos: juntos });
+        }
       } else {
-        await repo.fornecedores.salvar(fornecedorNovo({ cnpj: info.cnpjRaw, razaoSocial: info.razao, contatos: [...info.contatos] }));
+        await repo.fornecedores.salvar(fornecedorNovo({ cnpj: info.cnpjRaw, razaoSocial: info.razao, contatos: info.contatos }));
       }
     }
   }

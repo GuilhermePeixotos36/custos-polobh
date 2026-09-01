@@ -9,11 +9,11 @@ import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import { consultarCnpj } from "@/lib/cnpj";
 import { flags } from "@/lib/flags";
-import { gerarApelidoFornecedor } from "@/domain/fornecedor";
+import { gerarApelidoFornecedor, textoDoContato } from "@/domain/fornecedor";
 import { cx, maskCpfCnpjInput } from "@/lib/format";
 import { toast } from "@/store/toast";
 import { useAuth } from "@/store/auth";
-import type { Fornecedor } from "@/data/types";
+import type { ContatoFornecedor, Fornecedor } from "@/data/types";
 
 export function Fornecedores() {
   const podeEditar = useAuth((s) => s.pode("fornecedores.editar"));
@@ -26,15 +26,39 @@ export function Fornecedores() {
     [edit?.nomeFantasia, edit?.razaoSocial]
   );
   const [msg, setMsg] = useState("");
-  const [novoContato, setNovoContato] = useState("");
 
+  /* ------------------------------ contatos ------------------------------ */
+
+  /**
+   * A agenda do fornecedor é editada NO LUGAR: cada contato é um bloco de
+   * campos, não uma frase.
+   *
+   * O botão só acrescenta um bloco em branco — quem preenche é a pessoa, campo
+   * a campo. Assim o mesmo lugar serve para criar e para corrigir, inclusive
+   * um contato antigo que veio de uma frase e ficou com o nome torto. Blocos
+   * que continuarem vazios somem ao salvar.
+   */
   function addContato() {
     if (!edit) return;
-    const c = novoContato.trim();
-    if (!c) return;
-    const atuais = edit.contatos ?? [];
-    if (!atuais.includes(c)) setEdit({ ...edit, contatos: [...atuais, c] });
-    setNovoContato("");
+    setEdit({ ...edit, contatos: [...(edit.contatos ?? []), { nome: "" }] });
+    // O campo do bloco novo recebe o cursor: sem isso a pessoa clica em
+    // "Adicionar", a tela cresce e ela ainda precisa mirar no campo certo.
+    window.setTimeout(() => {
+      const campos = document.querySelectorAll<HTMLInputElement>("[data-contato-nome]");
+      campos[campos.length - 1]?.focus();
+    }, 0);
+  }
+
+  function mudarContato(i: number, patch: Partial<ContatoFornecedor>) {
+    if (!edit) return;
+    const lista = [...(edit.contatos ?? [])];
+    lista[i] = { ...lista[i], ...patch };
+    setEdit({ ...edit, contatos: lista });
+  }
+
+  function removerContato(i: number) {
+    if (!edit) return;
+    setEdit({ ...edit, contatos: (edit.contatos ?? []).filter((_, j) => j !== i) });
   }
 
   const filtrados = useMemo(() => {
@@ -43,7 +67,8 @@ export function Fornecedores() {
     // A busca cobre o que a tela mostra: era possível ver "Som & Luz" na lista
     // (nome fantasia) e não achar nada ao digitar exatamente isso.
     return (data ?? []).filter((f) =>
-      [f.apelido, f.nomeFantasia, f.razaoSocial, f.cnpj, f.perfilTributario, f.email, f.telefone, ...(f.contatos ?? [])]
+      [f.apelido, f.nomeFantasia, f.razaoSocial, f.cnpj, f.perfilTributario, f.email, f.telefone,
+       ...(f.contatos ?? []).map(textoDoContato)]
         .join(" ")
         .toLowerCase()
         .includes(q)
@@ -114,7 +139,7 @@ export function Fornecedores() {
         podeEditar && (
           // O cartão de edição já sabia dizer "Novo fornecedor", mas nada nesta
           // tela criava um: só dava para cadastrar passando por uma EC.
-          <Button size="sm" icon={<IcPlus width={15} height={15} />} onClick={() => { setEdit(novoFornecedor()); setMsg(""); setNovoContato(""); }}>
+          <Button size="sm" icon={<IcPlus width={15} height={15} />} onClick={() => { setEdit(novoFornecedor()); setMsg(""); }}>
             Novo fornecedor
           </Button>
         )
@@ -140,7 +165,7 @@ export function Fornecedores() {
               </THead>
               <tbody>
                 {lista.map((f) => (
-                  <Tr key={f.id} onClick={() => { setEdit(structuredClone(f)); setMsg(""); setNovoContato(""); }}>
+                  <Tr key={f.id} onClick={() => { setEdit(structuredClone(f)); setMsg(""); }}>
                     <Td>
                       <div className="flex items-center gap-2.5">
                         <Avatar nome={f.razaoSocial} size={34} />
@@ -154,8 +179,14 @@ export function Fornecedores() {
                     <Td><Badge tom="info">{f.perfilTributario || "—"}</Badge></Td>
                     <Td className="text-[12.5px]">
                       <div>{f.email || "—"}</div>
+                      {/* Mostra QUEM é o primeiro contato, não só quantos são:
+                          "3 contato(s)" não ajuda ninguém a decidir se abre a
+                          ficha; "Maria · Produção" ajuda. */}
                       {(f.contatos?.length ?? 0) > 0 && (
-                        <div className="text-[11px] text-ink-3">{f.contatos!.length} contato(s) das ECs</div>
+                        <div className="text-[11px] text-ink-3">
+                          {[f.contatos![0].nome, f.contatos![0].funcao].filter(Boolean).join(" · ") || "contato sem nome"}
+                          {f.contatos!.length > 1 && ` +${f.contatos!.length - 1}`}
+                        </div>
                       )}
                     </Td>
                   </Tr>
@@ -213,36 +244,78 @@ export function Fornecedores() {
                 </div>
               )}
 
+              {/* A AGENDA do fornecedor: as pessoas de lá dentro, uma a uma.
+                  Era uma lista de frases — dava para ler e não dava para usar:
+                  nem ligar, nem mandar e-mail, nem saber quem cuida de nota
+                  fiscal. Separado, cada pedaço vira uma ação. */}
               <div>
-                <span className="block mb-1.5 text-[12.5px] font-bold text-ink">Contatos <span className="text-ink-3 font-medium">(acumulados das ECs)</span></span>
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <span className="text-[12.5px] font-bold text-ink">
+                    Contatos <span className="text-ink-3 font-medium">(pessoas do fornecedor)</span>
+                  </span>
+                  <Button variant="secondary" size="sm" icon={<IcPlus width={13} height={13} />} onClick={addContato}>
+                    Adicionar
+                  </Button>
+                </div>
                 {(edit.contatos ?? []).length === 0 ? (
-                  <p className="text-[12px] text-ink-3">Nenhum contato ainda. São adicionados conforme os registros nas ECs.</p>
+                  <p className="text-[12px] text-ink-3">
+                    Nenhum contato ainda. Os informados nas ECs entram aqui sozinhos, e você pode acrescentar
+                    outros com <b>Adicionar</b>.
+                  </p>
                 ) : (
-                  <div className="space-y-1">
+                  <div className="space-y-2">
                     {(edit.contatos ?? []).map((c, i) => (
-                      <div key={i} className="flex items-center gap-2 bg-[#F7F8FA] rounded-btn px-2.5 py-1.5">
-                        <span className="text-[12.5px] text-ink flex-1 break-words">{c}</span>
-                        <button
-                          onClick={() => setEdit({ ...edit, contatos: (edit.contatos ?? []).filter((_, j) => j !== i) })}
-                          className="text-ink-3 hover:text-danger shrink-0"
-                          title="Remover contato"
-                        >
-                          <IcTrash width={14} height={14} />
-                        </button>
+                      <div key={i} className="rounded-btn border border-border bg-[#F7F8FA] p-2.5">
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                          <span className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-ink-3">
+                            Contato {i + 1}
+                          </span>
+                          <button
+                            onClick={() => removerContato(i)}
+                            className="text-ink-3 hover:text-danger shrink-0"
+                            title="Remover contato"
+                          >
+                            <IcTrash width={14} height={14} />
+                          </button>
+                        </div>
+                        {/* Nome e função dividem a linha; telefone e e-mail
+                            ocupam a largura toda — o telefone porque vem em
+                            duas caixas (DDD + número) e ficaria espremido, o
+                            e-mail porque endereço cortado não serve para nada. */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <Field label="Nome">
+                            <Input
+                              data-contato-nome
+                              formato="titulo"
+                              value={c.nome ?? ""}
+                              onChange={(e) => mudarContato(i, { nome: e.target.value })}
+                            />
+                          </Field>
+                          <Field label="Cargo / função" hint="O que a pessoa resolve ali dentro">
+                            <Input
+                              placeholder="Produção, Financeiro…"
+                              value={c.funcao ?? ""}
+                              onChange={(e) => mudarContato(i, { funcao: e.target.value })}
+                            />
+                          </Field>
+                          <Field label="Telefone" className="col-span-2">
+                            <TelefoneInput
+                              value={c.telefone ?? ""}
+                              onChange={(v) => mudarContato(i, { telefone: v })}
+                            />
+                          </Field>
+                          <Field label="E-mail" className="col-span-2">
+                            <Input
+                              type="email"
+                              value={c.email ?? ""}
+                              onChange={(e) => mudarContato(i, { email: e.target.value })}
+                            />
+                          </Field>
+                        </div>
                       </div>
                     ))}
                   </div>
                 )}
-                <div className="flex gap-2 mt-2">
-                  <Input
-                    className="!h-9"
-                    placeholder="Novo contato (nome · telefone / e-mail)"
-                    value={novoContato}
-                    onChange={(e) => setNovoContato(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addContato(); } }}
-                  />
-                  <Button variant="secondary" size="sm" onClick={addContato}>Adicionar</Button>
-                </div>
               </div>
 
               <div className="flex gap-2 pt-1">

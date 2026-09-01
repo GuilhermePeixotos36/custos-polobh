@@ -894,7 +894,7 @@ const MODULOS: Modulo[] = [
     icone: <IcUsers />,
     titulo: "Fornecedores",
     resumo: "Cadastro com CNPJ automático, perfil tributário, contato e dados bancários.",
-    tags: ["fornecedor", "cnpj", "cadastro", "perfil tributário", "mei", "simples", "banco", "pix", "contato"],
+    tags: ["fornecedor", "cnpj", "cadastro", "perfil tributário", "mei", "simples", "banco", "pix", "contato", "contatos", "telefone", "e-mail", "cargo", "função", "agenda"],
     conteudo: (
       <>
         <Secao titulo="Cadastrar e consultar">
@@ -903,11 +903,37 @@ const MODULOS: Modulo[] = [
             <span>Digite o <b>CNPJ</b> e clique em <b>Consultar CNPJ</b> — razão social, perfil tributário e endereço vêm da base pública.</span>
             <span>Complete contato e dados bancários e <b>Salve</b>.</span>
           </Passos>
-          <Dica>Use a busca no topo da lista para achar um fornecedor por nome, CNPJ ou perfil tributário.</Dica>
+          <Dica>Use a busca no topo da lista para achar um fornecedor por nome, CNPJ, perfil tributário — ou pelo
+            nome de uma pessoa da agenda de contatos.</Dica>
           <Atencao>
             A consulta de CNPJ olha o <b>cadastro da casa primeiro</b> e a Receita depois, e nunca apaga campo
             preenchido: inscrições, dados bancários e representante não existem em fonte pública — alguém da casa
             digitou aquilo uma vez.
+          </Atencao>
+        </Secao>
+        <Secao titulo="Contatos: as pessoas do fornecedor">
+          <p>
+            O bloco <b>Contatos</b> é a agenda de quem se fala lá dentro — separado do contato da empresa, que é
+            o que vai para a OS. Cada pessoa tem <b>Nome</b>, <b>Cargo / função</b>, <b>Telefone</b> e
+            <b> E-mail</b> em campos próprios.
+          </p>
+          <Campos
+            bloco="Cada contato"
+            itens={[
+              ["Nome", "equipe", "Quem é a pessoa."],
+              ["Cargo / função", "equipe", "O que ela resolve ali: produção, financeiro, sócia. É o que responde “com quem eu falo sobre nota fiscal?”."],
+              ["Telefone", "equipe", "Em DDD + número, para o celular reconhecer e discar."],
+              ["E-mail", "equipe", "O endereço daquela pessoa, que pode não ser o da empresa."],
+            ]}
+          />
+          <Dica>
+            <b>Adicionar</b> cria um contato em branco e leva o cursor até ele. Contato deixado em branco some ao
+            salvar, então não sobra linha vazia.
+          </Dica>
+          <Atencao>
+            Os contatos informados nas ECs entram aqui sozinhos. Quando o nome já existe, o sistema
+            <b> completa</b> o que faltava (o telefone, por exemplo) em vez de criar uma segunda pessoa igual — e
+            nunca sobrescreve o que a equipe digitou no cadastro.
           </Atencao>
         </Secao>
         <Secao titulo="Dados Úteis do projeto">

@@ -7,6 +7,7 @@
 import { supabase } from "@/lib/supabaseClient";
 import { numeroEc, producaoPadrao, producaoZerada, linhasProducaoLegado, honorariosPadrao, encargosPadrao, bvVazio } from "@/domain/calc";
 import { normalizarProjetoInfo, sincronizarCamposLegados } from "@/domain/projeto";
+import { limparContatos, normalizarContatos } from "@/domain/fornecedor";
 import { onlyDigits } from "@/lib/format";
 import { auditar } from "@/store/logs";
 import { useAuth } from "@/store/auth";
@@ -167,7 +168,9 @@ function mapFornecedor(r: any): Fornecedor {
     telefone: contato.telefone ?? "",
     email: contato.email ?? "",
     cnaes: r.cnaes ?? [],
-    contatos: r.contatos ?? [],
+    // O banco pode ter as frases antigas ("Maria — (31) 9…") ou os contatos já
+    // separados; a leitura entende os dois e a tela só vê o formato novo.
+    contatos: normalizarContatos(r.contatos),
   };
 }
 
@@ -184,7 +187,7 @@ function fornecedorRow(f: Fornecedor) {
     dados_bancarios: f.dadosBancarios,
     contato: { representante: f.representante, telefone: f.telefone, email: f.email },
     cnaes: f.cnaes ?? [],
-    contatos: f.contatos ?? [],
+    contatos: limparContatos(f.contatos ?? []),
   };
 }
 

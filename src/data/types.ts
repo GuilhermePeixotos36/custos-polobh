@@ -130,11 +130,34 @@ export interface Fornecedor {
   email: string;
   cnaes?: string[];
   /**
-   * Contatos acumulados a partir dos registros nas ECs. Cada vez que alguém
-   * informa um contato do fornecedor numa EC e ele ainda não existe aqui,
-   * é adicionado a esta lista (texto livre: "Nome — (31) 9…" / e-mail).
+   * A agenda do fornecedor: as PESSOAS com quem se fala ali dentro.
+   *
+   * Diferente de `representante`/`telefone`/`email`, que são o contato único da
+   * empresa e vão para a OS. Aqui moram os vários: quem atende a produção, quem
+   * resolve nota fiscal, o sócio. Cada vez que alguém informa um contato numa
+   * EC, ele entra nesta lista se ainda não estiver.
    */
-  contatos?: string[];
+  contatos?: ContatoFornecedor[];
+}
+
+/**
+ * Uma pessoa dentro do fornecedor.
+ *
+ * Isto já foi UMA LINHA DE TEXTO — "Maria — (31) 9…" — e era ruim exatamente
+ * onde mais importava: não dava para ligar com um toque no celular, não dava
+ * para mandar e-mail, não dava para ordenar, e "qual delas cuida de nota
+ * fiscal?" só se descobria perguntando. Separado, cada pedaço serve para
+ * alguma coisa.
+ *
+ * Todos os campos são opcionais menos a existência de ALGUM: um contato só com
+ * o telefone é um contato legítimo — é o que sobra de um recado às pressas.
+ */
+export interface ContatoFornecedor {
+  nome: string;
+  /** O que a pessoa é ali dentro: "Produção", "Financeiro", "Sócia". */
+  funcao?: string;
+  telefone?: string;
+  email?: string;
 }
 
 /* --------------------------------- EC ----------------------------------- */
