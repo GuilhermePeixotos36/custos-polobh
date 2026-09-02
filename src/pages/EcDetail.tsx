@@ -24,6 +24,7 @@ import { analisarEmissaoOs, calcularTotais, agruparPorFornecedor, descritivoCons
 import { RentabilidadeItens } from "@/components/RentabilidadeItens";
 import { EcSubGuias, type SubGuiaEc } from "@/components/EcSubGuias";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
+import { ObservacoesGeraisEc } from "@/components/ObservacoesGeraisEc";
 import { pendenciasDaTela } from "@/domain/pendencias";
 import { destacarElemento, idAncoraPendencia } from "@/lib/destaque";
 import { ecEditavel, situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
@@ -505,6 +506,9 @@ export function EcDetail() {
               contabiliza mas mora na OS (observação, cronograma) fica de fora:
               lá é outra tela, e o salto não teria volta. */}
           <NavegadorPendencias pendencias={pendenciasDaTela(minhasPendencias, { ecId: ec.id })} />
+          {/* A conversa da equipe vem antes da lista de custos: é a pauta de onde
+              cada um tira o que é seu e vai tratar dentro do item. */}
+          <ObservacoesGeraisEc ecId={ec.id} observacoes={ec.observacoes ?? []} usuarios={usuarios} />
           {estimativaCard}
           {ossCard}
 
@@ -571,6 +575,9 @@ function montarOsEmissao(
     ecLinhaIds: linhas.map((l) => l.id),
     status: "Rascunho",
     fornecedor,
+    // Foto dos dados gerais do evento na emissão — ver `Os.projeto`.
+    projeto: ecAtual.projeto,
+    cliente: ecAtual.cliente,
     modalidade: "",
     descritivo: descritivoConsolidado(linhas),
     entrega: "",

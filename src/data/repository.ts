@@ -5,7 +5,7 @@
  */
 import type {
   Area, Checklist, Cliente, CredenciamentoResposta, Ec, EmpresaGrupo, Fornecedor,
-  ItemChecklist, ModeloChecklist, Os, Projeto, Usuario,
+  ItemChecklist, ModeloChecklist, Observacao, Os, Projeto, ProjetoInfo, Usuario,
 } from "./types";
 
 export interface ProjetoRepository {
@@ -43,6 +43,14 @@ export interface EcRepository {
   listarPainel(): Promise<Ec[]>;
   obter(id: string): Promise<Ec | undefined>;
   salvar(ec: Ec): Promise<Ec>;
+  /**
+   * Grava SÓ a conversa geral da EC (`Ec.observacoes`).
+   *
+   * Comentar não é editar a estimativa: passa por fora de `salvar`, não mexe em
+   * `atualizadoEm` e não esbarra na trava de edição de quem está com o
+   * formulário aberto.
+   */
+  salvarObservacoes(ecId: string, observacoes: Observacao[]): Promise<Observacao[]>;
   duplicar(id: string): Promise<Ec>;
   novaVersao(id: string): Promise<Ec>;
   /** Torna esta EC a ativa do projeto (arquiva as demais). Reativa arquivadas. */
@@ -55,6 +63,12 @@ export interface OsRepository {
   porEc(ecId: string): Promise<Os[]>;
   obter(id: string): Promise<Os | undefined>;
   salvar(os: Os): Promise<Os>;
+  /**
+   * Reemite a OS com os dados gerais do evento atualizados: cria a versão
+   * seguinte (rascunho, com o mesmo conteúdo) e cancela esta. A anterior fica
+   * no histórico exatamente como o fornecedor a recebeu.
+   */
+  gerarNovaVersao(os: Os, dados: { numero: string; projeto: ProjetoInfo; cliente: Cliente }): Promise<Os>;
   proximaSeq(ecId: string): Promise<number>;
   remover(id: string): Promise<void>;
   /** Respostas de credenciamento enviadas pelos fornecedores para esta OS. */

@@ -10,6 +10,14 @@ interface Props {
   /** Ação extra na barra (ex.: botão "Resumo da Proposta"). */
   toolbarExtra?: ReactNode;
   className?: string;
+  /**
+   * Modo leitura: some com a barra de formatação e trava a digitação.
+   *
+   * `contentEditable` ignora o `disabled` de um `<fieldset>` em volta — é por
+   * isso que o modo leitura precisa ser dito aqui dentro, e não herdado como
+   * acontece com input, select e textarea.
+   */
+  somenteLeitura?: boolean;
 }
 
 /**
@@ -17,7 +25,7 @@ interface Props {
  * Guarda HTML simples. Sincroniza o value externo só quando difere do DOM e o
  * campo não está com foco (evita "pular" o cursor ao digitar).
  */
-export function RichTextField({ value, onChange, placeholder, toolbarExtra, className }: Props) {
+export function RichTextField({ value, onChange, placeholder, toolbarExtra, className, somenteLeitura }: Props) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -69,6 +77,7 @@ export function RichTextField({ value, onChange, placeholder, toolbarExtra, clas
 
   return (
     <div className={cx("rounded-btn border-[1.5px] border-[#BFC4CE] bg-surface overflow-hidden focus-within:border-primary/60", className)}>
+      {!somenteLeitura && (
       <div className="flex flex-wrap items-center gap-0.5 px-1.5 py-1 border-b border-border-soft bg-[#FAFAFB]">
         <ToolBtn title="Parágrafo" onClick={() => cmd("formatBlock", "p")}><span className="text-[11px] font-extrabold">¶</span></ToolBtn>
         <ToolBtn title="Negrito" onClick={() => cmd("bold")}><IcBold width={15} height={15} /></ToolBtn>
@@ -86,13 +95,14 @@ export function RichTextField({ value, onChange, placeholder, toolbarExtra, clas
         <ToolBtn title="Refazer" onClick={() => cmd("redo")}><span className="text-base leading-none">↷</span></ToolBtn>
         <div className="ml-auto">{toolbarExtra}</div>
       </div>
+      )}
       <div className="relative">
         {vazio && placeholder && (
           <span className="pointer-events-none absolute left-2.5 top-2 text-[13px] text-ink-3">{placeholder}</span>
         )}
         <div
           ref={ref}
-          contentEditable
+          contentEditable={!somenteLeitura}
           lang="pt-BR"
           spellCheck
           autoCapitalize="sentences"

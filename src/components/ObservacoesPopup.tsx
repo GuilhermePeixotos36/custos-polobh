@@ -6,6 +6,7 @@ import { cx, dataHoraBR } from "@/lib/format";
 import { idComentario } from "@/lib/destaque";
 import { alvoPendente, aoFocarPendencia, destacarAlvo, destacarComentario, type AlvoPendencia } from "@/lib/focoPendencia";
 import { regexMencoes } from "@/domain/mencoes";
+import { destinatariosDaVez } from "@/domain/pendencias";
 import { useAuth } from "@/store/auth";
 import type { Observacao, RespostaObservacao } from "@/data/types";
 
@@ -24,6 +25,12 @@ interface Props {
 }
 
 const novoId = () => globalThis.crypto?.randomUUID?.() ?? `obs-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+/** Mesma tolerância a acento e caixa do quadro de pendências. */
+const mesmaPessoa = (a: string, b: string) => {
+  const chave = (v: string) => v.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
+  return !!a.trim() && !!b.trim() && chave(a) === chave(b);
+};
 
 /** Divide o texto em partes normais e menções @Nome destacadas. */
 function renderComMencoes(texto: string, usuarios: string[]) {
@@ -196,8 +203,16 @@ export function ObservacoesThread({ observacoes, usuarios, onChange, className, 
               key={o.id}
               o={o}
               usuarios={usuarios}
+              vez={destinatariosDaVez(o, usuarios)}
+              nomeAtual={nomeAtual}
               souAutor={!!usuarioAtual && o.autorId === usuarioAtual.id}
-              podeResolver={!!usuarioAtual && !o.resolvida && (o.autorId === usuarioAtual.id || (!!o.responsavelNome && o.responsavelNome === nomeAtual))}
+              // Resolve quem está com a batata — é ela que encerra a conversa —,
+              // mais o autor, que pode desistir do que pediu.
+              podeResolver={
+                !!usuarioAtual &&
+                !o.resolvida &&
+                (o.autorId === usuarioAtual.id || destinatariosDaVez(o, usuarios).some((n) => mesmaPessoa(n, nomeAtual)))
+              }
               respondendo={compor?.modo === "responder" && compor.id === o.id}
               onResponder={() => setCompor({ modo: "responder", id: o.id })}
               onEditar={() => setCompor({ modo: "editar", id: o.id })}
@@ -241,6 +256,8 @@ function ComentarioLinha({
   usuarios,
   souAutor,
   podeResolver,
+  vez,
+  nomeAtual,
   respondendo,
   onResponder,
   onEditar,
@@ -258,8 +275,12 @@ function ComentarioLinha({
   onExcluir: () => void;
   onResolver: () => void;
   composer: React.ReactNode;
+  /** De quem é a vez agora (ver `destinatariosDaVez`). */
+  vez: string[];
+  nomeAtual: string;
 }) {
   const respostas = o.respostas ?? [];
+  const minhaVez = vez.some((n) => mesmaPessoa(n, nomeAtual));
   return (
     <div
       id={idComentario(o.id)}
@@ -274,6 +295,16 @@ function ComentarioLinha({
           <span className="text-[11px] font-bold text-success bg-success-soft rounded-full px-2 py-0.5">
             Resolvida{o.resolvidoPorNome ? ` por ${o.resolvidoPorNome}` : ""}
           </span>
+        )}
+        {/* De quem é a bola agora. Cada resposta passa adiante; só "Resolver" encerra. */}
+        {!o.resolvida && vez.length > 0 && (
+          minhaVez ? (
+            <span className="text-[11px] font-extrabold text-danger bg-danger-soft rounded-full px-2 py-0.5">Sua vez</span>
+          ) : (
+            <span className="text-[11px] font-bold text-ink-3 bg-[#F0F1F4] rounded-full px-2 py-0.5">
+              Aguardando {vez.join(", ")}
+            </span>
+          )
         )}
         <span className="text-[11px] text-ink-3">{dataHoraBR(o.criadoEm)}</span>
         <span className="acoes-observacao ml-auto flex items-center gap-1 transition-opacity focus-within:opacity-100">

@@ -40,6 +40,7 @@ import { useAuth } from "@/store/auth";
 import { RentabilidadeItens } from "@/components/RentabilidadeItens";
 import { EcGrupos } from "@/components/EcGrupos";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
+import { ObservacoesGeraisEc } from "@/components/ObservacoesGeraisEc";
 import { pendenciasDaTela } from "@/domain/pendencias";
 import { bvVazio } from "@/domain/calc";
 import { contatoDeTexto, mesclarContatos } from "@/domain/fornecedor";
@@ -180,6 +181,7 @@ export function EcForm() {
           id: "",
           numero: numeroEc(cliente.nome || "Novo Cliente", projeto.titulo || "Novo Projeto", 1),
           slugPublico: "",
+          observacoes: [],
           projetoId,
           template,
           versao: 1,
@@ -465,6 +467,10 @@ export function EcForm() {
 
       {subaba === "ec" && (
       <div className="space-y-4">
+        {/* A conversa geral grava sozinha, fora do formulário — por isso só
+            aparece depois que a EC existe, quando já há onde gravar. */}
+        {!!ec.id && <ObservacoesGeraisEc ecId={ec.id} observacoes={ec.observacoes ?? []} usuarios={usuarios} />}
+
         {/* Cliente e Projeto só aparecem em EC avulsa; dentro de um Projeto os dados
             ficam na aba "Dados Gerais" e não são reeditados aqui. */}
         {!temProjeto && (

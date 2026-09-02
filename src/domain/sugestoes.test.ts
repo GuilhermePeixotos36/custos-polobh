@@ -31,7 +31,7 @@ const linha = (p: Partial<EcLinha>): EcLinha => ({
 const ec = (linhas: EcLinha[], local = ""): Ec => ({
   id: "ec", numero: "EC", slugPublico: "", versao: 1, status: "Rascunho", projetoId: "p",
   template: "", clienteId: "c1", cliente: cliente(),
-  projeto: { ...projetoInfoVazio(), local }, linhas,
+  projeto: { ...projetoInfoVazio(), local }, observacoes: [], linhas,
   producao: producaoZerada(), honorarios: honorariosPadrao(), encargos: encargosPadrao(),
   responsavel: "", validadeDias: 30, criadoEm: "", atualizadoEm: "", ativa: true,
 });
@@ -39,6 +39,8 @@ const ec = (linhas: EcLinha[], local = ""): Ec => ({
 const os = (p: Partial<Os["logistica"]>): Os => ({
   id: "os", numero: "OS-01", slugCredenciamento: "", seq: 1, ecId: "ec", ecNumero: "EC",
   ecLinhaIds: [], status: "Rascunho",
+  projeto: projetoInfoVazio(),
+  cliente: cliente(),
   fornecedor: {
     id: "", razaoSocial: "", nomeFantasia: "", cnpj: "", perfilTributario: "", endereco: "",
     inscricaoEstadual: "", inscricaoMunicipal: "",

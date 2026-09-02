@@ -418,6 +418,21 @@ export interface Ec {
   cliente: Cliente; // snapshot embutido (simplicidade)
   projeto: ProjetoInfo;
   linhas: EcLinha[];
+  /**
+   * Observações GERAIS da EC — a conversa da equipe sobre o evento inteiro,
+   * antes de ela se dividir item a item.
+   *
+   * É o corredor onde alguém escreve "@Marisa o cliente cortou o coffee break"
+   * e a equipe combina o que fazer. Cada pessoa depois trata o que é dela
+   * DENTRO do item, na thread do item — as duas conversas convivem: esta é a
+   * pauta do evento, aquela é o acerto de um custo.
+   *
+   * Não sai em documento, e-mail nem planilha: é interna, como as observações
+   * dos itens. Gravada por caminho próprio (`salvarObservacoes`), fora do
+   * salvamento da EC — comentar não é editar a estimativa, e uma conversa não
+   * pode esbarrar na trava de edição de quem está mexendo nos custos.
+   */
+  observacoes: Observacao[];
   producao: Producao;
   /** Honorários Pólobh — % sobre a soma dos fornecedores ou valor fixo (padrão 15%). */
   honorarios: TaxaConfig;
@@ -609,6 +624,20 @@ export interface Os {
   ecLinhaIds: string[]; // linhas da EC consolidadas
   status: StatusOsDoc;
   fornecedor: Fornecedor; // snapshot
+  /**
+   * Dados gerais do evento COMO ESTAVAM na emissão desta OS — o bloco "Dados do
+   * Projeto" que o fornecedor recebeu impresso.
+   *
+   * É um snapshot de propósito. A OS lia esses dados direto da EC, e então
+   * qualquer edição posterior no projeto ou na EC reescrevia, em silêncio, um
+   * documento que já estava na mão do fornecedor. Com a foto guardada aqui, a
+   * OS emitida é imutável: mudou o evento? Gera-se uma NOVA VERSÃO da OS (ver
+   * `domain/mudancasEvento`), e a anterior continua contando a história que
+   * contava.
+   */
+  projeto: ProjetoInfo;
+  /** Bloco "Dados do Cliente" da OS, congelado na emissão pelo mesmo motivo. */
+  cliente: Cliente;
   modalidade: Modalidade;
   descritivo: string;
   entrega: string;

@@ -7,7 +7,7 @@ import { honorariosPadrao, encargosPadrao, producaoZerada,
   bvVazio,
 } from "@/domain/calc";
 import { projetoInfoVazio } from "@/domain/projeto";
-import type { Ec, EcLinha, Os } from "@/data/types";
+import type { Cliente, Ec, EcLinha, Os, ProjetoInfo } from "@/data/types";
 
 /** O gerador busca a logo por fetch("/polobh-logo.png"); em teste servimos o arquivo real. */
 beforeAll(() => {
@@ -27,27 +27,33 @@ const linha = (p: Partial<EcLinha>): EcLinha => ({
   statusOs: "OK", contratoStatus: "OK", observacao: "", observacoes: [], oculto: false, ordem: 0, ...p,
 });
 
+/** Cliente e dados do evento — a EC os guarda, e a OS guarda a sua própria foto deles. */
+const clienteFixture = (): Cliente => ({
+  id: "c1", apelido: "ACME", nome: "ACME Eventos", razaoSocial: "ACME Eventos LTDA",
+  endereco: "Rua X, 100", cnpjCpf: "11.222.333/0001-44", inscricaoEstadual: "ISENTO",
+  inscricaoMunicipal: "123456",
+  representante: { nome: "Fulano", cargo: "Diretor", telefones: "(31) 99999-0000", email: "f@acme.com" },
+});
+
+const projetoFixture = (): ProjetoInfo => ({
+  ...projetoInfoVazio(),
+  titulo: "Convenção 2026", modalidade: "Cultural", local: "Teatro Sesiminas",
+  enderecoLocal: "Av. Afonso Pena, 1000", evento: "2026-09-10", horario: "20h",
+  participantes: 300, produtoraResponsavel: "Marisa", telefoneProdutora: "(31) 98888-0000",
+  emailProdutora: "marisa@polobh.com.br",
+  cronograma: {
+    montagem: [{ id: "f1", data: "2026-09-08", inicio: "08:00", fim: "18:00" }],
+    alinhamentos: [], ensaios: [], evento: [{ id: "f2", data: "2026-09-10", inicio: "20:00", fim: "23:00" }],
+    desmontagem: [],
+  },
+});
+
 const ec = (linhas: EcLinha[]): Ec => ({
   id: "ec1", numero: "EC – ACME – V01", slugPublico: "", versao: 1, status: "Aprovada",
   projetoId: "p1", template: "Cultural", clienteId: "c1",
-  cliente: {
-    id: "c1", apelido: "ACME", nome: "ACME Eventos", razaoSocial: "ACME Eventos LTDA",
-    endereco: "Rua X, 100", cnpjCpf: "11.222.333/0001-44", inscricaoEstadual: "ISENTO",
-    inscricaoMunicipal: "123456",
-    representante: { nome: "Fulano", cargo: "Diretor", telefones: "(31) 99999-0000", email: "f@acme.com" },
-  },
-  projeto: {
-    ...projetoInfoVazio(),
-    titulo: "Convenção 2026", modalidade: "Cultural", local: "Teatro Sesiminas",
-    enderecoLocal: "Av. Afonso Pena, 1000", evento: "2026-09-10", horario: "20h",
-    participantes: 300, produtoraResponsavel: "Marisa", telefoneProdutora: "(31) 98888-0000",
-    emailProdutora: "marisa@polobh.com.br",
-    cronograma: {
-      montagem: [{ id: "f1", data: "2026-09-08", inicio: "08:00", fim: "18:00" }],
-      alinhamentos: [], ensaios: [], evento: [{ id: "f2", data: "2026-09-10", inicio: "20:00", fim: "23:00" }],
-      desmontagem: [],
-    },
-  },
+  cliente: clienteFixture(),
+  projeto: projetoFixture(),
+  observacoes: [],
   linhas, producao: producaoZerada(), honorarios: honorariosPadrao(), encargos: encargosPadrao(),
   responsavel: "Marisa", validadeDias: 30, criadoEm: "2026-08-01", atualizadoEm: "2026-08-01", ativa: true,
 });
@@ -55,6 +61,8 @@ const ec = (linhas: EcLinha[]): Ec => ({
 const os = (ecLinhaIds: string[]): Os => ({
   id: "os1", numero: "EC – ACME – Convenção – OS-01", slugCredenciamento: "abc", seq: 1,
   ecId: "ec1", ecNumero: "EC – ACME – V01", ecLinhaIds, status: "Emitida",
+  projeto: projetoFixture(),
+  cliente: clienteFixture(),
   fornecedor: {
     id: "f1", razaoSocial: "Som & Luz LTDA", nomeFantasia: "Som & Luz", cnpj: "12.345.678/0001-95",
     perfilTributario: "Simples Nacional", endereco: "Rua Y, 20", inscricaoEstadual: "ISENTO",

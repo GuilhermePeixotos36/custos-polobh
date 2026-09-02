@@ -376,6 +376,8 @@ function mapEc(r: any): Ec {
     clienteId: r.cliente_id ?? "",
     cliente: r.cliente ?? clienteVazio(),
     projeto: normalizarProjetoInfo(r.projeto),
+    // Conversa geral da EC — gravada por caminho próprio (ver `salvarObservacoes`).
+    observacoes: r.observacoes ?? [],
     linhas,
     // Produção fixa descontinuada → sempre zerada (os custos vivem em linhas do grupo).
     producao: producaoZerada(),
@@ -473,6 +475,15 @@ const ecRepo: EcRepository = {
     });
     return salvo;
   },
+  async salvarObservacoes(ecId, observacoes) {
+    // RPC própria (ver a migração `ec_observacoes_gerais`): grava só a conversa,
+    // sem tocar em `atualizado_em` e sem exigir permissão de EDITAR a EC — quem
+    // enxerga a EC conversa nela.
+    const salvas = ok(
+      await supabase.rpc("salvar_observacoes_ec", { p_ec_id: ecId, p_observacoes: observacoes })
+    ) as unknown as Observacao[] | null;
+    return salvas ?? observacoes;
+  },
   async duplicar(id) {
     const orig = await this.obter(id);
     if (!orig) throw new Error("EC não encontrada");
@@ -547,6 +558,8 @@ function mapOs(r: any): Os {
     ecLinhaIds: (r.os_linhas ?? []).map((x: { ec_linha_id: string }) => x.ec_linha_id),
     status: r.status,
     fornecedor: r.fornecedor,
+    projeto: normalizarProjetoInfo(r.projeto ?? r.ec?.projeto),
+    cliente: r.cliente ?? r.ec?.cliente ?? clienteVazio(),
     modalidade: r.modalidade ?? "",
     descritivo: r.descritivo ?? "",
     entrega: r.entrega ?? "",
@@ -570,6 +583,10 @@ function osRow(os: Os) {
     ec_id: os.ecId,
     seq: os.seq,
     fornecedor: os.fornecedor,
+    // Foto dos dados gerais do evento na emissão — depois de gravada, só uma
+    // nova versão da OS a substitui (ver `Os.projeto`).
+    projeto: os.projeto,
+    cliente: os.cliente,
     modalidade: os.modalidade,
     descritivo: os.descritivo,
     entrega: os.entrega,
@@ -600,7 +617,13 @@ async function sincronizarOsLinhas(osId: string, ecLinhaIds: string[]) {
   }
 }
 
-const SELECT_OS = "*, ec:ecs(numero), os_linhas(ec_linha_id), os_financeiro(dados)";
+/**
+ * `ec:ecs(projeto, cliente)` é o plano B das OSs gravadas antes de a OS ter
+ * snapshot próprio (ver `Os.projeto`): elas leem o da EC, como sempre leram, e
+ * a partir da primeira gravação passam a ter o seu. Assim o resto do app nunca
+ * precisa perguntar se o snapshot existe.
+ */
+const SELECT_OS = "*, ec:ecs(numero, projeto, cliente), os_linhas(ec_linha_id), os_financeiro(dados)";
 
 const osRepo: OsRepository = {
   async listar() {
@@ -638,6 +661,28 @@ const osRepo: OsRepository = {
       acao: atualizando ? "os.atualizar" : "os.criar",
       mensagem: `OS ${salvo.numero} ${atualizando ? "atualizada" : "criada"} (status: ${salvo.status})`,
       alvoId: id,
+    });
+    return salvo;
+  },
+  async gerarNovaVersao(os, dados) {
+    // A cópia acontece no servidor (ver a função `gerar_nova_versao_os`): o
+    // financeiro da OS é restrito por RLS, e copiá-lo pela tela apagaria o que
+    // quem está reemitindo não tem permissão de enxergar.
+    const novoId = ok(
+      await supabase.rpc("gerar_nova_versao_os", {
+        p_os_id: os.id,
+        p_numero: dados.numero,
+        p_projeto: dados.projeto,
+        p_cliente: dados.cliente,
+      })
+    ) as unknown as string;
+    const salvo = await this.obter(novoId);
+    if (!salvo) throw new Error("Falha ao reler a nova versão da OS.");
+    auditar({
+      categoria: "OS",
+      acao: "os.nova_versao",
+      mensagem: `OS ${os.numero} reemitida como ${salvo.numero} (dados do evento atualizados)`,
+      alvoId: salvo.id,
     });
     return salvo;
   },

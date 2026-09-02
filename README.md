@@ -30,6 +30,7 @@ src/
   data/                      types, repository e implementação Supabase
   domain/calc.ts             cálculos da EC, numeração, consolidação EC→OS
   domain/checklist.ts        régua de prazos e estados do check-list (Work Flow)
+  domain/mudancasEvento.ts   o que mudou nos dados gerais e o que fazer com EC/OS já emitidas
   domain/calendario.ts       período do projeto e recorte mês a mês do quadro do ano
   domain/pendencias.ts       motor de pendências que alimenta os badges vermelhos
   lib/                       format, cnpj (BrasilAPI), ai (flag), flags, excel/
@@ -74,10 +75,41 @@ Não abrem porta: o **papel** (antes todo Admin/Direção/Administrativo via "em
 OS" da casa inteira) e o **autor** do comentário (quem cobrava carregava a
 pendência do outro).
 
-Geram pendência: comentário em aberto (EC, OS e check-list), tarefa de hoje ou
-atrasada, **OS e Contrato do item da EC em "Emitir"/"Emitir Nova Versão"** (uma
-por item), OS em rascunho, cronograma da OS vazio, credenciamento sem resposta e
-projeto ativo sem EC. Projeto arquivado/cancelado encerra todas.
+### Conversa: a batata quente (`destinatariosDaVez`)
+Uma observação não é um recado pendurado no primeiro destinatário até alguém
+apagá-lo: é uma **conversa**, e a cada mensagem a bola passa. Quem responde já
+agiu — a bolinha sai de quem falou e acende para quem tem de responder —, e isso
+se repete até alguém apertar **Resolver**, que encerra a thread para todos.
+
+A vez sai da **última mensagem**: quem ela @menciona (na raiz, também o
+responsável escolhido no campo); sem menção, volta para quem estava esperando (o
+autor da mensagem anterior que não seja da mesma pessoa); nunca o autor da
+própria última mensagem. A thread mostra isso em cada item: **Sua vez** ou
+*Aguardando Fulano*.
+
+O **Produtor Responsável entra quando a vez é dele** — e só. Antes ele carregava
+toda conversa nascida no projeto, mesmo a que já estava com outra pessoa, e o
+badge dele só crescia. Nas demais pendências (emitir OS, cronograma,
+credenciamento, prazo de tarefa) ele continua vendo tudo.
+
+Geram pendência: comentário em aberto (**conversa geral da EC**, item da EC, OS e
+check-list), tarefa de hoje ou atrasada, **OS e Contrato do item da EC em
+"Emitir"/"Emitir Nova Versão"** (uma por item), OS em rascunho, cronograma da OS
+vazio, credenciamento sem resposta e projeto ativo sem EC. Projeto
+arquivado/cancelado encerra todas.
+
+### Observações gerais da EC
+A conversa da equipe sobre o evento inteiro, antes de o assunto virar item de
+alguém — "@Marisa o cliente cortou o coffee break". Fica no topo da EC, é
+interna (não sai em documento, e-mail nem planilha) e convive com as observações
+por item: aqui se combina, lá se acerta o custo.
+
+Grava por caminho próprio (`ecs.observacoes` + `salvar_observacoes_ec`, migração
+`20260902110000`), **fora** de `salvar_ec_completa` e sem tocar em
+`atualizado_em`: comentar não é editar a estimativa, então uma mensagem não
+esbarra na trava de edição de quem está mexendo nos custos, nem o formulário
+aberto há meia hora sobrescreve o que foi dito nesse meio tempo. Quem enxerga a
+EC pode conversar nela — inclusive o Administrativo, que não edita EC.
 
 Todo número sai da mesma lista — sininho do topo, badge da aba, badge do item e a
 pílula do canto inferior direito —, e cada pendência carrega o endereço da tela
@@ -148,6 +180,34 @@ aconteceria no ano — agora preenchido sozinho pelos projetos já cadastrados.
 Sem tabela nova no banco: o quadro é uma leitura de `projetos`
 (`domain/calendario.ts`), com o status de cada projeto vindo de
 `statusProjetoAutomatico`.
+
+## Editar o evento sem reescrever o que já saiu
+O evento é vivo: troca de local, muda o número de participantes, adianta um dia.
+Os Dados Gerais do projeto acompanham isso — mas EC e OS são **documentos**, e
+não podem mudar de conteúdo pelas costas de quem os recebeu.
+
+- **Modo leitura por padrão.** A aba Dados Gerais abre travada; o botão
+  **Editar dados gerais** libera os campos, com **Cancelar** (descarta) e
+  **Salvar projeto**. Projeto novo já nasce em edição.
+- **A OS emitida é imutável.** Cada OS guarda a própria foto dos dados gerais
+  (`oss.projeto` e `oss.cliente`, migração `20260902100000`) — antes ela lia
+  tudo da EC, e editar projeto ou EC reescrevia um papel já entregue. Documento,
+  planilha e tela da OS leem esse snapshot; da EC vêm só os itens consolidados.
+- **Ao salvar, o sistema pergunta.** Se a alteração alcança algo que EC/OS
+  imprimem e o projeto já tem documento emitido, abre o comparativo
+  (`campo: antes → depois`) com duas escolhas, ambas opcionais e desmarcadas:
+  - **atualizar a EC** ainda em aberto (as OSs já emitidas continuam iguais);
+  - **gerar nova versão de uma OS**: nasce rascunho com os dados novos, a
+    anterior é cancelada e fica no histórico. A cópia (itens, financeiro,
+    contrato) acontece no servidor, via `gerar_nova_versao_os` — o financeiro
+    tem RLS restrita e copiá-lo pela tela apagaria o que quem reemite não vê.
+- **Fechar sem marcar nada é resposta legítima:** o projeto já está salvo, e a
+  mudança vale para o que nascer daí em diante.
+
+A comparação é feita pelo **texto que o documento imprime**
+(`domain/mudancasEvento.ts`), não pelo dado cru: reordenar faixas do cronograma
+ou salvar sem mexer em nada gera JSON diferente e papel idêntico — e papel
+idêntico não é mudança.
 
 ## Geração de Excel
 - **EC e OS:** ambas são **remontadas com a marca Pólobh** via ExcelJS (que aplica

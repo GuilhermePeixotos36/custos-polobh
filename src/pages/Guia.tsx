@@ -477,9 +477,34 @@ const MODULOS: Modulo[] = [
             pela própria thread do item ou pelo projeto.
           </Atencao>
         </Secao>
+        <Secao titulo="Conversa: a batata quente">
+          <p>
+            Uma observação não fica pendurada em quem foi cobrado até alguém apagá-la: é uma
+            <b> conversa</b>, e a cada mensagem <b>a bola passa</b>. Quem responde já agiu — a bolinha
+            sai de quem falou e acende para quem tem de responder.
+          </p>
+          <Tela titulo="Observações do item">
+            <div className="space-y-2 text-[12px]">
+              <div className="flex items-center gap-2"><b className="text-ink">Ana</b><Tag tom="warning">Sua vez</Tag><span className="text-ink-3">@Bruno confere o orçamento</span></div>
+              <div className="flex items-center gap-2"><b className="text-ink">Ana</b><Tag>Aguardando Ana</Tag><span className="text-ink-3">Bruno respondeu "conferido"</span></div>
+              <div className="flex items-center gap-2"><b className="text-ink">Ana</b><Tag tom="success">Resolvida por Bruno</Tag></div>
+            </div>
+          </Tela>
+          <Passos>
+            <span>A vez sai da <b>última mensagem</b>: quem ela <b>@menciona</b> fica com a bola.</span>
+            <span>Respondeu sem mencionar ninguém? A bola <b>volta para quem estava esperando</b> — quem falou antes de você.</span>
+            <span>Isso vai e volta até alguém apertar <b>Resolver</b>, que encerra a thread para todo mundo. Quem está com a bola pode resolver.</span>
+          </Passos>
+          <Dica>
+            O(a) <b>Produtor(a) Responsável</b> entra na conversa quando <b>a vez é dele</b>. Antes, cada
+            resposta trocada entre duas colegas empilhava bolinha no badge dele, que não tinha o que
+            fazer ali. Nas outras pendências (OS a emitir, cronograma, credenciamento, prazo) ele
+            continua vendo tudo.
+          </Dica>
+        </Secao>
         <Secao titulo="O que vira pendência">
           <div className="flex flex-wrap gap-1.5">
-            <Tag tom="primary">Comentário em aberto</Tag><Tag tom="primary">Tarefa de hoje ou atrasada</Tag>
+            <Tag tom="primary">Observação geral da EC</Tag><Tag tom="primary">Comentário em aberto</Tag><Tag tom="primary">Tarefa de hoje ou atrasada</Tag>
             <Tag tom="primary">OS a emitir</Tag><Tag tom="primary">Contrato a emitir</Tag>
             <Tag tom="primary">Cronograma da OS vazio</Tag><Tag tom="primary">Credenciamento sem resposta</Tag>
             <Tag tom="primary">Projeto sem EC</Tag>
@@ -523,6 +548,38 @@ const MODULOS: Modulo[] = [
           </ul>
           <Dica>Abra um projeto e navegue pelas subguias (Dados Gerais → EC → OS → Cronograma → Fornecedores).</Dica>
         </Secao>
+        <Secao titulo="Editar os dados gerais do evento">
+          <p>
+            Evento muda: troca de local, cresce o número de participantes, adianta um dia. Os
+            <b> Dados Gerais</b> acompanham isso — a aba abre em <b>modo leitura</b> e o botão
+            <b> Editar dados gerais</b> libera os campos.
+          </p>
+          <Passos>
+            <span>Clique em <b>Editar dados gerais</b>. Os campos destravam; <b>Cancelar</b> descarta o que você digitou.</span>
+            <span>Altere o que mudou e clique em <b>Salvar projeto</b>.</span>
+            <span>
+              Se o projeto já tem EC ou OS emitida, o sistema mostra <b>o que mudou</b> (antes → depois)
+              e pergunta o que fazer com cada documento.
+            </span>
+          </Passos>
+          <Atencao>
+            <b>Nada do que já saiu muda sozinho.</b> A EC e a OS que o cliente e os fornecedores
+            receberam continuam como estão — cada OS guarda a própria cópia dos dados do evento. A
+            alteração vale para o que nascer daí em diante.
+          </Atencao>
+          <Tela titulo="O evento mudou. E os documentos já emitidos?">
+            <div className="space-y-2 text-[12px]">
+              <div className="flex items-center gap-2"><span className="text-ink-3 line-through">Expominas</span><span className="text-ink-3">→</span><b className="text-ink">Minascentro</b></div>
+              <div className="flex items-center gap-2"><Tag>☐</Tag><span className="text-ink">EC – ACME – V02</span><span className="text-ink-3">atualizar os dados do evento</span></div>
+              <div className="flex items-center gap-2"><Tag>☐</Tag><span className="text-ink">OS – Som &amp; Luz – (01)</span><span className="text-ink-3">gerar nova versão</span></div>
+            </div>
+          </Tela>
+          <Passos>
+            <span><b>Atualizar a EC</b> — a EC em aberto passa a mostrar os dados novos. As OSs já emitidas a partir dela <b>não</b> mudam.</span>
+            <span><b>Gerar nova versão da OS</b> — nasce uma OS rascunho com os dados novos; a atual é <b>cancelada</b> e fica no histórico, com tudo que tinha dentro (itens, financeiro, contrato).</span>
+            <span><b>Agora não</b> também é resposta: o projeto já foi salvo, e nenhum documento é tocado.</span>
+          </Passos>
+        </Secao>
       </>
     ),
   },
@@ -555,6 +612,23 @@ const MODULOS: Modulo[] = [
             </div>
           </Tela>
           <Dica>Os percentuais são fixos: <b>honorários 15%</b> e <b>encargos 16,33%</b>. O valor total recalcula sozinho a cada mudança.</Dica>
+        </Secao>
+        <Secao titulo="Observações gerais (a conversa da EC)">
+          <p>
+            No topo da EC fica a <b>conversa da equipe sobre o evento inteiro</b> — o corredor, antes
+            de o assunto virar item de alguém. É de lá que cada um pega o que é seu e vai tratar
+            <b> dentro do item</b>, na thread do item.
+          </p>
+          <Passos>
+            <span>Escreva e <b>@mencione</b> quem precisa agir. A pessoa mencionada fica com a pendência (bolinha vermelha).</span>
+            <span>Cada resposta <b>passa a bola</b> adiante — ver "Conversa: a batata quente", em Pendências.</span>
+            <span>Quando o assunto se resolve, <b>Resolver</b> encerra a thread.</span>
+          </Passos>
+          <Dica>
+            A conversa <b>grava sozinha</b>, na hora: comentar não é editar a estimativa. Você pode
+            conversar mesmo com a EC aberta por outra pessoa — e mesmo sem permissão de editar EC.
+          </Dica>
+          <Atencao>É interna: não sai no documento, no e-mail nem na planilha da EC.</Atencao>
         </Secao>
         <Secao titulo="Aprovar o item">
           <p>
