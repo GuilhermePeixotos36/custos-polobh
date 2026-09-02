@@ -5,7 +5,7 @@
  */
 import type {
   Area, Checklist, Cliente, CredenciamentoResposta, Ec, EmpresaGrupo, Fornecedor,
-  ItemChecklist, ModeloChecklist, Os, Projeto, ProjetoInfo, Usuario,
+  ItemChecklist, ModeloChecklist, Observacao, Os, Projeto, ProjetoInfo, Usuario,
 } from "./types";
 
 export interface ProjetoRepository {
@@ -43,6 +43,14 @@ export interface EcRepository {
   listarPainel(): Promise<Ec[]>;
   obter(id: string): Promise<Ec | undefined>;
   salvar(ec: Ec): Promise<Ec>;
+  /**
+   * Grava SÓ a conversa geral da EC (`Ec.observacoes`).
+   *
+   * Comentar não é editar a estimativa: passa por fora de `salvar`, não mexe em
+   * `atualizadoEm` e não esbarra na trava de edição de quem está com o
+   * formulário aberto.
+   */
+  salvarObservacoes(ecId: string, observacoes: Observacao[]): Promise<Observacao[]>;
   duplicar(id: string): Promise<Ec>;
   novaVersao(id: string): Promise<Ec>;
   /** Torna esta EC a ativa do projeto (arquiva as demais). Reativa arquivadas. */

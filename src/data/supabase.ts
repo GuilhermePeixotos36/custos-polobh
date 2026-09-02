@@ -376,6 +376,8 @@ function mapEc(r: any): Ec {
     clienteId: r.cliente_id ?? "",
     cliente: r.cliente ?? clienteVazio(),
     projeto: normalizarProjetoInfo(r.projeto),
+    // Conversa geral da EC — gravada por caminho próprio (ver `salvarObservacoes`).
+    observacoes: r.observacoes ?? [],
     linhas,
     // Produção fixa descontinuada → sempre zerada (os custos vivem em linhas do grupo).
     producao: producaoZerada(),
@@ -472,6 +474,15 @@ const ecRepo: EcRepository = {
       alvoId: id,
     });
     return salvo;
+  },
+  async salvarObservacoes(ecId, observacoes) {
+    // RPC própria (ver a migração `ec_observacoes_gerais`): grava só a conversa,
+    // sem tocar em `atualizado_em` e sem exigir permissão de EDITAR a EC — quem
+    // enxerga a EC conversa nela.
+    const salvas = ok(
+      await supabase.rpc("salvar_observacoes_ec", { p_ec_id: ecId, p_observacoes: observacoes })
+    ) as unknown as Observacao[] | null;
+    return salvas ?? observacoes;
   },
   async duplicar(id) {
     const orig = await this.obter(id);

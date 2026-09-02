@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { agregarPendencias, calcularPendencias, pendenciasDaTela, rotaDaPendencia, type Pendencia } from "./pendencias";
+import {
+  agregarPendencias,
+  ancoraObservacoesGeraisEc,
+  calcularPendencias,
+  destinatariosDaVez,
+  pendenciasDaTela,
+  rotaDaPendencia,
+  type Pendencia,
+} from "./pendencias";
 import { projetoInfoVazio } from "./projeto";
 import { honorariosPadrao, encargosPadrao, producaoZerada,
   bvVazio,
@@ -39,7 +47,7 @@ const linha = (obs: Observacao[]): EcLinha => ({
 const ec = (linhas: EcLinha[]): Ec => ({
   id: "ec1", numero: "EC – ACME – V01", slugPublico: "", versao: 1, status: "Rascunho",
   projetoId: "p1", template: "", clienteId: "c1", cliente: clienteVazio(),
-  projeto: { ...projetoInfoVazio(), titulo: "Convenção" }, linhas,
+  projeto: { ...projetoInfoVazio(), titulo: "Convenção" }, observacoes: [], linhas,
   producao: producaoZerada(), honorarios: honorariosPadrao(), encargos: encargosPadrao(),
   responsavel: "", validadeDias: 30, criadoEm: "", atualizadoEm: "", ativa: true,
 });
@@ -74,10 +82,20 @@ describe("quem vê a pendência de uma observação", () => {
     expect(de(itens, "Ana").total).toBe(0);
   });
 
-  it("conta para o Produtor Responsável, mesmo sem ele ter sido citado", () => {
-    // Era exatamente o que faltava: Carla via um número maior no badge e não
-    // achava a pendência, porque a lista dela e a do navegador eram outras.
-    expect(de(itens, "Carla").total).toBe(1);
+  it("não fica com o Produtor Responsável quando a vez é de outra pessoa", () => {
+    // A conversa está com o Bruno. Carla responde pelo projeto, mas empilhar no
+    // badge dela toda conversa que anda entre duas colegas é ruído: ela entra
+    // quando a vez é dela (ver `destinatariosDaVez`).
+    expect(de(itens, "Carla").total).toBe(0);
+  });
+
+  it("conta para o Produtor Responsável quando a vez é dele", () => {
+    const paraCarla = calcularPendencias(
+      [projeto("Carla")],
+      [ec([linha([observacao({ responsavelNome: "Carla" })])])],
+      [], USUARIOS, [], [], HOJE
+    );
+    expect(de(paraCarla, "Carla").total).toBe(1);
   });
 
   it("não aparece para quem não tem nada com ela", () => {
@@ -201,7 +219,9 @@ describe("item de EC com OS ou Contrato a emitir", () => {
 describe("agregação por tela", () => {
   it("o badge da aba e o navegador saem da mesma lista", () => {
     const itens = calcularPendencias(
-      [projeto("Carla")], [ec([linha([observacao({})])])], [], USUARIOS, [], [checklist([tarefa({})])], HOJE
+      [projeto("Carla")],
+      [ec([linha([observacao({ responsavelNome: "Carla" })])])],
+      [], USUARIOS, [], [checklist([tarefa({})])], HOJE
     );
     const carla = de(itens, "Carla");
     expect(carla.porAba["p1:ec"]).toBe(carla.itens.filter((p) => p.aba === "ec").length);
@@ -267,5 +287,123 @@ describe("o que a pílula alcança sem sair da tela", () => {
     // Ela existe e continua no sininho — só não entra na roda da tela.
     expect(semEc.some((p) => p.tipo === "projeto.semEc")).toBe(true);
     expect(pendenciasDaTela(semEc, { projetoId: "p1", aba: "ec" })).toEqual([]);
+  });
+});
+
+/* ------------------------------ batata quente ----------------------------- */
+
+const resposta = (autorNome: string, texto: string, id = `r-${autorNome}-${texto.length}`) => ({
+  id, texto, autorId: `u-${autorNome}`, autorNome, criadoEm: "2026-08-21T10:00:00Z",
+});
+
+describe("de quem é a vez na conversa", () => {
+  it("começa com quem foi cobrado — por menção e pelo responsável do campo", () => {
+    const o = observacao({ texto: "@Bruno confere o orçamento", responsavelNome: "Carla" });
+    expect(destinatariosDaVez(o, USUARIOS).sort()).toEqual(["Bruno", "Carla"]);
+  });
+
+  it("quem responde larga a batata: ela volta para quem estava esperando", () => {
+    const o = observacao({
+      texto: "@Bruno confere o orçamento",
+      responsavelNome: "",
+      respostas: [resposta("Bruno", "conferido, tudo certo")],
+    });
+    // Bruno agiu — some da lista dele; a bola volta para a Ana, que cobrou.
+    expect(destinatariosDaVez(o, USUARIOS)).toEqual(["Ana"]);
+  });
+
+  it("a resposta pode passar a batata para uma terceira pessoa", () => {
+    const o = observacao({
+      texto: "@Bruno confere o orçamento",
+      responsavelNome: "",
+      respostas: [resposta("Bruno", "isso é com a @Carla")],
+    });
+    expect(destinatariosDaVez(o, USUARIOS)).toEqual(["Carla"]);
+  });
+
+  it("vai e volta a cada resposta, até alguém resolver", () => {
+    const ida = observacao({
+      texto: "@Bruno confere o orçamento",
+      responsavelNome: "",
+      respostas: [resposta("Bruno", "conferido")],
+    });
+    const volta = observacao({
+      ...ida,
+      respostas: [...(ida.respostas ?? []), resposta("Ana", "obrigada!")],
+    });
+    expect(destinatariosDaVez(ida, USUARIOS)).toEqual(["Ana"]);
+    expect(destinatariosDaVez(volta, USUARIOS)).toEqual(["Bruno"]);
+  });
+
+  it("quem fala duas vezes seguidas não fica com a própria batata", () => {
+    const o = observacao({
+      texto: "@Bruno confere o orçamento",
+      responsavelNome: "",
+      respostas: [resposta("Bruno", "olhando"), resposta("Bruno", "achei o erro")],
+    });
+    expect(destinatariosDaVez(o, USUARIOS)).toEqual(["Ana"]);
+  });
+
+  it("recado que não endereça nem responde a ninguém não cobra ninguém", () => {
+    expect(destinatariosDaVez(observacao({ texto: "anotando aqui", responsavelNome: "" }), USUARIOS)).toEqual([]);
+  });
+
+  it("resolvida some do quadro de qualquer pessoa", () => {
+    const itens = calcularPendencias(
+      [projeto("Carla")], [ec([linha([observacao({ resolvida: true })])])], [], USUARIOS, [], [], HOJE
+    );
+    expect(de(itens, "Bruno").total).toBe(0);
+    expect(de(itens, "Carla").total).toBe(0);
+  });
+
+  it("responder tira a bolinha de quem respondeu e acende a de quem cobrou", () => {
+    const comResposta = ec([linha([observacao({
+      texto: "@Bruno confere o orçamento",
+      responsavelNome: "",
+      respostas: [resposta("Bruno", "conferido")],
+    })])]);
+    const itens = calcularPendencias([projeto("Carla")], [comResposta], [], USUARIOS, [], [], HOJE);
+    expect(de(itens, "Bruno").total).toBe(0);
+    expect(de(itens, "Ana").total).toBe(1);
+  });
+});
+
+describe("conversa geral da EC", () => {
+  const comGeral = (o: Observacao): Ec => ({ ...ec([linha([])]), observacoes: [o] });
+
+  it("vira pendência de quem foi mencionado", () => {
+    const itens = calcularPendencias(
+      [projeto("Carla")],
+      [comGeral(observacao({ id: "g1", texto: "@Bruno o cliente cortou o coffee break", responsavelNome: "" }))],
+      [], USUARIOS, [], [], HOJE
+    );
+    const [p] = de(itens, "Bruno").itens;
+    expect(p.tipo).toBe("ec.observacaoGeral");
+    expect(p.ecId).toBe("ec1");
+    expect(p.aba).toBe("ec");
+    expect(p.ancora).toBe(ancoraObservacoesGeraisEc("ec1"));
+    expect(rotaDaPendencia(p)).toBe("/estimativas/ec1");
+  });
+
+  it("segue a mesma batata quente das observações de item", () => {
+    const itens = calcularPendencias(
+      [projeto("Carla")],
+      [comGeral(observacao({
+        id: "g1", texto: "@Bruno o cliente cortou o coffee break", responsavelNome: "",
+        respostas: [resposta("Bruno", "ajustado")],
+      }))],
+      [], USUARIOS, [], [], HOJE
+    );
+    expect(de(itens, "Bruno").total).toBe(0);
+    expect(de(itens, "Ana").total).toBe(1);
+  });
+
+  it("o navegador da tela da EC alcança a conversa geral", () => {
+    const itens = calcularPendencias(
+      [projeto("Carla")],
+      [comGeral(observacao({ id: "g1", texto: "@Bruno urgente", responsavelNome: "" }))],
+      [], USUARIOS, [], [], HOJE
+    );
+    expect(pendenciasDaTela(de(itens, "Bruno").itens, { ecId: "ec1" })).toHaveLength(1);
   });
 });

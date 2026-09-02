@@ -28,7 +28,7 @@
  * para "OS/Contrato a emitir"). Para adicionar uma nova regra, basta empurrar
  * mais objetos em `calcularPendencias`.
  */
-import type { Checklist, Ec, Os, Projeto, StatusOs } from "@/data/types";
+import type { Checklist, Ec, Observacao, Os, Projeto, StatusOs } from "@/data/types";
 import { extrairMencoes } from "@/domain/mencoes";
 import { statusProjetoAutomatico } from "@/domain/statusProjeto";
 // `encerrado` já é o nome do teste de projeto encerrado aqui — o do item vem com alias.
@@ -118,6 +118,92 @@ export function pendenciasDaTela(itens: Pendencia[], tela: TelaPendencias): Pend
   });
 }
 
+/**
+ * Âncora da conversa geral da EC — o elemento que o navegador de pendências
+ * procura na tela. Mora aqui, ao lado da regra, para a tela e o cálculo nunca
+ * discordarem sobre onde a thread está.
+ */
+export const ancoraObservacoesGeraisEc = (ecId: string) => `ec-geral:${ecId}`;
+
+/* ------------------------- A batata quente da thread ---------------------- */
+
+/**
+ * De quem é a vez numa conversa — a "batata quente".
+ *
+ * Uma observação não é um recado que fica pendurado no primeiro destinatário até
+ * alguém apagá-lo: é uma CONVERSA, e a cada mensagem a bola passa para o outro
+ * lado. Quem acabou de responder já agiu — viu a cobrança e fez alguma coisa
+ * com ela —, então a bolinha vermelha sai de quem falou e vai para quem tem de
+ * responder. Isso se repete até alguém apertar "Resolver", que encerra a
+ * thread para todo mundo.
+ *
+ * A vez é lida da ÚLTIMA mensagem:
+ *   · quem ela @menciona (na raiz, também o responsável escolhido no campo);
+ *   · sem menção nenhuma, volta para quem estava esperando — o autor da última
+ *     mensagem anterior que não seja da mesma pessoa;
+ *   · nunca o autor da própria última mensagem.
+ *
+ * Devolve lista vazia quando a conversa não cobra ninguém (um recado solto que
+ * não endereça e não responde a ninguém) — e aí ela não vira pendência.
+ */
+export function destinatariosDaVez(observacao: Observacao, usuarios: string[] = []): string[] {
+  const mensagens = [
+    { autor: observacao.autorNome ?? "", texto: observacao.texto ?? "", raiz: true },
+    ...(observacao.respostas ?? []).map((r) => ({ autor: r.autorNome ?? "", texto: r.texto ?? "", raiz: false })),
+  ];
+  const ultima = mensagens[mensagens.length - 1];
+  const alvos = new Set<string>();
+  for (const m of extrairMencoes(ultima.texto, usuarios)) alvos.add(m);
+  // O responsável escolhido no campo é endereço da RAIZ. Depois que a conversa
+  // anda, quem manda é a última mensagem — senão ele carregaria a thread para
+  // sempre, mesmo já tendo respondido.
+  if (ultima.raiz && observacao.responsavelNome?.trim()) alvos.add(observacao.responsavelNome.trim());
+
+  if (!alvos.size) {
+    // Resposta sem endereço ("ok, feito"): a bola volta para quem falou antes —
+    // pulando as mensagens seguidas da mesma pessoa, que são continuação da fala.
+    const eu = normalizarPessoa(ultima.autor);
+    for (let i = mensagens.length - 2; i >= 0; i--) {
+      const autor = mensagens[i].autor.trim();
+      if (autor && normalizarPessoa(autor) !== eu) {
+        alvos.add(autor);
+        break;
+      }
+    }
+  }
+
+  const autorDaVez = normalizarPessoa(ultima.autor);
+  return [...alvos].filter((nome) => nome.trim() && normalizarPessoa(nome) !== autorDaVez);
+}
+
+/**
+ * Uma conversa aberta vira pendência de quem está com a batata.
+ *
+ * O Produtor Responsável do projeto continua vendo o que acontece no projeto
+ * dele — mas NÃO uma conversa que já está com outra pessoa: senão cada resposta
+ * trocada entre duas colegas ia empilhando bolinha vermelha para ele, que não
+ * tem o que fazer ali no momento. Ele entra quando é dele a vez.
+ */
+function pendenciaDeConversa(
+  observacao: Observacao,
+  usuarios: string[],
+  responsavelProjeto?: string
+): { pessoas: string[]; responsavelProjeto?: string; resumo: string } | null {
+  const texto = observacao.texto?.trim() ?? "";
+  if (!texto || observacao.resolvida) return null;
+  const pessoas = destinatariosDaVez(observacao, usuarios);
+  if (!pessoas.length) return null;
+  const nome = responsavelProjeto?.trim();
+  const respTemAVez = !!nome && pessoas.some((p) => normalizarPessoa(p) === normalizarPessoa(nome));
+  // A última mensagem é o que está em pauta — é ela que a pessoa precisa ler.
+  const ultima = (observacao.respostas ?? []).at(-1)?.texto?.trim() || texto;
+  return {
+    pessoas,
+    responsavelProjeto: respTemAVez ? nome : undefined,
+    resumo: ultima.length > 80 ? `${ultima.slice(0, 77)}…` : ultima,
+  };
+}
+
 /** Status de OS/Contrato que significam "falta emitir" (ver `Pendencia.campos`). */
 const A_EMITIR: StatusOs[] = ["Emitir", "Emitir Nova Versão"];
 
@@ -204,19 +290,14 @@ export function calcularPendencias(
     const ec = ecPorId.get(os.ecId);
     if (!ec?.projetoId || encerrado(ec.projetoId)) continue;
     (os.observacoes ?? []).forEach((observacao, indice) => {
-      const texto = observacao.texto.trim();
-      if (!texto || observacao.resolvida) return;
-      const destinatarios = new Set<string>();
-      if (observacao.responsavelNome?.trim()) destinatarios.add(observacao.responsavelNome.trim());
-      for (const m of extrairMencoes(texto, usuarios)) destinatarios.add(m);
-      if (!destinatarios.size) return;
-      const resumo = texto.length > 80 ? `${texto.slice(0, 77)}…` : texto;
+      const vez = pendenciaDeConversa(observacao, usuarios, respDe(ec.projetoId));
+      if (!vez) return;
       out.push({
         id: `os.observacao:${os.id}:${observacao.id || indice}`,
         tipo: "os.observacao",
-        titulo: `Observação para ${[...destinatarios].join(", ")} na OS ${os.numero}: ${resumo}`,
-        pessoas: [...destinatarios],
-        responsavelProjeto: respDe(ec.projetoId),
+        titulo: `Observação para ${vez.pessoas.join(", ")} na OS ${os.numero}: ${vez.resumo}`,
+        pessoas: vez.pessoas,
+        responsavelProjeto: vez.responsavelProjeto,
         recurso: "projetos",
         projetoId: ec.projetoId,
         aba: "os",
@@ -276,24 +357,38 @@ export function calcularPendencias(
   for (const ec of ecs) {
     // EC arquivada/cancelada (ou de projeto encerrado) não cobra observação de ninguém.
     if (!ec.projetoId || encerrado(ec.projetoId) || EC_ENCERRADA.includes(ec.status)) continue;
+
+    // Conversa GERAL da EC — a pauta do evento, antes de virar assunto de item.
+    (ec.observacoes ?? []).forEach((observacao, indice) => {
+      const vez = pendenciaDeConversa(observacao, usuarios, respDe(ec.projetoId));
+      if (!vez) return;
+      out.push({
+        id: `ec.observacaoGeral:${ec.id}:${observacao.id || indice}`,
+        tipo: "ec.observacaoGeral",
+        titulo: `Observação geral para ${vez.pessoas.join(", ")} na ${ec.numero}: ${vez.resumo}`,
+        pessoas: vez.pessoas,
+        responsavelProjeto: vez.responsavelProjeto,
+        recurso: "projetos",
+        projetoId: ec.projetoId,
+        aba: "ec",
+        ecId: ec.id,
+        // A thread geral mora no topo da EC; a âncora é a própria EC.
+        ancora: ancoraObservacoesGeraisEc(ec.id),
+        observacaoId: observacao.id || undefined,
+      });
+    });
+
     for (const linha of ec.linhas) {
       (linha.observacoes ?? []).forEach((observacao, indice) => {
-        const texto = observacao.texto.trim();
-        if (!texto) return;
-        // Observação resolvida deixa de ser pendência (fica só no histórico).
-        if (observacao.resolvida) return;
-        // Endereçada a uma pessoa: pelo responsável escolhido e/ou por @menção no texto.
-        const destinatarios = new Set<string>();
-        if (observacao.responsavelNome?.trim()) destinatarios.add(observacao.responsavelNome.trim());
-        for (const m of extrairMencoes(texto, usuarios)) destinatarios.add(m);
-        if (!destinatarios.size) return;
-        const resumo = texto.length > 80 ? `${texto.slice(0, 77)}…` : texto;
+        // Resolvida, sem texto ou sem ninguém com a vez: não cobra ninguém.
+        const vez = pendenciaDeConversa(observacao, usuarios, respDe(ec.projetoId));
+        if (!vez) return;
         out.push({
           id: `ec.observacao:${ec.id}:${linha.id}:${observacao.id || indice}`,
           tipo: "ec.observacao",
-          titulo: `Observação para ${[...destinatarios].join(", ")} em ${linha.item || linha.grupo}: ${resumo}`,
-          pessoas: [...destinatarios],
-          responsavelProjeto: respDe(ec.projetoId),
+          titulo: `Observação para ${vez.pessoas.join(", ")} em ${linha.item || linha.grupo}: ${vez.resumo}`,
+          pessoas: vez.pessoas,
+          responsavelProjeto: vez.responsavelProjeto,
           recurso: "projetos",
           projetoId: ec.projetoId,
           aba: "ec",
@@ -352,19 +447,14 @@ export function calcularPendencias(
       // Tarefa criada à mão pode estar sem título até alguém escrever nela.
       const nomeItem = item.titulo.trim() || "(tarefa sem título)";
       for (const observacao of item.observacoes ?? []) {
-        const texto = observacao.texto.trim();
-        if (!texto || observacao.resolvida) continue;
-        const destinatarios = new Set<string>();
-        if (observacao.responsavelNome?.trim()) destinatarios.add(observacao.responsavelNome.trim());
-        for (const m of extrairMencoes(texto, usuarios)) destinatarios.add(m);
-        if (!destinatarios.size) continue;
-        const resumo = texto.length > 80 ? `${texto.slice(0, 77)}…` : texto;
+        const vez = pendenciaDeConversa(observacao, usuarios, responsavelProjeto);
+        if (!vez) continue;
         out.push({
           id: `checklist.observacao:${item.id}:${observacao.id}`,
           tipo: "checklist.observacao",
-          titulo: `Observação para ${[...destinatarios].join(", ")} em ${nomeItem}: ${resumo}`,
-          pessoas: [...destinatarios],
-          responsavelProjeto: responsavelProjeto || undefined,
+          titulo: `Observação para ${vez.pessoas.join(", ")} em ${nomeItem}: ${vez.resumo}`,
+          pessoas: vez.pessoas,
+          responsavelProjeto: vez.responsavelProjeto,
           recurso: "projetos",
           projetoId: checklist.projetoId,
           aba: "checklist",

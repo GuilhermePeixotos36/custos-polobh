@@ -38,6 +38,7 @@ const ecBase = (linhas: EcLinha[]): Ec => ({
     representante: { nome: "Fulano", cargo: "Diretor", telefones: "(31) 99999-0000", email: "f@acme.com" },
   },
   projeto: { ...projetoInfoVazio(), titulo: "Convenção 2026", local: "Teatro" },
+  observacoes: [],
   linhas, producao: producaoZerada(), honorarios: honorariosPadrao(), encargos: encargosPadrao(),
   responsavel: "Marisa", validadeDias: 30, criadoEm: "2026-02-22", atualizadoEm: "2026-02-22", ativa: true,
 });

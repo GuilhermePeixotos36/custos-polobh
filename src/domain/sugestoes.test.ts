@@ -31,7 +31,7 @@ const linha = (p: Partial<EcLinha>): EcLinha => ({
 const ec = (linhas: EcLinha[], local = ""): Ec => ({
   id: "ec", numero: "EC", slugPublico: "", versao: 1, status: "Rascunho", projetoId: "p",
   template: "", clienteId: "c1", cliente: cliente(),
-  projeto: { ...projetoInfoVazio(), local }, linhas,
+  projeto: { ...projetoInfoVazio(), local }, observacoes: [], linhas,
   producao: producaoZerada(), honorarios: honorariosPadrao(), encargos: encargosPadrao(),
   responsavel: "", validadeDias: 30, criadoEm: "", atualizadoEm: "", ativa: true,
 });

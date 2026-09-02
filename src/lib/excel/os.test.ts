@@ -53,6 +53,7 @@ const ec = (linhas: EcLinha[]): Ec => ({
   projetoId: "p1", template: "Cultural", clienteId: "c1",
   cliente: clienteFixture(),
   projeto: projetoFixture(),
+  observacoes: [],
   linhas, producao: producaoZerada(), honorarios: honorariosPadrao(), encargos: encargosPadrao(),
   responsavel: "Marisa", validadeDias: 30, criadoEm: "2026-08-01", atualizadoEm: "2026-08-01", ativa: true,
 });

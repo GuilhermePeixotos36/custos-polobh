@@ -75,10 +75,41 @@ Não abrem porta: o **papel** (antes todo Admin/Direção/Administrativo via "em
 OS" da casa inteira) e o **autor** do comentário (quem cobrava carregava a
 pendência do outro).
 
-Geram pendência: comentário em aberto (EC, OS e check-list), tarefa de hoje ou
-atrasada, **OS e Contrato do item da EC em "Emitir"/"Emitir Nova Versão"** (uma
-por item), OS em rascunho, cronograma da OS vazio, credenciamento sem resposta e
-projeto ativo sem EC. Projeto arquivado/cancelado encerra todas.
+### Conversa: a batata quente (`destinatariosDaVez`)
+Uma observação não é um recado pendurado no primeiro destinatário até alguém
+apagá-lo: é uma **conversa**, e a cada mensagem a bola passa. Quem responde já
+agiu — a bolinha sai de quem falou e acende para quem tem de responder —, e isso
+se repete até alguém apertar **Resolver**, que encerra a thread para todos.
+
+A vez sai da **última mensagem**: quem ela @menciona (na raiz, também o
+responsável escolhido no campo); sem menção, volta para quem estava esperando (o
+autor da mensagem anterior que não seja da mesma pessoa); nunca o autor da
+própria última mensagem. A thread mostra isso em cada item: **Sua vez** ou
+*Aguardando Fulano*.
+
+O **Produtor Responsável entra quando a vez é dele** — e só. Antes ele carregava
+toda conversa nascida no projeto, mesmo a que já estava com outra pessoa, e o
+badge dele só crescia. Nas demais pendências (emitir OS, cronograma,
+credenciamento, prazo de tarefa) ele continua vendo tudo.
+
+Geram pendência: comentário em aberto (**conversa geral da EC**, item da EC, OS e
+check-list), tarefa de hoje ou atrasada, **OS e Contrato do item da EC em
+"Emitir"/"Emitir Nova Versão"** (uma por item), OS em rascunho, cronograma da OS
+vazio, credenciamento sem resposta e projeto ativo sem EC. Projeto
+arquivado/cancelado encerra todas.
+
+### Observações gerais da EC
+A conversa da equipe sobre o evento inteiro, antes de o assunto virar item de
+alguém — "@Marisa o cliente cortou o coffee break". Fica no topo da EC, é
+interna (não sai em documento, e-mail nem planilha) e convive com as observações
+por item: aqui se combina, lá se acerta o custo.
+
+Grava por caminho próprio (`ecs.observacoes` + `salvar_observacoes_ec`, migração
+`20260902110000`), **fora** de `salvar_ec_completa` e sem tocar em
+`atualizado_em`: comentar não é editar a estimativa, então uma mensagem não
+esbarra na trava de edição de quem está mexendo nos custos, nem o formulário
+aberto há meia hora sobrescreve o que foi dito nesse meio tempo. Quem enxerga a
+EC pode conversar nela — inclusive o Administrativo, que não edita EC.
 
 Todo número sai da mesma lista — sininho do topo, badge da aba, badge do item e a
 pílula do canto inferior direito —, e cada pendência carrega o endereço da tela
