@@ -1,9 +1,9 @@
 /** OS como documento A4 — visualização em tela + PDF. Espelha o modelo em Excel. */
 import { itensVisiveis, temContrato, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA } from "@/domain/os";
-import type { Ec, Os } from "@/data/types";
+import type { Cliente, Ec, Os } from "@/data/types";
 import { brl, dataBR } from "@/lib/format";
 import { textoObjetoContrato, resumoDeCustos, FORMA_PAGAMENTO_PADRAO, OBS_CONTRATO_PADRAO } from "@/domain/calc";
-import { ETAPAS_CRONOGRAMA } from "@/domain/projeto";
+import { resumoCronogramaProjeto } from "@/domain/projeto";
 import { empresaPadrao } from "@/store/empresas";
 
 /** Faixa de seção — cinza das barras do modelo original Pólobh (COR.sectionGray). */
@@ -33,26 +33,11 @@ function LV({ label, valor, full }: { label: string; valor?: string | number | n
   );
 }
 
-/** Cronograma do projeto (da EC) em texto, uma etapa por linha. */
-function cronogramaProjetoTexto(ec: Ec): string {
-  const linhas: string[] = [];
-  for (const { key, label } of ETAPAS_CRONOGRAMA) {
-    if ((ec.projeto.etapasOcultas ?? []).includes(key)) continue;
-    const faixas = (ec.projeto.cronograma?.[key] ?? []).filter((x) => x.data || x.inicio || x.fim);
-    if (!faixas.length) continue;
-    const detalhe = faixas
-      .map((x) => [dataBR(x.data), [x.inicio, x.fim].filter(Boolean).join(" às ")].filter(Boolean).join(" · "))
-      .join("  |  ");
-    linhas.push(`${label}: ${detalhe}`);
-  }
-  return linhas.join("\n");
-}
-
-/** Dados fiscais do tomador/contratante — cliente (da EC) ou empresa do grupo Pólobh. */
-function fiscaisDe(quem: "Polobh" | "Cliente" | "", ec: Ec) {
+/** Dados fiscais do tomador/contratante — cliente (do snapshot da OS) ou empresa do grupo Pólobh. */
+function fiscaisDe(quem: "Polobh" | "Cliente" | "", cliente: Cliente) {
   const emp = empresaPadrao();
   if (quem === "Cliente") {
-    const c = ec.cliente;
+    const c = cliente;
     return { rotulo: "Cliente", razao: c.razaoSocial, end: c.endereco, doc: c.cnpjCpf, ie: c.inscricaoEstadual, im: c.inscricaoMunicipal };
   }
   if (quem === "Polobh") {
@@ -66,8 +51,11 @@ function fiscaisDe(quem: "Polobh" | "Cliente" | "", ec: Ec) {
 }
 
 export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; restrito?: boolean }) {
-  const cli = ec.cliente;
-  const p = ec.projeto;
+  // Cliente e dados do evento saem do SNAPSHOT da OS, não da EC: o que o
+  // fornecedor recebeu impresso não muda depois (ver `Os.projeto`). Da EC vêm
+  // só os itens consolidados, que são dela mesmo.
+  const cli = os.cliente;
+  const p = os.projeto;
   const f = os.fornecedor;
   const b = f.dadosBancarios;
   const consolidadas = ec.linhas.filter((l) => os.ecLinhaIds.includes(l.id));
@@ -75,8 +63,8 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
   const logistica = itensVisiveis(os.logistica, CAMPOS_LOGISTICA);
   const resumo = resumoDeCustos(consolidadas);
   const infraestrutura = itensVisiveis(os.infraestrutura, CAMPOS_INFRAESTRUTURA);
-  const tom = fiscaisDe(os.financeiro.tomador, ec);
-  const contr = fiscaisDe(os.contrato.contratante, ec);
+  const tom = fiscaisDe(os.financeiro.tomador, cli);
+  const contr = fiscaisDe(os.contrato.contratante, cli);
 
   return (
     <div className="doc-sheet p-[14mm] text-ink">
@@ -114,7 +102,7 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
       <LV label="Produtora Responsável" valor={p.produtoraResponsavel} />
       <LV label="Telefone" valor={p.telefoneProdutora} />
       <LV label="E-mail" valor={p.emailProdutora} />
-      <LV label="Cronograma do Projeto" valor={cronogramaProjetoTexto(ec)} />
+      <LV label="Cronograma do Projeto" valor={resumoCronogramaProjeto(p)} />
 
       <Secao titulo="Dados do Fornecedor" />
       <LV label="Fornecedor" valor={f.nomeFantasia || f.razaoSocial} />

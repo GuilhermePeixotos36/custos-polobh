@@ -571,6 +571,9 @@ function montarOsEmissao(
     ecLinhaIds: linhas.map((l) => l.id),
     status: "Rascunho",
     fornecedor,
+    // Foto dos dados gerais do evento na emissão — ver `Os.projeto`.
+    projeto: ecAtual.projeto,
+    cliente: ecAtual.cliente,
     modalidade: "",
     descritivo: descritivoConsolidado(linhas),
     entrega: "",

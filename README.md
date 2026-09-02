@@ -30,6 +30,7 @@ src/
   data/                      types, repository e implementação Supabase
   domain/calc.ts             cálculos da EC, numeração, consolidação EC→OS
   domain/checklist.ts        régua de prazos e estados do check-list (Work Flow)
+  domain/mudancasEvento.ts   o que mudou nos dados gerais e o que fazer com EC/OS já emitidas
   domain/calendario.ts       período do projeto e recorte mês a mês do quadro do ano
   domain/pendencias.ts       motor de pendências que alimenta os badges vermelhos
   lib/                       format, cnpj (BrasilAPI), ai (flag), flags, excel/
@@ -148,6 +149,34 @@ aconteceria no ano — agora preenchido sozinho pelos projetos já cadastrados.
 Sem tabela nova no banco: o quadro é uma leitura de `projetos`
 (`domain/calendario.ts`), com o status de cada projeto vindo de
 `statusProjetoAutomatico`.
+
+## Editar o evento sem reescrever o que já saiu
+O evento é vivo: troca de local, muda o número de participantes, adianta um dia.
+Os Dados Gerais do projeto acompanham isso — mas EC e OS são **documentos**, e
+não podem mudar de conteúdo pelas costas de quem os recebeu.
+
+- **Modo leitura por padrão.** A aba Dados Gerais abre travada; o botão
+  **Editar dados gerais** libera os campos, com **Cancelar** (descarta) e
+  **Salvar projeto**. Projeto novo já nasce em edição.
+- **A OS emitida é imutável.** Cada OS guarda a própria foto dos dados gerais
+  (`oss.projeto` e `oss.cliente`, migração `20260902100000`) — antes ela lia
+  tudo da EC, e editar projeto ou EC reescrevia um papel já entregue. Documento,
+  planilha e tela da OS leem esse snapshot; da EC vêm só os itens consolidados.
+- **Ao salvar, o sistema pergunta.** Se a alteração alcança algo que EC/OS
+  imprimem e o projeto já tem documento emitido, abre o comparativo
+  (`campo: antes → depois`) com duas escolhas, ambas opcionais e desmarcadas:
+  - **atualizar a EC** ainda em aberto (as OSs já emitidas continuam iguais);
+  - **gerar nova versão de uma OS**: nasce rascunho com os dados novos, a
+    anterior é cancelada e fica no histórico. A cópia (itens, financeiro,
+    contrato) acontece no servidor, via `gerar_nova_versao_os` — o financeiro
+    tem RLS restrita e copiá-lo pela tela apagaria o que quem reemite não vê.
+- **Fechar sem marcar nada é resposta legítima:** o projeto já está salvo, e a
+  mudança vale para o que nascer daí em diante.
+
+A comparação é feita pelo **texto que o documento imprime**
+(`domain/mudancasEvento.ts`), não pelo dado cru: reordenar faixas do cronograma
+ou salvar sem mexer em nada gera JSON diferente e papel idêntico — e papel
+idêntico não é mudança.
 
 ## Geração de Excel
 - **EC e OS:** ambas são **remontadas com a marca Pólobh** via ExcelJS (que aplica

@@ -217,12 +217,14 @@ export async function criarOsExcelBuffer(
   }
   r += 2;
   linha("Número da OS:", os.numero);
-  linha("Projeto:", ec.projeto.titulo);
+  linha("Projeto:", os.projeto.titulo);
   linha("Data de emissão:", dataBR(new Date().toISOString()));
   linha("Status da OS:", os.status);
 
   /* --------------------------- DADOS DO CLIENTE ------------------------ */
-  const cli = ec.cliente;
+  // Cliente e evento saem do SNAPSHOT da OS: a planilha reimpressa hoje é a
+  // mesma que o fornecedor recebeu na emissão (ver `Os.projeto`).
+  const cli = os.cliente;
   secao("DADOS DO CLIENTE");
   linha("Cliente:", cli.nome);
   linha("Razão Social:", cli.razaoSocial);
@@ -232,7 +234,7 @@ export async function criarOsExcelBuffer(
   linha("Inscrição Municipal:", cli.inscricaoMunicipal);
 
   /* --------------------------- DADOS DO PROJETO ------------------------ */
-  const p = ec.projeto;
+  const p = os.projeto;
   secao("DADOS DO PROJETO");
   linha("Título:", p.titulo);
   linha("Modalidade:", p.modalidade);

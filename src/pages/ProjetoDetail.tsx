@@ -6,7 +6,7 @@ import {
   Card, CardTitle, Button, Field, Input, Label, TelefoneInput, Textarea, Select, Badge,
   Table, THead, Tr, Td, EmptyState, ThOrd, useOrdenacao, tomStatusOs, type Tom,
 } from "@/components/ui";
-import { IcPlus, IcBack, IcDownload, IcSearch, IcTrash, IcEye, IcEyeOff, IcDoc, IcCopy, IcCalendar } from "@/components/icons";
+import { IcPlus, IcBack, IcDownload, IcSearch, IcTrash, IcEye, IcEyeOff, IcDoc, IcCopy, IcCalendar, IcPencil } from "@/components/icons";
 import { RichTextField } from "@/components/RichTextField";
 import { InscricaoMunicipalInput } from "@/components/InscricaoMunicipalInput";
 import { TextosJaUsados } from "@/components/TextosJaUsados";
@@ -37,6 +37,14 @@ import { janelaDoProjeto } from "@/domain/checklist";
 import { confirmar } from "@/store/confirm";
 import { corrigirRoteirosProjeto } from "@/lib/correcaoOrtografica";
 import { statusProjetoAutomatico } from "@/domain/statusProjeto";
+import { RepercutirMudancasModal } from "@/components/RepercutirMudancasModal";
+import {
+  ecsAtualizaveis,
+  mudancasDoEvento,
+  ossReemitiveis,
+  type MudancaEvento,
+  type SnapshotEvento,
+} from "@/domain/mudancasEvento";
 import type { Cliente, Ec, EcLinha, Projeto, ProjetoInfo, StatusProjeto } from "@/data/types";
 import { pendenciasDaTela, type Pendencia } from "@/domain/pendencias";
 import { situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
@@ -124,6 +132,18 @@ export function ProjetoDetail() {
     if (abaParam && ABAS.some((a) => a.key === abaParam)) setAba(abaParam as Aba);
   }, [abaParam]);
   const [salvando, setSalvando] = useState(false);
+  /**
+   * Modo de edição dos Dados Gerais.
+   *
+   * A tela abre em LEITURA. O evento muda o tempo todo — troca de local, de
+   * número de participantes, de data —, e os campos precisam ser editáveis;
+   * mas deixá-los sempre abertos fazia de cada consulta um risco de alteração
+   * sem querer num dado que alimenta EC e OS. Projeto novo já nasce em edição:
+   * ali o ato é criar.
+   */
+  const [editando, setEditando] = useState(novo);
+  /** Diferenças a repercutir em EC/OS depois de salvar (ver RepercutirMudancasModal). */
+  const [repercussao, setRepercussao] = useState<{ mudancas: MudancaEvento[]; atual: SnapshotEvento } | null>(null);
   const [filtroEc, setFiltroEc] = useState<"todas" | "ativas" | "arquivadas">("todas");
   const [cnpjLoading, setCnpjLoading] = useState(false);
   const [cnpjMsg, setCnpjMsg] = useState("");
@@ -560,6 +580,13 @@ export function ProjetoDetail() {
   // que está SALVO, nunca do que ainda está sendo digitado no formulário.
   const checklistProjeto = useChecklistProjeto(novo ? undefined : p, podeEditarChecklist, !alterado);
 
+  /** Sai da edição jogando fora o que foi digitado — volta ao que está salvo. */
+  function cancelarEdicao() {
+    if (baseline) setP(JSON.parse(baseline));
+    setTentouSalvar(false);
+    setEditando(false);
+  }
+
   async function salvar() {
     const faltando = camposObrigatoriosFaltando();
     if (faltando.length) {
@@ -569,6 +596,9 @@ export function ProjetoDetail() {
     }
     setSalvando(true);
     try {
+      // Foto de como o evento estava ANTES de salvar — é contra ela que se
+      // decide o que precisa (ou não) ser repercutido em EC e OS.
+      const anterior: Projeto | null = baseline ? JSON.parse(baseline) : null;
       const revisao = await corrigirRoteirosProjeto(p.info.roteiros, p.info.roteirosExtras);
       const info = sincronizarCamposLegados({ ...p.info, roteiros: revisao.roteiros, roteirosExtras: revisao.roteirosExtras });
       const cliente = await arquivarCliente({ ...p.cliente, apelido: info.clienteAbreviado });
@@ -576,9 +606,21 @@ export function ProjetoDetail() {
       setP(salvo);
       // Nova referência do "já salvo" — o botão volta a ficar apagado na hora.
       setBaseline(JSON.stringify(salvo));
+      setEditando(false);
       toast(revisao.revisaoCompleta
         ? "Projeto salvo e roteiros revisados automaticamente."
         : "Projeto salvo. A correção básica foi aplicada; a revisão por IA está indisponível no momento.", "success");
+
+      /*
+       * Mudou algo que a EC ou a OS imprimem, e o projeto já tem documento
+       * emitido? Nada muda sozinho — mas quem salvou precisa poder decidir na
+       * hora, enquanto sabe o que mudou e por quê.
+       */
+      const atual: SnapshotEvento = { info: salvo.info, cliente: salvo.cliente };
+      const mudancas = anterior ? mudancasDoEvento({ info: anterior.info, cliente: anterior.cliente }, atual) : [];
+      const temDocumento = ecsAtualizaveis(ecsDoProjeto).length > 0 || ossReemitiveis(ossDoProjeto).length > 0;
+      if (mudancas.length && temDocumento) setRepercussao({ mudancas, atual });
+
       navigate(`/projetos/${salvo.id}`);
     } catch (e) {
       toast(`Erro ao salvar: ${(e as Error).message}`, "danger");
@@ -683,17 +725,30 @@ export function ProjetoDetail() {
           </button>
           {(aba === "dados" || novo) && podeEditarProjeto && (
             <div className="flex gap-2">
-              {!novo && statusExibido !== "Arquivado" && (
+              {!novo && statusExibido !== "Arquivado" && !editando && (
                 <Button variant="secondary" size="sm" onClick={arquivarProjeto}>Arquivar projeto</Button>
               )}
-              <Button
-                size="sm"
-                onClick={salvar}
-                disabled={salvando || !alterado}
-                title={alterado ? "Salvar as alterações do projeto" : "Nenhuma alteração para salvar"}
-              >
-                {salvando ? "Salvando…" : "Salvar projeto"}
-              </Button>
+              {!editando ? (
+                <Button size="sm" icon={<IcPencil width={15} height={15} />} onClick={() => setEditando(true)}>
+                  Editar dados gerais
+                </Button>
+              ) : (
+                <>
+                  {!novo && (
+                    <Button variant="secondary" size="sm" onClick={cancelarEdicao} disabled={salvando}>
+                      Cancelar
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    onClick={salvar}
+                    disabled={salvando || !alterado}
+                    title={alterado ? "Salvar as alterações do projeto" : "Nenhuma alteração para salvar"}
+                  >
+                    {salvando ? "Salvando…" : "Salvar projeto"}
+                  </Button>
+                </>
+              )}
             </div>
           )}
         </>
@@ -716,7 +771,26 @@ export function ProjetoDetail() {
       }
     >
       {aba === "dados" && (
-        <div className="space-y-4">
+        /*
+         * `fieldset disabled` trava de uma vez todos os campos da aba — input,
+         * select, textarea e botão herdam sozinhos, sem cada um precisar saber
+         * do modo leitura. O que não herda (o rich-text, que é contentEditable)
+         * recebe `somenteLeitura` na mão.
+         */
+        <fieldset
+          disabled={!editando}
+          className={cx("space-y-4 min-w-0", !editando && "[&_button:disabled]:opacity-50 [&_button:disabled]:cursor-default")}
+        >
+          {!editando && podeEditarProjeto && (
+            <div className="flex items-center gap-2 rounded-card border border-border-soft bg-[#FBFBFC] px-4 py-2.5 text-[12.5px] text-ink-2">
+              <IcEye width={15} height={15} className="shrink-0 text-ink-3" />
+              <span>
+                Modo leitura. O evento muda — local, participantes, datas: use{" "}
+                <b className="text-ink">Editar dados gerais</b> para alterar. O que já foi emitido em
+                EC e OS não muda por conta disso.
+              </span>
+            </div>
+          )}
           <Card data-tour="projeto-cliente">
               <CardTitle action={
                 <Button variant="soft" size="sm" icon={<IcSearch width={15} height={15} />} onClick={() => consultarCnpjCliente()} disabled={cnpjLoading || !flags.consultaCnpj}>
@@ -932,6 +1006,7 @@ export function ProjetoDetail() {
                         </div>
                         {!oculto && (
                           <RichTextField
+                            somenteLeitura={!editando}
                             className="[&_[contenteditable]]:min-h-[220px]"
                             value={chave ? p.info.roteiros[chave] : extra!.conteudo}
                             onChange={(v) => chave
@@ -947,7 +1022,7 @@ export function ProjetoDetail() {
               })}
             </ListaArrastavel>
           </Card>
-        </div>
+        </fieldset>
       )}
 
       {aba === "ec" && (
@@ -1141,6 +1216,22 @@ export function ProjetoDetail() {
 
       {/* Pílula flutuante: o que se resolve NESTA aba, uma de cada vez. */}
       {!novo && <NavegadorPendencias pendencias={pendenciasDaTelaAtual} />}
+
+      {/* O projeto já foi salvo; aqui se decide o que fazer com o que já saiu. */}
+      {repercussao && (
+        <RepercutirMudancasModal
+          mudancas={repercussao.mudancas}
+          atual={repercussao.atual}
+          ecs={ecsDoProjeto}
+          oss={ossDoProjeto}
+          onFechar={() => setRepercussao(null)}
+          onConcluido={() => {
+            setRepercussao(null);
+            // Recarrega a tela: EC e OS mudaram de número, versão e status.
+            navigate(0);
+          }}
+        />
+      )}
 
       {aba === "credenciamento" && (
         <CredenciamentoProjeto oss={ossDoProjeto} ecs={ecsAll ?? []} />

@@ -609,6 +609,20 @@ export interface Os {
   ecLinhaIds: string[]; // linhas da EC consolidadas
   status: StatusOsDoc;
   fornecedor: Fornecedor; // snapshot
+  /**
+   * Dados gerais do evento COMO ESTAVAM na emissão desta OS — o bloco "Dados do
+   * Projeto" que o fornecedor recebeu impresso.
+   *
+   * É um snapshot de propósito. A OS lia esses dados direto da EC, e então
+   * qualquer edição posterior no projeto ou na EC reescrevia, em silêncio, um
+   * documento que já estava na mão do fornecedor. Com a foto guardada aqui, a
+   * OS emitida é imutável: mudou o evento? Gera-se uma NOVA VERSÃO da OS (ver
+   * `domain/mudancasEvento`), e a anterior continua contando a história que
+   * contava.
+   */
+  projeto: ProjetoInfo;
+  /** Bloco "Dados do Cliente" da OS, congelado na emissão pelo mesmo motivo. */
+  cliente: Cliente;
   modalidade: Modalidade;
   descritivo: string;
   entrega: string;

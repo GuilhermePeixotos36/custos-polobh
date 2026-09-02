@@ -65,6 +65,7 @@ import type {
   Fornecedor,
   Modalidade,
   Os,
+  ProjetoInfo,
 } from "@/data/types";
 
 const MODALIDADES: Modalidade[] = ["Produto", "Serviço", "Locação", "Produto + Serviço", "Locação + Serviço"];
@@ -119,14 +120,14 @@ function sugerirModalidade(linhas: EcLinha[], f: Fornecedor): Modalidade | "" {
 }
 
 /**
- * Cronograma inicial do fornecedor a partir do cronograma do projeto (EC).
+ * Cronograma inicial do fornecedor a partir do cronograma do evento.
  * Cada faixa preenchida de cada etapa vira uma linha; sem cronograma, cai no Evento.
  */
-function cronogramaDoProjeto(ec: Ec): Os["cronograma"] {
+function cronogramaDoProjeto(projeto: ProjetoInfo): Os["cronograma"] {
   const itens: Os["cronograma"] = [];
   for (const { key, label } of ETAPAS_CRONOGRAMA) {
-    if ((ec.projeto.etapasOcultas ?? []).includes(key)) continue;
-    for (const f of ec.projeto.cronograma?.[key] ?? []) {
+    if ((projeto.etapasOcultas ?? []).includes(key)) continue;
+    for (const f of projeto.cronograma?.[key] ?? []) {
       if (!f.data && !f.inicio && !f.fim) continue;
       itens.push({
         id: novoId(),
@@ -139,7 +140,7 @@ function cronogramaDoProjeto(ec: Ec): Os["cronograma"] {
   }
   return itens.length
     ? itens
-    : [{ id: novoId(), etapa: "Evento", data: ec.projeto.evento, horario: ec.projeto.horario, atividades: "" }];
+    : [{ id: novoId(), etapa: "Evento", data: projeto.evento, horario: projeto.horario, atividades: "" }];
 }
 
 /**
@@ -179,7 +180,7 @@ function aplicarAutoPreenchimento(os: Os, ec: Ec): Os {
   // Ela conta como não-preenchida, para dar lugar ao cronograma real do projeto.
   const so1 = os.cronograma.length === 1 ? os.cronograma[0] : undefined;
   const cronogramaPadraoAntigo =
-    !!so1 && so1.etapa === "Evento" && !so1.atividades?.trim() && so1.data === ec.projeto.evento;
+    !!so1 && so1.etapa === "Evento" && !so1.atividades?.trim() && so1.data === os.projeto.evento;
 
   return {
     ...os,
@@ -188,7 +189,7 @@ function aplicarAutoPreenchimento(os: Os, ec: Ec): Os {
     // editável (sem isso, remover uma linha do meio rouba o foco da seguinte).
     cronograma: (os.cronograma.length && !cronogramaPadraoAntigo
       ? os.cronograma
-      : cronogramaDoProjeto(ec)
+      : cronogramaDoProjeto(os.projeto)
     ).map((c) => (c.id ? c : { ...c, id: novoId() })),
     orcamento: {
       ...os.orcamento,
@@ -206,10 +207,10 @@ function aplicarAutoPreenchimento(os: Os, ec: Ec): Os {
       codigoServico: os.financeiro.codigoServico || codigoServico,
       cnae: os.financeiro.cnae || cnaeUnico,
       projetoIncentivado:
-        os.financeiro.projetoIncentivado || ec.projeto.nomeProjeto || ec.projeto.titulo,
+        os.financeiro.projetoIncentivado || os.projeto.nomeProjeto || os.projeto.titulo,
       // Lei COM o número do projeto: é assim que o Projeto já guarda
       // ("Lei Federal de Incentivo à Cultura (Rouanet) — PRONAC 26 1234").
-      leiIncentivo: os.financeiro.leiIncentivo || ec.projeto.incentivosFiscais || LEI_INCENTIVO_PADRAO,
+      leiIncentivo: os.financeiro.leiIncentivo || os.projeto.incentivosFiscais || LEI_INCENTIVO_PADRAO,
       bvPercentual,
       bvValor,
       bvJustificativa,
@@ -308,6 +309,10 @@ export function OsForm() {
         ecLinhaIds: linhaIds,
         status: "Rascunho",
         fornecedor,
+        // Foto dos dados gerais do evento: a partir daqui esta OS não muda mais
+        // sozinha, nem se o projeto ou a EC forem editados (ver `Os.projeto`).
+        projeto: ec.projeto,
+        cliente: ec.cliente,
         modalidade: "",
         descritivo: descritivoConsolidado(linhas),
         entrega: "",
@@ -373,7 +378,7 @@ export function OsForm() {
   const faltaCadastroTomador = os.financeiro.tomador === "Polobh" && !empresaPolobh;
   /** A lei de incentivo da OS ficou diferente do que o Projeto guarda. */
   const leiDivergeDaEc =
-    !!ecCtx.projeto.incentivosFiscais && (os.financeiro.leiIncentivo ?? "") !== ecCtx.projeto.incentivosFiscais;
+    !!os.projeto.incentivosFiscais && (os.financeiro.leiIncentivo ?? "") !== os.projeto.incentivosFiscais;
 
   // Parcelas: a soma tem que fechar com o valor negociado, senão a OS sai errada.
   const somaParcelas = os.orcamento.parcelas.reduce((s, p) => s + (p.valor || 0), 0);
@@ -401,12 +406,12 @@ export function OsForm() {
 
   // Cronograma do projeto (vindo da EC) — só etapas visíveis e com alguma faixa preenchida.
   const etapasProjeto = ETAPAS_CRONOGRAMA.filter(
-    ({ key }) => !(ecCtx.projeto.etapasOcultas ?? []).includes(key)
+    ({ key }) => !(os.projeto.etapasOcultas ?? []).includes(key)
   )
     .map(({ key, label }) => ({
       key,
       label,
-      faixas: (ecCtx.projeto.cronograma?.[key] ?? []).filter((f) => f.data || f.inicio || f.fim),
+      faixas: (os.projeto.cronograma?.[key] ?? []).filter((f) => f.data || f.inicio || f.fim),
     }))
     .filter((e) => e.faixas.length > 0);
 
@@ -693,7 +698,7 @@ export function OsForm() {
         {/* Cabeçalho do modelo em Excel */}
         <CardOs secao="Ordem de Serviço">
           <LinhaOs label="Número da OS"><Auto v={os.numero} /></LinhaOs>
-          <LinhaOs label="Projeto"><Auto v={ecCtx.projeto.titulo} /></LinhaOs>
+          <LinhaOs label="Projeto"><Auto v={os.projeto.titulo} /></LinhaOs>
           <LinhaOs label="Data de emissão"><Auto v={dataBR(os.criadoEm)} /></LinhaOs>
           <LinhaOs label="Status da OS">
             <div className="py-2 flex items-center gap-2 flex-wrap">
@@ -705,29 +710,29 @@ export function OsForm() {
 
         {/* DADOS DO CLIENTE — automático da EC */}
         <CardOs secao="Dados do Cliente">
-          <LinhaOs label="Cliente"><Auto v={ecCtx.cliente.nome} /></LinhaOs>
-          <LinhaOs label="Razão Social"><Auto v={ecCtx.cliente.razaoSocial} /></LinhaOs>
-          <LinhaOs label="Endereço"><Auto v={ecCtx.cliente.endereco} /></LinhaOs>
-          <LinhaOs label="CNPJ/CPF"><Auto v={ecCtx.cliente.cnpjCpf} /></LinhaOs>
-          <LinhaOs label="Inscrição Estadual"><Auto v={ecCtx.cliente.inscricaoEstadual} /></LinhaOs>
-          <LinhaOs label="Inscrição Municipal"><Auto v={ecCtx.cliente.inscricaoMunicipal} /></LinhaOs>
+          <LinhaOs label="Cliente"><Auto v={os.cliente.nome} /></LinhaOs>
+          <LinhaOs label="Razão Social"><Auto v={os.cliente.razaoSocial} /></LinhaOs>
+          <LinhaOs label="Endereço"><Auto v={os.cliente.endereco} /></LinhaOs>
+          <LinhaOs label="CNPJ/CPF"><Auto v={os.cliente.cnpjCpf} /></LinhaOs>
+          <LinhaOs label="Inscrição Estadual"><Auto v={os.cliente.inscricaoEstadual} /></LinhaOs>
+          <LinhaOs label="Inscrição Municipal"><Auto v={os.cliente.inscricaoMunicipal} /></LinhaOs>
         </CardOs>
 
         {/* DADOS DO PROJETO — automático da EC, com o cronograma do projeto */}
         <CardOs secao="Dados do Projeto">
-          <LinhaOs label="Título"><Auto v={ecCtx.projeto.titulo} /></LinhaOs>
-          <LinhaOs label="Modalidade"><Auto v={ecCtx.projeto.modalidade} /></LinhaOs>
-          <LinhaOs label="Incentivos Fiscais"><Auto v={ecCtx.projeto.incentivosFiscais} /></LinhaOs>
-          <LinhaOs label="Data"><Auto v={dataBR(ecCtx.projeto.evento)} /></LinhaOs>
-          <LinhaOs label="Horário"><Auto v={ecCtx.projeto.horario} /></LinhaOs>
+          <LinhaOs label="Título"><Auto v={os.projeto.titulo} /></LinhaOs>
+          <LinhaOs label="Modalidade"><Auto v={os.projeto.modalidade} /></LinhaOs>
+          <LinhaOs label="Incentivos Fiscais"><Auto v={os.projeto.incentivosFiscais} /></LinhaOs>
+          <LinhaOs label="Data"><Auto v={dataBR(os.projeto.evento)} /></LinhaOs>
+          <LinhaOs label="Horário"><Auto v={os.projeto.horario} /></LinhaOs>
           {/* Endereço logo abaixo do Local: os dois são a mesma informação, e com
               o Nº de Participantes no meio a leitura quebrava. */}
-          <LinhaOs label="Local"><Auto v={ecCtx.projeto.local} /></LinhaOs>
-          <LinhaOs label="Endereço do Local"><Auto v={ecCtx.projeto.enderecoLocal} /></LinhaOs>
-          <LinhaOs label="Nº Participantes"><Auto v={ecCtx.projeto.participantes ?? ""} /></LinhaOs>
-          <LinhaOs label="Produtora Responsável"><Auto v={ecCtx.projeto.produtoraResponsavel} /></LinhaOs>
-          <LinhaOs label="Telefone"><Auto v={ecCtx.projeto.telefoneProdutora} /></LinhaOs>
-          <LinhaOs label="E-mail"><Auto v={ecCtx.projeto.emailProdutora} /></LinhaOs>
+          <LinhaOs label="Local"><Auto v={os.projeto.local} /></LinhaOs>
+          <LinhaOs label="Endereço do Local"><Auto v={os.projeto.enderecoLocal} /></LinhaOs>
+          <LinhaOs label="Nº Participantes"><Auto v={os.projeto.participantes ?? ""} /></LinhaOs>
+          <LinhaOs label="Produtora Responsável"><Auto v={os.projeto.produtoraResponsavel} /></LinhaOs>
+          <LinhaOs label="Telefone"><Auto v={os.projeto.telefoneProdutora} /></LinhaOs>
+          <LinhaOs label="E-mail"><Auto v={os.projeto.emailProdutora} /></LinhaOs>
           <LinhaOs label="Cronograma do Projeto">
             <div className="py-2 space-y-1">
               {etapasProjeto.length > 0 ? (
@@ -1104,13 +1109,13 @@ export function OsForm() {
                 Separado em dois, obrigava a redigitar aqui o que a EC sabia. */}
             <LinhaOs
               label="Lei de Incentivo à Cultura"
-              hint={leiDivergeDaEc ? `EC: ${ecCtx.projeto.incentivosFiscais}` : "(lei e nº do projeto)"}
+              hint={leiDivergeDaEc ? `Projeto: ${os.projeto.incentivosFiscais}` : "(lei e nº do projeto)"}
             >
               <Input value={os.financeiro.leiIncentivo ?? ""} sugestoes={sugestoes.valores.leiIncentivo} onChange={(e) => updFin({ leiIncentivo: e.target.value })} placeholder="Ex.: Lei Federal de Incentivo à Cultura (Rouanet) — PRONAC 26 1234" />
               {leiDivergeDaEc && (
                 <button
                   type="button"
-                  onClick={() => updFin({ leiIncentivo: ecCtx.projeto.incentivosFiscais })}
+                  onClick={() => updFin({ leiIncentivo: os.projeto.incentivosFiscais })}
                   className="mt-1.5 text-[12px] font-bold text-primary-dark hover:underline"
                 >
                   Usar o que está no Projeto

@@ -5,7 +5,7 @@
  */
 import type {
   Area, Checklist, Cliente, CredenciamentoResposta, Ec, EmpresaGrupo, Fornecedor,
-  ItemChecklist, ModeloChecklist, Os, Projeto, Usuario,
+  ItemChecklist, ModeloChecklist, Os, Projeto, ProjetoInfo, Usuario,
 } from "./types";
 
 export interface ProjetoRepository {
@@ -55,6 +55,12 @@ export interface OsRepository {
   porEc(ecId: string): Promise<Os[]>;
   obter(id: string): Promise<Os | undefined>;
   salvar(os: Os): Promise<Os>;
+  /**
+   * Reemite a OS com os dados gerais do evento atualizados: cria a versão
+   * seguinte (rascunho, com o mesmo conteúdo) e cancela esta. A anterior fica
+   * no histórico exatamente como o fornecedor a recebeu.
+   */
+  gerarNovaVersao(os: Os, dados: { numero: string; projeto: ProjetoInfo; cliente: Cliente }): Promise<Os>;
   proximaSeq(ecId: string): Promise<number>;
   remover(id: string): Promise<void>;
   /** Respostas de credenciamento enviadas pelos fornecedores para esta OS. */

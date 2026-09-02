@@ -523,6 +523,38 @@ const MODULOS: Modulo[] = [
           </ul>
           <Dica>Abra um projeto e navegue pelas subguias (Dados Gerais → EC → OS → Cronograma → Fornecedores).</Dica>
         </Secao>
+        <Secao titulo="Editar os dados gerais do evento">
+          <p>
+            Evento muda: troca de local, cresce o número de participantes, adianta um dia. Os
+            <b> Dados Gerais</b> acompanham isso — a aba abre em <b>modo leitura</b> e o botão
+            <b> Editar dados gerais</b> libera os campos.
+          </p>
+          <Passos>
+            <span>Clique em <b>Editar dados gerais</b>. Os campos destravam; <b>Cancelar</b> descarta o que você digitou.</span>
+            <span>Altere o que mudou e clique em <b>Salvar projeto</b>.</span>
+            <span>
+              Se o projeto já tem EC ou OS emitida, o sistema mostra <b>o que mudou</b> (antes → depois)
+              e pergunta o que fazer com cada documento.
+            </span>
+          </Passos>
+          <Atencao>
+            <b>Nada do que já saiu muda sozinho.</b> A EC e a OS que o cliente e os fornecedores
+            receberam continuam como estão — cada OS guarda a própria cópia dos dados do evento. A
+            alteração vale para o que nascer daí em diante.
+          </Atencao>
+          <Tela titulo="O evento mudou. E os documentos já emitidos?">
+            <div className="space-y-2 text-[12px]">
+              <div className="flex items-center gap-2"><span className="text-ink-3 line-through">Expominas</span><span className="text-ink-3">→</span><b className="text-ink">Minascentro</b></div>
+              <div className="flex items-center gap-2"><Tag>☐</Tag><span className="text-ink">EC – ACME – V02</span><span className="text-ink-3">atualizar os dados do evento</span></div>
+              <div className="flex items-center gap-2"><Tag>☐</Tag><span className="text-ink">OS – Som &amp; Luz – (01)</span><span className="text-ink-3">gerar nova versão</span></div>
+            </div>
+          </Tela>
+          <Passos>
+            <span><b>Atualizar a EC</b> — a EC em aberto passa a mostrar os dados novos. As OSs já emitidas a partir dela <b>não</b> mudam.</span>
+            <span><b>Gerar nova versão da OS</b> — nasce uma OS rascunho com os dados novos; a atual é <b>cancelada</b> e fica no histórico, com tudo que tinha dentro (itens, financeiro, contrato).</span>
+            <span><b>Agora não</b> também é resposta: o projeto já foi salvo, e nenhum documento é tocado.</span>
+          </Passos>
+        </Secao>
       </>
     ),
   },

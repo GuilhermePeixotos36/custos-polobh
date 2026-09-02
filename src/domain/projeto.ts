@@ -9,6 +9,7 @@ import type {
   RoteiroExtraProjeto,
 } from "@/data/types";
 import { documentoFiscalValido } from "@/lib/cnpj";
+import { dataBR } from "@/lib/format";
 
 export const ROTEIROS_PADRAO = ["preEvento", "evento", "posEvento"] as const;
 
@@ -219,6 +220,26 @@ export function sincronizarCamposLegados(info: ProjetoInfo): ProjetoInfo {
     horario: [evento?.inicio, evento?.fim].filter(Boolean).join(" às "),
     roteiro: textoHtml(normalizado.roteiros.evento),
   };
+}
+
+/**
+ * Cronograma do evento em texto, uma etapa por linha — é ASSIM que ele sai na
+ * OS impressa. Mora aqui porque quem compara duas versões do projeto
+ * (`domain/mudancasEvento`) precisa comparar exatamente o que o documento
+ * mostra: se a linha impressa não mudou, nada mudou para quem lê o papel.
+ */
+export function resumoCronogramaProjeto(info: ProjetoInfo): string {
+  const linhas: string[] = [];
+  for (const { key, label } of ETAPAS_CRONOGRAMA) {
+    if ((info.etapasOcultas ?? []).includes(key)) continue;
+    const faixas = (info.cronograma?.[key] ?? []).filter((f) => f.data || f.inicio || f.fim);
+    if (!faixas.length) continue;
+    const detalhe = faixas
+      .map((f) => [dataBR(f.data), [f.inicio, f.fim].filter(Boolean).join(" às ")].filter(Boolean).join(" · "))
+      .join("  |  ");
+    linhas.push(`${label}: ${detalhe}`);
+  }
+  return linhas.join("\n");
 }
 
 export interface CampoObrigatorioProjeto {
