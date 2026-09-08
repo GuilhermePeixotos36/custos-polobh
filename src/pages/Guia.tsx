@@ -762,7 +762,7 @@ const MODULOS: Modulo[] = [
     icone: <IcCheck />,
     titulo: "Check-list do projeto (Work Flow)",
     resumo: "Lista de tarefas com prazo e dono, gerada do modelo da modalidade.",
-    tags: ["check-list", "checklist", "work flow", "workflow", "tarefa", "tarefas", "prazo", "etapa", "modelo", "responsável", "concluir", "atrasada", "pendência"],
+    tags: ["check-list", "checklist", "work flow", "workflow", "tarefa", "tarefas", "prazo", "etapa", "modelo", "responsável", "concluir", "atrasada", "pendência", "anexo", "anexar", "arquivo", "foto", "pdf"],
     conteudo: (
       <>
         <Secao titulo="Para que serve">
@@ -794,6 +794,40 @@ const MODULOS: Modulo[] = [
             <b> editável</b>: quem terminou na sexta e só marcou na segunda corrige, e o histórico não inventa atraso.
           </p>
           <p>Comparando o prazo com a conclusão, a tarefa mostra <Tag tom="success">no prazo</Tag> ou <Tag tom="warning">N dias de atraso</Tag>.</p>
+        </Secao>
+        <Secao titulo="Anexar arquivos na conversa da tarefa">
+          <p>
+            A conversa da tarefa aceita <b>arquivo leve</b>: a foto da planta do local, o PDF do
+            orçamento que chegou, a planilha do buffet. O papel fica junto da decisão, em vez de
+            se perder no WhatsApp.
+          </p>
+          <Passos>
+            <span>Abra as <b>Observações</b> da tarefa e clique em <b>Anexar</b> — dá para escolher vários de uma vez.</span>
+            <span>Os arquivos ficam na caixa, esperando; quem sobe é o botão <b>Comentar</b> (ou <b>Responder</b>).</span>
+            <span>Clicar no anexo <b>abre em outra aba</b>. Quem escreveu o comentário pode tirar um anexo pelo <b>×</b>.</span>
+          </Passos>
+          <Tela titulo="Observações da tarefa">
+            <div className="space-y-2 text-[12px]">
+              <div className="flex items-center gap-2 flex-wrap">
+                <b className="text-ink">Ana</b>
+                <span className="text-ink-3">@Bruno a planta mudou — segue a nova</span>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Tag>📕 Planta Expominas v2.pdf · 820 KB</Tag>
+                <Tag>📊 Buffet - orçamento.xlsx · 46 KB</Tag>
+              </div>
+            </div>
+          </Tela>
+          <Atencao>
+            <b>Até 5 arquivos por comentário, 5 MB cada.</b> Vale imagem, PDF, Word, Excel,
+            PowerPoint, CSV e TXT — vídeo não entra, e nem formato que o navegador executa.
+            Precisa mandar mais? Escreva outro comentário.
+          </Atencao>
+          <Dica>
+            Anexo é só do <b>check-list</b>. Na EC e na OS o documento é a planilha e a OS impressa —
+            um arquivo solto na conversa criaria uma segunda versão da verdade num papel que vai
+            para cliente e fornecedor. Excluir o comentário apaga os anexos dele.
+          </Dica>
         </Secao>
         <Secao titulo="Pendências">
           <p>

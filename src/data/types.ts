@@ -174,6 +174,27 @@ export type StatusAprovacao = "Pendente" | "OK";
 export type StatusOs = "Pendente" | "Emitir" | "Emitir Nova Versão" | "OK" | "Não se Aplica";
 export type DocumentoPg = "" | "Fatura" | "Nota Fiscal" | "Fatura e Nota Fiscal" | "Recibo Simples" | "Não se aplica";
 
+/**
+ * Arquivo pendurado num comentário — SÓ nas tarefas do check-list.
+ *
+ * Aqui mora apenas a FICHA do arquivo; os bytes ficam no bucket
+ * `anexos-checklist` do Supabase Storage, e `caminho` é a chave que os acha. O
+ * bucket é fechado: para abrir, a tela pede um link assinado de curta duração.
+ *
+ * EC e OS não têm anexo de propósito — ver `domain/anexos`.
+ */
+export interface AnexoObservacao {
+  id: string;
+  /** Caminho dentro do bucket (`<itemId>/<id>-<nome-seguro>`). */
+  caminho: string;
+  /** Nome como a pessoa mandou — é este que ela vê e baixa. */
+  nome: string;
+  tamanho: number; // bytes
+  tipo: string; // MIME
+  enviadoPorNome: string;
+  enviadoEm: string; // ISO 8601
+}
+
 /** Resposta a uma observação (thread) — mantém a discussão até a pendência ser resolvida. */
 export interface RespostaObservacao {
   id: string;
@@ -181,6 +202,8 @@ export interface RespostaObservacao {
   autorId: string;
   autorNome: string;
   criadoEm: string; // ISO 8601
+  /** Arquivos leves da resposta (só check-list). */
+  anexos?: AnexoObservacao[];
 }
 
 /**
@@ -203,6 +226,8 @@ export interface Observacao {
   resolvidoEm?: string;
   /** Thread de respostas dos usuários. */
   respostas?: RespostaObservacao[];
+  /** Arquivos leves do comentário (só check-list — ver `domain/anexos`). */
+  anexos?: AnexoObservacao[];
 }
 
 export type ModalidadeProjeto = "Corporativo" | "Cultural" | "";

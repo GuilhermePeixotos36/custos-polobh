@@ -13,6 +13,7 @@ import { Badge, Button, Card, EmptyState, Input, ProgressBar, Select, type Tom }
 import { IcCheck, IcPlus, IcEye, IcEyeOff, IcCalendar, IcTrash } from "@/components/icons";
 import { ObservacoesThread } from "@/components/ObservacoesPopup";
 import { NotifDot } from "@/components/NotifDot";
+import { useAnexosChecklist } from "@/hooks/useAnexosChecklist";
 import { idAncoraPendencia } from "@/lib/destaque";
 import {
   agruparPorData,
@@ -356,6 +357,7 @@ function ItemCard({
     onAlterar({ titulo: limpo });
   };
   const fechado = encerrado(item);
+  const anexos = useAnexosChecklist(item.id);
 
   return (
     <div
@@ -470,7 +472,15 @@ function ItemCard({
               <ConclusaoDoItem item={item} podeEditar={podeEditar} onAlterar={onAlterar} />
             )}
             <div className="ml-auto flex items-center gap-1">
-              <ObservacoesThread ancora={item.id} observacoes={item.observacoes ?? []} usuarios={usuarios} onChange={onObservacoes} />
+              <ObservacoesThread
+                ancora={item.id}
+                observacoes={item.observacoes ?? []}
+                usuarios={usuarios}
+                onChange={onObservacoes}
+                // Só aqui: a tarefa do check-list é o único lugar do sistema com
+                // anexo na conversa (ver `domain/anexos`).
+                anexos={anexos}
+              />
               {podeEditar && (
                 <button
                   type="button"

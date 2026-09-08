@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { numeroEc, producaoPadrao, producaoZerada, linhasProducaoLegado, honorariosPadrao, encargosPadrao, bvVazio } from "@/domain/calc";
 import { normalizarProjetoInfo, sincronizarCamposLegados } from "@/domain/projeto";
 import { limparContatos, normalizarContatos } from "@/domain/fornecedor";
+import { caminhoAnexo, motivoRecusaAnexo, tipoDoAnexo } from "@/domain/anexos";
 import { onlyDigits } from "@/lib/format";
 import { auditar } from "@/store/logs";
 import { useAuth } from "@/store/auth";
@@ -47,6 +48,7 @@ import type {
   ModalidadeProjeto,
   EmpresaGrupo,
   Fornecedor,
+  AnexoObservacao,
   Observacao,
   Os,
   Producao,
@@ -86,6 +88,26 @@ function traduzirConflitoEc<T>(r: { data: T; error: { message: string } | null }
 }
 
 const nowIso = () => new Date().toISOString();
+const novoUuid = () =>
+  globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+/** Bucket dos anexos das tarefas do check-list (fechado — ver a migração). */
+const BUCKET_ANEXOS = "anexos-checklist";
+
+/**
+ * O erro do Storage vem em inglês e técnico. Os dois casos que a pessoa pode
+ * causar sozinha ganham a explicação do que fazer; o resto passa como veio.
+ */
+function traduzirErroAnexo(mensagem: string): string {
+  const m = mensagem.toLowerCase();
+  if (m.includes("exceeded") || m.includes("too large") || m.includes("maximum size")) {
+    return "Arquivo acima do limite de 5 MB.";
+  }
+  if (m.includes("mime") || m.includes("not allowed")) {
+    return "Tipo de arquivo não aceito. Vale imagem, PDF, Word, Excel, PowerPoint, CSV e TXT.";
+  }
+  return `Não foi possível enviar o anexo: ${mensagem}`;
+}
 
 /* --------------------------------- Cliente ------------------------------- */
 
@@ -1089,6 +1111,57 @@ const checklistRepo: ChecklistRepository = {
   async remover(checklistId) {
     // Os itens saem por cascade.
     ok(await supabase.from("checklists").delete().eq("id", checklistId));
+  },
+
+  /* ------------------------- anexos dos comentários ------------------------ */
+
+  async anexar(itemId, arquivo, enviadoPorNome) {
+    const motivo = motivoRecusaAnexo(arquivo);
+    // A peneira roda aqui e no bucket: esta dá a mensagem boa, aquela é a que
+    // não dá para burlar. Nunca só uma das duas.
+    if (motivo) throw new Error(motivo);
+
+    const id = novoUuid();
+    const caminho = caminhoAnexo(itemId, id, arquivo.name);
+    const tipo = tipoDoAnexo(arquivo);
+    const { error } = await supabase.storage.from(BUCKET_ANEXOS).upload(caminho, arquivo, {
+      contentType: tipo,
+      // Caminho novo a cada envio (o id é único), então não há o que sobrescrever.
+      upsert: false,
+    });
+    if (error) throw new Error(traduzirErroAnexo(error.message));
+
+    const anexo: AnexoObservacao = {
+      id,
+      caminho,
+      nome: arquivo.name,
+      tamanho: arquivo.size,
+      tipo,
+      enviadoPorNome,
+      enviadoEm: nowIso(),
+    };
+    auditar({
+      categoria: "Projeto",
+      acao: "checklist.anexo",
+      mensagem: `Anexo "${anexo.nome}" (${anexo.tamanho} bytes) enviado numa observação do check-list`,
+      alvoId: itemId,
+    });
+    return anexo;
+  },
+
+  async urlAnexo(caminho) {
+    // Link de vida curta: o bucket é fechado e não existe URL permanente. Um
+    // minuto basta para o navegador abrir e sobra pouco se o link vazar.
+    const { data, error } = await supabase.storage.from(BUCKET_ANEXOS).createSignedUrl(caminho, 60);
+    if (error || !data?.signedUrl) throw new Error(error?.message ?? "Não foi possível abrir o anexo.");
+    return data.signedUrl;
+  },
+
+  async removerAnexos(caminhos) {
+    const validos = caminhos.filter(Boolean);
+    if (!validos.length) return;
+    const { error } = await supabase.storage.from(BUCKET_ANEXOS).remove(validos);
+    if (error) throw new Error(error.message);
   },
 };
 

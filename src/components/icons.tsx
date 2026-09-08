@@ -239,6 +239,12 @@ export const IcFechar = (p: P) => (
     <path d="M18 6 6 18M6 6l12 12" />
   </I>
 );
+/** Clipe de papel — anexar arquivo a um comentário do check-list. */
+export const IcClipe = (p: P) => (
+  <I {...p}>
+    <path d="M21.44 11.05l-9.19 9.19a5.5 5.5 0 0 1-7.78-7.78l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95l-9.2 9.19a1.5 1.5 0 0 1-2.12-2.12l8.49-8.49" />
+  </I>
+);
 /** Círculo cortado — inativar/bloquear algo que não pode ser excluído. */
 export const IcBloqueio = (p: P) => (
   <I {...p}>

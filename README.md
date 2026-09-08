@@ -31,6 +31,7 @@ src/
   domain/calc.ts             cálculos da EC, numeração, consolidação EC→OS
   domain/checklist.ts        régua de prazos e estados do check-list (Work Flow)
   domain/mudancasEvento.ts   o que mudou nos dados gerais e o que fazer com EC/OS já emitidas
+  domain/anexos.ts           o que é um "arquivo leve" nos comentários do check-list
   domain/calendario.ts       período do projeto e recorte mês a mês do quadro do ano
   domain/pendencias.ts       motor de pendências que alimenta os badges vermelhos
   lib/                       format, cnpj (BrasilAPI), ai (flag), flags, excel/
@@ -148,6 +149,20 @@ Substitui a cobrança informal por uma lista de tarefas com prazo, dono e histó
 - **Pendências:** tarefa que vence **hoje ou já venceu** entra no quadro de
   pendências (badge vermelho + navegador do canto inferior direito), endereçada ao
   responsável da tarefa ou, na falta dele, ao Produtor Responsável do projeto.
+- **Anexos leves na conversa** (só aqui): a foto da planta, o PDF do orçamento, a
+  planilha do buffet — até **5 arquivos de 5 MB** por comentário, em imagem, PDF,
+  Word, Excel, PowerPoint, CSV e TXT. Formato que o navegador **executa** (html,
+  svg, js) não entra. Os bytes vão para o bucket fechado `anexos-checklist`
+  (migração `20260908100000`) e a ficha do arquivo viaja dentro do próprio
+  comentário, em `checklist_itens.observacoes` — nenhuma coluna nova. Para abrir,
+  a tela pede um **link assinado de 60 s**; não existe URL permanente. O teto e a
+  lista de tipos são propriedade do **bucket**, então a peneira do app só serve
+  para dar a mensagem boa — quem manda é o servidor. Excluir o comentário apaga os
+  arquivos dele; o autor pode tirar um anexo isolado. Ver `domain/anexos.ts`.
+
+  **EC e OS não têm anexo de propósito:** lá o documento é o que a planilha e a OS
+  impressa dizem, e um arquivo solto na thread criaria uma segunda versão da
+  verdade num papel que vai para cliente e fornecedor.
 
 Banco: `checklist_modelos`, `checklists`, `checklist_itens` (migração
 `20260823100000_checklist_workflow.sql`).
