@@ -46,7 +46,7 @@ import {
   type MudancaEvento,
   type SnapshotEvento,
 } from "@/domain/mudancasEvento";
-import type { Cliente, Ec, EcLinha, Projeto, ProjetoInfo, StatusProjeto } from "@/data/types";
+import type { Cliente, Ec, Projeto, ProjetoInfo, StatusProjeto } from "@/data/types";
 import { ancoraProjetoSemEc, pendenciasDaTela, type Pendencia } from "@/domain/pendencias";
 import { situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
 import { itensDaOs } from "@/domain/os";
@@ -666,29 +666,26 @@ export function ProjetoDetail() {
   /**
    * Traz os itens de outra EC para este projeto como um RASCUNHO novo.
    *
-   * Serve tanto para copiar de outro projeto quanto para retomar uma versão
-   * arquivada deste mesmo projeto — em nenhum dos dois casos a EC de origem é
-   * tocada, e a EC ativa daqui continua ativa (a cópia entra como rascunho).
+   * Serve para copiar de outro projeto e para retomar uma versão arquivada deste
+   * mesmo projeto — a origem pode estar em QUALQUER estado (ativa, rascunho,
+   * arquivada ou cancelada): o que se importa é a estrutura de custos, e a
+   * arquivada é justamente a que já deu certo uma vez. Em nenhum caso a EC de
+   * origem é tocada, e a EC ativa daqui continua ativa (a cópia entra como
+   * rascunho não-ativo).
+   *
+   * A CÓPIA DAS LINHAS acontece dentro do banco (`repo.ecs.importar`), e isso
+   * não é detalhe: lida daqui, a EC de origem vem com os valores mascarados para
+   * quem não enxerga o financeiro, e a importação gravava zero por cima do custo
+   * de cada item, sem avisar. A versão e o número também saem de lá, sob trava.
    */
   async function importarEc() {
     const origem = (ecsAll ?? []).find((e) => e.id === impEcId);
     if (!origem) { toast("Selecione a EC de origem.", "warning"); return; }
     setImportando(true);
     try {
-      const irmas = (ecsAll ?? []).filter((e) => e.projetoId === id);
-      const versao = irmas.length ? Math.max(...irmas.map((e) => e.versao)) + 1 : 1;
       const agora = new Date().toISOString();
-      // Copia a estrutura de custos, mas zera pendências/status para começar limpo no novo projeto.
-      const linhas: EcLinha[] = origem.linhas.map((l) => ({
-        ...l,
-        id: "",
-        observacao: "",
-        observacoes: [],
-        valorGasto: 0,
-        statusAprovacao: "Pendente",
-        statusOs: "Pendente",
-        contratoStatus: "Pendente",
-      }));
+      // Só o CABEÇALHO: cliente e dados do evento são os do projeto de destino.
+      // As linhas o banco copia da origem — daqui elas viriam sem os valores.
       const nova: Ec = {
         ...origem,
         id: "",
@@ -696,18 +693,21 @@ export function ProjetoDetail() {
         clienteId: p.cliente.id,
         cliente: p.cliente,
         projeto: p.info,
-        versao,
         status: "Rascunho",
         ativa: false,
-        numero: numeroEc(p.cliente.nome || "Cliente", p.info.titulo || "Projeto", versao),
+        // "V01" é só a base: o banco troca pelo número da versão que couber aqui.
+        numero: numeroEc(p.cliente.nome || "Cliente", p.info.titulo || "Projeto", 1),
         slugPublico: "",
         canceladaSubstituida: false,
         criadoEm: agora,
         atualizadoEm: agora,
-        linhas,
+        linhas: [],
       };
-      const salvo = await repo.ecs.salvar(nova);
-      toast(`EC importada de "${tituloEc(origem)}" como rascunho (V${String(versao).padStart(2, "0")}).`, "success");
+      const salvo = await repo.ecs.importar(origem.id, nova);
+      toast(
+        `EC importada de "${tituloEc(origem)}" como rascunho (V${String(salvo.versao).padStart(2, "0")}).`,
+        "success"
+      );
       setImportOpen(false);
       navigate(`/estimativas/${salvo.id}/editar`);
     } catch (e) {
@@ -1072,7 +1072,7 @@ export function ProjetoDetail() {
                   size="sm"
                   variant="secondary"
                   icon={<IcCopy width={16} height={16} />}
-                  title="Copia os itens e valores de outra EC — deste projeto ou de outro, ativa ou arquivada"
+                  title="Copia os itens e valores de outra EC — deste projeto ou de outro, em qualquer estado (inclusive arquivada)"
                   onClick={() => { setImpProjetoId(""); setImpEcId(""); setImportOpen(true); }}
                 >
                   Importar EC
@@ -1140,7 +1140,7 @@ export function ProjetoDetail() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setImportOpen(false)}>
           <div className="w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
             <Card>
-              <CardTitle hint="Copia os itens e valores de uma EC — deste projeto ou de outro, ativa ou arquivada — para cá, como um novo rascunho. A EC de origem não é alterada.">
+              <CardTitle hint="Copia os itens e valores de QUALQUER EC — deste projeto ou de outro, em qualquer estado — para cá, como um novo rascunho. A EC de origem não é alterada, e a EC ativa deste projeto continua ativa.">
                 Importar EC
               </CardTitle>
               <div className="mt-4 grid gap-4">
@@ -1152,7 +1152,10 @@ export function ProjetoDetail() {
                     ))}
                   </Select>
                 </Field>
-                <Field label="EC de origem" hint="ativas e arquivadas">
+                {/* Sem filtro de estado: arquivada é justamente a que já deu
+                    certo uma vez, e é a mais copiada. O selo ao lado do nome diz
+                    de onde se está copiando. */}
+                <Field label="EC de origem" hint="qualquer estado — ativa, rascunho, arquivada ou cancelada">
                   <Select value={impEcId} onChange={(e) => setImpEcId(e.target.value)} disabled={!impProjetoId}>
                     <option value="">Selecione…</option>
                     {ecsOrigem.map((e) => (

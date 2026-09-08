@@ -11,6 +11,14 @@
  * lista e caía direto em "Edição bloqueada", sem nunca ter sido editado. Daí
  * este módulo: uma leitura só, usada por todas as telas.
  *
+ * O CONTRATO COM O BANCO (migração `20260908120000`): quem SAI do ar sai
+ * ARQUIVADA. `definir_ec_ativa` e `salvar_ec_completa` apenas baixavam a
+ * bandeira `ativa` da versão anterior, e ela ficava com status 'Rascunho' —
+ * então a lista mostrava "Rascunho" numa EC que já tinha sido substituída, e
+ * não havia como distingui-la de uma cópia recém-importada. Com o banco
+ * arquivando na substituição, `Rascunho + não ativa` volta a significar uma
+ * coisa só: nunca entrou no ar. É o estado da importação e da cópia.
+ *
  * A regra de edição é sobre o que já foi FINALIZADO:
  *   · Cancelada / Arquivada  → nunca mais se edita (o histórico é preservado;
  *     para mudar algo, gera-se uma nova versão);

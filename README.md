@@ -64,6 +64,39 @@ A trava do editor é sobre o que já foi **finalizado**, não sobre ser a ativa 
 antes um rascunho recém-importado caía direto em "Edição bloqueada" e aparecia
 com selo de "Arquivada" na lista.
 
+**Quem sai do ar, sai arquivada** (migração `20260908120000`). `definir_ec_ativa`
+e `salvar_ec_completa` só baixavam a bandeira `ativa` da versão anterior, e ela
+ficava com status `Rascunho`: a lista mostrava **"Rascunho"** numa EC já
+substituída — inclusive contrariando a confirmação da própria tela ("as demais
+versões passam a arquivadas"). Agora as duas arquivam quem perde o ar, e
+`Rascunho + não ativa` volta a significar uma coisa só: **nunca entrou no ar** —
+o estado da importação e da cópia. A migração ainda acerta o que já está
+gravado, por um corte conservador: só vira `Arquivada` a EC não-ativa em
+`Rascunho` criada **antes** da EC que hoje está no ar no mesmo projeto (uma
+cópia/importação nasce sempre depois dela, então não é tocada).
+
+### Importar EC
+Copia a estrutura de custos de **qualquer** EC — deste projeto ou de outro, em
+**qualquer estado** (ativa, rascunho, arquivada ou cancelada) — para cá, como
+rascunho não-ativo. A origem não é tocada e a EC ativa do destino continua ativa.
+Importar uma **arquivada** é o caso mais comum, e não uma exceção: é a que já deu
+certo uma vez.
+
+A cópia das linhas acontece **dentro do banco** (`importar_ec`, mesma migração),
+e isso não é detalhe de implementação. Feita no navegador, ela lia a EC de origem
+pela view mascarada `ec_linhas_visiveis` — que devolve `NULL` nos valores para
+quem não tem o recurso financeiro — e `mapLinha` convertia esses `NULL` em `0`:
+para **Produção**, que pode criar EC e não vê valor, a EC importada nascia com
+todos os custos **zerados**, em silêncio. A proteção que já existia em
+`salvar_ec_completa` não alcançava o caso: ela vive no `on conflict do update`, e
+aqui as linhas são inseridas. A mesma RPC serve à cópia de "Reativar gerando uma
+nova versão" (`repo.ecs.duplicar`), que tinha o mesmo furo. Ninguém passa a
+enxergar o que não enxergava: a EC nova é relida pela view de sempre.
+
+A **versão** também sai do banco, sob o mesmo `advisory lock` das demais funções
+— no navegador ela era calculada a partir de uma lista carregada minutos antes, e
+duas importações simultâneas nasciam com o mesmo número.
+
 ## Pendências (quem vê o quê)
 O número vermelho é uma lista de tarefa, não um painel do que anda acontecendo.
 Duas portas, e só elas (`domain/pendencias.ts` → `agregarPendencias`):

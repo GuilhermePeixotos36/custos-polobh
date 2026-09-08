@@ -11,8 +11,10 @@ describe("situação da EC", () => {
   });
 
   it("rascunho que não é a ativa é 'Rascunho' — não 'Arquivada'", () => {
-    // É o estado em que nasce a EC importada/duplicada. Chamá-la de arquivada
-    // era o que punha selo errado na lista e travava a edição.
+    // É o estado em que nasce a EC importada/duplicada: nunca entrou no ar.
+    // Chamá-la de arquivada era o que punha selo errado na lista e travava a
+    // edição. A versão que ENTROU no ar e foi substituída não cai mais aqui: o
+    // banco a arquiva na substituição (migração `20260908120000`).
     expect(situacaoEc(ec("Rascunho", false))).toBe("rascunho");
     expect(ROTULO_SITUACAO_EC[situacaoEc(ec("Rascunho", false))]).toBe("Rascunho");
   });

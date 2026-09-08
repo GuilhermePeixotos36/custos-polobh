@@ -459,6 +459,38 @@ const SELECT_EC = "*, linhas:ec_linhas_visiveis(*)";
 const SELECT_EC_PAINEL =
   "*, linhas:ec_linhas_visiveis(id,grupo,item,pedido_compra,codigo_servico,status_os,contrato_status,status_aprovacao,observacao,observacoes,oculto,ordem)";
 
+/**
+ * Cópia de uma EC DENTRO do banco (RPC `importar_ec`, migração `20260908120000`).
+ *
+ * Copiar no navegador — ler a origem e regravar o que se leu — parecia natural e
+ * tinha um furo grave: a leitura passa pela view mascarada `ec_linhas_visiveis`,
+ * que devolve NULL nos valores para quem não enxerga o financeiro. Produção pode
+ * criar EC e não vê valor: a cópia dela nascia com todos os custos zerados, sem
+ * erro nenhum na tela. Dentro do banco os valores atravessam intactos, e ninguém
+ * passa a VER o que não via (a EC nova é relida pela mesma view de sempre).
+ *
+ * A VERSÃO também sai de lá, sob trava: no navegador ela era calculada de uma
+ * lista carregada minutos antes, e duas cópias ao mesmo tempo nasciam iguais.
+ * O `numero` vai como base e volta com o "V" da versão que o banco decidiu.
+ *
+ * `zerar`: a importação começa limpa (status de emissão, gasto e comentários da
+ * origem não valem no projeto novo); a duplicação preserva.
+ */
+async function copiarEc(origemId: string, destino: Ec, zerar: boolean): Promise<Ec> {
+  const novoId = ok(
+    await supabase.rpc("importar_ec", { p_origem: origemId, p_ec: ecRow(destino), p_zerar: zerar })
+  ) as string;
+  const nova = await ecRepo.obter(novoId);
+  if (!nova) throw new Error("Falha ao reler a EC copiada.");
+  auditar({
+    categoria: "EC",
+    acao: zerar ? "ec.importar" : "ec.duplicar",
+    mensagem: `EC ${nova.numero} criada a partir de outra EC`,
+    alvoId: novoId,
+  });
+  return nova;
+}
+
 const ecRepo: EcRepository = {
   async listar() {
     const data = ok(await supabase.from("ecs").select(SELECT_EC).order("criado_em", { ascending: false }));
@@ -509,22 +541,13 @@ const ecRepo: EcRepository = {
   async duplicar(id) {
     const orig = await this.obter(id);
     if (!orig) throw new Error("EC não encontrada");
-    const agora = nowIso();
-    const irmas = orig.projetoId ? (await this.listar()).filter((ec) => ec.projetoId === orig.projetoId) : [];
-    const novaV = Math.max(orig.versao, ...irmas.map((ec) => ec.versao)) + 1;
-    // Cópia é uma nova versão em rascunho e NÃO ativa (não perturba a EC ativa do projeto).
-    return this.salvar({
-      ...orig,
-      id: "",
-      versao: novaV,
-      status: "Rascunho",
-      numero: numeroEc(orig.cliente.nome, orig.projeto.titulo, novaV),
-      canceladaSubstituida: false,
-      ativa: false,
-      criadoEm: agora,
-      atualizadoEm: agora,
-      linhas: orig.linhas.map((l) => ({ ...l, id: "" })),
-    });
+    // Cópia é uma nova versão em rascunho e NÃO ativa (não perturba a EC ativa
+    // do projeto). Preserva o que estava na origem — é a mesma negociação
+    // seguindo adiante, e não uma estrutura reaproveitada em outro projeto.
+    return copiarEc(orig.id, { ...orig, numero: numeroEc(orig.cliente.nome, orig.projeto.titulo, 1) }, false);
+  },
+  async importar(origemId, destino) {
+    return copiarEc(origemId, destino, true);
   },
   async novaVersao(id) {
     const orig = await this.obter(id);
