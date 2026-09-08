@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   agregarPendencias,
+  ancoraCronogramaOs,
   ancoraObservacoesGeraisEc,
+  ancoraProjetoSemEc,
   calcularPendencias,
   destinatariosDaVez,
   pendenciasDaTela,
@@ -82,11 +84,12 @@ describe("quem vê a pendência de uma observação", () => {
     expect(de(itens, "Ana").total).toBe(0);
   });
 
-  it("não fica com o Produtor Responsável quando a vez é de outra pessoa", () => {
-    // A conversa está com o Bruno. Carla responde pelo projeto, mas empilhar no
-    // badge dela toda conversa que anda entre duas colegas é ruído: ela entra
-    // quando a vez é dela (ver `destinatariosDaVez`).
-    expect(de(itens, "Carla").total).toBe(0);
+  it("fica TAMBÉM com o Produtor Responsável, mesmo quando a vez é de outra pessoa", () => {
+    // A conversa está com o Bruno, e continua sendo dele a ação. Mas Carla
+    // responde pelo projeto inteiro: sem ela no quadro, uma cobrança podia ficar
+    // semanas parada com outra pessoa sem que ninguém percebesse
+    // (regra revista em 08/09/2026).
+    expect(de(itens, "Carla").total).toBe(1);
   });
 
   it("conta para o Produtor Responsável quando a vez é dele", () => {
@@ -214,6 +217,18 @@ describe("item de EC com OS ou Contrato a emitir", () => {
   it("não aparece para quem não responde pelo projeto", () => {
     expect(de(comStatus("statusOs", "Emitir"), "Bruno").total).toBe(0);
   });
+
+  it("item oculto não cobra nada — está guardado, fora dos totais e da tela", () => {
+    const oculto = calcularPendencias(
+      [projeto("Carla")],
+      [ec([{ ...linha([observacao({})]), statusOs: "Emitir", oculto: true }])],
+      [], USUARIOS, [], [], HOJE
+    );
+    // Ele só reaparece pela gaveta "Itens ocultos", sem endereço na tela: contar
+    // ali era criar número que a pílula não conseguia achar.
+    expect(de(oculto, "Carla").total).toBe(0);
+    expect(de(oculto, "Bruno").total).toBe(0);
+  });
 });
 
 describe("agregação por tela", () => {
@@ -234,6 +249,93 @@ describe("agregação por tela", () => {
       [projeto("Carla")], [ec([linha([observacao({})])])], [], USUARIOS, [], [checklist([tarefa({})])], HOJE
     );
     for (const p of de(itens, "Carla").itens) expect(rotaDaPendencia(p)).not.toBe("/projetos");
+  });
+});
+
+/**
+ * A promessa central do quadro de pendências: TODO número vermelho tem de ser
+ * achável, e o número da pílula de localização tem de ser o mesmo do badge —
+ * em qualquer etapa. Estes testes travam a igualdade nos dois pontos em que ela
+ * vinha quebrando: o título da subguia EC contra a lista de ECs, e a linha da
+ * listagem contra a pílula da tela que ela abre.
+ */
+describe("badge e pílula contam a mesma coisa", () => {
+  const os = (o: Partial<Os>): Os =>
+    ({
+      id: "os1", ecId: "ec1", numero: "OS 01", seq: 1, status: "Rascunho",
+      fornecedorRazao: "", fornecedorCnpj: "", ecLinhaIds: [], observacoes: [], cronograma: [],
+      ...o,
+    }) as unknown as Os;
+
+  /** Um projeto com EC (comentário + emissão) e uma OS em rascunho com comentário. */
+  const tudo = () =>
+    calcularPendencias(
+      [projeto("Carla")],
+      [ec([{ ...linha([observacao({ responsavelNome: "Bruno" })]), statusOs: "Emitir" }])],
+      [os({ observacoes: [observacao({ id: "obs-os", responsavelNome: "Bruno" })] })],
+      USUARIOS, [], [checklist([tarefa({})])], HOJE
+    );
+
+  it("o título da subguia EC é a soma exata das linhas da lista de ECs", () => {
+    const meus = de(tudo(), "Carla");
+    expect(meus.porAba["p1:ec"]).toBe(meus.porEc["ec1"]);
+  });
+
+  it("a lista de ECs não conta o que se resolve dentro da OS", () => {
+    const meus = de(tudo(), "Carla");
+    // A OS carrega o `ecId` de origem: era por ele que as pendências da OS
+    // entravam no badge da linha da EC, onde não havia como achá-las.
+    expect(meus.porEc["ec1"]).toBe(
+      meus.itens.filter((p) => p.ecId === "ec1" && p.aba === "ec").length
+    );
+    expect(meus.porOs["os1"]).toBeGreaterThan(0);
+  });
+
+  it("o badge da linha é o número que a pílula mostra ao abrir aquela tela", () => {
+    const meus = de(tudo(), "Carla");
+    expect(pendenciasDaTela(meus.itens, { ecId: "ec1" })).toHaveLength(meus.porEc["ec1"]);
+    expect(pendenciasDaTela(meus.itens, { osId: "os1" })).toHaveLength(meus.porOs["os1"]);
+  });
+
+  it("o badge da subguia é o número que a pílula mostra naquela subguia", () => {
+    const meus = de(tudo(), "Carla");
+    for (const aba of ["ec", "os", "checklist", "credenciamento", "cronograma"] as const) {
+      expect(pendenciasDaTela(meus.itens, { projetoId: "p1", aba })).toHaveLength(
+        meus.porAba[`p1:${aba}`] ?? 0
+      );
+    }
+  });
+
+  it("o badge do projeto é a soma das subguias, e o sininho a soma dos projetos", () => {
+    const meus = de(tudo(), "Carla");
+    const somaAbas = Object.entries(meus.porAba)
+      .filter(([k]) => k.startsWith("p1:"))
+      .reduce((t, [, n]) => t + n, 0);
+    expect(meus.porProjeto["p1"]).toBe(somaAbas);
+    expect(meus.total).toBe(meus.itens.length);
+  });
+
+  it("cronograma vazio da OS é cobrado na etapa da OS, com endereço no card", () => {
+    const itens = calcularPendencias(
+      [projeto("Carla")], [ec([linha([])])],
+      [os({ status: "Disparada", cronograma: [] })],
+      USUARIOS, [], [], HOJE
+    );
+    const p = itens.find((x) => x.tipo === "os.cronograma")!;
+    expect(p.aba).toBe("os");
+    expect(p.ancora).toBe(ancoraCronogramaOs("os1"));
+    expect(rotaDaPendencia(p)).toBe("/ordens/os1");
+  });
+
+  it("credenciamento sem resposta é achável na linha do painel do projeto", () => {
+    const itens = calcularPendencias(
+      [projeto("Carla")], [ec([linha([])])],
+      [os({ status: "Disparada", cronograma: [{ etapa: "Evento" }], credenciamento: { prazoLimite: "2026-09-01" } } as Partial<Os>)],
+      USUARIOS, [], [], HOJE
+    );
+    const p = itens.find((x) => x.tipo === "os.credenciamento")!;
+    expect(p.ancora).toBe("os1");
+    expect(rotaDaPendencia(p)).toBe("/projetos/p1?aba=credenciamento");
   });
 });
 
@@ -270,8 +372,21 @@ describe("o que a pílula alcança sem sair da tela", () => {
     expect(daOs.some((p) => p.tipo === "ec.observacao")).toBe(false);
   });
 
-  it("no projeto, a aba EC não oferece o que se resolve dentro da EC", () => {
-    expect(pendenciasDaTela(tudo(), { projetoId: "p1", aba: "ec" })).toEqual([]);
+  it("no projeto, a aba EC alcança o que mora na EC — pela LINHA da lista", () => {
+    // O número do título da subguia é a soma das linhas da lista de ECs, então a
+    // pílula de lá precisa alcançar as mesmas pendências. Elas não saem da tela:
+    // a âncora deixa de ser o item da EC e passa a ser a linha da listagem.
+    const daAba = pendenciasDaTela(tudo(), { projetoId: "p1", aba: "ec" });
+    expect(daAba.map((p) => p.tipo)).toEqual(["ec.observacao"]);
+    expect(daAba[0].ancora).toBe("ec1");
+    // O comentário exato fica para a tela da EC — aqui não há thread para abrir.
+    expect(daAba[0].observacaoId).toBeUndefined();
+  });
+
+  it("na aba OS, a pílula alcança a OS pela linha da lista", () => {
+    const daAba = pendenciasDaTela(tudo(), { projetoId: "p1", aba: "os" });
+    expect(daAba.every((p) => p.ancora === "os1")).toBe(true);
+    expect(daAba.length).toBeGreaterThan(0);
   });
 
   it("no projeto, o check-list é da própria tela e continua na roda", () => {
@@ -282,11 +397,21 @@ describe("o que a pílula alcança sem sair da tela", () => {
     expect(daAba.map((p) => p.ancora)).toEqual(["i1"]);
   });
 
-  it("pendência sem âncora fica de fora: a seta não teria para onde levar", () => {
+  it("toda pendência tem âncora — número sem endereço é o que fazia badge e pílula discordarem", () => {
+    const tudoQuePodeExistir = [
+      ...tudo(),
+      ...calcularPendencias([projeto("Carla")], [], [], USUARIOS, [], [checklist([tarefa({})])], HOJE),
+    ];
+    expect(tudoQuePodeExistir.every((p) => !!p.ancora)).toBe(true);
+  });
+
+  it("'projeto sem estimativa' é localizável no cabeçalho da subguia EC", () => {
     const semEc = calcularPendencias([projeto("Carla")], [], [], USUARIOS, [], [], HOJE);
-    // Ela existe e continua no sininho — só não entra na roda da tela.
-    expect(semEc.some((p) => p.tipo === "projeto.semEc")).toBe(true);
-    expect(pendenciasDaTela(semEc, { projetoId: "p1", aba: "ec" })).toEqual([]);
+    const p = semEc.find((x) => x.tipo === "projeto.semEc");
+    expect(p?.ancora).toBe(ancoraProjetoSemEc("p1"));
+    expect(pendenciasDaTela(semEc, { projetoId: "p1", aba: "ec" }).map((x) => x.tipo)).toEqual([
+      "projeto.semEc",
+    ]);
   });
 });
 

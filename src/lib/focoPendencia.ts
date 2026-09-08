@@ -67,8 +67,12 @@ export function focarPendencia(alvo: AlvoPendencia): void {
   destacarAlvo(alvo);
   let atendido = false;
   for (const ouvinte of [...ouvintes]) if (ouvinte(alvo)) atendido = true;
-  // Ninguém desta tela é dono do item: guarda para a tela de destino consumir.
-  pendente = atendido ? null : { ...alvo, em: Date.now() };
+  // Só há o que guardar quando sobrou detalhe para outra tela abrir (o comentário
+  // exato, os campos a emitir). O salto que é só "pisca esta linha" — a pílula
+  // das subguias do projeto, que ancora na linha da listagem — não deixa recado
+  // pendurado esperando uma thread que não existe.
+  const temDetalhe = !!alvo.observacaoId || !!alvo.campos?.length;
+  pendente = atendido || !temDetalhe ? null : { ...alvo, em: Date.now() };
 }
 
 /**

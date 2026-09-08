@@ -108,14 +108,21 @@ export function ChecklistProjeto({
    * casos voltam pelo MESMO botão — por isso ele fala em "recolhidas", e não em
    * "concluídas": recolher um item pendente e não ter como trazê-lo de volta
    * seria perdê-lo de vista. Nada aqui é apagado.
+   *
+   * Uma exceção, e ela é a razão de o número vermelho valer alguma coisa: a
+   * tarefa que TEM pendência sua aparece mesmo recolhida. Recolhida e cobrada,
+   * ela era contada no badge da subguia e não existia na tela — a pílula de
+   * localização não tinha o que achar, e o número virava mistério. Também não
+   * some pelo filtro por responsável, pelo mesmo motivo.
    */
   const visiveis = useMemo(() => {
-    const base = checklist.itens.filter((i) => (verRecolhidas ? true : !i.oculto));
+    const cobrada = (i: ItemChecklist) => (pendenciasPorItem[i.id] ?? 0) > 0;
+    const base = checklist.itens.filter((i) => verRecolhidas || !i.oculto || cobrada(i));
     const porPessoa = filtroResponsavel
-      ? base.filter((i) => i.responsavel === filtroResponsavel)
+      ? base.filter((i) => i.responsavel === filtroResponsavel || cobrada(i))
       : base;
     return ordenarPorPrazo(porPessoa);
-  }, [checklist.itens, verRecolhidas, filtroResponsavel]);
+  }, [checklist.itens, verRecolhidas, filtroResponsavel, pendenciasPorItem]);
 
   /** Tudo o que está fora da visão principal — concluído OU recolhido à mão. */
   const recolhidas = useMemo(() => checklist.itens.filter((i) => i.oculto).length, [checklist.itens]);

@@ -3,16 +3,18 @@
  *
  * Ela conta e mostra exatamente o que se ALCANÇA daqui: as pendências desta
  * tela, com um elemento para a câmera achar (ver `pendenciasDaTela`). Sai da
- * mesma lista dos badges (`useMinhasPendencias`), então tudo que ela conta pode
- * ser encontrado — que é o ponto: antes o badge contava as pendências da pessoa
- * e a pílula varria só as observações da EC aberta, e quem era Produtor
- * Responsável via um número que não conseguia localizar.
+ * mesma lista dos badges (`useMinhasPendencias`), e o número dela é o MESMO do
+ * badge vermelho daquela etapa — que é o ponto: um número que não se consegue
+ * localizar não serve para nada, e era o que acontecia quando o badge contava
+ * uma coisa e a pílula varria outra.
  *
- * O recorte por tela também é o que mantém o círculo fechado. A pílula anda em
- * roda, e uma pendência de outra tela quebrava a roda: o salto virava navegação,
- * a tela de destino trazia outra lista, e não havia como voltar para continuar
- * de onde se parou. Atravessar o sistema é papel do sininho, que existe para
- * isso; aqui a promessa é menor e inteira — dar conta do que está na frente.
+ * O recorte por tela é o que mantém o círculo fechado. A pílula anda em roda, e
+ * uma pendência de outra tela quebrava a roda: o salto virava navegação, a tela
+ * de destino trazia outra lista, e não havia como voltar. Por isso, nas subguias
+ * do projeto, a pendência que se RESOLVE dentro de uma EC ou de uma OS aparece
+ * aqui ancorada na LINHA da listagem — a roda continua na mesma tela, e a linha
+ * piscando é o convite para abrir a EC/OS e responder. Atravessar o sistema
+ * continua sendo papel do sininho.
  *
  * As setas ▲ / ▼ saltam de uma para a outra: a tela rola até o item, ele "lateja"
  * duas vezes e, quando a pendência é um comentário, a thread daquele item se

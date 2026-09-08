@@ -67,10 +67,12 @@ com selo de "Arquivada" na lista.
 ## Pendências (quem vê o quê)
 O número vermelho é uma lista de tarefa, não um painel do que anda acontecendo.
 Duas portas, e só elas (`domain/pendencias.ts` → `agregarPendencias`):
-- o **Produtor(a) Responsável** do projeto — para ele conta **qualquer** pendência
-  nascida ali dentro, mesmo endereçada a outra pessoa;
+- o **Produtor(a) Responsável** do projeto — **sempre**, e para ele conta
+  **qualquer** pendência nascida ali dentro, inclusive a conversa que no momento
+  está com outra pessoa;
 - o **destinatário** da cobrança — @mencionado ou escolhido como responsável do
-  comentário, e o dono da tarefa do check-list.
+  comentário, e o dono da tarefa do check-list. É o "eventualmente": entra e sai
+  conforme a vez (ver a batata quente, abaixo).
 
 Não abrem porta: o **papel** (antes todo Admin/Direção/Administrativo via "emitir
 OS" da casa inteira) e o **autor** do comentário (quem cobrava carregava a
@@ -88,16 +90,51 @@ autor da mensagem anterior que não seja da mesma pessoa); nunca o autor da
 própria última mensagem. A thread mostra isso em cada item: **Sua vez** ou
 *Aguardando Fulano*.
 
-O **Produtor Responsável entra quando a vez é dele** — e só. Antes ele carregava
-toda conversa nascida no projeto, mesmo a que já estava com outra pessoa, e o
-badge dele só crescia. Nas demais pendências (emitir OS, cronograma,
-credenciamento, prazo de tarefa) ele continua vendo tudo.
+O **Produtor Responsável vê a conversa sempre** (revisão de 08/09/2026), mesmo
+quando a vez é de outra pessoa: por um tempo ele só entrava na própria vez, para
+o badge não crescer a cada resposta trocada entre duas colegas, e o preço foi
+alto — uma cobrança podia ficar semanas parada com outra pessoa sem que quem
+responde pelo projeto tivesse qualquer sinal. Quem entra e sai é o destinatário.
 
 Geram pendência: comentário em aberto (**conversa geral da EC**, item da EC, OS e
 check-list), tarefa de hoje ou atrasada, **OS e Contrato do item da EC em
 "Emitir"/"Emitir Nova Versão"** (uma por item), OS em rascunho, cronograma da OS
 vazio, credenciamento sem resposta e projeto ativo sem EC. Projeto
-arquivado/cancelado encerra todas.
+arquivado/cancelado encerra todas; **item oculto da EC não cobra nada** (está
+guardado, fora dos totais, do Excel e da tela — cobrar ali seria número sem
+endereço).
+
+### Onde cada número é contado
+Cada pendência tem **uma** tela onde se resolve (`telaDaPendencia`) e uma
+`ancora`: o elemento que a pílula de localização procura no DOM. Daí sai tudo —
+a rota do sininho, o badge da listagem e a pílula —, e por isso **o badge de uma
+etapa é sempre igual ao número da pílula daquela etapa**:
+
+| badge | conta | confere com |
+| --- | --- | --- |
+| linha da EC / da OS na listagem | o que se resolve dentro dela | a pílula ao abrir aquela EC/OS |
+| título da subguia do projeto | tudo daquela `aba` — o da própria subguia **mais** o das ECs/OSs que ela lista | a soma dos badges da lista, e a pílula da subguia |
+| linha do projeto em Projetos | a soma das subguias | — |
+| sininho | tudo o que é seu | a soma dos blocos que ele abre |
+
+Na subguia do projeto a pílula **não navega**: a pendência que mora numa EC/OS
+aparece ancorada na **linha da listagem** (`pendenciasDaTela` troca a âncora), e
+a linha lateja — abrir a EC/OS é o passo seguinte, dado por quem clica.
+
+Três bugs que essa unificação fechou:
+- a subguia **EC** contava uma a mais que a lista: era `projeto sem estimativa`,
+  que não tem linha na lista. Agora ela acende ao lado do título do card
+  *Estimativas (EC)*, onde ficam os comandos de criar a primeira;
+- a linha da **EC** contava as pendências que se resolvem dentro da **OS** (elas
+  carregam o `ecId` de origem) — coisas que não se acham lá dentro;
+- **cronograma da OS vazio** e **credenciamento sem resposta** eram contados e não
+  tinham endereço. O cronograma passou a ser cobrado na etapa da **OS** (é lá que
+  se preenche) e o credenciamento pisca a linha do fornecedor no painel do
+  projeto.
+
+O **Calendário** não tem badge: ele divide o recurso de permissão com Projetos e
+por isso herdava o número de lá, sem ter uma pendência sequer para mostrar. O
+badge do menu agora é declarado por item (`NavItem.pendencias`).
 
 ### Observações gerais da EC
 A conversa da equipe sobre o evento inteiro, antes de o assunto virar item de

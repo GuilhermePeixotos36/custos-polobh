@@ -53,7 +53,7 @@ import { InscricaoMunicipalInput } from "@/components/InscricaoMunicipalInput";
 import { TextosJaUsados } from "@/components/TextosJaUsados";
 import { destacarCampo, idAncoraPendencia, idCampoTrava } from "@/lib/destaque";
 import { Chevron, idSecao, useAcoesRecolher, useSecaoRecolhivel } from "@/components/layout/Recolher";
-import { pendenciasDaTela } from "@/domain/pendencias";
+import { ancoraCronogramaOs, pendenciasDaTela } from "@/domain/pendencias";
 import { CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, alternarNaoSeAplica, naoSeAplica, temContrato } from "@/domain/os";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import type { ResumoCustos } from "@/domain/calc";
@@ -869,8 +869,12 @@ export function OsForm() {
             </div>
           </LinhaOs>
 
-          {/* Cronograma específico do fornecedor — já vem do cronograma do projeto */}
+          {/* Cronograma específico do fornecedor — já vem do cronograma do projeto.
+              O `id` é o endereço da pendência "cronograma não preenchido": ela é
+              cobrada na etapa da OS e se resolve aqui, então a pílula pisca este
+              bloco (antes ela contava no badge e não tinha o que achar). */}
           <LinhaOs
+            id={idAncoraPendencia(ancoraCronogramaOs(os.id))}
             label="Cronograma do Fornecedor"
             acao={
               <Button variant="secondary" size="sm" onClick={() => setOs((o) => (o ? { ...o, cronograma: [...o.cronograma, { id: novoId(), etapa: "", data: "", horario: "", atividades: "" }] } : o))}>+ Etapa</Button>
@@ -1266,8 +1270,9 @@ export function OsForm() {
         </CardOs>
       </div>
 
-      {/* Mesma pílula da EC: as pendências desta OS que têm onde ser achadas.
-          O cronograma vazio é cobrado no sininho — ele não mora num item. */}
+      {/* Mesma pílula da EC, e o mesmo número do badge da linha desta OS na
+          listagem: tudo o que se resolve aqui dentro — comentários, "emitir OS"
+          e o cronograma vazio, que agora tem endereço no próprio bloco. */}
       <NavegadorPendencias pendencias={pendenciasDaTela(pendenciasDoUsuario, { osId: os.id })} />
     </PageShell>
   );

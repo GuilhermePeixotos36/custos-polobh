@@ -496,10 +496,9 @@ const MODULOS: Modulo[] = [
             <span>Isso vai e volta até alguém apertar <b>Resolver</b>, que encerra a thread para todo mundo. Quem está com a bola pode resolver.</span>
           </Passos>
           <Dica>
-            O(a) <b>Produtor(a) Responsável</b> entra na conversa quando <b>a vez é dele</b>. Antes, cada
-            resposta trocada entre duas colegas empilhava bolinha no badge dele, que não tinha o que
-            fazer ali. Nas outras pendências (OS a emitir, cronograma, credenciamento, prazo) ele
-            continua vendo tudo.
+            O(a) <b>Produtor(a) Responsável</b> vê a conversa <b>sempre</b>, inclusive quando a vez é de
+            outra pessoa: quem responde pelo projeto não pode descobrir tarde que uma cobrança ficou
+            semanas parada. O <b>destinatário</b> é que entra e sai conforme a bola passa.
           </Dica>
         </Secao>
         <Secao titulo="O que vira pendência">
@@ -510,11 +509,32 @@ const MODULOS: Modulo[] = [
             <Tag tom="primary">Projeto sem EC</Tag>
           </div>
           <p>
+            Cada uma é cobrada <b>onde se resolve</b>: o cronograma vazio na <b>OS</b> (é lá que se
+            preenchem as etapas), o credenciamento na subguia <b>Credenciamento</b> do projeto (é de lá
+            que se reenvia o link). <b>Item oculto</b> da EC não cobra nada — está guardado, fora dos
+            totais e da tela.
+          </p>
+          <p>
             Nos itens da EC, <b>OS</b> ou <b>Contrato</b> em <Tag tom="warning">Emitir</Tag> ou
             <Tag tom="warning">Emitir Nova Versão</Tag> viram pendência <b>item a item</b> — cada uma leva à linha certa
             e faz o campo piscar.
           </p>
           <Atencao>Projeto <b>arquivado ou cancelado</b> encerra todas as pendências dele.</Atencao>
+        </Secao>
+        <Secao titulo="Os números batem — sempre">
+          <p>
+            O número vermelho de cada etapa é <b>igual</b> ao número da pílula de localização daquela
+            etapa. É a regra da casa: contou, dá para achar.
+          </p>
+          <Passos>
+            <span>O badge da <b>linha da EC</b> (ou da OS) é o que a pílula mostra ao <b>abrir</b> aquela EC (ou OS).</span>
+            <span>O badge do <b>título da subguia</b> é a <b>soma</b> dos badges da lista dela — e a pílula da subguia percorre essas mesmas linhas, piscando cada uma.</span>
+            <span>O badge do <b>projeto</b> é a soma das subguias; o do <b>sininho</b>, a soma de tudo o que é seu.</span>
+          </Passos>
+          <Atencao>
+            O <b>Calendário</b> não tem número de pendências: ali se lê <i>quando</i> cada projeto
+            acontece, não o que falta fazer.
+          </Atencao>
         </Secao>
         <Secao titulo="Achar a pendência na tela">
           <p>
@@ -524,7 +544,7 @@ const MODULOS: Modulo[] = [
           <Passos>
             <span>O <b>sininho</b> no canto superior direito abre tudo o que está pendente com você, agrupado por projeto. Clicar num bloco <b>abre a tela</b> da pendência com a câmera em cima dela.</span>
             <span>A <b>pílula</b> do canto inferior direito anda pelas pendências <b>da tela aberta</b>, uma a uma, pelas setas ▲ ▼.</span>
-            <span>Ao chegar, o item <b>lateja em vermelho</b>: a cadeia de comentários abre e o comentário pendente pisca — ou o campo <b>OS/Contrato</b>, quando a pendência é emitir.</span>
+            <span>Ao chegar, o item <b>lateja em vermelho</b>: a cadeia de comentários abre e o comentário pendente pisca — ou o campo <b>OS/Contrato</b>, quando a pendência é emitir. Numa <b>listagem</b>, quem lateja é a linha da EC/OS: abra-a para responder.</span>
           </Passos>
           <Dica>Duas pendências no mesmo item? A seta pisca de novo mesmo sem a tela rolar — é o sinal de que ela mudou de alvo.</Dica>
         </Secao>

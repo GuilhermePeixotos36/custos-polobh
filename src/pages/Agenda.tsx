@@ -275,7 +275,12 @@ function LinhaAgenda({
   const { item } = tarefa;
   const situacao = situacaoPrazo(item, hoje);
   const atrasada = situacao === "atrasado";
-  const pendencias = (item.observacoes ?? []).filter((o) => !o.resolvida && o.texto.trim()).length;
+  /**
+   * Conversas ABERTAS na tarefa — não é o quadro de pendências (aquele é
+   * vermelho e só acende para quem tem de agir; ver `domain/pendencias`). Aqui
+   * o número é informativo, âmbar, e diz "esta tarefa tem assunto em aberto".
+   */
+  const observacoesAbertas = (item.observacoes ?? []).filter((o) => !o.resolvida && o.texto.trim()).length;
 
   return (
     <div className="group flex items-center gap-3 px-4 py-2.5 hover:bg-[#FAFAFB]">
@@ -304,7 +309,7 @@ function LinhaAgenda({
       </button>
 
       <div className="flex items-center gap-2 shrink-0">
-        {pendencias > 0 && <Badge tom="warning">{pendencias} obs.</Badge>}
+        {observacoesAbertas > 0 && <Badge tom="warning">{observacoesAbertas} obs.</Badge>}
         {item.responsavel ? (
           <span className="hidden sm:inline text-[12px] font-bold text-ink-2">{item.responsavel}</span>
         ) : (

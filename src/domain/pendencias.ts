@@ -8,12 +8,14 @@
  * a alguém nos itens da EC e nas OSs (@menção ou responsável escolhido) — não há
  * mais fluxo de aprovação do cliente (removido).
  *
- * QUEM VÊ O QUÊ (regra revista em 26/08/2026): DUAS portas, e só elas.
+ * QUEM VÊ O QUÊ (regra revista em 08/09/2026): DUAS portas, e só elas.
  *   · o Produtor(a) Responsável do projeto — SEMPRE, para qualquer pendência
- *     nascida dentro do projeto dele, mesmo endereçada a outra pessoa. É ele
- *     quem responde pelo projeto inteiro;
+ *     nascida dentro do projeto dele, inclusive a conversa que no momento está
+ *     com outra pessoa. É ele quem responde pelo projeto inteiro, e ficar de
+ *     fora da própria thread era justamente o que o fazia descobrir tarde;
  *   · o DESTINATÁRIO do comentário — quem foi mencionado (@) ou escolhido como
- *     responsável da observação, e quem é dono da tarefa do check-list.
+ *     responsável da observação, e quem é dono da tarefa do check-list. Este é
+ *     o "eventualmente": entra quando a vez é dele (ver `destinatariosDaVez`).
  *
  * Caíram duas portas antigas, que faziam o badge acender para quem não tinha o
  * que fazer: o PAPEL (todo Admin/Direção/Administrativo via "emitir OS" de
@@ -21,10 +23,22 @@
  * carregando a pendência do outro). Quem cobrou acompanha pelo projeto ou pela
  * própria thread — não pelo número vermelho.
  *
+ * ONDE CADA NÚMERO É CONTADO — a regra que faz o badge bater com a pílula de
+ * localização em TODAS as etapas. Cada pendência tem UMA tela onde se resolve
+ * (`telaDaPendencia`) e uma `ancora`: o elemento que a pílula procura no DOM.
+ *   · badge da linha da EC / da OS na listagem = o que a pílula mostra ao abrir
+ *     aquela EC / aquela OS;
+ *   · badge da subguia do projeto = tudo o que tem aquela `aba` — o que mora na
+ *     própria subguia MAIS o que mora nas ECs/OSs que ela lista, e por isso a
+ *     pílula da subguia também alcança as linhas da lista (`pendenciasDaTela`
+ *     troca a âncora pela da linha);
+ *   · badge do projeto = a soma das subguias; sininho = a soma de tudo.
+ * Toda pendência precisa de `ancora`, senão ela viraria número sem endereço —
+ * exatamente o que fazia o badge não bater com a pílula.
+ *
  * Cada pendência declara QUEM deve agir, ONDE ela aparece (recurso da navegação,
- * projeto, subguia, EC e/ou OS) e — o que faz o número do badge bater com o
- * navegador de pendências — em qual ELEMENTO da tela ela mora (`ancora`), em
- * qual observação exata (`observacaoId`) ou em qual CAMPO do item (`campo`,
+ * projeto, subguia, EC e/ou OS), em qual ELEMENTO da tela ela mora (`ancora`),
+ * em qual observação exata (`observacaoId`) ou em qual CAMPO do item (`campos`,
  * para "OS/Contrato a emitir"). Para adicionar uma nova regra, basta empurrar
  * mais objetos em `calcularPendencias`.
  */
@@ -57,9 +71,14 @@ export interface Pendencia {
   /** Item do check-list que originou a pendência (leva direto até ele na tela). */
   checklistItemId?: string;
   /**
-   * Elemento da tela onde a pendência mora — id da linha da EC, do item do
-   * check-list ou da própria OS. É o que o navegador do canto inferior direito
-   * usa para rolar até ela (ver `idAncoraPendencia`).
+   * Elemento da tela onde a pendência mora — a linha da EC, o item do
+   * check-list, a própria OS, o card de cronograma dela (`ancoraCronogramaOs`),
+   * a linha do painel de credenciamento ou o cabeçalho da subguia EC
+   * (`ancoraProjetoSemEc`). É o que o navegador do canto inferior direito usa
+   * para rolar até ela (ver `idAncoraPendencia`).
+   *
+   * Obrigatória na prática: pendência sem âncora é número que ninguém acha, e é
+   * o que fazia o badge e a pílula discordarem.
    */
   ancora?: string;
   /** Observação exata que originou a pendência: o navegador abre a thread e pisca nela. */
@@ -72,18 +91,6 @@ export interface Pendencia {
 }
 
 /**
- * Onde a pendência mora — a rota que o sininho e o navegador abrem antes de
- * levar a câmera até ela. Fica aqui, junto da regra, para que todas as telas
- * saltem exatamente para o mesmo lugar.
- */
-export function rotaDaPendencia(p: Pendencia): string {
-  if (p.ecId && p.aba === "ec") return `/estimativas/${p.ecId}`;
-  if (p.osId) return `/ordens/${p.osId}`;
-  if (p.projetoId) return `/projetos/${p.projetoId}${p.aba ? `?aba=${p.aba}` : ""}`;
-  return "/projetos";
-}
-
-/**
  * Qual tela está perguntando — o recorte da pílula do canto inferior direito.
  * Espelha os três destinos de `rotaDaPendencia`.
  */
@@ -93,29 +100,76 @@ export type TelaPendencias =
   | { projetoId: string; aba: AbaProjeto };
 
 /**
- * As pendências que a pílula pode alcançar SEM sair da tela.
+ * A tela ONDE A PENDÊNCIA SE RESOLVE — a casa dela.
  *
- * A pílula anda em círculo entre as pendências: quando uma delas morava em outra
- * tela, o salto virava navegação e a viagem acabava ali — a tela de destino tem
- * outra lista, sem as anteriores, e não havia como voltar para continuar. Então
- * ela passa a listar só o que está ali na frente: a pendência de outra tela
- * continua existindo no sininho, que é o lugar de atravessar o sistema.
+ * É a peça que faz todos os números do sistema baterem: a rota do sininho, o
+ * badge da linha da listagem e a pílula de localização saem todos daqui, então
+ * não há como o badge contar uma coisa e a pílula achar outra. Antes cada um
+ * tinha o seu próprio "de quem é essa pendência": a rota olhava `osId`, o badge
+ * da EC contava QUALQUER pendência com `ecId` (inclusive as que se resolvem
+ * dentro da OS) e a pílula tinha um terceiro recorte.
  *
- * Duas condições, e as duas são necessárias:
- *  · a pendência NASCE nesta tela (uma observação de item de EC é da EC, mesmo
- *    quando aparece contada na aba EC do projeto);
- *  · ela tem `ancora` — sem um elemento para procurar no DOM, a seta não teria
- *    para onde levar a câmera.
+ * A leitura é pela subguia: `aba` diz em que etapa do projeto a pendência é
+ * cobrada, e só quando essa etapa é a da EC (ou a da OS) é que a casa desce
+ * para a tela da EC (ou da OS).
+ */
+export function telaDaPendencia(p: Pendencia): TelaPendencias {
+  if (p.aba === "ec" && p.ecId) return { ecId: p.ecId };
+  if (p.aba === "os" && p.osId) return { osId: p.osId };
+  return { projetoId: p.projetoId ?? "", aba: p.aba ?? "dados" };
+}
+
+/**
+ * Onde a pendência mora — a rota que o sininho e o navegador abrem antes de
+ * levar a câmera até ela. Fica aqui, junto da regra, para que todas as telas
+ * saltem exatamente para o mesmo lugar.
+ */
+export function rotaDaPendencia(p: Pendencia): string {
+  const tela = telaDaPendencia(p);
+  if ("ecId" in tela) return `/estimativas/${tela.ecId}`;
+  if ("osId" in tela) return `/ordens/${tela.osId}`;
+  if (tela.projetoId) return `/projetos/${tela.projetoId}?aba=${tela.aba}`;
+  return "/projetos";
+}
+
+/**
+ * As pendências que a pílula alcança SEM sair da tela — e, por construção,
+ * exatamente as que o badge daquela tela conta.
+ *
+ * A pílula anda em círculo, então nada aqui pode obrigá-la a navegar: o salto
+ * tem de terminar num elemento desta tela. Duas leituras, conforme quem pergunta:
+ *
+ *  · TELA DA EC / DA OS — o que se resolve ali dentro, com a âncora do próprio
+ *    item (a linha da EC, o comentário exato, os campos OS/Contrato).
+ *  · SUBGUIA DO PROJETO — tudo o que é cobrado naquela etapa, inclusive o que
+ *    se resolve dentro de uma EC ou de uma OS. Essas não saem da tela: a subguia
+ *    LISTA a EC e a OS, então a âncora passa a ser a LINHA da listagem, e a
+ *    pílula pisca a linha em vez de tentar abrir uma thread que não está aqui.
+ *    É isso que faz o número do título da subguia bater com a soma dos badges
+ *    da lista — antes a subguia contava e a pílula mostrava zero.
+ *
+ * Sem `ancora` a pendência fica de fora: seria um número sem endereço.
  */
 export function pendenciasDaTela(itens: Pendencia[], tela: TelaPendencias): Pendencia[] {
-  return itens.filter((p) => {
-    if (!p.ancora) return false;
-    if ("ecId" in tela) return p.ecId === tela.ecId && p.aba === "ec";
-    if ("osId" in tela) return p.osId === tela.osId;
-    // No projeto sobra o que é do próprio projeto: o check-list. O que pertence
-    // a uma EC ou a uma OS se resolve na tela dela.
-    return p.projetoId === tela.projetoId && p.aba === tela.aba && !p.ecId && !p.osId;
-  });
+  const out: Pendencia[] = [];
+  for (const p of itens) {
+    const projetada = projetarNaTela(p, tela);
+    if (projetada) out.push(projetada);
+  }
+  return out;
+}
+
+/** A pendência como esta tela a mostra — ou `null` quando ela não é daqui. */
+function projetarNaTela(p: Pendencia, tela: TelaPendencias): Pendencia | null {
+  const casa = telaDaPendencia(p);
+  if ("ecId" in tela) return "ecId" in casa && casa.ecId === tela.ecId && p.ancora ? p : null;
+  if ("osId" in tela) return "osId" in casa && casa.osId === tela.osId && p.ancora ? p : null;
+  if (p.projetoId !== tela.projetoId || p.aba !== tela.aba) return null;
+  // Mora numa EC/OS que esta subguia lista: a âncora vira a linha da listagem, e
+  // o comentário/campo exato fica para a tela da EC (aqui eles não existem).
+  if ("ecId" in casa) return { ...p, ancora: casa.ecId, observacaoId: undefined, campos: undefined };
+  if ("osId" in casa) return { ...p, ancora: casa.osId, observacaoId: undefined, campos: undefined };
+  return p.ancora ? p : null;
 }
 
 /**
@@ -124,6 +178,21 @@ export function pendenciasDaTela(itens: Pendencia[], tela: TelaPendencias): Pend
  * discordarem sobre onde a thread está.
  */
 export const ancoraObservacoesGeraisEc = (ecId: string) => `ec-geral:${ecId}`;
+
+/**
+ * Âncora do cronograma dentro da OS — o card de etapas do fornecedor. A cobrança
+ * de "cronograma não preenchido" não mora num item da OS, mora neste bloco; sem
+ * uma âncora própria ela era contada no badge e a pílula não tinha o que achar.
+ */
+export const ancoraCronogramaOs = (osId: string) => `os-cronograma:${osId}`;
+
+/**
+ * Âncora de "projeto sem estimativa" — o cabeçalho da subguia EC, onde fica o
+ * comando de criar a primeira EC. É o único número da subguia EC que não tem
+ * linha na lista de ECs (ainda não existe EC nenhuma), então ele precisa de um
+ * lugar visível ali para que o total do título continue sendo localizável.
+ */
+export const ancoraProjetoSemEc = (projetoId: string) => `projeto-sem-ec:${projetoId}`;
 
 /* ------------------------- A batata quente da thread ---------------------- */
 
@@ -177,12 +246,15 @@ export function destinatariosDaVez(observacao: Observacao, usuarios: string[] = 
 }
 
 /**
- * Uma conversa aberta vira pendência de quem está com a batata.
+ * Uma conversa aberta vira pendência de quem está com a batata — e do Produtor
+ * Responsável do projeto, SEMPRE (regra revista em 08/09/2026).
  *
- * O Produtor Responsável do projeto continua vendo o que acontece no projeto
- * dele — mas NÃO uma conversa que já está com outra pessoa: senão cada resposta
- * trocada entre duas colegas ia empilhando bolinha vermelha para ele, que não
- * tem o que fazer ali no momento. Ele entra quando é dele a vez.
+ * Por um tempo ele só entrava quando a vez era dele, para o badge não crescer a
+ * cada resposta trocada entre duas colegas. O efeito colateral foi pior do que o
+ * ruído: uma cobrança podia ficar semanas parada com outra pessoa sem que quem
+ * responde pelo projeto tivesse qualquer sinal disso. Ele volta a ver tudo o que
+ * nasce no projeto dele; o "eventualmente" é do destinatário, que entra e sai
+ * conforme a vez.
  */
 function pendenciaDeConversa(
   observacao: Observacao,
@@ -193,13 +265,11 @@ function pendenciaDeConversa(
   if (!texto || observacao.resolvida) return null;
   const pessoas = destinatariosDaVez(observacao, usuarios);
   if (!pessoas.length) return null;
-  const nome = responsavelProjeto?.trim();
-  const respTemAVez = !!nome && pessoas.some((p) => normalizarPessoa(p) === normalizarPessoa(nome));
   // A última mensagem é o que está em pauta — é ela que a pessoa precisa ler.
   const ultima = (observacao.respostas ?? []).at(-1)?.texto?.trim() || texto;
   return {
     pessoas,
-    responsavelProjeto: respTemAVez ? nome : undefined,
+    responsavelProjeto: responsavelProjeto?.trim() || undefined,
     resumo: ultima.length > 80 ? `${ultima.slice(0, 77)}…` : ultima,
   };
 }
@@ -327,9 +397,14 @@ export function calcularPendencias(
         responsavelProjeto: responsavel,
         recurso: "projetos",
         projetoId: ec.projetoId,
-        aba: "cronograma",
+        // Cobrada na etapa da OS, e não na do Cronograma do projeto: as etapas
+        // do fornecedor se preenchem DENTRO da OS, e a subguia Cronograma só
+        // consolida o que já existe. Contar lá era pôr o número numa tela onde
+        // não há o que fazer — e a pílula de lá não tinha o que achar.
+        aba: "os",
         ecId: os.ecId,
         osId: os.id,
+        ancora: ancoraCronogramaOs(os.id),
       });
     }
 
@@ -350,6 +425,8 @@ export function calcularPendencias(
         // que não fala mais de credenciamento.
         aba: "credenciamento",
         ecId: os.ecId,
+        // A linha do fornecedor no painel de credenciamento — é ela que pisca.
+        ancora: os.id,
       });
     }
   }
@@ -379,6 +456,10 @@ export function calcularPendencias(
     });
 
     for (const linha of ec.linhas) {
+      // Item oculto está guardado: fora dos totais, do Excel e da leitura da EC.
+      // Ele só reaparece pela gaveta "Itens ocultos", sem endereço na tela — se
+      // cobrasse, seria um número que a pílula conta e não consegue achar.
+      if (linha.oculto) continue;
       (linha.observacoes ?? []).forEach((observacao, indice) => {
         // Resolvida, sem texto ou sem ninguém com a vez: não cobra ninguém.
         const vez = pendenciaDeConversa(observacao, usuarios, respDe(ec.projetoId));
@@ -410,6 +491,7 @@ export function calcularPendencias(
     // linha. A pendência aponta quais dos dois campos faltam.
     // ECs encerradas já foram descartadas na entrada do laço.
     for (const linha of ec.linhas) {
+      if (linha.oculto) continue; // guardado: não entra em total nenhum, nem neste
       const faltando = [
         { campo: "os" as const, status: linha.statusOs, rotulo: "OS" },
         { campo: "contrato" as const, status: linha.contratoStatus, rotulo: "Contrato" },
@@ -500,21 +582,35 @@ export function calcularPendencias(
       recurso: "projetos",
       projetoId: p.id,
       aba: "ec",
+      // Não há EC para apontar: a âncora é o cabeçalho da subguia, onde fica o
+      // comando de criar a primeira. Sem ela este era o número "a mais" do
+      // título da subguia EC — contado ali e sem par na lista de ECs.
+      ancora: ancoraProjetoSemEc(p.id),
     });
   }
 
   return out;
 }
 
-/** Agregações prontas para os componentes, já filtradas ao papel do usuário. */
+/**
+ * Agregações prontas para os componentes, já filtradas ao papel do usuário.
+ *
+ * Todas saem de `telaDaPendencia`, e não de "tem `ecId`?" / "tem `osId`?": é o
+ * que garante que o badge da linha da EC mostre o mesmo número da pílula ao
+ * abrir aquela EC. Antes `porEc` contava também as pendências que se resolvem
+ * DENTRO da OS (elas carregam o `ecId` de origem), e a linha da EC vinha
+ * inflada com o que não se acha lá dentro.
+ */
 export interface PendenciasAgregadas {
   total: number;
   itens: Pendencia[];
   porRecurso: Record<string, number>;
   porProjeto: Record<string, number>;
-  /** chave `${projetoId}:${aba}` */
+  /** chave `${projetoId}:${aba}` — o título da subguia; soma das linhas dela. */
   porAba: Record<string, number>;
+  /** Só o que se resolve DENTRO da EC — o mesmo que a pílula mostra lá. */
   porEc: Record<string, number>;
+  /** Só o que se resolve DENTRO da OS — o mesmo que a pílula mostra lá. */
   porOs: Record<string, number>;
 }
 
@@ -551,9 +647,14 @@ export function agregarPendencias(itens: Pendencia[], pessoa?: string): Pendenci
   for (const p of meus) {
     inc(ag.porRecurso, p.recurso);
     if (p.projetoId) inc(ag.porProjeto, p.projetoId);
+    // A subguia conta a ETAPA inteira — inclusive o que se resolve dentro de uma
+    // EC ou de uma OS listada nela. Por isso é a soma das linhas da lista (mais
+    // o que estiver ancorado na própria subguia), e a pílula de lá alcança tudo.
     if (p.projetoId && p.aba) inc(ag.porAba, `${p.projetoId}:${p.aba}`);
-    if (p.ecId) inc(ag.porEc, p.ecId);
-    if (p.osId) inc(ag.porOs, p.osId);
+    // Já a linha da lista conta só o que a tela dela resolve.
+    const tela = telaDaPendencia(p);
+    if ("ecId" in tela) inc(ag.porEc, tela.ecId);
+    else if ("osId" in tela) inc(ag.porOs, tela.osId);
   }
   return ag;
 }

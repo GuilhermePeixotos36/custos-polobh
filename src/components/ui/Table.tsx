@@ -82,13 +82,21 @@ export function Tr({
   children,
   onClick,
   className,
+  id,
 }: {
   children: ReactNode;
   onClick?: () => void;
   className?: string;
+  /**
+   * Endereço da linha na tela — usado pelo navegador de pendências para rolar
+   * até ela e fazê-la latejar (ver `idAncoraPendencia`). Numa listagem longa, a
+   * pendência contada no badge da linha só é "achável" se a linha tiver id.
+   */
+  id?: string;
 }) {
   return (
     <tr
+      id={id}
       onClick={onClick}
       className={cx(
         "border-b border-border-soft last:border-0",

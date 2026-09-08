@@ -13,6 +13,7 @@ import { TextosJaUsados } from "@/components/TextosJaUsados";
 import { TimelineConsolidada, type ItemConsolidado } from "@/components/Timeline";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
 import { ThPendencias, TdPendencias } from "@/components/ColunaPendencias";
+import { NotifDot } from "@/components/NotifDot";
 import { MoverSetas, moverNaLista } from "@/components/MoverSetas";
 import { ListaArrastavel, ItemArrastavel } from "@/components/ListaArrastavel";
 import { CronogramaProjetoEditor } from "@/components/CronogramaProjetoEditor";
@@ -28,7 +29,7 @@ import { cnpjValido, consultarCnpj } from "@/lib/cnpj";
 import { numeroEc, tituloEc } from "@/domain/calc";
 import { camposObrigatoriosProjeto, compoeTituloProjeto, novoRoteiroExtra, projetoInfoVazio, sincronizarCamposLegados } from "@/domain/projeto";
 import { flags } from "@/lib/flags";
-import { destacarElemento, idBlocoRoteiro } from "@/lib/destaque";
+import { destacarElemento, idAncoraPendencia, idBlocoRoteiro } from "@/lib/destaque";
 import { cx, dataBR, maskCpfCnpjInput, maskDoc, onlyDigits } from "@/lib/format";
 import { toast } from "@/store/toast";
 import { ChecklistProjeto } from "@/components/ChecklistProjeto";
@@ -46,7 +47,7 @@ import {
   type SnapshotEvento,
 } from "@/domain/mudancasEvento";
 import type { Cliente, Ec, EcLinha, Projeto, ProjetoInfo, StatusProjeto } from "@/data/types";
-import { pendenciasDaTela, type Pendencia } from "@/domain/pendencias";
+import { ancoraProjetoSemEc, pendenciasDaTela, type Pendencia } from "@/domain/pendencias";
 import { situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
 import { itensDaOs } from "@/domain/os";
 import { ThItensOs, TdItensOs } from "@/components/ColunaItensOs";
@@ -556,13 +557,25 @@ export function ProjetoDetail() {
   }
 
   /**
-   * O que esta aba resolve sozinha — o que a pílula flutuante alcança sem sair
-   * daqui, e o que vira badge nas tarefas do check-list. Pendência de uma EC ou
-   * de uma OS não entra: ela mora na tela dela, e é de lá que se responde.
+   * O que esta aba cobra — o mesmo conjunto que o badge do título da subguia
+   * conta, e que a pílula flutuante percorre. Inclui o que se resolve dentro de
+   * uma EC ou de uma OS: aqui a pílula pisca a LINHA da listagem (a âncora já
+   * vem trocada por `pendenciasDaTela`), e é de lá que se abre a tela para
+   * responder. Também vira o badge de cada tarefa do check-list.
    */
   const pendenciasDaTelaAtual = useMemo(
     () => pendenciasDaTela(minhasPendencias, { projetoId: id, aba }),
     [minhasPendencias, id, aba]
+  );
+  /**
+   * "Projeto sem estimativa" é o único número da subguia EC que não tem linha na
+   * lista — ainda não existe EC nenhuma. Ele acende ao lado do título do card,
+   * onde ficam os comandos de criar a primeira: assim o total do título continua
+   * sendo a soma de coisas visíveis nesta tela.
+   */
+  const pendenciaSemEc = useMemo(
+    () => pendenciasDaTelaAtual.filter((x) => x.tipo === "projeto.semEc").length,
+    [pendenciasDaTelaAtual]
   );
 
   const camposObrigatoriosFaltando = () => camposObrigatoriosProjeto(p.info, p.cliente);
@@ -1027,8 +1040,16 @@ export function ProjetoDetail() {
 
       {aba === "ec" && (
         <Card padded={false}>
-          <div className="p-5 flex items-center justify-between gap-3 flex-wrap">
-            <CardTitle hint="Estimativas de custo deste projeto (incluindo versões)">Estimativas (EC)</CardTitle>
+          <div
+            id={idAncoraPendencia(ancoraProjetoSemEc(id))}
+            className="p-5 flex items-center justify-between gap-3 flex-wrap"
+          >
+            <CardTitle hint="Estimativas de custo deste projeto (incluindo versões)">
+              <span className="inline-flex items-center gap-2">
+                Estimativas (EC)
+                <NotifDot inline n={pendenciaSemEc} title="Este projeto ainda não tem estimativa" />
+              </span>
+            </CardTitle>
             {podeEditarEc && (
               <div data-tour="acoes-ec" className="flex items-center gap-2">
                 <Button
@@ -1095,8 +1116,11 @@ export function ProjetoDetail() {
               </THead>
               <tbody>
                 {ecsOrdenadas.ordenados.map((e) => (
-                  <Tr key={e.id} onClick={() => navigate(`/estimativas/${e.id}`)}>
-                    <TdPendencias n={porEc[e.id] ?? 0} title="Ações pendentes nesta EC" />
+                  // O `id` é o endereço da linha para o navegador de pendências:
+                  // na subguia EC a pílula pisca a linha, e o detalhe (comentário,
+                  // campo a emitir) fica para a tela da EC.
+                  <Tr key={e.id} id={idAncoraPendencia(e.id)} onClick={() => navigate(`/estimativas/${e.id}`)}>
+                    <TdPendencias n={porEc[e.id] ?? 0} title="Ações pendentes suas nesta EC" />
                     {/* Versão e data já vêm no próprio título ("EC – … (03) em 10 08 26"). */}
                     <Td className={cx("font-bold", e.ativa ? "text-primary-dark" : "text-ink")}>{tituloEc(e)}</Td>
                     {/* Rascunho não-ativo (a EC recém-importada) é "Rascunho", e não
@@ -1168,8 +1192,8 @@ export function ProjetoDetail() {
               </THead>
               <tbody>
                 {ossOrdenadas.ordenados.map((o) => (
-                  <Tr key={o.id} onClick={() => navigate(`/ordens/${o.id}`)}>
-                    <TdPendencias n={porOs[o.id] ?? 0} title="Esta OS tem ação pendente" />
+                  <Tr key={o.id} id={idAncoraPendencia(o.id)} onClick={() => navigate(`/ordens/${o.id}`)}>
+                    <TdPendencias n={porOs[o.id] ?? 0} title="Ações pendentes suas nesta OS" />
                     <Td className="font-bold">{o.numero}</Td>
                     <TdItensOs itens={itensPorOs[o.id] ?? []} />
                     <Td>{o.fornecedor.razaoSocial || "—"}</Td>

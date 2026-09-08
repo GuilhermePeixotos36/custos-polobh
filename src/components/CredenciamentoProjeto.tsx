@@ -32,6 +32,7 @@ import { gerarCredenciamentoExcel } from "@/lib/excel";
 import { toast } from "@/store/toast";
 import { confirmar } from "@/store/confirm";
 import { cx, dataBR, dataHoraBR } from "@/lib/format";
+import { idAncoraPendencia } from "@/lib/destaque";
 import {
   credenciadosDaFila,
   filaDeCredenciamento,
@@ -232,7 +233,14 @@ export function CredenciamentoProjeto({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
           </THead>
           <tbody>
             {fila.map((f) => (
-              <Tr key={f.os.id} className={cx(marcados.has(f.os.id) && "bg-primary-soft")}>
+              // O `id` é o endereço da linha para o navegador de pendências: o
+              // credenciamento sem resposta é cobrado NESTA tela (é daqui que se
+              // reenvia o link), e a pílula precisa achar o fornecedor exato.
+              <Tr
+                key={f.os.id}
+                id={idAncoraPendencia(f.os.id)}
+                className={cx(marcados.has(f.os.id) && "bg-primary-soft")}
+              >
                 <Td>
                   <input
                     type="checkbox"

@@ -41,7 +41,14 @@ export function TopNav() {
           >
             <span className="shrink-0 relative">
               {i.icon}
-              <NotifDot n={porRecurso[i.recurso] ?? 0} title={`${porRecurso[i.recurso] ?? 0} pendência(s)`} className="left-auto -right-2 -top-2" />
+              {/* Só onde a pendência pode ser resolvida — ver `NavItem.pendencias`. */}
+              {i.pendencias && (
+                <NotifDot
+                  n={porRecurso[i.recurso] ?? 0}
+                  title={`${porRecurso[i.recurso] ?? 0} pendência(s)`}
+                  className="left-auto -right-2 -top-2"
+                />
+              )}
             </span>
             <span className="hidden lg:inline">{i.label}</span>
           </NavLink>
