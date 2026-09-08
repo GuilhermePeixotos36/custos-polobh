@@ -4,7 +4,7 @@
  * hoje, Supabase para tudo (não existe mais mock em memória).
  */
 import type {
-  Area, Checklist, Cliente, CredenciamentoResposta, Ec, EmpresaGrupo, Fornecedor,
+  AnexoObservacao, Area, Checklist, Cliente, CredenciamentoResposta, Ec, EmpresaGrupo, Fornecedor,
   ItemChecklist, ModeloChecklist, Observacao, Os, Projeto, ProjetoInfo, Usuario,
 } from "./types";
 
@@ -127,6 +127,21 @@ export interface ChecklistRepository {
   removerItem(id: string): Promise<void>;
   /** Apaga o check-list do projeto (usado ao trocar a modalidade). */
   remover(checklistId: string): Promise<void>;
+
+  /* ------------------------ anexos dos comentários ------------------------ */
+
+  /**
+   * Sobe um arquivo leve para o comentário de uma tarefa e devolve a ficha dele
+   * (ver `domain/anexos` para o que é "leve"). Só o check-list tem anexo.
+   */
+  anexar(itemId: string, arquivo: File, enviadoPorNome: string): Promise<AnexoObservacao>;
+  /**
+   * Link temporário para abrir o anexo. O bucket é fechado: não existe URL
+   * permanente, e cada abertura pede um link novo, de vida curta.
+   */
+  urlAnexo(caminho: string): Promise<string>;
+  /** Apaga os arquivos — some o comentário, somem os anexos dele. */
+  removerAnexos(caminhos: string[]): Promise<void>;
 }
 
 export interface Repositorios {

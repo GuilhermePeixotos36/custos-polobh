@@ -1,19 +1,42 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { Button, Select } from "@/components/ui";
-import { IcComment, IcChevron, IcPencil, IcTrash, IcSend } from "@/components/icons";
+import { IcComment, IcChevron, IcPencil, IcTrash, IcSend, IcClipe, IcFechar } from "@/components/icons";
 import { cx, dataHoraBR } from "@/lib/format";
 import { idComentario } from "@/lib/destaque";
 import { alvoPendente, aoFocarPendencia, destacarAlvo, destacarComentario, type AlvoPendencia } from "@/lib/focoPendencia";
 import { regexMencoes } from "@/domain/mencoes";
+import {
+  ACCEPT_ANEXOS,
+  MAXIMO_ANEXOS_POR_COMENTARIO,
+  iconeAnexo,
+  motivoRecusaAnexo,
+  tamanhoLegivel,
+} from "@/domain/anexos";
 import { destinatariosDaVez } from "@/domain/pendencias";
 import { useAuth } from "@/store/auth";
-import type { Observacao, RespostaObservacao } from "@/data/types";
+import type { AnexoObservacao, Observacao, RespostaObservacao } from "@/data/types";
+
+/**
+ * O que a thread precisa para lidar com arquivo. Passada SÓ pelo check-list —
+ * sem ela não aparece clipe nenhum, e EC e OS seguem como sempre foram (ver
+ * `domain/anexos` para o porquê).
+ */
+export interface ApiAnexos {
+  /** Sobe o arquivo e devolve a ficha dele. Lança com a mensagem pronta se recusar. */
+  enviar: (arquivo: File) => Promise<AnexoObservacao>;
+  /** Abre o anexo para quem clicou (link assinado, aba nova). */
+  abrir: (anexo: AnexoObservacao) => void;
+  /** Apaga os arquivos do armazenamento — comentário excluído não deixa lixo. */
+  remover: (anexos: AnexoObservacao[]) => void;
+}
 
 interface Props {
   observacoes: Observacao[];
   usuarios: string[]; // nomes dos usuários do sistema (para @mencionar / atribuir)
   onChange: (obs: Observacao[]) => void;
+  /** Habilita anexos nesta thread. Ausente = thread sem arquivo. */
+  anexos?: ApiAnexos;
   /** Ajusta o espaçamento do rodapé ao contêiner que o recebe (ex.: `!px-0`). */
   className?: string;
   /**
@@ -64,7 +87,7 @@ type ComporState =
   | { modo: "responder"; id: string }
   | null;
 
-export function ObservacoesThread({ observacoes, usuarios, onChange, className, ancora }: Props) {
+export function ObservacoesThread({ observacoes, usuarios, onChange, className, ancora, anexos }: Props) {
   const usuarioAtual = useAuth((s) => s.usuario);
   const nomeAtual = usuarioAtual?.nome ?? "";
   const [aberto, setAberto] = useState(false);
@@ -103,7 +126,7 @@ export function ObservacoesThread({ observacoes, usuarios, onChange, className, 
   const n = validas.length;
   const abertas = validas.filter((o) => !o.resolvida).length;
 
-  const adicionar = (texto: string, responsavelNome?: string) => {
+  const adicionar = (texto: string, responsavelNome?: string, arquivos: AnexoObservacao[] = []) => {
     const nova: Observacao = {
       id: novoId(),
       texto,
@@ -113,24 +136,31 @@ export function ObservacoesThread({ observacoes, usuarios, onChange, className, 
       responsavelNome: responsavelNome || "",
       resolvida: false,
       respostas: [],
+      ...(arquivos.length ? { anexos: arquivos } : {}),
     };
     onChange([...observacoes, nova]);
     setAberto(true);
     setCompor(null);
   };
 
-  const editar = (id: string, texto: string) => {
-    onChange(observacoes.map((o) => (o.id === id ? { ...o, texto } : o)));
+  /** Editar também aceita arquivo novo — o "esqueci de anexar" é frequente. */
+  const editar = (id: string, texto: string, arquivos: AnexoObservacao[] = []) => {
+    onChange(
+      observacoes.map((o) =>
+        o.id === id ? { ...o, texto, anexos: [...(o.anexos ?? []), ...arquivos] } : o
+      )
+    );
     setCompor(null);
   };
 
-  const responder = (id: string, texto: string) => {
+  const responder = (id: string, texto: string, arquivos: AnexoObservacao[] = []) => {
     const resp: RespostaObservacao = {
       id: novoId(),
       texto,
       autorId: usuarioAtual?.id ?? "",
       autorNome: usuarioAtual?.nome ?? "Você",
       criadoEm: new Date().toISOString(),
+      ...(arquivos.length ? { anexos: arquivos } : {}),
     };
     onChange(observacoes.map((o) => (o.id === id ? { ...o, respostas: [...(o.respostas ?? []), resp] } : o)));
     setCompor(null);
@@ -148,7 +178,22 @@ export function ObservacoesThread({ observacoes, usuarios, onChange, className, 
   };
 
   const excluir = (id: string) => {
+    // Comentário que some leva os arquivos junto — senão o armazenamento vira
+    // depósito de anexo órfão, que ninguém mais alcança para apagar.
+    const alvo = observacoes.find((o) => o.id === id);
+    const doComentario = [...(alvo?.anexos ?? []), ...(alvo?.respostas ?? []).flatMap((r) => r.anexos ?? [])];
+    if (doComentario.length) anexos?.remover(doComentario);
     onChange(observacoes.filter((o) => o.id !== id));
+  };
+
+  /** Tira um anexo do comentário — só o autor, e o arquivo é apagado de fato. */
+  const removerAnexo = (observacaoId: string, anexo: AnexoObservacao) => {
+    anexos?.remover([anexo]);
+    onChange(
+      observacoes.map((o) =>
+        o.id === observacaoId ? { ...o, anexos: (o.anexos ?? []).filter((a) => a.id !== anexo.id) } : o
+      )
+    );
   };
 
   const emEdicao = compor?.modo === "editar" ? observacoes.find((o) => o.id === compor.id) : undefined;
@@ -205,6 +250,8 @@ export function ObservacoesThread({ observacoes, usuarios, onChange, className, 
               usuarios={usuarios}
               vez={destinatariosDaVez(o, usuarios)}
               nomeAtual={nomeAtual}
+              anexos={anexos}
+              onRemoverAnexo={(a) => removerAnexo(o.id, a)}
               souAutor={!!usuarioAtual && o.autorId === usuarioAtual.id}
               // Resolve quem está com a batata — é ela que encerra a conversa —,
               // mais o autor, que pode desistir do que pediu.
@@ -225,7 +272,8 @@ export function ObservacoesThread({ observacoes, usuarios, onChange, className, 
                     valorInicial=""
                     usuarios={usuarios}
                     rotuloEnviar="Responder"
-                    onEnviar={(texto) => responder(o.id, texto)}
+                    anexos={anexos}
+                    onEnviar={(texto, _resp, arquivos) => responder(o.id, texto, arquivos)}
                     onCancelar={() => setCompor(null)}
                   />
                 ) : null
@@ -241,7 +289,10 @@ export function ObservacoesThread({ observacoes, usuarios, onChange, className, 
           valorInicial={emEdicao?.texto ?? ""}
           usuarios={usuarios}
           comResponsavel={compor.modo === "novo"}
-          onEnviar={(texto, responsavel) => (compor.modo === "editar" ? editar(compor.id, texto) : adicionar(texto, responsavel))}
+          anexos={anexos}
+          onEnviar={(texto, responsavel, arquivos) =>
+            compor.modo === "editar" ? editar(compor.id, texto, arquivos) : adicionar(texto, responsavel, arquivos)
+          }
           onCancelar={() => setCompor(null)}
         />
       )}
@@ -258,6 +309,8 @@ function ComentarioLinha({
   podeResolver,
   vez,
   nomeAtual,
+  anexos,
+  onRemoverAnexo,
   respondendo,
   onResponder,
   onEditar,
@@ -278,6 +331,8 @@ function ComentarioLinha({
   /** De quem é a vez agora (ver `destinatariosDaVez`). */
   vez: string[];
   nomeAtual: string;
+  anexos?: ApiAnexos;
+  onRemoverAnexo: (anexo: AnexoObservacao) => void;
 }) {
   const respostas = o.respostas ?? [];
   const minhaVez = vez.some((n) => mesmaPessoa(n, nomeAtual));
@@ -332,6 +387,14 @@ function ComentarioLinha({
         {renderComMencoes(o.texto, usuarios)}
       </p>
 
+      {anexos && (o.anexos ?? []).length > 0 && (
+        <ListaAnexos
+          itens={o.anexos!}
+          onAbrir={anexos.abrir}
+          onRemover={souAutor && !o.resolvida ? onRemoverAnexo : undefined}
+        />
+      )}
+
       {respostas.length > 0 && (
         <div className="mt-2 space-y-1.5 border-l-2 border-border-soft pl-2.5">
           {respostas.map((r) => (
@@ -341,12 +404,65 @@ function ComentarioLinha({
                 <span className="text-[10.5px] text-ink-3">{dataHoraBR(r.criadoEm)}</span>
               </div>
               <p className="text-[12.5px] text-ink-2 whitespace-pre-wrap leading-snug">{renderComMencoes(r.texto, usuarios)}</p>
+              {anexos && (r.anexos ?? []).length > 0 && <ListaAnexos itens={r.anexos!} onAbrir={anexos.abrir} />}
             </div>
           ))}
         </div>
       )}
 
       {respondendo && <div className="mt-1.5">{composer}</div>}
+    </div>
+  );
+}
+
+/* ------------------------------- Anexos ------------------------------------ */
+
+/**
+ * Os arquivos de um comentário, em fichas clicáveis.
+ *
+ * Nome e tamanho aparecem antes de abrir: num evento, saber que "planta.pdf tem
+ * 3 MB" decide se vale baixar ali no 4G do corredor ou esperar chegar em casa.
+ */
+function ListaAnexos({
+  itens,
+  onAbrir,
+  onRemover,
+}: {
+  itens: AnexoObservacao[];
+  onAbrir: (anexo: AnexoObservacao) => void;
+  /** Só o autor do comentário recebe — e aí o arquivo é apagado de verdade. */
+  onRemover?: (anexo: AnexoObservacao) => void;
+}) {
+  return (
+    <div className="mt-1.5 flex flex-wrap gap-1.5">
+      {itens.map((a) => (
+        <span
+          key={a.id}
+          className="group/anexo inline-flex items-center gap-1.5 max-w-full rounded-btn border border-border-soft bg-[#FAFAFB] pl-2 pr-1.5 py-1"
+        >
+          <span aria-hidden className="text-[13px] leading-none shrink-0">{iconeAnexo(a.nome)}</span>
+          <button
+            type="button"
+            onClick={() => onAbrir(a)}
+            title={`Abrir ${a.nome}`}
+            className="min-w-0 text-left text-[12px] font-semibold text-ink hover:text-primary-dark truncate max-w-[220px]"
+          >
+            {a.nome}
+          </button>
+          <span className="text-[10.5px] text-ink-3 shrink-0 tabular-nums">{tamanhoLegivel(a.tamanho)}</span>
+          {onRemover && (
+            <button
+              type="button"
+              onClick={() => onRemover(a)}
+              title="Remover anexo"
+              aria-label={`Remover ${a.nome}`}
+              className="shrink-0 text-ink-3 hover:text-danger p-0.5"
+            >
+              <IcFechar width={12} height={12} />
+            </button>
+          )}
+        </span>
+      ))}
     </div>
   );
 }
@@ -399,16 +515,29 @@ function Composer({
   onCancelar,
   comResponsavel = false,
   rotuloEnviar = "Comentar",
+  anexos,
 }: {
   valorInicial: string;
   usuarios: string[];
-  onEnviar: (texto: string, responsavelNome?: string) => void;
+  onEnviar: (texto: string, responsavelNome?: string, arquivos?: AnexoObservacao[]) => void;
   onCancelar: () => void;
   comResponsavel?: boolean;
   rotuloEnviar?: string;
+  anexos?: ApiAnexos;
 }) {
   const [texto, setTexto] = useState(valorInicial);
   const [responsavel, setResponsavel] = useState("");
+  /**
+   * Os arquivos escolhidos ficam AQUI até o envio, e só então sobem.
+   *
+   * Subir na escolha seria mais rápido de ver, mas encheria o armazenamento de
+   * arquivo de comentário que a pessoa desistiu de escrever — e desistir é
+   * comum. O preço é a espera de um instante ao enviar, que o botão avisa.
+   */
+  const [pendentes, setPendentes] = useState<File[]>([]);
+  const [enviando, setEnviando] = useState(false);
+  const [erroAnexo, setErroAnexo] = useState("");
+  const arquivoRef = useRef<HTMLInputElement>(null);
   const [mencao, setMencao] = useState<MencaoAtiva | null>(null);
   const [posDropdown, setPosDropdown] = useState<{ top: number; left: number } | null>(null);
   const [indiceAtivo, setIndiceAtivo] = useState(0);
@@ -468,10 +597,43 @@ function Composer({
     });
   }
 
-  function enviar() {
+  /** Peneira os escolhidos: o que não passa vira mensagem, o resto entra na fila. */
+  function escolherArquivos(lista: FileList | null) {
+    if (!lista?.length) return;
+    const aceitos: File[] = [];
+    let recusa = "";
+    for (const arquivo of Array.from(lista)) {
+      const motivo = motivoRecusaAnexo(arquivo, pendentes.length + aceitos.length);
+      if (motivo) recusa = recusa || motivo;
+      else aceitos.push(arquivo);
+    }
+    setErroAnexo(recusa);
+    if (aceitos.length) setPendentes((atuais) => [...atuais, ...aceitos]);
+    // Zera o input: sem isto, escolher o MESMO arquivo de novo não dispara nada.
+    if (arquivoRef.current) arquivoRef.current.value = "";
+  }
+
+  async function enviar() {
     const t = texto.trim();
-    if (!t) return;
-    onEnviar(t, comResponsavel ? responsavel : undefined);
+    if (!t || enviando) return;
+    if (!pendentes.length || !anexos) {
+      onEnviar(t, comResponsavel ? responsavel : undefined);
+      return;
+    }
+    setEnviando(true);
+    setErroAnexo("");
+    try {
+      // Em sequência, não em paralelo: são poucos arquivos, e assim o erro
+      // aponta qual deles falhou em vez de derrubar o lote inteiro.
+      const enviados: AnexoObservacao[] = [];
+      for (const arquivo of pendentes) enviados.push(await anexos.enviar(arquivo));
+      onEnviar(t, comResponsavel ? responsavel : undefined, enviados);
+    } catch (e) {
+      // O texto continua na caixa: ninguém perde o que escreveu por causa do anexo.
+      setErroAnexo((e as Error).message);
+    } finally {
+      setEnviando(false);
+    }
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
@@ -541,12 +703,61 @@ function Composer({
         onClick={(e) => detectarMencao(e.currentTarget.value, e.currentTarget.selectionStart ?? 0)}
         onBlur={() => setTimeout(() => setMencao(null), 150)} // dá tempo do clique na sugestão registrar
       />
-      <div className="flex justify-end gap-2 mt-1.5">
-        <Button type="button" variant="text" size="sm" onClick={onCancelar}>
+      {/* Fila de anexos deste comentário — ainda no computador de quem escreve. */}
+      {anexos && pendentes.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-1.5">
+          {pendentes.map((f, i) => (
+            <span
+              key={`${f.name}-${i}`}
+              className="inline-flex items-center gap-1.5 max-w-full rounded-btn border border-border-soft bg-[#FAFAFB] pl-2 pr-1.5 py-1"
+            >
+              <span aria-hidden className="text-[13px] leading-none shrink-0">{iconeAnexo(f.name)}</span>
+              <span className="text-[12px] font-semibold text-ink truncate max-w-[200px]">{f.name}</span>
+              <span className="text-[10.5px] text-ink-3 shrink-0 tabular-nums">{tamanhoLegivel(f.size)}</span>
+              <button
+                type="button"
+                disabled={enviando}
+                onClick={() => setPendentes((atuais) => atuais.filter((_, j) => j !== i))}
+                title="Tirar da lista"
+                aria-label={`Tirar ${f.name} da lista`}
+                className="shrink-0 text-ink-3 hover:text-danger p-0.5 disabled:opacity-40"
+              >
+                <IcFechar width={12} height={12} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {erroAnexo && <p className="mt-1.5 text-[11.5px] font-semibold text-danger">{erroAnexo}</p>}
+
+      <div className="flex items-center justify-end gap-2 mt-1.5">
+        {anexos && (
+          <>
+            <input
+              ref={arquivoRef}
+              type="file"
+              multiple
+              accept={ACCEPT_ANEXOS}
+              className="hidden"
+              onChange={(e) => escolherArquivos(e.target.files)}
+            />
+            <button
+              type="button"
+              onClick={() => arquivoRef.current?.click()}
+              disabled={enviando || pendentes.length >= MAXIMO_ANEXOS_POR_COMENTARIO}
+              title={`Anexar arquivo (até ${MAXIMO_ANEXOS_POR_COMENTARIO}, 5 MB cada)`}
+              className="mr-auto inline-flex items-center gap-1.5 h-8 px-2 rounded-btn text-[12px] font-bold text-ink-3 hover:text-primary-dark hover:bg-primary-soft transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+            >
+              <IcClipe width={14} height={14} /> Anexar
+            </button>
+          </>
+        )}
+        <Button type="button" variant="text" size="sm" onClick={onCancelar} disabled={enviando}>
           Cancelar
         </Button>
-        <Button type="button" size="sm" icon={<IcSend width={14} height={14} />} onClick={enviar} disabled={!texto.trim()}>
-          {rotuloEnviar}
+        <Button type="button" size="sm" icon={<IcSend width={14} height={14} />} onClick={enviar} disabled={!texto.trim() || enviando}>
+          {enviando ? "Enviando…" : rotuloEnviar}
         </Button>
       </div>
 
