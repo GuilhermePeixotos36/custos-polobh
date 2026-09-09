@@ -23,8 +23,8 @@ import type { Ec, EcLinha, Os } from "@/data/types";
 import { dataBR } from "@/lib/format";
 import {
   textoObjetoContrato, FORMA_PAGAMENTO_PADRAO, OBS_CONTRATO_PADRAO,
-  resumoDeCustos,
 } from "@/domain/calc";
+import { COLUNAS_CONTRATACAO, resumoContratacao, sincronizarContratacao } from "@/domain/contratacaoOs";
 import { datasDoEvento, ETAPAS_CRONOGRAMA, horariosDoEvento } from "@/domain/projeto";
 import { itensVisiveis, temContrato, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA } from "@/domain/os";
 import { COR, fill, FONT_LIGHT, baixar, nomeArquivo, carregarLogo, encaixarLogo, linhasVisuais, alturaParaLinhas } from "./shared";
@@ -355,12 +355,18 @@ export async function criarOsExcelBuffer(
   // chega ao fornecedor por e-mail, disparado de lá para todos de uma vez.
 
   /* -------------------------- RESUMO DOS CUSTOS ------------------------ */
-  // Tabela: o item e as TRÊS formas de cobrá-lo, lado a lado. As colunas são
-  // cenários alternativos — a soma de uma responde "quanto sairia se tudo fosse
-  // cobrado assim" —, por isso os totais não fecham uma conta entre si.
+  // A tabela do que foi CONTRATADO: os itens da EC e, para cada um, o valor
+  // definido no Detalhamento da Contratação. As formas que não foram usadas em
+  // item nenhum não viram coluna — uma coluna inteira vazia não é informação
+  // numa planilha que o fornecedor confere linha a linha.
   const orc = os.orcamento;
   const itens: EcLinha[] = (ec.linhas ?? []).filter((l) => (os.ecLinhaIds ?? []).includes(l.id));
-  const resumo = resumoDeCustos(itens);
+  // `sincronizarContratacao` e não `os.itens` cru: OS gravada antes desta
+  // revisão não tem contratação nenhuma, e sem isso a planilha sairia com a
+  // tabela vazia. Item sem decisão vale o que a EC levantou — é dela que os
+  // valores vêm, e é ela que a OS confirma ou renegocia.
+  const resumo = resumoContratacao(sincronizarContratacao(os.itens ?? [], itens), itens);
+  const colunas = COLUNAS_CONTRATACAO.filter((c) => resumo.colunas[c.chave]);
   secao("RESUMO DOS CUSTOS");
 
   if (!itens.length) {
@@ -372,26 +378,35 @@ export async function criarOsExcelBuffer(
   } else {
     /** Célula vazia é "não se aplica" — resposta da produção, diferente de R$ 0,00. */
     const cel = (v: number | null) => (v === null ? "Não se aplica" : dinheiro(v));
+    /** `linhaBlocos` tem quatro faixas fixas; as colunas que não saem ficam vazias. */
+    const quatro = (item: string, valores: string[]): [string, string, string, string] =>
+      [item, valores[0] ?? "", valores[1] ?? "", valores[2] ?? ""];
     const primeira = r;
-    linhaBlocos("Resumo dos Custos:", [
-      "ITEM", "VALOR COM BV E NF", "VALOR SEM BV E COM NF", "VALOR SEM BV E SEM NF",
-    ], { forte: true });
+    linhaBlocos(
+      "Resumo dos Custos:",
+      // "VALOR " + rótulo curto é o cabeçalho do modelo, palavra por palavra.
+      quatro("ITEM", colunas.map((c) => `VALOR ${c.curto.toUpperCase()}`)),
+      { forte: true }
+    );
     for (const l of resumo.linhas) {
-      linhaBlocos("", [l.item, cel(l.comBvNf), cel(l.semBvComNf), cel(l.semBvSemNf)], { semRotulo: true });
+      linhaBlocos("", quatro(l.item, colunas.map((c) => cel(l[c.chave]))), { semRotulo: true });
     }
-    linhaBlocos("", [
-      "TOTAL POR FORMA DE COBRANÇA",
-      dinheiro(resumo.totais.comBvNf),
-      dinheiro(resumo.totais.semBvComNf),
-      dinheiro(resumo.totais.semBvSemNf),
-    ], { semRotulo: true, forte: true });
+    linhaBlocos(
+      "",
+      quatro("TOTAL POR FORMA DE COBRANÇA", colunas.map((c) => dinheiro(resumo.totais[c.chave]))),
+      { semRotulo: true, forte: true }
+    );
     agruparRotulo(primeira, r - 1);
   }
 
   /* ------- Fechamento: o que vira nota fiscal e como se paga ----------- */
-  // Só as duas colunas COM nota entram aqui: é sobre elas que a emissão fala.
-  linha("Total a Faturar — Com BV e NF + Sem BV e Com NF:", resumo.totalComNota, { money: true });
-  linha("Total Sem Nota Fiscal — Sem BV e Sem NF:", resumo.totais.semBvSemNf, { money: true });
+  // A emissão fala só das duas colunas COM nota; o "sem nota" sai separado,
+  // para os dois não se lerem como um total só. Cada linha aparece quando há o
+  // que dizer nela — OS sem nada faturado não anuncia um total de R$ 0,00.
+  if (resumo.totalComNota > 0)
+    linha("Total a Faturar — Com BV e NF + Sem BV e Com NF:", resumo.totalComNota, { money: true });
+  if (resumo.totalSemNota > 0)
+    linha("Total Sem Nota Fiscal — Sem BV e Sem NF:", resumo.totalSemNota, { money: true });
   linha("Documento Fiscal:", orc.documentoFiscal);
 
   const banco = os.fornecedor?.dadosBancarios;

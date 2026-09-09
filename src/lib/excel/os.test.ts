@@ -59,6 +59,7 @@ const ec = (linhas: EcLinha[]): Ec => ({
 });
 
 const os = (ecLinhaIds: string[]): Os => ({
+itens: [],
   id: "os1", numero: "EC – ACME – Convenção – OS-01", slugCredenciamento: "abc", seq: 1,
   ecId: "ec1", ecNumero: "EC – ACME – V01", ecLinhaIds, status: "Emitida",
   projeto: projetoFixture(),
@@ -225,17 +226,35 @@ describe("Excel da OS — modelo novo", () => {
     expect(texto).toContain("25300"); // 13.000 + 12.300
   });
 
-  it("opção marcada como 'Não se aplica' sai como texto, e não como valor", async () => {
+  it("forma que não se aplica a item nenhum não vira coluna", async () => {
+    // Revisão de 09/09/2026: só vão ao fornecedor as colunas com algum valor.
+    // Uma coluna inteira "não se aplica" não é informação numa tabela que ele
+    // confere linha a linha — ela simplesmente não sai.
     const l = linha({
-      id: "l1", item: "Som", valorPolobh: 10000,
+      id: "l1", item: "Praticáveis", valorPolobh: 10000,
       valorComBvNf: 9000, valorSemBvComNf: 8500, valoresNaoAplicaveis: ["comBvNf"],
     });
-    const { linhas: linhasTxt } = await abrir(os(["l1"]), ec([l]));
-    const doItem = linhasTxt.find((x) => x?.includes("Som") && x?.includes("Não se aplica"))!;
-    expect(doItem).toBeTruthy();
+    const { linhas: linhasTxt, texto } = await abrir(os(["l1"]), ec([l]));
+    const cabecalho = linhasTxt.find((x) => x?.includes("ITEM"))!;
+    expect(cabecalho).toContain("VALOR SEM BV E COM NF");
+    expect(cabecalho).not.toContain("VALOR COM BV E NF");
     // O 9000 continua guardado na EC, mas não pode aparecer como se fosse cobrança.
-    expect(doItem).not.toContain("9.000,00");
-    expect(doItem).toContain("8.500,00");
+    expect(texto).not.toContain("9.000,00");
+    expect(linhasTxt.find((x) => x?.includes("Praticáveis"))).toContain("8.500,00");
+  });
+
+  it("na coluna que sai, o item que não se aplica sai escrito, e não como zero", async () => {
+    // Célula vazia seria lida como R$ 0,00 — "não se aplica" é resposta da
+    // produção, e o fornecedor precisa ler a diferença.
+    const { linhas: linhasTxt } = await abrir(
+      os(["l1", "l2"]),
+      ec([
+        linha({ id: "l1", item: "Praticáveis", valorComBvNf: 9000 }),
+        linha({ id: "l2", item: "Buffet", valorComBvNf: 4000, valoresNaoAplicaveis: ["comBvNf"] }),
+      ])
+    );
+    expect(linhasTxt.find((x) => x?.includes("Buffet"))).toContain("Não se aplica");
+    expect(linhasTxt.find((x) => x?.includes("Praticáveis"))).toContain("9.000,00");
   });
 
   it("os dados para pagamento vão no fim, junto do que se fatura", async () => {

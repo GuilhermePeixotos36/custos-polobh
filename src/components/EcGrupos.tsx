@@ -1135,7 +1135,8 @@ function ItemRow({
  * qual delas ele vai ser pago. Havia aqui um rádio elegendo "a que vale": ele
  * obrigava a decidir a condição de pagamento dentro de um documento que ainda
  * estava sendo montado, e a escolha nem chegava à planilha da OS, que já
- * imprimia as três colunas de qualquer jeito (ver `resumoDeCustos`).
+ * imprimia as três colunas de qualquer jeito. A escolha passou para a OS,
+ * item a item (ver `src/domain/contratacaoOs.ts`).
  *
  * O BV entra AQUI, e não só na OS, porque é aqui que ele é combinado: quem
  * negocia o valor negocia a bonificação no mesmo gesto. Ele aparece dentro da

@@ -603,6 +603,9 @@ function mapOs(r: any): Os {
     ecId: r.ec_id,
     ecNumero: r.ec?.numero ?? "",
     ecLinhaIds: (r.os_linhas ?? []).map((x: { ec_linha_id: string }) => x.ec_linha_id),
+    // OS gravada antes da contratação por item (migração `20260909160000`) vem
+    // sem `itens`: a tela os monta a partir da EC ao abrir (`sincronizarContratacao`).
+    itens: Array.isArray(r.itens) ? r.itens : [],
     status: r.status,
     fornecedor: r.fornecedor,
     projeto: normalizarProjetoInfo(r.projeto ?? r.ec?.projeto),
@@ -649,6 +652,8 @@ function osRow(os: Os) {
       valor: os.financeiro.bvValor || 0,
       justificativa: os.financeiro.bvJustificativa ?? "",
     },
+    // A contratação item a item — o que a OS decidiu pagar (ver `domain/contratacaoOs`).
+    itens: os.itens ?? [],
     observacoes_gerais: os.observacoesGerais ?? "",
     observacoes: os.observacoes,
     status: os.status,

@@ -62,7 +62,7 @@ export interface EcTotais {
   faturamentoTerceiros: number;
 }
 
-const r2 = (n: number) => Math.round(n * 100) / 100;
+export const r2 = (n: number) => Math.round(n * 100) / 100;
 
 export function totalProducao(p: Producao): number {
   return r2(
@@ -304,7 +304,8 @@ export function linhasProducaoLegado(p: Producao): { item: string; descricao: st
  * Havia um seletor aqui (um rádio elegendo "a que vale"), e ele obrigava a
  * produção a decidir cedo demais, num documento que ainda estava sendo montado —
  * e a decisão nem chegava à planilha, que já imprimia as três colunas de
- * qualquer jeito (ver `resumoDeCustos`). Revisão de 09/09/2026.
+ * qualquer jeito. Ela agora mora na OS, item a item (`src/domain/contratacaoOs.ts`).
+ * Revisão de 09/09/2026.
  */
 export const OPCOES_VALOR_ITEM = [
   { opcao: "comBvNf", rotulo: "Valor com BV e NF", campo: "valorComBvNf" },
@@ -333,64 +334,6 @@ export function valorDaOpcao(l: EcLinha, opcao: OpcaoValorDefinida): number {
   const def = OPCOES_VALOR_ITEM.find((o) => o.opcao === opcao);
   if (!def || opcaoNaoSeAplica(l, opcao)) return 0;
   return Number(l[def.campo] ?? 0) || 0;
-}
-
-/* ----------------------- Resumo dos Custos da OS -------------------------- */
-
-/** Uma linha do resumo: o item e o que ele custa em cada uma das três formas. */
-export interface LinhaResumoCustos {
-  id: string;
-  item: string;
-  /** `null` = a produção respondeu "não se aplica" para esta forma neste item. */
-  comBvNf: number | null;
-  semBvComNf: number | null;
-  semBvSemNf: number | null;
-}
-
-export interface ResumoCustos {
-  linhas: LinhaResumoCustos[];
-  /** Soma de cada coluna — quanto sairia se TUDO fosse cobrado daquela forma. */
-  totais: { comBvNf: number; semBvComNf: number; semBvSemNf: number };
-  /**
-   * O que gera nota fiscal: as duas colunas "com NF" somadas. É este valor que
-   * acompanha os dados de emissão no fim do resumo.
-   */
-  totalComNota: number;
-}
-
-/**
- * Resumo dos Custos da OS: cada item consolidado e as três formas de cobrá-lo,
- * lado a lado, com os totais por coluna.
- *
- * As três colunas são ALTERNATIVAS para o mesmo item — a soma de uma coluna
- * responde "quanto sairia se tudo fosse cobrado assim". Por isso os totais não
- * se somam entre si: cada um é um cenário inteiro.
- *
- * `null` na célula é diferente de zero: é a produção tendo respondido "não se
- * aplica" àquela forma naquele item (ver `opcaoNaoSeAplica`), e ele não entra
- * no total da coluna.
- */
-export function resumoDeCustos(linhas: EcLinha[]): ResumoCustos {
-  const valor = (l: EcLinha, opcao: OpcaoValorDefinida, campo: keyof EcLinha): number | null =>
-    opcaoNaoSeAplica(l, opcao) ? null : Number(l[campo] ?? 0) || 0;
-
-  const out: LinhaResumoCustos[] = linhas.map((l) => ({
-    id: l.id,
-    item: l.item?.trim() || l.descricao?.trim() || "(item sem nome)",
-    comBvNf: valor(l, "comBvNf", "valorComBvNf"),
-    semBvComNf: valor(l, "semBvComNf", "valorSemBvComNf"),
-    semBvSemNf: valor(l, "semBvSemNf", "valorSemBvSemNf"),
-  }));
-
-  const somar = (ler: (r: LinhaResumoCustos) => number | null) =>
-    r2(out.reduce((s, r) => s + (ler(r) ?? 0), 0));
-
-  const totais = {
-    comBvNf: somar((r) => r.comBvNf),
-    semBvComNf: somar((r) => r.semBvComNf),
-    semBvSemNf: somar((r) => r.semBvSemNf),
-  };
-  return { linhas: out, totais, totalComNota: r2(totais.comBvNf + totais.semBvComNf) };
 }
 
 /* --------------------------- BV por item --------------------------------- */

@@ -27,6 +27,7 @@ import { NavegadorPendencias } from "@/components/NavegadorPendencias";
 import { ObservacoesGeraisEc } from "@/components/ObservacoesGeraisEc";
 import { pendenciasDaTela } from "@/domain/pendencias";
 import { destacarElemento, idAncoraPendencia } from "@/lib/destaque";
+import { itemDaLinhaEc } from "@/domain/contratacaoOs";
 import { ecEditavel, situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
 import { useMinhasPendencias } from "@/store/pendencias";
 import { EcItemLeitura } from "@/components/EcItemLeitura";
@@ -571,6 +572,9 @@ function montarOsEmissao(
     ecId: ecAtual.id,
     ecNumero: ecAtual.numero,
     ecLinhaIds: linhas.map((l) => l.id),
+    // A contratação nasce com o que a EC levantou: valores, "não se aplica" e
+    // BV de cada item. Na OS eles seguem editáveis — é aqui que se fecha.
+    itens: linhas.map(itemDaLinhaEc),
     status: "Rascunho",
     fornecedor,
     // Foto dos dados gerais do evento na emissão — ver `Os.projeto`.

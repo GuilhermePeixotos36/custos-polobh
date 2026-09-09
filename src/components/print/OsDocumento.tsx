@@ -2,7 +2,8 @@
 import { itensVisiveis, temContrato, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA } from "@/domain/os";
 import type { Cliente, Ec, Os } from "@/data/types";
 import { brl, dataBR } from "@/lib/format";
-import { textoObjetoContrato, resumoDeCustos, FORMA_PAGAMENTO_PADRAO, OBS_CONTRATO_PADRAO } from "@/domain/calc";
+import { textoObjetoContrato, FORMA_PAGAMENTO_PADRAO, OBS_CONTRATO_PADRAO } from "@/domain/calc";
+import { COLUNAS_CONTRATACAO, resumoContratacao, sincronizarContratacao } from "@/domain/contratacaoOs";
 import { datasDoEvento, horariosDoEvento, resumoCronogramaProjeto } from "@/domain/projeto";
 import { empresaPadrao } from "@/store/empresas";
 
@@ -61,7 +62,12 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
   const consolidadas = ec.linhas.filter((l) => os.ecLinhaIds.includes(l.id));
   /** Só o que se aplica a esta OS — o resto não vira linha para o fornecedor ler. */
   const logistica = itensVisiveis(os.logistica, CAMPOS_LOGISTICA);
-  const resumo = resumoDeCustos(consolidadas);
+  // O que a OS DEFINIU item a item (ver `domain/contratacaoOs`).
+  // OS gravada antes desta revisão não tem contratação nenhuma: `sincronizar`
+  // parte do que a EC levantou, para o documento nunca sair com a tabela vazia.
+  const resumo = resumoContratacao(sincronizarContratacao(os.itens ?? [], consolidadas), consolidadas);
+  /** Só as colunas com algum valor vão ao fornecedor — ver `resumoContratacao`. */
+  const colunas = COLUNAS_CONTRATACAO.filter((c) => resumo.colunas[c.chave]);
   const infraestrutura = itensVisiveis(os.infraestrutura, CAMPOS_INFRAESTRUTURA);
   const tom = fiscaisDe(os.financeiro.tomador, cli);
   const contr = fiscaisDe(os.contrato.contratante, cli);
@@ -204,26 +210,26 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
           link chega ao fornecedor por e-mail. */}
 
       <Secao titulo="Resumo dos Custos" />
-      {/* O item e as TRÊS formas de cobrá-lo, lado a lado. As colunas são
-          cenários alternativos — a soma de uma responde "quanto sairia se tudo
-          fosse cobrado assim" —, por isso os totais não fecham entre si. */}
-      {resumo.linhas.length > 0 ? (
+      {/* O item e a forma como cada um é pago. Só entram as colunas que TÊM
+          valor: este papel vai ao fornecedor, e uma coluna inteira vazia é ruído
+          numa tabela que ele confere linha a linha. */}
+      {resumo.linhas.length > 0 && colunas.length > 0 ? (
         <table className="w-full text-[11px] border-collapse">
           <thead>
             <tr className="bg-[#F2F2F2] font-bold">
               <th className="text-left px-3 py-1.5 border-b border-border-soft">Item</th>
-              <th className="text-right px-3 py-1.5 border-b border-border-soft">Com BV e NF</th>
-              <th className="text-right px-3 py-1.5 border-b border-border-soft">Sem BV e Com NF</th>
-              <th className="text-right px-3 py-1.5 border-b border-border-soft">Sem BV e Sem NF</th>
+              {colunas.map((c) => (
+                <th key={c.chave} className="text-right px-3 py-1.5 border-b border-border-soft">{c.curto}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {resumo.linhas.map((l) => (
-              <tr key={l.id}>
+              <tr key={l.ecLinhaId}>
                 <td className="px-3 py-1 border-b border-border-soft">{l.item}</td>
-                {[l.comBvNf, l.semBvComNf, l.semBvSemNf].map((v, i) => (
-                  <td key={i} className="px-3 py-1 border-b border-border-soft text-right">
-                    {v === null ? "Não se aplica" : brl(v)}
+                {colunas.map((c) => (
+                  <td key={c.chave} className="px-3 py-1 border-b border-border-soft text-right">
+                    {l[c.chave] === null ? "Não se aplica" : brl(l[c.chave] as number)}
                   </td>
                 ))}
               </tr>
@@ -232,23 +238,24 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
           <tfoot>
             <tr className="font-bold">
               <td className="px-3 py-1.5">Total por forma de cobrança</td>
-              <td className="px-3 py-1.5 text-right">{brl(resumo.totais.comBvNf)}</td>
-              <td className="px-3 py-1.5 text-right">{brl(resumo.totais.semBvComNf)}</td>
-              <td className="px-3 py-1.5 text-right">{brl(resumo.totais.semBvSemNf)}</td>
+              {colunas.map((c) => (
+                <td key={c.chave} className="px-3 py-1.5 text-right">{brl(resumo.totais[c.chave])}</td>
+              ))}
             </tr>
           </tfoot>
         </table>
       ) : (
-        <>
-          <LV label="Valor do Item na EC do Projeto" valor={brl(os.orcamento.valorEc)} />
-          <LV label="Valor com BV e NF" valor={brl(os.orcamento.valorComBvNf)} />
-          <LV label="Valor Sem BV e Com Nota Fiscal" valor={brl(os.orcamento.valorSemBvComNf)} />
-          <LV label="Valor Sem BV e Sem NF" valor={brl(os.orcamento.valorSemBvSemNf)} />
-        </>
+        <LV label="Valor do Item na EC do Projeto" valor={brl(os.orcamento.valorEc)} />
       )}
-      {/* Só as duas colunas COM nota entram aqui: é sobre elas que a emissão fala. */}
-      <LV label="Total a Faturar — Com BV e NF + Sem BV e Com NF" valor={brl(resumo.totalComNota)} />
-      <LV label="Total Sem Nota Fiscal — Sem BV e Sem NF" valor={brl(resumo.totais.semBvSemNf)} />
+      {/* A emissão fala das duas colunas COM nota; o "sem nota" sai separado,
+          para os dois não se lerem como um total só. Cada linha só aparece
+          quando há o que dizer nela. */}
+      {resumo.totalComNota > 0 && (
+        <LV label="Total a Faturar — Com BV e NF + Sem BV e Com NF" valor={brl(resumo.totalComNota)} />
+      )}
+      {resumo.totalSemNota > 0 && (
+        <LV label="Total Sem Nota Fiscal — Sem BV e Sem NF" valor={brl(resumo.totalSemNota)} />
+      )}
       <LV label="Documento Fiscal" valor={os.orcamento.documentoFiscal} />
       <LV
         label="Dados para Pagamento"

@@ -241,7 +241,7 @@ const MODULOS: Modulo[] = [
           </p>
           <Dica>
             Quando um valor automático fica <b>diferente</b> da origem, o sistema não corrige por trás: ele avisa em
-            laranja e oferece o atalho — “Usar o valor do Orçamento”, “Usar o BV do Resumo dos Custos”, “Usar o que
+            laranja e oferece o atalho — “Usar o valor do Orçamento”, “Usar o BV da Contratação”, “Usar o que
             está no Projeto”. Quem decide é você.
           </Dica>
         </Secao>
@@ -352,7 +352,7 @@ const MODULOS: Modulo[] = [
               ["OS / Contrato", "escolha", "Pendente, Emitir, Emitir Nova Versão, OK ou Não se aplica. É o Contrato aqui que decide se a OS terá o bloco Dados para Contrato."],
               ["Documento PG", "escolha", "Recibo, Fatura, Nota Fiscal… A OS nasce com o que estiver aqui."],
               ["Código de Serviço", "equipe", "Vai para a emissão da nota na OS."],
-              ["Bloco de valores (com BV e NF / sem BV com NF / sem BV sem NF)", "equipe", "Quanto o item custaria de cada forma. Cada uma aceita “Não se aplica” ou um valor — a escolha é feita na OS."],
+              ["Bloco de valores (com BV e NF / sem BV com NF / sem BV sem NF)", "equipe", "Quanto o item custaria de cada forma. Cada uma aceita “Não se aplica” ou um valor — a escolha é feita na OS, no Detalhamento da Contratação."],
               ["BV — percentual ou valor fixo", "equipe", "Só na forma com BV e NF, assim que ela tem valor. É daqui que sai o BV consolidado da OS."],
               ["Justificativa do BV", "equipe", "Obrigatória quando não há BV ou ele é menor que 15%. Sem ela a OS não salva."],
               ["Observações do item", "equipe", "Conversa interna com @menção. Vira pendência para quem foi mencionado. Não sai em documento."],
@@ -379,22 +379,29 @@ const MODULOS: Modulo[] = [
             ]}
           />
           <Campos
-            bloco="Detalhamento da Contratação"
+            bloco="Detalhamento da Contratação — onde a condição é fechada"
             itens={[
+              ["Modalidade", "auto", "Cultural ou Corporativo, do projeto."],
+              ["Itens da EC", "escolha", "Quais itens esta OS consolida. É deles que sai tudo o que vem abaixo."],
+              ["Bloquinho de cada item", "equipe", "As três formas de cobrança do item, com os valores JÁ IMPORTADOS da EC — e editáveis: a EC levanta o preço, a OS fecha a condição. Cada forma aceita “Não se aplica” ou um valor."],
+              ["BV — percentual ou valor fixo", "equipe", "Só dentro da forma com BV e NF; nas outras duas não existe BV, por definição. Incide sobre o valor NEGOCIADO na OS."],
+              ["Justificativa do BV", "equipe", "Uma POR FORMA, e não uma por item como na EC: aqui as três convivem e cada uma responde por si. Cobrada quando a forma vale e sai sem BV — ou com BV abaixo de 15%."],
+              ["Formas de pagamento", "equipe", "Como o fornecedor recebe."],
               ["Descritivo", "auto", "O descritivo financeiro e o detalhado da produção, um abaixo do outro, vindos dos itens da EC."],
+            ]}
+          />
+          <Campos
+            bloco="Resumo da Contratação — o que sai do que foi decidido"
+            itens={[
               ["Entrega", "equipe", "Campo livre — deixou de ter preenchimento automático."],
               ["Cronograma", "auto", "Nasce do cronograma do projeto. Reordenável por setas e arraste."],
               ["Logística e Infraestrutura", "equipe", "Cada linha aceita “Não se aplica”: marcada, ela some do documento impresso e da planilha."],
               ["Observações Gerais", "equipe", "Texto livre que SAI no documento e no Excel — é para o fornecedor ler."],
-            ]}
-          />
-          <Campos
-            bloco="Resumo dos Custos"
-            itens={[
-              ["Tabela por item", "auto", "Cada item da EC nas três colunas de valor. “Não se aplica” aparece vazio."],
-              ["Totais por coluna", "calculado", "Somatório de cada forma de pagamento."],
-              ["Valor negociado / parcelas", "equipe", "A soma das parcelas precisa fechar com o valor negociado; o sistema avisa se não fechar."],
+              ["Resumo dos Custos", "auto", "Os itens da EC com os valores definidos no Detalhamento. Só sai a coluna que tem algum valor: coluna inteira zerada, ou inteira “Não se aplica”, não aparece para o fornecedor."],
+              ["Totais por coluna", "calculado", "No pé da tabela, o total de cada forma que saiu."],
+              ["Total a Faturar / Total Sem Nota", "calculado", "As duas colunas COM nota fiscal somadas (é sobre elas que a emissão fala) e, separado, o que é pago sem nota."],
               ["Documento Fiscal", "auto", "Vem do Documento PG dos itens da EC."],
+              ["Parcelas", "equipe", "A soma das parcelas precisa fechar com o valor a pagar; o sistema avisa se não fechar."],
             ]}
           />
           <Campos
@@ -423,7 +430,7 @@ const MODULOS: Modulo[] = [
           <Campos
             bloco="Acertos Financeiros"
             itens={[
-              ["BV Pólobh — Percentual", "auto", "Vem do que foi combinado item a item na EC. Avisa e oferece o atalho quando diverge."],
+              ["BV Pólobh — Percentual", "auto", "Vem do BV combinado item a item no Detalhamento da Contratação. Avisa e oferece o atalho quando diverge."],
               ["BV Pólobh — Valor", "calculado", "Percentual sobre o valor total."],
               ["Justificativa do BV", "equipe", "Obrigatória sem BV ou abaixo de 15% — para qualquer perfil."],
               ["Observações", "equipe", "O que ficou combinado no acerto."],
@@ -685,7 +692,7 @@ const MODULOS: Modulo[] = [
           </div>
           <Passos>
             <span>Em cada uma, ou você <b>digita o valor</b>, ou clica em <b>Não se aplica</b> — este item não é cobrado daquela forma. São respostas diferentes de deixar em branco.</span>
-            <span>Na EC <b>não se escolhe nada</b>: as três seguem lado a lado para a OS, que é onde se decide por qual delas o item vai ser pago (bloco <b>Valores negociados</b>).</span>
+            <span>Na EC <b>não se escolhe nada</b>: as três seguem lado a lado para a OS, que é onde se decide por qual delas o item vai ser pago (bloco <b>Detalhamento da Contratação</b>, item a item).</span>
             <span>Marcar "Não se aplica" <b>não apaga</b> o valor digitado: dá para voltar atrás sem perder o que estava escrito.</span>
           </Passos>
           <Dica>

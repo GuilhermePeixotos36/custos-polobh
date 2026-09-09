@@ -9,6 +9,8 @@ import {
   Textarea,
   Select,
   NumberInput,
+  CurrencyInput,
+  AutoTextarea,
   Badge,
   tomStatusOs,
   AvisoEmailPendente,
@@ -23,8 +25,8 @@ import {
   agruparPorFornecedor,
   descritivoConsolidado,
   bvConsolidado,
-  resumoDeCustos,
   BV_PADRAO_PERCENTUAL,
+  limitarBvPercentual,
   numeroOs,
   versaoOs,
   textoObjetoContrato,
@@ -54,10 +56,20 @@ import { TextosJaUsados } from "@/components/TextosJaUsados";
 import { destacarCampo, idAncoraPendencia, idCampoTrava } from "@/lib/destaque";
 import { Chevron, idSecao, useAcoesRecolher, useSecaoRecolhivel } from "@/components/layout/Recolher";
 import { ancoraCronogramaOs, pendenciasDaTela } from "@/domain/pendencias";
+import {
+  bvDaContratacao,
+  bvDoItem,
+  COLUNAS_CONTRATACAO,
+  exigeJustificativa,
+  itemDaLinhaEc,
+  resumoContratacao,
+  sincronizarContratacao,
+} from "@/domain/contratacaoOs";
 import { CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, alternarNaoSeAplica, naoSeAplica, temContrato } from "@/domain/os";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
-import type { ResumoCustos } from "@/domain/calc";
+import type { ResumoContratacao } from "@/domain/contratacaoOs";
 import type {
+  ItemContratacaoOs,
   DocumentoFiscal,
   Ec,
   EcLinha,
@@ -176,6 +188,15 @@ function aplicarAutoPreenchimento(os: Os, ec: Ec): Os {
   const bvValor = os.financeiro.bvValor || bvEc.valor;
   const bvJustificativa = os.financeiro.bvJustificativa || bvEc.justificativa;
 
+  /**
+   * A contratação acompanha os itens que a OS consolida: o que já foi negociado
+   * fica, o que entrou agora chega com os valores da EC, e o que saiu some. É
+   * também por aqui que uma OS gravada antes da contratação por item ganha os
+   * seus (ver `sincronizarContratacao`).
+   */
+  const itensContratacao = sincronizarContratacao(os.itens ?? [], linhas);
+  const totaisContratacao = resumoContratacao(itensContratacao, linhas).totais;
+
   // OSs antigas nasciam com uma única linha "Evento" gerada automaticamente.
   // Ela conta como não-preenchida, para dar lugar ao cronograma real do projeto.
   const so1 = os.cronograma.length === 1 ? os.cronograma[0] : undefined;
@@ -185,6 +206,11 @@ function aplicarAutoPreenchimento(os: Os, ec: Ec): Os {
   return {
     ...os,
     descritivo,
+    // A contratação acompanha os itens que a OS consolida: o que já foi
+    // negociado fica, o que entrou agora chega com os valores da EC, e o que
+    // saiu some. É também por aqui que uma OS gravada antes da contratação por
+    // item ganha os seus (ver `sincronizarContratacao`).
+    itens: itensContratacao,
     // Backfill de id nas etapas/parcelas antigas: dá chave estável para a lista
     // editável (sem isso, remover uma linha do meio rouba o foco da seguinte).
     cronograma: (os.cronograma.length && !cronogramaPadraoAntigo
@@ -193,6 +219,10 @@ function aplicarAutoPreenchimento(os: Os, ec: Ec): Os {
     ).map((c) => (c.id ? c : { ...c, id: novoId() })),
     orcamento: {
       ...os.orcamento,
+      // Os três totais são a soma do que a contratação definiu item a item.
+      valorComBvNf: totaisContratacao.comBvNf,
+      valorSemBvComNf: totaisContratacao.semBvComNf,
+      valorSemBvSemNf: totaisContratacao.semBvSemNf,
       documentoFiscal: os.orcamento.documentoFiscal || docFiscalEc,
       parcelas: os.orcamento.parcelas.map((p) => (p.id ? p : { ...p, id: novoId() })),
     },
@@ -307,6 +337,8 @@ export function OsForm() {
         ecId: ec.id,
         ecNumero: ec.numero,
         ecLinhaIds: linhaIds,
+        // A contratação nasce com o que a EC levantou para cada item.
+        itens: ec.linhas.filter((l) => linhaIds.includes(l.id)).map(itemDaLinhaEc),
         status: "Rascunho",
         fornecedor,
         // Foto dos dados gerais do evento: a partir daqui esta OS não muda mais
@@ -358,11 +390,47 @@ export function OsForm() {
   /** Ordem atual do cronograma, pelas chaves que o arraste manipula. */
   const idsCronograma = os.cronograma.map(idDaEtapa);
 
-  /** Resumo dos Custos: cada item e as três formas de cobrá-lo, com os totais. */
-  const resumo = resumoDeCustos(linhasConsolidadas);
+  /** Resumo dos Custos: o que a contratação decidiu, item a item, com os totais. */
+  const resumo = resumoContratacao(os.itens, linhasConsolidadas);
 
-  /** O BV combinado nos itens desta OS — a origem do que está nos campos abaixo. */
-  const bvDaEc = bvConsolidado(linhasConsolidadas);
+  /** O BV desta contratação — a soma do que foi fechado item a item. */
+  const bvContratado = bvDaContratacao(os.itens);
+
+  /**
+   * Muda uma forma de cobrança de um item — e leva o total junto.
+   *
+   * Os três totais do Pagamento ao Fornecedor são a soma do que se definiu item
+   * a item, e é do "com BV e NF" que vivem o Faturamento e o Contrato. Eles
+   * acompanham enquanto estiverem espelhados, isto é, enquanto ninguém os tiver
+   * ajustado à mão — quem ajustou tinha um motivo, e não se desfaz isso por
+   * baixo.
+   */
+  const updItem = (ecLinhaId: string, patch: Partial<ItemContratacaoOs>) =>
+    setOs((o) => {
+      if (!o) return o;
+      const itens = o.itens.map((i) => (i.ecLinhaId === ecLinhaId ? { ...i, ...patch } : i));
+      const { totais } = resumoContratacao(itens, linhasConsolidadas);
+      const anterior = o.orcamento.valorComBvNf;
+      const espelhaFin = o.financeiro.valorTotal === anterior;
+      const espelhaCt = o.contrato.valorTotal === anterior;
+      const v = totais.comBvNf;
+      return {
+        ...o,
+        itens,
+        orcamento: {
+          ...o.orcamento,
+          valorComBvNf: v,
+          valorSemBvComNf: totais.semBvComNf,
+          valorSemBvSemNf: totais.semBvSemNf,
+        },
+        financeiro: espelhaFin
+          ? { ...o.financeiro, valorUnitario: v, valorTotal: v, valorAPagar: v - o.financeiro.descontoNegociado }
+          : o.financeiro,
+        contrato: espelhaCt
+          ? { ...o.contrato, valorUnitario: v, valorTotal: v, valorAPagar: v - o.contrato.descontoNegociado }
+          : o.contrato,
+      };
+    });
   // Justificativa do BV é obrigatória quando não há BV ou o percentual é < 15%.
   const bvPrecisaJustif = os.financeiro.bvPercentual < BV_PADRAO_PERCENTUAL;
   const bvJustifFaltando = bvPrecisaJustif && !os.financeiro.bvJustificativa?.trim();
@@ -371,7 +439,7 @@ export function OsForm() {
    * altera, ou quando os itens da EC mudam depois, os dois divergem — e sem
    * dizer isso o campo passaria a mentir sobre o que foi combinado.
    */
-  const bvDivergeDaEc = bvDaEc.percentual > 0 && Math.abs(os.financeiro.bvPercentual - bvDaEc.percentual) >= 0.01;
+  const bvDiverge = bvContratado.percentual > 0 && Math.abs(os.financeiro.bvPercentual - bvContratado.percentual) >= 0.01;
 
   /** Para abrir o bloco certo quando um aviso precisa levar a pessoa a um campo. */
   const recolher = useAcoesRecolher();
@@ -423,30 +491,6 @@ export function OsForm() {
   const dadosTomador = dadosFiscais(os.financeiro.tomador, ecCtx, empresaPolobh);
   const dadosContratante = dadosFiscais(os.contrato.contratante, ecCtx, empresaPolobh);
 
-  /**
-   * O valor negociado no Orçamento é a origem dos valores de Faturamento e
-   * Contrato. Propaga para os dois enquanto estiverem espelhados (ou seja,
-   * enquanto ninguém os tiver alterado à mão) — assim eles não ficam para trás.
-   */
-  function setValorNegociado(v: number) {
-    setOs((o) => {
-      if (!o) return o;
-      const anterior = o.orcamento.valorComBvNf;
-      const espelhaFin = o.financeiro.valorTotal === anterior;
-      const espelhaCt = o.contrato.valorTotal === anterior;
-      return {
-        ...o,
-        orcamento: { ...o.orcamento, valorComBvNf: v },
-        financeiro: espelhaFin
-          ? { ...o.financeiro, valorUnitario: v, valorTotal: v, valorAPagar: v - o.financeiro.descontoNegociado }
-          : o.financeiro,
-        contrato: espelhaCt
-          ? { ...o.contrato, valorUnitario: v, valorTotal: v, valorAPagar: v - o.contrato.descontoNegociado }
-          : o.contrato,
-      };
-    });
-  }
-
   /** Valor total do Faturamento — replica no Contrato enquanto estiver espelhado. */
   function setValorTotalFinanceiro(v: number) {
     setOs((o) => {
@@ -469,25 +513,25 @@ export function OsForm() {
   // continuar acessível a todos os perfis (o salvamento exige a justificativa).
   // Vai dentro de "Dados de Faturamento" para o financeiro e em card próprio para os demais.
   //
-  // Os três campos já nascem preenchidos pelo que foi combinado ITEM A ITEM na
-  // EC (ver `bvConsolidado`): aqui é o lugar de conferir e ajustar, não de
-  // lembrar de cabeça o que se negociou semanas atrás.
+  // Os três campos já nascem preenchidos pelo BV combinado ITEM A ITEM no
+  // Detalhamento da Contratação (ver `bvDaContratacao`): aqui é o lugar de
+  // conferir e ajustar, não de lembrar de cabeça o que se negociou semanas atrás.
   const bvBloco = (
     <>
       <LinhaOs
         label="BV Pólobh — Percentual"
-        hint={bvDaEc.valor > 0 ? `(do Resumo dos Custos: ${bvDaEc.percentual}% · ${brl(bvDaEc.valor)})` : "(do Resumo dos Custos)"}
+        hint={bvContratado.valor > 0 ? `(do Detalhamento da Contratação: ${bvContratado.percentual}% · ${brl(bvContratado.valor)})` : "(do Detalhamento da Contratação)"}
       >
         <NumberInput value={os.financeiro.bvPercentual} onValue={(v) => updFin({ bvPercentual: v, bvValor: (os.financeiro.valorTotal * v) / 100 })} />
-        {bvDivergeDaEc && (
+        {bvDiverge && (
           <div className="mt-1.5 flex items-center gap-2 flex-wrap text-[12px] text-warning">
-            <span className="font-semibold">Diferente do combinado nos itens ({bvDaEc.percentual}%).</span>
+            <span className="font-semibold">Diferente do combinado nos itens ({bvContratado.percentual}%).</span>
             <button
               type="button"
-              onClick={() => updFin({ bvPercentual: bvDaEc.percentual, bvValor: (os.financeiro.valorTotal * bvDaEc.percentual) / 100 })}
+              onClick={() => updFin({ bvPercentual: bvContratado.percentual, bvValor: (os.financeiro.valorTotal * bvContratado.percentual) / 100 })}
               className="font-bold text-primary-dark hover:underline"
             >
-              Usar o BV do Resumo dos Custos
+              Usar o BV da Contratação
             </button>
           </div>
         )}
@@ -835,6 +879,57 @@ export function OsForm() {
               </p>
             )}
           </LinhaOs>
+          <LinhaOs label="Itens da EC" hint={`(${linhasConsolidadas.length} consolidado(s) — origem do descritivo)`}>
+            <div className="py-2 space-y-1.5">
+              {linhasConsolidadas.map((l) => (
+                <div key={l.id} className="text-sm">
+                  <span className="font-bold text-ink">{l.item || "—"}</span>
+                  <span className="text-[12px] text-ink-3"> · {l.grupo}</span>
+                  {verFinanceiro && (
+                    <span className="font-display font-bold text-ink"> — {brl(l.valorPolobh + l.valorCliente)}</span>
+                  )}
+                  {l.descricao && <div className="text-[12px] text-ink-2">{l.descricao}</div>}
+                </div>
+              ))}
+              {verFinanceiro && (
+                <div className="text-sm font-display font-bold text-primary-dark pt-1.5 border-t border-border-soft">
+                  Total consolidado: {brl(linhasConsolidadas.reduce((s, l) => s + l.valorPolobh + l.valorCliente, 0))}
+                </div>
+              )}
+            </div>
+          </LinhaOs>
+
+          {/* A DEFINIÇÃO da contratação, item a item. A EC levanta o preço de
+              cada forma; aqui se fecha qual vale, por quanto e com que BV — é
+              esta OS que vira contrato com o fornecedor. Os valores já chegam
+              preenchidos da EC e seguem editáveis. Só quem enxerga o financeiro
+              vê e mexe (mesma regra do resto dos valores). */}
+          {verFinanceiro && (
+            <LinhaOs
+              label="Formas de pagamento"
+              hint="(vêm da EC — defina aqui o que vale para cada item)"
+            >
+              <div className="py-1.5 space-y-2">
+                {os.itens.map((i) => {
+                  const l = linhasConsolidadas.find((x) => x.id === i.ecLinhaId);
+                  return (
+                    <ItemContratacao
+                      key={i.ecLinhaId}
+                      item={i}
+                      nome={l?.item?.trim() || l?.descricao?.trim() || "(item sem nome)"}
+                      grupo={l?.grupo ?? ""}
+                      descricao={l?.descricao ?? ""}
+                      onUpd={(patch) => updItem(i.ecLinhaId, patch)}
+                    />
+                  );
+                })}
+                {!os.itens.length && (
+                  <p className="text-[12.5px] text-ink-3">Esta OS não está ligada a itens da EC.</p>
+                )}
+              </div>
+            </LinhaOs>
+          )}
+
           <LinhaOs label="Descritivo" hint="(auto da EC)">
             <Textarea className="min-h-[140px]" value={os.descritivo} onChange={(e) => setOs((o) => (o ? { ...o, descritivo: e.target.value } : o))} />
             {descritivoDaEc && descritivoDaEc !== os.descritivo && (
@@ -856,27 +951,15 @@ export function OsForm() {
           {/* Sem memória de preenchimento, por decisão: a entrega é específica de
               cada contratação, e oferecer a de outra OS convidava a repetir o
               que não vale para esta. */}
-          <LinhaOs label="Entrega"><Input value={os.entrega} onChange={(e) => setOs((o) => (o ? { ...o, entrega: e.target.value } : o))} placeholder="Instalação, operação, acompanhamento…" /></LinhaOs>
-          <LinhaOs label="Itens da EC" hint={`(${linhasConsolidadas.length} consolidado(s) — origem do descritivo)`}>
-            <div className="py-2 space-y-1.5">
-              {linhasConsolidadas.map((l) => (
-                <div key={l.id} className="text-sm">
-                  <span className="font-bold text-ink">{l.item || "—"}</span>
-                  <span className="text-[12px] text-ink-3"> · {l.grupo}</span>
-                  {verFinanceiro && (
-                    <span className="font-display font-bold text-ink"> — {brl(l.valorPolobh + l.valorCliente)}</span>
-                  )}
-                  {l.descricao && <div className="text-[12px] text-ink-2">{l.descricao}</div>}
-                </div>
-              ))}
-              {verFinanceiro && (
-                <div className="text-sm font-display font-bold text-primary-dark pt-1.5 border-t border-border-soft">
-                  Total consolidado: {brl(linhasConsolidadas.reduce((s, l) => s + l.valorPolobh + l.valorCliente, 0))}
-                </div>
-              )}
-            </div>
-          </LinhaOs>
+        </CardOs>
 
+        {/* RESUMO DA CONTRATAÇÃO — o que o fornecedor precisa fazer e receber:
+            entrega, cronograma, logística, infraestrutura, recados e, no fim, a
+            tabela do que foi definido no bloco de cima. Estava tudo num card só
+            com o Detalhamento, e o formulário virava uma coluna sem fim em que
+            "o que se contrata" e "como se executa" se misturavam. */}
+        <CardOs secao="Resumo da Contratação">
+          <LinhaOs label="Entrega"><Input value={os.entrega} onChange={(e) => setOs((o) => (o ? { ...o, entrega: e.target.value } : o))} placeholder="Instalação, operação, acompanhamento…" /></LinhaOs>
           {/* Cronograma específico do fornecedor — já vem do cronograma do projeto.
               O `id` é o endereço da pendência "cronograma não preenchido": ela é
               cobrada na etapa da OS e se resolve aqui, então a pílula pisca este
@@ -982,6 +1065,15 @@ export function OsForm() {
               placeholder="O que o fornecedor precisa saber e não coube nos outros campos."
             />
           </LinhaOs>
+
+          {/* A tabela do que foi definido lá em cima, item a item. Fecha o bloco
+              porque é o que o fornecedor confere por último — e é ela que sai no
+              PDF e na planilha, com as colunas vazias omitidas. */}
+          {verFinanceiro && (
+            <LinhaOs label="Resumo dos Custos" hint="(o que foi definido no Detalhamento)">
+              <TabelaResumoCustos resumo={resumo} />
+            </LinhaOs>
+          )}
         </CardOs>
 
         {/* COMENTÁRIOS INTERNOS — não saem em documento, e-mail ou planilha */}
@@ -1007,25 +1099,21 @@ export function OsForm() {
             se vê a fila inteira e se dispara para todos os fornecedores de uma
             vez. O link continua sendo o desta OS — o que mudou foi o comando. */}
         <div className="space-y-4">
-          {/* RESUMO DOS CUSTOS */}
-          <CardOs secao="Resumo dos Custos">
-            {/* As três formas de cobrar cada item, lado a lado — o que a produção
-                preencheu lá na EC. Aqui é leitura: para mudar, muda-se no item.
-                As colunas são CENÁRIOS alternativos, não parcelas de um total:
-                por isso os totais não se somam entre si. */}
-            <LinhaOs label="Por item (vindo da EC)" hint="(as três formas, item a item)">
-              <TabelaResumoCustos resumo={resumo} />
-            </LinhaOs>
-            {/* Os números acima são o que a EC registrou; os de baixo são o que
-                foi NEGOCIADO com o fornecedor, e é deles que vivem o Faturamento
-                e o Contrato. Separados para não se lerem como repetição. */}
-            <SubSecao>Valores negociados</SubSecao>
+          {/* PAGAMENTO — parcelas e documento fiscal, sobre o que a contratação
+              definiu. A tabela em si fica no Resumo da Contratação, junto do
+              resto do que o fornecedor recebe. */}
+          <CardOs secao="Pagamento ao Fornecedor">
             <LinhaOs label="Valor do Item na EC do Projeto" hint="(soma dos itens consolidados)"><Auto v={brl(os.orcamento.valorEc)} /></LinhaOs>
-            <LinhaOs label="Valor com BV e NF" hint="(valor negociado — alimenta Faturamento e Contrato)">
-              <NumberInput value={os.orcamento.valorComBvNf} onValue={setValorNegociado} />
+            {/* Os três totais são o que foi definido item a item, em Detalhamento
+                da Contratação — não são digitáveis aqui. Eram, e havia duas
+                verdades sobre o mesmo número: o que a produção fechou no item e
+                o que alguém escreveu na OS inteira. É deste "com BV e NF" que
+                vivem o Faturamento e o Contrato. */}
+            <LinhaOs label="Valor com BV e NF" hint="(total definido no Detalhamento — alimenta Faturamento e Contrato)">
+              <Auto v={brl(resumo.totais.comBvNf)} />
             </LinhaOs>
-            <LinhaOs label="Valor Sem BV e Com Nota Fiscal"><NumberInput value={os.orcamento.valorSemBvComNf} onValue={(v) => updOrc({ valorSemBvComNf: v })} /></LinhaOs>
-            <LinhaOs label="Valor Sem BV e Sem NF"><NumberInput value={os.orcamento.valorSemBvSemNf} onValue={(v) => updOrc({ valorSemBvSemNf: v })} /></LinhaOs>
+            <LinhaOs label="Valor Sem BV e Com Nota Fiscal" hint="(total definido no Detalhamento)"><Auto v={brl(resumo.totais.semBvComNf)} /></LinhaOs>
+            <LinhaOs label="Valor Sem BV e Sem NF" hint="(total definido no Detalhamento)"><Auto v={brl(resumo.totais.semBvSemNf)} /></LinhaOs>
 
             <LinhaOs
               label="Prazo de Pagamento"
@@ -1486,9 +1574,163 @@ function CampoOpcionalOs({
  * Célula vazia é "não se aplica", e é diferente de R$ 0,00: uma é resposta da
  * produção, a outra é um valor.
  */
-function TabelaResumoCustos({ resumo }: { resumo: ResumoCustos }) {
+/**
+ * A DEFINIÇÃO da contratação de um item: qual forma vale, por quanto, e por quê.
+ *
+ * Os valores chegam prontos da EC e seguem editáveis — a EC levanta o preço, a
+ * OS fecha a condição, e o número que fecha nem sempre é o que foi estimado. O
+ * BV mora dentro da forma "com BV e NF" (nas outras não existe, por definição) e
+ * a justificativa é UMA POR FORMA: aqui as três convivem, e cada uma responde
+ * por si (ver `domain/contratacaoOs`).
+ */
+function ItemContratacao({
+  item,
+  nome,
+  grupo,
+  descricao,
+  onUpd,
+}: {
+  item: ItemContratacaoOs;
+  nome: string;
+  grupo: string;
+  descricao: string;
+  onUpd: (patch: Partial<ItemContratacaoOs>) => void;
+}) {
+  const bv = bvDoItem(item);
+  const abaixoDoPadrao = bv.base > 0 && bv.percentual < BV_PADRAO_PERCENTUAL;
+
+  return (
+    <div className="rounded-card border border-border-soft bg-surface p-3">
+      <div className="mb-2">
+        <span className="text-[13px] font-bold text-ink">{nome}</span>
+        <span className="text-[11.5px] text-ink-3"> · {grupo}</span>
+        {descricao && <div className="text-[12px] text-ink-2">{descricao}</div>}
+      </div>
+
+      <div className="grid sm:grid-cols-3 gap-2">
+        {COLUNAS_CONTRATACAO.map(({ chave, longo }) => {
+          const opcao = item[chave];
+          const exigida = exigeJustificativa(item, chave);
+          const escrita = (opcao.justificativaBv ?? "").trim();
+          const faltando = exigida && !escrita;
+          const mudar = (patch: Partial<typeof opcao>) => onUpd({ [chave]: { ...opcao, ...patch } } as Partial<ItemContratacaoOs>);
+
+          return (
+            <div key={chave} className="rounded-btn border border-border-soft bg-[#FCFCFD] px-2 py-1.5">
+              <span className="block text-[11px] font-bold leading-tight text-ink-2 mb-1">{longo}</span>
+
+              {/* Ou o valor, ou "Não se aplica" — as duas respostas possíveis. */}
+              {opcao.naoSeAplica ? (
+                <div className="h-8 flex items-center rounded-btn border border-border-soft bg-[#F1F2F5] px-2 text-[12.5px] font-bold text-ink-3">
+                  Não se aplica
+                </div>
+              ) : (
+                <CurrencyInput
+                  className="!h-8 !px-2 !text-[12.5px]"
+                  value={opcao.valor}
+                  onValue={(valor) => mudar({ valor })}
+                  aria-label={`${longo} de ${nome}`}
+                />
+              )}
+              <button
+                type="button"
+                onClick={() => mudar({ naoSeAplica: !opcao.naoSeAplica })}
+                className="mt-1 text-[10.5px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded"
+                title={opcao.naoSeAplica ? "Voltar a informar um valor" : "Este item não é pago desta forma"}
+              >
+                {opcao.naoSeAplica ? "Informar valor" : "Não se aplica"}
+              </button>
+
+              {/* O BV só existe na cobrança COM BV, e só enquanto ela vale. */}
+              {chave === "comBvNf" && !opcao.naoSeAplica && (
+                <div className="mt-2 pt-2 border-t border-border-soft space-y-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-extrabold uppercase tracking-[0.05em] text-ink-3">BV</span>
+                    <div className="flex rounded-btn border border-border-soft overflow-hidden">
+                      {(["percentual", "fixo"] as const).map((modo) => (
+                        <button
+                          key={modo}
+                          type="button"
+                          onClick={() => onUpd({ bv: { ...item.bv, modo } })}
+                          className={cx(
+                            "px-1.5 py-0.5 text-[10px] font-bold transition-colors",
+                            item.bv.modo === modo ? "bg-primary text-white" : "bg-surface text-ink-3 hover:text-ink"
+                          )}
+                        >
+                          {modo === "percentual" ? "%" : "R$"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {item.bv.modo === "percentual" ? (
+                    <NumberInput
+                      className="!h-8 !px-2 !text-[12.5px]"
+                      value={item.bv.valor}
+                      onValue={(valor) => onUpd({ bv: { ...item.bv, valor: limitarBvPercentual(valor) } })}
+                      aria-label={`Percentual do BV de ${nome}`}
+                    />
+                  ) : (
+                    <CurrencyInput
+                      className="!h-8 !px-2 !text-[12.5px]"
+                      value={item.bv.valor}
+                      onValue={(valor) => onUpd({ bv: { ...item.bv, valor } })}
+                      aria-label={`Valor fixo do BV de ${nome}`}
+                    />
+                  )}
+                  {/* O outro lado da conta, sempre à vista. */}
+                  <p className={cx("text-[10.5px] font-semibold", abaixoDoPadrao ? "text-warning" : "text-ink-3")}>
+                    {item.bv.modo === "percentual" ? brl(bv.valor) : `${bv.percentual.toLocaleString("pt-BR")}%`}
+                    {abaixoDoPadrao && ` · abaixo de ${BV_PADRAO_PERCENTUAL}%`}
+                  </p>
+                </div>
+              )}
+
+              {/* Justificativa por forma: some quando a forma não vale ou o BV
+                  está no padrão, e fica se já houver texto escrito. */}
+              {(exigida || escrita) && (
+                <div className="mt-2 pt-2 border-t border-border-soft">
+                  <span className="block text-[10px] font-extrabold uppercase tracking-[0.05em] text-ink-3 mb-1">
+                    Justificativa do BV {exigida && <span className="text-danger">*</span>}
+                  </span>
+                  <AutoTextarea
+                    className={cx("!text-[12px]", faltando && "!border-danger !bg-danger-soft")}
+                    rows={2}
+                    value={opcao.justificativaBv ?? ""}
+                    onChange={(e) => mudar({ justificativaBv: e.target.value })}
+                    placeholder={
+                      chave === "comBvNf"
+                        ? "Por que o BV ficou abaixo de 15%."
+                        : "Por que este item é pago sem BV."
+                    }
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Resumo dos Custos — o que a contratação decidiu, item a item.
+ *
+ * Só entram as colunas que têm algum valor: é esta tabela que vai ao fornecedor
+ * (documento e planilha), e uma coluna inteira zerada não é informação, é ruído
+ * numa tabela que ele confere linha a linha (ver `resumoContratacao`).
+ */
+function TabelaResumoCustos({ resumo }: { resumo: ResumoContratacao }) {
   if (!resumo.linhas.length) {
     return <p className="py-2 text-[12.5px] text-ink-3">Esta OS não está ligada a itens da EC.</p>;
+  }
+  const colunas = COLUNAS_CONTRATACAO.filter((c) => resumo.colunas[c.chave]);
+  if (!colunas.length) {
+    return (
+      <p className="py-2 text-[12.5px] text-ink-3">
+        Nenhum valor definido ainda — preencha as formas de cobrança em <b>Detalhamento da Contratação</b>.
+      </p>
+    );
   }
   const celula = (v: number | null) =>
     v === null ? <i className="text-ink-3 font-normal">Não se aplica</i> : brl(v);
@@ -1499,30 +1741,43 @@ function TabelaResumoCustos({ resumo }: { resumo: ResumoCustos }) {
         <thead>
           <tr className="text-[10.5px] font-extrabold uppercase tracking-[0.05em] text-ink-3">
             <th className="text-left font-extrabold pb-1.5 pr-2">Item</th>
-            <th className="text-right font-extrabold pb-1.5 px-2 whitespace-nowrap">Com BV e NF</th>
-            <th className="text-right font-extrabold pb-1.5 px-2 whitespace-nowrap">Sem BV e Com NF</th>
-            <th className="text-right font-extrabold pb-1.5 pl-2 whitespace-nowrap">Sem BV e Sem NF</th>
+            {colunas.map((c) => (
+              <th key={c.chave} className="text-right font-extrabold pb-1.5 px-2 whitespace-nowrap">{c.curto}</th>
+            ))}
           </tr>
         </thead>
         <tbody>
           {resumo.linhas.map((l) => (
-            <tr key={l.id} className="border-t border-border-soft">
+            <tr key={l.ecLinhaId} className="border-t border-border-soft">
               <td className="py-1.5 pr-2 font-semibold text-ink">{l.item}</td>
-              <td className="py-1.5 px-2 text-right font-display text-ink">{celula(l.comBvNf)}</td>
-              <td className="py-1.5 px-2 text-right font-display text-ink">{celula(l.semBvComNf)}</td>
-              <td className="py-1.5 pl-2 text-right font-display text-ink">{celula(l.semBvSemNf)}</td>
+              {colunas.map((c) => (
+                <td key={c.chave} className="py-1.5 px-2 text-right font-display text-ink">{celula(l[c.chave])}</td>
+              ))}
             </tr>
           ))}
         </tbody>
         <tfoot>
           <tr className="border-t-2 border-border font-bold text-ink">
             <td className="py-1.5 pr-2">Total por forma de cobrança</td>
-            <td className="py-1.5 px-2 text-right font-display">{brl(resumo.totais.comBvNf)}</td>
-            <td className="py-1.5 px-2 text-right font-display">{brl(resumo.totais.semBvComNf)}</td>
-            <td className="py-1.5 pl-2 text-right font-display">{brl(resumo.totais.semBvSemNf)}</td>
+            {colunas.map((c) => (
+              <td key={c.chave} className="py-1.5 px-2 text-right font-display">{brl(resumo.totais[c.chave])}</td>
+            ))}
           </tr>
         </tfoot>
       </table>
+      {/* O que gera nota e o que não gera, separados: são bases diferentes, e
+          somá-las daria um total que não existe em lugar nenhum. */}
+      <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-[12px] border-t border-border-soft pt-2">
+        <span className="text-ink-2">
+          Total a faturar <span className="text-ink-3">(com nota fiscal)</span>:{" "}
+          <b className="font-display text-ink">{brl(resumo.totalComNota)}</b>
+        </span>
+        {resumo.totalSemNota > 0 && (
+          <span className="text-ink-2">
+            Sem nota fiscal: <b className="font-display text-ink">{brl(resumo.totalSemNota)}</b>
+          </span>
+        )}
+      </div>
     </div>
   );
 }

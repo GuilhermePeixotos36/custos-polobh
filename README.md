@@ -275,9 +275,9 @@ para a OS, que é onde se decide por qual delas o item vai ser pago (bloco
 Havia um rádio elegendo "a que vale" (`ec_linhas.opcao_valor`). Ele obrigava a
 produção a fechar a condição de pagamento dentro de um documento ainda em
 montagem, e a escolha **nem chegava à planilha** — o bloco ORÇAMENTO da OS já
-imprimia as três colunas item a item (`resumoDeCustos`). A coluna continua no
-banco por ora, sem uso: o app parou de escrevê-la e a RPC preenche o padrão
-vazio (revisão de 09/09/2026).
+imprimia as três colunas item a item. A escolha passou para a OS, item a item
+(ver abaixo). A coluna continua no banco por ora, sem uso: o app parou de
+escrevê-la e a RPC preenche o padrão vazio (revisão de 09/09/2026).
 
 Duas regras do **BV** saíram junto do seletor:
 - o BV conta assim que existe **valor com BV e NF** no item — antes só valia
@@ -286,6 +286,51 @@ Duas regras do **BV** saíram junto do seletor:
   BV e a resposta foge do padrão: "Não se aplica" (o item sai sem BV, de
   propósito) ou um BV abaixo de 15%. Campo em branco não cobra nada, senão toda
   linha recém-criada nasceria com alerta.
+
+## A OS em dois blocos: Detalhamento e Resumo da Contratação
+Revisão de 09/09/2026. A OS é o documento que vira **contrato com o fornecedor**,
+e ela agora se lê em duas metades, na ordem em que a decisão acontece.
+
+**Detalhamento da Contratação** — onde se decide:
+- Modalidade · Item da EC · Descritivo (puxado da EC);
+- e um **bloquinho por item** (`ItemContratacao`, em `pages/OsForm`) com as três
+  formas de cobrança. Os valores **chegam prontos da EC** e seguem editáveis: a
+  EC levanta o preço, a OS fecha a condição, e o número que fecha nem sempre é o
+  estimado. O que a EC registrou fica lá, intacto.
+  - **Valor com BV e NF** — "Não se aplica" ou valor, mais o **BV** (percentual
+    ou valor fixo) e a **justificativa do BV**;
+  - **Valor Sem BV e Com Nota Fiscal** e **Valor Sem BV e Sem NF** — "Não se
+    aplica" ou valor, mais a **justificativa do BV** (por definição elas saem
+    sem BV, e a casa quer saber por quê).
+
+A **justificativa é uma por forma**, e não uma por item como na EC: ali só uma
+das três valia, aqui as três convivem na mesma tabela e cada uma responde por si
+(`exigeJustificativa`, `justificativasFaltando`).
+
+**Resumo da Contratação** — o que sai do que foi decidido: Entrega, Cronograma,
+Logística, Infraestrutura, Observações Gerais e o **Resumo dos Custos**, a tabela
+dos itens da EC com os valores definidos no Detalhamento.
+- **Só sai a coluna que tem algum valor.** Uma coluna inteira zerada, ou inteira
+  "Não se aplica", não é informação numa tabela que o fornecedor confere linha a
+  linha — ela simplesmente não aparece no PDF nem na planilha. Dentro de uma
+  coluna que sai, o item que não se aplica sai **escrito**, e não como R$ 0,00.
+- No pé, o **total de cada coluna**, e depois a separação que interessa ao
+  faturamento: **Total a Faturar** (as duas colunas *com* NF, que são as que
+  geram nota) e **Total Sem Nota Fiscal**. Cada linha só aparece quando há o que
+  dizer nela. Os dados para pagamento vêm logo abaixo, conforme essas opções.
+
+A regra mora em `domain/contratacaoOs.ts` (`resumoContratacao`,
+`COLUNAS_CONTRATACAO`, `bvDoItem`, `bvDaContratacao`) e é a mesma nos três
+lugares em que a OS aparece — tela, PDF (`print/OsDocumento`) e planilha
+(`excel/os`) —, para os três nunca discordarem sobre o nome ou a presença de uma
+coluna. A contratação é gravada em `oss.itens` (jsonb, migração
+`20260909160000`); **OS gravada antes disso vem `[]`** e se preenche a partir da
+EC ao ser aberta ou exportada (`sincronizarContratacao`), que também é o que
+mantém o já negociado quando a OS ganha ou perde itens.
+
+Os três totais do bloco Pagamento ao Fornecedor (`orcamento.valorComBvNf` e
+companhia) viraram **leitura**: são a soma do que foi definido item a item. Antes
+eram digitados para a OS inteira, e não sabiam dizer de onde vinham.
 
 ## Cálculos da EC (fixos)
 - `somaFornecedores` = Σ(valor Pólobh) + Σ(produção)

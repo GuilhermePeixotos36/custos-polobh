@@ -330,6 +330,35 @@ export interface BvItem {
   justificativa: string;
 }
 
+/* ------------------- A contratação: o que a OS decide pagar --------------- */
+
+/**
+ * Uma das três formas de cobrança, já decidida na OS.
+ *
+ * Na EC as três são informação lado a lado; aqui cada uma vale ou não vale, e
+ * por quanto. A justificativa é UMA POR FORMA (na EC era uma por item): ali só
+ * uma valia, aqui as três convivem na mesma tabela e cada uma responde por si.
+ */
+export interface OpcaoContratacaoOs {
+  /** A forma não vale para este item nesta contratação. */
+  naoSeAplica: boolean;
+  /** O valor NEGOCIADO — chega da EC e segue editável, que a OS é acordo. */
+  valor: number;
+  /** Por que sem BV, ou com BV fora do padrão da casa. */
+  justificativaBv: string;
+}
+
+/** O que foi fechado para UM item da EC dentro desta OS (ver `domain/contratacaoOs`). */
+export interface ItemContratacaoOs {
+  /** Item da EC a que esta decisão pertence. */
+  ecLinhaId: string;
+  comBvNf: OpcaoContratacaoOs;
+  /** O BV combinado — só existe na cobrança com BV e NF, e por isso mora fora dela. */
+  bv: { modo: "percentual" | "fixo"; valor: number };
+  semBvComNf: OpcaoContratacaoOs;
+  semBvSemNf: OpcaoContratacaoOs;
+}
+
 export interface EcLinha {
   id: string;
   grupo: string;
@@ -657,6 +686,13 @@ export interface Os {
   ecId: string;
   ecNumero: string;
   ecLinhaIds: string[]; // linhas da EC consolidadas
+  /**
+   * A CONTRATAÇÃO: o que se decidiu pagar, item a item (ver
+   * `domain/contratacaoOs`). Nasce dos valores levantados na EC e segue
+   * editável — é aqui que se fecha a condição com o fornecedor, e é daqui que
+   * sai o Resumo dos Custos do documento.
+   */
+  itens: ItemContratacaoOs[];
   status: StatusOsDoc;
   fornecedor: Fornecedor; // snapshot
   /**
