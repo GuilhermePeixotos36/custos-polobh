@@ -7,6 +7,16 @@
 import { supabase } from "@/lib/supabaseClient";
 import { producaoPadrao, producaoZerada, linhasProducaoLegado, honorariosPadrao, encargosPadrao, bvVazio } from "@/domain/calc";
 import { normalizarProjetoInfo, sincronizarCamposLegados } from "@/domain/projeto";
+// A padronização de caixa alta/baixa mora AQUI, no caminho da gravação, e não
+// só no blur do <Input>: assim ela alcança também o que entra por código —
+// consulta de CNPJ, importação de EC, foto do evento na OS (ver `domain/textos`).
+import {
+  padronizarCliente,
+  padronizarEcLinha,
+  padronizarFornecedor,
+  padronizarProjetoInfo,
+  padronizarTexto,
+} from "@/domain/textos";
 import { limparContatos, normalizarContatos } from "@/domain/fornecedor";
 import { caminhoAnexo, motivoRecusaAnexo, tipoDoAnexo } from "@/domain/anexos";
 import { onlyDigits } from "@/lib/format";
@@ -132,9 +142,10 @@ function mapCliente(r: any): Cliente {
   };
 }
 
-function clienteRow(c: Cliente) {
+function clienteRow(cru: Cliente) {
+  const c = padronizarCliente(cru);
   return {
-    apelido: c.apelido.trim(),
+    apelido: c.apelido,
     nome: c.nome,
     razao_social: c.razaoSocial,
     endereco: c.endereco,
@@ -196,7 +207,8 @@ function mapFornecedor(r: any): Fornecedor {
   };
 }
 
-function fornecedorRow(f: Fornecedor) {
+function fornecedorRow(cru: Fornecedor) {
+  const f = padronizarFornecedor(cru);
   return {
     razao_social: f.razaoSocial,
     apelido: (f.apelido ?? "").trim() || null,
@@ -329,7 +341,8 @@ function mapLinha(r: any): EcLinha {
   };
 }
 
-function linhaRow(ecId: string, l: EcLinha) {
+function linhaRow(ecId: string, cru: EcLinha) {
+  const l = padronizarEcLinha(cru);
   return {
     id: l.id,
     ec_id: ecId,
@@ -423,11 +436,13 @@ function ecRow(ec: Ec) {
     projeto_id: isUuid(ec.projetoId) ? ec.projetoId : null,
     template: ec.template || null,
     cliente_id: isUuid(ec.cliente?.id) ? ec.cliente.id : null,
-    cliente: ec.cliente,
-    projeto: sincronizarCamposLegados(ec.projeto),
+    // Fotos do cliente e do evento gravadas dentro da EC: passam pela mesma
+    // régua do cadastro, senão a EC guarda o "CAIXA ALTA" que a origem tinha.
+    cliente: padronizarCliente(ec.cliente),
+    projeto: sincronizarCamposLegados(padronizarProjetoInfo(ec.projeto)),
     // Embute as taxas e seus rótulos no jsonb `producao` (o mapEc separa de volta na leitura).
     producao: { ...ec.producao, honorarios: ec.honorarios, encargos: ec.encargos, honorariosRotulo: ec.honorariosRotulo ?? "", encargosRotulo: ec.encargosRotulo ?? "" },
-    responsavel: ec.responsavel,
+    responsavel: padronizarTexto(ec.responsavel, "titulo"),
     validade_dias: ec.validadeDias,
     versao: ec.versao,
     status: ec.status,
@@ -614,11 +629,11 @@ function osRow(os: Os) {
     numero: os.numero,
     ec_id: os.ecId,
     seq: os.seq,
-    fornecedor: os.fornecedor,
+    fornecedor: padronizarFornecedor(os.fornecedor),
     // Foto dos dados gerais do evento na emissão — depois de gravada, só uma
     // nova versão da OS a substitui (ver `Os.projeto`).
-    projeto: os.projeto,
-    cliente: os.cliente,
+    projeto: padronizarProjetoInfo(os.projeto),
+    cliente: padronizarCliente(os.cliente),
     modalidade: os.modalidade,
     descritivo: os.descritivo,
     entrega: os.entrega,
@@ -856,9 +871,9 @@ function mapProjeto(r: any): Projeto {
 
 function projetoRow(p: Projeto) {
   return {
-    nome: p.nome || p.info?.titulo || "Projeto",
-    cliente: p.cliente,
-    projeto: sincronizarCamposLegados(p.info),
+    nome: padronizarTexto(p.nome || p.info?.titulo || "Projeto", "titulo"),
+    cliente: padronizarCliente(p.cliente),
+    projeto: sincronizarCamposLegados(padronizarProjetoInfo(p.info)),
     docs_url: p.docsUrl ?? "",
     status: p.status,
     atualizado_em: nowIso(),

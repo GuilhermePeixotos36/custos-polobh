@@ -128,6 +128,53 @@ A **versão** também sai do banco, sob o mesmo `advisory lock` das demais funç
 — no navegador ela era calculada a partir de uma lista carregada minutos antes, e
 duas importações simultâneas nasciam com o mesmo número.
 
+## Caixa alta e baixa: a régua é uma só (`domain/textos.ts`)
+A padronização morava no `<Input formato="…">` e acontecia no **blur**: alcançava
+só o que alguém digitava e depois saía do campo. Tudo que entra **por código**
+escapava — a consulta de CNPJ (a Receita entrega em CAIXA ALTA), a importação de
+EC, a foto do evento copiada para a OS, os modelos de item. A correção vinha caso
+a caso: a migração `20260809160000` chegou a acertar três clientes um a um.
+
+Agora a régua fica **no caminho da gravação** — `domain/textos.ts`, aplicada nos
+`*Row` de `data/supabase.ts`. Todo save passa por ela, venha o valor de onde
+vier. O `formato` do `<Input>` continua, para o retorno imediato enquanto se
+digita; a palavra final é do domínio.
+
+**Só se mexe no que veio em CAIXA ALTA.** É a regra que `gerarApelidoFornecedor`
+já usava: maiúsculas em tudo é o padrão das fontes externas; **caixa mista é
+decisão de gente e se respeita** — quem escreveu "Sonora AV" quis aquilo. Sem
+esse corte, "Belo Horizonte/MG" viraria "Belo Horizonte/Mg" e "Coffee break"
+viraria "Coffee Break" a cada gravação.
+
+| formato | o que faz |
+| --- | --- |
+| `titulo` | Nome Próprio — pessoas, lugares |
+| `titulo-empresa` | idem, preservando LTDA/ME/EIRELI/S/A |
+| `endereco` | idem, preservando a **UF** e o **"CEP:"** |
+| `frase` | baixa tudo e capitaliza o início das frases |
+| `inscricao` | número intocado; palavra vira Nome Próprio (**ISENTO → Isento**) |
+| `livre` | só apara espaços — documento, telefone, e-mail, apelido |
+
+**Sigla não vira nome próprio.** "LSPRO LOCACOES…" → "LSPRO Locacoes…", pelo
+mesmo teste do apelido do fornecedor (`pareceSigla`: português não começa palavra
+com três consoantes, nem escreve palavra sem vogal) — com **teto de 5 letras**,
+senão "CONSTRUTORA" ("nstr") e "CONTRIBUINTE" ("ntr") passariam por siglas.
+
+**Fica de fora, de propósito:** documento, telefone, e-mail, URL, código de
+serviço, número de nota, CNAE; o **apelido** do cliente e do fornecedor (é código
+curto da casa — "BM" viraria "Bm" — e entra no número da EC e no título da OS); o
+**grupo** da EC (cabeçalho em caixa alta por convenção); e o **nome do item**, que
+é curto e cheio de sigla da casa ("ECAD", "VT", "MÍDIA"), onde acertar a caixa
+automaticamente erra mais do que acerta. Texto longo (descritivo, roteiro,
+observação) tem dono próprio: o revisor da EC (`lib/correcaoOrtografica`).
+
+As **fotos** do cliente e do evento gravadas dentro do projeto, da EC e da OS
+passam pela mesma régua — é o texto delas que sai impresso.
+
+O passivo foi acertado pela migração `20260909140000`, com os valores obtidos
+rodando a própria `padronizarTexto()` sobre o que estava no banco (não escritos à
+mão). Ela é a última do tipo: a regra agora vive no código.
+
 ## Pendências (quem vê o quê)
 O número vermelho é uma lista de tarefa, não um painel do que anda acontecendo.
 Duas portas, e só elas (`domain/pendencias.ts` → `agregarPendencias`):

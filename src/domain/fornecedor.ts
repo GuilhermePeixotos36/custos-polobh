@@ -66,7 +66,7 @@ const chave = (t: string) =>
  * seguidas ("LSPRO"), e palavra sem vogal nenhuma também não existe ("MPG").
  * Serve para a sigla não virar "Lspro" ao acertar a caixa do texto.
  */
-const pareceSigla = (t: string): boolean => {
+export const pareceSigla = (t: string): boolean => {
   const limpo = chave(t).replace(/[^a-z]/g, "");
   if (!limpo) return false;
   return !/[aeiou]/.test(limpo) || /[bcdfghjklmnpqrstvwxyz]{3,}/.test(limpo);

@@ -4,6 +4,7 @@
  * Plano B: erro é tratado e o usuário edita manualmente.
  */
 import { onlyDigits, tituloProprio } from "./format";
+import { padronizarTexto } from "@/domain/textos";
 
 export interface DadosCnpj {
   cnpj: string;
@@ -180,7 +181,10 @@ export async function consultarCnpj(cnpjRaw: string): Promise<DadosCnpj> {
   return {
     cnpj: cnpjRaw,
     // Estes campos entram no formulário por código (não por digitação), então
-    // escapam do formatador de blur do Input — normalizam-se aqui.
+    // escapam do formatador de blur do Input. A gravação os padroniza de todo
+    // jeito (ver `domain/textos`), mas eles são normalizados já aqui para
+    // aparecerem certos na tela no instante da consulta — e não só depois de
+    // salvar.
     razaoSocial: tituloProprio(d.razao_social ?? "", { preservarSiglas: true }),
     nomeFantasia: tituloProprio(d.nome_fantasia ?? ""),
     endereco: montarEndereco(d),
@@ -188,7 +192,9 @@ export async function consultarCnpj(cnpjRaw: string): Promise<DadosCnpj> {
     cnaes,
     email: d.email ?? "",
     telefone: d.ddd_telefone_1 ?? "",
-    inscricaoEstadual: fiscais.inscricaoEstadual ?? "",
-    inscricaoMunicipal: fiscais.inscricaoMunicipal ?? "",
+    // A fonte devolve "ISENTO" em caixa alta; o número, quando existe, fica
+    // intocado para continuar batendo com a Receita.
+    inscricaoEstadual: padronizarTexto(fiscais.inscricaoEstadual, "inscricao"),
+    inscricaoMunicipal: padronizarTexto(fiscais.inscricaoMunicipal, "inscricao"),
   };
 }
