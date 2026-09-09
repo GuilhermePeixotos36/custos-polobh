@@ -6,9 +6,22 @@
  * Deploy:   supabase functions deploy lembretes-cronograma
  * Agendar:  via pg_cron (ver supabase/schema.sql) ou um cron externo que faça
  *           POST nesta função 1x ao dia.
+ *
+ * O CORPO DA MENSAGEM não mora mais aqui (revisão de 10/09/2026). Ele era uma
+ * cópia à mão do texto do aplicativo, e as duas envelheceram em ritmos
+ * diferentes: a do app aprendeu a dizer TODAS as datas do evento, e esta
+ * continuou mandando o fornecedor para um evento de um dia só, porque lia
+ * `projeto.evento` — que guarda apenas a primeira faixa do cronograma. Agora as
+ * duas saem da mesma régua (`../_shared/cronogramaEmail.ts`).
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { enviarPeloBrevo } from "../_shared/brevo.ts";
+import {
+  corpoCronogramaFornecedor,
+  type EtapaOsJson,
+  type FornecedorJson,
+  type ProjetoJson,
+} from "../_shared/cronogramaEmail.ts";
 
 /** Soma N dias úteis (pula sábado/domingo). */
 function maisDiasUteis(base: Date, n: number): Date {
@@ -23,8 +36,17 @@ function maisDiasUteis(base: Date, n: number): Date {
 }
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
-const dataBR = (s: string) => (s ? new Date(s + "T00:00:00").toLocaleDateString("pt-BR") : "");
-const h = (v: unknown) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+
+/**
+ * Só OS que o fornecedor de fato recebeu entra no lembrete.
+ *
+ * Rascunho é papel de trabalho — ninguém do lado de fora sabe que ele existe —,
+ * e Cancelada é justamente o que NÃO vale mais: mandar o cronograma de uma OS
+ * arquivada dois dias antes do evento é pior do que não mandar nada. Antes o
+ * filtro não existia, e a reemissão por troca de fornecedor (que cancela a
+ * anterior) faria os dois receberem.
+ */
+const STATUS_QUE_RECEBEM = ["Emitida", "Disparada"];
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response(JSON.stringify({ erro: "Method not allowed" }), { status: 405, headers: { "Content-Type": "application/json" } });
@@ -36,7 +58,11 @@ Deno.serve(async (req) => {
   const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const sb = createClient(url, key);
 
-  // Data-alvo: eventos que acontecem daqui a 2 dias úteis.
+  // Data-alvo: eventos que COMEÇAM daqui a 2 dias úteis. `projeto.evento` é a
+  // primeira faixa da etapa Evento, mantida em dia a cada gravação do projeto
+  // (ver `sincronizarCamposLegados`) — serve bem como gatilho. O que ele não
+  // serve é para DIZER quando o evento acontece: disso cuida o texto, que lê o
+  // cronograma inteiro.
   const alvo = iso(maisDiasUteis(new Date(), 2));
 
   // ECs com evento na data-alvo (projeto.evento guardado em jsonb).
@@ -48,13 +74,30 @@ Deno.serve(async (req) => {
 
   let enviados = 0;
   for (const ec of ecs ?? []) {
-    const { data: oss } = await sb.from("oss").select("*").eq("ec_id", ec.id);
+    const { data: oss } = await sb
+      .from("oss")
+      .select("*")
+      .eq("ec_id", ec.id)
+      .in("status", STATUS_QUE_RECEBEM);
     for (const os of oss ?? []) {
-      const f = os.fornecedor ?? {};
+      const f = (os.fornecedor ?? {}) as FornecedorJson;
       if (!f.email) continue;
+
+      // O projeto vem da OS quando ela tem a sua foto do evento (toda OS
+      // emitida tem), e da EC só como plano B: é a foto da OS que o fornecedor
+      // recebeu, e é sobre ela que o lembrete fala.
+      const proj = (os.projeto ?? ec.projeto ?? {}) as ProjetoJson;
+      const msg = corpoCronogramaFornecedor({
+        projeto: proj,
+        fornecedor: f,
+        etapas: (os.cronograma ?? []) as EtapaOsJson[],
+        numeroOs: os.numero,
+        lembrete: true,
+      });
+
       // A restrição única no banco transforma cada lembrete diário em uma operação idempotente.
       const { data: reserva, error: reservaErro } = await sb.from("emails").insert({
-        assunto: `Lembrete de cronograma — ${ec.projeto?.titulo ?? ""}`,
+        assunto: msg.assunto,
         destinatarios: [f.email],
         status: "processando",
         tipo: "lembrete_cronograma",
@@ -63,17 +106,12 @@ Deno.serve(async (req) => {
       }).select("id").maybeSingle();
       if (reservaErro?.code === "23505" || !reserva) continue;
       if (reservaErro) throw reservaErro;
-      const proj = ec.projeto ?? {};
-      const etapas = (os.cronograma ?? [])
-        .map((c: any) => `<li><b>${h(c.etapa)}:</b> ${h(dataBR(c.data))} ${h(c.horario)} — ${h(c.atividades)}</li>`)
-        .join("");
+
       try {
         const envio = await enviarPeloBrevo({
           para: [{ email: f.email, nome: f.razaoSocial }],
-          assunto: `Lembrete de cronograma — ${proj.titulo}`,
-          html: `<p>Olá, ${h(f.razaoSocial || "fornecedor")}.</p>
-            <p>Lembrete do cronograma do projeto <b>${h(proj.titulo)}</b>, em <b>${h(dataBR(proj.evento))}</b>, local <b>${h(proj.local)}</b>.</p>
-            <ul>${etapas || "<li>Sem etapas cadastradas.</li>"}</ul>`,
+          assunto: msg.assunto,
+          html: msg.html,
         });
         await sb.from("emails").update({ status: "enviado", provider_id: envio.messageId ?? null }).eq("id", reserva.id);
         enviados++;
