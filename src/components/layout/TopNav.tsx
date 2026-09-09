@@ -50,7 +50,9 @@ export function TopNav() {
                 />
               )}
             </span>
-            <span className="hidden lg:inline">{i.label}</span>
+            {/* O rótulo agora cabe: são cinco botões, não sete. Ele some só no
+                celular, onde nem cinco cabem. */}
+            <span className="hidden md:inline">{i.label}</span>
           </NavLink>
         ))}
       </nav>

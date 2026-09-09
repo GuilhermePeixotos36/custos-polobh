@@ -4,7 +4,6 @@ import {
   contagemPorMes,
   corDoProjeto,
   diasNoMes,
-  diasOcupadosNoAno,
   duracaoEmDias,
   isoDoDia,
   montarCalendario,
@@ -182,15 +181,6 @@ describe("resumo do ano", () => {
     expect(contagem[2]).toBe(2);
     expect(contagem[3]).toBe(1);
     expect(contagem[0]).toBe(0);
-  });
-
-  it("conta dias ocupados sem somar duas vezes a sobreposição", () => {
-    // 05 a 07 de março (3) + 06 de março a 02 de abril (28), com 06 e 07 em comum.
-    expect(diasOcupadosNoAno(itens, 2026)).toBe(29);
-  });
-
-  it("recorta no ano pedido", () => {
-    expect(diasOcupadosNoAno([item("v", "2025-12-30", "2026-01-02")], 2026)).toBe(2);
   });
 });
 

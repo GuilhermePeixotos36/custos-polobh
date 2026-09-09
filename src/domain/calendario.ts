@@ -279,23 +279,6 @@ export function contagemPorMes(itens: ProjetoNoCalendario[], anoAlvo: number): n
   return Array.from({ length: 12 }, (_, m) => segmentosDoMes(itens, anoAlvo, m).length);
 }
 
-/** Dias do ano em que existe pelo menos um projeto acontecendo. */
-export function diasOcupadosNoAno(itens: ProjetoNoCalendario[], anoAlvo: number): number {
-  const dias = new Set<string>();
-  const primeiro = `${anoAlvo}-01-01`;
-  const ultimo = `${anoAlvo}-12-31`;
-  for (const item of itens) {
-    const de = item.inicio < primeiro ? primeiro : item.inicio;
-    const ate = item.fim > ultimo ? ultimo : item.fim;
-    if (de > ate) continue;
-    for (let t = new Date(`${de}T00:00:00`).getTime(); t <= new Date(`${ate}T00:00:00`).getTime(); t += MS_DIA) {
-      const d = new Date(t);
-      dias.add(isoDoDia(d.getFullYear(), d.getMonth(), d.getDate()));
-    }
-  }
-  return dias.size;
-}
-
 /** Rótulo curto do intervalo dentro do mês: "05" ou "05 a 09". */
 export const rotuloDias = (seg: SegmentoMes): string =>
   seg.diaInicio === seg.diaFim

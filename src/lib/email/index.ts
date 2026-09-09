@@ -21,11 +21,13 @@ import {
   emailDispararOs,
   emailEcParaAprovacao,
   emailLembreteCronograma,
+  emailHelpDesk,
   type AnexoEmail,
+  type Chamado,
   type MensagemEmail,
 } from "./templates";
 
-export type { MensagemEmail } from "./templates";
+export type { Chamado, MensagemEmail, TipoChamado } from "./templates";
 
 /** ArrayBuffer -> base64 (sem depender de FileReader, funciona também fora do DOM). */
 function bufferParaBase64(buffer: ArrayBuffer): string {
@@ -153,6 +155,9 @@ export async function dispararOsPorEmail(os: Os, ec: Ec) {
 
 /** Credenciamento é só um link de formulário — sem planilha associada a este disparo. */
 export const enviarCredenciamento = (os: Os, ec: Ec) => enviarEmail(emailCredenciamento(os, ec));
+
+/** Chamado do Help Desk para o endereço de suporte configurado. */
+export const enviarChamado = (chamado: Chamado, para: string) => enviarEmail(emailHelpDesk(chamado, para));
 
 export async function enviarLembreteCronograma(os: Os, ec: Ec) {
   const msg = emailLembreteCronograma(os, ec);

@@ -1,6 +1,7 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { PageShell, Crumb } from "@/components/layout/AppLayout";
+import { BarraProjeto } from "@/components/layout/BarraSecao";
 import {
   Button,
   Field,
@@ -18,7 +19,7 @@ import {
   MOTIVO_DISPARO_DESLIGADO,
 } from "@/components/ui";
 import { IcDownload, IcSearch, IcSend, IcChevron, IcSpark } from "@/components/icons";
-import { ObservacoesThread } from "@/components/ObservacoesPopup";
+import { CardConversa } from "@/components/CardConversa";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import {
@@ -62,10 +63,14 @@ import {
   COLUNAS_CONTRATACAO,
   exigeJustificativa,
   itemDaLinhaEc,
+  justificativasFaltando,
   resumoContratacao,
   sincronizarContratacao,
 } from "@/domain/contratacaoOs";
-import { CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, alternarNaoSeAplica, naoSeAplica, temContrato } from "@/domain/os";
+import {
+  CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, alternarNaoSeAplica, exigeNovaVersaoPorFornecedor,
+  naoSeAplica, temContrato,
+} from "@/domain/os";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import type { ResumoContratacao } from "@/domain/contratacaoOs";
 import type {
@@ -186,7 +191,6 @@ function aplicarAutoPreenchimento(os: Os, ec: Ec): Os {
   const bvEc = bvConsolidado(linhas);
   const bvPercentual = os.financeiro.bvPercentual || bvEc.percentual;
   const bvValor = os.financeiro.bvValor || bvEc.valor;
-  const bvJustificativa = os.financeiro.bvJustificativa || bvEc.justificativa;
 
   /**
    * A contratação acompanha os itens que a OS consolida: o que já foi negociado
@@ -241,9 +245,15 @@ function aplicarAutoPreenchimento(os: Os, ec: Ec): Os {
       // Lei COM o número do projeto: é assim que o Projeto já guarda
       // ("Lei Federal de Incentivo à Cultura (Rouanet) — PRONAC 26 1234").
       leiIncentivo: os.financeiro.leiIncentivo || os.projeto.incentivosFiscais || LEI_INCENTIVO_PADRAO,
+      // Como o fornecedor recebe: o mesmo padrão do modelo que o contrato usa.
+      // O bloco de emissão fecha neste par (valor a pagar + forma), e nascer
+      // vazio obrigava a redigitar em toda OS a resposta de sempre.
+      formaPagamento: os.financeiro.formaPagamento || FORMA_PAGAMENTO_PADRAO,
       bvPercentual,
       bvValor,
-      bvJustificativa,
+      // `bvJustificativa` não é mais preenchida: a justificativa é uma por
+      // FORMA, dentro de cada item (ver `domain/contratacaoOs`). O que já foi
+      // escrito nas OS antigas continua gravado, intacto.
     },
     // Contrato: só se preenche o que existe. Sem contrato pedido na EC, os
     // padrões do modelo não entram — senão a OS nasce descrevendo com valores,
@@ -293,9 +303,19 @@ export function OsForm() {
   const [cnpjMsg, setCnpjMsg] = useState("");
   const [busy, setBusy] = useState(false);
 
+  /**
+   * O fornecedor COMO ELE ESTAVA quando a tela abriu (ou logo depois de salvar).
+   *
+   * É a única forma de saber que ele foi trocado: o formulário edita
+   * `os.fornecedor` no lugar, e sem esta foto não haveria com o que comparar na
+   * hora de salvar. Ver `exigeNovaVersaoPorFornecedor`.
+   */
+  const fornecedorGravado = useRef<Fornecedor | undefined>(undefined);
+
   const iniciar = (o: Os) => {
     setOs(o);
     setBaseline(JSON.stringify(o));
+    fornecedorGravado.current = structuredClone(o.fornecedor);
   };
 
   // edição de OS existente — a EC vem primeiro para o auto-preenchimento já entrar
@@ -431,9 +451,27 @@ export function OsForm() {
           : o.contrato,
       };
     });
-  // Justificativa do BV é obrigatória quando não há BV ou o percentual é < 15%.
-  const bvPrecisaJustif = os.financeiro.bvPercentual < BV_PADRAO_PERCENTUAL;
-  const bvJustifFaltando = bvPrecisaJustif && !os.financeiro.bvJustificativa?.trim();
+  /**
+   * O que impede o salvamento, hoje: a justificativa do BV de uma forma que
+   * VALE num item e sai fora do padrão da casa.
+   *
+   * Ela era UMA, da OS inteira, e morava em Acertos Financeiros — herança de
+   * quando a OS tinha um BV só. Com a contratação item a item, cada forma
+   * responde por si (ver `domain/contratacaoOs`), e uma justificativa única não
+   * saberia dizer de qual item falava. Saiu de lá e virou esta lista: cada
+   * entrada é um item + uma forma, e cada uma tem endereço próprio na tela,
+   * para o aviso poder LEVAR até ela em vez de só apontar.
+   */
+  const nomeDoItem = new Map(
+    linhasConsolidadas.map((l) => [l.id, l.item?.trim() || l.descricao?.trim() || "item sem nome"])
+  );
+  const travas = (os.itens ?? []).flatMap((item) =>
+    justificativasFaltando(item).map((opcao) => ({
+      campo: TRAVA_JUSTIF(item.ecLinhaId, opcao),
+      item: nomeDoItem.get(item.ecLinhaId) ?? "item",
+      forma: COLUNAS_CONTRATACAO.find((c) => c.chave === opcao)?.longo ?? opcao,
+    }))
+  );
   /**
    * O BV daqui nasce do Resumo dos Custos e segue editável. Quando alguém o
    * altera, ou quando os itens da EC mudam depois, os dois divergem — e sem
@@ -446,6 +484,9 @@ export function OsForm() {
 
   /** Esta OS tem contrato? Quem decide é a coluna Contrato dos itens, na EC. */
   const haContrato = temContrato(os, linhasConsolidadas);
+
+  /** Trocar o fornecedor de uma OS já emitida arquiva esta e abre a seguinte. */
+  const trocouFornecedor = exigeNovaVersaoPorFornecedor(os, fornecedorGravado.current, os.fornecedor);
 
   /** Empresa emissora não cadastrada: os dados da nota sairiam em branco calados. */
   const faltaCadastroTomador = os.financeiro.tomador === "Polobh" && !empresaPolobh;
@@ -519,7 +560,7 @@ export function OsForm() {
   const bvBloco = (
     <>
       <LinhaOs
-        label="BV Pólobh — Percentual"
+        label="BV Pólobh"
         hint={bvContratado.valor > 0 ? `(do Detalhamento da Contratação: ${bvContratado.percentual}% · ${brl(bvContratado.valor)})` : "(do Detalhamento da Contratação)"}
       >
         <NumberInput value={os.financeiro.bvPercentual} onValue={(v) => updFin({ bvPercentual: v, bvValor: (os.financeiro.valorTotal * v) / 100 })} />
@@ -539,22 +580,30 @@ export function OsForm() {
       <LinhaOs label="BV Pólobh — Valor">
         <Auto v={brl((os.financeiro.valorTotal * os.financeiro.bvPercentual) / 100)} />
       </LinhaOs>
-      <LinhaOs label="Justificativa do BV" hint={bvPrecisaJustif ? "(obrigatória)" : "(opcional)"} id={TRAVA_BV}>
-        <Textarea
-          value={os.financeiro.bvJustificativa ?? ""}
-          onChange={(e) => updFin({ bvJustificativa: e.target.value })}
-          placeholder="Registre o motivo quando não houver BV ou for abaixo de 15% (ex.: condição negociada com o fornecedor)."
-          className={bvJustifFaltando ? "!border-danger !bg-danger-soft" : ""}
-        />
-        <TextosJaUsados
-          valor={os.financeiro.bvJustificativa ?? ""}
-          opcoes={sugestoes.valores.bvJustificativa}
-          onEscolher={(bvJustificativa) => updFin({ bvJustificativa })}
-        />
-        {bvJustifFaltando && (
-          <p className="mt-1 text-[12px] font-semibold text-danger">Obrigatória: o BV está {os.financeiro.bvPercentual <= 0 ? "zerado" : "abaixo de 15%"}.</p>
-        )}
-      </LinhaOs>
+      {/* A JUSTIFICATIVA do BV saiu daqui (09/09/2026): ela é uma por FORMA, em
+          cada item do Detalhamento da Contratação, que é onde o BV é combinado.
+          Uma justificativa só, da OS inteira, não sabia dizer de qual item
+          falava — e era a única coisa que este bloco cobrava. */}
+      {travas.length > 0 && (
+        <LinhaOs label="">
+          <div className="py-2 text-[12.5px] text-warning font-semibold">
+            {travas.length === 1
+              ? "Falta a justificativa do BV em 1 item — "
+              : `Faltam ${travas.length} justificativas do BV — `}
+            <button
+              type="button"
+              onClick={() => {
+                recolher?.expandir(idSecao(SECAO_DETALHAMENTO));
+                destacarCampo(travas[0].campo);
+              }}
+              className="font-bold text-primary-dark hover:underline"
+            >
+              ir até {travas.length === 1 ? "ela" : "a primeira"}
+            </button>
+            .
+          </div>
+        </LinhaOs>
+      )}
     </>
   );
 
@@ -638,18 +687,83 @@ export function OsForm() {
     }
   }
 
+  /**
+   * Arquiva esta OS e abre a versão seguinte com o fornecedor novo.
+   *
+   * O trabalho pesado é do servidor (`gerar_nova_versao_os`): ele copia tudo —
+   * inclusive a contratação item a item e o financeiro, que a Produção não
+   * enxerga —, cancela a anterior e devolve a nova. Aqui só se decide o número
+   * da versão e se pede a autorização.
+   *
+   * O que a pessoa digitou ANTES de trocar o fornecedor é salvo primeiro, com o
+   * fornecedor antigo: a OS arquivada tem de ficar no histórico exatamente como
+   * ela era, e o resto do trabalho segue para a versão nova pela cópia.
+   */
+  async function trocarFornecedorComNovaVersao() {
+    const anterior = fornecedorGravado.current;
+    const nome = os!.fornecedor.nomeFantasia || os!.fornecedor.razaoSocial || "o novo fornecedor";
+    const nomeAntigo = anterior?.nomeFantasia || anterior?.razaoSocial || "o fornecedor anterior";
+    if (!(await confirmar({
+      titulo: "Trocar o fornecedor gera uma nova versão desta OS. Confirma?",
+      mensagem:
+        `A ${os!.numero} está ${os!.status.toLowerCase()} em nome de ${nomeAntigo}. ` +
+        `Ela será ARQUIVADA como está, e uma nova versão será criada em nome de ${nome}, ` +
+        "com todo o conteúdo desta — itens, valores, cronograma e contratação — em rascunho.",
+      confirmarTexto: "Arquivar e gerar nova versão",
+    }))) return;
+
+    setBusy(true);
+    try {
+      // A versão da série deste fornecedor nesta EC, para o número sair certo.
+      const todas = await repo.oss.porEc(ecCtx!.id);
+      const versao = versaoOs(todas, ecCtx!.id, os!.fornecedor.cnpj, os!.fornecedor.razaoSocial);
+      const numero = numeroOs(ecCtx!, os!.fornecedor, versao);
+      const nova = await repo.oss.gerarNovaVersao(
+        // A anterior vai para o arquivo como ela era: com o fornecedor de antes.
+        { ...os!, fornecedor: anterior ?? os!.fornecedor },
+        { numero, fornecedor: os!.fornecedor }
+      );
+      toast(`OS ${os!.numero} arquivada. Nova versão ${nova.numero} criada em rascunho.`, "success");
+      usePendencias.getState().carregar(true);
+      guard.liberar();
+      navigate(`/ordens/${nova.id}`);
+    } catch (e) {
+      toast(`Não foi possível gerar a nova versão: ${(e as Error).message}`, "danger");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function salvar(status?: Os["status"]) {
-    // BV fora do padrão (sem BV ou < 15%) exige justificativa — para qualquer perfil.
-    //
-    // O aviso sozinho não bastava: numa tela de quinze blocos, ler "falta a
-    // justificativa" e ter de caçar o campo é o mesmo trabalho de antes. O
-    // aviso agora LEVA até ele — rola, pisca em vermelho e põe o cursor.
-    if (bvJustifFaltando) {
-      toast("Informe a justificativa do BV — obrigatória quando não há BV ou é menor que 15%.", "warning");
-      // O bloco pode estar recolhido — abrir antes, senão a rolagem vai parar
-      // num título fechado e o campo continuará escondido.
-      recolher?.expandir(idSecao(SECAO_ACERTOS));
-      destacarCampo(TRAVA_BV);
+    // O que trava o salvamento LEVA até o campo, não apenas avisa: numa tela de
+    // quinze blocos, ler "falta a justificativa" e ter de caçar onde é o mesmo
+    // trabalho de antes. A tela rola até lá, o campo pisca em vermelho e já
+    // recebe o cursor — e o aviso diz de qual item e de qual forma se trata,
+    // porque agora há uma justificativa por forma, em cada item.
+    if (travas.length) {
+      const [primeira] = travas;
+      toast(
+        travas.length === 1
+          ? `Falta a justificativa do BV em "${primeira.item}" (${primeira.forma}).`
+          : `Faltam ${travas.length} justificativas do BV — a primeira em "${primeira.item}" (${primeira.forma}).`,
+        "warning"
+      );
+      // O bloco pode estar recolhido — abrir antes, senão a rolagem para num
+      // título fechado e o campo continua escondido.
+      recolher?.expandir(idSecao(SECAO_DETALHAMENTO));
+      destacarCampo(primeira.campo);
+      return;
+    }
+    /**
+     * TROCA DE FORNECEDOR numa OS que já saiu da casa: não é edição, é outro
+     * contrato. A OS anterior existe do lado do primeiro fornecedor — deixar
+     * duas empresas com o mesmo número na mão é o que a versão nova evita.
+     *
+     * Em rascunho isto não acontece (ver `exigeNovaVersaoPorFornecedor`): ali a
+     * troca é correção de quem ainda está montando o documento.
+     */
+    if (exigeNovaVersaoPorFornecedor(os!, fornecedorGravado.current, os!.fornecedor)) {
+      await trocarFornecedorComNovaVersao();
       return;
     }
     if (status === "Disparada") {
@@ -711,6 +825,9 @@ export function OsForm() {
       }
       title="Ordem de Serviço"
       subtitle={os.numero}
+      // O segundo cabeçalho do projeto: a OS é uma página interna dele, e sem
+      // esta barra quem entrava aqui perdia toda a referência de onde estava.
+      subabas={ecCtx.projetoId ? <BarraProjeto projetoId={ecCtx.projetoId} atual="os" /> : undefined}
       topAction={
         <div className="flex gap-2">
           {/* Uma ação só para o documento: antes eram duas (Excel e "Ver / PDF"),
@@ -744,6 +861,21 @@ export function OsForm() {
       <AvisoHomologacaoEmail className="mb-4" />
 
       <div className="space-y-4">
+        {/* A CONVERSA vem primeiro (pedido de 09/09/2026), e com o mesmo rótulo
+            da EC: quem abre uma OS costuma abrir por causa do que foi dito nela
+            — "o fornecedor mudou o valor", "falta o Pix" —, e no fim da tela
+            isso ficava atrás de quinze blocos. Não sai em documento, e-mail nem
+            planilha: é o corredor da equipe. */}
+        <CardConversa
+          ancora={os.id}
+          ancoraDom={idAncoraPendencia(os.id)}
+          hint="Só a equipe vê. Combine aqui o que esta OS tem de pendente — quem é @mencionado fica com a pendência."
+          observacoes={os.observacoes}
+          usuarios={usuarios}
+          minhas={pendenciasDoUsuario.filter((x) => x.tipo === "os.observacao" && x.osId === os.id).length}
+          onChange={(observacoes) => setOs((o) => (o ? { ...o, observacoes } : o))}
+        />
+
         {/* Cabeçalho do modelo em Excel */}
         <CardOs secao="Ordem de Serviço">
           <LinhaOs label="Número da OS"><Auto v={os.numero} /></LinhaOs>
@@ -818,6 +950,16 @@ export function OsForm() {
           }
         >
           {cnpjMsg && <div className="m-3 text-[12.5px] text-info bg-info-soft rounded-btn px-3 py-2">{cnpjMsg}</div>}
+          {/* O aviso vem ANTES do "Salvar", e não como surpresa depois dele: a
+              troca não é uma edição, e quem está mexendo precisa saber disso
+              enquanto ainda pode desfazer. */}
+          {trocouFornecedor && (
+            <div className="m-3 text-[12.5px] font-semibold text-warning bg-warning-soft rounded-btn px-3 py-2">
+              Esta OS está {os.status.toLowerCase()} em nome de{" "}
+              {fornecedorGravado.current?.nomeFantasia || fornecedorGravado.current?.razaoSocial || "outro fornecedor"}.
+              Ao salvar, ela será arquivada e uma nova versão será criada com o fornecedor novo.
+            </div>
+          )}
           <LinhaOs label="Fornecedor" hint="(nome fantasia)"><Input formato="titulo" value={os.fornecedor.nomeFantasia ?? ""} onChange={(e) => updF({ nomeFantasia: e.target.value })} /></LinhaOs>
           <LinhaOs label="CNPJ/CPF"><Input value={os.fornecedor.cnpj} onChange={(e) => updF({ cnpj: maskCpfCnpjInput(e.target.value) })} inputMode="numeric" placeholder="00.000.000/0000-00" /></LinhaOs>
           <LinhaOs label="Perfil" hint="(regime tributário)">
@@ -854,7 +996,7 @@ export function OsForm() {
         </CardOs>
 
         {/* DETALHAMENTO DA CONTRATAÇÃO */}
-        <CardOs secao="Detalhamento da Contratação">
+        <CardOs secao={SECAO_DETALHAMENTO}>
           <LinhaOs label="Modalidade" hint="(obrigatória)">
             <Select
               value={os.modalidade}
@@ -1076,25 +1218,6 @@ export function OsForm() {
           )}
         </CardOs>
 
-        {/* COMENTÁRIOS INTERNOS — não saem em documento, e-mail ou planilha */}
-        <CardOs secao="Comentários Internos">
-          <LinhaOs
-            label="Pendências e combinados"
-            hint="(só a equipe vê — @menção cobra alguém)"
-          >
-            {/* Âncora da OS para o navegador de pendências (os comentários da OS
-                são pendências como os dos itens da EC). */}
-            <div className="py-1 -mx-1" id={idAncoraPendencia(os.id)}>
-              <ObservacoesThread
-                ancora={os.id}
-                observacoes={os.observacoes}
-                usuarios={usuarios}
-                onChange={(observacoes) => setOs((o) => (o ? { ...o, observacoes } : o))}
-              />
-            </div>
-          </LinhaOs>
-        </CardOs>
-
         {/* O CREDENCIAMENTO saiu daqui (29/08/2026): virou subaba do Projeto, onde
             se vê a fila inteira e se dispara para todos os fornecedores de uma
             vez. O link continua sendo o desta OS — o que mudou foi o comando. */}
@@ -1167,7 +1290,7 @@ export function OsForm() {
         {/* INFORMAÇÕES A SEREM PREENCHIDAS PELO FINANCEIRO DA PÓLOBH */}
         {verFinanceiro ? (
           <>
-          <CardOs className="border-active-border" secao="Informações a serem preenchidas pelo Financeiro da Pólobh">
+          <CardOs className="border-active-border" secao="Dados Nota Fiscal, Fatura, etc...">
             <SubSecao>Dados Emissão — Recibo Simples | Fatura | Nota Fiscal | Fatura e Nota Fiscal</SubSecao>
 
             <LinhaOs label="Tomador dos Serviços">
@@ -1186,9 +1309,11 @@ export function OsForm() {
                 <LinhaOs label="Inscrição Municipal"><Auto v={dadosTomador.inscricaoMunicipal} /></LinhaOs>
                 {faltaCadastroTomador && (
                   <LinhaOs label="">
-                    <p className="py-2 text-[12.5px] font-semibold text-warning">
-                      A empresa emissora da Pólobh ainda não está cadastrada — os dados da nota saem em branco.
-                      Cadastre em Configurações › Empresas do Grupo.
+                    <p className="py-2 text-[12.5px] font-semibold text-danger">
+                      A empresa emissora da Pólobh ainda não está cadastrada — os dados da nota saem em branco.{" "}
+                      <Link to="/configuracoes?aba=empresas" className="underline text-primary-dark">
+                        Cadastrar em Configurações › Empresas do Grupo
+                      </Link>
                     </p>
                   </LinhaOs>
                 )}
@@ -1255,24 +1380,30 @@ export function OsForm() {
               )}
             </LinhaOs>
             <LinhaOs label="Desconto Especial Negociado"><NumberInput value={os.financeiro.descontoNegociado} onValue={(v) => updFin({ descontoNegociado: v, valorAPagar: os.financeiro.valorTotal - v })} /></LinhaOs>
-            {/* O bloco de emissão TERMINA aqui: o que vem depois do valor a
-                pagar (BV, acerto) não é dado de nota — foi para "Acertos
-                Financeiros", grupo próprio no fim da tela. */}
+            {/* O bloco de emissão TERMINA aqui, no par valor + forma: o que
+                vem depois (BV, acerto) não é dado de nota — foi para "Acertos
+                Financeiros", grupo próprio no fim da tela.
+                A forma de pagamento DESTE bloco acompanha a nota, e existe
+                sempre; a do bloco de contrato é cláusula contratual, e só
+                existe quando há contrato. São dois campos de propósito. */}
             <LinhaOs label="Valor total a pagar"><Auto v={brl(os.financeiro.valorAPagar)} /></LinhaOs>
+            <LinhaOs label="Forma de Pagamento" hint="(como o fornecedor recebe — editável)">
+              <Input
+                value={os.financeiro.formaPagamento ?? ""}
+                sugestoes={sugestoes.valores.formaPagamento}
+                onChange={(e) => updFin({ formaPagamento: e.target.value })}
+                placeholder={FORMA_PAGAMENTO_PADRAO}
+              />
+            </LinhaOs>
 
-            {/* DADOS PARA CONTRATO — só entra quando a EC pede contrato.
-                Marcado "Não se Aplica" lá, o grupo inteiro não existe aqui: não
-                é campo em branco à toa, é um contrato inexistente descrito com
-                valores, forma de pagamento e data no documento do fornecedor. */}
-            {!haContrato ? (
-              <>
-                <SubSecao>Dados para Contrato</SubSecao>
-                <p className="px-4 py-3 text-[12.5px] text-ink-2">
-                  Nenhum item desta OS pede contrato. Para incluí-lo, marque <b>Emitir</b> ou{" "}
-                  <b>Emitir Nova Versão</b> na coluna <b>Contrato</b> dos itens, na EC.
-                </p>
-              </>
-            ) : (
+            {/* DADOS PARA CONTRATO — só existe quando a EC pediu "Emitir" ou
+                "Emitir Nova Versão" na coluna Contrato de algum item.
+                "Não se aplica" lá significa que não há contrato, e um grupo
+                vazio na tela não é neutro: ele descreve um contrato inexistente
+                com valores, forma de pagamento e data, e é isso que sai no
+                documento do fornecedor. Então o grupo inteiro não aparece — nem
+                como aviso (revisão de 09/09/2026). */}
+            {haContrato && (
             <>
             <SubSecao>Dados para Contrato</SubSecao>
             <LinhaOs label="Contratante" hint="(auto — quem contrata o fornecedor)">
@@ -1399,9 +1530,14 @@ export function OsForm() {
   }
 }
 
-/** Âncora da justificativa do BV — o único campo que hoje trava o salvamento. */
-const TRAVA_BV = idCampoTrava("bv-justificativa");
-/** Bloco onde ela mora — o aviso precisa abri-lo antes de rolar até lá. */
+/**
+ * Âncora da justificativa do BV de UMA forma de UM item — o que hoje trava o
+ * salvamento. Há uma por par (item, forma), porque é assim que a justificativa
+ * existe desde que o BV passou a ser combinado item a item.
+ */
+const TRAVA_JUSTIF = (ecLinhaId: string, opcao: string) => idCampoTrava(`bv-justificativa-${ecLinhaId}-${opcao}`);
+/** Blocos que o aviso precisa abrir antes de rolar até o campo. */
+const SECAO_DETALHAMENTO = "Detalhamento da Contratação";
 const SECAO_ACERTOS = "Acertos Financeiros";
 
 /** Colunas do cronograma do fornecedor — cabeçalho e linhas usam a MESMA grade. */
@@ -1688,7 +1824,7 @@ function ItemContratacao({
               {/* Justificativa por forma: some quando a forma não vale ou o BV
                   está no padrão, e fica se já houver texto escrito. */}
               {(exigida || escrita) && (
-                <div className="mt-2 pt-2 border-t border-border-soft">
+                <div className="mt-2 pt-2 border-t border-border-soft" id={TRAVA_JUSTIF(item.ecLinhaId, chave)}>
                   <span className="block text-[10px] font-extrabold uppercase tracking-[0.05em] text-ink-3 mb-1">
                     Justificativa do BV {exigida && <span className="text-danger">*</span>}
                   </span>

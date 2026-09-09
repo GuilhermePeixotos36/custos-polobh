@@ -160,7 +160,14 @@ const CATALOGO = {
   cnae: daOs((o) => o.financeiro?.cnae),
   acertoFinanceiro: daOs((o) => o.financeiro?.acertoFinanceiro),
   bvJustificativa: daOs((o) => o.financeiro?.bvJustificativa),
-  formaPagamento: daOs((o) => o.contrato?.formaPagamento),
+  // Duas fontes sob a mesma chave: a forma de pagamento da NOTA (bloco de
+  // emissão) e a do CONTRATO são campos distintos — um acompanha a nota, o
+  // outro é cláusula —, mas o vocabulário é o mesmo. Quem escreve num ajuda
+  // quem escreve no outro.
+  formaPagamento: juntando(
+    daOs((o) => o.financeiro?.formaPagamento),
+    daOs((o) => o.contrato?.formaPagamento)
+  ),
   observacoesContrato: daOs((o) => o.contrato?.observacoesGerais),
   informacoesComplementares: daOs((o) => o.contrato?.informacoesComplementares),
   rubrica: daOs((o) => o.contrato?.rubrica),

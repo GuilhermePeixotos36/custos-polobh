@@ -11,6 +11,7 @@ import { useRealtimePendencias } from "@/hooks/useRealtimePendencias";
 import { useEmpresas } from "@/store/empresas";
 import { BotaoRecolherTudo, ProvedorRecolher } from "./Recolher";
 import { TourOverlay } from "@/tour/TourOverlay";
+import { lembrarTelaParaSuporte } from "@/lib/telaAnterior";
 import { cx } from "@/lib/format";
 
 /** Casca autenticada: sidebar + área de conteúdo. */
@@ -25,6 +26,12 @@ export function AppLayout() {
   useEffect(() => {
     if (usuario) carregarPendencias();
   }, [usuario, pathname, carregarPendencias]);
+
+  // De onde a pessoa veio, para o chamado do Help Desk já nascer dizendo em que
+  // tela o problema aconteceu (ver `pages/Suporte`).
+  useEffect(() => {
+    lembrarTelaParaSuporte(pathname);
+  }, [pathname]);
 
   // Carrega as empresas do grupo ao entrar na área autenticada (login).
   useEffect(() => {

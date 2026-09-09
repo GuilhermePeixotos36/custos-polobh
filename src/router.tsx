@@ -24,6 +24,7 @@ const Fornecedores = lazyComRecuperacao(() => import("@/pages/Fornecedores").the
 const Configuracoes = lazyComRecuperacao(() => import("@/pages/Configuracoes").then((m) => ({ default: m.Configuracoes })));
 const Logs = lazyComRecuperacao(() => import("@/pages/Logs").then((m) => ({ default: m.Logs })));
 const Guia = lazyComRecuperacao(() => import("@/pages/Guia").then((m) => ({ default: m.Guia })));
+const Suporte = lazyComRecuperacao(() => import("@/pages/Suporte").then((m) => ({ default: m.Suporte })));
 
 /** Suspense para rotas públicas (fora da casca autenticada). */
 function P({ children }: { children: ReactNode }) {
@@ -41,7 +42,9 @@ export const router = createBrowserRouter([
     element: <AppLayout />,
     errorElement: <ErroAplicacao />,
     children: [
-      { index: true, element: <Navigate to="/projetos" replace /> },
+      // O Calendário é o primeiro item do aplicativo (revisão de 09/09/2026):
+      // o dia começa em "o que acontece esta semana".
+      { index: true, element: <Navigate to="/calendario" replace /> },
       { path: "projetos", element: <RequireRecurso r="projetos"><Projetos /></RequireRecurso> },
       { path: "projetos/:id", element: <RequireRecurso r="projetos"><ProjetoDetail /></RequireRecurso> },
       { path: "estimativas", element: <Navigate to="/projetos" replace /> },
@@ -58,6 +61,9 @@ export const router = createBrowserRouter([
       { path: "configuracoes", element: <RequireRecurso r="configuracoes"><Configuracoes /></RequireRecurso> },
       { path: "logs", element: <RequireRecurso r="logs"><Logs /></RequireRecurso> },
       { path: "guia", element: <RequireRecurso r="guia"><Guia /></RequireRecurso> },
+      // O Help Desk usa o mesmo recurso do Guia: pedir ajuda é para todo mundo
+      // que consegue abrir o aplicativo.
+      { path: "suporte", element: <RequireRecurso r="guia"><Suporte /></RequireRecurso> },
     ],
   },
   { path: "*", element: <Navigate to="/" replace /> },

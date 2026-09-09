@@ -37,6 +37,7 @@ import type {
   AreaRepository,
   AuthRepository,
   ChecklistRepository,
+  ConfigRepository,
   ClienteRepository,
   EcRepository,
   EmpresasRepository,
@@ -724,8 +725,10 @@ const osRepo: OsRepository = {
       await supabase.rpc("gerar_nova_versao_os", {
         p_os_id: os.id,
         p_numero: dados.numero,
-        p_projeto: dados.projeto,
-        p_cliente: dados.cliente,
+        // O que não vai, a nova versão herda da anterior (o `coalesce` da RPC).
+        p_projeto: dados.projeto ?? null,
+        p_cliente: dados.cliente ?? null,
+        p_fornecedor: dados.fornecedor ? padronizarFornecedor(dados.fornecedor) : null,
       })
     ) as unknown as string;
     const salvo = await this.obter(novoId);
@@ -733,7 +736,9 @@ const osRepo: OsRepository = {
     auditar({
       categoria: "OS",
       acao: "os.nova_versao",
-      mensagem: `OS ${os.numero} reemitida como ${salvo.numero} (dados do evento atualizados)`,
+      mensagem: dados.fornecedor
+        ? `OS ${os.numero} reemitida como ${salvo.numero} — fornecedor trocado para ${salvo.fornecedor.razaoSocial || salvo.fornecedor.nomeFantasia || "—"}`
+        : `OS ${os.numero} reemitida como ${salvo.numero} (dados do evento atualizados)`,
       alvoId: salvo.id,
     });
     return salvo;
@@ -982,6 +987,26 @@ const empresasRepo: EmpresasRepository = {
   },
 };
 
+/* --------------------------- CONFIG DO APP ------------------------------- */
+
+const configRepo: ConfigRepository = {
+  async ler<T>(chave: string) {
+    // `maybeSingle`: chave que ainda não existe é resposta válida — a tela cai
+    // no padrão dela em vez de quebrar.
+    const data = ok(await supabase.from("config_app").select("valor").eq("chave", chave).maybeSingle());
+    return (data?.valor as T | undefined) ?? undefined;
+  },
+  async gravar<T>(chave: string, valor: T) {
+    ok(await supabase.from("config_app").upsert({ chave, valor, atualizado_em: nowIso() }));
+    auditar({
+      categoria: "Configuração",
+      acao: "config.gravar",
+      mensagem: `Ajuste do sistema "${chave}" atualizado`,
+      alvoId: chave,
+    });
+  },
+};
+
 /* ------------------------------ CHECK-LIST ------------------------------- */
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1204,5 +1229,6 @@ export const supabaseRepositorios: Repositorios = {
   auth: authRepo,
   areas: areaRepo,
   empresas: empresasRepo,
+  config: configRepo,
   checklists: checklistRepo,
 };

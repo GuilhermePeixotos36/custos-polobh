@@ -632,9 +632,22 @@ export interface FinanceiroOs {
   valorTotal: number;
   descontoNegociado: number;
   valorAPagar: number;
+  /**
+   * Como o fornecedor recebe o que a nota cobra — o campo que FECHA o bloco de
+   * emissão, logo depois do valor a pagar (revisão de 09/09/2026). É outra
+   * coisa que a forma de pagamento do CONTRATO: aquela é cláusula contratual, e
+   * existe só quando há contrato; esta acompanha a nota, e existe sempre.
+   */
+  formaPagamento?: string;
   bvPercentual: number; // %
   bvValor: number; // auto
-  /** Justificativa obrigatória quando não há BV ou o BV é < 15%. */
+  /**
+   * @deprecated A justificativa do BV é UMA POR FORMA, dentro de cada item da
+   * contratação (`ItemContratacaoOs.comBvNf.justificativaBv` e companhia) — é lá
+   * que o BV é combinado. O campo continua no tipo e na tabela só para não
+   * perder o que já foi escrito nas OS antigas; a tela não o mostra mais e nada
+   * o exige (revisão de 09/09/2026).
+   */
   bvJustificativa: string;
   acertoFinanceiro: string;
 }

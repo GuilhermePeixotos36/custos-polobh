@@ -77,11 +77,20 @@ export interface OsRepository {
   obter(id: string): Promise<Os | undefined>;
   salvar(os: Os): Promise<Os>;
   /**
-   * Reemite a OS com os dados gerais do evento atualizados: cria a versão
-   * seguinte (rascunho, com o mesmo conteúdo) e cancela esta. A anterior fica
-   * no histórico exatamente como o fornecedor a recebeu.
+   * Reemite a OS: cria a versão seguinte (rascunho, com o mesmo conteúdo,
+   * inclusive a contratação item a item) e cancela esta. A anterior fica no
+   * histórico exatamente como o fornecedor a recebeu.
+   *
+   * Duas razões levam aqui, e a diferença está no que se passa em `dados`:
+   *  · os dados gerais do EVENTO mudaram (`projeto`/`cliente`);
+   *  · o FORNECEDOR mudou (`fornecedor`) — outra empresa não pode herdar o
+   *    documento que a primeira recebeu, com o mesmo número.
+   * O que não é passado, a nova versão herda da anterior.
    */
-  gerarNovaVersao(os: Os, dados: { numero: string; projeto: ProjetoInfo; cliente: Cliente }): Promise<Os>;
+  gerarNovaVersao(
+    os: Os,
+    dados: { numero: string; projeto?: ProjetoInfo; cliente?: Cliente; fornecedor?: Fornecedor }
+  ): Promise<Os>;
   proximaSeq(ecId: string): Promise<number>;
   remover(id: string): Promise<void>;
   /** Respostas de credenciamento enviadas pelos fornecedores para esta OS. */
@@ -114,6 +123,18 @@ export interface EmpresasRepository {
   listar(): Promise<EmpresaGrupo[]>;
   salvar(e: EmpresaGrupo): Promise<EmpresaGrupo>;
   definirPadrao(id: string): Promise<void>;
+}
+
+/**
+ * Ajustes do aplicativo — uma chave, um valor.
+ *
+ * Existe porque não havia onde guardar um ajuste do sistema: ou virava coluna
+ * numa tabela que não é dele, ou virava variável de ambiente, que só quem
+ * publica consegue mudar. A primeira chave é a do Help Desk.
+ */
+export interface ConfigRepository {
+  ler<T>(chave: string): Promise<T | undefined>;
+  gravar<T>(chave: string, valor: T): Promise<void>;
 }
 
 /**
@@ -166,5 +187,6 @@ export interface Repositorios {
   auth: AuthRepository;
   areas: AreaRepository;
   empresas: EmpresasRepository;
+  config: ConfigRepository;
   checklists: ChecklistRepository;
 }

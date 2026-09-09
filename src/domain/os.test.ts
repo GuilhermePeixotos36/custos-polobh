@@ -8,6 +8,8 @@ import {
   alternarNaoSeAplica,
   temContrato,
   contratoPreenchido,
+  mesmoFornecedor,
+  exigeNovaVersaoPorFornecedor,
 } from "./os";
 import type { Ec, EcLinha, Infraestrutura, Logistica, Os } from "@/data/types";
 
@@ -230,5 +232,56 @@ describe("a OS tem contrato?", () => {
     expect(contratoPreenchido({ ...contratoVazio, formaPagamento: "À vista" })).toBe(false);
     // ...e espaço em branco não é texto escrito.
     expect(contratoPreenchido({ ...contratoVazio, rubrica: "   " })).toBe(false);
+  });
+});
+
+/**
+ * Trocar o fornecedor de uma OS que JÁ SAIU da casa não é edição: é outro
+ * contrato. A OS anterior existe do lado do primeiro fornecedor, e deixar duas
+ * empresas com o mesmo número na mão é o que a versão nova evita.
+ */
+describe("troca de fornecedor numa OS", () => {
+  const forn = (cnpj: string, razaoSocial: string) => ({ cnpj, razaoSocial });
+  const som = forn("11.111.111/0001-11", "Som & Luz Produções LTDA");
+  const outro = forn("22.222.222/0001-22", "Monta Tudo Estruturas LTDA");
+
+  describe("quem é o mesmo fornecedor", () => {
+    it("o CNPJ manda quando existe dos dois lados", () => {
+      // Mesmo CNPJ, razão social redigitada de outro jeito: é o mesmo.
+      expect(mesmoFornecedor(som, forn("11111111000111", "SOM E LUZ"))).toBe(true);
+      // CNPJs diferentes: a razão social parecida não salva.
+      expect(mesmoFornecedor(som, forn("22.222.222/0001-22", "Som & Luz Produções LTDA"))).toBe(false);
+    });
+
+    it("sem CNPJ, compara a razão social sem acento, caixa nem espaço sobrando", () => {
+      expect(mesmoFornecedor(forn("", "Som & Luz Produções LTDA"), forn("", "  SOM & LUZ PRODUCOES LTDA "))).toBe(true);
+      expect(mesmoFornecedor(forn("", "Som & Luz"), forn("", "Monta Tudo"))).toBe(false);
+    });
+  });
+
+  it("em rascunho, trocar é corrigir — não gera versão", () => {
+    // A OS nasce com o fornecedor que a EC apontou, e o primeiro ajuste de quem
+    // está montando o documento costuma ser exatamente esse.
+    expect(exigeNovaVersaoPorFornecedor({ status: "Rascunho" }, som, outro)).toBe(false);
+  });
+
+  it("emitida ou disparada, trocar exige versão nova", () => {
+    expect(exigeNovaVersaoPorFornecedor({ status: "Emitida" }, som, outro)).toBe(true);
+    expect(exigeNovaVersaoPorFornecedor({ status: "Disparada" }, som, outro)).toBe(true);
+  });
+
+  it("mexer no cadastro do MESMO fornecedor não é troca", () => {
+    // Corrigir a razão social, preencher o CNPJ que faltava: continua sendo ele.
+    expect(exigeNovaVersaoPorFornecedor({ status: "Emitida" }, som, forn("11111111000111", "Som e Luz Producoes"))).toBe(false);
+  });
+
+  it("fornecedor apagado no meio da edição é campo em branco, não troca", () => {
+    expect(exigeNovaVersaoPorFornecedor({ status: "Emitida" }, som, forn("", ""))).toBe(false);
+    expect(exigeNovaVersaoPorFornecedor({ status: "Emitida" }, som, undefined)).toBe(false);
+  });
+
+  it("OS já encerrada não entra na conta", () => {
+    // Cancelada/Arquivada não reemite: a própria RPC recusa.
+    expect(exigeNovaVersaoPorFornecedor({ status: "Cancelada" }, som, outro)).toBe(false);
   });
 });

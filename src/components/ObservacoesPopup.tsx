@@ -224,7 +224,7 @@ export function ObservacoesThread({ observacoes, usuarios, onChange, className, 
               type="button"
               onClick={() => { setCompor({ modo: "novo" }); setAberto(true); }}
               className="ml-auto inline-flex items-center gap-1.5 h-8 px-2.5 rounded-btn border-[1.5px] border-[#D6D9E0] bg-surface text-[12px] font-bold text-ink-2 hover:text-ink hover:border-primary/50 input-focus"
-              title="Adicionar observação"
+              title="Adicionar Observação"
             >
               <IcComment width={14} height={14} /> Observações
             </button>
@@ -234,9 +234,9 @@ export function ObservacoesThread({ observacoes, usuarios, onChange, className, 
             type="button"
             onClick={() => { setCompor({ modo: "novo" }); setAberto(true); }}
             className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-ink-3 hover:text-primary-dark input-focus rounded"
-            title="Adicionar observação"
+            title="Adicionar Observação"
           >
-            <IcComment width={14} height={14} /> Adicionar observação
+            <IcComment width={14} height={14} /> Adicionar Observação
           </button>
         )}
       </div>

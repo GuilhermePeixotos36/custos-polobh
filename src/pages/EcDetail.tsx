@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { PageShell } from "@/components/layout/AppLayout";
+import { BarraProjeto } from "@/components/layout/BarraSecao";
 import {
   Card,
   CardTitle,
@@ -490,7 +491,15 @@ export function EcDetail() {
       }
       // Grudam com o cabeçalho: trocar de subaba no meio da lista de itens não
       // pode obrigar a voltar ao topo.
-      subabas={verFinanceiro ? <EcSubGuias atual={subaba} onChange={setSubaba} temResumo temRentabilidade /> : undefined}
+      // Duas barras: a de cima é o SEGUNDO CABEÇALHO do projeto — a mesma em
+      // todas as páginas internas dele, para quem entra numa EC continuar
+      // sabendo de onde veio. A de baixo são as vistas deste documento.
+      subabas={
+        <>
+          {ec.projetoId && <BarraProjeto projetoId={ec.projetoId} atual="ec" />}
+          {verFinanceiro && <EcSubGuias atual={subaba} onChange={setSubaba} temResumo temRentabilidade />}
+        </>
+      }
     >
       {verFinanceiro && subaba === "resumo" && (
         <div className="space-y-4">{totaisCard}</div>

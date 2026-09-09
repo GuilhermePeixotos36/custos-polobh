@@ -25,7 +25,6 @@ import {
   anosComProjetos,
   contagemPorMes,
   diasNoMes,
-  diasOcupadosNoAno,
   hojeIso,
   montarCalendario,
   projetosDoAno,
@@ -52,10 +51,15 @@ const FILTROS: { key: FiltroStatus; label: string }[] = [
   { key: "Encerrados", label: "Encerrados" },
 ];
 
-/** Quantas trilhas cabem no mini-gráfico do card do mês sem ele virar um borrão. */
+/**
+ * Quantas trilhas cabem no mini-gráfico do card do mês sem ele virar um borrão.
+ *
+ * Isto é a MANCHA do mês — a leitura de "quão cheio está" —, não a lista. Ela
+ * continua limitada de propósito: com dez trilhas de 7px o desenho vira um
+ * borrão cinza que não diz nada. Quem precisa do detalhe tem a lista logo
+ * abaixo, que agora mostra tudo.
+ */
 const TRILHAS_NO_CARD = 3;
-/** Quantos projetos o card do mês lista antes de resumir em "+N". */
-const PROJETOS_NO_CARD = 4;
 
 export function Calendario() {
   const navigate = useNavigate();
@@ -121,7 +125,6 @@ export function Calendario() {
   const doAno = useMemo(() => projetosDoAno(filtrados, ano), [filtrados, ano]);
   const contagem = useMemo(() => contagemPorMes(doAno, ano), [doAno, ano]);
   const anosDisponiveis = useMemo(() => anosComProjetos(itens), [itens]);
-  const diasOcupados = useMemo(() => diasOcupadosNoAno(doAno, ano), [doAno, ano]);
 
   const mesMaisCheio = useMemo(() => {
     const pico = Math.max(0, ...contagem);
@@ -138,7 +141,7 @@ export function Calendario() {
 
   return (
     <PageShell
-      title="Calendário"
+      title="Calendário Pólobh"
       subtitle="O ano inteiro num quadro só: todo projeto do primeiro ao último dia."
       topAction={
         <div className="flex items-center gap-2">
@@ -208,9 +211,6 @@ export function Calendario() {
       ) : (
         <>
           <FaixaResumo
-            ano={ano}
-            projetos={doAno.length}
-            dias={diasOcupados}
             mesMaisCheio={mesMaisCheio}
             proximo={proximo}
             hoje={hoje}
@@ -276,18 +276,25 @@ export function Calendario() {
 
 /* ------------------------------- resumo ---------------------------------- */
 
+/**
+ * A faixa de resumo do ano — DUAS caixas, não quatro (revisão de 09/09/2026).
+ *
+ * A primeira linha eram dois contadores: "Projetos em 2026" e "Dias ocupados".
+ * Os dois respondiam perguntas que ninguém faz olhando um calendário — o número
+ * de projetos do ano já está escrito no badge de cada mês, somado a olho, e
+ * "dias ocupados" é uma estatística, não uma informação de trabalho. Ocupavam
+ * a primeira dobra inteira antes do quadro, que é o que a tela existe para
+ * mostrar.
+ *
+ * Ficaram as duas que levam a algum lugar: o mês mais cheio (que abre o mês) e
+ * o que está acontecendo agora ou vem a seguir.
+ */
 function FaixaResumo({
-  ano,
-  projetos,
-  dias,
   mesMaisCheio,
   proximo,
   hoje,
   onAbrirMes,
 }: {
-  ano: number;
-  projetos: number;
-  dias: number;
   mesMaisCheio: { mes: number; n: number } | null;
   proximo: ProjetoNoCalendario | null;
   hoje: string;
@@ -295,9 +302,7 @@ function FaixaResumo({
 }) {
   const emCartaz = proximo ? proximo.inicio <= hoje : false;
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 mb-5">
-      <Bloco titulo={`Projetos em ${ano}`} valor={String(projetos)} legenda={projetos === 1 ? "projeto no ano" : "projetos no ano"} />
-      <Bloco titulo="Dias ocupados" valor={String(dias)} legenda="dias do ano com projeto acontecendo" />
+    <div className="grid gap-3 sm:grid-cols-2 mb-5">
       <Bloco
         titulo="Mês mais cheio"
         valor={mesMaisCheio ? MESES[mesMaisCheio.mes] : "—"}
@@ -373,8 +378,6 @@ function CardMes({
   const dias = diasNoMes(ano, mes);
   const ehMesAtual = hoje.slice(0, 7) === `${ano}-${String(mes + 1).padStart(2, "0")}`;
   const diaDeHoje = ehMesAtual ? Number(hoje.slice(8, 10)) : 0;
-  const visiveis = segmentos.slice(0, PROJETOS_NO_CARD);
-  const resto = segmentos.length - visiveis.length;
 
   return (
     <button
@@ -431,20 +434,17 @@ function CardMes({
         </div>
       </div>
 
+      {/* TODOS os projetos do mês, e não os quatro primeiros com um "+N" no fim
+          (pedido de 09/09/2026). O corte economizava altura numa grade de doze
+          cards iguais, mas escondia justamente o que se vem ver: num mês cheio,
+          "+6 projetos" obrigava a abrir o mês para descobrir quais. O card cresce
+          o quanto precisar, e a grade acompanha — as linhas de cards já se
+          alinham pela altura do mais alto. */}
       <div className="flex flex-col gap-1.5 min-h-[52px]">
         {segmentos.length === 0 ? (
           <span className="text-[12px] text-ink-3 italic">Nenhum projeto neste mês</span>
         ) : (
-          <>
-            {visiveis.map((seg) => (
-              <LinhaProjetoCard key={seg.item.id} seg={seg} />
-            ))}
-            {resto > 0 && (
-              <span className="text-[11.5px] font-bold text-primary-dark">
-                +{resto} projeto{resto > 1 ? "s" : ""}
-              </span>
-            )}
-          </>
+          segmentos.map((seg) => <LinhaProjetoCard key={seg.item.id} seg={seg} />)
         )}
       </div>
 

@@ -9,7 +9,7 @@
  * na ordem em que os itens aparecem na EC — a mesma ordem da planilha, para
  * quem lê os dois lados não precisar reconciliar nada.
  */
-import type { CampoInfraestrutura, CampoLogistica, Ec, EcLinha, Os, StatusOs } from "@/data/types";
+import type { CampoInfraestrutura, CampoLogistica, Ec, EcLinha, Fornecedor, Os, StatusOs } from "@/data/types";
 
 export interface ItemDaOs {
   id: string;
@@ -160,4 +160,58 @@ export function temContrato(os: Pick<Os, "contrato">, linhas: Pick<EcLinha, "con
  */
 export function contratoPreenchido(ct: Os["contrato"]): boolean {
   return !!(ct.informacoesComplementares?.trim() || ct.rubrica?.trim());
+}
+
+/* ---------------------- troca de fornecedor numa OS ---------------------- */
+
+/**
+ * Duas OS falam do MESMO fornecedor?
+ *
+ * O CNPJ manda quando existe dos dois lados — é o que identifica a empresa. Sem
+ * ele (pessoa física, cadastro incompleto), compara a razão social pela régua
+ * frouxa: sem acento, sem caixa, sem espaço sobrando. É a mesma comparação de
+ * `versaoOs`, e tem de ser: as duas respondem à pergunta "é o mesmo fornecedor
+ * desta OS?", e discordar faria a versão pular ou repetir.
+ */
+export function mesmoFornecedor(
+  a: Pick<Fornecedor, "cnpj" | "razaoSocial"> | undefined,
+  b: Pick<Fornecedor, "cnpj" | "razaoSocial"> | undefined
+): boolean {
+  const digitos = (s?: string) => (s ?? "").replace(/\D/g, "");
+  const chave = (s?: string) =>
+    (s ?? "").trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").toLocaleLowerCase("pt-BR");
+  const cnpjA = digitos(a?.cnpj);
+  const cnpjB = digitos(b?.cnpj);
+  if (cnpjA && cnpjB) return cnpjA === cnpjB;
+  return chave(a?.razaoSocial) === chave(b?.razaoSocial);
+}
+
+/**
+ * Uma OS que já SAIU da casa. É o que separa corrigir de reemitir.
+ *
+ * Rascunho é papel de trabalho: mexer nele não tem consequência para ninguém de
+ * fora. Emitida ou Disparada é documento — ele existe do lado do fornecedor, e
+ * trocar quem ele contrata sem trocar o número deixaria duas empresas
+ * diferentes com a mesma OS na mão.
+ */
+export const osJaEmitida = (os: Pick<Os, "status">): boolean =>
+  os.status === "Emitida" || os.status === "Disparada";
+
+/**
+ * Trocar o fornecedor desta OS exige gerar uma versão nova?
+ *
+ * Sim quando ela já saiu da casa e o fornecedor de fato mudou. Em rascunho,
+ * não: ali a troca é correção de quem ainda está montando o documento —
+ * inclusive porque a OS nasce com o fornecedor que a EC apontou, e o primeiro
+ * ajuste costuma ser exatamente esse.
+ */
+export function exigeNovaVersaoPorFornecedor(
+  os: Pick<Os, "status">,
+  original: Pick<Fornecedor, "cnpj" | "razaoSocial"> | undefined,
+  atual: Pick<Fornecedor, "cnpj" | "razaoSocial"> | undefined
+): boolean {
+  if (!osJaEmitida(os)) return false;
+  // Fornecedor apagado no meio da edição não é troca: é campo em branco.
+  if (!(atual?.cnpj ?? "").trim() && !(atual?.razaoSocial ?? "").trim()) return false;
+  return !mesmoFornecedor(original, atual);
 }

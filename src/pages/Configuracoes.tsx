@@ -2,11 +2,12 @@ import { useEffect, useState } from "react";
 import { ChecklistModelosCard } from "@/components/ChecklistModelosCard";
 import { createPortal } from "react-dom";
 import { PageShell } from "@/components/layout/AppLayout";
-import { SubGuias } from "@/components/layout/SubGuias";
+import { BarraConfiguracoes, useSecaoConfig } from "@/components/layout/BarraSecao";
 import { Card, CardTitle, Toggle, Badge, Field, Input, TelefoneInput, Select, Button, Table, THead, Th, Tr, Td, EmptyState } from "@/components/ui";
 import { IcPlus, IcPencil, IcTrash, IcBloqueio, IcFechar, IcCheck } from "@/components/icons";
 import { ROTULO_PAPEL, PAPEIS_AREA, TELAS, PERMISSOES_ESPECIAIS, useAuth, type Recurso } from "@/store/auth";
 import { useEmpresas } from "@/store/empresas";
+import { useConfigApp } from "@/store/configApp";
 import { useAsync } from "@/hooks/useAsync";
 import { repo } from "@/data";
 import { toast } from "@/store/toast";
@@ -18,30 +19,32 @@ import {
 import type { Area, Papel, Usuario } from "@/data/types";
 
 type AbaConfig = "geral" | "checklist" | "areas" | "usuarios";
-const ABAS: { key: AbaConfig; label: string }[] = [
-  { key: "geral", label: "Geral" },
-  { key: "checklist", label: "Check-list" },
-  { key: "areas", label: "Áreas e permissões" },
-  { key: "usuarios", label: "Usuários" },
-];
 
+/**
+ * A aba vem da URL (`?aba=`), e não de estado solto: a barra de Configurações
+ * agora atravessa rotas — Agenda, Fornecedores e Logs são telas próprias que
+ * moram nesta mesma barra (ver `BarraConfiguracoes`). Sem a URL mandar, voltar
+ * de uma delas cairia sempre em "Geral".
+ */
 export function Configuracoes() {
-  const [aba, setAba] = useState<AbaConfig>("geral");
+  const aba = useSecaoConfig() as AbaConfig;
   const [retencao, setRetencao] = useState(24);
   const [arquivamentoAuto, setArquivamentoAuto] = useState(true);
 
   return (
     <PageShell
       title="Configurações"
-      subtitle="Empresas de emissão, áreas de acesso, usuários e retenção de dados."
-      // Grudam com o cabeçalho, como nas demais telas com subabas.
-      subabas={<SubGuias rotulo="Seções das configurações" atual={aba} onChange={setAba} abas={ABAS} />}
+      subtitle="Empresas de emissão, áreas de acesso, usuários, agenda, fornecedores e logs."
+      // Gruda com o cabeçalho, como nas demais telas com subabas.
+      subabas={<BarraConfiguracoes atual={aba} />}
     >
       {aba === "geral" && (
         <div className="space-y-4">
           <EmpresasGrupoCard />
 
           <NotificacoesCard />
+
+          <HelpDeskCard />
 
           <Card>
             <CardTitle hint="Arquivar ≠ apagar — registros arquivados continuam consultáveis">Retenção de dados</CardTitle>
@@ -701,5 +704,55 @@ function UsuariosCard() {
         </Card>
       )}
     </div>
+  );
+}
+
+/**
+ * Para onde vai o chamado do Help Desk (o quinto botão do cabeçalho).
+ *
+ * Fica em Configurações, e não numa variável de ambiente, porque trocar quem
+ * atende o suporte não pode depender de publicar versão nova do aplicativo.
+ */
+function HelpDeskCard() {
+  const { helpdesk, carregado, carregar, gravarHelpDesk } = useConfigApp();
+  const [email, setEmail] = useState("");
+  const [erro, setErro] = useState("");
+
+  useEffect(() => { carregar(); }, [carregar]);
+  useEffect(() => { if (carregado) setEmail(helpdesk.email); }, [carregado, helpdesk.email]);
+
+  /** Endereço inválido gravado aqui derruba TODO chamado, calado. */
+  async function gravar() {
+    const limpo = email.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(limpo)) {
+      setErro("Informe um e-mail válido — é para cá que vão todos os chamados.");
+      return;
+    }
+    setErro("");
+    if (limpo === helpdesk.email) return;
+    try {
+      await gravarHelpDesk({ email: limpo });
+      toast("Endereço do Help Desk atualizado.", "success");
+    } catch (e) {
+      setErro((e as Error).message);
+    }
+  }
+
+  return (
+    <Card>
+      <CardTitle hint="Quem recebe os chamados abertos pelo botão Help Desk. A resposta volta para quem abriu.">
+        Help Desk
+      </CardTitle>
+      <Field label="E-mail do suporte">
+        <Input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          onBlur={gravar}
+          placeholder="suporte@exemplo.com.br"
+        />
+      </Field>
+      {erro && <p className="mt-1.5 text-[12.5px] font-semibold text-danger">{erro}</p>}
+    </Card>
   );
 }

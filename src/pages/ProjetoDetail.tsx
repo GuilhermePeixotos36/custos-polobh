@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { PageShell } from "@/components/layout/AppLayout";
-import { SubGuias } from "@/components/layout/SubGuias";
+import { BarraProjeto } from "@/components/layout/BarraSecao";
+import { NAV_PROJETO } from "@/components/layout/nav";
 import {
   Card, CardTitle, Button, Field, Input, Label, TelefoneInput, Textarea, Select, Badge,
   Table, THead, Tr, Td, EmptyState, ThOrd, useOrdenacao, tomStatusOs, type Tom,
@@ -70,19 +71,12 @@ const projetoVazio = (): Projeto => ({
 });
 
 type Aba = "dados" | "ec" | "os" | "checklist" | "cronograma" | "credenciamento" | "fornecedores";
-// O check-list vem logo depois de Dados Gerais: é a aba de acompanhamento diário
-// do projeto, consultada muito mais vezes que EC e OS (pedido de 25/08/2026).
-const ABAS: { key: Aba; label: string }[] = [
-  { key: "dados", label: "Dados Gerais" },
-  { key: "checklist", label: "Check-list" },
-  { key: "ec", label: "EC" },
-  { key: "os", label: "OS" },
-  { key: "cronograma", label: "Cronograma" },
-  // O credenciamento é do EVENTO: um painel de todos os fornecedores de uma vez,
-  // e não uma pergunta repetida dentro de cada OS.
-  { key: "credenciamento", label: "Credenciamento" },
-  { key: "fornecedores", label: "Fornecedores" },
-];
+/**
+ * As abas moram em `layout/nav` porque não são só desta tela: a mesma barra
+ * aparece dentro da EC e da OS (o "segundo cabeçalho" — ver `BarraProjeto`).
+ * Duas listas discordariam no dia em que uma aba mudasse de nome.
+ */
+const ABAS = NAV_PROJETO as { key: Aba; label: string }[];
 
 const ROTEIROS_PADRAO = {
   preEvento: { label: "Pré Evento", placeholder: "Descreva o roteiro de pré-evento…" },
@@ -774,17 +768,16 @@ export function ProjetoDetail() {
       // Grudam com o cabeçalho: em projeto longo (check-list inteiro, lista de
       // itens), trocar de aba não pode obrigar a voltar ao topo.
       subabas={
-        <SubGuias
-          rotulo="Seções do projeto"
+        <BarraProjeto
+          projetoId={id}
           atual={aba}
-          onChange={setAba}
-          abas={ABAS.map((a) => ({
-            ...a,
-            // Projeto ainda não salvo: só Dados Gerais faz sentido — as demais
-            // dependem de um id que ainda não existe.
-            desabilitada: novo && a.key !== "dados",
-            pendencias: porAba[`${id}:${a.key}`] ?? 0,
-          }))}
+          // Projeto ainda não salvo: só Dados Gerais faz sentido — as demais
+          // dependem de um id que ainda não existe.
+          desabilitadasExceto={novo ? "dados" : undefined}
+          pendencias={Object.fromEntries(ABAS.map((a) => [a.key, porAba[`${id}:${a.key}`] ?? 0]))}
+          // Aqui a troca é por dentro: a tela já está no projeto, e trocar de
+          // aba não deve recarregar nada.
+          onAba={(a) => setAba(a as Aba)}
         />
       }
     >

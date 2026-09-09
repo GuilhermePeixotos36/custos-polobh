@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { PageShell } from "@/components/layout/AppLayout";
+import { BarraConfiguracoes } from "@/components/layout/BarraSecao";
 import { Card, Badge, Input, Select, Button, Table, THead, Tr, Td, EmptyState, ThOrd, useOrdenacao, type Tom } from "@/components/ui";
 import { IcDownload, IcSearch } from "@/components/icons";
 import { supabase } from "@/lib/supabaseClient";
@@ -94,6 +95,7 @@ export function Logs() {
     <PageShell
       title="Logs do sistema"
       subtitle="Trilha de auditoria de acessos, alterações e eventos do aplicativo."
+      subabas={<BarraConfiguracoes atual="logs" />}
     >
       <div className="space-y-4">
         <Card>

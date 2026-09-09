@@ -12,9 +12,7 @@
  * sobrescreve o que foi dito nesse meio tempo.
  */
 import { useEffect, useState } from "react";
-import { Card, CardTitle } from "@/components/ui";
-import { ObservacoesThread } from "@/components/ObservacoesPopup";
-import { NotifDot } from "@/components/NotifDot";
+import { CardConversa } from "@/components/CardConversa";
 import { repo } from "@/data";
 import { toast } from "@/store/toast";
 import { usePendencias, useMinhasPendencias } from "@/store/pendencias";
@@ -52,19 +50,13 @@ export function ObservacoesGeraisEc({
   }
 
   return (
-    <Card>
-      <CardTitle hint="Conversa da equipe sobre o evento inteiro. Combine aqui e trate o detalhe dentro de cada item — quem é @mencionado fica com a pendência.">
-        <span className="inline-flex items-center gap-2">
-          Observações gerais
-          <NotifDot n={minhas} inline title={`${minhas} pendência(s) sua(s) nesta conversa`} />
-        </span>
-      </CardTitle>
-      <ObservacoesThread
-        ancora={ancoraObservacoesGeraisEc(ecId)}
-        observacoes={lista}
-        usuarios={usuarios}
-        onChange={gravar}
-      />
-    </Card>
+    <CardConversa
+      ancora={ancoraObservacoesGeraisEc(ecId)}
+      hint="Conversa da equipe sobre o evento inteiro. Combine aqui e trate o detalhe dentro de cada item — quem é @mencionado fica com a pendência."
+      observacoes={lista}
+      usuarios={usuarios}
+      minhas={minhas}
+      onChange={gravar}
+    />
   );
 }

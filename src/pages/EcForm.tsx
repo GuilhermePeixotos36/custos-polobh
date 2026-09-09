@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { PageShell } from "@/components/layout/AppLayout";
+import { BarraProjeto } from "@/components/layout/BarraSecao";
 import {
   Card,
   CardTitle,
@@ -460,7 +461,13 @@ export function EcForm() {
       }
       // Grudam com o cabeçalho: trocar de subaba no meio da lista de itens não
       // pode obrigar a voltar ao topo.
-      subabas={<EcSubGuias atual={subaba} onChange={setSubaba} temResumo={verFinanceiro} temRentabilidade={verFinanceiro} />}
+      // O segundo cabeçalho do projeto por cima das vistas da EC — ver EcDetail.
+      subabas={
+        <>
+          {ec.projetoId && <BarraProjeto projetoId={ec.projetoId} atual="ec" />}
+          <EcSubGuias atual={subaba} onChange={setSubaba} temResumo={verFinanceiro} temRentabilidade={verFinanceiro} />
+        </>
+      }
     >
       {/* Pílula flutuante que salta entre as pendências desta EC. */}
       {subaba === "ec" && <NavegadorPendencias pendencias={pendenciasDaEc} />}

@@ -12,6 +12,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { PageShell } from "@/components/layout/AppLayout";
+import { BarraConfiguracoes } from "@/components/layout/BarraSecao";
 import { Badge, Button, Card, EmptyState, Select, AvisoErro, type Tom } from "@/components/ui";
 import { IcCheck, IcCalendar } from "@/components/icons";
 import { repo } from "@/data";
@@ -178,6 +179,9 @@ export function Agenda() {
     <PageShell
       title="Agenda"
       subtitle="Tarefas de check-list de todos os projetos ativos, na ordem em que vencem."
+      // Esta tela mora em Configurações desde 09/09/2026 (o cabeçalho geral
+      // ficou com cinco botões). A barra mantém a referência de onde se está.
+      subabas={<BarraConfiguracoes atual="agenda" />}
     >
       {error && <AvisoErro erro={error} oQue="a agenda" onTentarDeNovo={reload} />}
 

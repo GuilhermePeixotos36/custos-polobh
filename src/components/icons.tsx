@@ -41,6 +41,15 @@ export const IcHelp = (p: P) => (
     <path d="M12 17h.01" />
   </I>
 );
+/** Boia salva-vidas — o Help Desk: "preciso de socorro". */
+export const IcSuporte = (p: P) => (
+  <I {...p}>
+    <circle cx="12" cy="12" r="10" />
+    <circle cx="12" cy="12" r="4" />
+    <path d="m4.9 4.9 4.2 4.2M14.9 14.9l4.2 4.2M14.9 9.1l4.2-4.2M4.9 19.1l4.2-4.2" />
+  </I>
+);
+
 /** Bússola — o tour guiado: "por onde eu começo?". */
 export const IcCompass = (p: P) => (
   <I {...p}>

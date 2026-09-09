@@ -128,3 +128,49 @@ export function emailEcParaAprovacao(ec: Ec): MensagemEmail {
     html: wrap("Estimativa de Custos | Proposta Comercial", corpo),
   };
 }
+
+/* -------------------------------- Help Desk ------------------------------ */
+
+/** O que a pessoa está pedindo — muda a urgência com que o suporte lê. */
+export type TipoChamado = "Erro no sistema" | "Dúvida de uso" | "Sugestão de melhoria" | "Acesso e permissões";
+
+export interface Chamado {
+  tipo: TipoChamado;
+  assunto: string;
+  descricao: string;
+  /** Onde a pessoa estava quando abriu o chamado — poupa a primeira pergunta. */
+  tela: string;
+  autorNome: string;
+  autorEmail: string;
+  /** Navegador e resolução: metade dos "não funciona aqui" mora nisso. */
+  ambiente: string;
+}
+
+/**
+ * Chamado aberto de dentro do aplicativo.
+ *
+ * O `responderPara` é o e-mail de quem abriu, e é o detalhe que faz a coisa
+ * funcionar: o suporte responde apertando "responder", sem ter de copiar
+ * endereço de dentro do corpo da mensagem.
+ */
+export function emailHelpDesk(c: Chamado, para: string): MensagemEmail {
+  const linha = (rotulo: string, valor: string) =>
+    `<tr><td style="padding:4px 10px 4px 0;color:#6A6E78;font-size:13px;vertical-align:top;white-space:nowrap">${h(rotulo)}</td>
+         <td style="padding:4px 0;font-size:13px">${h(valor)}</td></tr>`;
+  const corpo = `
+    <table style="border-collapse:collapse;margin-bottom:16px">
+      ${linha("Tipo", c.tipo)}
+      ${linha("Aberto por", `${c.autorNome} <${c.autorEmail}>`)}
+      ${linha("Tela", c.tela)}
+      ${linha("Ambiente", c.ambiente)}
+    </table>
+    <p style="font-size:14px;font-weight:bold;margin-bottom:4px">${h(c.assunto)}</p>
+    <p style="font-size:14px;white-space:pre-line;background:#FAFAFB;border:1px solid #EEEFF2;border-radius:8px;padding:12px">${h(c.descricao)}</p>`;
+  return {
+    para: [{ email: para, nome: "Suporte Pólobh" }],
+    assunto: `[Help Desk] ${c.tipo} — ${c.assunto}`,
+    html: wrap("Chamado aberto no sistema", corpo),
+    // Responder vai direto para quem abriu.
+    responderPara: c.autorEmail ? { email: c.autorEmail, nome: c.autorNome } : undefined,
+  };
+}
