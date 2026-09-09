@@ -352,8 +352,8 @@ const MODULOS: Modulo[] = [
               ["OS / Contrato", "escolha", "Pendente, Emitir, Emitir Nova Versão, OK ou Não se aplica. É o Contrato aqui que decide se a OS terá o bloco Dados para Contrato."],
               ["Documento PG", "escolha", "Recibo, Fatura, Nota Fiscal… A OS nasce com o que estiver aqui."],
               ["Código de Serviço", "equipe", "Vai para a emissão da nota na OS."],
-              ["Bloco de valores (com BV e NF / sem BV com NF / sem BV sem NF)", "equipe", "Como aquele item será pago. Cada opção aceita “Não se aplica” ou um valor."],
-              ["BV — percentual ou valor fixo", "equipe", "Só na opção com BV e NF. É daqui que sai o BV consolidado da OS."],
+              ["Bloco de valores (com BV e NF / sem BV com NF / sem BV sem NF)", "equipe", "Quanto o item custaria de cada forma. Cada uma aceita “Não se aplica” ou um valor — a escolha é feita na OS."],
+              ["BV — percentual ou valor fixo", "equipe", "Só na forma com BV e NF, assim que ela tem valor. É daqui que sai o BV consolidado da OS."],
               ["Justificativa do BV", "equipe", "Obrigatória quando não há BV ou ele é menor que 15%. Sem ela a OS não salva."],
               ["Observações do item", "equipe", "Conversa interna com @menção. Vira pendência para quem foi mencionado. Não sai em documento."],
             ]}
@@ -673,7 +673,7 @@ const MODULOS: Modulo[] = [
             <span>Depois de emitir, <b>complete os dados fiscais</b> de cada OS — boa parte deles é preenchida à mão.</span>
           </Passos>
         </Secao>
-        <Secao titulo="Opções de valor do item (o que sai na OS)">
+        <Secao titulo="Formas de cobrar o item (informação, não escolha)">
           <p>
             Dentro de cada item há um bloquinho com as <b>três formas de cobrar</b> aquele serviço — a OS junta vários
             itens, e cada um é negociado do seu jeito:
@@ -685,10 +685,14 @@ const MODULOS: Modulo[] = [
           </div>
           <Passos>
             <span>Em cada uma, ou você <b>digita o valor</b>, ou clica em <b>Não se aplica</b> — este item não é cobrado daquela forma. São respostas diferentes de deixar em branco.</span>
-            <span>O <b>rádio</b> marca qual das três <b>vale</b> para o item. É ela que a planilha da OS imprime, logo abaixo de "Valor do Item na EC do Projeto".</span>
+            <span>Na EC <b>não se escolhe nada</b>: as três seguem lado a lado para a OS, que é onde se decide por qual delas o item vai ser pago (bloco <b>Valores negociados</b>).</span>
             <span>Marcar "Não se aplica" <b>não apaga</b> o valor digitado: dá para voltar atrás sem perder o que estava escrito.</span>
           </Passos>
-          <Dica>Uma opção marcada como "Não se aplica" sai na planilha com esse texto e <b>não entra</b> no total das opções escolhidas.</Dica>
+          <Dica>
+            Havia aqui um <b>rádio</b> elegendo "a que vale". Ele obrigava a produção a fechar a condição de pagamento
+            dentro de um documento que ainda estava sendo montado — e a escolha nem chegava à planilha, que já imprime
+            as três colunas de qualquer jeito. Na EC se <b>levanta o preço</b>; na OS se <b>fecha a condição</b>.
+          </Dica>
         </Secao>
         <Secao titulo="Enviar para aprovação, versões e Excel">
           <Passos>

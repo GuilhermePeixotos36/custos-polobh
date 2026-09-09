@@ -39,7 +39,7 @@ const observacao = (o: Partial<Observacao>): Observacao => ({
 const linha = (obs: Observacao[]): EcLinha => ({
   id: "l1", grupo: "PRODUÇÃO", item: "Buffet", descricao: "", descricaoCompleta: "",
   valorPolobh: 0, valorCliente: 0, valorGasto: 0,
-  valorComBvNf: 0, valorSemBvComNf: 0, valorSemBvSemNf: 0, valoresNaoAplicaveis: [], opcaoValor: "", bv: bvVazio(),
+  valorComBvNf: 0, valorSemBvComNf: 0, valorSemBvSemNf: 0, valoresNaoAplicaveis: [], bv: bvVazio(),
   statusAprovacao: "Pendente",
   fornecedorRazao: "", fornecedorCnpj: "", fornecedorContato: "", faturaNf: "",
   codigoServico: "", pedidoCompra: "", statusOs: "Pendente", contratoStatus: "Pendente",

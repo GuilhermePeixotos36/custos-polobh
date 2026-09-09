@@ -6,7 +6,6 @@ import {
   numeroOs,
   versaoOs,
   apelidoFornecedor,
-  opcaoEscolhidaDoItem,
   opcaoNaoSeAplica,
   valorDaOpcao,
   descritivoConsolidado,
@@ -44,7 +43,7 @@ function linha(p: Partial<EcLinha>): EcLinha {
     id: "l1", grupo: "G", item: "Item", descricao: "", descricaoCompleta: "",
     valorPolobh: 0, valorCliente: 0, valorGasto: 0,
     valorComBvNf: 0, valorSemBvComNf: 0, valorSemBvSemNf: 0,
-    valoresNaoAplicaveis: [], opcaoValor: "", bv: bvVazio(), statusAprovacao: "Pendente",
+    valoresNaoAplicaveis: [], bv: bvVazio(), statusAprovacao: "Pendente",
     fornecedorRazao: "", fornecedorCnpj: "", fornecedorContato: "", faturaNf: "",
     codigoServico: "", pedidoCompra: "", statusOs: "Pendente", contratoStatus: "Pendente",
     observacao: "", observacoes: [], oculto: false, ordem: 0, ...p,
@@ -145,30 +144,29 @@ describe("numeroEc", () => {
   });
 });
 
-describe("opções de valor do item", () => {
-  it("a opção escolhida sai com rótulo e valor", () => {
-    const escolha = opcaoEscolhidaDoItem(linha({ valorComBvNf: 9000, opcaoValor: "comBvNf" }));
-    expect(escolha).toMatchObject({ rotulo: "Valor com BV e NF", valor: 9000, naoSeAplica: false });
+describe("formas de cobrar o item", () => {
+  it("as três convivem: preencher uma não mexe nas outras", () => {
+    // Na EC não há escolha — são três informações lado a lado, e quem decide a
+    // condição de pagamento é a OS.
+    const l = linha({ valorComBvNf: 9000, valorSemBvComNf: 9500, valorSemBvSemNf: 8000 });
+    expect(valorDaOpcao(l, "comBvNf")).toBe(9000);
+    expect(valorDaOpcao(l, "semBvComNf")).toBe(9500);
+    expect(valorDaOpcao(l, "semBvSemNf")).toBe(8000);
   });
 
-  it("'Não se aplica' é resposta: zera o valor e se identifica", () => {
-    // O número digitado antes continua guardado (dá para voltar atrás), mas não
-    // vale mais nada — nem na planilha, nem em soma.
-    const l = linha({ valorComBvNf: 9000, opcaoValor: "comBvNf", valoresNaoAplicaveis: ["comBvNf"] });
+  it("'Não se aplica' é resposta: zera o valor sem apagar o que foi digitado", () => {
+    // O número continua guardado (dá para voltar atrás), mas não vale mais nada
+    // — nem na planilha, nem em soma.
+    const l = linha({ valorComBvNf: 9000, valoresNaoAplicaveis: ["comBvNf"] });
     expect(opcaoNaoSeAplica(l, "comBvNf")).toBe(true);
     expect(valorDaOpcao(l, "comBvNf")).toBe(0);
-    expect(opcaoEscolhidaDoItem(l)).toMatchObject({ valor: 0, naoSeAplica: true });
     expect(l.valorComBvNf).toBe(9000);
   });
 
-  it("marcar uma opção não afeta as outras", () => {
-    const l = linha({ valorSemBvSemNf: 3600, opcaoValor: "semBvSemNf", valoresNaoAplicaveis: ["comBvNf"] });
+  it("marcar uma forma não afeta as outras", () => {
+    const l = linha({ valorSemBvSemNf: 3600, valoresNaoAplicaveis: ["comBvNf"] });
     expect(opcaoNaoSeAplica(l, "semBvSemNf")).toBe(false);
     expect(valorDaOpcao(l, "semBvSemNf")).toBe(3600);
-  });
-
-  it("sem escolha nenhuma, não há opção para a OS imprimir", () => {
-    expect(opcaoEscolhidaDoItem(linha({ valorComBvNf: 9000 }))).toBeNull();
   });
 });
 
@@ -482,7 +480,7 @@ describe("reverterAprovacaoLinha", () => {
  */
 describe("BV do item da EC", () => {
   const comBv = (p: Partial<EcLinha["bv"]>, resto: Partial<EcLinha> = {}) =>
-    linha({ valorComBvNf: 10000, opcaoValor: "comBvNf", bv: { ...bvVazio(), ...p }, ...resto });
+    linha({ valorComBvNf: 10000, bv: { ...bvVazio(), ...p }, ...resto });
 
   it("percentual vira reais sobre o valor com BV do item", () => {
     expect(bvDaLinha(comBv({ modo: "percentual", valor: 15 }))).toEqual({
@@ -496,14 +494,20 @@ describe("BV do item da EC", () => {
     });
   });
 
-  it("sem BV não há base: as outras duas formas de cobrança zeram o cálculo", () => {
-    const semBv = linha({ valorComBvNf: 10000, valorSemBvComNf: 9000, opcaoValor: "semBvComNf", bv: { modo: "percentual", valor: 15, justificativa: "" } });
+  it("sem valor com BV não há base: o cálculo zera", () => {
+    const semBv = linha({ valorSemBvComNf: 9000, bv: { modo: "percentual", valor: 15, justificativa: "" } });
     expect(bvDaLinha(semBv).valor).toBe(0);
   });
 
-  it("opção marcada como \"não se aplica\" também zera — ela não vale para o item", () => {
+  it("\"não se aplica\" na cobrança com BV também zera — o item não é pago assim", () => {
     const naoSeAplica = comBv({ modo: "percentual", valor: 15 }, { valoresNaoAplicaveis: ["comBvNf"] });
     expect(bvDaLinha(naoSeAplica).valor).toBe(0);
+  });
+
+  it("o BV conta assim que há valor com BV, sem esperar ninguém eleger a forma", () => {
+    // O seletor saiu da EC: o BV é combinado junto com o preço, e não depois de
+    // fechada a condição de pagamento.
+    expect(bvDaLinha(comBv({ modo: "percentual", valor: 15 })).valor).toBe(1500);
   });
 
   describe("quando a justificativa é exigida", () => {
@@ -515,20 +519,24 @@ describe("BV do item da EC", () => {
       expect(bvExigeJustificativa(comBv({ modo: "percentual", valor: 10 }))).toBe(true);
     });
 
-    it("sem BV pede — é o caso que mais precisa de motivo escrito", () => {
-      expect(bvExigeJustificativa(linha({ valorSemBvSemNf: 8000, opcaoValor: "semBvSemNf" }))).toBe(true);
+    it("\"não se aplica\" na cobrança com BV pede — é o caso que mais precisa de motivo", () => {
+      // A produção respondeu que o item sai sem BV; o porquê fica escrito.
+      expect(bvExigeJustificativa(linha({ valorSemBvSemNf: 8000, valoresNaoAplicaveis: ["comBvNf"] }))).toBe(true);
     });
 
-    it("item sem forma de pagamento escolhida NÃO pede nada ainda", () => {
-      // Senão toda linha recém-criada nasceria com um alerta vermelho.
-      expect(bvExigeJustificativa(linha({ valorComBvNf: 10000 }))).toBe(false);
+    it("campo com BV ainda em branco NÃO pede nada", () => {
+      // Em branco é pergunta sem resposta — senão toda linha recém-criada
+      // nasceria com um alerta vermelho.
+      expect(bvExigeJustificativa(linha({ valorSemBvSemNf: 8000 }))).toBe(false);
+      expect(bvExigeJustificativa(linha({}))).toBe(false);
     });
 
     it("exigida e em branco é o que trava a emissão da OS", () => {
-      const semMotivo = linha({ valorSemBvSemNf: 8000, opcaoValor: "semBvSemNf" });
+      const semMotivo = linha({ valorSemBvSemNf: 8000, valoresNaoAplicaveis: ["comBvNf"] });
       expect(bvJustificativaFaltando(semMotivo)).toBe(true);
       const comMotivo = linha({
-        valorSemBvSemNf: 8000, opcaoValor: "semBvSemNf",
+        valorSemBvSemNf: 8000,
+        valoresNaoAplicaveis: ["comBvNf"],
         bv: { ...bvVazio(), justificativa: "Fornecedor não trabalha com BV." },
       });
       expect(bvJustificativaFaltando(comMotivo)).toBe(false);
@@ -538,7 +546,7 @@ describe("BV do item da EC", () => {
       const pronto = linha({
         statusAprovacao: "OK", fornecedorRazao: "SOM & LUZ LTDA", fornecedorCnpj: "12.345.678/0001-90",
         faturaNf: "Nota Fiscal", codigoServico: "03.01", pedidoCompra: "PC-1",
-        valorSemBvSemNf: 8000, opcaoValor: "semBvSemNf",
+        valorSemBvSemNf: 8000, valoresNaoAplicaveis: ["comBvNf"],
       });
       expect(faltasParaEmitirOs(pronto)).toEqual(["Justificativa do BV"]);
     });
@@ -547,7 +555,7 @@ describe("BV do item da EC", () => {
 
 describe("BV consolidado na OS", () => {
   const item = (valor: number, bv: Partial<EcLinha["bv"]>) =>
-    linha({ valorComBvNf: valor, opcaoValor: "comBvNf", bv: { ...bvVazio(), ...bv } });
+    linha({ valorComBvNf: valor, bv: { ...bvVazio(), ...bv } });
 
   it("soma os reais e recompõe o percentual sobre o total", () => {
     // 15% de 10.000 = 1.500 · R$ 500 fixos sobre 5.000 = 10%. Juntos: 2.000/15.000.
@@ -569,7 +577,7 @@ describe("BV consolidado na OS", () => {
   });
 
   it("OS sem nenhum item com BV não inventa percentual", () => {
-    expect(bvConsolidado([linha({ opcaoValor: "semBvComNf", valorSemBvComNf: 900 })])).toEqual({
+    expect(bvConsolidado([linha({ valorSemBvComNf: 900 })])).toEqual({
       valor: 0, percentual: 0, justificativa: "",
     });
   });

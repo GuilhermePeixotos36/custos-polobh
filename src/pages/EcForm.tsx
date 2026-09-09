@@ -75,7 +75,6 @@ const novaLinha = (ordem: number): EcLinha => ({
   valorSemBvComNf: 0,
   valorSemBvSemNf: 0,
   valoresNaoAplicaveis: [],
-  opcaoValor: "",
   bv: bvVazio(),
   statusAprovacao: "Pendente",
   fornecedorRazao: "",

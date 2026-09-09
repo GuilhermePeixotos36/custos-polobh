@@ -305,12 +305,14 @@ export interface ProjetoInfo {
 }
 
 /**
- * Opção de valor escolhida para o item ("" = a produção ainda não decidiu).
- * Os rótulos de tela/planilha vivem em `OPCOES_VALOR_ITEM`, em domain/calc.
+ * As três formas de cobrar um item. Os rótulos de tela/planilha vivem em
+ * `OPCOES_VALOR_ITEM`, em domain/calc.
+ *
+ * Não existe mais um "" de "ninguém escolheu ainda": na EC as três são
+ * informação lado a lado, e não uma escolha — quem decide a condição de
+ * pagamento é a OS (revisão de 09/09/2026).
  */
-export type OpcaoValorItem = "" | "comBvNf" | "semBvComNf" | "semBvSemNf";
-/** As três opções de fato — sem o "" de "ninguém escolheu ainda". */
-export type OpcaoValorDefinida = Exclude<OpcaoValorItem, "">;
+export type OpcaoValorDefinida = "comBvNf" | "semBvComNf" | "semBvSemNf";
 
 /**
  * BV do item: a bonificação que o fornecedor dá à Pólobh.
@@ -341,21 +343,22 @@ export interface EcLinha {
   /** Valor total gasto até a presente data no item (para rentabilidade). */
   valorGasto: number;
   /**
-   * As três formas de cobrar ESTE item, preenchidas pela produção. A OS
-   * consolida vários itens, e cada um é negociado do seu jeito — um sai com
-   * nota, outro sem, outro com BV —, então a escolha mora no item, não na OS.
+   * As três formas de cobrar ESTE item, levantadas pela produção. A OS consolida
+   * vários itens e cada um é negociado do seu jeito — um sai com nota, outro
+   * sem, outro com BV —, então o preço de cada forma mora no item.
+   *
+   * Aqui elas são INFORMAÇÃO: as três seguem lado a lado para a OS, que é onde
+   * se decide por qual delas o item vai ser pago. Na EC não há escolha.
    */
   valorComBvNf: number;
   valorSemBvComNf: number;
   valorSemBvSemNf: number;
   /**
-   * Opções que NÃO SE APLICAM a este item. Cada um dos três campos é uma coisa
+   * Formas que NÃO SE APLICAM a este item. Cada um dos três campos é uma coisa
    * ou outra: um valor digitado ou "Não se aplica" — e as duas respostas são
    * diferentes de "ainda não preenchi", que é o campo em branco.
    */
   valoresNaoAplicaveis: OpcaoValorDefinida[];
-  /** Qual das três vale. É ela que a planilha da OS imprime abaixo do valor da EC. */
-  opcaoValor: OpcaoValorItem;
   /**
    * BV combinado com o fornecedor NESTE item.
    *

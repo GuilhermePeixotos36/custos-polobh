@@ -311,7 +311,6 @@ function mapLinha(r: any): EcLinha {
     valorSemBvComNf: Number(r.valor_sem_bv_com_nf) || 0,
     valorSemBvSemNf: Number(r.valor_sem_bv_sem_nf) || 0,
     valoresNaoAplicaveis: Array.isArray(r.valores_nao_aplicaveis) ? r.valores_nao_aplicaveis : [],
-    opcaoValor: r.opcao_valor ?? "",
     // BV mascarado (null) para quem não vê financeiro — vira o vazio, nunca undefined.
     bv: r.bv ?? bvVazio(),
     statusAprovacao: r.status_aprovacao ?? "Pendente",
@@ -345,7 +344,9 @@ function linhaRow(ecId: string, l: EcLinha) {
     valor_sem_bv_com_nf: l.valorSemBvComNf ?? 0,
     valor_sem_bv_sem_nf: l.valorSemBvSemNf ?? 0,
     valores_nao_aplicaveis: l.valoresNaoAplicaveis ?? [],
-    opcao_valor: l.opcaoValor ?? "",
+    // `opcao_valor` não é mais escrita: o seletor saiu da EC (a forma de
+    // cobrança se decide na OS). A coluna continua na tabela e a RPC preenche o
+    // padrão vazio — ver `OPCOES_VALOR_ITEM`.
     bv: l.bv ?? bvVazio(),
     status_aprovacao: l.statusAprovacao,
     fornecedor_razao: l.fornecedorRazao,
@@ -368,7 +369,7 @@ function linhaMigrada(o: { id: string; grupo: string; item: string; descricao: s
   return {
     id: o.id, grupo: o.grupo, item: o.item, descricao: o.descricao, descricaoCompleta: "",
     valorPolobh: o.valorPolobh, valorCliente: 0, valorGasto: 0,
-    valorComBvNf: 0, valorSemBvComNf: 0, valorSemBvSemNf: 0, valoresNaoAplicaveis: [], opcaoValor: "", bv: bvVazio(),
+    valorComBvNf: 0, valorSemBvComNf: 0, valorSemBvSemNf: 0, valoresNaoAplicaveis: [], bv: bvVazio(),
     statusAprovacao: "Pendente", fornecedorRazao: "", fornecedorCnpj: "", fornecedorContato: "",
     faturaNf: "", codigoServico: "", pedidoCompra: "", statusOs: "Pendente", contratoStatus: "Pendente",
     observacao: "", observacoes: [], oculto: false, ordem: o.ordem,

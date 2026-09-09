@@ -2,7 +2,7 @@
  * Cálculos da EC (seção 4 do brief) e helpers de numeração/consolidação.
  * Percentuais fixos: honorários 15%, encargos 16,33%.
  */
-import type { BvItem, Ec, EcLinha, OpcaoValorDefinida, OpcaoValorItem, Producao, Fornecedor, Os, TaxaConfig } from "@/data/types";
+import type { BvItem, Ec, EcLinha, OpcaoValorDefinida, Producao, Fornecedor, Os, TaxaConfig } from "@/data/types";
 import { brl, dataBRCurta } from "@/lib/format";
 import { htmlParaLinhas } from "@/lib/htmlTexto";
 import { gerarApelidoFornecedor } from "@/domain/fornecedor";
@@ -290,18 +290,27 @@ export function linhasProducaoLegado(p: Producao): { item: string; descricao: st
   return linhas.filter((l) => l.valorPolobh > 0);
 }
 
-/* --------------------- Opções de valor por item (OS) --------------------- */
+/* --------------------- Formas de cobrar o item (EC → OS) ------------------ */
 
 /**
  * As três formas de cobrar um item, na ordem em que aparecem no modelo de OS da
- * Pólobh. O rótulo é o mesmo na tela e na planilha — é ele que a OS imprime
- * logo abaixo do valor do item na EC.
+ * Pólobh. O rótulo é o mesmo na tela e na planilha.
+ *
+ * Na EC elas são INFORMAÇÃO, não escolha: a produção preenche o que cada forma
+ * custaria — ou responde "Não se aplica" —, e as três seguem lado a lado para a
+ * OS. Quem decide por qual delas o item vai ser pago é a OS, no bloco de valores
+ * negociados; a EC é onde se levanta o preço, não onde se fecha a condição.
+ *
+ * Havia um seletor aqui (um rádio elegendo "a que vale"), e ele obrigava a
+ * produção a decidir cedo demais, num documento que ainda estava sendo montado —
+ * e a decisão nem chegava à planilha, que já imprimia as três colunas de
+ * qualquer jeito (ver `resumoDeCustos`). Revisão de 09/09/2026.
  */
 export const OPCOES_VALOR_ITEM = [
   { opcao: "comBvNf", rotulo: "Valor com BV e NF", campo: "valorComBvNf" },
   { opcao: "semBvComNf", rotulo: "Valor Sem BV e Com Nota Fiscal", campo: "valorSemBvComNf" },
   { opcao: "semBvSemNf", rotulo: "Valor Sem BV e Sem NF", campo: "valorSemBvSemNf" },
-] as const satisfies readonly { opcao: Exclude<OpcaoValorItem, "">; rotulo: string; campo: keyof EcLinha }[];
+] as const satisfies readonly { opcao: OpcaoValorDefinida; rotulo: string; campo: keyof EcLinha }[];
 
 /** "Valor do Item na EC do Projeto": o que o item custa na EC (Pólobh + Cliente). */
 export function valorItemNaEc(l: Pick<EcLinha, "valorPolobh" | "valorCliente">): number {
@@ -315,37 +324,15 @@ export function valorItemNaEc(l: Pick<EcLinha, "valorPolobh" | "valorCliente">):
  * item não é cobrado assim), e o campo em branco é uma pergunta sem resposta.
  * A planilha da OS imprime as duas coisas de jeitos diferentes.
  */
-export function opcaoNaoSeAplica(l: Pick<EcLinha, "valoresNaoAplicaveis">, opcao: OpcaoValorItem): boolean {
-  return !!opcao && !!l.valoresNaoAplicaveis?.includes(opcao as OpcaoValorDefinida);
+export function opcaoNaoSeAplica(l: Pick<EcLinha, "valoresNaoAplicaveis">, opcao: OpcaoValorDefinida): boolean {
+  return !!l.valoresNaoAplicaveis?.includes(opcao);
 }
 
-/** Valor de uma das três opções do item — zero quando ela não se aplica. */
-export function valorDaOpcao(l: EcLinha, opcao: OpcaoValorItem): number {
+/** Valor de uma das três formas no item — zero quando ela não se aplica. */
+export function valorDaOpcao(l: EcLinha, opcao: OpcaoValorDefinida): number {
   const def = OPCOES_VALOR_ITEM.find((o) => o.opcao === opcao);
   if (!def || opcaoNaoSeAplica(l, opcao)) return 0;
   return Number(l[def.campo] ?? 0) || 0;
-}
-
-/**
- * A opção que a produção escolheu para o item — rótulo e valor prontos para a
- * planilha. `null` quando ninguém escolheu ainda: nesse caso a OS imprime só o
- * valor do item na EC, sem inventar uma forma de cobrança.
- *
- * `naoSeAplica` marca a escolha que a produção respondeu com "Não se aplica":
- * a planilha imprime o texto no lugar do número, e ela não entra em soma nenhuma.
- */
-export function opcaoEscolhidaDoItem(
-  l: EcLinha
-): { opcao: OpcaoValorItem; rotulo: string; valor: number; naoSeAplica: boolean } | null {
-  const def = OPCOES_VALOR_ITEM.find((o) => o.opcao === l.opcaoValor);
-  if (!def) return null;
-  const naoSeAplica = opcaoNaoSeAplica(l, def.opcao);
-  return {
-    opcao: def.opcao,
-    rotulo: def.rotulo,
-    valor: naoSeAplica ? 0 : Number(l[def.campo] ?? 0) || 0,
-    naoSeAplica,
-  };
 }
 
 /* ----------------------- Resumo dos Custos da OS -------------------------- */
@@ -430,16 +417,17 @@ export const limitarBvPercentual = (pct: number): number =>
 /**
  * O BV deste item, em reais e em porcento.
  *
- * Só existe quando a forma de cobrança escolhida é "com BV e NF" — nas outras
- * duas o nome já diz que não há BV, e o que resta é a justificativa. A base é o
- * valor COM BV do item: é dele que sai a bonificação.
+ * A base é o valor COM BV do item — é dele que sai a bonificação, e as outras
+ * duas formas dizem no próprio nome que não há BV. Basta esse valor existir:
+ * antes o BV só contava depois de alguém ELEGER "com BV e NF" como a forma do
+ * item, e essa escolha saiu da EC (ver `OPCOES_VALOR_ITEM`) — o BV é combinado
+ * junto com o preço, não depois de fechada a condição de pagamento.
  *
  * Devolve `base` junto porque a tela precisa dizer sobre o quê o percentual
  * incide, e a OS precisa somar as bases para recompor o percentual do conjunto.
  */
 export function bvDaLinha(l: EcLinha): { base: number; valor: number; percentual: number } {
-  const temBv = l.opcaoValor === "comBvNf" && !opcaoNaoSeAplica(l, "comBvNf");
-  const base = temBv ? Number(l.valorComBvNf ?? 0) || 0 : 0;
+  const base = opcaoNaoSeAplica(l, "comBvNf") ? 0 : Number(l.valorComBvNf ?? 0) || 0;
   const bv = l.bv ?? bvVazio();
   if (!base) return { base: 0, valor: 0, percentual: 0 };
   const valor = bv.modo === "fixo" ? Number(bv.valor ?? 0) || 0 : r2((base * (Number(bv.valor ?? 0) || 0)) / 100);
@@ -449,15 +437,23 @@ export function bvDaLinha(l: EcLinha): { base: number; valor: number; percentual
 /**
  * A justificativa do BV é obrigatória neste item?
  *
- * Sim quando a forma de pagamento já foi escolhida E o BV está abaixo do padrão
- * — o que inclui as duas opções "sem BV", onde ele é zero por definição.
+ * Duas situações pedem motivo escrito, e as duas são uma RESPOSTA da produção
+ * sobre a cobrança "com BV e NF" deste item:
+ *   · ela marcou "Não se aplica" — o item sai sem BV, de propósito;
+ *   · ela informou o valor, e o BV combinado ficou abaixo do padrão da casa.
  *
- * O item ainda sem opção escolhida NÃO cobra nada: a pergunta "por que não há
- * BV?" só faz sentido depois de dizer como o item é pago, e cobrá-la antes
- * acenderia um alerta em toda linha recém-criada.
+ * O campo em branco não pede nada: ali a pergunta ainda não foi respondida, e
+ * cobrar antes acenderia alerta em toda linha recém-criada. Era o `opcaoValor`
+ * que fazia esse papel de "já decidiram como este item é pago?"; com o seletor
+ * fora da EC, quem responde é o próprio par valor/"não se aplica".
  */
 export function bvExigeJustificativa(l: EcLinha): boolean {
-  if (!l.opcaoValor) return false;
+  // A produção RESPONDEU que este item não é cobrado com BV: é o caso que mais
+  // precisa de motivo escrito.
+  if (opcaoNaoSeAplica(l, "comBvNf")) return true;
+  // Campo em branco é pergunta sem resposta, não "não tem BV": não cobra nada
+  // ainda, senão toda linha recém-criada nasceria com alerta vermelho.
+  if (!(Number(l.valorComBvNf ?? 0) || 0)) return false;
   return bvDaLinha(l).percentual < BV_PADRAO_PERCENTUAL;
 }
 

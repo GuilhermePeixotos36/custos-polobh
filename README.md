@@ -204,6 +204,29 @@ Todo número sai da mesma lista — sininho do topo, badge da aba, badge do item
 pílula do canto inferior direito —, e cada pendência carrega o endereço da tela
 (`ancora`, `observacaoId` ou `campo`), então o que é contado pode ser achado.
 
+### Formas de cobrar o item: informação, não escolha
+Cada item da EC traz as três formas de cobrança lado a lado — **Valor com BV e
+NF**, **Valor Sem BV e Com Nota Fiscal**, **Valor Sem BV e Sem NF** —, e cada uma
+aceita **um valor** ou **"Não se aplica"** (respostas diferentes de deixar em
+branco, que é pergunta sem resposta). Na EC **não há escolha**: as três seguem
+para a OS, que é onde se decide por qual delas o item vai ser pago (bloco
+*Valores negociados*). Na EC se levanta o preço; na OS se fecha a condição.
+
+Havia um rádio elegendo "a que vale" (`ec_linhas.opcao_valor`). Ele obrigava a
+produção a fechar a condição de pagamento dentro de um documento ainda em
+montagem, e a escolha **nem chegava à planilha** — o bloco ORÇAMENTO da OS já
+imprimia as três colunas item a item (`resumoDeCustos`). A coluna continua no
+banco por ora, sem uso: o app parou de escrevê-la e a RPC preenche o padrão
+vazio (revisão de 09/09/2026).
+
+Duas regras do **BV** saíram junto do seletor:
+- o BV conta assim que existe **valor com BV e NF** no item — antes só valia
+  depois de alguém eleger essa forma, e ele é combinado *junto* com o preço;
+- a **justificativa** é exigida quando a produção respondeu sobre a cobrança com
+  BV e a resposta foge do padrão: "Não se aplica" (o item sai sem BV, de
+  propósito) ou um BV abaixo de 15%. Campo em branco não cobra nada, senão toda
+  linha recém-criada nasceria com alerta.
+
 ## Cálculos da EC (fixos)
 - `somaFornecedores` = Σ(valor Pólobh) + Σ(produção)
 - `honorários` = 15% · `encargos` = 16,33% (sobre fornecedores)
