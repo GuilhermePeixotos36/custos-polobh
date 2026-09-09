@@ -57,6 +57,13 @@ Revisão de autorização em nível de objeto/campo (acesso por id direto na API
 - `audit_log` INSERT exige `auth.uid()` (sem `with check (true)`).
 - `EXECUTE` revogado de `handle_new_user` (todos) e `papel_atual` (anon),
   para não exporem RPC pública.
+- `EXECUTE` revogado de `tocar_checklist` (PUBLIC, `anon`, `authenticated`) —
+  migração `20260909120000`. É a função do trigger `checklist_itens_tocar`, e o
+  `EXECUTE` que o Postgres dá a PUBLIC por padrão a deixava chamável **sem
+  login** em `/rest/v1/rpc/tocar_checklist`, rodando como `security definer`
+  (advisor `0028`). Revogar de `anon` sozinho não bastaria: a permissão vinha
+  herdada de PUBLIC. O trigger não usa esse privilégio — a máquina de triggers
+  não consulta o `EXECUTE` de quem gravou —, então nada deixou de funcionar.
 - Sem chaves secretas no front (só a `anon`, pública por design). IA/e-mail
   ficam atrás de Edge Functions.
 - O editor rico sanitiza uma lista restrita de tags antes de atribuir ou persistir HTML;
