@@ -51,14 +51,17 @@ export interface EcRepository {
    * formulário aberto.
    */
   salvarObservacoes(ecId: string, observacoes: Observacao[]): Promise<Observacao[]>;
-  duplicar(id: string): Promise<Ec>;
   /**
-   * Copia uma EC para um projeto, como RASCUNHO não-ativo.
+   * Copia uma EC para um projeto e a põe NO AR ali, como a versão seguinte.
    *
-   * A origem pode estar em qualquer estado — ativa, rascunho, arquivada ou
-   * cancelada: o que se importa é a estrutura de custos, e a arquivada é
-   * justamente a que já deu certo uma vez. A EC de origem não é tocada e a EC
-   * ativa do destino continua ativa.
+   * A origem pode estar em qualquer estado — no ar ou arquivada, deste projeto
+   * ou de outro: o que se importa é a estrutura de custos, e a arquivada é
+   * justamente a mais copiada, porque já deu certo uma vez. A EC de origem não é
+   * tocada; a que estava valendo no destino vai para o arquivo, de onde volta a
+   * qualquer momento (`definirAtiva`).
+   *
+   * Entra no ar porque a EC tem dois estados (ver `domain/ec`): o que está
+   * arquivado não se edita, e uma cópia que não se pode editar não serve.
    *
    * `destino` é o cabeçalho da EC nova (cliente, dados do projeto, taxas) já
    * montado pela tela; a VERSÃO e o número saem do banco, sob trava — no

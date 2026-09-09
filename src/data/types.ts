@@ -162,13 +162,20 @@ export interface ContatoFornecedor {
 
 /* --------------------------------- EC ----------------------------------- */
 
-export type StatusEc =
-  | "Rascunho"
-  | "Aguardando"
-  | "Aprovada"
-  | "Reprovada"
-  | "Cancelada"
-  | "Arquivada";
+/**
+ * O que o app GRAVA em `ecs.status`. A EC tem dois estados — no ar ou no
+ * arquivo (ver `domain/ec`) —, e a coluna acompanha a bandeira `ativa`: quem
+ * decide é ela, e o banco normaliza o status em toda gravação (migração
+ * `20260909100000`).
+ */
+export type StatusEc = "Ativa" | "Arquivada" | StatusEcLegado;
+
+/**
+ * Selos do antigo fluxo de aprovação do cliente, que não existe mais. Podem vir
+ * de linhas gravadas antes da normalização; nada no app os escreve, e a leitura
+ * da situação os ignora de propósito.
+ */
+type StatusEcLegado = "Rascunho" | "Aguardando" | "Aprovada" | "Reprovada" | "Cancelada";
 
 export type StatusAprovacao = "Pendente" | "OK";
 export type StatusOs = "Pendente" | "Emitir" | "Emitir Nova Versão" | "OK" | "Não se Aplica";

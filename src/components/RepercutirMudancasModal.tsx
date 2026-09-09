@@ -17,7 +17,8 @@
  */
 import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Badge, Button, tomStatusEc, tomStatusOs } from "@/components/ui";
+import { Badge, Button, tomStatusOs } from "@/components/ui";
+import { ROTULO_SITUACAO_EC, situacaoEc, TOM_SITUACAO_EC } from "@/domain/ec";
 import { IcFechar } from "@/components/icons";
 import { repo } from "@/data";
 import { useAuth } from "@/store/auth";
@@ -178,8 +179,12 @@ export function RepercutirMudancasModal({
                   marcada={ecsMarcadas.has(ec.id)}
                   onToggle={() => setEcsMarcadas((s) => alterna(s, ec.id))}
                   titulo={ec.numero}
-                  detalhe={`V${String(ec.versao).padStart(2, "0")}${ec.ativa ? " · ativa" : ""}`}
-                  badge={<Badge tom={tomStatusEc[ec.status]}>{ec.status}</Badge>}
+                  detalhe={`V${String(ec.versao).padStart(2, "0")}`}
+                  // Selo pela situação, não pela coluna `status` (ver `domain/ec`).
+                  // Aqui só entra a EC que está no ar — ver `ecsAtualizaveis`.
+                  badge={
+                    <Badge tom={TOM_SITUACAO_EC[situacaoEc(ec)]}>{ROTULO_SITUACAO_EC[situacaoEc(ec)]}</Badge>
+                  }
                 />
               ))
             )}

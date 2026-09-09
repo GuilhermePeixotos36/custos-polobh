@@ -185,7 +185,11 @@ export function EcForm() {
           projetoId,
           template,
           versao: 1,
-          status: "Rascunho",
+          // EC nova nasce NO AR — é a estimativa que passa a valer no projeto, e
+          // a que estava lá vai para o arquivo (ver `domain/ec`). São dois
+          // estados: o que não está no ar não se edita, então não faria sentido
+          // criar uma EC já arquivada.
+          status: "Ativa",
           ativa: true,
           clienteId: "",
           cliente,
@@ -242,10 +246,9 @@ export function EcForm() {
     return <PageShell title="Carregando…">{null}</PageShell>;
   }
 
-  // Trava de edição: só o que já foi FINALIZADO fica preservado (arquivada ou
-  // cancelada). Rascunho é sempre editável, ativo ou não — é nele que nascem a
-  // importação e a duplicação, e antes elas caíam aqui sem nunca ter sido abertas.
-  // Ver `domain/ec`.
+  // Trava de edição: edita-se a EC que está NO AR (ver `domain/ec`). A arquivada
+  // fica preservada — para mexer nela, traga-a de volta ou copie para uma versão
+  // nova.
   const bloqueio = motivoBloqueioEc(ec);
   if (editando && bloqueio) {
     return (
@@ -253,9 +256,10 @@ export function EcForm() {
         <Card>
           <CardTitle>Esta EC não pode mais ser editada</CardTitle>
           <p className="mt-2 text-sm text-ink-2">
-            A EC <b>{tituloEc(ec)}</b> {bloqueio}. ECs finalizadas ficam
-            preservadas — para alterar algo, gere uma nova versão (02, 03…) a partir do detalhe,
-            que arquiva esta e abre uma cópia em Rascunho.
+            A EC <b>{tituloEc(ec)}</b> {bloqueio}. O arquivo fica preservado — para
+            alterar algo, abra o detalhe e escolha: <b>Tornar EC ativa</b>, que a traz de volta ao
+            ar, ou <b>Gerar nova versão</b> (02, 03…), que copia esta para uma versão nova e
+            arquiva a que estiver valendo.
           </p>
           <div className="mt-4 flex gap-2">
             <Button size="sm" onClick={() => navigate(`/estimativas/${ec.id}`)}>Ver EC / gerar nova versão</Button>
@@ -416,8 +420,8 @@ export function EcForm() {
   );
 
   const voltarUrl = ec.projetoId ? `/projetos/${ec.projetoId}?aba=ec` : "/projetos";
-  // Mesma leitura do EcDetail e da lista do projeto (ver `domain/ec`): um rascunho
-  // que não é a versão ativa é "Rascunho", e não "Arquivada".
+  // Mesma leitura do EcDetail e da lista do projeto (ver `domain/ec`): ou a EC
+  // está no ar ("Ativa"), ou está no arquivo ("Arquivada").
   const situacao = situacaoEc(ec);
   const statusBadge = <Badge tom={TOM_SITUACAO_EC[situacao]}>{ROTULO_SITUACAO_EC[situacao]}</Badge>;
 

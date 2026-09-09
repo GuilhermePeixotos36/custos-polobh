@@ -292,8 +292,15 @@ function rotuloEmissao(faltando: { rotulo: string; status: StatusOs }[]): string
   return faltando.map((c) => `${c.rotulo} — ${c.status}`).join(" · ");
 }
 
-/** EC encerrada não cobra mais nada de ninguém. */
-const EC_ENCERRADA = ["Cancelada", "Arquivada"];
+/**
+ * EC arquivada não cobra mais nada de ninguém — quem cobra é a que está NO AR.
+ *
+ * A EC tem dois estados (ver `domain/ec`): ou é a estimativa que vale, ou é
+ * arquivo. Cobrar alguém por um comentário ou por uma OS a emitir numa versão
+ * que já saiu de circulação é pedir ação sobre um documento que ninguém mais
+ * edita — e o número apontaria para uma tela bloqueada.
+ */
+const ecArquivada = (ec: Ec) => !ec.ativa;
 const OS_ENCERRADA = ["Cancelada", "Arquivada"];
 
 export function calcularPendencias(
@@ -316,7 +323,7 @@ export function calcularPendencias(
   );
   const ecsAtivasPorProjeto = new Map<string, number>();
   for (const e of ecs) {
-    if (EC_ENCERRADA.includes(e.status)) continue;
+    if (ecArquivada(e)) continue;
     ecsAtivasPorProjeto.set(e.projetoId, (ecsAtivasPorProjeto.get(e.projetoId) ?? 0) + 1);
   }
 
@@ -432,8 +439,8 @@ export function calcularPendencias(
   }
 
   for (const ec of ecs) {
-    // EC arquivada/cancelada (ou de projeto encerrado) não cobra observação de ninguém.
-    if (!ec.projetoId || encerrado(ec.projetoId) || EC_ENCERRADA.includes(ec.status)) continue;
+    // EC arquivada (ou de projeto encerrado) não cobra observação de ninguém.
+    if (!ec.projetoId || encerrado(ec.projetoId) || ecArquivada(ec)) continue;
 
     // Conversa GERAL da EC — a pauta do evento, antes de virar assunto de item.
     (ec.observacoes ?? []).forEach((observacao, indice) => {

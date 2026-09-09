@@ -5,7 +5,7 @@
  * coluna→objeto é direto. Snapshots embutidos: `ecs.cliente` e `oss.fornecedor`.
  */
 import { supabase } from "@/lib/supabaseClient";
-import { numeroEc, producaoPadrao, producaoZerada, linhasProducaoLegado, honorariosPadrao, encargosPadrao, bvVazio } from "@/domain/calc";
+import { producaoPadrao, producaoZerada, linhasProducaoLegado, honorariosPadrao, encargosPadrao, bvVazio } from "@/domain/calc";
 import { normalizarProjetoInfo, sincronizarCamposLegados } from "@/domain/projeto";
 import { limparContatos, normalizarContatos } from "@/domain/fornecedor";
 import { caminhoAnexo, motivoRecusaAnexo, tipoDoAnexo } from "@/domain/anexos";
@@ -460,7 +460,7 @@ const SELECT_EC_PAINEL =
   "*, linhas:ec_linhas_visiveis(id,grupo,item,pedido_compra,codigo_servico,status_os,contrato_status,status_aprovacao,observacao,observacoes,oculto,ordem)";
 
 /**
- * Cópia de uma EC DENTRO do banco (RPC `importar_ec`, migração `20260908120000`).
+ * A cópia de uma EC acontece DENTRO do banco (RPC `importar_ec`), e não aqui.
  *
  * Copiar no navegador — ler a origem e regravar o que se leu — parecia natural e
  * tinha um furo grave: a leitura passa pela view mascarada `ec_linhas_visiveis`,
@@ -472,24 +472,7 @@ const SELECT_EC_PAINEL =
  * A VERSÃO também sai de lá, sob trava: no navegador ela era calculada de uma
  * lista carregada minutos antes, e duas cópias ao mesmo tempo nasciam iguais.
  * O `numero` vai como base e volta com o "V" da versão que o banco decidiu.
- *
- * `zerar`: a importação começa limpa (status de emissão, gasto e comentários da
- * origem não valem no projeto novo); a duplicação preserva.
  */
-async function copiarEc(origemId: string, destino: Ec, zerar: boolean): Promise<Ec> {
-  const novoId = ok(
-    await supabase.rpc("importar_ec", { p_origem: origemId, p_ec: ecRow(destino), p_zerar: zerar })
-  ) as string;
-  const nova = await ecRepo.obter(novoId);
-  if (!nova) throw new Error("Falha ao reler a EC copiada.");
-  auditar({
-    categoria: "EC",
-    acao: zerar ? "ec.importar" : "ec.duplicar",
-    mensagem: `EC ${nova.numero} criada a partir de outra EC`,
-    alvoId: novoId,
-  });
-  return nova;
-}
 
 const ecRepo: EcRepository = {
   async listar() {
@@ -538,16 +521,19 @@ const ecRepo: EcRepository = {
     ) as unknown as Observacao[] | null;
     return salvas ?? observacoes;
   },
-  async duplicar(id) {
-    const orig = await this.obter(id);
-    if (!orig) throw new Error("EC não encontrada");
-    // Cópia é uma nova versão em rascunho e NÃO ativa (não perturba a EC ativa
-    // do projeto). Preserva o que estava na origem — é a mesma negociação
-    // seguindo adiante, e não uma estrutura reaproveitada em outro projeto.
-    return copiarEc(orig.id, { ...orig, numero: numeroEc(orig.cliente.nome, orig.projeto.titulo, 1) }, false);
-  },
   async importar(origemId, destino) {
-    return copiarEc(origemId, destino, true);
+    const novoId = ok(
+      await supabase.rpc("importar_ec", { p_origem: origemId, p_ec: ecRow(destino) })
+    ) as string;
+    const nova = await this.obter(novoId);
+    if (!nova) throw new Error("Falha ao reler a EC importada.");
+    auditar({
+      categoria: "EC",
+      acao: "ec.importar",
+      mensagem: `EC ${nova.numero} importada e ativada a partir de outra EC`,
+      alvoId: novoId,
+    });
+    return nova;
   },
   async novaVersao(id) {
     const orig = await this.obter(id);

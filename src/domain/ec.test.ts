@@ -1,51 +1,40 @@
 import { describe, expect, it } from "vitest";
 import { ecEditavel, motivoBloqueioEc, situacaoEc, ROTULO_SITUACAO_EC } from "./ec";
 
-/** Só os dois campos que decidem a situação (ver `domain/ec`). */
-const ec = (status: string, ativa: boolean) =>
-  ({ status, ativa }) as Parameters<typeof situacaoEc>[0];
+/** O único campo que decide a situação: a bandeira do ar (ver `domain/ec`). */
+const ec = (ativa: boolean) => ({ ativa }) as Parameters<typeof situacaoEc>[0];
 
-describe("situação da EC", () => {
+describe("situação da EC: no ar ou no arquivo", () => {
   it("a versão que vale é 'Ativa'", () => {
-    expect(situacaoEc(ec("Aprovada", true))).toBe("ativa");
+    expect(situacaoEc(ec(true))).toBe("ativa");
+    expect(ROTULO_SITUACAO_EC[situacaoEc(ec(true))]).toBe("Ativa");
   });
 
-  it("rascunho que não é a ativa é 'Rascunho' — não 'Arquivada'", () => {
-    // É o estado em que nasce a EC importada/duplicada: nunca entrou no ar.
-    // Chamá-la de arquivada era o que punha selo errado na lista e travava a
-    // edição. A versão que ENTROU no ar e foi substituída não cai mais aqui: o
-    // banco a arquiva na substituição (migração `20260908120000`).
-    expect(situacaoEc(ec("Rascunho", false))).toBe("rascunho");
-    expect(ROTULO_SITUACAO_EC[situacaoEc(ec("Rascunho", false))]).toBe("Rascunho");
+  it("qualquer uma fora do ar é 'Arquivada' — não existe terceiro selo", () => {
+    // Antes o rótulo saía do par (status, ativa), e a mesma EC aparecia ora como
+    // "Rascunho", ora como "Arquivada", conforme o caminho pelo qual tinha saído
+    // do ar. Agora a pergunta é uma só: esta é a estimativa que vale?
+    expect(situacaoEc(ec(false))).toBe("arquivada");
+    expect(ROTULO_SITUACAO_EC[situacaoEc(ec(false))]).toBe("Arquivada");
   });
 
-  it("substituída por uma versão nova é 'Arquivada'", () => {
-    expect(situacaoEc(ec("Arquivada", false))).toBe("arquivada");
-  });
-
-  it("cancelada vence qualquer outra leitura", () => {
-    expect(situacaoEc(ec("Cancelada", true))).toBe("cancelada");
-  });
-
-  it("finalizada e fora do ar (aprovada, mas não é mais a ativa) fica arquivada", () => {
-    expect(situacaoEc(ec("Aprovada", false))).toBe("arquivada");
+  it("os selos do fluxo antigo não mudam mais a leitura", () => {
+    // Uma linha antiga do banco ainda pode trazer 'Rascunho'/'Aprovada'/
+    // 'Cancelada' na coluna `status`; ela é ignorada de propósito.
+    const legado = { ativa: true, status: "Cancelada" } as Parameters<typeof situacaoEc>[0];
+    expect(situacaoEc(legado)).toBe("ativa");
   });
 });
 
 describe("quem pode ser editada", () => {
-  it("a EC importada abre no editor — é um rascunho, nunca foi fechada", () => {
-    expect(ecEditavel(ec("Rascunho", false))).toBe(true);
-    expect(motivoBloqueioEc(ec("Rascunho", false))).toBeNull();
+  it("edita-se a que está no ar", () => {
+    expect(ecEditavel(ec(true))).toBe(true);
+    expect(motivoBloqueioEc(ec(true))).toBeNull();
   });
 
-  it("a versão ativa do projeto edita normalmente", () => {
-    expect(ecEditavel(ec("Aprovada", true))).toBe(true);
-  });
-
-  it("arquivada e cancelada ficam preservadas, com o motivo na tela", () => {
-    expect(ecEditavel(ec("Arquivada", false))).toBe(false);
-    expect(motivoBloqueioEc(ec("Arquivada", false))).toContain("arquivada");
-    expect(ecEditavel(ec("Cancelada", false))).toBe(false);
-    expect(motivoBloqueioEc(ec("Cancelada", false))).toContain("cancelada");
+  it("a arquivada fica preservada, com o motivo na tela", () => {
+    // Para mexer nela: trazer de volta ao ar, ou copiar para uma versão nova.
+    expect(ecEditavel(ec(false))).toBe(false);
+    expect(motivoBloqueioEc(ec(false))).toContain("arquivada");
   });
 });

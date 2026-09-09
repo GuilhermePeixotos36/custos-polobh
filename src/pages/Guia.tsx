@@ -334,7 +334,7 @@ const MODULOS: Modulo[] = [
               ["Modalidade", "escolha", "Corporativo ou Cultural. Decide qual lista padrão de check-list o projeto recebe e qual modelo de EC é usado."],
               ["Data do evento / Pré / Pós", "equipe", "A janela do projeto. É dela que saem os prazos das tarefas em percentual."],
               ["Local e Endereço do Local", "equipe", "Vão para a OS e para o cronograma público."],
-              ["Produtora Responsável", "escolha", "Quem responde pelo projeto. Recebe as pendências que não são de mais ninguém."],
+              ["Produtora Responsável", "escolha", "Quem responde pelo projeto. Vê todas as pendências que nascem dentro dele."],
               ["Incentivos Fiscais", "equipe", "Lei e número do projeto incentivado, na mesma linha. A OS puxa isso pronto para a nota."],
             ]}
           />
@@ -694,18 +694,18 @@ const MODULOS: Modulo[] = [
           <Passos>
             <span>Na EC, em <b>Ações</b>, use <b>Enviar ao cliente para aprovação</b> — a EC vai para o status <Tag tom="warning">Aguardando</Tag>.</span>
             <span><b>Gerar nova versão (V02…)</b> cria uma cópia que “cancela e substitui” a anterior — use quando o escopo muda.</span>
-            <span><b>Duplicar EC</b> cria uma nova estimativa (V01, Rascunho) a partir desta.</span>
-            <span><b>Importar EC</b> (na aba EC do projeto) copia os itens e valores de <b>qualquer</b> EC — deste projeto ou de outro, em <b>qualquer estado</b>: ativa, rascunho, <Tag>Arquivada</Tag> ou cancelada — para cá, como um <Tag tom="info">Rascunho</Tag> novo. A de origem não é tocada, e a EC ativa daqui continua ativa.</span>
+            <span><b>Importar EC</b> (na aba EC do projeto) copia os itens e valores de <b>qualquer</b> EC — deste projeto ou de outro, <b>no ar ou arquivada</b> — e a põe <b>no ar</b> aqui, como a versão seguinte. A de origem não é tocada; a que estava valendo neste projeto vai para o arquivo.</span>
+            <span><b>Arquivar EC</b> tira a estimativa do ar. Ela continua consultável e importável — e volta por <b>Tornar EC ativa</b>.</span>
             <span><b>Excel Financeiro</b> exporta somente itens e valores; <b>Excel Completa</b> inclui todos os dados e as descrições completas.</span>
           </Passos>
           <Dica>
-            Cada projeto tem <b>uma</b> EC <Tag tom="success">Ativa</Tag> — a versão que vale. As outras podem ser
-            <Tag tom="info">Rascunho</Tag> (cópia ou importação que <b>nunca entrou no ar</b>, e por isso segue
-            <b> editável</b>) ou <Tag>Arquivada</Tag> (esteve no ar e foi substituída; fica preservada como está).
-            Quem <b>sai</b> do ar sai arquivada: promover outra versão arquiva a anterior na hora. Para promover um
-            rascunho, use <b>Tornar EC ativa</b> no detalhe.
+            A EC tem <b>dois estados, e só</b>: <Tag tom="success">Ativa</Tag> — a estimativa que vale, uma por
+            projeto, a única que se edita — e <Tag>Arquivada</Tag>, que é todo o resto: versões anteriores, o que
+            saiu do ar, o que veio de outro evento. O arquivo <b>não é cemitério</b>: é de lá que se puxa uma
+            estimativa de volta, por <b>Tornar EC ativa</b> ou <b>Importar EC</b>. Não existe "cancelar" — quem não
+            vale mais é arquivada.
           </Dica>
-          <Atencao>Arquivar e Cancelar <b>não apagam</b> a EC — ela continua consultável. Nada é excluído de fato.</Atencao>
+          <Atencao>Arquivar <b>não apaga</b> a EC — ela continua consultável e importável. Nada é excluído de fato.</Atencao>
         </Secao>
       </>
     ),

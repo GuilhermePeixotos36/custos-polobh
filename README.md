@@ -51,47 +51,65 @@ supabase/migrations/         atualizações incrementais do banco
 | Modelos de check-list (Configurações) | ✅ | — | — |
 | Bloco financeiro / Configurações | ✅ | — | ✅ |
 
-## Versões da EC (o que é editável)
-Cada projeto tem **uma** EC ativa. O par `status` + `ativa` é lido num lugar só
-(`domain/ec.ts` → `situacaoEc`), em quatro situações:
-- **Ativa** — a versão que vale, editável;
-- **Rascunho** — cópia/importação em aberto que ainda não é a ativa: **editável**
-  (é o estado em que nascem `Importar EC` e `Duplicar`);
-- **Arquivada** — substituída por uma versão nova: preservada, não edita;
-- **Cancelada** — não edita.
+## Versões da EC: Ativa ou Arquivada
+Cada projeto tem **uma** EC no ar — a que vale — e todas as outras são o
+**arquivo** do projeto. São só esses dois estados (`domain/ec.ts` →
+`situacaoEc`), e quem manda é a bandeira `ativa` (uma por projeto, índice único
+`ecs_uma_ativa_por_projeto_idx`):
+- **Ativa** — a estimativa que vale. É a única editável, e a única que gera
+  pendência e recebe mudança dos dados do evento;
+- **Arquivada** — todo o resto: versões anteriores, o que foi tirado do ar, o
+  que veio de outro evento. Consultável e, sobretudo, **importável**.
 
-A trava do editor é sobre o que já foi **finalizado**, não sobre ser a ativa —
-antes um rascunho recém-importado caía direto em "Edição bloqueada" e aparecia
-com selo de "Arquivada" na lista.
+O arquivo não é cemitério: é de lá que se puxa uma estimativa de volta, por
+**Tornar EC ativa** (troca simples e reversível) ou por **Importar EC** (copia
+para uma versão nova). Para mexer numa arquivada, é por um desses dois caminhos.
 
-**Quem sai do ar, sai arquivada** (migração `20260908120000`). `definir_ec_ativa`
-e `salvar_ec_completa` só baixavam a bandeira `ativa` da versão anterior, e ela
-ficava com status `Rascunho`: a lista mostrava **"Rascunho"** numa EC já
-substituída — inclusive contrariando a confirmação da própria tela ("as demais
-versões passam a arquivadas"). Agora as duas arquivam quem perde o ar, e
-`Rascunho + não ativa` volta a significar uma coisa só: **nunca entrou no ar** —
-o estado da importação e da cópia. A migração ainda acerta o que já está
-gravado, por um corte conservador: só vira `Arquivada` a EC não-ativa em
-`Rascunho` criada **antes** da EC que hoje está no ar no mesmo projeto (uma
-cópia/importação nasce sempre depois dela, então não é tocada).
+**Por que caiu o modelo antigo** (09/09/2026). A coluna `ecs.status` era herdeira
+de um fluxo de aprovação do cliente que não existe mais e carregava seis valores
+(`Rascunho`, `Aguardando`, `Aprovada`, `Reprovada`, `Cancelada`, `Arquivada`). A
+tela lia o **par** (status, ativa), e a mesma EC aparecia ora como "Rascunho",
+ora como "Arquivada", conforme o caminho pelo qual tinha saído do ar — ninguém
+sabia dizer o que cada selo queria dizer. Agora a tela responde a única pergunta
+que o dia a dia faz: *esta é a estimativa que vale, ou não é?*
+
+`status` continua na tabela e passa a **acompanhar** a bandeira: toda função que
+grava o deriva de `ativa` (migração `20260909100000`), o app não escolhe mais a
+palavra — nem uma aba aberta no bundle anterior consegue sujar a coluna —, e um
+`check (status in ('Ativa','Arquivada'))` fecha a porta para um UPDATE solto no
+painel do banco. Os selos antigos foram normalizados: `status = ativa ? 'Ativa' :
+'Arquivada'`, sem heurística nenhuma.
+
+**Cancelar virou Arquivar.** Uma EC que não vale mais é simplesmente arquivada, e
+segue consultável e importável como qualquer outra. Duas consequências no status
+**do projeto** (`domain/statusProjeto.ts`, que também passou a ler a bandeira):
+"Cancelado" deixa de aparecer, e "Arquivado"/"Concluído" saem de *existe EC no
+ar?* + a data do evento, e não mais dos selos `Cancelada`/`Aprovada`.
+
+**Reativar não duplica mais.** "Tornar EC ativa" numa arquivada apenas a traz de
+volta ao ar (a que estava valendo vai para o arquivo). Antes ela era duplicada
+numa versão nova — com dois estados isso virou repetição de "Gerar nova versão",
+e enchia a lista de versões só para poder editar. Quem quer preservar a atual e
+mexer numa cópia continua tendo **Gerar nova versão** e **Importar EC**; por isso
+`repo.ecs.duplicar` saiu (ninguém mais o chamava).
 
 ### Importar EC
-Copia a estrutura de custos de **qualquer** EC — deste projeto ou de outro, em
-**qualquer estado** (ativa, rascunho, arquivada ou cancelada) — para cá, como
-rascunho não-ativo. A origem não é tocada e a EC ativa do destino continua ativa.
-Importar uma **arquivada** é o caso mais comum, e não uma exceção: é a que já deu
-certo uma vez.
+Copia a estrutura de custos de **qualquer** EC — deste projeto ou de outro, no ar
+ou arquivada — e a põe **no ar** aqui, como a versão seguinte. Importar uma
+arquivada é o caso mais comum, e não a exceção: é a que já deu certo uma vez. A
+origem nunca é tocada; a que estava valendo no destino vai para o arquivo e volta
+quando se quiser. Ela entra no ar porque, com dois estados, o que está arquivado
+não se edita — importar para em seguida não poder mexer não serviria para nada.
 
-A cópia das linhas acontece **dentro do banco** (`importar_ec`, mesma migração),
-e isso não é detalhe de implementação. Feita no navegador, ela lia a EC de origem
-pela view mascarada `ec_linhas_visiveis` — que devolve `NULL` nos valores para
-quem não tem o recurso financeiro — e `mapLinha` convertia esses `NULL` em `0`:
-para **Produção**, que pode criar EC e não vê valor, a EC importada nascia com
-todos os custos **zerados**, em silêncio. A proteção que já existia em
-`salvar_ec_completa` não alcançava o caso: ela vive no `on conflict do update`, e
-aqui as linhas são inseridas. A mesma RPC serve à cópia de "Reativar gerando uma
-nova versão" (`repo.ecs.duplicar`), que tinha o mesmo furo. Ninguém passa a
-enxergar o que não enxergava: a EC nova é relida pela view de sempre.
+A cópia das linhas acontece **dentro do banco** (`importar_ec`, migração
+`20260908120000`), e isso não é detalhe de implementação. Feita no navegador, ela
+lia a EC de origem pela view mascarada `ec_linhas_visiveis` — que devolve `NULL`
+nos valores para quem não tem o recurso financeiro — e `mapLinha` convertia esses
+`NULL` em `0`: para **Produção**, que pode criar EC e não vê valor, a EC
+importada nascia com todos os custos **zerados**, em silêncio. A proteção que já
+existia em `salvar_ec_completa` não alcançava o caso: ela vive no
+`on conflict do update`, e aqui as linhas são inseridas. Ninguém passa a enxergar
+o que não enxergava — a EC nova é relida pela view de sempre.
 
 A **versão** também sai do banco, sob o mesmo `advisory lock` das demais funções
 — no navegador ela era calculada a partir de uma lista carregada minutos antes, e

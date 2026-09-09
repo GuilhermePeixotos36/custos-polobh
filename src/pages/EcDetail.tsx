@@ -142,24 +142,20 @@ export function EcDetail() {
     }
   }
 
+  /**
+   * Traz esta EC de volta ao ar — o caminho de volta do arquivo.
+   *
+   * É uma troca simples, e reversível: esta passa a ser a estimativa do projeto
+   * e a que estava valendo vai para o arquivo, de onde volta pelo mesmo botão.
+   * Antes, reativar uma arquivada DUPLICAVA a EC numa versão nova; com dois
+   * estados isso virou repetição de "Gerar nova versão" — e enchia a lista de
+   * versões só para poder editar. Quem quer preservar a atual e mexer numa
+   * cópia continua tendo "Gerar nova versão" e "Importar EC".
+   */
   async function tornarAtiva() {
-    // EC arquivada: mantém a antiga intacta e cria uma NOVA versão (número +1, data atual)
-    // com os mesmos dados, já ativa. Rascunho não-ativo apenas vira o ativo do projeto.
-    if (ec!.status === "Arquivada") {
-      if (!(await confirmar({
-        titulo: "Reativar gerando uma nova versão?",
-        mensagem: "A versão arquivada é preservada. Uma nova versão (número seguinte, data de hoje) é criada com os mesmos dados e passa a ser a ativa do projeto.",
-        confirmarTexto: "Gerar nova versão ativa",
-      }))) return;
-      const nova = await repo.ecs.duplicar(ec!.id);
-      await repo.ecs.definirAtiva(nova.id);
-      toast(`Nova versão V${String(nova.versao).padStart(2, "0")} criada e ativada.`, "success");
-      navigate(`/estimativas/${nova.id}/editar`);
-      return;
-    }
     if (!(await confirmar({
       titulo: "Tornar esta EC a ativa do projeto?",
-      mensagem: "As demais versões do projeto passam a arquivadas. Só uma EC fica ativa por projeto.",
+      mensagem: "Ela passa a ser a estimativa que vale. A que está no ar hoje vai para o arquivo — e volta por aqui quando você quiser.",
       confirmarTexto: "Tornar ativa",
     }))) return;
     await repo.ecs.definirAtiva(ec!.id);
@@ -407,8 +403,8 @@ export function EcDetail() {
     </Card>
   ) : null;
 
-  // Leitura única do par (status, ativa) — ver `domain/ec`. Um rascunho que não é
-  // a versão ativa (o caso da EC importada) é "Rascunho", não "Arquivada".
+  // Dois estados, e só (ver `domain/ec`): ou esta é a estimativa que vale no
+  // projeto, ou ela está no arquivo.
   const situacao = situacaoEc(ec);
   const statusBadge = <Badge tom={TOM_SITUACAO_EC[situacao]}>{ROTULO_SITUACAO_EC[situacao]}</Badge>;
 
@@ -424,21 +420,23 @@ export function EcDetail() {
             <IcBack width={16} height={16} /> Voltar ao projeto
           </button>
           <div className="flex gap-2 flex-wrap">
-          {podeEditar && ec.status !== "Cancelada" && (
-            <Button variant="danger" size="sm"
+          {/* Tirar do ar. Não existe "cancelar": a EC que não vale mais é
+              simplesmente arquivada, e o arquivo segue consultável e
+              importável — é de lá que se puxa uma estimativa de volta. */}
+          {podeEditar && ec.ativa && (
+            <Button variant="secondary" size="sm"
               onClick={async () => {
                 if (!(await confirmar({
-                  titulo: "Cancelar esta EC?",
-                  mensagem: `A EC ${ec.numero} passará para o status "Cancelada". Você ainda poderá consultá-la.`,
-                  confirmarTexto: "Cancelar EC",
+                  titulo: "Arquivar esta EC?",
+                  mensagem: `A EC ${ec.numero} sai do ar e vai para o arquivo do projeto. Ela continua consultável, pode ser importada e volta ao ar por "Tornar EC ativa". O projeto fica sem estimativa valendo até você ativar outra.`,
+                  confirmarTexto: "Arquivar EC",
                   cancelarTexto: "Voltar",
-                  tom: "danger",
                 }))) return;
-                await repo.ecs.salvar({ ...ec, status: "Cancelada" });
-                toast("EC cancelada.", "warning");
+                await repo.ecs.salvar({ ...ec, status: "Arquivada", ativa: false });
+                toast("EC arquivada.", "success");
                 navigate(voltarUrl);
               }}>
-              Cancelar EC
+              Arquivar EC
             </Button>
           )}
           {podeEditar && (

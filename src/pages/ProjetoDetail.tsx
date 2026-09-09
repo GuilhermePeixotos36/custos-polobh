@@ -664,14 +664,18 @@ export function ProjetoDetail() {
   }
 
   /**
-   * Traz os itens de outra EC para este projeto como um RASCUNHO novo.
+   * Traz os itens de outra EC para este projeto como a NOVA versão ativa.
    *
    * Serve para copiar de outro projeto e para retomar uma versão arquivada deste
-   * mesmo projeto — a origem pode estar em QUALQUER estado (ativa, rascunho,
-   * arquivada ou cancelada): o que se importa é a estrutura de custos, e a
-   * arquivada é justamente a que já deu certo uma vez. Em nenhum caso a EC de
-   * origem é tocada, e a EC ativa daqui continua ativa (a cópia entra como
-   * rascunho não-ativo).
+   * mesmo projeto — a origem pode estar em qualquer estado, e a arquivada é
+   * justamente a mais copiada: é a que já deu certo uma vez. A EC de origem
+   * nunca é tocada.
+   *
+   * A cópia entra NO AR porque a EC tem dois estados (ver `domain/ec`): o que
+   * não está no ar não se edita, e importar para depois não poder mexer não
+   * serviria para nada. A estimativa que estava valendo aqui vai para o arquivo
+   * — de onde volta por "Tornar EC ativa", ou por uma importação nova. Nada se
+   * perde; só muda qual delas vale agora.
    *
    * A CÓPIA DAS LINHAS acontece dentro do banco (`repo.ecs.importar`), e isso
    * não é detalhe: lida daqui, a EC de origem vem com os valores mascarados para
@@ -693,8 +697,8 @@ export function ProjetoDetail() {
         clienteId: p.cliente.id,
         cliente: p.cliente,
         projeto: p.info,
-        status: "Rascunho",
-        ativa: false,
+        status: "Ativa",
+        ativa: true,
         // "V01" é só a base: o banco troca pelo número da versão que couber aqui.
         numero: numeroEc(p.cliente.nome || "Cliente", p.info.titulo || "Projeto", 1),
         slugPublico: "",
@@ -705,7 +709,7 @@ export function ProjetoDetail() {
       };
       const salvo = await repo.ecs.importar(origem.id, nova);
       toast(
-        `EC importada de "${tituloEc(origem)}" como rascunho (V${String(salvo.versao).padStart(2, "0")}).`,
+        `EC importada de "${tituloEc(origem)}" e ativada (V${String(salvo.versao).padStart(2, "0")}). A anterior foi para o arquivo.`,
         "success"
       );
       setImportOpen(false);
@@ -1072,7 +1076,7 @@ export function ProjetoDetail() {
                   size="sm"
                   variant="secondary"
                   icon={<IcCopy width={16} height={16} />}
-                  title="Copia os itens e valores de outra EC — deste projeto ou de outro, em qualquer estado (inclusive arquivada)"
+                  title="Copia os itens e valores de outra EC — deste projeto ou de outro, inclusive arquivada — e a põe no ar como a versão seguinte"
                   onClick={() => { setImpProjetoId(""); setImpEcId(""); setImportOpen(true); }}
                 >
                   Importar EC
@@ -1083,10 +1087,11 @@ export function ProjetoDetail() {
           <div className="px-5 pb-4 flex items-center gap-1 border-b border-border-soft" role="group" aria-label="Filtrar estimativas">
             {([
               ["todas", "Todas"],
-              ["ativas", "Ativas"],
-              // Não é só "arquivadas": aqui caem também os rascunhos importados,
-              // que não são a versão ativa e continuam editáveis.
-              ["arquivadas", "Demais versões"],
+              // Sempre uma só: a estimativa que vale hoje (ver `domain/ec`).
+              ["ativas", "Ativa"],
+              // Todo o resto do projeto — versões anteriores e o que foi tirado
+              // do ar. É deste arquivo que se importa de volta.
+              ["arquivadas", "Arquivadas"],
             ] as const).map(([valor, rotulo]) => (
               <button
                 key={valor}
@@ -1123,8 +1128,7 @@ export function ProjetoDetail() {
                     <TdPendencias n={porEc[e.id] ?? 0} title="Ações pendentes suas nesta EC" />
                     {/* Versão e data já vêm no próprio título ("EC – … (03) em 10 08 26"). */}
                     <Td className={cx("font-bold", e.ativa ? "text-primary-dark" : "text-ink")}>{tituloEc(e)}</Td>
-                    {/* Rascunho não-ativo (a EC recém-importada) é "Rascunho", e não
-                        "Arquivada" — a leitura é uma só, em `domain/ec`. */}
+                    {/* Dois estados, e só: no ar ou no arquivo (ver `domain/ec`). */}
                     <Td align="center">
                       <Badge tom={TOM_SITUACAO_EC[situacaoEc(e)]}>{ROTULO_SITUACAO_EC[situacaoEc(e)]}</Badge>
                     </Td>
@@ -1140,7 +1144,7 @@ export function ProjetoDetail() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setImportOpen(false)}>
           <div className="w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
             <Card>
-              <CardTitle hint="Copia os itens e valores de QUALQUER EC — deste projeto ou de outro, em qualquer estado — para cá, como um novo rascunho. A EC de origem não é alterada, e a EC ativa deste projeto continua ativa.">
+              <CardTitle hint="Copia os itens e valores de QUALQUER EC — deste projeto ou de outro, no ar ou arquivada — e a põe no ar aqui, como a versão seguinte. A EC de origem não é alterada; a que estava valendo neste projeto vai para o arquivo e volta quando você quiser.">
                 Importar EC
               </CardTitle>
               <div className="mt-4 grid gap-4">
@@ -1152,10 +1156,10 @@ export function ProjetoDetail() {
                     ))}
                   </Select>
                 </Field>
-                {/* Sem filtro de estado: arquivada é justamente a que já deu
-                    certo uma vez, e é a mais copiada. O selo ao lado do nome diz
-                    de onde se está copiando. */}
-                <Field label="EC de origem" hint="qualquer estado — ativa, rascunho, arquivada ou cancelada">
+                {/* Sem filtro nenhum: a arquivada é justamente a mais copiada —
+                    é a que já deu certo uma vez. O selo ao lado do nome diz de
+                    onde se está copiando. */}
+                <Field label="EC de origem" hint="a que está no ar ou qualquer uma do arquivo">
                   <Select value={impEcId} onChange={(e) => setImpEcId(e.target.value)} disabled={!impProjetoId}>
                     <option value="">Selecione…</option>
                     {ecsOrigem.map((e) => (

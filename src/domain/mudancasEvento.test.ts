@@ -160,12 +160,14 @@ describe("aplicar só o que foi escolhido", () => {
 });
 
 describe("quem ainda pode receber", () => {
-  const ec = (status: Ec["status"]) => ({ id: status, status }) as Ec;
+  const ec = (id: string, ativa: boolean) => ({ id, ativa }) as Ec;
   const os = (status: Os["status"]) => ({ id: status, status }) as Os;
 
-  it("EC encerrada é história e não recebe atualização", () => {
-    const lista = [ec("Rascunho"), ec("Aprovada"), ec("Cancelada"), ec("Arquivada")];
-    expect(ecsAtualizaveis(lista).map((e) => e.status)).toEqual(["Rascunho", "Aprovada"]);
+  it("só a EC no ar recebe a mudança do evento; a arquivada é registro", () => {
+    // A EC tem dois estados (ver `domain/ec`). Reescrever uma arquivada apagaria
+    // justamente o que ela guarda: como o evento era quando aquela versão valeu.
+    const lista = [ec("no-ar", true), ec("arquivada", false), ec("outra-arquivada", false)];
+    expect(ecsAtualizaveis(lista).map((e) => e.id)).toEqual(["no-ar"]);
   });
 
   it("OS encerrada não gera nova versão", () => {

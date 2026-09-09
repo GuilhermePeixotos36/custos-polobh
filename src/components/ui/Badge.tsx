@@ -33,13 +33,22 @@ export function Badge({
 }
 
 /* Mapeamentos de status do domínio -> tom do badge */
+
+/**
+ * Selo da EC. São dois estados (ver `domain/ec`) — mas as cores dos selos
+ * antigos ficam de pé para uma linha do banco ainda não normalizada não
+ * aparecer sem cor nenhuma. Para desenhar o selo, prefira `TOM_SITUACAO_EC`,
+ * que lê a situação em vez da coluna.
+ */
 export const tomStatusEc: Record<string, Tom> = {
+  Ativa: "success",
+  Arquivada: "neutral",
+  // legado, só por segurança na leitura
   Rascunho: "neutral",
   Aguardando: "warning",
   Aprovada: "success",
   Reprovada: "danger",
-  Cancelada: "danger",
-  Arquivada: "neutral",
+  Cancelada: "neutral",
 };
 
 export const tomStatusOs: Record<string, Tom> = {
