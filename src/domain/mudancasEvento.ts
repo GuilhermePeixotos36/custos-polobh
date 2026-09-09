@@ -177,16 +177,20 @@ export function aplicarMudancasEvento(
 
 /* --------------------- Quem ainda pode receber a mudança ------------------ */
 
-/** OS encerrada não recebe atualização — não há o que reemitir a partir dela. */
+/** EC encerrada é história: não recebe atualização nenhuma. */
+const EC_ENCERRADA = ["Cancelada", "Arquivada"];
+/** OS encerrada idem — não há o que reemitir a partir dela. */
 const OS_ENCERRADA = ["Cancelada", "Arquivada"];
 
 /**
- * ECs do projeto que ainda podem ter os dados do evento atualizados: a que está
- * NO AR, e só ela. A arquivada é o registro de como o evento era quando aquela
- * versão valeu — reescrevê-la apagaria justamente o que ela guarda (ver
- * `domain/ec`, dois estados).
+ * ECs do projeto que ainda podem ter os dados do evento atualizados.
+ *
+ * A regra é a de sempre e continua escrita do mesmo jeito: EC encerrada é
+ * história. O que mudou foi só o vocabulário do `status` (ver `domain/ec`) —
+ * com dois estados, "Arquivada" é toda EC fora do ar, e 'Cancelada' fica na
+ * lista para as linhas antigas que ainda a tenham.
  */
-export const ecsAtualizaveis = (ecs: Ec[]): Ec[] => ecs.filter((e) => e.ativa);
+export const ecsAtualizaveis = (ecs: Ec[]): Ec[] => ecs.filter((e) => !EC_ENCERRADA.includes(e.status));
 
 /** OSs que ainda podem ganhar uma nova versão com os dados novos. */
 export const ossReemitiveis = (oss: Os[]): Os[] => oss.filter((o) => !OS_ENCERRADA.includes(o.status));

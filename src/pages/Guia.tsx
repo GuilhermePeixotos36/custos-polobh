@@ -698,7 +698,7 @@ const MODULOS: Modulo[] = [
           <Passos>
             <span>Na EC, em <b>Ações</b>, use <b>Enviar ao cliente para aprovação</b> — a EC vai para o status <Tag tom="warning">Aguardando</Tag>.</span>
             <span><b>Gerar nova versão (V02…)</b> cria uma cópia que “cancela e substitui” a anterior — use quando o escopo muda.</span>
-            <span><b>Importar EC</b> (na aba EC do projeto) copia os itens e valores de <b>qualquer</b> EC — deste projeto ou de outro, <b>no ar ou arquivada</b> — e a põe <b>no ar</b> aqui, como a versão seguinte. A de origem não é tocada; a que estava valendo neste projeto vai para o arquivo.</span>
+            <span><b>Importar EC</b> (na aba EC do projeto) faz o mesmo que <b>Gerar nova versão</b>, mudando só de onde vem o conteúdo: pega a estrutura de <b>qualquer</b> EC — deste projeto ou de outro, <b>no ar ou arquivada</b> — e gera com ela a <b>próxima versão</b> da EC daqui. A de origem não é tocada; a que estava valendo neste projeto vai para o arquivo.</span>
             <span><b>Arquivar EC</b> tira a estimativa do ar. Ela continua consultável e importável — e volta por <b>Tornar EC ativa</b>.</span>
             <span><b>Excel Financeiro</b> exporta somente itens e valores; <b>Excel Completa</b> inclui todos os dados e as descrições completas.</span>
           </Passos>

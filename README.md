@@ -81,25 +81,38 @@ painel do banco. Os selos antigos foram normalizados: `status = ativa ? 'Ativa' 
 'Arquivada'`, sem heurística nenhuma.
 
 **Cancelar virou Arquivar.** Uma EC que não vale mais é simplesmente arquivada, e
-segue consultável e importável como qualquer outra. Duas consequências no status
-**do projeto** (`domain/statusProjeto.ts`, que também passou a ler a bandeira):
-"Cancelado" deixa de aparecer, e "Arquivado"/"Concluído" saem de *existe EC no
-ar?* + a data do evento, e não mais dos selos `Cancelada`/`Aprovada`.
+segue consultável e importável como qualquer outra.
+
+**As demais regras da EC continuam como estavam** — elas liam o `status`, e o
+`status` continua lá, só com um vocabulário menor. `EC_ENCERRADA` (pendências e
+`ecsAtualizaveis`) segue sendo `["Cancelada", "Arquivada"]`: 'Arquivada' passou a
+ser toda EC fora do ar, e 'Cancelada' fica na lista para as linhas antigas que
+ainda a tenham. O único ajuste foi em `statusProjetoAutomatico`: "Concluído" era
+"o evento passou E alguma EC está **Aprovada**", e sem esse selo a leitura
+equivalente é "o evento passou e a estimativa continua **de pé**" — a alternativa
+era o status sumir em silêncio, e aí sim uma regra teria sido desfeita.
+"Cancelado" continua no código para dado antigo e simplesmente deixa de
+acontecer, já que não há mais como cancelar uma EC.
 
 **Reativar não duplica mais.** "Tornar EC ativa" numa arquivada apenas a traz de
 volta ao ar (a que estava valendo vai para o arquivo). Antes ela era duplicada
 numa versão nova — com dois estados isso virou repetição de "Gerar nova versão",
-e enchia a lista de versões só para poder editar. Quem quer preservar a atual e
-mexer numa cópia continua tendo **Gerar nova versão** e **Importar EC**; por isso
-`repo.ecs.duplicar` saiu (ninguém mais o chamava).
+e enchia a lista de versões só para poder editar. Por isso `repo.ecs.duplicar`
+saiu: ninguém mais o chamava.
 
-### Importar EC
-Copia a estrutura de custos de **qualquer** EC — deste projeto ou de outro, no ar
-ou arquivada — e a põe **no ar** aqui, como a versão seguinte. Importar uma
-arquivada é o caso mais comum, e não a exceção: é a que já deu certo uma vez. A
-origem nunca é tocada; a que estava valendo no destino vai para o arquivo e volta
-quando se quiser. Ela entra no ar porque, com dois estados, o que está arquivado
-não se edita — importar para em seguida não poder mexer não serviria para nada.
+### Importar EC = gerar nova versão com o conteúdo de outra
+Importar **gera a próxima versão da EC deste projeto** com a estrutura de uma EC
+que já existe — deste projeto ou de outro, no ar ou arquivada. É o mesmo que
+**Gerar nova versão** (numeração seguinte, entra no ar, a anterior vai para o
+arquivo e leva a marca `cancelada_substituida` de "cancela e substitui todas as
+anteriores"), mudando só **de onde vem o conteúdo**: em vez de copiar a EC atual,
+copia a escolhida. A origem nunca é tocada. Importar uma **arquivada** é o caso
+comum, e não a exceção: é a que já deu certo uma vez.
+
+O que **não** atravessa é a vida da EC de origem — o que estava emitido, gasto e
+comentado lá não vale aqui, e a versão nova começa limpa nesses campos (regra da
+importação desde sempre). Para seguir com a mesma negociação preservando tudo,
+existe `nova_versao_ec`.
 
 A cópia das linhas acontece **dentro do banco** (`importar_ec`, migração
 `20260908120000`), e isso não é detalhe de implementação. Feita no navegador, ela

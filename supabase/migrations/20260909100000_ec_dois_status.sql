@@ -206,9 +206,14 @@ grant execute on function salvar_ec_completa(uuid, jsonb, jsonb, timestamptz) to
 -- navegador ela era calculada a partir de uma lista carregada minutos antes, e
 -- duas importações ao mesmo tempo nasciam com o mesmo número.
 --
--- A cópia começa LIMPA do que era da vida da origem (o que estava emitido,
--- gasto e comentado lá não vale no destino). Para seguir com a mesma
--- negociação, preservando tudo, existe `nova_versao_ec`.
+-- Importar é GERAR UMA NOVA VERSÃO da EC deste projeto, com a estrutura vinda de
+-- outra: mesma numeração (max+1), mesma troca de ar pelo arquivo e a mesma marca
+-- de "cancela e substitui todas as anteriores" (`cancelada_substituida`) que
+-- `nova_versao_ec` põe. A diferença entre as duas é só de ONDE vem o conteúdo.
+--
+-- O que não atravessa é a vida da EC de origem: o que estava emitido, gasto e
+-- comentado lá não vale aqui — a versão nova começa limpa nesses campos, como a
+-- importação sempre fez.
 drop function if exists importar_ec(uuid, jsonb, boolean);
 create or replace function importar_ec(p_origem uuid, p_ec jsonb)
 returns uuid language plpgsql security definer set search_path = public as $$
@@ -231,7 +236,7 @@ begin
   insert into ecs (numero, projeto_id, template, cliente_id, cliente, cancelada_substituida, projeto, producao,
     responsavel, validade_dias, versao, ativa, status, criado_em, atualizado_em)
   values (regexp_replace(v_ec.numero, 'V[0-9]+$', 'V' || lpad(v_versao::text, 2, '0')), v_ec.projeto_id,
-    v_ec.template, v_ec.cliente_id, v_ec.cliente, false, v_ec.projeto, v_ec.producao,
+    v_ec.template, v_ec.cliente_id, v_ec.cliente, true, v_ec.projeto, v_ec.producao,
     v_ec.responsavel, v_ec.validade_dias, v_versao, true, 'Ativa', now(), now())
   returning id into v_id;
 

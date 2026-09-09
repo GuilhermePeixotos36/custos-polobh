@@ -52,16 +52,13 @@ export interface EcRepository {
    */
   salvarObservacoes(ecId: string, observacoes: Observacao[]): Promise<Observacao[]>;
   /**
-   * Copia uma EC para um projeto e a põe NO AR ali, como a versão seguinte.
+   * Gera a NOVA VERSÃO da EC de um projeto com a estrutura de outra EC.
    *
-   * A origem pode estar em qualquer estado — no ar ou arquivada, deste projeto
-   * ou de outro: o que se importa é a estrutura de custos, e a arquivada é
-   * justamente a mais copiada, porque já deu certo uma vez. A EC de origem não é
-   * tocada; a que estava valendo no destino vai para o arquivo, de onde volta a
-   * qualquer momento (`definirAtiva`).
-   *
-   * Entra no ar porque a EC tem dois estados (ver `domain/ec`): o que está
-   * arquivado não se edita, e uma cópia que não se pode editar não serve.
+   * Mesma coisa que `novaVersao` — numeração seguinte, entra no ar, a anterior
+   * vai para o arquivo, e leva a marca de "cancela e substitui as anteriores" —,
+   * mudando só de onde vem o conteúdo: em vez da EC atual, uma que já existe. A
+   * origem pode ser deste projeto ou de outro, estar no ar ou arquivada, e nunca
+   * é tocada.
    *
    * `destino` é o cabeçalho da EC nova (cliente, dados do projeto, taxas) já
    * montado pela tela; a VERSÃO e o número saem do banco, sob trava — no

@@ -664,18 +664,18 @@ export function ProjetoDetail() {
   }
 
   /**
-   * Traz os itens de outra EC para este projeto como a NOVA versão ativa.
+   * GERA UMA NOVA VERSÃO da EC deste projeto, com a estrutura vinda de outra.
    *
-   * Serve para copiar de outro projeto e para retomar uma versão arquivada deste
-   * mesmo projeto — a origem pode estar em qualquer estado, e a arquivada é
-   * justamente a mais copiada: é a que já deu certo uma vez. A EC de origem
-   * nunca é tocada.
+   * É a mesma coisa que "Gerar nova versão" — numeração seguinte, entra no ar, a
+   * anterior vai para o arquivo, e leva a marca de "cancela e substitui todas as
+   * anteriores" —, mudando só DE ONDE vem o conteúdo: em vez de copiar a EC
+   * atual, copia uma que já existe. A origem pode ser deste projeto ou de outro,
+   * estar no ar ou arquivada, e nunca é tocada.
    *
-   * A cópia entra NO AR porque a EC tem dois estados (ver `domain/ec`): o que
-   * não está no ar não se edita, e importar para depois não poder mexer não
-   * serviria para nada. A estimativa que estava valendo aqui vai para o arquivo
-   * — de onde volta por "Tornar EC ativa", ou por uma importação nova. Nada se
-   * perde; só muda qual delas vale agora.
+   * A versão nova entra no ar também porque a EC tem dois estados (ver
+   * `domain/ec`): o que não está no ar não se edita, e importar para depois não
+   * poder mexer não serviria para nada. A anterior volta por "Tornar EC ativa"
+   * quando se quiser — nada se perde, só muda qual delas vale agora.
    *
    * A CÓPIA DAS LINHAS acontece dentro do banco (`repo.ecs.importar`), e isso
    * não é detalhe: lida daqui, a EC de origem vem com os valores mascarados para
@@ -702,14 +702,15 @@ export function ProjetoDetail() {
         // "V01" é só a base: o banco troca pelo número da versão que couber aqui.
         numero: numeroEc(p.cliente.nome || "Cliente", p.info.titulo || "Projeto", 1),
         slugPublico: "",
-        canceladaSubstituida: false,
+        // Como em "Gerar nova versão": esta versão cancela e substitui as anteriores.
+        canceladaSubstituida: true,
         criadoEm: agora,
         atualizadoEm: agora,
         linhas: [],
       };
       const salvo = await repo.ecs.importar(origem.id, nova);
       toast(
-        `EC importada de "${tituloEc(origem)}" e ativada (V${String(salvo.versao).padStart(2, "0")}). A anterior foi para o arquivo.`,
+        `Nova versão V${String(salvo.versao).padStart(2, "0")} criada a partir de "${tituloEc(origem)}" (cancela e substitui). A anterior foi para o arquivo.`,
         "success"
       );
       setImportOpen(false);
@@ -1076,7 +1077,7 @@ export function ProjetoDetail() {
                   size="sm"
                   variant="secondary"
                   icon={<IcCopy width={16} height={16} />}
-                  title="Copia os itens e valores de outra EC — deste projeto ou de outro, inclusive arquivada — e a põe no ar como a versão seguinte"
+                  title="Gera a próxima versão da EC deste projeto com os itens e valores de outra — deste projeto ou de outro, inclusive arquivada"
                   onClick={() => { setImpProjetoId(""); setImpEcId(""); setImportOpen(true); }}
                 >
                   Importar EC
@@ -1144,7 +1145,7 @@ export function ProjetoDetail() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setImportOpen(false)}>
           <div className="w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
             <Card>
-              <CardTitle hint="Copia os itens e valores de QUALQUER EC — deste projeto ou de outro, no ar ou arquivada — e a põe no ar aqui, como a versão seguinte. A EC de origem não é alterada; a que estava valendo neste projeto vai para o arquivo e volta quando você quiser.">
+              <CardTitle hint="Gera uma NOVA VERSÃO da EC deste projeto com a estrutura de QUALQUER outra — deste projeto ou de outro, no ar ou arquivada. É o mesmo que 'Gerar nova versão', mudando só de onde vem o conteúdo: numeração seguinte, entra no ar e a anterior vai para o arquivo (de onde volta quando você quiser). A EC de origem não é alterada.">
                 Importar EC
               </CardTitle>
               <div className="mt-4 grid gap-4">

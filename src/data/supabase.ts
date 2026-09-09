@@ -531,7 +531,7 @@ const ecRepo: EcRepository = {
     auditar({
       categoria: "EC",
       acao: "ec.importar",
-      mensagem: `EC ${nova.numero} importada e ativada a partir de outra EC`,
+      mensagem: `EC ${nova.numero} criada a partir de outra EC (nova versão por importação)`,
       alvoId: novoId,
     });
     return nova;
