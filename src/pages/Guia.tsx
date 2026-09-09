@@ -3,7 +3,7 @@ import { PageShell } from "@/components/layout/AppLayout";
 import { Button, Card } from "@/components/ui";
 import {
   IcSearch, IcGrid, IcDoc, IcClipboard, IcCalendar, IcUsers, IcGear,
-  IcActivity, IcShield, IcSend, IcCheck, IcBook, IcClock, IcBell, IcCompass,
+  IcActivity, IcShield, IcSend, IcCheck, IcBook, IcClock, IcBell, IcCompass, IcSuporte,
 } from "@/components/icons";
 import { cx } from "@/lib/format";
 import { useTour } from "@/tour/store";
@@ -180,14 +180,22 @@ const MODULOS: Modulo[] = [
             A navegação fica no <b>topo</b>, e o que ela mostra depende do seu perfil — você só vê o que tem
             permissão de usar.
           </p>
+          <p>São <b>dois cabeçalhos</b>. O de cima diz em que parte do aplicativo você está — cinco botões, e só:</p>
           <div className="flex flex-wrap gap-1.5">
-            <Tag tom="primary">Projetos</Tag><Tag>Calendário</Tag><Tag>Agenda</Tag>
-            <Tag>Fornecedores</Tag><Tag>Configurações</Tag><Tag>Logs</Tag><Tag>Guia</Tag>
+            <Tag tom="primary">Calendário Pólobh</Tag><Tag>Projetos</Tag>
+            <Tag>Configurações</Tag><Tag>Guia do Aplicativo</Tag><Tag>Help Desk</Tag>
           </div>
           <p>
+            O de baixo é a barra da <b>área em que você entrou</b>, e ela acompanha: dentro de um projeto são
+            Dados Gerais / Check-list / EC / OS / Cronograma / Credenciamento / Fornecedores — e <b>a mesma barra
+            continua ali</b> quando você abre uma EC ou uma OS, para você nunca perder a referência de onde está.
+            Em Configurações são Geral / Check-list / Áreas e permissões / Usuários / Agenda / Fornecedores / Logs.
+          </p>
+          <p>
             <b>Tudo parte do Projeto.</b> EC, OS, Cronograma, Check-list, Credenciamento e Fornecedores não são telas
-            soltas do menu: são <b>subabas dentro do projeto</b>, porque é lá que elas fazem sentido juntas. O menu
-            guarda só o que atravessa projetos — o calendário do ano, a agenda do dia, o cadastro de fornecedores.
+            soltas do menu: são <b>abas dentro do projeto</b>, porque é lá que elas fazem sentido juntas. A
+            <b> Agenda</b>, o <b>cadastro geral de fornecedores</b> e os <b>Logs</b> atravessam projetos, e por isso
+            moram em Configurações.
           </p>
           <Dica>Está com dúvida em algum módulo? Volte sempre aqui no <b>Guia</b> e use a busca no topo.</Dica>
         </Secao>
@@ -405,18 +413,19 @@ const MODULOS: Modulo[] = [
             ]}
           />
           <Campos
-            bloco="Dados Emissão — Nota Fiscal (restrito)"
+            bloco="Dados Nota Fiscal, Fatura, etc... (restrito)"
             itens={[
               ["Tomador dos Serviços", "auto", "Nasce “Pólobh” e traz razão social, endereço, CNPJ e inscrições. Troque para Cliente quando o faturamento for direto."],
               ["Descritivo Nota Fiscal", "auto", "Vem do descritivo da EC."],
               ["Nome do Projeto Incentivado", "auto", "Do projeto."],
               ["Lei de Incentivo à Cultura", "auto", "Lei e número na MESMA linha, como o Projeto guarda. Avisa quando fica diferente do Projeto."],
               ["CNAE", "escolha", "As atividades daquele CNPJ, vindas do cartão. Tem escape para digitar quando o cartão está desatualizado."],
-              ["Valor total a pagar", "calculado", "Fecha o bloco de emissão."],
+              ["Valor total a pagar", "calculado", "Fecha o bloco de emissão, junto da forma de pagamento."],
+              ["Forma de Pagamento", "auto", "Como o fornecedor recebe o que a nota cobra. Nasce com o padrão do modelo e é editável. É outra coisa que a forma de pagamento do CONTRATO: aquela é cláusula contratual, e só existe quando há contrato."],
             ]}
           />
           <Campos
-            bloco="Dados para Contrato (restrito, e só quando a EC pede)"
+            bloco="Dados para Contrato (restrito — só existe quando a EC pede)"
             itens={[
               ["Contratante", "auto", "Nasce “Pólobh”, com os dados fiscais junto."],
               ["Descritivo dos Serviços", "auto", "Vem do descritivo da NF. Acima dele o sistema monta o objeto do contrato."],
@@ -430,12 +439,22 @@ const MODULOS: Modulo[] = [
           <Campos
             bloco="Acertos Financeiros"
             itens={[
-              ["BV Pólobh — Percentual", "auto", "Vem do BV combinado item a item no Detalhamento da Contratação. Avisa e oferece o atalho quando diverge."],
+              ["BV Pólobh", "auto", "Vem do BV combinado item a item no Detalhamento da Contratação. Avisa e oferece o atalho quando diverge."],
               ["BV Pólobh — Valor", "calculado", "Percentual sobre o valor total."],
-              ["Justificativa do BV", "equipe", "Obrigatória sem BV ou abaixo de 15% — para qualquer perfil."],
               ["Observações", "equipe", "O que ficou combinado no acerto."],
             ]}
           />
+          <Atencao>
+            A <b>Justificativa do BV</b> saiu daqui: ela é uma <b>por forma de cobrança</b>, dentro de cada item do
+            Detalhamento da Contratação — que é onde o BV é combinado. Uma justificativa só, da OS inteira, não sabia
+            dizer de qual item falava. Se faltar alguma, este bloco avisa e o botão leva até ela.
+          </Atencao>
+          <Atencao>
+            O grupo <b>Dados para Contrato</b> só aparece quando algum item desta OS foi marcado como <b>Emitir</b> ou
+            <b> Emitir Nova Versão</b> na coluna Contrato, na EC. Marcado “Não se Aplica”, ele não entra na OS — nem
+            como aviso: um grupo em branco não é neutro, ele descreveria um contrato inexistente com valores, forma de
+            pagamento e data no documento que vai ao fornecedor.
+          </Atencao>
           <Atencao>
             Os blocos de <b>emissão</b> e de <b>contrato</b> só aparecem para Direção, Administrativo e Administrador.
             <b> Acertos Financeiros</b> aparece para todos de propósito: quem negocia o BV com o fornecedor é a Produção.
@@ -527,6 +546,21 @@ const MODULOS: Modulo[] = [
             e faz o campo piscar.
           </p>
           <Atencao>Projeto <b>arquivado ou cancelado</b> encerra todas as pendências dele.</Atencao>
+        </Secao>
+        <Secao titulo="Conversa de cada aba do projeto">
+          <p>
+            Cinco abas do projeto têm o seu próprio espaço de conversa, no topo delas: <b>EC</b>, <b>OS</b>,
+            <b> Fornecedores</b>, <b>Cronograma</b> e <b>Credenciamento</b>. É onde entra o recado da etapa —
+            “@Marisa o palco não respondeu o credenciamento”, “o cronograma mudou, avisa a produção”.
+          </p>
+          <p>
+            Vale a mesma regra de sempre: quem é <b>@mencionado</b> fica com a pendência, e ela é contada no número
+            daquela aba. A conversa é <b>interna</b> — não sai em documento, e-mail nem planilha.
+          </p>
+          <Dica>
+            <b>Dados Gerais</b> e <b>Check-list</b> não têm: a primeira é o cadastro do evento, e a segunda já é feita
+            de tarefas com dono e prazo, que cobram melhor do que um comentário.
+          </Dica>
         </Secao>
         <Secao titulo="Os números batem — sempre">
           <p>
@@ -741,6 +775,23 @@ const MODULOS: Modulo[] = [
             tabela inteira. A lista longa rola dentro da própria caixinha.
           </Dica>
         </Secao>
+        <Secao titulo="Trocar o fornecedor de uma OS já emitida">
+          <p>
+            Numa OS em <b>rascunho</b>, trocar o fornecedor é só corrigir — a OS nasce com o fornecedor que a EC
+            apontou, e o primeiro ajuste costuma ser esse.
+          </p>
+          <p>
+            Depois de <b>emitida</b> ou <b>disparada</b>, não. O documento já existe do lado do primeiro fornecedor, e
+            deixar duas empresas com o <b>mesmo número</b> na mão é problema. Então o sistema avisa assim que você
+            troca — enquanto ainda dá para desfazer —, pede autorização ao salvar, <b>arquiva a OS como ela era</b> e
+            abre a <b>versão seguinte</b> em rascunho, com o fornecedor novo e todo o conteúdo da anterior: itens,
+            valores, cronograma e contratação.
+          </p>
+          <Dica>
+            Corrigir a razão social ou preencher o CNPJ que faltava <b>não</b> conta como troca: continua sendo o mesmo
+            fornecedor, e a OS segue a mesma.
+          </Dica>
+        </Secao>
         <Secao titulo="Como nasce uma OS">
           <p>A OS deriva da EC. Você seleciona as linhas de <b>um mesmo fornecedor</b> e gera a ordem para ele.</p>
           <Passos>
@@ -897,7 +948,7 @@ const MODULOS: Modulo[] = [
   {
     id: "calendario",
     icone: <IcCalendar />,
-    titulo: "Calendário",
+    titulo: "Calendário Pólobh",
     resumo: "O ano inteiro num quadro só: quando cada projeto acontece.",
     tags: ["calendário", "calendario", "ano", "anual", "quadro", "meses", "mês", "datas", "quando", "barrinha", "linha do tempo", "quadro preto"],
     conteudo: (
@@ -906,6 +957,12 @@ const MODULOS: Modulo[] = [
           <p>
             É o <b>quadro do ano</b> — o mesmo que a produção mantinha à mão na parede, agora
             preenchido sozinho. Responde de bate-pronto: <b>o que acontece em cada mês do ano?</b>
+            É o <b>primeiro botão</b> do aplicativo, e a tela que abre quando você entra.
+          </p>
+          <p>
+            O card de cada mês lista <b>todos</b> os projetos dele e cresce o quanto precisar. Ele cortava em quatro e
+            resumia o resto em “+6 projetos”, o que obrigava a abrir o mês só para descobrir quais eram. A barrinha
+            colorida continua em três trilhas: ali o assunto é <i>quão cheio está</i>, e mais linhas virariam um borrão.
           </p>
           <Tela titulo="Calendário — 2026">
             <div className="space-y-2 text-[12px]">
@@ -1151,6 +1208,46 @@ const MODULOS: Modulo[] = [
             <span>Filtre por <b>categoria</b>, <b>nível</b> ou use a <b>busca</b>.</span>
             <span>Use <b>Exportar CSV</b> para baixar a trilha filtrada.</span>
           </Passos>
+        </Secao>
+      </>
+    ),
+  },
+  {
+    id: "helpdesk",
+    icone: <IcSuporte />,
+    titulo: "Help Desk",
+    resumo: "Abrir chamado para o suporte do sistema, de dentro do próprio aplicativo.",
+    tags: ["help desk", "helpdesk", "suporte", "chamado", "erro", "bug", "ajuda", "problema", "reclamação", "sugestão"],
+    conteudo: (
+      <>
+        <Secao titulo="Quando usar">
+          <p>
+            Quando alguma coisa <b>não funciona como deveria</b>, quando você tem dúvida de uso que o Guia não
+            responde, ou quando tem uma <b>sugestão</b>. O botão fica no cabeçalho, ao lado do Guia.
+          </p>
+          <Dica>
+            Antes de abrir, vale conferir três coisas que resolvem a maioria dos casos: campo que <b>não salva</b>
+            costuma ter uma pendência travando (o aviso leva até ela quando você clica); valor que <b>não aparece</b>
+            costuma ser permissão (os blocos financeiros são restritos); e e-mail que “não chegou” costuma ser a
+            <b> homologação</b>, que desvia tudo para a caixa de teste.
+          </Dica>
+        </Secao>
+        <Secao titulo="O que vai no chamado">
+          <Campos
+            bloco="Novo chamado"
+            itens={[
+              ["Tipo", "escolha", "Erro no sistema, dúvida de uso, sugestão de melhoria ou acesso e permissões."],
+              ["Assunto", "equipe", "Uma frase. “A OS não salva quando o fornecedor é MEI” diz mais que “erro na OS”."],
+              ["O que aconteceu", "equipe", "O que você fez, o que esperava e o que aconteceu. Quanto mais concreto, menos idas e vindas."],
+              ["Tela", "auto", "De onde você veio — o sistema preenche sozinho. Corrija se o problema foi em outro lugar."],
+              ["Navegador e tamanho da tela", "auto", "Vai junto sem você precisar saber qual é: metade dos “aqui não funciona” mora nisso."],
+            ]}
+          />
+          <p>
+            O chamado vai para o e-mail de suporte configurado em <b>Configurações › Geral</b>, e a resposta volta
+            direto para <b>você</b> — quem responde só aperta “responder”. Todo chamado fica registrado nos
+            <b> Logs do sistema</b>.
+          </p>
         </Secao>
       </>
     ),

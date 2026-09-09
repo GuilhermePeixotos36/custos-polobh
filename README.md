@@ -332,6 +332,117 @@ Os três totais do bloco Pagamento ao Fornecedor (`orcamento.valorComBvNf` e
 companhia) viraram **leitura**: são a soma do que foi definido item a item. Antes
 eram digitados para a OS inteira, e não sabiam dizer de onde vinham.
 
+### O resto da tela da OS (revisão de 09/09/2026)
+- A **conversa** subiu para o topo, antes do bloco "Ordem de Serviço": quem abre
+  uma OS costuma abrir por causa do que foi dito nela, e no fim da tela isso
+  ficava atrás de quinze blocos.
+- O bloco de emissão fecha no par **Valor total a pagar + Forma de Pagamento**.
+  A forma da NOTA (`financeiro.formaPagamento`) é campo próprio e nasce com o
+  padrão do modelo: é outra coisa que a forma do CONTRATO — aquela é cláusula, e
+  só existe quando há contrato.
+- "Informações a serem preenchidas pelo Financeiro da Pólobh" virou **"Dados
+  Nota Fiscal, Fatura, etc..."**.
+- **Acertos Financeiros**: o BV perdeu o "— Percentual" do rótulo, e a
+  justificativa saiu. Ela é uma por FORMA, dentro de cada item da contratação —
+  uma justificativa só, da OS inteira, não sabia dizer de qual item falava.
+  `financeiro.bvJustificativa` fica no tipo e na tabela para não perder o que as
+  OS antigas escreveram; nada mais o exige nem o preenche.
+- **O que trava o salvamento leva até o campo**: o aviso diz o item e a forma,
+  abre o bloco recolhido, rola até lá e põe o cursor (`TRAVA_JUSTIF`,
+  `destacarCampo`).
+- **Dados para Contrato** só existe quando a EC pediu "Emitir"/"Emitir Nova
+  Versão". Marcado "Não se Aplica", o grupo não aparece nem como aviso: um grupo
+  vazio não é neutro — ele descreve um contrato inexistente com valores, forma de
+  pagamento e data no documento do fornecedor.
+
+### Trocar o fornecedor de uma OS já emitida
+Deixou de ser edição. A tela avisa enquanto ainda dá para desfazer; ao salvar,
+pede autorização, **arquiva a OS como ela era** e abre a versão seguinte com o
+fornecedor novo, no número seguinte da série. Em rascunho nada disso acontece
+(`exigeNovaVersaoPorFornecedor`, em `domain/os.ts`): ali a troca é correção de
+quem ainda monta o documento — a OS nasce com o fornecedor que a EC apontou, e o
+primeiro ajuste costuma ser exatamente esse.
+
+Mexer no cadastro do MESMO fornecedor (corrigir a razão social, preencher o CNPJ
+que faltava) não conta como troca: `mesmoFornecedor` compara pelo CNPJ quando
+ele existe dos dois lados, e pela razão social sem acento/caixa quando não — a
+mesma régua de `versaoOs`, porque as duas respondem à mesma pergunta.
+
+A cópia é do servidor (`gerar_nova_versao_os`, agora com `p_fornecedor`): o
+financeiro é restrito por RLS, e copiá-lo pela tela apagaria o que quem reemite
+não tem permissão de enxergar. **A mesma migração (`20260910120000`) corrigiu um
+defeito**: a função copia coluna a coluna e `oss.itens` não estava na lista, de
+modo que reemitir uma OS zerava a contratação inteira, calada.
+
+## Dois cabeçalhos (revisão de 09/09/2026)
+O topo tinha sete itens e misturava o que se faz todo dia (Projetos,
+Calendário) com o que se administra de vez em quando (Áreas, Usuários, Logs) e
+com cadastro que já vive dentro do projeto (Fornecedores). Na largura de um
+notebook os rótulos sumiam e sobrava uma fileira de ícones parecidos.
+
+**O cabeçalho geral** (`NAV`, em `layout/nav.tsx`) tem cinco botões e diz só em
+que parte do aplicativo se está: **Calendário Pólobh | Projetos | Configurações
+| Guia do Aplicativo | Help Desk**. O Calendário vem primeiro porque é por ele
+que o dia começa — "o que acontece esta semana" antes de "onde está cada
+projeto"; a rota `/` leva a ele.
+
+**O segundo cabeçalho** (`layout/BarraSecao.tsx`) é a barra da área, e a
+diferença para `SubGuias` é que ela **atravessa rotas**:
+- `BarraProjeto` — Dados Gerais / Check-list / EC / OS / Cronograma /
+  Credenciamento / Fornecedores. É a mesma dentro do projeto, da EC e da OS:
+  entrar num documento deixava a pessoa sem nenhuma referência de onde estava.
+  Dentro do projeto a troca é por estado (`onAba`); nas outras telas ela navega
+  para `/projetos/:id?aba=…`.
+- `BarraConfiguracoes` — Geral / Check-list / Áreas e permissões / Usuários /
+  **Agenda** / **Fornecedores** / **Logs**. As três últimas saíram do cabeçalho
+  geral e têm rota própria; mantiveram as URLs, então nenhum link antigo
+  quebrou. Cada seção respeita a permissão que já governava a tela.
+
+As duas entram pelo slot `subabas` do `PageShell`, então grudam com o título.
+
+## Help Desk
+O quinto botão. Abre chamado por e-mail para um endereço de suporte
+**configurável** (Configurações › Geral), com a **tela de origem** e o
+**navegador** preenchidos pelo sistema — a primeira resposta do suporte era
+sempre a mesma pergunta — e o "responder" voltando para quem abriu. Fica na
+trilha de auditoria (`helpdesk.chamado`) mesmo quando o e-mail é simulado ou
+desviado pela homologação: o registro de que alguém pediu ajuda é a informação.
+
+A tela de origem é gravada pela casca a cada navegação (`lib/telaAnterior.ts`,
+`sessionStorage`) — mora fora da página porque quem grava é o `AppLayout`, e ele
+não pode importar uma página carregada sob demanda sem arrastá-la para o pacote
+inicial.
+
+O endereço vive em `config_app` (migração `20260910100000`), uma tabela de
+chave/valor criada para isto: não havia **onde** guardar um ajuste do sistema —
+ou virava coluna numa tabela que não é dela, ou variável de ambiente, que só
+quem publica muda.
+
+## Conversa por aba do projeto
+Cinco abas — **EC, OS, Fornecedores, Cronograma e Credenciamento** — têm o seu
+corredor: "@Marisa o palco não respondeu o credenciamento". Sem ele, esse tipo
+de recado ou não era escrito, ou ia parar numa observação de item que nada tinha
+a ver com o assunto, só porque era o campo de texto mais perto — e quem fosse
+procurar depois não achava.
+
+Dados Gerais e Check-list ficam de fora de propósito: a primeira é o cadastro do
+evento, e a segunda já é feita de tarefas com dono e prazo, que é uma forma
+melhor de cobrar alguém do que um comentário.
+
+Guardadas em `projetos.conversas` (jsonb, `{"<aba>": [observacoes]}`, migração
+`20260910140000`) e gravadas **uma aba por vez** (`salvar_conversa_projeto`,
+`jsonb_set`): duas pessoas conversando em abas diferentes do mesmo projeto não
+podem apagar a mensagem uma da outra. Como a conversa da EC, fica fora do
+`salvar` do projeto — comentar não é editar, não passa pela permissão de edição
+e não mexe em `atualizado_em`.
+
+As pendências saem com `aba` preenchida (`projeto.conversa`), então caem no
+badge da subguia certa, e a âncora (`ancoraConversaAba`) leva ao card daquela
+aba — não ao projeto.
+
+O card em si é o mesmo da EC e da OS (`components/CardConversa.tsx`): o rótulo
+do botão é **"Adicionar Observação"** em toda parte.
+
 ## Cálculos da EC (fixos)
 - `somaFornecedores` = Σ(valor Pólobh) + Σ(produção)
 - `honorários` = 15% · `encargos` = 16,33% (sobre fornecedores)
@@ -404,9 +515,17 @@ Substitui a cobrança informal por uma lista de tarefas com prazo, dono e histó
 Banco: `checklist_modelos`, `checklists`, `checklist_itens` (migração
 `20260823100000_checklist_workflow.sql`).
 
-## Calendário do ano (quadro dos projetos)
+## Calendário Pólobh (quadro dos projetos)
 Substitui o quadro preto de parede onde a produção anotava, à mão, tudo o que
-aconteceria no ano — agora preenchido sozinho pelos projetos já cadastrados.
+aconteceria no ano — agora preenchido sozinho pelos projetos já cadastrados. É
+o **primeiro item** do aplicativo desde 09/09/2026.
+
+A faixa de resumo tem **duas** caixas, não quatro: "Projetos no ano" e "Dias
+ocupados" saíram (respondiam perguntas que ninguém faz olhando um calendário, e
+ocupavam a dobra inteira antes do quadro). Ficaram as duas que levam a algum
+lugar — o mês mais cheio, que abre o mês, e o que acontece agora ou vem a
+seguir. O quadro nunca teve badge de pendências, e continua sem: aqui não se
+resolve nada.
 
 - **O que entra:** só a **data do projeto**, isto é, a etapa **Evento** do
   cronograma (`info.cronograma.evento`). Montagem, alinhamentos, ensaios e
@@ -414,8 +533,12 @@ aconteceria no ano — agora preenchido sozinho pelos projetos já cadastrados.
   período é do **menor ao maior dia** da etapa (evento de um dia = um dia só);
   projeto anterior ao cronograma por faixas cai no campo legado `info.evento`.
 - **Vista Calendário:** doze cards de mês, cada um com a mancha do mês em
-  trilhas (projetos que se sobrepõem caem em linhas diferentes), a contagem e os
-  nomes. **Vista Lista:** o mesmo conteúdo escrito, mês a mês — a leitura de
+  trilhas (projetos que se sobrepõem caem em linhas diferentes), a contagem e
+  **todos** os nomes — o card cresce o quanto precisar. Ele cortava em quatro e
+  resumia o resto em "+N", o que escondia justamente o que se vem ver: num mês
+  cheio, "+6 projetos" obrigava a abrir o mês para descobrir quais (revisão de
+  09/09/2026). A mancha continua limitada a três trilhas: ali o assunto é "quão
+  cheio está", e com dez trilhas de 7px o desenho vira um borrão. **Vista Lista:** o mesmo conteúdo escrito, mês a mês — a leitura de
   bater o olho e imprimir.
 - **Detalhamento do mês** (clicar no card): régua de 1 a 31, uma linha por
   projeto, e a **barra correndo do primeiro ao último dia**. Ponta reta + seta =

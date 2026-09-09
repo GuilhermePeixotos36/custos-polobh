@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   agregarPendencias,
+  ancoraConversaAba,
   ancoraCronogramaOs,
   ancoraObservacoesGeraisEc,
   ancoraProjetoSemEc,
@@ -530,5 +531,64 @@ describe("conversa geral da EC", () => {
       [], USUARIOS, [], [], HOJE
     );
     expect(pendenciasDaTela(de(itens, "Bruno").itens, { ecId: "ec1" })).toHaveLength(1);
+  });
+});
+
+/**
+ * A conversa geral de cada ABA do projeto — o corredor da etapa.
+ *
+ * Ela responde à mesma régua das outras: quem foi @mencionado fica com a vez, e
+ * o Produtor Responsável enxerga o que acontece no projeto dele. O que muda é o
+ * ENDEREÇO: a pendência mora na aba, então é ali que ela é contada e é para lá
+ * que o navegador leva.
+ */
+describe("conversa das abas do projeto", () => {
+  const comConversa = (conversas: Projeto["conversas"]): Projeto => ({ ...projeto("Ana"), conversas });
+
+  const daAba = (conversas: Projeto["conversas"], usuario: string) =>
+    calcularPendencias([comConversa(conversas)], [], [], [usuario], [], [], HOJE)
+      .filter((p) => p.tipo === "projeto.conversa");
+
+  it("cobra quem foi mencionado, na aba onde a conversa está", () => {
+    const [p] = daAba({ credenciamento: [observacao({ responsavelNome: "Bruno" })] }, "Bruno");
+    expect(p.aba).toBe("credenciamento");
+    expect(p.projetoId).toBe("p1");
+    expect(p.pessoas).toContain("Bruno");
+    // O aviso diz de que etapa se trata — "em Credenciamento", não "em p1".
+    expect(p.titulo).toContain("Credenciamento");
+  });
+
+  it("a âncora leva ao card daquela aba, e não ao projeto", () => {
+    const [p] = daAba({ cronograma: [observacao({ responsavelNome: "Bruno" })] }, "Bruno");
+    expect(p.ancora).toBe(ancoraConversaAba("p1", "cronograma"));
+    // Duas abas do mesmo projeto não podem cair no mesmo lugar.
+    expect(ancoraConversaAba("p1", "cronograma")).not.toBe(ancoraConversaAba("p1", "ec"));
+  });
+
+  it("cada aba responde por si — conversas separadas, pendências separadas", () => {
+    const itens = daAba(
+      {
+        ec: [observacao({ id: "a", responsavelNome: "Bruno" })],
+        fornecedores: [observacao({ id: "b", responsavelNome: "Bruno" })],
+      },
+      "Bruno"
+    );
+    expect(itens.map((p) => p.aba).sort()).toEqual(["ec", "fornecedores"]);
+    // Ids distintos: duas pendências, e não uma contada duas vezes.
+    expect(new Set(itens.map((p) => p.id)).size).toBe(2);
+  });
+
+  it("observação resolvida não cobra mais ninguém", () => {
+    expect(daAba({ os: [observacao({ resolvida: true, responsavelNome: "Bruno" })] }, "Bruno")).toEqual([]);
+  });
+
+  it("o Produtor Responsável enxerga o que se passa no projeto dele", () => {
+    const [p] = daAba({ ec: [observacao({ responsavelNome: "Bruno" })] }, "Bruno");
+    expect(p.responsavelProjeto).toBe("Ana");
+  });
+
+  it("projeto sem conversa nenhuma não gera nada", () => {
+    expect(daAba({}, "Bruno")).toEqual([]);
+    expect(daAba(undefined, "Bruno")).toEqual([]);
   });
 });

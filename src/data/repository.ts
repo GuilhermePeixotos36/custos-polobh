@@ -4,7 +4,7 @@
  * hoje, Supabase para tudo (não existe mais mock em memória).
  */
 import type {
-  AnexoObservacao, Area, Checklist, Cliente, CredenciamentoResposta, Ec, EmpresaGrupo, Fornecedor,
+  AbaComConversa, AnexoObservacao, Area, Checklist, Cliente, CredenciamentoResposta, Ec, EmpresaGrupo, Fornecedor,
   ItemChecklist, ModeloChecklist, Observacao, Os, Projeto, ProjetoInfo, Usuario,
 } from "./types";
 
@@ -12,6 +12,15 @@ export interface ProjetoRepository {
   listar(): Promise<Projeto[]>;
   obter(id: string): Promise<Projeto | undefined>;
   salvar(p: Projeto): Promise<Projeto>;
+  /**
+   * Grava a conversa de UMA aba do projeto, e só ela.
+   *
+   * Fora do `salvar` de propósito, como a conversa da EC: comentar não é editar
+   * o projeto — não passa pela permissão de edição, não mexe em
+   * `atualizado_em`, e duas pessoas conversando em abas diferentes ao mesmo
+   * tempo não apagam a mensagem uma da outra.
+   */
+  salvarConversa(projetoId: string, aba: AbaComConversa, observacoes: Observacao[]): Promise<Observacao[]>;
   /** Arquiva, em uma única operação, todas as ECs e OSs vinculadas ao projeto. */
   arquivarDocumentos(id: string): Promise<void>;
   remover(id: string): Promise<void>;

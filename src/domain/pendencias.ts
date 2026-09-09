@@ -51,6 +51,17 @@ import { encerrado as itemEncerrado, situacaoPrazo } from "@/domain/checklist";
 /** Chave da subguia dentro do detalhe do projeto (espelha ProjetoDetail). */
 export type AbaProjeto = "dados" | "ec" | "os" | "checklist" | "cronograma" | "credenciamento" | "fornecedores";
 
+/** Como a aba se chama no aviso — "Observação para Ana em Credenciamento: …". */
+const ROTULO_ABA: Record<string, string> = {
+  dados: "Dados Gerais",
+  checklist: "Check-list",
+  ec: "EC",
+  os: "OS",
+  cronograma: "Cronograma",
+  credenciamento: "Credenciamento",
+  fornecedores: "Fornecedores",
+};
+
 /** Campo do item que é a pendência em si (quando ela não é um comentário). */
 export type CampoPendencia = "os" | "contrato";
 
@@ -193,6 +204,14 @@ export const ancoraCronogramaOs = (osId: string) => `os-cronograma:${osId}`;
  * lugar visível ali para que o total do título continue sendo localizável.
  */
 export const ancoraProjetoSemEc = (projetoId: string) => `projeto-sem-ec:${projetoId}`;
+
+/**
+ * Âncora da conversa geral de uma ABA do projeto — o card no topo dela.
+ *
+ * Uma por aba, e não uma por projeto: as cinco conversas são independentes, e o
+ * navegador precisa levar até a que cobra a pessoa, não até o projeto.
+ */
+export const ancoraConversaAba = (projetoId: string, aba: string) => `projeto-conversa:${projetoId}:${aba}`;
 
 /* ------------------------- A batata quente da thread ---------------------- */
 
@@ -570,6 +589,34 @@ export function calcularPendencias(
         checklistItemId: item.id,
         ancora: item.id,
       });
+    }
+  }
+
+  // A conversa GERAL de cada aba do projeto — o corredor da etapa.
+  //
+  // Mesma régua da conversa da EC (`pendenciaDeConversa`): quem foi @mencionado
+  // fica com a vez, e o Produtor Responsável enxerga o que acontece no projeto
+  // dele. A pendência mora na ABA, então ela é contada no badge daquela subguia
+  // e o navegador leva até o card no topo dela.
+  for (const p of projetos) {
+    if (statusProjetoAutomatico(p, ecs) === "Concluido") continue;
+    for (const [aba, observacoes] of Object.entries(p.conversas ?? {})) {
+      for (const [indice, observacao] of (observacoes ?? []).entries()) {
+        const vez = pendenciaDeConversa(observacao, usuarios, p.info.produtoraResponsavel?.trim() || "");
+        if (!vez) continue;
+        out.push({
+          id: `projeto.conversa:${p.id}:${aba}:${observacao.id || indice}`,
+          tipo: "projeto.conversa",
+          titulo: `Observação para ${vez.pessoas.join(", ")} em ${ROTULO_ABA[aba] ?? aba}: ${vez.resumo}`,
+          pessoas: vez.pessoas,
+          responsavelProjeto: vez.responsavelProjeto,
+          recurso: "projetos",
+          projetoId: p.id,
+          aba: aba as AbaProjeto,
+          ancora: ancoraConversaAba(p.id, aba),
+          observacaoId: observacao.id || undefined,
+        });
+      }
     }
   }
 

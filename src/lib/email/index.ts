@@ -20,7 +20,7 @@ import {
   emailCredenciamento,
   emailDispararOs,
   emailEcParaAprovacao,
-  emailLembreteCronograma,
+  emailCronogramaDoFornecedor,
   emailHelpDesk,
   type AnexoEmail,
   type Chamado,
@@ -159,8 +159,14 @@ export const enviarCredenciamento = (os: Os, ec: Ec) => enviarEmail(emailCredenc
 /** Chamado do Help Desk para o endereço de suporte configurado. */
 export const enviarChamado = (chamado: Chamado, para: string) => enviarEmail(emailHelpDesk(chamado, para));
 
-export async function enviarLembreteCronograma(os: Os, ec: Ec) {
-  const msg = emailLembreteCronograma(os, ec);
+/**
+ * Manda ao fornecedor o cronograma DELE, com a OS em anexo.
+ *
+ * Um só caminho para os dois usos — o envio da aba Cronograma e o lembrete de
+ * véspera: é a mesma informação, e dois textos fariam um deles envelhecer.
+ */
+export async function enviarCronogramaAoFornecedor(os: Os, ec: Ec) {
+  const msg = emailCronogramaDoFornecedor(os, ec);
   const anexo = await anexoOs(os, ec);
   if (anexo) msg.anexos = [anexo];
   return enviarEmail(msg);

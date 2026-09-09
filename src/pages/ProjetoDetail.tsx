@@ -20,7 +20,7 @@ import { ListaArrastavel, ItemArrastavel } from "@/components/ListaArrastavel";
 import { CronogramaProjetoEditor } from "@/components/CronogramaProjetoEditor";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
-import { useMinhasPendencias } from "@/store/pendencias";
+import { useMinhasPendencias, usePendencias } from "@/store/pendencias";
 import { useResponsaveis } from "@/hooks/useResponsaveis";
 import { useSugestoes } from "@/hooks/useSugestoes";
 import { filhosDe, type CampoSugerido } from "@/domain/sugestoes";
@@ -47,8 +47,10 @@ import {
   type MudancaEvento,
   type SnapshotEvento,
 } from "@/domain/mudancasEvento";
-import type { Cliente, Ec, Projeto, ProjetoInfo, StatusProjeto } from "@/data/types";
-import { ancoraProjetoSemEc, pendenciasDaTela, type Pendencia } from "@/domain/pendencias";
+import { ABAS_COM_CONVERSA } from "@/data/types";
+import type { AbaComConversa, Cliente, Ec, Observacao, Projeto, ProjetoInfo, StatusProjeto } from "@/data/types";
+import { ancoraConversaAba, ancoraProjetoSemEc, pendenciasDaTela, type Pendencia } from "@/domain/pendencias";
+import { CardConversa } from "@/components/CardConversa";
 import { situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
 import { itensDaOs } from "@/domain/os";
 import { ThItensOs, TdItensOs } from "@/components/ColunaItensOs";
@@ -119,6 +121,28 @@ export function ProjetoDetail() {
   /** "Foto" do projeto como ele está salvo — serve para saber se há algo a salvar. */
   const [baseline, setBaseline] = useState("");
   const [aba, setAba] = useState<Aba>(abaInicial);
+
+  /**
+   * Grava a conversa de uma aba — otimista, e por caminho próprio.
+   *
+   * Otimista porque a conversa não pode ficar esperando o servidor; por caminho
+   * próprio (`salvarConversa`) porque comentar não é editar o projeto: não
+   * passa pela permissão de edição e não marca a tela como alterada, então uma
+   * mensagem não obriga ninguém a salvar o cadastro do evento.
+   */
+  async function gravarConversa(daAba: AbaComConversa, observacoes: Observacao[]) {
+    const anteriores = p.conversas?.[daAba] ?? [];
+    setP((atual) => ({ ...atual, conversas: { ...atual.conversas, [daAba]: observacoes } }));
+    try {
+      const salvas = await repo.projetos.salvarConversa(id, daAba, observacoes);
+      setP((atual) => ({ ...atual, conversas: { ...atual.conversas, [daAba]: salvas } }));
+      // A bolinha de quem ficou com a vez acende (ou apaga) na hora.
+      usePendencias.getState().carregar(true);
+    } catch (e) {
+      setP((atual) => ({ ...atual, conversas: { ...atual.conversas, [daAba]: anteriores } }));
+      toast(`Não foi possível salvar a observação: ${(e as Error).message}`, "danger");
+    }
+  }
   /**
    * O sininho pode pedir OUTRA subguia do projeto que já está aberto — aí só a
    * URL muda, o componente não remonta e a aba ficaria na anterior.
@@ -1034,6 +1058,27 @@ export function ProjetoDetail() {
             </ListaArrastavel>
           </Card>
         </fieldset>
+      )}
+
+      {/* A CONVERSA DA ABA — o corredor da etapa, no topo dela.
+          Cinco abas têm uma (ver `ABAS_COM_CONVERSA`): recado de etapa não
+          tinha onde morar, e acabava escrito numa observação de item que nada
+          tinha a ver com o assunto, só porque era o campo de texto mais perto.
+          Dados Gerais e Check-list ficam de fora: uma é cadastro, a outra já é
+          feita de tarefas com dono e prazo. */}
+      {!novo && (ABAS_COM_CONVERSA as readonly string[]).includes(aba) && (
+        <div className="mb-4">
+          <CardConversa
+            titulo={`Observações — ${ABAS.find((a) => a.key === aba)?.label ?? ""}`}
+            hint="Conversa da equipe sobre esta etapa. Não sai em documento, e-mail nem planilha — quem é @mencionado fica com a pendência."
+            ancora={ancoraConversaAba(id, aba)}
+            ancoraDom={idAncoraPendencia(ancoraConversaAba(id, aba))}
+            observacoes={p.conversas?.[aba as AbaComConversa] ?? []}
+            usuarios={nomesUsuarios}
+            minhas={minhasPendencias.filter((x) => x.tipo === "projeto.conversa" && x.projetoId === id && x.aba === aba).length}
+            onChange={(observacoes) => gravarConversa(aba as AbaComConversa, observacoes)}
+          />
+        </div>
       )}
 
       {aba === "ec" && (

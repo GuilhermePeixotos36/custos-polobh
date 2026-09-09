@@ -16,7 +16,7 @@ import {
 } from "@/components/ui";
 import { flags } from "@/lib/flags";
 import { IcSend } from "@/components/icons";
-import { enviarLembreteCronograma, resumoDoEnvio } from "@/lib/email";
+import { enviarCronogramaAoFornecedor, resumoDoEnvio } from "@/lib/email";
 import { toast } from "@/store/toast";
 import { confirmar } from "@/store/confirm";
 import { cx } from "@/lib/format";
@@ -42,7 +42,7 @@ export function EnvioCronograma({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
 
   async function enviar(f: NaFilaCronograma) {
     if (!f.ec || !f.email) return { ok: false, simulado: true, destinatarios: [] };
-    return enviarLembreteCronograma(f.os, f.ec);
+    return enviarCronogramaAoFornecedor(f.os, f.ec);
   }
 
   async function enviarUm(f: NaFilaCronograma) {

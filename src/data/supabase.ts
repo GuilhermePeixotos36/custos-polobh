@@ -874,6 +874,8 @@ function mapProjeto(r: any): Projeto {
     info: normalizarProjetoInfo(r.projeto),
     docsUrl: r.docs_url ?? "",
     status: r.status ?? "Ativo",
+    // Projeto gravado antes da conversa por aba vem sem a coluna.
+    conversas: r.conversas && typeof r.conversas === "object" ? r.conversas : {},
     criadoEm: r.criado_em,
     atualizadoEm: r.atualizado_em,
   };
@@ -898,6 +900,19 @@ const projetoRepo: ProjetoRepository = {
   async obter(id) {
     const data = ok(await supabase.from("projetos").select("*").eq("id", id).maybeSingle());
     return data ? mapProjeto(data) : undefined;
+  },
+  async salvarConversa(projetoId, aba, observacoes) {
+    // RPC própria (ver `salvar_conversa_projeto`): grava só a chave daquela aba,
+    // sem tocar em `atualizado_em` e sem exigir permissão de EDITAR o projeto —
+    // quem enxerga o projeto conversa nele.
+    const salvas = ok(
+      await supabase.rpc("salvar_conversa_projeto", {
+        p_projeto_id: projetoId,
+        p_aba: aba,
+        p_observacoes: observacoes,
+      })
+    ) as unknown as Record<string, Observacao[]> | null;
+    return salvas?.[aba] ?? observacoes;
   },
   async salvar(p) {
     const atualizando = isUuid(p.id);

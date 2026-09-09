@@ -445,6 +445,16 @@ export type StatusProjeto = "Ativo" | "Arquivado" | "Concluido" | "Cancelado";
  * Guarda Cliente + informações do projeto + roteiro + link de documentos,
  * e é dono das ECs (que podem ter versões).
  */
+/**
+ * As abas do projeto que têm CONVERSA — o corredor de cada etapa.
+ *
+ * "Dados Gerais" e "Check-list" ficam de fora de propósito: a primeira é o
+ * cadastro do evento, e a segunda já é feita de tarefas com dono e prazo, que é
+ * uma forma melhor de cobrar alguém do que um comentário.
+ */
+export const ABAS_COM_CONVERSA = ["ec", "os", "fornecedores", "cronograma", "credenciamento"] as const;
+export type AbaComConversa = (typeof ABAS_COM_CONVERSA)[number];
+
 export interface Projeto {
   id: string;
   nome: string;
@@ -452,6 +462,15 @@ export interface Projeto {
   info: ProjetoInfo; // título, modalidade, datas, local, participantes, produtora, roteiro
   docsUrl: string;
   status: StatusProjeto;
+  /**
+   * A conversa geral de cada aba: "@Marisa o palco não respondeu o
+   * credenciamento". Interna — nunca sai em documento, e-mail ou planilha.
+   *
+   * Gravada por caminho próprio, uma aba de cada vez (`salvarConversa`):
+   * comentar não é editar o projeto, e duas pessoas conversando em abas
+   * diferentes não podem apagar a mensagem uma da outra.
+   */
+  conversas?: Partial<Record<AbaComConversa, Observacao[]>>;
   criadoEm: string;
   atualizadoEm: string;
 }

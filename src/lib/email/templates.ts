@@ -94,22 +94,65 @@ export function emailCredenciamento(os: Os, ec: Ec): MensagemEmail {
   };
 }
 
-/** Lembrete de cronograma — 2 dias úteis antes do evento. */
-export function emailLembreteCronograma(os: Os, ec: Ec): MensagemEmail {
+/**
+ * O CRONOGRAMA ESPECÍFICO do fornecedor.
+ *
+ * Cada um recebe o SEU — as etapas da OS dele, não o cronograma do evento
+ * inteiro. É a diferença entre "o palco monta quinta às 8h" e uma tabela de
+ * doze fornecedores em que ele tem de se procurar.
+ *
+ * A mensagem é texto padrão + dados: o padrão diz o que é e o que se espera de
+ * quem recebe; os dados são o evento (onde, quando) e as etapas dele. Ela serve
+ * tanto ao envio da aba Cronograma quanto ao lembrete de véspera — é a mesma
+ * informação, e manter dois textos faria um deles envelhecer.
+ */
+export function emailCronogramaDoFornecedor(os: Os, ec: Ec): MensagemEmail {
   const etapas = [...os.cronograma]
     .sort((a, b) => (a.data || "").localeCompare(b.data || ""))
-    .map((c) => `<li><b>${h(c.etapa || "Etapa")}:</b> ${h(dataBR(c.data))} ${h(c.horario)} — ${h(c.atividades)}</li>`)
+    .map(
+      (c) => `<tr>
+        <td style="padding:6px 12px 6px 0;font-size:13px;font-weight:bold;vertical-align:top;white-space:nowrap">${h(c.etapa || "Etapa")}</td>
+        <td style="padding:6px 12px 6px 0;font-size:13px;vertical-align:top;white-space:nowrap">${h(dataBR(c.data))}</td>
+        <td style="padding:6px 12px 6px 0;font-size:13px;vertical-align:top;white-space:nowrap">${h(c.horario)}</td>
+        <td style="padding:6px 0;font-size:13px;vertical-align:top">${h(c.atividades)}</td>
+      </tr>`
+    )
     .join("");
+
+  // Quem chamar no dia. Sem isto, a dúvida da montagem vira ligação para quem
+  // estiver com o telefone à mão — ou não vira ligação nenhuma.
+  const p = ec.projeto;
+  const contato = [p.produtoraResponsavel, p.telefoneProdutora, p.emailProdutora].filter(Boolean).map(h).join(" · ");
+
   const corpo = `
-    <p>Olá, ${h(os.fornecedor.razaoSocial || "fornecedor")}.</p>
-    <p>Lembrete do cronograma do projeto <b>${h(ec.projeto.titulo)}</b>, que acontece em
-       <b>${h(datasDoEvento(ec.projeto))}</b> no local <b>${h(ec.projeto.local)}</b>.</p>
-    <ul style="font-size:14px;line-height:1.6">${etapas || "<li>Sem etapas cadastradas.</li>"}</ul>
+    <p>Olá, ${h(os.fornecedor.representante || os.fornecedor.razaoSocial || "fornecedor")}.</p>
+    <p>Segue o cronograma da sua equipe para o projeto <b>${h(p.titulo)}</b>, conforme a
+       <b>${h(os.numero)}</b>. Confira as etapas abaixo e confirme se há qualquer divergência
+       com o que foi combinado.</p>
+
+    <table style="border-collapse:collapse;margin:8px 0 16px">
+      <tr><td style="padding:2px 12px 2px 0;color:#6A6E78;font-size:13px">Data(s)</td>
+          <td style="padding:2px 0;font-size:13px"><b>${h(datasDoEvento(p))}</b></td></tr>
+      <tr><td style="padding:2px 12px 2px 0;color:#6A6E78;font-size:13px">Horário(s)</td>
+          <td style="padding:2px 0;font-size:13px">${h(horariosDoEvento(p))}</td></tr>
+      <tr><td style="padding:2px 12px 2px 0;color:#6A6E78;font-size:13px">Local</td>
+          <td style="padding:2px 0;font-size:13px">${h(p.local)}</td></tr>
+      ${p.enderecoLocal ? `<tr><td style="padding:2px 12px 2px 0;color:#6A6E78;font-size:13px">Endereço</td>
+          <td style="padding:2px 0;font-size:13px">${h(p.enderecoLocal)}</td></tr>` : ""}
+    </table>
+
+    <p style="font-size:13px;font-weight:bold;margin-bottom:4px">Cronograma da sua equipe</p>
+    <table style="border-collapse:collapse;width:100%;border-top:1px solid #EEEFF2">
+      ${etapas || `<tr><td style="padding:8px 0;font-size:13px;color:#A0A4AC">Sem etapas cadastradas nesta OS.</td></tr>`}
+    </table>
+
+    ${contato ? `<p style="font-size:13px;margin-top:16px"><b>Produtora responsável:</b> ${contato}</p>` : ""}
     <p style="font-size:14px">Qualquer dúvida, responda este e-mail.</p>`;
+
   return {
     para: os.fornecedor.email ? [{ email: os.fornecedor.email, nome: os.fornecedor.razaoSocial }] : [],
-    assunto: `Lembrete de cronograma — ${ec.projeto.titulo}`,
-    html: wrap("Lembrete de cronograma", corpo),
+    assunto: `Cronograma — ${ec.projeto.titulo} (${os.numero})`,
+    html: wrap("Cronograma da sua equipe", corpo),
   };
 }
 
