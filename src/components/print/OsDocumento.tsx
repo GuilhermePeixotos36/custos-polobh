@@ -3,7 +3,7 @@ import { itensVisiveis, temContrato, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA } f
 import type { Cliente, Ec, Os } from "@/data/types";
 import { brl, dataBR } from "@/lib/format";
 import { textoObjetoContrato, resumoDeCustos, FORMA_PAGAMENTO_PADRAO, OBS_CONTRATO_PADRAO } from "@/domain/calc";
-import { resumoCronogramaProjeto } from "@/domain/projeto";
+import { datasDoEvento, horariosDoEvento, resumoCronogramaProjeto } from "@/domain/projeto";
 import { empresaPadrao } from "@/store/empresas";
 
 /** Faixa de seção — cinza das barras do modelo original Pólobh (COR.sectionGray). */
@@ -94,8 +94,10 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
       <LV label="Título" valor={p.titulo} />
       <LV label="Modalidade" valor={p.modalidade} />
       <LV label="Incentivos Fiscais" valor={p.incentivosFiscais} />
-      <LV label="Data" valor={dataBR(p.evento)} />
-      <LV label="Horário" valor={p.horario} />
+      {/* Todas as faixas do evento, e não só a primeira: é este papel que vai
+          ao fornecedor, e um evento de três dias saía dali como se fosse de um. */}
+      <LV label="Data(s)" valor={datasDoEvento(p)} />
+      <LV label="Horário(s)" valor={horariosDoEvento(p)} />
       <LV label="Local" valor={p.local} />
       <LV label="Nº Participantes" valor={p.participantes ?? ""} />
       <LV label="Endereço do Local" valor={p.enderecoLocal} />

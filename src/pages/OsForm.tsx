@@ -32,7 +32,7 @@ import {
   FORMA_PAGAMENTO_PADRAO,
   OBS_CONTRATO_PADRAO,
 } from "@/domain/calc";
-import { ETAPAS_CRONOGRAMA } from "@/domain/projeto";
+import { datasDoEvento, ETAPAS_CRONOGRAMA, horariosDoEvento } from "@/domain/projeto";
 import { doCadastro, opcoesPerfilTributario, semVazios } from "@/domain/fornecedor";
 import { useEmpresas } from "@/store/empresas";
 import { consultarCnpj } from "@/lib/cnpj";
@@ -316,7 +316,12 @@ export function OsForm() {
         modalidade: "",
         descritivo: descritivoConsolidado(linhas),
         entrega: "",
-        cronograma: [{ etapa: "Evento", data: ec.projeto.evento, horario: ec.projeto.horario, atividades: "" }],
+        // Todas as faixas de todas as etapas, e não uma linha "Evento" com a
+        // primeira data: um evento de três dias chegava ao fornecedor como se
+        // fosse de um. A OS já sabia montar isso (`cronogramaDoProjeto`) — mas
+        // só depois, ao reabrir, por um remendo que reconhecia a linha padrão
+        // antiga e a substituía. Agora ela nasce certa.
+        cronograma: cronogramaDoProjeto(ec.projeto),
         logistica: { transporteMaterial: "", transporteEquipe: "", hospedagem: "", alimentacao: "", estacionamentoCarga: "", estacionamentoEquipe: "", uniformizacao: "" },
         infraestrutura: { energia: "", internet: "", pontosEletricos: "", estruturas: "", servicosApoio: "", artLaudos: "" },
         observacoesGerais: "",
@@ -723,8 +728,11 @@ export function OsForm() {
           <LinhaOs label="Título"><Auto v={os.projeto.titulo} /></LinhaOs>
           <LinhaOs label="Modalidade"><Auto v={os.projeto.modalidade} /></LinhaOs>
           <LinhaOs label="Incentivos Fiscais"><Auto v={os.projeto.incentivosFiscais} /></LinhaOs>
-          <LinhaOs label="Data"><Auto v={dataBR(os.projeto.evento)} /></LinhaOs>
-          <LinhaOs label="Horário"><Auto v={os.projeto.horario} /></LinhaOs>
+          {/* Plural no rótulo porque o evento de vários dias é o caso comum, e
+              porque aqui saem TODAS as faixas do cronograma — não só a primeira,
+              que é o que os campos legados `evento`/`horario` guardam. */}
+          <LinhaOs label="Data(s)"><Auto v={datasDoEvento(os.projeto)} /></LinhaOs>
+          <LinhaOs label="Horário(s)"><Auto v={horariosDoEvento(os.projeto)} /></LinhaOs>
           {/* Endereço logo abaixo do Local: os dois são a mesma informação, e com
               o Nº de Participantes no meio a leitura quebrava. */}
           <LinhaOs label="Local"><Auto v={os.projeto.local} /></LinhaOs>

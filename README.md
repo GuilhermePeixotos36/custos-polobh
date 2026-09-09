@@ -242,6 +242,27 @@ Duas regras do **BV** saíram junto do seletor:
   preservando a atividade quando ela faz parte do nome ("Casa da Cenografia").
   `fornecedores.apelido` preenchido é uma escolha manual e vence a geração.
 
+## Data(s) e Horário(s) do evento na OS
+O evento de vários dias é o caso comum da casa, mas `ProjetoInfo.evento` e
+`ProjetoInfo.horario` guardam só a **primeira** faixa do cronograma — são
+resquício de quando o cronograma era um par de campos soltos
+(`sincronizarCamposLegados`). Todo documento que lia esses campos mandava o
+fornecedor para um evento de **um dia**.
+
+`datasDoEvento` / `horariosDoEvento` (`domain/projeto.ts`) leem o cronograma
+inteiro e caem nos campos legados só quando não há cronograma (OS antiga, cujo
+snapshot foi tirado antes de ele existir). Datas repetidas colapsam (duas faixas
+no mesmo dia são um dia); horários idênticos também (três dias das 9h às 18h leem
+"09:00 às 18:00", não a mesma faixa três vezes).
+
+Os rótulos são **"Data(s)"** e **"Horário(s)"**, iguais nos três lugares em que a
+OS aparece — tela (`OsForm`), OS impressa (`print/OsDocumento`) e planilha
+(`excel/os`) — e no e-mail que dispara a OS ao fornecedor. O **cronograma do
+fornecedor** de uma OS nova também passou a nascer com todas as faixas de todas
+as etapas (`cronogramaDoProjeto`): antes ele nascia com uma única linha "Evento"
+tirada dos campos legados, e só era corrigido depois, ao reabrir a OS, por um
+remendo que reconhecia essa linha padrão e a substituía.
+
 ## Check-list (Work Flow) do projeto
 Substitui a cobrança informal por uma lista de tarefas com prazo, dono e histórico.
 

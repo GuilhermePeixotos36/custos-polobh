@@ -754,6 +754,20 @@ const MODULOS: Modulo[] = [
           </Dica>
           <Atencao>Cada OS consolida linhas de <b>um único fornecedor</b>. Se você marcar fornecedores diferentes, o sistema avisa.</Atencao>
         </Secao>
+        <Secao titulo="Evento de vários dias">
+          <p>
+            Em <b>Dados do Projeto</b>, a OS mostra <b>Data(s)</b> e <b>Horário(s)</b> — no plural porque saem
+            <b> todas</b> as faixas cadastradas no cronograma do projeto, e não só a primeira.
+          </p>
+          <Passos>
+            <span>Datas repetidas contam uma vez: duas faixas no mesmo dia (manhã e noite) são <b>um dia</b> na lista.</span>
+            <span>Horários iguais também: três dias das 9h às 18h leem <b>09:00 às 18:00</b>, e não a mesma faixa três vezes. Diferentes entre si, aparecem todos.</span>
+            <span>O <b>Cronograma do Fornecedor</b> já nasce com todas as faixas de todas as etapas do projeto — é só ajustar o que for dele.</span>
+          </Passos>
+          <Dica>
+            Vale nos três lugares em que a OS aparece — tela, PDF e Excel — e no e-mail que a dispara ao fornecedor.
+          </Dica>
+        </Secao>
         <Secao titulo="Bloco financeiro (restrito)">
           <p>O bloco <b>Financeiro Pólobh</b> (BV, valor a pagar, margem) só aparece para os perfis <b>Direção</b>, <b>Administrativo</b> e <b>Administrador</b>. A <b>Produção</b> não vê esses valores — nem na tela, nem pela API.</p>
         </Secao>

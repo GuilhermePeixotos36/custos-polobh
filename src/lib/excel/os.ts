@@ -25,7 +25,7 @@ import {
   textoObjetoContrato, FORMA_PAGAMENTO_PADRAO, OBS_CONTRATO_PADRAO,
   resumoDeCustos,
 } from "@/domain/calc";
-import { ETAPAS_CRONOGRAMA } from "@/domain/projeto";
+import { datasDoEvento, ETAPAS_CRONOGRAMA, horariosDoEvento } from "@/domain/projeto";
 import { itensVisiveis, temContrato, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA } from "@/domain/os";
 import { COR, fill, FONT_LIGHT, baixar, nomeArquivo, carregarLogo, encaixarLogo, linhasVisuais, alturaParaLinhas } from "./shared";
 
@@ -239,8 +239,10 @@ export async function criarOsExcelBuffer(
   linha("Título:", p.titulo);
   linha("Modalidade:", p.modalidade);
   linha("Incentivos Fiscais:", p.incentivosFiscais);
-  linha("Data:", dataBR(p.evento));
-  linha("Horário:", p.horario);
+  // Todas as faixas do evento (ver `datasDoEvento`): a planilha é o que o
+  // fornecedor recebe, e ela mostrava só o primeiro dia.
+  linha("Data(s):", datasDoEvento(p));
+  linha("Horário(s):", horariosDoEvento(p));
   linha("Local:", p.local);
   linha("Nº Participantes:", p.participantes ?? "");
   linha("Endereço do Local:", p.enderecoLocal);

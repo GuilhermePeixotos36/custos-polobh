@@ -5,6 +5,9 @@
 import type { Ec, Os } from "@/data/types";
 import { urlCredenciamento } from "@/lib/links";
 import { dataBR } from "@/lib/format";
+// Todas as faixas do evento: o e-mail que leva a OS ao fornecedor dizia só o
+// primeiro dia (ver `datasDoEvento`).
+import { datasDoEvento, horariosDoEvento } from "@/domain/projeto";
 
 export interface AnexoEmail {
   nome: string;
@@ -58,7 +61,8 @@ export function emailDispararOs(os: Os, ec: Ec): MensagemEmail {
     <p>Segue a <b>Ordem de Serviço ${h(os.numero)}</b> referente ao projeto
        <b>${h(ec.projeto.titulo)}</b> (${h(ec.cliente.nome)}).</p>
     <ul style="font-size:14px;line-height:1.6">
-      <li><b>Evento:</b> ${h(dataBR(ec.projeto.evento))} · ${h(ec.projeto.horario)}</li>
+      <li><b>Data(s):</b> ${h(datasDoEvento(ec.projeto))}</li>
+      <li><b>Horário(s):</b> ${h(horariosDoEvento(ec.projeto))}</li>
       <li><b>Local:</b> ${h(ec.projeto.local)}</li>
       <li><b>Modalidade:</b> ${h(os.modalidade || "—")}</li>
     </ul>
@@ -99,7 +103,7 @@ export function emailLembreteCronograma(os: Os, ec: Ec): MensagemEmail {
   const corpo = `
     <p>Olá, ${h(os.fornecedor.razaoSocial || "fornecedor")}.</p>
     <p>Lembrete do cronograma do projeto <b>${h(ec.projeto.titulo)}</b>, que acontece em
-       <b>${h(dataBR(ec.projeto.evento))}</b> no local <b>${h(ec.projeto.local)}</b>.</p>
+       <b>${h(datasDoEvento(ec.projeto))}</b> no local <b>${h(ec.projeto.local)}</b>.</p>
     <ul style="font-size:14px;line-height:1.6">${etapas || "<li>Sem etapas cadastradas.</li>"}</ul>
     <p style="font-size:14px">Qualquer dúvida, responda este e-mail.</p>`;
   return {

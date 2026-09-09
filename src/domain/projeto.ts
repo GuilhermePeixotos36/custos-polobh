@@ -222,6 +222,55 @@ export function sincronizarCamposLegados(info: ProjetoInfo): ProjetoInfo {
   };
 }
 
+/* ------------------- Datas e horários do EVENTO, todos eles ---------------- */
+
+/**
+ * Separador entre as várias datas/horários do evento. O mesmo do cronograma
+ * impresso: são valores lado a lado, não uma frase.
+ */
+const SEPARADOR_FAIXAS = "  |  ";
+
+/** Faixas do evento que têm alguma coisa preenchida, na ordem cadastrada. */
+const faixasDoEvento = (info: ProjetoInfo): FaixaCronogramaProjeto[] =>
+  (info.cronograma?.evento ?? []).filter((f) => f.data || f.inicio || f.fim);
+
+/**
+ * TODAS as datas do evento, na ordem em que foram cadastradas.
+ *
+ * O evento de três dias é o caso comum da casa, e os campos `evento`/`horario`
+ * de `ProjetoInfo` só guardam a PRIMEIRA faixa — eles são o resquício de quando
+ * o cronograma era um par de campos soltos (ver `sincronizarCamposLegados`).
+ * Documento que lê só esses campos manda o fornecedor para um evento de um dia
+ * só; daí estas duas funções, que leem o cronograma inteiro e caem nos campos
+ * legados apenas quando não há cronograma (OS antiga, cujo snapshot foi tirado
+ * antes de o cronograma existir).
+ *
+ * Datas repetidas são colapsadas: duas faixas no mesmo dia (manhã e noite) são
+ * um dia só para quem lê "Data(s)".
+ */
+export function datasDoEvento(info: ProjetoInfo): string {
+  const datas = faixasDoEvento(info).map((f) => f.data).filter(Boolean);
+  const unicas = [...new Set(datas)];
+  if (!unicas.length) return info.evento ? dataBR(info.evento) : "";
+  return unicas.map(dataBR).join(SEPARADOR_FAIXAS);
+}
+
+/**
+ * TODOS os horários do evento, na ordem das faixas.
+ *
+ * Horários idênticos são colapsados: o evento de três dias das 9h às 18h lê
+ * "09:00 às 18:00", e não a mesma faixa três vezes. Quando os dias têm horários
+ * diferentes, todos aparecem — na mesma ordem das datas acima.
+ */
+export function horariosDoEvento(info: ProjetoInfo): string {
+  const horarios = faixasDoEvento(info)
+    .map((f) => [f.inicio, f.fim].filter(Boolean).join(" às "))
+    .filter(Boolean);
+  const unicos = [...new Set(horarios)];
+  if (!unicos.length) return info.horario ?? "";
+  return unicos.join(SEPARADOR_FAIXAS);
+}
+
 /**
  * Cronograma do evento em texto, uma etapa por linha — é ASSIM que ele sai na
  * OS impressa. Mora aqui porque quem compara duas versões do projeto

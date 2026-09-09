@@ -8,6 +8,9 @@ import {
   idBlocoEtapa,
   idBlocoExtra,
   novoBlocoCronograma,
+  datasDoEvento,
+  horariosDoEvento,
+  sincronizarCamposLegados,
 } from "./projeto";
 import type { Cliente } from "@/data/types";
 
@@ -89,5 +92,77 @@ describe("cronograma do projeto — blocos livres", () => {
   it("respeita um bloco esvaziado por arraste (não recria data em branco)", () => {
     const info = normalizarProjetoInfo({ cronograma: { ensaios: [] } });
     expect(info.cronograma.ensaios).toEqual([]);
+  });
+});
+
+
+/**
+ * O evento de vários dias é o caso comum da casa, e os campos `evento`/`horario`
+ * de `ProjetoInfo` só guardam a PRIMEIRA faixa (resquício de quando o cronograma
+ * era um par de campos soltos). Quem lê só esses campos manda o fornecedor para
+ * um evento de um dia — é o que a OS fazia.
+ */
+describe("datas e horários do evento (todos)", () => {
+  const comEvento = (faixas: { data: string; inicio?: string; fim?: string }[]) => {
+    const base = projetoInfoVazio();
+    return sincronizarCamposLegados({
+      ...base,
+      cronograma: {
+        ...base.cronograma,
+        evento: faixas.map((f, i) => ({ id: `e${i}`, data: f.data, inicio: f.inicio ?? "", fim: f.fim ?? "" })),
+      },
+    });
+  };
+
+  it("traz TODAS as datas, na ordem cadastrada", () => {
+    const info = comEvento([
+      { data: "2026-03-05", inicio: "09:00", fim: "18:00" },
+      { data: "2026-03-06", inicio: "09:00", fim: "18:00" },
+      { data: "2026-03-07", inicio: "09:00", fim: "18:00" },
+    ]);
+    const datas = datasDoEvento(info);
+    expect(datas).toContain("05 03 26");
+    expect(datas).toContain("06 03 26");
+    expect(datas).toContain("07 03 26");
+    // O campo legado continua sendo só o primeiro dia — é justamente o problema.
+    expect(info.evento).toBe("2026-03-05");
+  });
+
+  it("horário igual em todos os dias aparece uma vez só", () => {
+    const info = comEvento([
+      { data: "2026-03-05", inicio: "09:00", fim: "18:00" },
+      { data: "2026-03-06", inicio: "09:00", fim: "18:00" },
+    ]);
+    expect(horariosDoEvento(info)).toBe("09:00 às 18:00");
+  });
+
+  it("horários diferentes aparecem todos", () => {
+    const info = comEvento([
+      { data: "2026-03-05", inicio: "09:00", fim: "18:00" },
+      { data: "2026-03-06", inicio: "08:00", fim: "14:00" },
+    ]);
+    expect(horariosDoEvento(info)).toContain("09:00 às 18:00");
+    expect(horariosDoEvento(info)).toContain("08:00 às 14:00");
+  });
+
+  it("duas faixas no mesmo dia são um dia só na lista de datas", () => {
+    const info = comEvento([
+      { data: "2026-03-05", inicio: "09:00", fim: "12:00" },
+      { data: "2026-03-05", inicio: "19:00", fim: "23:00" },
+    ]);
+    expect(datasDoEvento(info)).toBe("05 03 26");
+    expect(horariosDoEvento(info)).toContain("09:00 às 12:00");
+    expect(horariosDoEvento(info)).toContain("19:00 às 23:00");
+  });
+
+  it("sem cronograma, cai nos campos legados — a OS antiga continua legível", () => {
+    const info = { ...projetoInfoVazio(), evento: "2026-03-05", horario: "09:00 às 18:00" };
+    expect(datasDoEvento(info)).toBe("05 03 26");
+    expect(horariosDoEvento(info)).toBe("09:00 às 18:00");
+  });
+
+  it("evento sem nada preenchido não inventa texto", () => {
+    expect(datasDoEvento(projetoInfoVazio())).toBe("");
+    expect(horariosDoEvento(projetoInfoVazio())).toBe("");
   });
 });
