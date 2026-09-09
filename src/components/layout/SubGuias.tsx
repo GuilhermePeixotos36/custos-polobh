@@ -24,11 +24,29 @@ export interface SubGuia<K extends string = string> {
   titulo?: string;
 }
 
+/**
+ * Dois níveis, dois desenhos — e isso não é enfeite.
+ *
+ * Onde as duas barras aparecem juntas (na EC e na OS: a do projeto por cima, a
+ * das vistas do documento embaixo), desenhá-las igual fazia as duas lerem como
+ * UMA fileira que quebrou de linha. Pior: "EC" aparece nas duas, e nas duas
+ * acesa em laranja com o mesmo sublinhado — não dava para saber qual dizia
+ * "você está na EC do projeto" e qual dizia "você está vendo a EC, e não o
+ * Resumo dos Custos".
+ *
+ *  · `principal` — abas com sublinhado. É a NAVEGAÇÃO: sair daqui troca de
+ *    tela.
+ *  · `secundaria` — pílulas menores, sem sublinhado. É uma VISTA do que já está
+ *    aberto; nada sai do lugar.
+ */
+export type VarianteSubGuias = "principal" | "secundaria";
+
 export function SubGuias<K extends string>({
   abas,
   atual,
   onChange,
   rotulo,
+  variante = "principal",
   tituloPendencias = "Ações pendentes nesta etapa",
 }: {
   abas: readonly SubGuia<K>[];
@@ -36,10 +54,16 @@ export function SubGuias<K extends string>({
   onChange: (aba: K) => void;
   /** Identifica a barra para quem usa leitor de tela. */
   rotulo: string;
+  variante?: VarianteSubGuias;
   tituloPendencias?: string;
 }) {
+  const secundaria = variante === "secundaria";
   return (
-    <div className="flex items-center gap-1" role="tablist" aria-label={rotulo}>
+    <div
+      className={cx("flex items-center gap-1", secundaria && "py-1.5")}
+      role="tablist"
+      aria-label={rotulo}
+    >
       {abas.map((a) => (
         <button
           key={a.key}
@@ -51,12 +75,17 @@ export function SubGuias<K extends string>({
           title={a.titulo}
           onClick={() => onChange(a.key)}
           className={cx(
-            "px-4 h-10 text-[13.5px] font-bold whitespace-nowrap border-b-2 -mb-px transition-colors inline-flex items-center gap-1.5",
+            "whitespace-nowrap font-bold transition-colors inline-flex items-center gap-1.5",
+            secundaria
+              ? "px-3 h-7 text-[12.5px] rounded-pill"
+              : "px-4 h-10 text-[13.5px] border-b-2 -mb-px",
             a.desabilitada
-              ? "text-ink-3/40 cursor-not-allowed border-transparent"
+              ? cx("text-ink-3/40 cursor-not-allowed", !secundaria && "border-transparent")
               : atual === a.key
-                ? "text-primary-dark border-primary"
-                : "text-ink-2 hover:text-ink border-transparent"
+                ? secundaria
+                  ? "bg-primary-soft text-primary-dark"
+                  : "text-primary-dark border-primary"
+                : cx("text-ink-2 hover:text-ink", secundaria ? "hover:bg-[#F1F2F5]" : "border-transparent")
           )}
         >
           {a.label}

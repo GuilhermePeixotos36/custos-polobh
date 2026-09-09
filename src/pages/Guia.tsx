@@ -547,6 +547,19 @@ const MODULOS: Modulo[] = [
           </p>
           <Atencao>Projeto <b>arquivado ou cancelado</b> encerra todas as pendências dele.</Atencao>
         </Secao>
+        <Secao titulo="A lista do check-list">
+          <p>
+            Cada etapa é uma <b>lista</b>: uma caixa para marcar, o nome da tarefa e, embaixo, prazo, responsável e
+            status escritos como texto. <b>Clique em qualquer um deles</b> para alterar — não são campos abertos o
+            tempo todo, para a lista continuar sendo uma lista.
+          </p>
+          <Passos>
+            <span>A <b>caixa à esquerda</b> conclui e reabre a tarefa com um clique — é o gesto mais usado da tela.</span>
+            <span>O <b>fio vermelho</b> na lateral marca a tarefa atrasada.</span>
+            <span><b>Recolher</b> e <b>excluir</b> aparecem ao passar o mouse na linha (no celular, ficam sempre visíveis).</span>
+            <span>O cabeçalho de cada etapa mostra o progresso dela — <b>“3 de 8”</b>.</span>
+          </Passos>
+        </Secao>
         <Secao titulo="Conversa de cada aba do projeto">
           <p>
             Cinco abas do projeto têm o seu próprio espaço de conversa, no topo delas: <b>EC</b>, <b>OS</b>,

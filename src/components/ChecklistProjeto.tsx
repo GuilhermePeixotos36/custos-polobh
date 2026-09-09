@@ -8,7 +8,7 @@
  * Gravação item a item: cada mudança persiste só a tarefa mexida. Duas pessoas
  * trabalhando em tarefas diferentes do mesmo projeto nunca se sobrescrevem.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Badge, Button, Card, EmptyState, Input, ProgressBar, Select, type Tom } from "@/components/ui";
 import { IcCheck, IcPlus, IcEye, IcEyeOff, IcCalendar, IcTrash } from "@/components/icons";
 import { ObservacoesThread } from "@/components/ObservacoesPopup";
@@ -228,7 +228,7 @@ export function ChecklistProjeto({
             </Button>
           )}
           <Select
-            className="!h-9 !text-[13px]"
+            className="!h-9 !w-auto !text-[13px]"
             value={agrupamento}
             onChange={(e) => setAgrupamento(e.target.value as Agrupamento)}
             aria-label="Agrupar tarefas"
@@ -238,7 +238,7 @@ export function ChecklistProjeto({
           </Select>
           {responsaveis.length > 0 && (
             <Select
-              className="!h-9 !text-[13px]"
+              className="!h-9 !w-auto !text-[13px]"
               value={filtroResponsavel}
               onChange={(e) => setFiltroResponsavel(e.target.value)}
               aria-label="Filtrar por responsável"
@@ -278,33 +278,46 @@ export function ChecklistProjeto({
         />
       )}
 
-      {blocos.map((bloco) => (
-        <div key={bloco.chave} className="space-y-2">
-          <div className="flex items-center gap-2 px-1">
-            {agrupamento === "data" && <IcCalendar width={15} height={15} className="text-ink-3" />}
-            <h3 className="text-[13px] font-extrabold uppercase tracking-wide text-ink-2">{bloco.titulo}</h3>
-            <span className="text-[12px] font-bold text-ink-3 bg-[#F0F1F4] rounded-pill px-2 py-0.5">
-              {bloco.itens.length}
-            </span>
-          </div>
-          {bloco.itens.map((item) => (
-            <ItemCard
-              key={item.id}
-              sugestoesTitulo={sugestoes.valores.tituloTarefa}
-              item={item}
-              hoje={hoje}
-              usuarios={usuarios}
-              podeEditar={podeEditar}
-              pendencias={pendenciasPorItem[item.id] ?? 0}
-              autoFoco={item.id === idRecemCriado}
-              onAlterar={(patch) => alterar(item, patch)}
-              onStatus={(s) => mudarStatus(item, s)}
-              onObservacoes={(observacoes) => alterar(item, { observacoes })}
-              onRemover={() => onRemoverItem(item)}
-            />
-          ))}
-        </div>
-      ))}
+      {/* Cada grupo é UMA lista, e não uma pilha de cartões soltos.
+          O que faz uma lista parecer uma lista é a continuidade: um fundo só,
+          linhas separadas por um fio, e o título preso no topo. Com um cartão
+          por tarefa — borda, sombra e respiro em cada uma — doze tarefas viravam
+          doze objetos, e a leitura de cima a baixo se perdia. */}
+      {blocos.map((bloco) => {
+        const feitas = bloco.itens.filter((i) => i.status === "Concluído").length;
+        return (
+          <section key={bloco.chave} className="rounded-card border border-border bg-surface shadow-card overflow-hidden">
+            <header className="flex items-center gap-2 px-4 py-2.5 bg-[#FAFAFB] border-b border-border-soft">
+              {agrupamento === "data" && <IcCalendar width={15} height={15} className="text-ink-3 shrink-0" />}
+              <h3 className="text-[12.5px] font-extrabold uppercase tracking-[0.06em] text-ink-2 truncate">
+                {bloco.titulo}
+              </h3>
+              {/* "3 de 8" diz mais que "8": é o progresso do grupo, à vista. */}
+              <span className="ml-auto shrink-0 text-[11.5px] font-bold text-ink-3 tabular-nums">
+                {feitas} de {bloco.itens.length}
+              </span>
+            </header>
+            <ul className="divide-y divide-border-soft">
+              {bloco.itens.map((item) => (
+                <ItemCard
+                  key={item.id}
+                  sugestoesTitulo={sugestoes.valores.tituloTarefa}
+                  item={item}
+                  hoje={hoje}
+                  usuarios={usuarios}
+                  podeEditar={podeEditar}
+                  pendencias={pendenciasPorItem[item.id] ?? 0}
+                  autoFoco={item.id === idRecemCriado}
+                  onAlterar={(patch) => alterar(item, patch)}
+                  onStatus={(s) => mudarStatus(item, s)}
+                  onObservacoes={(observacoes) => alterar(item, { observacoes })}
+                  onRemover={() => onRemoverItem(item)}
+                />
+              ))}
+            </ul>
+          </section>
+        );
+      })}
     </div>
   );
 }
@@ -346,7 +359,11 @@ function ItemCard({
 
   // Rascunho local do título. Sem ele, cada tecla virava uma gravação no banco.
   const [titulo, setTitulo] = useState(item.titulo);
-  const [editandoTitulo, setEditandoTitulo] = useState(false);
+  /**
+   * O título é TEXTO até alguém querer mudá-lo. Nasce em edição só quando a
+   * tarefa acabou de ser criada — ela vem sem nome, e o cursor tem de estar lá.
+   */
+  const [editandoTitulo, setEditandoTitulo] = useState(autoFoco);
   // Reflete alteração vinda de fora (recarga, outra aba) sem atropelar quem digita.
   useEffect(() => {
     if (!editandoTitulo) setTitulo(item.titulo);
@@ -365,121 +382,188 @@ function ItemCard({
   };
   const fechado = encerrado(item);
   const anexos = useAnexosChecklist(item.id);
+  /**
+   * A conversa fica à vista, ou é só um convite no hover?
+   *
+   * À vista quando há o que mostrar — e também quando a tarefa COBRA a pessoa:
+   * a regra da casa é que todo número contado pode ser achado, e esconder a
+   * thread deixaria o badge vermelho apontando para o nada.
+   */
+  const temConversa = (item.observacoes ?? []).length > 0 || pendencias > 0;
 
   return (
-    <div
+    <li
       id={idAncoraPendencia(item.id)}
       className={cx(
-        "rounded-card border bg-white p-3",
-        situacao === "atrasado" ? "border-danger/50" : "border-border",
-        // Recolhida (por conclusão ou à mão) aparece esmaecida quando revelada.
-        item.oculto && "opacity-70",
-        recolhidaAberta && "border-dashed"
+        "group relative px-4 py-2.5 transition-colors hover:bg-[#FCFCFD]",
+        // Atrasada ganha um fio vermelho na lateral, não uma borda inteira: a
+        // linha continua sendo linha, e a lista não vira um mural de molduras.
+        situacao === "atrasado" && "before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:bg-danger",
+        item.oculto && "opacity-60",
+        recolhidaAberta && "bg-[repeating-linear-gradient(135deg,transparent,transparent_6px,#F7F8FA_6px,#F7F8FA_12px)]"
       )}
     >
-      <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-3">
-        {/* Concluir com um clique — o gesto mais frequente da tela. */}
+      <div className="flex items-start gap-3">
+        {/* Concluir com um clique — o gesto mais frequente da tela, e por isso
+            o maior alvo da linha. */}
         <button
           type="button"
           disabled={!podeEditar}
           onClick={() => onStatus(item.status === "Concluído" ? "Pendente" : "Concluído")}
           title={item.status === "Concluído" ? "Reabrir tarefa" : "Marcar como concluída"}
+          aria-pressed={item.status === "Concluído"}
           className={cx(
-            "mt-0.5 h-5 w-5 shrink-0 rounded-md border-[1.5px] grid place-items-center transition-colors",
+            "mt-[3px] h-[22px] w-[22px] shrink-0 rounded-md border-[1.5px] grid place-items-center transition-all",
             item.status === "Concluído"
               ? "bg-success border-success text-white"
-              : "border-[#C9CDD6] hover:border-primary",
+              : "border-[#C9CDD6] hover:border-success hover:bg-success-soft",
             !podeEditar && "cursor-not-allowed opacity-60"
           )}
         >
-          {item.status === "Concluído" && <IcCheck width={13} height={13} />}
+          {item.status === "Concluído" ? (
+            <IcCheck width={14} height={14} />
+          ) : (
+            // O tique aparece esmaecido ao passar o mouse: mostra o que o clique
+            // vai fazer antes de a pessoa clicar.
+            <IcCheck width={14} height={14} className="text-success opacity-0 group-hover:opacity-40 transition-opacity" />
+          )}
         </button>
 
-        <div className="min-w-0 space-y-2">
-          <div className="flex items-start gap-2 flex-wrap">
+        <div className="min-w-0 flex-1">
+          {/* ------------------------- o título ------------------------- */}
+          {/* Texto, e não uma caixa de digitação sempre aberta. A tarefa é para
+              LER; editar é a exceção, e acontece ao clicar. Com um input por
+              linha, doze tarefas viravam doze formulários. */}
+          {editandoTitulo ? (
             <Input
-              autoFocus={autoFoco}
-              className={cx("!h-8 !px-2 !text-[14px] !font-bold flex-1 min-w-[200px]", fechado && "line-through")}
+              autoFocus
+              className={cx("!h-8 !px-2 !text-[14px] !font-bold w-full", fechado && "line-through")}
               sugestoes={sugestoesTitulo}
               value={titulo}
               placeholder="Descreva a tarefa"
               disabled={!podeEditar}
-              onFocus={() => setEditandoTitulo(true)}
               onChange={(e) => setTitulo(e.target.value)}
               // Grava ao sair do campo (ou no Enter), NÃO a cada tecla: digitar
               // um título disparava uma gravação por caractere.
               onBlur={commitTitulo}
               onKeyDown={(e) => {
                 if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                if (e.key === "Escape") setTitulo(item.titulo);
+                if (e.key === "Escape") {
+                  setTitulo(item.titulo);
+                  setEditandoTitulo(false);
+                }
               }}
               aria-label="Título da tarefa"
             />
-            {aviso && <Badge tom={aviso.tom}>{aviso.rotulo}</Badge>}
-            <NotifDot inline n={pendencias} title={`${pendencias} pendência(s) sua(s) nesta tarefa`} />
-          </div>
+          ) : (
+            <button
+              type="button"
+              disabled={!podeEditar}
+              onClick={() => setEditandoTitulo(true)}
+              className={cx(
+                "block w-full text-left text-[14px] font-bold leading-snug rounded px-1 -mx-1 py-0.5 input-focus",
+                podeEditar && "hover:bg-[#F1F2F5] cursor-text",
+                fechado ? "line-through text-ink-3" : "text-ink",
+                !item.titulo && "text-ink-3 font-semibold italic"
+              )}
+              title={podeEditar ? "Clique para renomear" : undefined}
+            >
+              {item.titulo || "Descreva a tarefa"}
+            </button>
+          )}
 
-          {/* Larguras fixas, do tamanho do conteúdo. Antes os três campos se
-              esticavam pela largura do cartão e uma data de 10 caracteres
-              ocupava meia tela. */}
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="flex items-center gap-1.5">
-              <span className="sr-only">Data-limite</span>
+          {/* ------------------------- a linha de dados ------------------ */}
+          {/* Prazo, responsável e status como TEXTO, lado a lado. Eram três
+              caixas com borda, sempre visíveis — trinta e seis molduras numa
+              lista de doze tarefas. Cada uma vira o controle de verdade quando
+              recebe o clique (ver `CampoDiscreto`). */}
+          <div className="mt-1 flex items-center gap-x-3 gap-y-1 flex-wrap text-[12.5px]">
+            <CampoDiscreto
+              icone={<IcCalendar width={13} height={13} />}
+              titulo="Data-limite"
+              vazio={!item.dataLimite}
+              rotulo={item.dataLimite ? dataBR(item.dataLimite) : "Sem data"}
+              tom={aviso?.tom}
+              podeEditar={podeEditar}
+            >
               <Input
                 type="date"
-                className="!h-8 !px-2 !text-[12.5px] !w-[9.5rem]"
+                className="!h-7 !px-1.5 !text-[12.5px] !w-[9.5rem]"
                 value={item.dataLimite}
-                disabled={!podeEditar}
                 // Editar a data trava o item contra o recálculo automático: o
                 // ajuste da pessoa vale mais que a régua do modelo.
                 onChange={(e) => onAlterar({ dataLimite: e.target.value, dataManual: true })}
                 aria-label="Data-limite da tarefa"
               />
-            </label>
-            <Select
-              className="!h-8 !px-2 !text-[12.5px] !w-[13rem]"
-              value={item.responsavel}
-              disabled={!podeEditar}
-              onChange={(e) => onAlterar({ responsavel: e.target.value })}
-              aria-label="Responsável pela tarefa"
-            >
-              <option value="">Sem responsável</option>
-              {usuarios.map((u) => (
-                <option key={u} value={u}>
-                  {u}
-                </option>
-              ))}
-            </Select>
-            <Select
-              className="!h-8 !px-2 !text-[12.5px] !w-[11rem]"
-              value={item.status}
-              disabled={!podeEditar}
-              onChange={(e) => onStatus(e.target.value as StatusChecklist)}
-              aria-label="Status da tarefa"
-            >
-              {STATUS.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </Select>
-          </div>
+            </CampoDiscreto>
 
-          <div className="flex items-center gap-3 flex-wrap">
-            <Badge tom={tomStatus[item.status]}>{item.status}</Badge>
-            {recolhidaAberta && (
-              <Badge tom="neutral">Recolhida</Badge>
-            )}
-            {item.dataManual && (
-              <span className="text-[11.5px] font-bold text-ink-3" title="O recálculo de prazos não altera esta data">
-                data ajustada à mão
-              </span>
-            )}
+            <CampoDiscreto
+              titulo="Responsável"
+              vazio={!item.responsavel}
+              rotulo={item.responsavel || "Sem responsável"}
+              podeEditar={podeEditar}
+            >
+              <Select
+                className="!h-7 !px-1.5 !text-[12.5px] !w-[13rem]"
+                value={item.responsavel}
+                onChange={(e) => onAlterar({ responsavel: e.target.value })}
+                aria-label="Responsável pela tarefa"
+              >
+                <option value="">Sem responsável</option>
+                {usuarios.map((u) => (
+                  <option key={u} value={u}>
+                    {u}
+                  </option>
+                ))}
+              </Select>
+            </CampoDiscreto>
+
+            {/* O status aparecia DUAS vezes: no seletor e num selo logo abaixo.
+                Agora é um só, e ele é o próprio controle. */}
+            <CampoDiscreto titulo="Status" rotulo={item.status} tom={tomStatus[item.status]} podeEditar={podeEditar}>
+              <Select
+                className="!h-7 !px-1.5 !text-[12.5px] !w-[11rem]"
+                value={item.status}
+                onChange={(e) => onStatus(e.target.value as StatusChecklist)}
+                aria-label="Status da tarefa"
+              >
+                {STATUS.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </Select>
+            </CampoDiscreto>
+
+            {/* Quando foi concluída, por quem e se saiu no prazo — ao lado do
+                resto, e não numa linha própria. */}
             {item.status === "Concluído" && (
               <ConclusaoDoItem item={item} podeEditar={podeEditar} onAlterar={onAlterar} />
             )}
-            <div className="ml-auto flex items-center gap-1">
+
+            {aviso && aviso.rotulo !== "Sem data" && <Badge tom={aviso.tom}>{aviso.rotulo}</Badge>}
+            {recolhidaAberta && <Badge tom="neutral">Recolhida</Badge>}
+            {item.dataManual && (
+              <span className="text-[11px] font-bold text-ink-3" title="O recálculo de prazos não altera esta data">
+                data à mão
+              </span>
+            )}
+            <NotifDot inline n={pendencias} title={`${pendencias} pendência(s) sua(s) nesta tarefa`} />
+
+            {/* A conversa entra na PRÓPRIA linha de dados, encostada à direita.
+                Ela ocupava uma faixa inteira por tarefa — um terço da altura da
+                lista gasto para dizer "Adicionar Observação" em tarefas que não
+                têm observação nenhuma. Quando há conversa, a contagem fica à
+                vista (é informação); quando não há, o convite só aparece ao
+                passar o mouse — e sempre no toque, onde não existe hover. */}
+            <div
+              className={cx(
+                "ml-auto",
+                !temConversa && "opacity-0 group-hover:opacity-100 focus-within:opacity-100 max-md:opacity-100 transition-opacity"
+              )}
+            >
               <ObservacoesThread
+                className="!border-t-0 !px-0 !py-0"
                 ancora={item.id}
                 observacoes={item.observacoes ?? []}
                 usuarios={usuarios}
@@ -488,33 +572,106 @@ function ItemCard({
                 // anexo na conversa (ver `domain/anexos`).
                 anexos={anexos}
               />
-              {podeEditar && (
-                <button
-                  type="button"
-                  onClick={() => onAlterar({ oculto: !item.oculto })}
-                  className="rounded-btn p-1.5 text-ink-3 hover:bg-[#F1F2F5] hover:text-ink"
-                  title={item.oculto ? "Trazer de volta para a lista" : "Recolher da lista"}
-                >
-                  {item.oculto ? <IcEye width={16} height={16} /> : <IcEyeOff width={16} height={16} />}
-                </button>
-              )}
-              {/* Só o item criado à mão pode ser apagado: o que veio do modelo
-                  se recolhe ou vira "Não se aplica", preservando o padrão. */}
-              {podeEditar && !item.origemModeloItemId && (
-                <button
-                  type="button"
-                  onClick={onRemover}
-                  className="rounded-btn p-1.5 text-ink-3 hover:bg-danger-soft hover:text-danger"
-                  title="Excluir tarefa"
-                >
-                  <IcTrash width={16} height={16} />
-                </button>
-              )}
             </div>
           </div>
         </div>
+
+        {/* Recolher e excluir só aparecem no hover (e sempre no toque, onde não
+            existe hover): são ações raras, e ocupavam lugar fixo em toda linha. */}
+        {podeEditar && (
+          <div className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 max-md:opacity-100 transition-opacity">
+            <button
+              type="button"
+              onClick={() => onAlterar({ oculto: !item.oculto })}
+              className="rounded-btn p-1.5 text-ink-3 hover:bg-[#F1F2F5] hover:text-ink"
+              title={item.oculto ? "Trazer de volta para a lista" : "Recolher da lista"}
+            >
+              {item.oculto ? <IcEye width={16} height={16} /> : <IcEyeOff width={16} height={16} />}
+            </button>
+            {/* Só o item criado à mão pode ser apagado: o que veio do modelo
+                se recolhe ou vira "Não se aplica", preservando o padrão. */}
+            {!item.origemModeloItemId && (
+              <button
+                type="button"
+                onClick={onRemover}
+                className="rounded-btn p-1.5 text-ink-3 hover:bg-danger-soft hover:text-danger"
+                title="Excluir tarefa"
+              >
+                <IcTrash width={16} height={16} />
+              </button>
+            )}
+          </div>
+        )}
       </div>
-    </div>
+    </li>
+  );
+}
+
+/**
+ * Um dado da tarefa que se LÊ como texto e vira controle ao ser clicado.
+ *
+ * A lista de tarefas mostrava prazo, responsável e status como três campos de
+ * formulário sempre abertos — trinta e seis caixas com borda numa lista de doze
+ * tarefas, e nenhuma delas mexida na maior parte do tempo. Aqui o normal é o
+ * texto; o campo aparece no clique e some ao sair.
+ *
+ * Não é só estética: com tudo como caixa, a tarefa em si (o título, o prazo)
+ * competia por atenção com molduras vazias, e a pessoa lia a tela procurando
+ * onde estava a informação em vez de simplesmente lê-la.
+ */
+function CampoDiscreto({
+  icone,
+  titulo,
+  rotulo,
+  tom,
+  vazio,
+  podeEditar,
+  children,
+}: {
+  icone?: ReactNode;
+  /** Nome do dado, para quem passa o mouse e para leitor de tela. */
+  titulo: string;
+  /** O que se lê quando o campo está fechado. */
+  rotulo: string;
+  tom?: Tom;
+  /** Sem valor: fica apagado, para "Sem responsável" não pesar como um dado. */
+  vazio?: boolean;
+  podeEditar: boolean;
+  children: ReactNode;
+}) {
+  const [aberto, setAberto] = useState(false);
+
+  if (aberto && podeEditar) {
+    return (
+      // Fecha ao sair do campo — inclusive quando o foco vai para outro lugar
+      // da tela. `blur` no container não basta: ele não dispara para o filho.
+      <span
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) setAberto(false);
+        }}
+      >
+        {children}
+      </span>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      disabled={!podeEditar}
+      onClick={() => setAberto(true)}
+      title={podeEditar ? `${titulo} — clique para alterar` : titulo}
+      aria-label={`${titulo}: ${rotulo}`}
+      className={cx(
+        "inline-flex items-center gap-1 rounded px-1 -mx-1 py-0.5 font-semibold input-focus",
+        podeEditar && "hover:bg-[#F1F2F5]",
+        tom === "danger" ? "text-danger" : tom === "warning" ? "text-warning" : vazio ? "text-ink-3" : "text-ink-2",
+        !podeEditar && "cursor-default"
+      )}
+    >
+      {icone}
+      {rotulo}
+    </button>
   );
 }
 
@@ -540,19 +697,29 @@ function ConclusaoDoItem({
   onAlterar: (patch: Partial<ItemChecklist>) => void;
 }) {
   const atraso = atrasoNaConclusao(item);
+  const quando = paraCampoDataHora(item.concluidoEm);
   return (
-    <span className="inline-flex items-center gap-1.5 flex-wrap text-[11.5px] font-bold text-ink-3">
-      <span>Concluída em</span>
-      <Input
-        type="datetime-local"
-        className="!h-7 !px-1.5 !text-[11.5px] !w-[12.5rem]"
-        value={paraCampoDataHora(item.concluidoEm)}
-        disabled={!podeEditar}
-        onChange={(e) => onAlterar(definirDataConclusao(item, e.target.value))}
-        aria-label="Data e hora em que a tarefa foi concluída"
-        title="Data e hora reais da conclusão — corrija se você marcou depois de ter feito"
-      />
-      {item.concluidoPor && <span>por {item.concluidoPor}</span>}
+    <span className="inline-flex items-center gap-1.5 flex-wrap">
+      {/* Texto até alguém precisar corrigir — o mesmo tratamento do prazo e do
+          responsável. Um campo de data e hora aberto em toda tarefa concluída
+          enchia a lista de caixas que quase ninguém mexe. */}
+      <CampoDiscreto
+        titulo="Data e hora reais da conclusão — corrija se você marcou depois de ter feito"
+        rotulo={quando ? `Concluída em ${dataBR(item.concluidoEm.slice(0, 10))}` : "Sem data de conclusão"}
+        vazio={!quando}
+        podeEditar={podeEditar}
+      >
+        <Input
+          type="datetime-local"
+          className="!h-7 !px-1.5 !text-[12px] !w-[12.5rem]"
+          value={quando}
+          onChange={(e) => onAlterar(definirDataConclusao(item, e.target.value))}
+          aria-label="Data e hora em que a tarefa foi concluída"
+        />
+      </CampoDiscreto>
+      {item.concluidoPor && (
+        <span className="text-[11.5px] font-semibold text-ink-3">por {item.concluidoPor}</span>
+      )}
       {atraso !== null &&
         (atraso > 0 ? (
           <Badge tom="danger">

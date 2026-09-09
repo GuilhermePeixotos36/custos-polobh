@@ -400,6 +400,21 @@ diferença para `SubGuias` é que ela **atravessa rotas**:
 
 As duas entram pelo slot `subabas` do `PageShell`, então grudam com o título.
 
+**Dois níveis, dois desenhos.** Na EC e na OS as duas barras aparecem juntas — a
+do projeto por cima, a das vistas do documento embaixo —, e desenhá-las igual
+fazia as duas lerem como UMA fileira que quebrou de linha. Pior: "EC" aparecia
+nas duas, acesa em laranja com o mesmo sublinhado, e não dava para saber qual
+dizia "você está na EC do projeto" e qual dizia "você está vendo a EC, e não o
+Resumo dos Custos". Agora `SubGuias` tem duas variantes: `principal` (abas com
+sublinhado — sair dali troca de tela) e `secundaria` (pílulas menores — é uma
+vista do que já está aberto, nada sai do lugar). A vista da EC também deixou de
+se chamar só "EC": virou **"Itens da EC"**.
+
+O cabeçalho da OS ficou com o **número como título**, como o da EC. Ele aparecia
+três vezes no mesmo bloco — na trilha, no subtítulo e implícito no título
+genérico "Ordem de Serviço" —, gastando uma linha do cabeçalho grudado para
+repetir. Que documento é aquele, a barra do projeto já diz.
+
 ## Help Desk
 O quinto botão. Abre chamado por e-mail para um endereço de suporte
 **configurável** (Configurações › Geral), com a **tela de origem** e o
@@ -478,6 +493,33 @@ fornecedor** de uma OS nova também passou a nascer com todas as faixas de todas
 as etapas (`cronogramaDoProjeto`): antes ele nascia com uma única linha "Evento"
 tirada dos campos legados, e só era corrigido depois, ao reabrir a OS, por um
 remendo que reconhecia essa linha padrão e a substituía.
+
+## Check-list: uma lista, não um formulário
+Revisão de 10/09/2026. A aba era uma pilha de cartões em que cada tarefa trazia
+o título num campo de digitação e mais três campos com borda — prazo,
+responsável e status —, todos abertos o tempo todo. Doze tarefas viravam
+trinta e seis molduras, e a tarefa em si competia por atenção com caixas
+vazias; ainda por cima o status aparecia duas vezes (no seletor e num selo
+logo abaixo) e cada linha gastava uma faixa inteira só para dizer "Adicionar
+Observação".
+
+O que mudou, e por quê:
+- **Cada grupo é uma lista**, e não uma pilha: um fundo só, linhas separadas por
+  um fio, título preso no topo com o progresso do grupo ("3 de 8"). O que faz
+  uma lista parecer lista é a continuidade.
+- **Tudo se lê como texto** e vira controle no clique (`CampoDiscreto`). O
+  normal é ler; editar é a exceção.
+- **A caixa de marcar é o maior alvo da linha** — é o gesto mais frequente — e
+  mostra um tique esmaecido no hover, dizendo o que o clique vai fazer.
+- **Atrasada ganha um fio vermelho na lateral**, não uma borda inteira: a linha
+  continua sendo linha.
+- **Recolher e excluir só aparecem no hover** (e sempre no toque). São ações
+  raras que ocupavam lugar fixo em toda linha.
+- **A conversa entrou na linha de dados**, encostada à direita, e o convite só
+  aparece no hover quando não há nada — mas fica à vista quando há conversa
+  **ou pendência**: a regra da casa é que todo número contado pode ser achado.
+
+A mesma lista, com as mesmas sete tarefas, ficou cerca de um terço mais curta.
 
 ## Check-list (Work Flow) do projeto
 Substitui a cobrança informal por uma lista de tarefas com prazo, dono e histórico.

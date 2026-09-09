@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { PageShell, Crumb } from "@/components/layout/AppLayout";
+import { PageShell } from "@/components/layout/AppLayout";
 import { BarraProjeto } from "@/components/layout/BarraSecao";
 import {
   Button,
@@ -18,7 +18,7 @@ import {
   AvisoHomologacaoEmail,
   MOTIVO_DISPARO_DESLIGADO,
 } from "@/components/ui";
-import { IcDownload, IcSearch, IcSend, IcChevron, IcSpark } from "@/components/icons";
+import { IcDownload, IcSearch, IcSend, IcSpark } from "@/components/icons";
 import { CardConversa } from "@/components/CardConversa";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
@@ -817,14 +817,14 @@ export function OsForm() {
   return (
     <PageShell
       breadcrumb={
-        <>
-          <button onClick={() => navigate(`/estimativas/${ecCtx.id}`)} className="hover:text-ink">{ecCtx.numero}</button>
-          <IcChevron width={14} height={14} />
-          <Crumb>{os.numero}</Crumb>
-        </>
+        <button onClick={() => navigate(`/estimativas/${ecCtx.id}`)} className="hover:text-ink">{ecCtx.numero}</button>
       }
-      title="Ordem de Serviço"
-      subtitle={os.numero}
+      // O NÚMERO é o título, como na EC. Ele aparecia três vezes no mesmo bloco
+      // — na trilha, no subtítulo e implícito no título genérico "Ordem de
+      // Serviço" —, gastando uma linha do cabeçalho grudado para repetir. Que
+      // documento é este, a barra do projeto já diz: a aba OS está acesa.
+      title={os.numero}
+      titleAdornment={<Badge tom={tomStatusOs[os.status]}>{os.status}</Badge>}
       // O segundo cabeçalho do projeto: a OS é uma página interna dele, e sem
       // esta barra quem entrava aqui perdia toda a referência de onde estava.
       subabas={ecCtx.projetoId ? <BarraProjeto projetoId={ecCtx.projetoId} atual="os" /> : undefined}

@@ -21,8 +21,12 @@ export function EcSubGuias({
       rotulo="Seções da EC"
       atual={atual}
       onChange={onChange}
+      // Secundária: estas são VISTAS da EC que já está aberta, e ficam logo
+      // abaixo da barra do projeto — desenhadas igual, as duas liam como uma
+      // fileira só, com "EC" aceso nas duas.
+      variante="secundaria"
       abas={[
-        { key: "ec", label: "EC" },
+        { key: "ec", label: "Itens da EC" },
         ...(temResumo ? ([{ key: "resumo", label: "Resumo dos Custos" }] as const) : []),
         ...(temRentabilidade ? ([{ key: "rentabilidade", label: "Rentabilidade" }] as const) : []),
       ]}
