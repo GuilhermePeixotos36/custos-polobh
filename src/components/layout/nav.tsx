@@ -29,9 +29,7 @@ export interface NavItem {
  * parecidos.
  *
  * Agora o topo diz só ONDE se está no aplicativo, e cada lugar tem a sua
- * própria barra logo abaixo (ver `NAV_PROJETO` e `NAV_CONFIG`). Agenda,
- * Fornecedores e Logs não sumiram: viraram seções de Configurações, com rota
- * própria — nenhum link antigo quebrou.
+ * própria barra logo abaixo (ver `NAV_PROJETO` e `NAV_CONFIG`).
  *
  * O CALENDÁRIO vem primeiro porque é por ele que o dia começa: "o que acontece
  * esta semana" antes de "onde está cada projeto".
@@ -82,18 +80,20 @@ export const NAV_PROJETO: SecaoNav[] = [
 export const rotaAbaProjeto = (projetoId: string, aba: string) => `/projetos/${projetoId}?aba=${aba}`;
 
 /**
- * O segundo cabeçalho de CONFIGURAÇÕES.
+ * O segundo cabeçalho de CONFIGURAÇÕES — as seções da própria tela, mais os
+ * Logs, que são a única outra coisa que se administra aqui.
  *
- * As quatro primeiras são seções da própria tela; as três últimas são telas com
- * rota própria (Agenda, Fornecedores, Logs), que vieram do cabeçalho geral e
- * mantêm as suas URLs. Para quem usa, é tudo a mesma barra.
+ * AGENDA e FORNECEDORES estiveram nesta barra por um dia e saíram (10/09/2026,
+ * a pedido do Guilherme). Eles não pertencem a Configurações: fornecedor se vê
+ * DENTRO do projeto, na aba Fornecedores dele, e a Agenda não é uma tela do
+ * aplicativo. Pôr os dois aqui foi consequência de uma pergunta mal feita — ao
+ * enxugar o cabeçalho geral para cinco botões, procurei ONDE guardar as telas
+ * que sobravam em vez de perguntar SE elas deviam continuar existindo.
  */
 export const NAV_CONFIG: (SecaoNav & { rota: string })[] = [
   { key: "geral", label: "Geral", rota: "/configuracoes?aba=geral", recurso: "configuracoes" },
   { key: "checklist", label: "Check-list", rota: "/configuracoes?aba=checklist", recurso: "configuracoes" },
   { key: "areas", label: "Áreas e permissões", rota: "/configuracoes?aba=areas", recurso: "configuracoes" },
   { key: "usuarios", label: "Usuários", rota: "/configuracoes?aba=usuarios", recurso: "configuracoes" },
-  { key: "agenda", label: "Agenda", rota: "/agenda", recurso: "checklists" },
-  { key: "fornecedores", label: "Fornecedores", rota: "/fornecedores", recurso: "fornecedores" },
   { key: "logs", label: "Logs do sistema", rota: "/logs", recurso: "logs" },
 ];

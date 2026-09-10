@@ -59,9 +59,8 @@ export function BarraProjeto({
 }
 
 /**
- * A barra de CONFIGURAÇÕES. As quatro primeiras seções são da própria tela; as
- * três últimas (Agenda, Fornecedores, Logs) são telas com rota própria — para
- * quem usa, é tudo a mesma barra.
+ * A barra de CONFIGURAÇÕES: as seções da própria tela, mais os Logs, que têm
+ * rota própria — para quem usa, é tudo a mesma barra.
  *
  * Cada seção respeita a permissão que já governava a tela: quem não pode ver
  * Logs continua não vendo o botão.

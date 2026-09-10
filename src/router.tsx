@@ -13,7 +13,6 @@ const EcForm = lazyComRecuperacao(() => import("@/pages/EcForm").then((m) => ({ 
 const EcDetail = lazyComRecuperacao(() => import("@/pages/EcDetail").then((m) => ({ default: m.EcDetail })));
 const OsForm = lazyComRecuperacao(() => import("@/pages/OsForm").then((m) => ({ default: m.OsForm })));
 const OsList = lazyComRecuperacao(() => import("@/pages/OsList").then((m) => ({ default: m.OsList })));
-const Agenda = lazyComRecuperacao(() => import("@/pages/Agenda").then((m) => ({ default: m.Agenda })));
 const Calendario = lazyComRecuperacao(() => import("@/pages/Calendario").then((m) => ({ default: m.Calendario })));
 const Cronogramas = lazyComRecuperacao(() => import("@/pages/Cronogramas").then((m) => ({ default: m.Cronogramas })));
 const CronogramaPublico = lazyComRecuperacao(() => import("@/pages/CronogramaPublico").then((m) => ({ default: m.CronogramaPublico })));
@@ -54,7 +53,10 @@ export const router = createBrowserRouter([
       { path: "ordens", element: <RequireRecurso r="oss"><OsList /></RequireRecurso> },
       { path: "estimativas/:ecId/os/nova", element: <RequireRecurso r="oss.editar"><OsForm /></RequireRecurso> },
       { path: "ordens/:id", element: <RequireRecurso r="oss"><OsForm /></RequireRecurso> },
-      { path: "agenda", element: <RequireRecurso r="checklists"><Agenda /></RequireRecurso> },
+      // AGENDA saiu do aplicativo (10/09/2026, a pedido do Guilherme): não é uma
+      // tela da casa. O acompanhamento das tarefas é o Check-list, dentro do
+      // projeto. O arquivo `pages/Agenda.tsx` continua no repositório, sem rota
+      // — nada o alcança.
       { path: "calendario", element: <RequireRecurso r="projetos"><Calendario /></RequireRecurso> },
       { path: "cronogramas", element: <RequireRecurso r="cronogramas"><Cronogramas /></RequireRecurso> },
       { path: "fornecedores", element: <RequireRecurso r="fornecedores"><Fornecedores /></RequireRecurso> },

@@ -3,7 +3,7 @@ import { PageShell } from "@/components/layout/AppLayout";
 import { Button, Card } from "@/components/ui";
 import {
   IcSearch, IcGrid, IcDoc, IcClipboard, IcCalendar, IcUsers, IcGear,
-  IcActivity, IcShield, IcSend, IcCheck, IcBook, IcClock, IcBell, IcCompass, IcSuporte,
+  IcActivity, IcShield, IcSend, IcCheck, IcBook, IcBell, IcCompass, IcSuporte,
 } from "@/components/icons";
 import { cx } from "@/lib/format";
 import { useTour } from "@/tour/store";
@@ -189,13 +189,11 @@ const MODULOS: Modulo[] = [
             O de baixo é a barra da <b>área em que você entrou</b>, e ela acompanha: dentro de um projeto são
             Dados Gerais / Check-list / EC / OS / Cronograma / Credenciamento / Fornecedores — e <b>a mesma barra
             continua ali</b> quando você abre uma EC ou uma OS, para você nunca perder a referência de onde está.
-            Em Configurações são Geral / Check-list / Áreas e permissões / Usuários / Agenda / Fornecedores / Logs.
+            Em Configurações são Geral / Check-list / Áreas e permissões / Usuários / Logs.
           </p>
           <p>
             <b>Tudo parte do Projeto.</b> EC, OS, Cronograma, Check-list, Credenciamento e Fornecedores não são telas
-            soltas do menu: são <b>abas dentro do projeto</b>, porque é lá que elas fazem sentido juntas. A
-            <b> Agenda</b>, o <b>cadastro geral de fornecedores</b> e os <b>Logs</b> atravessam projetos, e por isso
-            moram em Configurações.
+            soltas do menu: são <b>abas dentro do projeto</b>, porque é lá que elas fazem sentido juntas.
           </p>
           <Dica>Está com dúvida em algum módulo? Volte sempre aqui no <b>Guia</b> e use a busca no topo.</Dica>
         </Secao>
@@ -1013,38 +1011,6 @@ const MODULOS: Modulo[] = [
             Ninguém digita nada duas vezes. Cadastrou a data do evento no projeto, o calendário se
             preenche sozinho — e a cor de cada projeto é sempre a mesma, em todas as telas do quadro.
           </Dica>
-        </Secao>
-      </>
-    ),
-  },
-  {
-    id: "agenda",
-    icone: <IcClock />,
-    titulo: "Agenda",
-    resumo: "Todas as tarefas de todos os projetos, na ordem em que vencem.",
-    tags: ["agenda", "hoje", "semana", "atrasadas", "tarefas", "prazo", "check-list", "minhas tarefas", "pauta"],
-    conteudo: (
-      <>
-        <Secao titulo="O que a Agenda responde">
-          <p>
-            Dentro do projeto você vê <b>um projeto por vez</b>. A Agenda responde a outra pergunta:
-            <b> o que precisa acontecer esta semana na Pólobh inteira?</b>
-          </p>
-          <Tela titulo="Agenda">
-            <div className="space-y-2 text-[12px]">
-              <div className="flex items-center gap-2"><Tag tom="warning">Atrasadas</Tag><span className="text-ink-3">o que exige ação hoje</span></div>
-              <div className="flex items-center gap-2"><Tag tom="warning">Hoje</Tag><span className="text-ink-3">vence no dia</span></div>
-              <div className="flex items-center gap-2"><Tag tom="info">Próximos 7 dias</Tag><span className="text-ink-3">a semana à frente</span></div>
-              <div className="flex items-center gap-2"><Tag>Próximos 30 dias · Mais adiante · Sem data</Tag></div>
-            </div>
-          </Tela>
-        </Secao>
-        <Secao titulo="Como usar">
-          <Passos>
-            <span>A tela abre filtrada em <b>você</b> — a leitura mais frequente é "o que é meu".</span>
-            <span>Troque o filtro para <b>Todos</b> e ela vira a <b>pauta da reunião de produção</b>.</span>
-            <span>Marque a tarefa como concluída ali mesmo, ou clique nela para abrir o projeto na aba do check-list.</span>
-          </Passos>
         </Secao>
       </>
     ),

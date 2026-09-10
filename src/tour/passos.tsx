@@ -119,8 +119,7 @@ export function montarPassos(ctx: ContextoTour, pode: (r: Recurso) => boolean): 
       corpo: (
         <>
           <P>
-            Só entra aqui o que é <b>ponto de partida</b>: Projetos, Calendário, Agenda, Fornecedores e as telas de
-            sistema.
+            Só entra aqui o que é <b>ponto de partida</b>: Calendário, Projetos e as telas de sistema.
           </P>
           <P>
             EC, OS, cronograma e credenciamento <b>não estão aqui de propósito</b> — eles não existem soltos, existem
@@ -428,27 +427,9 @@ export function montarPassos(ctx: ContextoTour, pode: (r: Recurso) => boolean): 
             modalidade do projeto — ninguém digita a mesma lista duas vezes.
           </P>
           <P>
-            Cada tarefa tem responsável e prazo. O que estiver vencendo aparece na sua <b>Agenda</b> e no sino, e
-            vira notificação no computador.
+            Cada tarefa tem responsável e prazo. O que estiver vencendo acende no <b>sino</b> e vira notificação no
+            computador.
           </P>
-        </>
-      ),
-    },
-    {
-      id: "agenda",
-      capitulo: ACOMPANHAR,
-      titulo: "Agenda: o seu dia",
-      rota: "/agenda",
-      recurso: "checklists",
-      alvo: '[data-tour="nav-agenda"]',
-      posicao: "baixo",
-      corpo: (
-        <>
-          <P>
-            Enquanto o check-list é "o que falta neste evento", a Agenda é <b>"o que eu tenho para hoje"</b>, somando
-            todos os projetos.
-          </P>
-          <P>É a tela de abrir de manhã.</P>
         </>
       ),
     },
@@ -544,7 +525,9 @@ export function montarPassos(ctx: ContextoTour, pode: (r: Recurso) => boolean): 
       titulo: "Fornecedores: a memória da casa",
       rota: "/fornecedores",
       recurso: "fornecedores",
-      alvo: '[data-tour="nav-fornecedores"]',
+      // Sem `alvo`: o cadastro saiu do cabeçalho e não tem mais ícone para
+      // apontar. O passo continua valendo — a tela existe e o tour navega até
+      // ela —, só não destaca nada.
       posicao: "baixo",
       corpo: (
         <>

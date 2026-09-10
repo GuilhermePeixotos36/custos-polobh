@@ -35,7 +35,7 @@ src/
   domain/calendario.ts       período do projeto e recorte mês a mês do quadro do ano
   domain/pendencias.ts       motor de pendências que alimenta os badges vermelhos
   lib/                       format, cnpj (BrasilAPI), ai (flag), flags, excel/
-  pages/                     telas (Login, Projetos, EC*, OS*, Calendário, Agenda…)
+  pages/                     telas (Login, Projetos, EC*, OS*, Calendário…)
   store/auth.ts              perfil + matriz de permissões
 supabase/schema.sql          schema completo + RLS
 supabase/migrations/         atualizações incrementais do banco
@@ -46,7 +46,7 @@ supabase/migrations/         atualizações incrementais do banco
 |---|:--:|:--:|:--:|
 | Dashboard / ECs (consulta) / OSs / Cronogramas / Fornecedores | ✅ | ✅ | ✅ |
 | Calendário do ano (mesma permissão de Projetos) | ✅ | ✅ | ✅ |
-| Check-list do projeto / Agenda (ver e editar) | ✅ | ✅ | ✅ |
+| Check-list do projeto (ver e editar) | ✅ | ✅ | ✅ |
 | Editar EC | ✅ | ✅ | — |
 | Modelos de check-list (Configurações) | ✅ | — | — |
 | Bloco financeiro / Configurações | ✅ | — | ✅ |
@@ -394,9 +394,18 @@ diferença para `SubGuias` é que ela **atravessa rotas**:
   Dentro do projeto a troca é por estado (`onAba`); nas outras telas ela navega
   para `/projetos/:id?aba=…`.
 - `BarraConfiguracoes` — Geral / Check-list / Áreas e permissões / Usuários /
-  **Agenda** / **Fornecedores** / **Logs**. As três últimas saíram do cabeçalho
-  geral e têm rota própria; mantiveram as URLs, então nenhum link antigo
-  quebrou. Cada seção respeita a permissão que já governava a tela.
+  **Logs**, que tem rota própria mas pertence ali. Cada seção respeita a
+  permissão que já governava a tela.
+
+  A **Agenda** e o **cadastro geral de Fornecedores** estiveram nesta barra por
+  um dia e saíram (10/09/2026). A Agenda deixou de existir no aplicativo — o
+  acompanhamento das tarefas é o Check-list, dentro do projeto —; o cadastro de
+  fornecedores continua existindo (`/fornecedores`) porque é o único lugar onde
+  se editam inscrições, dados bancários, Pix, apelido e a agenda de contatos,
+  mas hoje **não tem link em nenhum menu**. Pôr os dois em Configurações foi
+  consequência de uma pergunta mal feita: ao enxugar o cabeçalho para cinco
+  botões, o certo era perguntar SE aquelas telas deviam continuar existindo, e
+  não onde guardá-las.
 
 As duas entram pelo slot `subabas` do `PageShell`, então grudam com o título.
 
@@ -534,8 +543,6 @@ Substitui a cobrança informal por uma lista de tarefas com prazo, dono e histó
 - **Aba Check-list** (2ª aba do projeto, logo após Dados Gerais): tarefas por etapa
   ou por data, com responsável, status, observações (mesma thread da EC, com
   @menção) e **data de conclusão editável** — dela sai a leitura de "saiu no prazo".
-- **Agenda** (menu Operação): todas as tarefas de todos os projetos na ordem em que
-  vencem — atrasadas, hoje, 7 dias, 30 dias. Abre filtrada em quem está logado.
 - **Pendências:** tarefa que vence **hoje ou já venceu** entra no quadro de
   pendências (badge vermelho + navegador do canto inferior direito), endereçada ao
   responsável da tarefa ou, na falta dele, ao Produtor Responsável do projeto.

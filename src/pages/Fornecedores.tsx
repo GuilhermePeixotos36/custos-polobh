@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { PageShell } from "@/components/layout/AppLayout";
-import { BarraConfiguracoes } from "@/components/layout/BarraSecao";
 import {
   Card, CardTitle, Button, Field, Input, TelefoneInput, Select, Table, THead, Tr, Td,
   Badge, EmptyState, AvisoErro, Avatar, ThOrd, useOrdenacao,
@@ -136,9 +135,6 @@ export function Fornecedores() {
     <PageShell
       title="Fornecedores"
       subtitle="Consulta e edição. Os fornecedores são registrados automaticamente ao serem usados nas ECs."
-      // O cadastro geral mora em Configurações; o painel POR PROJETO continua
-      // na aba Fornecedores do projeto — são duas perguntas diferentes.
-      subabas={<BarraConfiguracoes atual="fornecedores" />}
       topAction={
         podeEditar && (
           // O cartão de edição já sabia dizer "Novo fornecedor", mas nada nesta
