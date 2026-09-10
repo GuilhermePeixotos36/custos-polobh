@@ -31,7 +31,9 @@ src/
   domain/calc.ts             cálculos da EC, numeração, consolidação EC→OS
   domain/checklist.ts        régua de prazos e estados do check-list (Work Flow)
   domain/mudancasEvento.ts   o que mudou nos dados gerais e o que fazer com EC/OS já emitidas
-  domain/anexos.ts           o que é um "arquivo leve" nos comentários do check-list
+  domain/anexos.ts           o que é um "arquivo leve" no check-list e no chamado
+  lib/captura.ts             o print da tela, para o chamado do Help Desk
+  components/suporte/        o painel do Help Desk, que abre sobre a tela
   domain/calendario.ts       período do projeto e recorte mês a mês do quadro do ano
   domain/pendencias.ts       motor de pendências que alimenta os badges vermelhos
   lib/                       format, cnpj (BrasilAPI), ai (flag), flags, excel/
@@ -436,10 +438,55 @@ a conversa continua dentro do aplicativo. Fica na trilha de auditoria
 (`helpdesk.chamado`) mesmo quando o e-mail é simulado ou desviado pela
 homologação: o registro de que alguém pediu ajuda é a informação.
 
-A tela de origem é gravada pela casca a cada navegação (`lib/telaAnterior.ts`,
-`sessionStorage`) — mora fora da página porque quem grava é o `AppLayout`, e ele
-não pode importar uma página carregada sob demanda sem arrastá-la para o pacote
-inicial.
+### Um painel sobre a tela, não uma tela (10/09/2026)
+O botão **não navega**: abre um painel por cima do que a pessoa está fazendo
+(`components/suporte/PainelSuporte`, estado em `store/suporte`). Quem pede ajuda
+está no meio de outra coisa — uma OS com o cliente esperando, uma EC que não
+fecha —, e trocar de tela custa duas coisas: abandonar o trabalho e perder de
+vista justamente o que se quer descrever. Com o painel, a tela continua atrás,
+inteira, e fechar devolve tudo como estava.
+
+Por isso a tela de origem deixou de ser adivinhada: o painel lê o endereço
+ATUAL quando abre, porque ninguém saiu do lugar. `lib/telaAnterior.ts`
+(`sessionStorage`) existia só para atravessar a navegação até a página de
+suporte, e foi removido junto com ela.
+
+A rota `/suporte` continua, e só faz uma coisa: abre o painel em "Meus
+chamados" e devolve a pessoa ao Calendário. É por ela que o botão do e-mail de
+resposta entra, e link já enviado precisa continuar valendo.
+
+### O print da tela
+Metade de um chamado é a imagem, e descrever imagem por escrito custa três idas
+e vindas. Três caminhos param no mesmo lugar, de propósito:
+
+- **Print da tela** — `getDisplayMedia`, a captura do próprio navegador
+  (`lib/captura.ts`). O painel se esconde por um instante antes do quadro, senão
+  o print mostraria o formulário de chamado em vez do problema. Um quadro só, e
+  a câmera é solta em seguida.
+- **Ctrl+V** — é como a maioria já tira print (PrintScreen, colar).
+- **Anexar arquivo** — imagem ou PDF, o que sempre funciona; é o único caminho
+  onde `getDisplayMedia` não existe (Safari do iPhone), e a tela some com o
+  botão nesse caso.
+
+Desenhar a página por conta (html2canvas e parentes) foi descartado: não pede
+permissão, mas RECONSTRÓI a tela em vez de fotografá-la, e erra justamente onde
+interessa — o menu aberto, o campo em foco, o pedaço rolado. Print que não
+mostra o problema é pior que print nenhum.
+
+**Três por mensagem**, e o número não é gosto: os mesmos arquivos vão como
+anexo no e-mail, e a Edge Function `send-email` aceita no máximo três (o Brevo
+recusa mensagem grande). Aceitar cinco na tela produziria chamado gravado com
+aviso que não sai.
+
+Os bytes ficam no bucket `anexos-chamados`, fechado, com link assinado de 60s —
+mesmo desenho dos anexos do check-list. A ficha do arquivo fica no jsonb, ao
+lado do texto que ela acompanha: `chamados.anexos` para o relato,
+`mensagens[].anexos` para cada resposta. Pendurar a ficha é RPC
+(`anexar_ao_chamado`), e não `UPDATE`: quem abre o chamado não tem escrita na
+tabela — com ela, poderia reescrever o próprio relato depois de respondido.
+
+O chamado é gravado ANTES de o arquivo subir. Quando o upload falha sobra um
+chamado sem print, que é muito melhor do que um print sem chamado.
 
 ### O e-mail do Help Desk sai de verdade (10/09/2026)
 É a **única** mensagem que atravessa a homologação, e isso foi preciso porque o

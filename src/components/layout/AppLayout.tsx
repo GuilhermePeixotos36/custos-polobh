@@ -11,7 +11,7 @@ import { useRealtimePendencias } from "@/hooks/useRealtimePendencias";
 import { useEmpresas } from "@/store/empresas";
 import { BotaoRecolherTudo, ProvedorRecolher } from "./Recolher";
 import { TourOverlay } from "@/tour/TourOverlay";
-import { lembrarTelaParaSuporte } from "@/lib/telaAnterior";
+import { PainelSuporte } from "@/components/suporte/PainelSuporte";
 import { cx } from "@/lib/format";
 
 /** Casca autenticada: sidebar + área de conteúdo. */
@@ -26,12 +26,6 @@ export function AppLayout() {
   useEffect(() => {
     if (usuario) carregarPendencias();
   }, [usuario, pathname, carregarPendencias]);
-
-  // De onde a pessoa veio, para o chamado do Help Desk já nascer dizendo em que
-  // tela o problema aconteceu (ver `pages/Suporte`).
-  useEffect(() => {
-    lembrarTelaParaSuporte(pathname);
-  }, [pathname]);
 
   // Carrega as empresas do grupo ao entrar na área autenticada (login).
   useEffect(() => {
@@ -66,6 +60,9 @@ export function AppLayout() {
       {/* O tour atravessa várias rotas: a sobreposição precisa viver AQUI, na
           casca, senão ela morreria na primeira troca de tela. */}
       <TourOverlay />
+      {/* O Help Desk é um painel sobre a tela, e pelo mesmo motivo mora aqui:
+          ele abre de qualquer lugar do aplicativo sem tirar ninguém do lugar. */}
+      <PainelSuporte />
     </div>
   );
 }

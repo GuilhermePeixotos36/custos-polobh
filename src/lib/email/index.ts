@@ -160,7 +160,18 @@ export async function dispararOsPorEmail(os: Os, ec: Ec) {
 export const enviarCredenciamento = (os: Os, ec: Ec) => enviarEmail(emailCredenciamento(os, ec));
 
 /** Chamado do Help Desk para o endereço de suporte configurado. */
-export const enviarChamado = (chamado: Chamado, para: string) => enviarEmail(emailHelpDesk(chamado, para));
+export const enviarChamado = (chamado: Chamado, para: string, anexos: AnexoEmail[] = []) =>
+  enviarEmail(emailHelpDesk(chamado, para, anexos));
+
+/**
+ * Arquivo do navegador -> anexo de e-mail.
+ *
+ * O print já está na mão da tela quando o chamado é aberto; converter aqui evita
+ * baixá-lo de volta do bucket só para mandá-lo adiante.
+ */
+export async function arquivoParaAnexo(arquivo: File): Promise<AnexoEmail> {
+  return { nome: arquivo.name, conteudoBase64: bufferParaBase64(await arquivo.arrayBuffer()) };
+}
 
 /**
  * Avisa quem abriu o chamado de que houve resposta.

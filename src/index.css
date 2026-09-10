@@ -85,6 +85,17 @@ body {
   border: 3px solid var(--bg);
 }
 
+/* O painel do Help Desk entra deslizando pela direita: sem isso ele "aparece"
+   e a pessoa perde a noção de que a tela continua atrás, inteira. */
+@keyframes deslizar-painel {
+  from { transform: translateX(24px); opacity: 0.6; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.painel-suporte { animation: deslizar-painel 160ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .painel-suporte { animation: none; }
+}
+
 @keyframes fadein {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }

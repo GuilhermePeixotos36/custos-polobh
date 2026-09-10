@@ -155,13 +155,28 @@ export interface ConfigRepository {
  */
 export interface ChamadosRepository {
   listar(): Promise<Chamado[]>;
-  abrir(dados: Omit<Chamado, "id" | "abertoPor" | "status" | "mensagens" | "criadoEm" | "atualizadoEm">): Promise<Chamado>;
+  abrir(
+    dados: Omit<Chamado, "id" | "abertoPor" | "status" | "mensagens" | "anexos" | "criadoEm" | "atualizadoEm">
+  ): Promise<Chamado>;
   /** Acrescenta uma fala e passa a vez ao outro lado (ver `responder_chamado`). */
-  responder(id: string, texto: string): Promise<Chamado>;
+  responder(id: string, texto: string, anexos?: AnexoObservacao[]): Promise<Chamado>;
   /** Encerra ou reabre. Quem abriu também pode: é ele quem sabe se resolveu. */
   encerrar(id: string, resolvido: boolean): Promise<Chamado>;
   /** Quem está logado atende chamados? */
   souSuporte(): Promise<boolean>;
+  /**
+   * Sobe os arquivos para o bucket e devolve as fichas.
+   *
+   * Só sobe — pendurar a ficha no chamado é o passo seguinte, e ele é diferente
+   * conforme o arquivo acompanhe o RELATO (`anexarAoRelato`) ou uma RESPOSTA
+   * (`responder`). O chamado precisa existir antes: é dele que sai o caminho no
+   * bucket, e é ele que sobrevive quando o upload falha.
+   */
+  subirAnexos(chamadoId: string, arquivos: File[], enviadoPorNome: string): Promise<AnexoObservacao[]>;
+  /** Pendura no relato as fichas já subidas (ver `anexar_ao_chamado`). */
+  anexarAoRelato(chamadoId: string, anexos: AnexoObservacao[]): Promise<Chamado>;
+  /** Link assinado de vida curta para abrir um anexo. */
+  urlAnexo(caminho: string): Promise<string>;
 }
 
 /**

@@ -7,12 +7,14 @@ import { SinoPendencias } from "@/components/SinoPendencias";
 import { IcLogout } from "@/components/icons";
 import { cx } from "@/lib/format";
 import { useMinhasPendencias } from "@/store/pendencias";
+import { abrirSuporte, useSuporte } from "@/store/suporte";
 
 /** Barra de navegação superior (substitui a antiga sidebar lateral). */
 export function TopNav() {
   const { usuario, pode, sair } = useAuth();
   const navigate = useNavigate();
   const { porRecurso } = useMinhasPendencias();
+  const painelAberto = useSuporte((s) => s.aberto);
   if (!usuario) return null;
 
   const itens = NAV.filter((i) => pode(i.recurso));
@@ -24,37 +26,55 @@ export function TopNav() {
       {/* `data-tour`: âncoras do tour guiado (src/tour). São só marcas de
           posição — nada de comportamento depende delas. */}
       <nav data-tour="topnav" className="flex items-center gap-1 overflow-x-auto flex-1 min-w-0">
-        {itens.map((i) => (
-          <NavLink
-            key={i.to}
-            data-tour={`nav-${i.to.replace("/", "")}`}
-            to={i.to}
-            end={i.to === "/"}
-            className={({ isActive }) =>
-              cx(
+        {itens.map((i) =>
+          /* Quem abre painel não navega: a tela de trás continua inteira, que é
+             o ponto do Help Desk (ver `NavItem.painel`). */
+          i.painel ? (
+            <button
+              key={i.to}
+              type="button"
+              data-tour={`nav-${i.to.replace("/", "")}`}
+              onClick={() => abrirSuporte()}
+              className={cx(
                 "flex items-center gap-2 px-3 h-9 rounded-btn text-[13px] font-semibold whitespace-nowrap transition-colors",
-                isActive
-                  ? "bg-primary-soft text-primary-dark"
-                  : "text-ink-2 hover:text-ink hover:bg-[#F5F6F8]"
-              )
-            }
-          >
-            <span className="shrink-0 relative">
-              {i.icon}
-              {/* Só onde a pendência pode ser resolvida — ver `NavItem.pendencias`. */}
-              {i.pendencias && (
-                <NotifDot
-                  n={porRecurso[i.recurso] ?? 0}
-                  title={`${porRecurso[i.recurso] ?? 0} pendência(s)`}
-                  className="left-auto -right-2 -top-2"
-                />
+                painelAberto ? "bg-primary-soft text-primary-dark" : "text-ink-2 hover:text-ink hover:bg-[#F5F6F8]"
               )}
-            </span>
-            {/* O rótulo agora cabe: são cinco botões, não sete. Ele some só no
-                celular, onde nem cinco cabem. */}
-            <span className="hidden md:inline">{i.label}</span>
-          </NavLink>
-        ))}
+            >
+              <span className="shrink-0">{i.icon}</span>
+              <span className="hidden md:inline">{i.label}</span>
+            </button>
+          ) : (
+            <NavLink
+              key={i.to}
+              data-tour={`nav-${i.to.replace("/", "")}`}
+              to={i.to}
+              end={i.to === "/"}
+              className={({ isActive }) =>
+                cx(
+                  "flex items-center gap-2 px-3 h-9 rounded-btn text-[13px] font-semibold whitespace-nowrap transition-colors",
+                  isActive
+                    ? "bg-primary-soft text-primary-dark"
+                    : "text-ink-2 hover:text-ink hover:bg-[#F5F6F8]"
+                )
+              }
+            >
+              <span className="shrink-0 relative">
+                {i.icon}
+                {/* Só onde a pendência pode ser resolvida — ver `NavItem.pendencias`. */}
+                {i.pendencias && (
+                  <NotifDot
+                    n={porRecurso[i.recurso] ?? 0}
+                    title={`${porRecurso[i.recurso] ?? 0} pendência(s)`}
+                    className="left-auto -right-2 -top-2"
+                  />
+                )}
+              </span>
+              {/* O rótulo agora cabe: são cinco botões, não sete. Ele some só no
+                  celular, onde nem cinco cabem. */}
+              <span className="hidden md:inline">{i.label}</span>
+            </NavLink>
+          )
+        )}
       </nav>
 
       <div className="flex items-center gap-2 shrink-0">

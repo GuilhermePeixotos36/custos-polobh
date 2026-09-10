@@ -172,13 +172,28 @@ export interface Chamado {
 }
 
 /**
+ * "Vão junto: print-...png, erro.pdf" — dito no corpo, além do anexo.
+ *
+ * Cliente de e-mail em celular esconde o clipe de anexo com facilidade; escrever
+ * o nome no texto garante que quem lê saiba que existe uma imagem para abrir.
+ */
+function linhaDosAnexos(anexos: AnexoEmail[] = []): string {
+  if (!anexos.length) return "";
+  const nomes = anexos.map((a) => h(a.nome)).join(", ");
+  return `<p style="font-size:13px;color:#6A6E78">📎 ${anexos.length === 1 ? "Anexo" : "Anexos"}: ${nomes}</p>`;
+}
+
+/**
  * Chamado aberto de dentro do aplicativo.
  *
  * O `responderPara` é o e-mail de quem abriu, e é o detalhe que faz a coisa
  * funcionar: o suporte responde apertando "responder", sem ter de copiar
  * endereço de dentro do corpo da mensagem.
+ *
+ * Os PRINTS vão como anexo de verdade: o suporte vê o problema na própria caixa
+ * de entrada, sem precisar entrar no sistema para descobrir do que se trata.
  */
-export function emailHelpDesk(c: Chamado, para: string): MensagemEmail {
+export function emailHelpDesk(c: Chamado, para: string, anexos: AnexoEmail[] = []): MensagemEmail {
   const linha = (rotulo: string, valor: string) =>
     `<tr><td style="padding:4px 10px 4px 0;color:#6A6E78;font-size:13px;vertical-align:top;white-space:nowrap">${h(rotulo)}</td>
          <td style="padding:4px 0;font-size:13px">${h(valor)}</td></tr>`;
@@ -190,11 +205,13 @@ export function emailHelpDesk(c: Chamado, para: string): MensagemEmail {
       ${linha("Ambiente", c.ambiente)}
     </table>
     <p style="font-size:14px;font-weight:bold;margin-bottom:4px">${h(c.assunto)}</p>
-    <p style="font-size:14px;white-space:pre-line;background:#FAFAFB;border:1px solid #EEEFF2;border-radius:8px;padding:12px">${h(c.descricao)}</p>`;
+    <p style="font-size:14px;white-space:pre-line;background:#FAFAFB;border:1px solid #EEEFF2;border-radius:8px;padding:12px">${h(c.descricao)}</p>
+    ${linhaDosAnexos(anexos)}`;
   return {
     para: [{ email: para, nome: "Suporte Pólobh" }],
     assunto: `[Help Desk] ${c.tipo} — ${c.assunto}`,
     html: wrap("Chamado aberto no sistema", corpo),
+    anexos: anexos.length ? anexos : undefined,
     // Responder vai direto para quem abriu.
     responderPara: c.autorEmail ? { email: c.autorEmail, nome: c.autorNome } : undefined,
     // Da Pólobh para a Pólobh: não há terceiro a proteger, e o chamado precisa
@@ -219,13 +236,18 @@ export function emailRespostaChamado(opcoes: {
   paraEmail: string;
   /** Endereço do app, para o botão levar direto ao Help Desk. */
   urlApp: string;
+  /** Prints que o suporte mandou junto — vão como anexo de verdade. */
+  anexos?: AnexoEmail[];
 }): MensagemEmail {
-  const { assuntoChamado, texto, deNome, paraNome, paraEmail, urlApp } = opcoes;
+  const { assuntoChamado, texto, deNome, paraNome, paraEmail, urlApp, anexos = [] } = opcoes;
   const corpo = `
     <p>Olá, ${h(paraNome || "tudo bem")}.</p>
     <p>${h(deNome || "O suporte")} respondeu o seu chamado <b>${h(assuntoChamado)}</b>:</p>
-    <p style="font-size:14px;white-space:pre-line;background:#FAFAFB;border:1px solid #EEEFF2;
-              border-left:3px solid #F2820D;border-radius:8px;padding:12px">${h(texto)}</p>
+    ${texto.trim()
+      ? `<p style="font-size:14px;white-space:pre-line;background:#FAFAFB;border:1px solid #EEEFF2;
+              border-left:3px solid #F2820D;border-radius:8px;padding:12px">${h(texto)}</p>`
+      : ""}
+    ${linhaDosAnexos(anexos)}
     <p><a href="${urlHttp(`${urlApp}/suporte`)}"
         style="display:inline-block;background:#F2820D;color:#2A1602;font-weight:700;
         padding:10px 18px;border-radius:10px;text-decoration:none">Ver e responder no sistema</a></p>
@@ -236,6 +258,7 @@ export function emailRespostaChamado(opcoes: {
     para: paraEmail ? [{ email: paraEmail, nome: paraNome }] : [],
     assunto: `Re: [Help Desk] ${assuntoChamado}`,
     html: wrap("Resposta do suporte", corpo),
+    anexos: anexos.length ? anexos : undefined,
     // Da Pólobh para a Pólobh — atravessa a homologação, como o chamado.
     interna: true,
   };

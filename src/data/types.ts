@@ -782,6 +782,12 @@ export interface MensagemChamado {
   autorEmail: string;
   /** Veio do suporte? É o que decide o lado em que a mensagem aparece. */
   suporte: boolean;
+  /**
+   * Prints e arquivos desta fala. Mesma ficha dos anexos do check-list — os
+   * bytes ficam no bucket `anexos-chamados`, aqui fica só o que a tela precisa
+   * para listar e abrir.
+   */
+  anexos?: AnexoObservacao[];
   criadoEm: string;
 }
 
@@ -805,6 +811,8 @@ export interface Chamado {
   tela: string;
   ambiente: string;
   status: StatusChamado;
+  /** Prints e arquivos do RELATO (a abertura). Os das respostas vão na fala. */
+  anexos: AnexoObservacao[];
   mensagens: MensagemChamado[];
   criadoEm: string;
   atualizadoEm: string;

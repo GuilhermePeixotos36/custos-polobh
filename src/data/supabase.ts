@@ -18,7 +18,13 @@ import {
   padronizarTexto,
 } from "@/domain/textos";
 import { limparContatos, normalizarContatos } from "@/domain/fornecedor";
-import { caminhoAnexo, motivoRecusaAnexo, tipoDoAnexo } from "@/domain/anexos";
+import {
+  caminhoAnexo,
+  motivoRecusaAnexo,
+  motivoRecusaAnexoChamado,
+  nomeSeguroAnexo,
+  tipoDoAnexo,
+} from "@/domain/anexos";
 import { onlyDigits } from "@/lib/format";
 import { auditar } from "@/store/logs";
 import { useAuth } from "@/store/auth";
@@ -106,6 +112,8 @@ const novoUuid = () =>
 
 /** Bucket dos anexos das tarefas do check-list (fechado — ver a migração). */
 const BUCKET_ANEXOS = "anexos-checklist";
+/** Prints e arquivos dos chamados do Help Desk (migração 20260910200000). */
+const BUCKET_CHAMADOS = "anexos-chamados";
 
 /**
  * O erro do Storage vem em inglês e técnico. Os dois casos que a pessoa pode
@@ -1038,6 +1046,7 @@ const mapChamado = (r: any): Chamado => ({
   tela: r.tela ?? "",
   ambiente: r.ambiente ?? "",
   status: r.status ?? "Aberto",
+  anexos: Array.isArray(r.anexos) ? r.anexos : [],
   mensagens: Array.isArray(r.mensagens) ? r.mensagens : [],
   criadoEm: r.criado_em,
   atualizadoEm: r.atualizado_em,
@@ -1078,10 +1087,12 @@ const chamadosRepo: ChamadosRepository = {
     });
     return chamado;
   },
-  async responder(id, texto) {
+  async responder(id, texto, anexos = []) {
     // RPC própria: quem abriu responde sem ganhar UPDATE na tabela — com ele
     // poderia reescrever o texto original. A função só sabe acrescentar.
-    const linha = ok(await supabase.rpc("responder_chamado", { p_chamado_id: id, p_texto: texto }));
+    const linha = ok(
+      await supabase.rpc("responder_chamado", { p_chamado_id: id, p_texto: texto, p_anexos: anexos })
+    );
     return mapChamado(linha);
   },
   async encerrar(id, resolvido) {
@@ -1101,6 +1112,47 @@ const chamadosRepo: ChamadosRepository = {
     // mostrar exatamente aquilo.
     const r = ok(await supabase.rpc("e_suporte"));
     return r === true;
+  },
+
+  async subirAnexos(chamadoId, arquivos, enviadoPorNome) {
+    const fichas: AnexoObservacao[] = [];
+    for (const arquivo of arquivos) {
+      const motivo = motivoRecusaAnexoChamado(arquivo, fichas.length);
+      // A peneira roda aqui e no bucket: esta dá a mensagem boa, aquela é a que
+      // não dá para burlar.
+      if (motivo) throw new Error(motivo);
+
+      const id = novoUuid();
+      const caminho = `${chamadoId}/${id}-${nomeSeguroAnexo(arquivo.name)}`;
+      const tipo = tipoDoAnexo(arquivo);
+      const { error } = await supabase.storage.from(BUCKET_CHAMADOS).upload(caminho, arquivo, {
+        contentType: tipo,
+        upsert: false,
+      });
+      if (error) throw new Error(traduzirErroAnexo(error.message));
+      fichas.push({
+        id,
+        caminho,
+        nome: arquivo.name,
+        tamanho: arquivo.size,
+        tipo,
+        enviadoPorNome,
+        enviadoEm: nowIso(),
+      });
+    }
+    return fichas;
+  },
+
+  async anexarAoRelato(chamadoId, anexos) {
+    const linha = ok(await supabase.rpc("anexar_ao_chamado", { p_chamado_id: chamadoId, p_anexos: anexos }));
+    return mapChamado(linha);
+  },
+
+  async urlAnexo(caminho) {
+    // Link de vida curta: o bucket é fechado e não existe URL permanente.
+    const { data, error } = await supabase.storage.from(BUCKET_CHAMADOS).createSignedUrl(caminho, 60);
+    if (error || !data?.signedUrl) throw new Error(error?.message ?? "Não foi possível abrir o anexo.");
+    return data.signedUrl;
   },
 };
 

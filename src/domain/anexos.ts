@@ -148,3 +148,55 @@ export function iconeAnexo(nome: string): string {
   if (["ppt", "pptx"].includes(ext)) return "📽️";
   return "📎";
 }
+
+/* ------------------------- anexos do Help Desk --------------------------- */
+
+/**
+ * Quantos arquivos cabem numa mensagem de chamado.
+ *
+ * Três, e o número não é gosto: os mesmos arquivos vão junto no e-mail que
+ * avisa o suporte, e a Edge Function `send-email` aceita no máximo três anexos
+ * (o Brevo recusa mensagem grande). Deixar a tela aceitar cinco só produziria
+ * chamado gravado com aviso que não sai — a pior combinação possível.
+ */
+export const MAXIMO_ANEXOS_CHAMADO = 3;
+
+/**
+ * O que se anexa a um chamado: IMAGEM e PDF.
+ *
+ * O anexo aqui é quase sempre o print do problema; o PDF entra porque "não
+ * consigo abrir este arquivo" é um chamado comum, e o arquivo é o chamado.
+ * Planilha e apresentação ficam de fora — não é isto que o suporte precisa ver,
+ * e cada tipo a mais é uma porta a mais no bucket.
+ */
+export const TIPOS_ACEITOS_CHAMADO: Readonly<Record<string, string>> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  gif: "image/gif",
+  heic: "image/heic",
+  heif: "image/heif",
+  pdf: "application/pdf",
+};
+
+export const ACCEPT_ANEXOS_CHAMADO = Object.keys(TIPOS_ACEITOS_CHAMADO).map((e) => `.${e}`).join(",");
+
+/** Por que este arquivo não pode ir no chamado — ou `null` quando pode. */
+export function motivoRecusaAnexoChamado(
+  arquivo: { name: string; size: number; type?: string },
+  jaAnexados = 0
+): string | null {
+  if (jaAnexados >= MAXIMO_ANEXOS_CHAMADO) {
+    return `Cada mensagem aceita até ${MAXIMO_ANEXOS_CHAMADO} arquivos — é o limite do e-mail que avisa o suporte.`;
+  }
+  const ext = extensaoDe(arquivo.name);
+  if (!ext || !TIPOS_ACEITOS_CHAMADO[ext]) {
+    return `"${arquivo.name}" não é um tipo aceito aqui. Vale imagem (print, foto) e PDF.`;
+  }
+  if (arquivo.size <= 0) return `"${arquivo.name}" está vazio.`;
+  if (arquivo.size > TAMANHO_MAXIMO_ANEXO) {
+    return `"${arquivo.name}" tem ${tamanhoLegivel(arquivo.size)} — o limite é ${tamanhoLegivel(TAMANHO_MAXIMO_ANEXO)} por arquivo.`;
+  }
+  return null;
+}

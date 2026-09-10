@@ -17,6 +17,16 @@ export interface NavItem {
    * Quem não declara, não conta.
    */
   pendencias?: boolean;
+  /**
+   * Este item abre um PAINEL sobre a tela, em vez de navegar.
+   *
+   * O Help Desk é o caso: quem pede ajuda está no meio de outra coisa, e trocar
+   * de tela faz a pessoa perder de vista justamente o que precisa descrever
+   * (ver `components/suporte/PainelSuporte`). O `to` continua existindo porque
+   * o e-mail de resposta aponta para ele — a rota abre o painel e devolve a
+   * pessoa para a tela de onde ela veio.
+   */
+  painel?: "suporte";
 }
 
 /**
@@ -39,7 +49,7 @@ export const NAV: NavItem[] = [
   { to: "/projetos", label: "Projetos", icon: <IcFolder />, recurso: "projetos", pendencias: true },
   { to: "/configuracoes", label: "Configurações", icon: <IcGear />, recurso: "configuracoes" },
   { to: "/guia", label: "Guia do Aplicativo", icon: <IcHelp />, recurso: "guia" },
-  { to: "/suporte", label: "Help Desk", icon: <IcSuporte />, recurso: "guia" },
+  { to: "/suporte", label: "Help Desk", icon: <IcSuporte />, recurso: "guia", painel: "suporte" },
 ];
 
 /* ------------------------- os segundos cabeçalhos ------------------------- */

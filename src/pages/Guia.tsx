@@ -1208,6 +1208,10 @@ const MODULOS: Modulo[] = [
             Quando alguma coisa <b>não funciona como deveria</b>, quando você tem dúvida de uso que o Guia não
             responde, ou quando tem uma <b>sugestão</b>. O botão fica no cabeçalho, ao lado do Guia.
           </p>
+          <p>
+            Ele <b>não troca de tela</b>: abre um painel por cima do que você está fazendo. A tela continua atrás,
+            inteira — você descreve o problema olhando para ele, e fechar devolve tudo como estava.
+          </p>
           <Dica>
             Antes de abrir, vale conferir três coisas que resolvem a maioria dos casos: item da EC que <b>não vira
             OS</b> costuma ter um campo obrigatório em falta (a tela diz qual, item a item); valor que <b>não
@@ -1222,10 +1226,17 @@ const MODULOS: Modulo[] = [
               ["Tipo", "escolha", "Erro no sistema, dúvida de uso, sugestão de melhoria ou acesso e permissões."],
               ["Assunto", "equipe", "Uma frase. “A OS não salva quando o fornecedor é MEI” diz mais que “erro na OS”."],
               ["O que aconteceu", "equipe", "O que você fez, o que esperava e o que aconteceu. Quanto mais concreto, menos idas e vindas."],
-              ["Tela", "auto", "De onde você veio — o sistema preenche sozinho. Corrija se o problema foi em outro lugar."],
+              ["Tela", "auto", "Onde você está — o sistema preenche sozinho. Corrija se o problema foi em outro lugar."],
               ["Navegador e tamanho da tela", "auto", "Vai junto sem você precisar saber qual é: metade dos “aqui não funciona” mora nisso."],
+              ["Print da tela", "equipe", "Até 3 por mensagem. O painel some sozinho enquanto a foto é tirada, para o print mostrar o problema e não o formulário."],
             ]}
           />
+          <Dica>
+            <b>O print vale mais que a descrição.</b> Três caminhos, todos no mesmo lugar: o botão <b>Print da
+            tela</b> (o navegador pede sua confirmação e fotografa a aba), <b>Ctrl+V</b> depois de um PrintScreen,
+            ou <b>Anexar arquivo</b> — imagem ou PDF, até 5 MB cada. Eles ficam guardados no chamado <b>e</b> vão
+            junto no e-mail que avisa o suporte.
+          </Dica>
           <p>
             O chamado fica <b>registrado no sistema</b> e avisa por e-mail o suporte configurado em
             <b> Configurações › Geral</b>. Toda abertura e todo encerramento também entram nos
@@ -1235,8 +1246,8 @@ const MODULOS: Modulo[] = [
         <Secao titulo="Acompanhar e responder">
           <p>
             A aba <b>Meus chamados</b> lista o que você abriu, do mais recente para o mais antigo. Clique num chamado
-            para ler a conversa inteira e <b>escrever de volta</b> ali mesmo — não é preciso abrir outro chamado para
-            completar um relato ou dizer que continua acontecendo.
+            para ler a conversa inteira e <b>escrever de volta</b> ali mesmo — com print, se ajudar. Não é preciso
+            abrir outro chamado para completar um relato ou dizer que continua acontecendo.
           </p>
           <p>
             A <b>situação</b> diz de quem é a vez, e o sistema a calcula a partir de quem falou por último:
@@ -1258,7 +1269,8 @@ const MODULOS: Modulo[] = [
           <p>
             Quem tem papel <b>Administrador</b> ganha uma terceira aba, <b>Fila do suporte</b>, com
             <b> todos</b> os chamados do sistema — filtrados por situação, e com o número de cada uma no próprio
-            filtro. Além do relato, o atendente vê o <b>navegador e o tamanho da tela</b> de quem abriu.
+            filtro. Além do relato, o atendente vê o <b>navegador e o tamanho da tela</b> de quem abriu, e abre os
+            prints anexados.
           </p>
           <p>
             A resposta é escrita no próprio chamado: ela fica registrada na conversa <b>e</b> sai por e-mail para
