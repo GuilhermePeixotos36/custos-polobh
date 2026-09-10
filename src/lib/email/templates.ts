@@ -202,3 +202,41 @@ export function emailHelpDesk(c: Chamado, para: string): MensagemEmail {
     interna: true,
   };
 }
+
+/**
+ * A RESPOSTA do suporte, indo para quem abriu o chamado.
+ *
+ * O que ela precisa fazer é uma coisa só: trazer a pessoa de volta ao app. A
+ * conversa mora lá — se ela responder por e-mail, a resposta cai na caixa do
+ * suporte e some do chamado, que é exatamente o problema que o chamado veio
+ * resolver. Daí o botão, e daí o texto dizer onde continuar.
+ */
+export function emailRespostaChamado(opcoes: {
+  assuntoChamado: string;
+  texto: string;
+  deNome: string;
+  paraNome: string;
+  paraEmail: string;
+  /** Endereço do app, para o botão levar direto ao Help Desk. */
+  urlApp: string;
+}): MensagemEmail {
+  const { assuntoChamado, texto, deNome, paraNome, paraEmail, urlApp } = opcoes;
+  const corpo = `
+    <p>Olá, ${h(paraNome || "tudo bem")}.</p>
+    <p>${h(deNome || "O suporte")} respondeu o seu chamado <b>${h(assuntoChamado)}</b>:</p>
+    <p style="font-size:14px;white-space:pre-line;background:#FAFAFB;border:1px solid #EEEFF2;
+              border-left:3px solid #F2820D;border-radius:8px;padding:12px">${h(texto)}</p>
+    <p><a href="${urlHttp(`${urlApp}/suporte`)}"
+        style="display:inline-block;background:#F2820D;color:#2A1602;font-weight:700;
+        padding:10px 18px;border-radius:10px;text-decoration:none">Ver e responder no sistema</a></p>
+    <p style="font-size:13px;color:#6A6E78">
+      Responda pelo sistema, e não por este e-mail: é lá que a conversa do chamado fica guardada.
+    </p>`;
+  return {
+    para: paraEmail ? [{ email: paraEmail, nome: paraNome }] : [],
+    assunto: `Re: [Help Desk] ${assuntoChamado}`,
+    html: wrap("Resposta do suporte", corpo),
+    // Da Pólobh para a Pólobh — atravessa a homologação, como o chamado.
+    interna: true,
+  };
+}

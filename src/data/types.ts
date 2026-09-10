@@ -766,6 +766,50 @@ export interface Os {
   atualizadoEm: string;
 }
 
+/* -------------------------- HELP DESK / CHAMADOS -------------------------- */
+
+/**
+ * De quem é a vez num chamado — o mesmo "batata quente" das conversas do resto
+ * do app. O status não é digitado: ele decorre de quem falou por último.
+ */
+export type StatusChamado = "Aberto" | "Respondido" | "Resolvido";
+
+/** Uma fala dentro do chamado, depois da abertura. */
+export interface MensagemChamado {
+  id: string;
+  texto: string;
+  autorNome: string;
+  autorEmail: string;
+  /** Veio do suporte? É o que decide o lado em que a mensagem aparece. */
+  suporte: boolean;
+  criadoEm: string;
+}
+
+/**
+ * Um chamado do Help Desk.
+ *
+ * O e-mail continua saindo — é ele que AVISA —, mas a informação mora aqui: a
+ * conversa acontece dentro do app, e quem abriu acompanha sem depender da caixa
+ * de entrada.
+ */
+export interface Chamado {
+  id: string;
+  /** Quem abriu. Nulo quando o usuário foi desligado — o chamado sobrevive. */
+  abertoPor: string | null;
+  autorNome: string;
+  autorEmail: string;
+  tipo: string;
+  assunto: string;
+  descricao: string;
+  /** Onde a pessoa estava e em que navegador — preenchidos pelo sistema. */
+  tela: string;
+  ambiente: string;
+  status: StatusChamado;
+  mensagens: MensagemChamado[];
+  criadoEm: string;
+  atualizadoEm: string;
+}
+
 /* ------------------------------ CHECK-LIST ------------------------------- */
 
 /** Status de um item do check-list (work flow do projeto). */

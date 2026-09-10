@@ -1195,8 +1195,8 @@ const MODULOS: Modulo[] = [
     id: "helpdesk",
     icone: <IcSuporte />,
     titulo: "Help Desk",
-    resumo: "Abrir chamado para o suporte do sistema, de dentro do próprio aplicativo.",
-    tags: ["help desk", "helpdesk", "suporte", "chamado", "erro", "bug", "ajuda", "problema", "reclamação", "sugestão"],
+    resumo: "Abrir chamado para o suporte, acompanhar a resposta e continuar a conversa — tudo dentro do aplicativo.",
+    tags: ["help desk", "helpdesk", "suporte", "chamado", "erro", "bug", "ajuda", "problema", "reclamação", "sugestão", "resposta", "fila"],
     conteudo: (
       <>
         <Secao titulo="Quando usar">
@@ -1223,14 +1223,48 @@ const MODULOS: Modulo[] = [
             ]}
           />
           <p>
-            O chamado vai para o e-mail de suporte configurado em <b>Configurações › Geral</b>, e a resposta volta
-            direto para <b>você</b> — quem responde só aperta “responder”. Todo chamado fica registrado nos
+            O chamado fica <b>registrado no sistema</b> e avisa por e-mail o suporte configurado em
+            <b> Configurações › Geral</b>. Toda abertura e todo encerramento também entram nos
             <b> Logs do sistema</b>.
           </p>
+        </Secao>
+        <Secao titulo="Acompanhar e responder">
+          <p>
+            A aba <b>Meus chamados</b> lista o que você abriu, do mais recente para o mais antigo. Clique num chamado
+            para ler a conversa inteira e <b>escrever de volta</b> ali mesmo — não é preciso abrir outro chamado para
+            completar um relato ou dizer que continua acontecendo.
+          </p>
+          <p>
+            A <b>situação</b> diz de quem é a vez, e o sistema a calcula a partir de quem falou por último:
+          </p>
+          <ul className="space-y-1.5 list-disc pl-5">
+            <li><b>Aberto</b> — esperando o suporte.</li>
+            <li><b>Respondido</b> — o suporte já falou; a bola está com você.</li>
+            <li><b>Resolvido</b> — encerrado. Sai da fila, e <b>volta a abrir</b> se alguém responder de novo: é o que acontece de verdade quando o problema não estava resolvido.</li>
+          </ul>
+          <p>
+            Quem abriu o chamado pode marcá-lo como resolvido a qualquer momento — é quem sabe se resolveu.
+          </p>
+          <Dica>
+            Quando o suporte responde, você recebe um <b>e-mail</b> avisando, e a resposta fica guardada no chamado.
+            O e-mail é o aviso; a conversa mora no sistema, e continua ali mesmo que o e-mail se perca.
+          </Dica>
+        </Secao>
+        <Secao titulo="Para quem atende (Administrador)">
+          <p>
+            Quem tem papel <b>Administrador</b> ganha uma terceira aba, <b>Fila do suporte</b>, com
+            <b> todos</b> os chamados do sistema — filtrados por situação, e com o número de cada uma no próprio
+            filtro. Além do relato, o atendente vê o <b>navegador e o tamanho da tela</b> de quem abriu.
+          </p>
+          <p>
+            A resposta é escrita no próprio chamado: ela fica registrada na conversa <b>e</b> sai por e-mail para
+            quem abriu. Os demais perfis continuam vendo apenas os seus próprios chamados — um chamado conta o que a
+            pessoa estava fazendo e onde errou, e isso não é assunto de todo mundo.
+          </p>
           <Atencao>
-            Este e-mail <b>sai de verdade</b>, e é o único que sai por enquanto. Os disparos para fornecedor e
-            cliente continuam em homologação, indo para a caixa de teste. A resposta do suporte chega no <b>seu
-            e-mail</b>, não numa tela do sistema.
+            O e-mail do Help Desk <b>sai de verdade</b>, e é o único que sai por enquanto — tanto o aviso de chamado
+            novo quanto a resposta do suporte. Os disparos para fornecedor e cliente continuam em homologação, indo
+            para a caixa de teste.
           </Atencao>
         </Secao>
       </>

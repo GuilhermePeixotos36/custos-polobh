@@ -425,12 +425,13 @@ genérico "Ordem de Serviço" —, gastando uma linha do cabeçalho grudado para
 repetir. Que documento é aquele, a barra do projeto já diz.
 
 ## Help Desk
-O quinto botão. Abre chamado por e-mail para um endereço de suporte
-**configurável** (Configurações › Geral), com a **tela de origem** e o
+O quinto botão. Abre chamado para o suporte com a **tela de origem** e o
 **navegador** preenchidos pelo sistema — a primeira resposta do suporte era
-sempre a mesma pergunta — e o "responder" voltando para quem abriu. Fica na
-trilha de auditoria (`helpdesk.chamado`) mesmo quando o e-mail é simulado ou
-desviado pela homologação: o registro de que alguém pediu ajuda é a informação.
+sempre a mesma pergunta. O chamado é um **registro** (tabela `chamados`), o
+e-mail avisa um endereço de suporte **configurável** (Configurações › Geral), e
+a conversa continua dentro do aplicativo. Fica na trilha de auditoria
+(`helpdesk.chamado`) mesmo quando o e-mail é simulado ou desviado pela
+homologação: o registro de que alguém pediu ajuda é a informação.
 
 A tela de origem é gravada pela casca a cada navegação (`lib/telaAnterior.ts`,
 `sessionStorage`) — mora fora da página porque quem grava é o `AppLayout`, e ele
@@ -453,21 +454,56 @@ A saída tem duas partes, as duas estreitas de propósito:
 - `MensagemEmail.interna` marca a mensagem que vai **da Pólobh para a Pólobh**.
   A trava existe para proteger TERCEIROS; no chamado de Help Desk não há
   terceiro — ele sai para o suporte cadastrado e responde para quem o abriu.
-  Só `emailHelpDesk` usa a marca, e há teste que percorre os outros templates
-  para garantir que nenhum deles a ganhe por descuido.
+  Só as duas pontas do Help Desk usam a marca — `emailHelpDesk` (o chamado que
+  vai ao suporte) e `emailRespostaChamado` (a resposta que volta a quem abriu) —,
+  e há teste que percorre os outros templates para garantir que nenhum deles a
+  ganhe por descuido.
 - `emails_conhecidos` passou a aceitar o endereço gravado em
   `config_app.helpdesk` e a caixa de homologação (migração `20260910160000`).
   A função continua fechada: quem escolhe o endereço é quem administra, pela
   política de escrita de `config_app`, e nunca quem dispara.
 
-**O que NÃO existe:** recebimento de volta para dentro do aplicativo. A resposta
-do suporte chega na caixa de entrada de quem abriu o chamado (cabeçalho
-`reply-to`), não numa tela do sistema — não há ingestão de e-mail de entrada.
-
 O endereço vive em `config_app` (migração `20260910100000`), uma tabela de
 chave/valor criada para isto: não havia **onde** guardar um ajuste do sistema —
 ou virava coluna numa tabela que não é dela, ou variável de ambiente, que só
 quem publica muda.
+
+### O chamado virou registro, com a conversa dentro (10/09/2026)
+Enquanto o chamado era **só e-mail**, ele saía do aplicativo e sumia: quem abriu
+não sabia se tinha sido lido, quem atende respondia do seu cliente de e-mail, e a
+resposta não existia em lugar nenhum do sistema. "Quantos chamados estão
+abertos?" não tinha resposta.
+
+Agora o chamado é uma linha em `chamados` (migração `20260910180000`) com a
+conversa na coluna `mensagens`. O e-mail continua saindo — é ele que **avisa** —,
+mas deixou de ser onde a informação mora.
+
+- **A situação decorre de quem falou por último**, não é digitada: `Aberto`
+  espera o suporte, `Respondido` espera quem abriu, `Resolvido` não cobra
+  ninguém. Chamado resolvido **reabre** quando alguém volta a falar — é o que
+  acontece de verdade quando o problema não estava resolvido. Mesma ideia das
+  conversas do resto do app (`pendenciaDeConversa`).
+- **Quem atende é o papel `Admin`**, atrás da função `e_suporte()` em vez de
+  `papel_atual() = 'Admin'` espalhado pelas policies: o dia em que o suporte
+  deixar de ser o Admin, muda num lugar. A tela pergunta ao **banco** quem
+  atende (`repo.chamados.souSuporte`), e não ao papel guardado na sessão — é o
+  banco que decide o que a pessoa vai conseguir ler e responder, e a tela não
+  pode oferecer um botão que vai dar erro.
+- **Cada um vê o seu; o suporte vê todos** (`chamados_read`). Um chamado conta o
+  que a pessoa estava fazendo e onde errou: não é assunto de todo mundo.
+- **Responder é uma RPC** (`responder_chamado`), e não `UPDATE` na tabela: com
+  permissão de escrita, quem abriu poderia reescrever o próprio relato ou o
+  status depois de respondido. A função só sabe **acrescentar** no fim.
+- **Grava primeiro, avisa depois.** `NovoChamado` insere o chamado e só então
+  dispara o e-mail; se o envio falhar, o aviso na tela diz isso, mas o chamado
+  existe. Era exatamente esse o problema de quando ele era só e-mail.
+- A resposta do suporte **também sai por e-mail** (`emailRespostaChamado`), com
+  link de volta para a tela. Quem responde sem ser o suporte não dispara e-mail:
+  avisar a si mesmo não serve para nada, e o suporte já está olhando a fila.
+
+**O que NÃO existe:** ingestão de e-mail de **entrada**. Responder o aviso pelo
+cliente de e-mail não escreve no chamado — a resposta que o sistema registra é a
+escrita na tela do Help Desk. É para isso que o aviso leva um link para ela.
 
 ## Conversa por aba do projeto
 Cinco abas — **EC, OS, Fornecedores, Cronograma e Credenciamento** — têm o seu

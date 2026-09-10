@@ -59,9 +59,10 @@ describe("trava de homologação do e-mail", () => {
  * A ÚNICA porta de saída durante a homologação — e ela precisa continuar
  * estreita.
  *
- * `interna` significa "da Pólobh para a Pólobh": hoje só o chamado de Help Desk
- * a usa. Um teste que falhe aqui significa uma mensagem escapando da trava sem
- * ter direito, que é exatamente o acidente que a trava existe para impedir.
+ * `interna` significa "da Pólobh para a Pólobh": hoje só o Help Desk a usa — o
+ * chamado que vai ao suporte e a resposta que volta a quem o abriu. Um teste que
+ * falhe aqui significa uma mensagem escapando da trava sem ter direito, que é
+ * exatamente o acidente que a trava existe para impedir.
  */
 describe("mensagem interna atravessa a trava", () => {
   beforeEach(() => {
@@ -96,7 +97,8 @@ describe("mensagem interna atravessa a trava", () => {
 });
 
 /**
- * Quem pode marcar `interna`? Só o Help Desk — e este teste é o guardião disso.
+ * Quem pode marcar `interna`? Só o Help Desk — as DUAS pontas dele —, e este
+ * teste é o guardião disso.
  *
  * Ele lê os templates de verdade e confere um a um: se alguém amanhã marcar o
  * disparo de OS ou o credenciamento como interno, o teste quebra aqui antes de
@@ -125,11 +127,27 @@ describe("só o Help Desk é mensagem interna", () => {
     ];
     for (const m of externos) expect(m.interna).toBeFalsy();
 
-    // E o do Help Desk é, de fato, o que atravessa.
+    // E as duas pontas do Help Desk são, de fato, o que atravessa: o chamado
+    // que vai ao suporte, e a resposta do suporte a quem abriu.
     const chamado = t.emailHelpDesk(
       { tipo: "Erro no sistema", assunto: "x", descricao: "y", tela: "/", autorNome: "Ana", autorEmail: "ana@polobh.com.br", ambiente: "—" },
       "suporte@exemplo.com"
     );
     expect(chamado.interna).toBe(true);
+
+    const resposta = t.emailRespostaChamado({
+      assuntoChamado: "A OS não salva",
+      texto: "Corrigido na versão de hoje.",
+      deNome: "O suporte",
+      paraNome: "Ana",
+      paraEmail: "ana@polobh.com.br",
+      urlApp: "https://app.exemplo.com",
+    });
+    expect(resposta.interna).toBe(true);
+    expect(resposta.para[0].email).toBe("ana@polobh.com.br");
+    // E com a homologação LIGADA ela ainda chega a quem abriu o chamado — que é
+    // o ponto: a resposta do suporte precisa sair de verdade.
+    vi.spyOn(flags, "emailDestinoReal", "get" as never).mockReturnValue(false as never);
+    expect(protegerDestinatarios(resposta).para[0].email).toBe("ana@polobh.com.br");
   });
 });

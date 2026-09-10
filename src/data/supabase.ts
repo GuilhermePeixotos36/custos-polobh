@@ -36,6 +36,7 @@ const financeiroVazio = () => ({
 import type {
   AreaRepository,
   AuthRepository,
+  ChamadosRepository,
   ChecklistRepository,
   ConfigRepository,
   ClienteRepository,
@@ -47,6 +48,7 @@ import type {
   Repositorios,
 } from "./repository";
 import type {
+  Chamado,
   Area,
   Checklist,
   Cliente,
@@ -1022,6 +1024,86 @@ const configRepo: ConfigRepository = {
   },
 };
 
+/* -------------------------- HELP DESK / CHAMADOS -------------------------- */
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mapChamado = (r: any): Chamado => ({
+  id: r.id,
+  abertoPor: r.aberto_por ?? null,
+  autorNome: r.autor_nome ?? "",
+  autorEmail: r.autor_email ?? "",
+  tipo: r.tipo ?? "",
+  assunto: r.assunto ?? "",
+  descricao: r.descricao ?? "",
+  tela: r.tela ?? "",
+  ambiente: r.ambiente ?? "",
+  status: r.status ?? "Aberto",
+  mensagens: Array.isArray(r.mensagens) ? r.mensagens : [],
+  criadoEm: r.criado_em,
+  atualizadoEm: r.atualizado_em,
+});
+
+const chamadosRepo: ChamadosRepository = {
+  async listar() {
+    // Sem filtro de dono: quem decide o que aparece é a RLS (`chamados_read`).
+    // Um filtro aqui seria uma segunda regra para a mesma pergunta, e as duas
+    // discordariam no dia em que uma mudasse.
+    const data = ok(await supabase.from("chamados").select("*").order("criado_em", { ascending: false }));
+    return (data ?? []).map(mapChamado);
+  },
+  async abrir(dados) {
+    const { data: sessao } = await supabase.auth.getUser();
+    const linha = ok(
+      await supabase
+        .from("chamados")
+        .insert({
+          aberto_por: sessao.user?.id,
+          autor_nome: dados.autorNome,
+          autor_email: dados.autorEmail,
+          tipo: dados.tipo,
+          assunto: dados.assunto,
+          descricao: dados.descricao,
+          tela: dados.tela,
+          ambiente: dados.ambiente,
+        })
+        .select("*")
+        .single()
+    )!;
+    const chamado = mapChamado(linha);
+    auditar({
+      categoria: "Sistema",
+      acao: "helpdesk.chamado",
+      mensagem: `Chamado aberto (${chamado.tipo}): ${chamado.assunto}`,
+      alvoId: chamado.id,
+    });
+    return chamado;
+  },
+  async responder(id, texto) {
+    // RPC própria: quem abriu responde sem ganhar UPDATE na tabela — com ele
+    // poderia reescrever o texto original. A função só sabe acrescentar.
+    const linha = ok(await supabase.rpc("responder_chamado", { p_chamado_id: id, p_texto: texto }));
+    return mapChamado(linha);
+  },
+  async encerrar(id, resolvido) {
+    const linha = ok(await supabase.rpc("encerrar_chamado", { p_chamado_id: id, p_resolvido: resolvido }));
+    const chamado = mapChamado(linha);
+    auditar({
+      categoria: "Sistema",
+      acao: resolvido ? "helpdesk.resolver" : "helpdesk.reabrir",
+      mensagem: `Chamado ${resolvido ? "resolvido" : "reaberto"}: ${chamado.assunto}`,
+      alvoId: chamado.id,
+    });
+    return chamado;
+  },
+  async souSuporte() {
+    // Pergunta ao BANCO, e não ao papel guardado na sessão: é o banco que
+    // decide o que a pessoa vai conseguir ler e responder, e a tela precisa
+    // mostrar exatamente aquilo.
+    const r = ok(await supabase.rpc("e_suporte"));
+    return r === true;
+  },
+};
+
 /* ------------------------------ CHECK-LIST ------------------------------- */
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1245,5 +1327,6 @@ export const supabaseRepositorios: Repositorios = {
   areas: areaRepo,
   empresas: empresasRepo,
   config: configRepo,
+  chamados: chamadosRepo,
   checklists: checklistRepo,
 };

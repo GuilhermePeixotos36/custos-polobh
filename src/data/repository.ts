@@ -4,7 +4,7 @@
  * hoje, Supabase para tudo (não existe mais mock em memória).
  */
 import type {
-  AbaComConversa, AnexoObservacao, Area, Checklist, Cliente, CredenciamentoResposta, Ec, EmpresaGrupo, Fornecedor,
+  AbaComConversa, AnexoObservacao, Area, Chamado, Checklist, Cliente, CredenciamentoResposta, Ec, EmpresaGrupo, Fornecedor,
   ItemChecklist, ModeloChecklist, Observacao, Os, Projeto, ProjetoInfo, Usuario,
 } from "./types";
 
@@ -147,6 +147,24 @@ export interface ConfigRepository {
 }
 
 /**
+ * Chamados do Help Desk.
+ *
+ * `listar` devolve o que a RLS deixa ver: o suporte enxerga todos, cada pessoa
+ * enxerga os seus. Não há um "listar do fulano" separado de propósito — quem
+ * decide é o banco, e não um parâmetro que a tela poderia esquecer de passar.
+ */
+export interface ChamadosRepository {
+  listar(): Promise<Chamado[]>;
+  abrir(dados: Omit<Chamado, "id" | "abertoPor" | "status" | "mensagens" | "criadoEm" | "atualizadoEm">): Promise<Chamado>;
+  /** Acrescenta uma fala e passa a vez ao outro lado (ver `responder_chamado`). */
+  responder(id: string, texto: string): Promise<Chamado>;
+  /** Encerra ou reabre. Quem abriu também pode: é ele quem sabe se resolveu. */
+  encerrar(id: string, resolvido: boolean): Promise<Chamado>;
+  /** Quem está logado atende chamados? */
+  souSuporte(): Promise<boolean>;
+}
+
+/**
  * Check-list (work flow) do projeto.
  *
  * Repare que não existe um `salvar(checklist)` que grave a lista inteira: os
@@ -197,5 +215,6 @@ export interface Repositorios {
   areas: AreaRepository;
   empresas: EmpresasRepository;
   config: ConfigRepository;
+  chamados: ChamadosRepository;
   checklists: ChecklistRepository;
 }

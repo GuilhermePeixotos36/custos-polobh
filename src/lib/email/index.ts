@@ -22,6 +22,7 @@ import {
   emailEcParaAprovacao,
   emailCronogramaDoFornecedor,
   emailHelpDesk,
+  emailRespostaChamado,
   type AnexoEmail,
   type Chamado,
   type MensagemEmail,
@@ -160,6 +161,16 @@ export const enviarCredenciamento = (os: Os, ec: Ec) => enviarEmail(emailCredenc
 
 /** Chamado do Help Desk para o endereço de suporte configurado. */
 export const enviarChamado = (chamado: Chamado, para: string) => enviarEmail(emailHelpDesk(chamado, para));
+
+/**
+ * Avisa quem abriu o chamado de que houve resposta.
+ *
+ * O e-mail AVISA; a conversa mora no app. Por isso ele leva um botão para a
+ * tela em vez de convidar a responder por e-mail — resposta por e-mail cairia
+ * na caixa do suporte e sumiria do chamado.
+ */
+export const enviarRespostaChamado = (opcoes: Parameters<typeof emailRespostaChamado>[0]) =>
+  enviarEmail(emailRespostaChamado(opcoes));
 
 /**
  * Manda ao fornecedor o cronograma DELE, com a OS em anexo.

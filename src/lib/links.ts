@@ -12,7 +12,7 @@
 import type { Ec, Os } from "@/data/types";
 
 /** Origem do app. Fora do navegador (teste/edge), cai no domínio de produção. */
-const origem = (): string =>
+export const origemDoApp = (): string =>
   typeof location !== "undefined" && location.origin ? location.origin : "https://custos-polobh.vercel.app";
 
 /**
@@ -20,7 +20,7 @@ const origem = (): string =>
  * Devolve "" enquanto a OS não tiver token — a tela avisa em vez de mostrar link quebrado.
  */
 export function urlCredenciamento(os: Pick<Os, "slugCredenciamento" | "credenciamento">): string {
-  if (os.slugCredenciamento) return `${origem()}/credenciamento/${os.slugCredenciamento}`;
+  if (os.slugCredenciamento) return `${origemDoApp()}/credenciamento/${os.slugCredenciamento}`;
   // Registro antigo: só aproveita o link gravado se ele não for o domínio fictício.
   const gravado = os.credenciamento?.linkFormulario ?? "";
   return gravado.includes("forms.polobh.com.br") ? "" : gravado;
@@ -28,5 +28,5 @@ export function urlCredenciamento(os: Pick<Os, "slugCredenciamento" | "credencia
 
 /** Cronograma público do projeto (o que se manda ao cliente). */
 export function urlCronogramaPublico(ec: Pick<Ec, "slugPublico">): string {
-  return ec.slugPublico ? `${origem()}/cronograma/${ec.slugPublico}` : "";
+  return ec.slugPublico ? `${origemDoApp()}/cronograma/${ec.slugPublico}` : "";
 }
