@@ -175,6 +175,26 @@ const MODULOS: Modulo[] = [
             <span>O <b>cabeçalho da página</b> — título e botões de ação — fica <b>grudado no topo</b> enquanto você rola: em tela longa, Salvar, Excel e Voltar continuam à mão sem precisar subir de volta.</span>
           </Passos>
         </Secao>
+        <Secao titulo="Trocar a sua senha">
+          <p>
+            Clique no <b>seu nome</b>, no canto superior direito (no celular, na sua bolinha com as iniciais). Abre a
+            janela <b>Minha conta</b>, com a troca de senha.
+          </p>
+          <Passos>
+            <span>Digite a <b>senha atual</b> — é ela que prova que é você.</span>
+            <span>Escreva a <b>nova senha</b> (mínimo de 8 caracteres) e repita embaixo.</span>
+            <span>Clique em <b>Trocar senha</b>.</span>
+          </Passos>
+          <Dica>
+            Uma <b>frase</b> que só você sabe — "o palco chegou tarde" — é melhor e mais fácil de lembrar do que uma
+            palavra curta cheia de símbolos.
+          </Dica>
+          <Atencao>
+            Você <b>continua conectado</b> depois de trocar. A senha nova vale do próximo login em diante, aqui e no
+            celular. <b>Esqueceu a senha?</b> Aí não dá para trocar por aqui — peça ao suporte pelo <b>Help Desk</b>,
+            ou a quem administra o sistema, um convite novo.
+          </Atencao>
+        </Secao>
         <Secao titulo="A barra de navegação">
           <p>
             A navegação fica no <b>topo</b>, e o que ela mostra depende do seu perfil — você só vê o que tem

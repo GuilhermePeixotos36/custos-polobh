@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { NAV } from "./nav";
 import { useAuth, ROTULO_PAPEL } from "@/store/auth";
 import { Avatar, Button } from "@/components/ui";
 import { NotifDot } from "@/components/NotifDot";
 import { SinoPendencias } from "@/components/SinoPendencias";
+import { MinhaContaModal } from "@/components/MinhaContaModal";
 import { IcLogout } from "@/components/icons";
 import { cx } from "@/lib/format";
 import { useMinhasPendencias } from "@/store/pendencias";
@@ -15,6 +17,7 @@ export function TopNav() {
   const navigate = useNavigate();
   const { porRecurso } = useMinhasPendencias();
   const painelAberto = useSuporte((s) => s.aberto);
+  const [minhaConta, setMinhaConta] = useState(false);
   if (!usuario) return null;
 
   const itens = NAV.filter((i) => pode(i.recurso));
@@ -80,13 +83,22 @@ export function TopNav() {
       <div className="flex items-center gap-2 shrink-0">
         {/* Tudo o que é cobrado da pessoa, em qualquer projeto — ver SinoPendencias. */}
         <SinoPendencias />
-        <div className="hidden sm:flex items-center gap-2">
+        {/* O nome deixou de ser enfeite: é o botão da PRÓPRIA CONTA, onde se
+            troca a senha (ver `MinhaContaModal`). No celular fica só o avatar —
+            o rótulo não cabe —, mas a porta continua existindo, que é o que
+            importa: trocar a senha não pode depender de estar no computador. */}
+        <button
+          type="button"
+          onClick={() => setMinhaConta(true)}
+          title="Minha conta — trocar senha"
+          className="flex items-center gap-2 rounded-btn px-1.5 py-1 hover:bg-[#F5F6F8] transition-colors"
+        >
           <Avatar nome={usuario.nome} size={32} />
-          <div className="leading-tight min-w-0">
+          <div className="hidden sm:block leading-tight min-w-0 text-left">
             <div className="text-[12.5px] font-bold text-ink truncate max-w-[150px]">{usuario.nome}</div>
             <div className="text-[10.5px] text-ink-3">{usuario.areaNome ?? ROTULO_PAPEL[usuario.papel]}</div>
           </div>
-        </div>
+        </button>
         <Button
           variant="text"
           size="sm"
@@ -98,6 +110,7 @@ export function TopNav() {
         >
           <span className="hidden sm:inline">Sair</span>
         </Button>
+        {minhaConta && <MinhaContaModal onClose={() => setMinhaConta(false)} />}
       </div>
     </header>
   );

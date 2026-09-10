@@ -3,6 +3,7 @@ import { create } from "zustand";
 import type { Papel, Usuario } from "@/data/types";
 import { supabase } from "@/lib/supabaseClient";
 import { auditar, definirAtor } from "@/store/logs";
+import { traduzirErroDeSenha } from "@/domain/senha";
 import type { User } from "@supabase/supabase-js";
 
 export type Recurso =
@@ -144,6 +145,8 @@ interface AuthState {
   carregando: boolean;
   pode: (r: Recurso) => boolean;
   entrarComEmail: (email: string, senha: string) => Promise<{ ok: boolean; erro?: string }>;
+  /** Troca a própria senha, já logado. Pede a atual para confirmar quem é. */
+  trocarSenha: (atual: string, nova: string) => Promise<{ ok: boolean; erro?: string }>;
   sair: () => Promise<void>;
   /** Inicializa a sessão a partir do Supabase (chamado uma vez no boot). */
   bootstrap: () => Promise<void>;
@@ -224,6 +227,49 @@ export const useAuth = create<AuthState>((set, get) => {
         categoria: "Autenticação",
         acao: "auth.login",
         mensagem: `Login realizado (${ROTULO_PAPEL[u.papel]})`,
+        usuario: u.nome,
+        papel: u.papel,
+      });
+      return { ok: true };
+    },
+
+    /**
+     * Troca a senha de quem está logado.
+     *
+     * A SENHA ATUAL É EXIGIDA, e não é capricho: o Supabase troca a senha de
+     * quem tem uma sessão válida sem perguntar mais nada — ou seja, qualquer
+     * pessoa que sente na cadeira com o app aberto poderia trocar a senha e
+     * deixar a dona da conta de fora. Conferimos a senha atual entrando de novo
+     * com ela: dá certo, é a pessoa; dá errado, para aqui.
+     *
+     * O `signInWithPassword` renova a sessão do MESMO usuário — não desloga
+     * ninguém, não muda o perfil carregado. Só o `updateUser` depois é que
+     * altera de fato a senha.
+     */
+    trocarSenha: async (atual, nova) => {
+      const u = get().usuario;
+      if (!u?.email) return { ok: false, erro: "Sua sessão expirou. Entre de novo." };
+
+      const conferencia = await supabase.auth.signInWithPassword({ email: u.email, password: atual });
+      if (conferencia.error) {
+        auditar({
+          nivel: "aviso",
+          categoria: "Autenticação",
+          acao: "auth.senha.recusada",
+          mensagem: "Troca de senha recusada: senha atual incorreta",
+          usuario: u.nome,
+          papel: u.papel,
+        });
+        return { ok: false, erro: "Senha atual incorreta." };
+      }
+
+      const { error } = await supabase.auth.updateUser({ password: nova });
+      if (error) return { ok: false, erro: traduzirErroDeSenha(error.message) };
+
+      auditar({
+        categoria: "Autenticação",
+        acao: "auth.senha",
+        mensagem: "Senha alterada pelo próprio usuário",
         usuario: u.nome,
         papel: u.papel,
       });

@@ -32,6 +32,7 @@ src/
   domain/checklist.ts        régua de prazos e estados do check-list (Work Flow)
   domain/mudancasEvento.ts   o que mudou nos dados gerais e o que fazer com EC/OS já emitidas
   domain/anexos.ts           o que é um "arquivo leve" no check-list e no chamado
+  domain/senha.ts            a régua da senha nova, e o inglês do Supabase em pt-BR
   lib/captura.ts             o print da tela, para o chamado do Help Desk
   components/suporte/        o painel do Help Desk, que abre sobre a tela
   domain/calendario.ts       período do projeto e recorte mês a mês do quadro do ano
@@ -428,6 +429,30 @@ O cabeçalho da OS ficou com o **número como título**, como o da EC. Ele apare
 três vezes no mesmo bloco — na trilha, no subtítulo e implícito no título
 genérico "Ordem de Serviço" —, gastando uma linha do cabeçalho grudado para
 repetir. Que documento é aquele, a barra do projeto já diz.
+
+## Trocar a própria senha
+Clicar no nome, no canto do cabeçalho, abre **Minha conta** (`MinhaContaModal`) —
+quem é você aqui dentro, e a troca da senha. Antes disso a senha só mudava por
+fora do aplicativo: era preciso pedir um convite novo ao suporte, e o resultado
+prático é a senha do primeiro dia valendo para sempre.
+
+**A senha atual é exigida**, e não é burocracia: o Supabase troca a senha de
+quem tem sessão válida sem perguntar mais nada, então qualquer pessoa que
+sentasse numa cadeira com o app aberto poderia trocar a senha e deixar a dona da
+conta de fora. `trocarSenha` (em `store/auth`) confere entrando de novo com a
+senha atual — dá certo, é a pessoa; dá errado, para ali, e a recusa fica na
+trilha de auditoria (`auth.senha.recusada`).
+
+A régua da senha nova mora em `domain/senha.ts`, testada: mínimo de **8**
+caracteres (o piso do Supabase é 6, que é o que o servidor tolera, não o que a
+casa acha razoável), diferente da atual, e confirmada. Sem exigência de símbolo
+ou maiúscula de propósito — regra de composição empurra para "Polobh@2026" e
+para o papel colado no monitor; uma frase que só a pessoa sabe vale mais. As
+mensagens do Supabase são traduzidas ali também, e o que não for reconhecido
+chega inteiro à tela, para o caso raro não virar "erro genérico".
+
+No celular o nome some (não cabe) mas o **avatar continua clicável**: trocar a
+senha não pode depender de estar no computador.
 
 ## Help Desk
 O quinto botão. Abre chamado para o suporte com a **tela de origem** e o
