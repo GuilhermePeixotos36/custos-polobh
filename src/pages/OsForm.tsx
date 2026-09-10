@@ -54,8 +54,8 @@ import { ListaArrastavel, ItemArrastavel } from "@/components/ListaArrastavel";
 import { MoverSetas, moverNaLista } from "@/components/MoverSetas";
 import { InscricaoMunicipalInput } from "@/components/InscricaoMunicipalInput";
 import { TextosJaUsados } from "@/components/TextosJaUsados";
-import { destacarCampo, idAncoraPendencia, idCampoTrava } from "@/lib/destaque";
-import { Chevron, idSecao, useAcoesRecolher, useSecaoRecolhivel } from "@/components/layout/Recolher";
+import { idAncoraPendencia } from "@/lib/destaque";
+import { Chevron, idSecao, useSecaoRecolhivel } from "@/components/layout/Recolher";
 import { ancoraCronogramaOs, pendenciasDaTela } from "@/domain/pendencias";
 import {
   bvDaContratacao,
@@ -63,7 +63,6 @@ import {
   COLUNAS_CONTRATACAO,
   exigeJustificativa,
   itemDaLinhaEc,
-  justificativasFaltando,
   resumoContratacao,
   sincronizarContratacao,
 } from "@/domain/contratacaoOs";
@@ -452,35 +451,11 @@ export function OsForm() {
       };
     });
   /**
-   * O que impede o salvamento, hoje: a justificativa do BV de uma forma que
-   * VALE num item e sai fora do padrão da casa.
-   *
-   * Ela era UMA, da OS inteira, e morava em Acertos Financeiros — herança de
-   * quando a OS tinha um BV só. Com a contratação item a item, cada forma
-   * responde por si (ver `domain/contratacaoOs`), e uma justificativa única não
-   * saberia dizer de qual item falava. Saiu de lá e virou esta lista: cada
-   * entrada é um item + uma forma, e cada uma tem endereço próprio na tela,
-   * para o aviso poder LEVAR até ela em vez de só apontar.
-   */
-  const nomeDoItem = new Map(
-    linhasConsolidadas.map((l) => [l.id, l.item?.trim() || l.descricao?.trim() || "item sem nome"])
-  );
-  const travas = (os.itens ?? []).flatMap((item) =>
-    justificativasFaltando(item).map((opcao) => ({
-      campo: TRAVA_JUSTIF(item.ecLinhaId, opcao),
-      item: nomeDoItem.get(item.ecLinhaId) ?? "item",
-      forma: COLUNAS_CONTRATACAO.find((c) => c.chave === opcao)?.longo ?? opcao,
-    }))
-  );
-  /**
    * O BV daqui nasce do Resumo dos Custos e segue editável. Quando alguém o
    * altera, ou quando os itens da EC mudam depois, os dois divergem — e sem
    * dizer isso o campo passaria a mentir sobre o que foi combinado.
    */
   const bvDiverge = bvContratado.percentual > 0 && Math.abs(os.financeiro.bvPercentual - bvContratado.percentual) >= 0.01;
-
-  /** Para abrir o bloco certo quando um aviso precisa levar a pessoa a um campo. */
-  const recolher = useAcoesRecolher();
 
   /** Esta OS tem contrato? Quem decide é a coluna Contrato dos itens, na EC. */
   const haContrato = temContrato(os, linhasConsolidadas);
@@ -583,27 +558,7 @@ export function OsForm() {
       {/* A JUSTIFICATIVA do BV saiu daqui (09/09/2026): ela é uma por FORMA, em
           cada item do Detalhamento da Contratação, que é onde o BV é combinado.
           Uma justificativa só, da OS inteira, não sabia dizer de qual item
-          falava — e era a única coisa que este bloco cobrava. */}
-      {travas.length > 0 && (
-        <LinhaOs label="">
-          <div className="py-2 text-[12.5px] text-warning font-semibold">
-            {travas.length === 1
-              ? "Falta a justificativa do BV em 1 item — "
-              : `Faltam ${travas.length} justificativas do BV — `}
-            <button
-              type="button"
-              onClick={() => {
-                recolher?.expandir(idSecao(SECAO_DETALHAMENTO));
-                destacarCampo(travas[0].campo);
-              }}
-              className="font-bold text-primary-dark hover:underline"
-            >
-              ir até {travas.length === 1 ? "ela" : "a primeira"}
-            </button>
-            .
-          </div>
-        </LinhaOs>
-      )}
+          falava. E não cobra mais nada: ver o comentário em `salvar`. */}
     </>
   );
 
@@ -734,26 +689,21 @@ export function OsForm() {
     }
   }
 
+  /**
+   * NADA impede o salvamento de uma OS (10/09/2026).
+   *
+   * Houve aqui uma trava: sem a justificativa do BV de uma forma fora do padrão,
+   * a OS não salvava. Ela foi desfeita a pedido da Pólobh, e o motivo é bom —
+   * quem está montando o documento raramente tem todas as respostas na mesma
+   * sessão, e uma trava dessas transforma "ainda não sei" em "não posso
+   * guardar o que já sei". A justificativa continua no Detalhamento, como nota
+   * opcional de quem quiser registrar o combinado.
+   *
+   * O que sobrou de trava neste formulário é de outra natureza e continua: a
+   * troca de fornecedor de uma OS já emitida, que não bloqueia — desvia para
+   * uma nova versão.
+   */
   async function salvar(status?: Os["status"]) {
-    // O que trava o salvamento LEVA até o campo, não apenas avisa: numa tela de
-    // quinze blocos, ler "falta a justificativa" e ter de caçar onde é o mesmo
-    // trabalho de antes. A tela rola até lá, o campo pisca em vermelho e já
-    // recebe o cursor — e o aviso diz de qual item e de qual forma se trata,
-    // porque agora há uma justificativa por forma, em cada item.
-    if (travas.length) {
-      const [primeira] = travas;
-      toast(
-        travas.length === 1
-          ? `Falta a justificativa do BV em "${primeira.item}" (${primeira.forma}).`
-          : `Faltam ${travas.length} justificativas do BV — a primeira em "${primeira.item}" (${primeira.forma}).`,
-        "warning"
-      );
-      // O bloco pode estar recolhido — abrir antes, senão a rolagem para num
-      // título fechado e o campo continua escondido.
-      recolher?.expandir(idSecao(SECAO_DETALHAMENTO));
-      destacarCampo(primeira.campo);
-      return;
-    }
     /**
      * TROCA DE FORNECEDOR numa OS que já saiu da casa: não é edição, é outro
      * contrato. A OS anterior existe do lado do primeiro fornecedor — deixar
@@ -1535,7 +1485,6 @@ export function OsForm() {
  * salvamento. Há uma por par (item, forma), porque é assim que a justificativa
  * existe desde que o BV passou a ser combinado item a item.
  */
-const TRAVA_JUSTIF = (ecLinhaId: string, opcao: string) => idCampoTrava(`bv-justificativa-${ecLinhaId}-${opcao}`);
 /** Blocos que o aviso precisa abrir antes de rolar até o campo. */
 const SECAO_DETALHAMENTO = "Detalhamento da Contratação";
 const SECAO_ACERTOS = "Acertos Financeiros";
@@ -1746,9 +1695,11 @@ function ItemContratacao({
       <div className="grid sm:grid-cols-3 gap-2">
         {COLUNAS_CONTRATACAO.map(({ chave, longo }) => {
           const opcao = item[chave];
-          const exigida = exigeJustificativa(item, chave);
+          // "Cabe uma justificativa aqui?" — e não "está faltando": ela deixou
+          // de ser obrigatória (ver `salvar`). O campo aparece onde faria
+          // sentido escrever, e some quando não faria.
+          const cabeJustificativa = exigeJustificativa(item, chave);
           const escrita = (opcao.justificativaBv ?? "").trim();
-          const faltando = exigida && !escrita;
           const mudar = (patch: Partial<typeof opcao>) => onUpd({ [chave]: { ...opcao, ...patch } } as Partial<ItemContratacaoOs>);
 
           return (
@@ -1823,13 +1774,13 @@ function ItemContratacao({
 
               {/* Justificativa por forma: some quando a forma não vale ou o BV
                   está no padrão, e fica se já houver texto escrito. */}
-              {(exigida || escrita) && (
-                <div className="mt-2 pt-2 border-t border-border-soft" id={TRAVA_JUSTIF(item.ecLinhaId, chave)}>
+              {(cabeJustificativa || escrita) && (
+                <div className="mt-2 pt-2 border-t border-border-soft">
                   <span className="block text-[10px] font-extrabold uppercase tracking-[0.05em] text-ink-3 mb-1">
-                    Justificativa do BV {exigida && <span className="text-danger">*</span>}
+                    Justificativa do BV <span className="font-bold normal-case tracking-normal">(opcional)</span>
                   </span>
                   <AutoTextarea
-                    className={cx("!text-[12px]", faltando && "!border-danger !bg-danger-soft")}
+                    className="!text-[12px]"
                     rows={2}
                     value={opcao.justificativaBv ?? ""}
                     onChange={(e) => mudar({ justificativaBv: e.target.value })}

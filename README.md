@@ -282,10 +282,10 @@ escrevê-la e a RPC preenche o padrão vazio (revisão de 09/09/2026).
 Duas regras do **BV** saíram junto do seletor:
 - o BV conta assim que existe **valor com BV e NF** no item — antes só valia
   depois de alguém eleger essa forma, e ele é combinado *junto* com o preço;
-- a **justificativa** é exigida quando a produção respondeu sobre a cobrança com
+- a **justificativa** aparece quando a produção respondeu sobre a cobrança com
   BV e a resposta foge do padrão: "Não se aplica" (o item sai sem BV, de
-  propósito) ou um BV abaixo de 15%. Campo em branco não cobra nada, senão toda
-  linha recém-criada nasceria com alerta.
+  propósito) ou um BV abaixo de 15%. Campo em branco não pede nada, senão toda
+  linha recém-criada nasceria com alerta. Ela é **opcional** — ver adiante.
 
 ## A OS em dois blocos: Detalhamento e Resumo da Contratação
 Revisão de 09/09/2026. A OS é o documento que vira **contrato com o fornecedor**,
@@ -305,7 +305,7 @@ e ela agora se lê em duas metades, na ordem em que a decisão acontece.
 
 A **justificativa é uma por forma**, e não uma por item como na EC: ali só uma
 das três valia, aqui as três convivem na mesma tabela e cada uma responde por si
-(`exigeJustificativa`, `justificativasFaltando`).
+(`exigeJustificativa` diz onde o campo faz sentido aparecer).
 
 **Resumo da Contratação** — o que sai do que foi decidido: Entrega, Cronograma,
 Logística, Infraestrutura, Observações Gerais e o **Resumo dos Custos**, a tabela
@@ -347,9 +347,12 @@ eram digitados para a OS inteira, e não sabiam dizer de onde vinham.
   uma justificativa só, da OS inteira, não sabia dizer de qual item falava.
   `financeiro.bvJustificativa` fica no tipo e na tabela para não perder o que as
   OS antigas escreveram; nada mais o exige nem o preenche.
-- **O que trava o salvamento leva até o campo**: o aviso diz o item e a forma,
-  abre o bloco recolhido, rola até lá e põe o cursor (`TRAVA_JUSTIF`,
-  `destacarCampo`).
+- **Nada trava o salvamento da OS** (10/09/2026). Houve aqui uma trava: sem a
+  justificativa do BV de uma forma fora do padrão, a OS não salvava — e ela foi
+  desfeita a pedido da Pólobh. O motivo é bom: quem monta o documento raramente
+  tem todas as respostas na mesma sessão, e a trava transformava "ainda não sei"
+  em "não posso guardar o que já sei". A justificativa continua no Detalhamento
+  como **nota opcional**.
 - **Dados para Contrato** só existe quando a EC pediu "Emitir"/"Emitir Nova
   Versão". Marcado "Não se Aplica", o grupo não aparece nem como aviso: um grupo
   vazio não é neutro — ele descreve um contrato inexistente com valores, forma de

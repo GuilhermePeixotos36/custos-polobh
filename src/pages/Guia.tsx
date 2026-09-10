@@ -360,7 +360,7 @@ const MODULOS: Modulo[] = [
               ["Código de Serviço", "equipe", "Vai para a emissão da nota na OS."],
               ["Bloco de valores (com BV e NF / sem BV com NF / sem BV sem NF)", "equipe", "Quanto o item custaria de cada forma. Cada uma aceita “Não se aplica” ou um valor — a escolha é feita na OS, no Detalhamento da Contratação."],
               ["BV — percentual ou valor fixo", "equipe", "Só na forma com BV e NF, assim que ela tem valor. É daqui que sai o BV consolidado da OS."],
-              ["Justificativa do BV", "equipe", "Obrigatória quando não há BV ou ele é menor que 15%. Sem ela a OS não salva."],
+              ["Justificativa do BV", "equipe", "Pedida quando não há BV ou ele é menor que 15%. Sem ela o item não entra na emissão da OS — depois de emitida, quem lê o documento não tem a quem perguntar por que a Pólobh abriu mão da bonificação."],
               ["Observações do item", "equipe", "Conversa interna com @menção. Vira pendência para quem foi mencionado. Não sai em documento."],
             ]}
           />
@@ -391,7 +391,7 @@ const MODULOS: Modulo[] = [
               ["Itens da EC", "escolha", "Quais itens esta OS consolida. É deles que sai tudo o que vem abaixo."],
               ["Bloquinho de cada item", "equipe", "As três formas de cobrança do item, com os valores JÁ IMPORTADOS da EC — e editáveis: a EC levanta o preço, a OS fecha a condição. Cada forma aceita “Não se aplica” ou um valor."],
               ["BV — percentual ou valor fixo", "equipe", "Só dentro da forma com BV e NF; nas outras duas não existe BV, por definição. Incide sobre o valor NEGOCIADO na OS."],
-              ["Justificativa do BV", "equipe", "Uma POR FORMA, e não uma por item como na EC: aqui as três convivem e cada uma responde por si. Cobrada quando a forma vale e sai sem BV — ou com BV abaixo de 15%."],
+              ["Justificativa do BV", "equipe", "OPCIONAL. Uma por FORMA, e não uma por item como na EC: aqui as três convivem e cada uma responde por si. O campo aparece quando a forma vale e sai sem BV — ou com BV abaixo de 15% —, mas nada impede de salvar a OS sem ele."],
               ["Formas de pagamento", "equipe", "Como o fornecedor recebe."],
               ["Descritivo", "auto", "O descritivo financeiro e o detalhado da produção, um abaixo do outro, vindos dos itens da EC."],
             ]}
@@ -1205,10 +1205,10 @@ const MODULOS: Modulo[] = [
             responde, ou quando tem uma <b>sugestão</b>. O botão fica no cabeçalho, ao lado do Guia.
           </p>
           <Dica>
-            Antes de abrir, vale conferir três coisas que resolvem a maioria dos casos: campo que <b>não salva</b>
-            costuma ter uma pendência travando (o aviso leva até ela quando você clica); valor que <b>não aparece</b>
-            costuma ser permissão (os blocos financeiros são restritos); e e-mail que “não chegou” costuma ser a
-            <b> homologação</b>, que desvia tudo para a caixa de teste.
+            Antes de abrir, vale conferir três coisas que resolvem a maioria dos casos: item da EC que <b>não vira
+            OS</b> costuma ter um campo obrigatório em falta (a tela diz qual, item a item); valor que <b>não
+            aparece</b> costuma ser permissão (os blocos financeiros são restritos); e e-mail que “não chegou”
+            costuma ser a <b>homologação</b>, que desvia tudo para a caixa de teste.
           </Dica>
         </Secao>
         <Secao titulo="O que vai no chamado">
