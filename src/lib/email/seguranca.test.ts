@@ -54,3 +54,82 @@ describe("trava de homologação do e-mail", () => {
     expect(protegerDestinatarios(original)).toBe(original);
   });
 });
+
+/**
+ * A ÚNICA porta de saída durante a homologação — e ela precisa continuar
+ * estreita.
+ *
+ * `interna` significa "da Pólobh para a Pólobh": hoje só o chamado de Help Desk
+ * a usa. Um teste que falhe aqui significa uma mensagem escapando da trava sem
+ * ter direito, que é exatamente o acidente que a trava existe para impedir.
+ */
+describe("mensagem interna atravessa a trava", () => {
+  beforeEach(() => {
+    vi.spyOn(flags, "emailDestinoReal", "get" as never).mockReturnValue(false as never);
+  });
+
+  it("sai para o destinatário de verdade, sem tarja e sem prefixo no assunto", () => {
+    const chamado = msg({
+      para: [{ email: "suporte@exemplo.com", nome: "Suporte Pólobh" }],
+      assunto: "[Help Desk] Erro no sistema — A OS não salva",
+      interna: true,
+    });
+    const saida = protegerDestinatarios(chamado);
+    expect(saida).toBe(chamado);
+    expect(saida.para[0].email).toBe("suporte@exemplo.com");
+    expect(saida.assunto).not.toContain("[TESTE");
+    expect(saida.html).not.toContain("MENSAGEM DE TESTE");
+  });
+
+  it("o responder-para sobrevive — é por ele que a resposta volta a quem abriu", () => {
+    const chamado = msg({ interna: true, responderPara: { email: "ana@polobh.com.br", nome: "Ana" } });
+    expect(protegerDestinatarios(chamado).responderPara).toEqual({ email: "ana@polobh.com.br", nome: "Ana" });
+  });
+
+  it("sem a marca, continua desviada — a exceção não vaza para o resto", () => {
+    // O e-mail ao fornecedor é o caso que a trava existe para pegar.
+    const aoFornecedor = msg();
+    expect(protegerDestinatarios(aoFornecedor).para[0].email).toBe(EMAIL_TESTE);
+    // E `interna: false` explícito também não abre a porta.
+    expect(protegerDestinatarios(msg({ interna: false })).para[0].email).toBe(EMAIL_TESTE);
+  });
+});
+
+/**
+ * Quem pode marcar `interna`? Só o Help Desk — e este teste é o guardião disso.
+ *
+ * Ele lê os templates de verdade e confere um a um: se alguém amanhã marcar o
+ * disparo de OS ou o credenciamento como interno, o teste quebra aqui antes de
+ * a mensagem chegar a um fornecedor.
+ */
+describe("só o Help Desk é mensagem interna", () => {
+  it("nenhum outro template escapa da trava", async () => {
+    const t = await import("./templates");
+    const projeto = {
+      titulo: "Convenção", local: "Expominas", evento: "2026-10-14", horario: "08:00 às 18:00",
+      cronograma: { evento: [{ data: "2026-10-14" }] },
+    };
+    const ec = { id: "ec", numero: "EC-01", projeto, cliente: { nome: "ACME", representante: { email: "c@acme.com", nome: "Cliente" } }, validadeDias: 30 };
+    const os = {
+      id: "os", numero: "OS-01", projeto, cronograma: [],
+      fornecedor: { razaoSocial: "Sonora", email: "f@sonora.com" },
+      credenciamento: { prazoLimite: "", linkFormulario: "" },
+      slugCredenciamento: "abc",
+    };
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    const externos: MensagemEmail[] = [
+      t.emailDispararOs(os as any, ec as any),
+      t.emailCredenciamento(os as any, ec as any),
+      t.emailCronogramaDoFornecedor(os as any, ec as any),
+      t.emailEcParaAprovacao(ec as any),
+    ];
+    for (const m of externos) expect(m.interna).toBeFalsy();
+
+    // E o do Help Desk é, de fato, o que atravessa.
+    const chamado = t.emailHelpDesk(
+      { tipo: "Erro no sistema", assunto: "x", descricao: "y", tela: "/", autorNome: "Ana", autorEmail: "ana@polobh.com.br", ambiente: "—" },
+      "suporte@exemplo.com"
+    );
+    expect(chamado.interna).toBe(true);
+  });
+});

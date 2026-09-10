@@ -12,11 +12,18 @@
  * O endereço de destino é configurável (Configurações › Geral) e não vem de
  * variável de ambiente de propósito: trocar o suporte não pode depender de
  * publicar versão nova.
+ *
+ * ESTA É A ÚNICA TELA CUJO E-MAIL SAI DE VERDADE enquanto o app está em
+ * homologação (10/09/2026). A trava existe para proteger fornecedor e cliente
+ * de receberem algo que ainda não vale; aqui a mensagem vai da Pólobh para a
+ * Pólobh, e um chamado que não chega é um chamado que não existe. Quem carrega
+ * a exceção é a marca `interna` da mensagem — ver `lib/email/seguranca.ts`, e
+ * os testes que garantem que nenhum outro template a use.
  */
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { PageShell } from "@/components/layout/AppLayout";
-import { Button, Card, CardTitle, Field, Input, Select, Textarea, AvisoHomologacaoEmail } from "@/components/ui";
+import { Button, Card, CardTitle, Field, Input, Select, Textarea } from "@/components/ui";
 import { IcSend } from "@/components/icons";
 import { enviarChamado, resumoDoEnvio, type TipoChamado } from "@/lib/email";
 import { useAuth } from "@/store/auth";
@@ -91,8 +98,6 @@ export function Suporte() {
       title="Help Desk"
       subtitle="Abra um chamado para o suporte do sistema. A tela e o navegador vão junto — você não precisa descrevê-los."
     >
-      <AvisoHomologacaoEmail className="mb-4" />
-
       <div className="grid lg:grid-cols-[1fr_320px] gap-4 items-start">
         <Card>
           <CardTitle hint="Quanto mais concreto o relato, menos idas e vindas. Diga o que você fez, o que esperava e o que aconteceu.">
@@ -125,8 +130,8 @@ export function Suporte() {
             </Field>
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <p className="text-[12.5px] text-ink-3">
-                Vai para <b className="text-ink-2">{helpdesk.email}</b>, e a resposta volta para{" "}
-                <b className="text-ink-2">{usuario?.email || "o seu e-mail"}</b>.
+                Sai de verdade para <b className="text-ink-2">{helpdesk.email}</b>; a resposta do suporte chega no seu
+                e-mail, <b className="text-ink-2">{usuario?.email || "o cadastrado no seu usuário"}</b>.
               </p>
               <Button icon={<IcSend width={15} height={15} />} onClick={enviar} disabled={!podeEnviar}>
                 {enviando ? "Enviando…" : "Abrir chamado"}
@@ -151,8 +156,8 @@ export function Suporte() {
               restritos a Direção, Administrativo e Administrador.
             </li>
             <li>
-              E-mail que "não chegou" pode ser a <b className="text-ink">homologação</b>: enquanto ela estiver
-              ligada, tudo vai para a caixa de teste.
+              E-mail de <b className="text-ink">fornecedor ou cliente</b> ainda não sai de verdade: o sistema está em
+              homologação e desvia tudo para a caixa de teste. O chamado daqui é a exceção — ele sai mesmo.
             </li>
           </ul>
         </Card>

@@ -11,7 +11,7 @@
  * para construir e testar todo o fluxo antes de plugar o Brevo.
  */
 import { flags } from "@/lib/flags";
-import { EMAIL_TESTE, destinoRealLiberado, protegerDestinatarios } from "./seguranca";
+import { EMAIL_TESTE, protegerDestinatarios } from "./seguranca";
 import { supabase } from "@/lib/supabaseClient";
 import { criarOsExcelBuffer } from "@/lib/excel/os";
 import { criarEcExcelBuffer } from "@/lib/excel/ec";
@@ -66,7 +66,9 @@ export async function enviarEmail(bruta: MensagemEmail): Promise<ResultadoEmail>
   // A trava de homologação vem ANTES de qualquer envio, e é o último ponto por
   // onde toda mensagem passa: caminho novo escrito amanhã já nasce protegido.
   const msg = protegerDestinatarios(bruta);
-  const desviado = !destinoRealLiberado();
+  // Desviada é a que a trava REESCREVEU. A interna passa direto (Help Desk), e
+  // dizer a ela "foi para a caixa de teste" seria mentir na tela.
+  const desviado = msg.para[0]?.email !== bruta.para[0]?.email;
 
   // Modo simulação: enquanto a flag estiver desligada, nada sai (útil em dev/testes).
   if (!flags.email) {

@@ -437,6 +437,33 @@ A tela de origem é gravada pela casca a cada navegação (`lib/telaAnterior.ts`
 não pode importar uma página carregada sob demanda sem arrastá-la para o pacote
 inicial.
 
+### O e-mail do Help Desk sai de verdade (10/09/2026)
+É a **única** mensagem que atravessa a homologação, e isso foi preciso porque o
+chamado simplesmente **não chegava**. Dois guardas, somados, barravam tudo:
+
+1. `protegerDestinatarios` (`lib/email/seguranca`) reescreve o destino de toda
+   mensagem para a caixa de teste enquanto `VITE_EMAIL_DESTINO_REAL` é `false`;
+2. `send-email` recusa destinatário que o sistema não conheça — fornecedor,
+   contato de cliente ou usuário do app (M-04, `emails_conhecidos`).
+
+A caixa de teste não é nenhum dos três. Com as duas ligadas, **nenhum e-mail
+conseguia sair**: o último envio bem-sucedido do sistema é de 20/07/2026.
+
+A saída tem duas partes, as duas estreitas de propósito:
+- `MensagemEmail.interna` marca a mensagem que vai **da Pólobh para a Pólobh**.
+  A trava existe para proteger TERCEIROS; no chamado de Help Desk não há
+  terceiro — ele sai para o suporte cadastrado e responde para quem o abriu.
+  Só `emailHelpDesk` usa a marca, e há teste que percorre os outros templates
+  para garantir que nenhum deles a ganhe por descuido.
+- `emails_conhecidos` passou a aceitar o endereço gravado em
+  `config_app.helpdesk` e a caixa de homologação (migração `20260910160000`).
+  A função continua fechada: quem escolhe o endereço é quem administra, pela
+  política de escrita de `config_app`, e nunca quem dispara.
+
+**O que NÃO existe:** recebimento de volta para dentro do aplicativo. A resposta
+do suporte chega na caixa de entrada de quem abriu o chamado (cabeçalho
+`reply-to`), não numa tela do sistema — não há ingestão de e-mail de entrada.
+
 O endereço vive em `config_app` (migração `20260910100000`), uma tabela de
 chave/valor criada para isto: não havia **onde** guardar um ajuste do sistema —
 ou virava coluna numa tabela que não é dela, ou variável de ambiente, que só

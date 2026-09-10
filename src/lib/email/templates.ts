@@ -23,6 +23,20 @@ export interface MensagemEmail {
   responderPara?: { email: string; nome?: string };
   /** Anexos (hoje: a planilha Excel referente à ação que disparou o e-mail). */
   anexos?: AnexoEmail[];
+  /**
+   * Mensagem INTERNA da casa — atravessa a trava de homologação.
+   *
+   * A trava (`lib/email/seguranca`) existe para proteger TERCEIROS: fornecedor
+   * e cliente não podem receber um link de credenciamento ou um cronograma que
+   * ainda não vale. Ela não tem o que proteger quando a mensagem vai da Pólobh
+   * para a própria Pólobh — é o caso do chamado de Help Desk, que sai para o
+   * endereço de suporte cadastrado e responde para quem abriu.
+   *
+   * Só o Help Desk usa isto hoje, e de propósito: cada caminho que vier a
+   * marcar `interna` está dizendo "esta mensagem não sai da casa", e isso
+   * precisa ser verdade.
+   */
+  interna?: boolean;
 }
 
 const REMETENTE_NOME = "Pólobh Eventos";
@@ -183,5 +197,8 @@ export function emailHelpDesk(c: Chamado, para: string): MensagemEmail {
     html: wrap("Chamado aberto no sistema", corpo),
     // Responder vai direto para quem abriu.
     responderPara: c.autorEmail ? { email: c.autorEmail, nome: c.autorNome } : undefined,
+    // Da Pólobh para a Pólobh: não há terceiro a proteger, e o chamado precisa
+    // chegar de verdade mesmo com a homologação ligada (ver `seguranca.ts`).
+    interna: true,
   };
 }

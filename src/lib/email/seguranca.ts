@@ -28,13 +28,23 @@ const NOME_TESTE = "Homologação Pólobh";
 export const destinoRealLiberado = (): boolean => flags.emailDestinoReal;
 
 /**
+ * Esta mensagem escapa da trava?
+ *
+ * Sim quando a virada já aconteceu, e sim quando ela é INTERNA — da Pólobh para
+ * a Pólobh. A trava existe para proteger fornecedor e cliente de receberem algo
+ * que ainda não vale; o chamado de Help Desk vai para o suporte da casa e
+ * responde para quem o abriu, e não há terceiro nenhum nessa conversa.
+ */
+const podeSairDireto = (msg: MensagemEmail): boolean => destinoRealLiberado() || !!msg.interna;
+
+/**
  * Desvia a mensagem para a caixa de teste, deixando à vista o que teria
  * acontecido: o assunto ganha o destino real e o corpo ganha uma tarja no topo.
  *
  * Devolve a mensagem intacta quando o destino real está liberado.
  */
 export function protegerDestinatarios(msg: MensagemEmail): MensagemEmail {
-  if (destinoRealLiberado()) return msg;
+  if (podeSairDireto(msg)) return msg;
 
   const reais = msg.para.map((p) => (p.nome ? `${p.nome} <${p.email}>` : p.email));
   const lista = reais.join(", ") || "(sem destinatário)";

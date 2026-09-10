@@ -1227,6 +1227,11 @@ const MODULOS: Modulo[] = [
             direto para <b>você</b> — quem responde só aperta “responder”. Todo chamado fica registrado nos
             <b> Logs do sistema</b>.
           </p>
+          <Atencao>
+            Este e-mail <b>sai de verdade</b>, e é o único que sai por enquanto. Os disparos para fornecedor e
+            cliente continuam em homologação, indo para a caixa de teste. A resposta do suporte chega no <b>seu
+            e-mail</b>, não numa tela do sistema.
+          </Atencao>
         </Secao>
       </>
     ),
