@@ -882,8 +882,12 @@ const MODULOS: Modulo[] = [
           <Passos>
             <span>Preencha <b>Modalidade</b> e as <b>datas</b> em <b>Dados Gerais</b> e salve o projeto.</span>
             <span>Abra a aba <b>Check-list</b> (a segunda, logo depois de Dados Gerais). A lista já vem pronta.</span>
-            <span>Ajuste responsável, prazo e status tarefa a tarefa. Dá para <b>adicionar tarefas</b> que só existem neste projeto.</span>
+            <span>Ajuste responsável, prazo e status tarefa a tarefa. O <b>+</b> no fim de cada etapa cria uma tarefa ali mesmo, só deste projeto.</span>
           </Passos>
+          <p>
+            Cada tarefa pode ter uma <b>descrição</b> embaixo do título — o "como fazer" que veio da lista padrão. Ela
+            se edita como o título: clique no texto (ou em <b>+ descrição</b>) e escreva.
+          </p>
           <Dica>Trocar as datas do projeto <b>não</b> mexe nos prazos sozinho: a tela avisa quantas tarefas mudariam e você decide com o botão <b>Recalcular prazos</b>.</Dica>
         </Secao>
         <Secao titulo="Prazo de cada tarefa">

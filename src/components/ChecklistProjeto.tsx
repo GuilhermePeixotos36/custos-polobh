@@ -47,7 +47,9 @@ const AVISO_PRAZO: Record<SituacaoPrazo, { tom: Tom; rotulo: string } | null> = 
   atrasado: { tom: "danger", rotulo: "Atrasada" },
   hoje: { tom: "danger", rotulo: "Vence hoje" },
   proximo: { tom: "warning", rotulo: "Vence em breve" },
-  "sem-data": { tom: "neutral", rotulo: "Sem data" },
+  // Sem data não é aviso: já se lê no próprio campo do prazo, que mostra
+  // "Sem data" em cinza. Um selo a mais só repetiria a mesma informação.
+  "sem-data": null,
   "em-dia": null,
   encerrado: null,
 };
@@ -63,8 +65,15 @@ interface Props {
   podeEditar: boolean;
   /** Persiste UM item. A tela chama a cada alteração. */
   onSalvarItem: (item: ItemChecklist) => void;
-  /** Devolve o id da tarefa criada, para a tela levar o cursor até ela. */
-  onCriarItem: () => Promise<string | void>;
+  /**
+   * Cria uma tarefa e devolve o id, para a tela levar o cursor até ela.
+   *
+   * `base` é onde ela nasce: a etapa (ou o dia) do grupo em que a pessoa
+   * clicou. Sem isso, o "+" no fim de um grupo criava a tarefa em OUTRO lugar
+   * da lista — a pessoa clicava em PRÉ-PRODUÇÃO e o cursor sumia no fim da
+   * tela.
+   */
+  onCriarItem: (base?: { etapa?: string; dataLimite?: string }) => Promise<string | void>;
   onRemoverItem: (item: ItemChecklist) => void;
   /** Traz para este check-list os itens acrescentados à lista padrão depois. */
   onSincronizar?: () => void;
@@ -97,6 +106,17 @@ export function ChecklistProjeto({
   const [filtroResponsavel, setFiltroResponsavel] = useState("");
   /** Id da última tarefa criada aqui — recebe o foco assim que aparece. */
   const [idRecemCriado, setIdRecemCriado] = useState("");
+  /**
+   * Tarefas que a pessoa encerrou AGORA, nesta sessão.
+   *
+   * Concluir recolhe o item da lista (é o pedido do briefing), e o efeito
+   * colateral era ruim: o clique fazia a linha evaporar, sem o risco em xis nem
+   * o contador subindo à vista, e quem errou o alvo tinha de ir em "Ver
+   * recolhidas" para descobrir o que sumiu. Aqui ela FICA — riscada, com o
+   * tique verde — até a próxima visita à aba. O banco já guardou `oculto`;
+   * isto é só a tela não escondendo o que acabou de acontecer.
+   */
+  const [encerradasAgora, setEncerradasAgora] = useState<string[]>([]);
 
   const resumo = useMemo(() => resumirChecklist(checklist, hoje), [checklist, hoje]);
 
@@ -117,15 +137,20 @@ export function ChecklistProjeto({
    */
   const visiveis = useMemo(() => {
     const cobrada = (i: ItemChecklist) => (pendenciasPorItem[i.id] ?? 0) > 0;
-    const base = checklist.itens.filter((i) => verRecolhidas || !i.oculto || cobrada(i));
+    const base = checklist.itens.filter(
+      (i) => verRecolhidas || !i.oculto || cobrada(i) || encerradasAgora.includes(i.id)
+    );
     const porPessoa = filtroResponsavel
       ? base.filter((i) => i.responsavel === filtroResponsavel || cobrada(i))
       : base;
     return ordenarPorPrazo(porPessoa);
-  }, [checklist.itens, verRecolhidas, filtroResponsavel, pendenciasPorItem]);
+  }, [checklist.itens, verRecolhidas, filtroResponsavel, pendenciasPorItem, encerradasAgora]);
 
   /** Tudo o que está fora da visão principal — concluído OU recolhido à mão. */
   const recolhidas = useMemo(() => checklist.itens.filter((i) => i.oculto).length, [checklist.itens]);
+
+  /** A chave do grupo a que um item pertence, no agrupamento escolhido. */
+  const chaveDoGrupo = (i: ItemChecklist) => (agrupamento === "data" ? i.dataLimite || "" : i.etapa || "OUTROS");
 
   /** Blocos da tela: por etapa (ordem do processo) ou por data (visão cronológica). */
   const blocos = useMemo(() => {
@@ -150,16 +175,49 @@ export function ChecklistProjeto({
     }));
   }, [visiveis, agrupamento]);
 
+  /**
+   * Progresso de cada grupo, contado sobre o grupo INTEIRO — e não sobre o que
+   * está à vista.
+   *
+   * O cabeçalho dizia "0 de 5" numa etapa com três tarefas concluídas: ele
+   * contava a lista visível, de onde a tarefa concluída acabara de sair. O
+   * número que interessa é o do processo ("3 de 8 desta etapa"), não o do
+   * filtro. "Não se aplica" fica de fora do denominador, como no resumo do
+   * topo — tarefa que não vale não é meta.
+   */
+  const progressoDoGrupo = useMemo(() => {
+    const mapa = new Map<string, { feitas: number; contam: number }>();
+    for (const item of checklist.itens) {
+      if (item.status === "Não se aplica") continue;
+      const chave = chaveDoGrupo(item);
+      const atual = mapa.get(chave) ?? { feitas: 0, contam: 0 };
+      atual.contam += 1;
+      if (item.status === "Concluído") atual.feitas += 1;
+      mapa.set(chave, atual);
+    }
+    return mapa;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checklist.itens, agrupamento]);
+
   const responsaveis = useMemo(
     () => [...new Set(checklist.itens.map((i) => i.responsavel).filter(Boolean))].sort(),
     [checklist.itens]
   );
 
-  const alterar = (item: ItemChecklist, patch: Partial<ItemChecklist>) =>
+  const alterar = (item: ItemChecklist, patch: Partial<ItemChecklist>) => {
+    // Recolher à mão é dizer "some daqui": aí a tarefa some mesmo, mesmo que
+    // tenha sido encerrada nesta sessão.
+    if (patch.oculto) setEncerradasAgora((ids) => ids.filter((id) => id !== item.id));
     onSalvarItem({ ...item, ...patch });
+  };
 
-  const mudarStatus = (item: ItemChecklist, status: StatusChecklist) =>
-    onSalvarItem(definirStatus(item, status, nomeAtual, new Date().toISOString()));
+  const mudarStatus = (item: ItemChecklist, status: StatusChecklist) => {
+    const depois = definirStatus(item, status, nomeAtual, new Date().toISOString());
+    setEncerradasAgora((ids) =>
+      encerrado(depois) ? [...new Set([...ids, item.id])] : ids.filter((id) => id !== item.id)
+    );
+    onSalvarItem(depois);
+  };
 
   /**
    * Cria a tarefa e garante que ela apareça.
@@ -168,9 +226,9 @@ export function ChecklistProjeto({
    * responsável e, com um filtro ativo, o clique em "Nova tarefa" não mostrava
    * nada — parecia que o botão não tinha funcionado.
    */
-  const criar = async () => {
+  const criar = async (base?: { etapa?: string; dataLimite?: string }) => {
     setFiltroResponsavel("");
-    const id = await onCriarItem();
+    const id = await onCriarItem(base);
     if (typeof id === "string") setIdRecemCriado(id);
   };
 
@@ -198,7 +256,7 @@ export function ChecklistProjeto({
             )}
             {resumo.proximos > 0 && (
               <Badge tom="warning">
-                {resumo.proximos} {resumo.proximos === 1 ? "vencendo" : "vencendo"}
+                {resumo.proximos} vencendo
               </Badge>
             )}
             <Badge tom="neutral">{resumo.abertos} em aberto</Badge>
@@ -244,11 +302,17 @@ export function ChecklistProjeto({
               aria-label="Filtrar por responsável"
             >
               <option value="">Todos os responsáveis</option>
-              {responsaveis.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
+              {/* "As minhas" é o filtro que mais se usa, e estava escondido no
+                  meio de uma lista alfabética de nomes. Fica em cima, com o
+                  nome próprio junto para não haver dúvida de quem é "minhas". */}
+              {nomeAtual && <option value={nomeAtual}>Minhas tarefas ({nomeAtual})</option>}
+              {responsaveis
+                .filter((r) => r !== nomeAtual)
+                .map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
             </Select>
           )}
         </div>
@@ -284,7 +348,7 @@ export function ChecklistProjeto({
           por tarefa — borda, sombra e respiro em cada uma — doze tarefas viravam
           doze objetos, e a leitura de cima a baixo se perdia. */}
       {blocos.map((bloco) => {
-        const feitas = bloco.itens.filter((i) => i.status === "Concluído").length;
+        const progresso = progressoDoGrupo.get(bloco.chave) ?? { feitas: 0, contam: 0 };
         return (
           <section key={bloco.chave} className="rounded-card border border-border bg-surface shadow-card overflow-hidden">
             <header className="flex items-center gap-2 px-4 py-2.5 bg-[#FAFAFB] border-b border-border-soft">
@@ -294,7 +358,7 @@ export function ChecklistProjeto({
               </h3>
               {/* "3 de 8" diz mais que "8": é o progresso do grupo, à vista. */}
               <span className="ml-auto shrink-0 text-[11.5px] font-bold text-ink-3 tabular-nums">
-                {feitas} de {bloco.itens.length}
+                {progresso.feitas} de {progresso.contam}
               </span>
             </header>
             <ul className="divide-y divide-border-soft">
@@ -314,6 +378,29 @@ export function ChecklistProjeto({
                   onRemover={() => onRemoverItem(item)}
                 />
               ))}
+              {/* Acrescentar onde se está olhando. O botão do topo cria a tarefa
+                  no fim da lista inteira; este cria DENTRO do grupo — na etapa
+                  que a pessoa está revisando, ou no dia que ela está montando. */}
+              {podeEditar && (
+                <li>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void criar(
+                        agrupamento === "data" ? { dataLimite: bloco.chave } : { etapa: bloco.chave === "OUTROS" ? "" : bloco.chave }
+                      )
+                    }
+                    className="w-full text-left px-4 py-2 text-[12.5px] font-bold text-ink-3 hover:bg-[#FCFCFD] hover:text-primary-dark inline-flex items-center gap-1.5"
+                  >
+                    <IcPlus width={14} height={14} />
+                    {agrupamento === "data"
+                      ? bloco.chave
+                        ? `Nova tarefa em ${dataBR(bloco.chave)}`
+                        : "Nova tarefa sem data"
+                      : `Nova tarefa em ${bloco.titulo}`}
+                  </button>
+                </li>
+              )}
             </ul>
           </section>
         );
@@ -380,6 +467,28 @@ function ItemCard({
     if (limpo === item.titulo) return;
     onAlterar({ titulo: limpo });
   };
+  /**
+   * A DESCRIÇÃO da tarefa — o que precisa ser feito.
+   *
+   * Ela existia no tipo, era preenchida na lista padrão (Configurações →
+   * Check-list, com o rótulo "aparece na tarefa do projeto") e era copiada para
+   * cada projeto por `itemDoModelo`... e não aparecia em lugar nenhum. Quem
+   * escrevia a instrução no modelo estava escrevendo para ninguém, e a tarefa
+   * do projeto continuava sendo só um título solto.
+   *
+   * Mesmo tratamento do título: texto para ler, campo ao clicar.
+   */
+  const [descricao, setDescricao] = useState(item.descricao);
+  const [editandoDescricao, setEditandoDescricao] = useState(false);
+  useEffect(() => {
+    if (!editandoDescricao) setDescricao(item.descricao);
+  }, [item.descricao, editandoDescricao]);
+  const commitDescricao = () => {
+    setEditandoDescricao(false);
+    const limpo = colapsarEspacos(descricao);
+    if (limpo !== item.descricao) onAlterar({ descricao: limpo });
+  };
+
   const fechado = encerrado(item);
   const anexos = useAnexosChecklist(item.id);
   /**
@@ -472,6 +581,43 @@ function ItemCard({
             </button>
           )}
 
+          {/* ------------------------ a descrição ----------------------- */}
+          {/* O "como fazer" da tarefa, embaixo do título. Some quando não há o
+              que dizer — e o convite para escrever aparece no hover, como o da
+              conversa, para não encher a lista de linhas vazias. */}
+          {editandoDescricao ? (
+            <Input
+              autoFocus
+              className="!h-7 !px-2 !text-[12.5px] w-full mt-0.5"
+              value={descricao}
+              placeholder="O que precisa ser feito"
+              onChange={(e) => setDescricao(e.target.value)}
+              onBlur={commitDescricao}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                if (e.key === "Escape") {
+                  setDescricao(item.descricao);
+                  setEditandoDescricao(false);
+                }
+              }}
+              aria-label="Descrição da tarefa"
+            />
+          ) : item.descricao ? (
+            <button
+              type="button"
+              disabled={!podeEditar}
+              onClick={() => setEditandoDescricao(true)}
+              className={cx(
+                "block w-full text-left text-[12.5px] leading-snug rounded px-1 -mx-1 mt-0.5 input-focus",
+                fechado ? "text-ink-3" : "text-ink-2",
+                podeEditar && "hover:bg-[#F1F2F5] cursor-text"
+              )}
+              title={podeEditar ? "Clique para editar a descrição" : undefined}
+            >
+              {item.descricao}
+            </button>
+          ) : null}
+
           {/* ------------------------- a linha de dados ------------------ */}
           {/* Prazo, responsável e status como TEXTO, lado a lado. Eram três
               caixas com borda, sempre visíveis — trinta e seis molduras numa
@@ -541,7 +687,7 @@ function ItemCard({
               <ConclusaoDoItem item={item} podeEditar={podeEditar} onAlterar={onAlterar} />
             )}
 
-            {aviso && aviso.rotulo !== "Sem data" && <Badge tom={aviso.tom}>{aviso.rotulo}</Badge>}
+            {aviso && <Badge tom={aviso.tom}>{aviso.rotulo}</Badge>}
             {recolhidaAberta && <Badge tom="neutral">Recolhida</Badge>}
             {item.dataManual && (
               <span className="text-[11px] font-bold text-ink-3" title="O recálculo de prazos não altera esta data">
@@ -549,6 +695,20 @@ function ItemCard({
               </span>
             )}
             <NotifDot inline n={pendencias} title={`${pendencias} pendência(s) sua(s) nesta tarefa`} />
+
+            {/* O convite para descrever fica na LINHA DE DADOS, e no fim dela:
+                numa linha própria, toda tarefa sem descrição reservava a altura
+                de uma linha invisível; no meio da linha, abria um buraco entre
+                dois dados. Aqui ele encosta nas outras ações de hover. */}
+            {!item.descricao && podeEditar && (
+              <button
+                type="button"
+                onClick={() => setEditandoDescricao(true)}
+                className="font-bold text-ink-3 hover:text-primary-dark rounded px-1 -mx-1 input-focus opacity-0 group-hover:opacity-100 focus:opacity-100 max-md:opacity-100 transition-opacity"
+              >
+                + descrição
+              </button>
+            )}
 
             {/* A conversa entra na PRÓPRIA linha de dados, encostada à direita.
                 Ela ocupava uma faixa inteira por tarefa — um terço da altura da
@@ -558,7 +718,9 @@ function ItemCard({
                 passar o mouse — e sempre no toque, onde não existe hover. */}
             <div
               className={cx(
-                "ml-auto",
+                // No celular ela ganha a linha inteira: espremida no fim de uma
+                // linha estreita, "1 observação · 1 aberta" quebrava em três.
+                "ml-auto max-md:ml-0 max-md:w-full",
                 !temConversa && "opacity-0 group-hover:opacity-100 focus-within:opacity-100 max-md:opacity-100 transition-opacity"
               )}
             >

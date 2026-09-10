@@ -596,6 +596,35 @@ O que mudou, e por quê:
 
 A mesma lista, com as mesmas sete tarefas, ficou cerca de um terço mais curta.
 
+### Segunda passada (10/09/2026)
+Quatro coisas que a primeira revisão deixou passar — as duas primeiras são
+defeito, não gosto:
+
+- **A descrição da tarefa não aparecia em lugar nenhum.** O campo existe no
+  tipo, é preenchido na lista padrão (com o rótulo "aparece na tarefa do
+  projeto"!) e era copiado para cada projeto por `itemDoModelo` — e a tela nunca
+  o desenhou. Quem escrevia a instrução no modelo escrevia para ninguém, e a
+  tarefa continuava um título solto. Agora ela aparece embaixo do título e se
+  edita como ele: texto para ler, campo ao clicar.
+- **O progresso do grupo contava a lista visível.** "0 de 5" numa etapa com três
+  tarefas concluídas — porque concluir recolhe o item, e o cabeçalho contava o
+  que sobrou à vista. Passa a contar o grupo inteiro, tirando "Não se aplica" do
+  denominador, como o resumo do topo.
+- **Concluir fazia a linha evaporar.** O item é recolhido (é o pedido do
+  briefing), e o efeito era o clique apagar a tarefa da tela: sem o risco em
+  xis, sem o contador subindo à vista, e sem como voltar atrás senão indo em
+  "Ver recolhidas". Agora a tarefa encerrada NESTA sessão fica — riscada, com o
+  tique verde — até a próxima visita à aba. O banco já gravou `oculto`; é só a
+  tela não escondendo o que acabou de acontecer.
+- **Acrescentar tarefa onde se está olhando**: cada grupo ganhou o seu "+", e a
+  tarefa nasce naquela etapa (ou naquele dia). O botão do topo cria no fim da
+  lista, que é o certo para ele — mas era o único jeito, e a tarefa nova
+  aparecia longe de onde a pessoa clicou.
+
+Junto, duas miudezas: "Minhas tarefas" subiu para o topo do filtro de
+responsável (era o filtro mais usado, perdido no meio dos nomes) e a conversa
+ganha a linha inteira no celular, onde vinha espremida em três linhas.
+
 ## Check-list (Work Flow) do projeto
 Substitui a cobrança informal por uma lista de tarefas com prazo, dono e histórico.
 

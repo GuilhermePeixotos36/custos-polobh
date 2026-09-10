@@ -1502,7 +1502,7 @@ function ChecklistPainel({
         usuarios={usuarios}
         podeEditar={podeEditar}
         onSalvarItem={(item) => void estado.salvarItem(item)}
-        onCriarItem={() => estado.criarItem()}
+        onCriarItem={(base) => estado.criarItem(base)}
         onRemoverItem={(item) => void estado.removerItem(item)}
         onSincronizar={() => void estado.sincronizar()}
         itensNovosNoModelo={estado.itensNovosNoModelo}

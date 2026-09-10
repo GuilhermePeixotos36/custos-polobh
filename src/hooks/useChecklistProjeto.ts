@@ -34,7 +34,7 @@ export interface EstadoChecklist {
   modalidadeDivergente: boolean;
   salvarItem: (item: ItemChecklist) => Promise<void>;
   /** Devolve o id da tarefa criada — a tela usa para dar foco nela. */
-  criarItem: () => Promise<string | void>;
+  criarItem: (base?: { etapa?: string; dataLimite?: string }) => Promise<string | void>;
   removerItem: (item: ItemChecklist) => Promise<void>;
   aplicarRecalculo: () => Promise<void>;
   sincronizar: () => Promise<void>;
@@ -147,7 +147,9 @@ export function useChecklistProjeto(
     [carregar, recarregarPendencias]
   );
 
-  const criarItem = useCallback(async (): Promise<string | void> => {
+  const criarItem = useCallback(async (
+    base?: { etapa?: string; dataLimite?: string }
+  ): Promise<string | void> => {
     if (!checklist) return;
     const ordem = checklist.itens.reduce((max, i) => Math.max(max, i.ordem), -1) + 1;
     const novo: ItemChecklist = {
@@ -158,11 +160,16 @@ export function useChecklistProjeto(
       // em vez de precisar apagar um texto de exemplo.
       titulo: "",
       descricao: "",
-      // Cai no mesmo bloco do último item, para nascer perto do contexto de quem criou.
-      etapa: checklist.itens[checklist.itens.length - 1]?.etapa ?? "",
+      // Nasce ONDE a pessoa pediu — na etapa (ou no dia) do grupo em que ela
+      // clicou. Sem isso, sobra o bloco do último item da lista, que é o
+      // contexto de quem criou quando o pedido vem do botão do topo.
+      etapa: base?.etapa ?? checklist.itens[checklist.itens.length - 1]?.etapa ?? "",
       status: "Pendente",
-      dataLimite: "",
-      dataManual: false,
+      dataLimite: base?.dataLimite ?? "",
+      // Data escolhida pela pessoa (o grupo do dia) é ajuste à mão: o recálculo
+      // do modelo não tem régua para item criado aqui, mas a marca deixa a
+      // intenção explícita.
+      dataManual: !!base?.dataLimite,
       concluidoEm: "",
       concluidoPor: "",
       responsavel: "",
