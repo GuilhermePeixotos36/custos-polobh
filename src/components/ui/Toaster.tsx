@@ -14,7 +14,12 @@ export function Toaster() {
     // Sobe acima da pílula de pendências quando ela existe (ver
     // NavegadorPendencias): os dois dividem o canto inferior direito, e o
     // aviso tapava justamente o comando que a pessoa ia usar em seguida.
-    <div className="fixed right-5 bottom-[calc(1.25rem+var(--altura-pilula,0px)+0.5rem)] z-50 flex flex-col gap-2 no-print">
+    /* z-[100]: o aviso fica ACIMA de tudo, sempre.
+       Estava em z-50, abaixo dos modais (z-[70]) e do painel do Help Desk — e
+       um toast escondido é pior do que toast nenhum: a ação parece não ter
+       acontecido, o erro não é lido, e a pessoa refaz tudo achando que o
+       clique falhou. Feedback é a última camada da tela, por definição. */
+    <div className="fixed right-5 bottom-[calc(1.25rem+var(--altura-pilula,0px)+0.5rem)] z-[100] flex flex-col gap-2 no-print">
       {toasts.map((t) => (
         <button
           key={t.id}

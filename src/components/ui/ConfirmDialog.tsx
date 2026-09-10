@@ -21,7 +21,10 @@ export function ConfirmDialog() {
   const danger = opts.tom === "danger";
 
   return (
-    <div className="no-print fixed inset-0 z-[60] flex items-center justify-center p-4">
+    /* z-[90]: acima dos modais (z-[70]) e do painel do Help Desk. Em z-[60] a
+       confirmação abria ATRÁS de quem a pediu — invisível e inclicável, então a
+       promessa nunca resolvia e o botão ficava travado em "…". */
+    <div className="no-print fixed inset-0 z-[90] flex items-center justify-center p-4">
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-[1px]"
         onClick={() => responder(false)}

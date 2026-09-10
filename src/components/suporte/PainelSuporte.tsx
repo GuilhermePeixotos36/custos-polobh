@@ -38,6 +38,7 @@ import {
 import { origemDoApp } from "@/lib/links";
 import { capturarTela, capturaSuportada, imagensColadas } from "@/lib/captura";
 import { ACCEPT_ANEXOS_CHAMADO, MAXIMO_ANEXOS_CHAMADO, motivoRecusaAnexoChamado, tamanhoLegivel } from "@/domain/anexos";
+import { destacarCampo, idCampoTrava } from "@/lib/destaque";
 import { cx, dataHoraBR } from "@/lib/format";
 import type { AnexoObservacao, Chamado, StatusChamado } from "@/data/types";
 
@@ -52,6 +53,10 @@ const TOM_STATUS: Record<StatusChamado, Tom> = {
   Respondido: "info",
   Resolvido: "success",
 };
+
+/** Âncoras dos campos, para o aviso poder levar a pessoa até eles. */
+const CAMPO_ASSUNTO = idCampoTrava("chamado-assunto");
+const CAMPO_DESCRICAO = idCampoTrava("chamado-descricao");
 
 /** Navegador e tamanho de tela: metade dos "não funciona aqui" mora nisso. */
 function ambienteAtual(): string {
@@ -270,10 +275,38 @@ function NovoChamado({
 
   useEffect(() => setTela(telaOrigem), [telaOrigem]);
 
-  const podeEnviar = assunto.trim().length > 2 && descricao.trim().length > 9 && !enviando;
+  /**
+   * O que ainda falta para o chamado poder ser aberto — e QUAL campo é.
+   *
+   * O botão não fica mais apagado sem dizer por quê. Um botão desabilitado é
+   * uma porta trancada sem aviso: quem escreveu pouco no relato clicava, não
+   * acontecia nada, e ia embora achando que tinha pedido ajuda — que é
+   * exatamente o oposto do que esta tela existe para fazer. Agora o clique
+   * responde: diz o que falta e põe o cursor lá.
+   */
+  function oQueFalta(): { aviso: string; campo: string } | null {
+    if (assunto.trim().length <= 2) {
+      return { aviso: "Escreva um assunto — uma frase que diga do que se trata.", campo: CAMPO_ASSUNTO };
+    }
+    if (descricao.trim().length <= 9) {
+      return {
+        aviso: "Conte o que aconteceu: o que você fez, o que esperava e o que apareceu.",
+        campo: CAMPO_DESCRICAO,
+      };
+    }
+    return null;
+  }
 
   async function enviar() {
-    if (!podeEnviar) return;
+    const falta = oQueFalta();
+    if (falta) {
+      // Mesma régua do resto do sistema: o aviso LEVA até o campo, pisca nele e
+      // deixa o cursor lá (`lib/destaque`).
+      toast(falta.aviso, "warning");
+      destacarCampo(falta.campo);
+      return;
+    }
+    if (enviando) return;
     setEnviando(true);
     try {
       const dados = {
@@ -331,23 +364,27 @@ function NovoChamado({
         </Select>
       </Field>
 
-      <Field label="Assunto">
-        <Input
-          value={assunto}
-          onChange={(e) => setAssunto(e.target.value)}
-          placeholder="Ex.: A OS não salva quando o fornecedor é MEI"
-          maxLength={120}
-        />
-      </Field>
+      <div id={CAMPO_ASSUNTO}>
+        <Field label="Assunto">
+          <Input
+            value={assunto}
+            onChange={(e) => setAssunto(e.target.value)}
+            placeholder="Ex.: A OS não salva quando o fornecedor é MEI"
+            maxLength={120}
+          />
+        </Field>
+      </div>
 
-      <Field label="O que aconteceu">
-        <Textarea
-          rows={6}
-          value={descricao}
-          onChange={(e) => setDescricao(e.target.value)}
-          placeholder={"O que você estava fazendo:\nO que esperava que acontecesse:\nO que aconteceu:"}
-        />
-      </Field>
+      <div id={CAMPO_DESCRICAO}>
+        <Field label="O que aconteceu">
+          <Textarea
+            rows={6}
+            value={descricao}
+            onChange={(e) => setDescricao(e.target.value)}
+            placeholder={"O que você estava fazendo:\nO que esperava que acontecesse:\nO que aconteceu:"}
+          />
+        </Field>
+      </div>
 
       <CaixaDeAnexos arquivos={arquivos} onMudar={setArquivos} />
 
@@ -360,7 +397,7 @@ function NovoChamado({
           Fica registrado aqui e avisa <b className="text-ink-2">{emailSuporte}</b>. A resposta aparece em{" "}
           <b className="text-ink-2">Meus chamados</b>.
         </p>
-        <Button icon={<IcSend width={15} height={15} />} onClick={() => void enviar()} disabled={!podeEnviar}>
+        <Button icon={<IcSend width={15} height={15} />} onClick={() => void enviar()} disabled={enviando}>
           {enviando ? "Abrindo…" : "Abrir chamado"}
         </Button>
       </div>
