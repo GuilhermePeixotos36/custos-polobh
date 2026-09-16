@@ -2,6 +2,7 @@
  * Modelo de domínio do sistema Pólobh (EC e OS).
  * Fonte de verdade: planilhas reais em /reference.
  */
+import type { FaseOs } from "@/domain/faseOs";
 
 /**
  * Nível de segurança de dados. Governa a RLS no banco (`papel_atual()`) — por
@@ -573,7 +574,12 @@ export interface Ec {
 
 /* --------------------------------- OS ----------------------------------- */
 
-export type StatusOsDoc = "Rascunho" | "Emitida" | "Disparada" | "Cancelada" | "Arquivada";
+/**
+ * Os quatro estados da OS (15/09/2026). "Disparada" saiu: ela não dizia em que
+ * estado o documento está, dizia que um e-mail saiu — virou o carimbo
+ * `disparadaEm`, ao lado do status. Ver a migração `20260916130000`.
+ */
+export type StatusOsDoc = "Rascunho" | "Emitida" | "Cancelada" | "Arquivada";
 
 export type Modalidade =
   | "Produto"
@@ -772,6 +778,16 @@ export interface Os {
    */
   itens: ItemContratacaoOs[];
   status: StatusOsDoc;
+  /**
+   * Em que etapa do fluxo a OS está (15/09/2026): produção monta, financeiro
+   * conclui, back-office emite. Ver `domain/faseOs` — é a fase, e não só a
+   * permissão da pessoa, que decide o que está aberto para edição.
+   */
+  fase?: FaseOs;
+  /** Quando a OS entrou na fase atual. */
+  faseEm?: string;
+  /** Quando a OS foi enviada ao fornecedor por e-mail — carimbo, não status. */
+  disparadaEm?: string;
   fornecedor: Fornecedor; // snapshot
   /**
    * Dados gerais do evento COMO ESTAVAM na emissão desta OS — o bloco "Dados do

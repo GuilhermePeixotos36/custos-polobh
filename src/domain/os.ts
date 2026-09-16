@@ -190,12 +190,12 @@ export function mesmoFornecedor(
  * Uma OS que já SAIU da casa. É o que separa corrigir de reemitir.
  *
  * Rascunho é papel de trabalho: mexer nele não tem consequência para ninguém de
- * fora. Emitida ou Disparada é documento — ele existe do lado do fornecedor, e
+ * fora. Emitida é documento — ele existe do lado do fornecedor, e
  * trocar quem ele contrata sem trocar o número deixaria duas empresas
  * diferentes com a mesma OS na mão.
  */
 export const osJaEmitida = (os: Pick<Os, "status">): boolean =>
-  os.status === "Emitida" || os.status === "Disparada";
+  os.status === "Emitida";
 
 /**
  * Trocar o fornecedor desta OS exige gerar uma versão nova?

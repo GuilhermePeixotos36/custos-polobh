@@ -81,6 +81,13 @@ export interface EcRepository {
 }
 
 export interface OsRepository {
+  /**
+   * Fecha na EC os itens que esta OS consolida (status da OS: Emitir → OK).
+   *
+   * É RPC, e não UPDATE: quem emite a OS é o Back-office, que não tem escrita em
+   * `ec_linhas`. Chamada quando a OS é emitida — o fecho do ciclo EC → OS → EC.
+   */
+  fecharItensNaEc(osId: string): Promise<number>;
   listar(): Promise<Os[]>;
   porEc(ecId: string): Promise<Os[]>;
   obter(id: string): Promise<Os | undefined>;

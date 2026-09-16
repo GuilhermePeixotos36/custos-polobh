@@ -326,7 +326,7 @@ describe("badge e pílula contam a mesma coisa", () => {
   it("cronograma vazio da OS é cobrado na etapa da OS, com endereço no card", () => {
     const itens = calcularPendencias(
       [projeto("Carla")], [ec([linha([])])],
-      [os({ status: "Disparada", cronograma: [] })],
+      [os({ status: "Emitida", disparadaEm: "2026-08-20T10:00:00Z", cronograma: [] })],
       USUARIOS, [], [], HOJE
     );
     const p = itens.find((x) => x.tipo === "os.cronograma")!;
@@ -338,7 +338,7 @@ describe("badge e pílula contam a mesma coisa", () => {
   it("credenciamento sem resposta é achável na linha do painel do projeto", () => {
     const itens = calcularPendencias(
       [projeto("Carla")], [ec([linha([])])],
-      [os({ status: "Disparada", cronograma: [{ etapa: "Evento" }], credenciamento: { prazoLimite: "2026-09-01" } } as Partial<Os>)],
+      [os({ status: "Emitida", disparadaEm: "2026-08-20T10:00:00Z", cronograma: [{ etapa: "Evento" }], credenciamento: { prazoLimite: "2026-09-01" } } as Partial<Os>)],
       USUARIOS, [], [], HOJE
     );
     const p = itens.find((x) => x.tipo === "os.credenciamento")!;

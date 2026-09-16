@@ -618,6 +618,12 @@ function mapOs(r: any): Os {
     // sem `itens`: a tela os monta a partir da EC ao abrir (`sincronizarContratacao`).
     itens: Array.isArray(r.itens) ? r.itens : [],
     status: r.status,
+    // OS gravada antes das fases (migração `20260916120000`) vem sem `fase`:
+    // `faseDaOs` deduz pelo status, para uma OS já emitida não aparecer como
+    // "a produção está montando".
+    fase: r.fase ?? undefined,
+    faseEm: r.fase_em ?? undefined,
+    disparadaEm: r.disparada_em ?? undefined,
     fornecedor: r.fornecedor,
     projeto: normalizarProjetoInfo(r.projeto ?? r.ec?.projeto),
     cliente: r.cliente ?? r.ec?.cliente ?? clienteVazio(),
@@ -668,6 +674,9 @@ function osRow(os: Os) {
     observacoes_gerais: os.observacoesGerais ?? "",
     observacoes: os.observacoes,
     status: os.status,
+    fase: os.fase ?? "producao",
+    fase_em: os.faseEm ?? null,
+    disparada_em: os.disparadaEm ?? null,
     atualizado_em: nowIso(),
   };
 }
@@ -738,6 +747,12 @@ const osRepo: OsRepository = {
     });
     return salvo;
   },
+  async fecharItensNaEc(osId) {
+    const { data, error } = await supabase.rpc("marcar_itens_da_os_como_emitidos", { p_os_id: osId });
+    if (error) throw new Error(error.message);
+    return Number(data ?? 0);
+  },
+
   async gerarNovaVersao(os, dados) {
     // A cópia acontece no servidor (ver a função `gerar_nova_versao_os`): o
     // financeiro da OS é restrito por RLS, e copiá-lo pela tela apagaria o que

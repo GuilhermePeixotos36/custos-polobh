@@ -265,9 +265,10 @@ describe("troca de fornecedor numa OS", () => {
     expect(exigeNovaVersaoPorFornecedor({ status: "Rascunho" }, som, outro)).toBe(false);
   });
 
-  it("emitida ou disparada, trocar exige versão nova", () => {
+  it("emitida, trocar exige versão nova", () => {
+    // "Disparada" deixou de ser status em 15/09/2026: o envio ao fornecedor
+    // virou carimbo (`disparadaEm`) ao lado de uma OS Emitida.
     expect(exigeNovaVersaoPorFornecedor({ status: "Emitida" }, som, outro)).toBe(true);
-    expect(exigeNovaVersaoPorFornecedor({ status: "Disparada" }, som, outro)).toBe(true);
   });
 
   it("mexer no cadastro do MESMO fornecedor não é troca", () => {

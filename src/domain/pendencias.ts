@@ -43,6 +43,8 @@
  * mais objetos em `calcularPendencias`.
  */
 import { ABAS_COM_CONVERSA } from "@/data/types";
+import { ESPERANDO_FASE, faseDaOs, RECURSO_DA_FASE } from "@/domain/faseOs";
+import type { Recurso } from "@/store/auth";
 import type { Checklist, Ec, Observacao, Os, Projeto, StatusOs } from "@/data/types";
 import { extrairMencoes } from "@/domain/mencoes";
 import { statusProjetoAutomatico } from "@/domain/statusProjeto";
@@ -72,8 +74,24 @@ export interface Pendencia {
   titulo: string;
   /** Pessoas especificamente atribuídas, pelo nome cadastrado no sistema. */
   pessoas?: string[];
-  /** Produtor Responsável do projeto: vê tudo o que acontece dentro do projeto dele. */
+  /**
+   * Produtor Responsável do projeto. Carrega o que NÃO TEM destinatário nominal
+   * — OS em rascunho, cronograma vazio, credenciamento sem resposta, projeto
+   * sem EC, OS/Contrato a emitir. Conversa, desde 15/09/2026, não entra aqui.
+   */
   responsavelProjeto?: string;
+  /**
+   * Destinatário por FUNÇÃO, e não por nome (15/09/2026).
+   *
+   * Só as passagens de bastão da OS usam isto: quando a produção manda a OS
+   * "para o financeiro", ninguém é nomeado — o trabalho é de quem responde pela
+   * etapa. Fora daqui a regra da casa continua valendo, e o papel NÃO abre porta
+   * (era assim que todo Admin recebia "emitir OS" da casa inteira).
+   *
+   * Quando os sete perfis da Pólobh estiverem cadastrados como Áreas, este
+   * endereço fica mais fino sem mexer em mais nada (ver `RECURSO_DA_FASE`).
+   */
+  recursoResponsavel?: Recurso;
   /** Recurso da navegação superior onde ela aparece (hoje sempre "projetos"). */
   recurso: "projetos";
   projetoId?: string;
@@ -372,6 +390,35 @@ export function calcularPendencias(
 
   const out: Pendencia[] = [];
 
+  /**
+   * A OS ESPERANDO QUEM A RECEBEU (15/09/2026).
+   *
+   * Passar o bastão sem deixar rastro é o mesmo que mandar um e-mail: quem
+   * recebeu só descobre que tem trabalho se abrir a OS por acaso. Aqui a
+   * passagem vira pendência de quem responde pela etapa — e some sozinha quando
+   * ele passa adiante.
+   */
+  for (const os of oss) {
+    const ec = ecPorId.get(os.ecId);
+    if (!ec?.projetoId || encerrado(ec.projetoId)) continue;
+    if (OS_ENCERRADA.includes(os.status)) continue;
+    const fase = faseDaOs(os);
+    const recurso = RECURSO_DA_FASE[fase];
+    if (!recurso) continue;
+    out.push({
+      id: `os.fase:${os.id}:${fase}`,
+      tipo: "os.fase",
+      titulo: `${ESPERANDO_FASE[fase]} (OS ${os.numero})`,
+      recursoResponsavel: recurso,
+      recurso: "projetos",
+      projetoId: ec.projetoId,
+      aba: "os",
+      ecId: ec.id,
+      osId: os.id,
+      ancora: os.id,
+    });
+  }
+
   // OS em rascunho → o financeiro precisa emitir/disparar.
   for (const os of oss) {
     if (os.status !== "Rascunho") continue;
@@ -415,10 +462,13 @@ export function calcularPendencias(
     });
   }
 
-  // Cronograma e credenciamento da OS (pedido da Marisa, 09/08/2026) — ambos cobrados
-  // do Produtor Responsável do projeto, e só depois que a OS foi disparada ao fornecedor.
+  // Cronograma e credenciamento da OS (pedido da Marisa, 09/08/2026) — ambos
+  // cobrados do Produtor Responsável do projeto, e só depois que a OS chegou ao
+  // fornecedor. O gatilho é o CARIMBO DE ENVIO, e não mais o status "Disparada",
+  // que deixou de existir em 15/09/2026: o que importa aqui é que o fornecedor
+  // já tem o documento na mão para responder.
   for (const os of oss) {
-    if (os.status !== "Disparada") continue;
+    if (!os.disparadaEm) continue;
     const ec = ecPorId.get(os.ecId);
     if (!ec?.projetoId || encerrado(ec.projetoId)) continue;
     const responsavel = responsavelPorProjeto.get(ec.projetoId);
@@ -709,10 +759,22 @@ function normalizarPessoa(valor: string): string {
  * casa — e todo badge, popup e sininho sai desta mesma lista, então tudo o que
  * é contado pode ser encontrado na tela.
  */
-export function agregarPendencias(itens: Pendencia[], pessoa?: string): PendenciasAgregadas {
+export function agregarPendencias(
+  itens: Pendencia[],
+  pessoa?: string,
+  /**
+   * O que a pessoa pode fazer no sistema — só para as passagens de bastão da OS
+   * (ver `recursoResponsavel`). Sem isto, a pendência "aguardando o financeiro"
+   * não teria a quem ser mostrada: ela não tem destinatário nominal.
+   */
+  pode: (r: Recurso) => boolean = () => false
+): PendenciasAgregadas {
   const nome = pessoa ? normalizarPessoa(pessoa) : "";
   const souEu = (valor?: string) => !!nome && !!valor && normalizarPessoa(valor) === nome;
-  const meus = nome ? itens.filter((p) => souEu(p.responsavelProjeto) || p.pessoas?.some(souEu)) : [];
+  const minhaFuncao = (p: Pendencia) => !!p.recursoResponsavel && pode(p.recursoResponsavel);
+  const meus = nome
+    ? itens.filter((p) => souEu(p.responsavelProjeto) || p.pessoas?.some(souEu) || minhaFuncao(p))
+    : [];
   const inc = (obj: Record<string, number>, k: string) => (obj[k] = (obj[k] ?? 0) + 1);
   const ag: PendenciasAgregadas = {
     total: meus.length,

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { PageShell } from "@/components/layout/AppLayout";
 import { BarraProjeto } from "@/components/layout/BarraSecao";
@@ -18,7 +18,7 @@ import {
   AvisoHomologacaoEmail,
   MOTIVO_DISPARO_DESLIGADO,
 } from "@/components/ui";
-import { IcDownload, IcSearch, IcSend, IcSpark } from "@/components/icons";
+import { IcCheck, IcEye, IcPencil, IcSearch, IcSend, IcSpark } from "@/components/icons";
 import { CardConversa } from "@/components/CardConversa";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
@@ -49,6 +49,7 @@ import { confirmar } from "@/store/confirm";
 import { usePendencias, useMinhasPendencias } from "@/store/pendencias";
 import { useSugestoes } from "@/hooks/useSugestoes";
 import { urlCredenciamento } from "@/lib/links";
+import { editaFinanceiro, editaProducao, ESPERANDO_FASE, faseAnterior, faseDaOs, osEmitida, ROTULO_FASE, type FaseOs } from "@/domain/faseOs";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
 import { ListaArrastavel, ItemArrastavel } from "@/components/ListaArrastavel";
 import { MoverSetas, moverNaLista } from "@/components/MoverSetas";
@@ -285,6 +286,15 @@ export function OsForm() {
   const pode = useAuth((s) => s.pode);
   const verFinanceiro = pode("financeiro");
   const podeEditar = pode("oss.editar");
+  /**
+   * MODO LEITURA (15/09/2026). A OS abria sempre em edição, e qualquer pessoa
+   * que a abrisse para conferir estava, tecnicamente, editando um documento que
+   * já foi para o fornecedor. Agora ela abre travada e o botão "Editar OS"
+   * libera — como nos Dados Gerais do projeto e na EC.
+   *
+   * OS nova nasce em edição: não há o que conferir num documento em branco.
+   */
+  const [editando, setEditando] = useState(!id);
   // Empresas do grupo (carregadas no boot) — dados fiscais quando o tomador/contratante é a Pólobh.
   const empresas = useEmpresas((s) => s.empresas);
   const empresaPolobh = empresas.find((e) => e.padrao) ?? empresas[0];
@@ -397,8 +407,28 @@ export function OsForm() {
 
   const sujo = !!os && baseline !== "" && JSON.stringify(os) !== baseline;
   const guard = useUnsavedGuard(sujo);
+
+  /**
+   * O que está ABERTO agora — o cruzamento da permissão da pessoa com a fase do
+   * documento (ver `domain/faseOs`).
+   *
+   * A permissão diz o que a pessoa pode fazer; a fase diz o que a OS aceita
+   * neste momento. É assim que "a partir desta etapa a Produção não edita mais"
+   * se cumpre sem depender de os sete perfis da Pólobh já estarem cadastrados:
+   * os blocos da produção fecham quando a OS passa para o financeiro, e os do
+   * financeiro só abrem quando ela chega lá.
+   */
+  const fase = os ? faseDaOs(os) : "producao";
+  const mexeProducao = editando && podeEditar && os != null && editaProducao(os);
+  const mexeFinanceiro = editando && verFinanceiro && os != null && editaFinanceiro(os);
+  const emitida = os != null && osEmitida(os);
   // Pendências desta OS — mesma lista que alimenta o badge vermelho dela.
   const { itens: pendenciasDoUsuario } = useMinhasPendencias();
+  /** O que se resolve DENTRO desta OS — a mesma lista da pílula do canto. */
+  const pendenciasDaOs = useMemo(
+    () => (os ? pendenciasDaTela(pendenciasDoUsuario, { osId: os.id }) : []),
+    [pendenciasDoUsuario, os]
+  );
   // Valores já usados nestes campos em outras OSs (ver `domain/sugestoes`).
   const sugestoes = useSugestoes();
 
@@ -708,7 +738,7 @@ export function OsForm() {
    * troca de fornecedor de uma OS já emitida, que não bloqueia — desvia para
    * uma nova versão.
    */
-  async function salvar(status?: Os["status"]) {
+  async function salvar(status?: Os["status"], patch?: Partial<Os>, opcoes?: { disparar?: boolean }) {
     /**
      * TROCA DE FORNECEDOR numa OS que já saiu da casa: não é edição, é outro
      * contrato. A OS anterior existe do lado do primeiro fornecedor — deixar
@@ -721,12 +751,12 @@ export function OsForm() {
       await trocarFornecedorComNovaVersao();
       return;
     }
-    if (status === "Disparada") {
+    if (opcoes?.disparar) {
       const destino = os!.fornecedor.email || "o fornecedor (sem e-mail cadastrado)";
       if (!(await confirmar({
-        titulo: "Disparar esta OS ao fornecedor?",
-        mensagem: `A OS ${os!.numero} passará para "Disparada" e será enviado um e-mail para ${destino}.`,
-        confirmarTexto: "Disparar OS",
+        titulo: "Enviar esta OS ao fornecedor?",
+        mensagem: `A OS ${os!.numero} será enviada por e-mail para ${destino}. O envio fica registrado na OS.`,
+        confirmarTexto: "Enviar OS",
       }))) return;
     }
     setBusy(true);
@@ -742,19 +772,28 @@ export function OsForm() {
       const linkCred = urlCredenciamento(os!);
       let salvo = await repo.oss.salvar({
         ...os!,
-        status: status === "Disparada" ? os!.status : (status ?? os!.status),
+        ...patch,
+        // A fase muda junto com o carimbo de quando ela mudou — é o que a tela
+        // mostra em "com o financeiro desde…".
+        faseEm: patch?.fase && patch.fase !== os!.fase ? new Date().toISOString() : os!.faseEm,
+        status: status ?? os!.status,
         credenciamento: { ...os!.credenciamento, linkFormulario: linkCred },
         financeiro: { ...os!.financeiro, bvValor },
       });
       iniciar(ecCtx ? aplicarAutoPreenchimento(salvo, ecCtx) : salvo);
-      if (status === "Disparada") {
+      if (opcoes?.disparar) {
         const r = await dispararOsPorEmail(salvo, ecCtx!);
-        if (!r.ok) toast(`OS salva no status anterior; o e-mail não saiu: ${r.motivo}`, "warning");
-        else if (r.simulado) toast(`E-mail simulado para ${r.destinatarios.join(", ") || "—"}; a OS não foi marcada como disparada.`, "info");
+        if (!r.ok) toast(`OS salva; o e-mail não saiu: ${r.motivo}`, "warning");
+        else if (r.simulado) toast(`E-mail simulado para ${r.destinatarios.join(", ") || "—"}; o envio não foi registrado.`, "info");
         else {
-          salvo = await repo.oss.salvar({ ...salvo, status: "Disparada" });
+          // O CARIMBO só é gravado quando o e-mail saiu de verdade
+          // (15/09/2026): é ele que destrava as cobranças de cronograma e
+          // credenciamento, que só fazem sentido com o fornecedor de posse do
+          // documento. Registrar um envio que falhou cobraria resposta de quem
+          // não recebeu nada.
+          salvo = await repo.oss.salvar({ ...salvo, disparadaEm: new Date().toISOString() });
           iniciar(ecCtx ? aplicarAutoPreenchimento(salvo, ecCtx) : salvo);
-          toast(`OS disparada e e-mail enviado para ${r.destinatarios.join(", ")}.`, "success");
+          toast(`OS enviada por e-mail para ${r.destinatarios.join(", ")}.`, "success");
         }
       } else {
         toast("OS salva.", "success");
@@ -767,6 +806,68 @@ export function OsForm() {
     } finally {
       setBusy(false);
     }
+  }
+
+  /**
+   * Passa o bastão: grava a OS e a manda para a fase seguinte.
+   *
+   * A pendência de quem recebe nasce da própria fase (ver `os.fase`, em
+   * `domain/pendencias`) — não há um "avisar fulano" à parte que possa ficar
+   * para trás quando alguém devolve a OS.
+   */
+  async function avancarFase(destino: FaseOs, pergunta: { titulo: string; mensagem: string; confirmar: string }) {
+    if (!(await confirmar({ titulo: pergunta.titulo, mensagem: pergunta.mensagem, confirmarTexto: pergunta.confirmar }))) return;
+    await salvar(undefined, { fase: destino });
+    setEditando(false);
+  }
+
+  /** Devolve a OS para a etapa anterior — acontece, e precisa ser explícito. */
+  async function devolverFase() {
+    const anterior = faseAnterior(fase);
+    if (!anterior) return;
+    if (!(await confirmar({
+      titulo: "Devolver esta OS para a etapa anterior?",
+      mensagem: `A OS volta para "${ROTULO_FASE[anterior]}" e a pendência passa para quem responde por aquela etapa.`,
+      confirmarTexto: "Devolver",
+    }))) return;
+    await salvar(undefined, { fase: anterior });
+  }
+
+  /**
+   * EMITIR a OS — o fim do ciclo EC → OS → EC.
+   *
+   * Duas coisas acontecem juntas, e é isso que fecha o circuito: a OS vira
+   * "Emitida" e os itens da EC que ela consolida passam de "Emitir" para "OK"
+   * (RPC `marcar_itens_da_os_como_emitidos`; pela tela não daria, porque quem
+   * emite não tem escrita em `ec_linhas`).
+   *
+   * Antes disso, a trava do check-list: *"o sistema não pode permitir que uma OS
+   * seja emitida se existir alguma pendência a ela relacionada"*. Note que ela é
+   * de EMISSÃO, e não de salvamento — salvar segue livre, como ficou combinado
+   * em 10/09: quem monta o documento raramente tem todas as respostas na mesma
+   * sessão.
+   */
+  async function emitirOs() {
+    const abertas = pendenciasDaOs.filter((p) => p.tipo !== "os.fase");
+    if (abertas.length) {
+      toast(
+        `Esta OS tem ${abertas.length} pendência(s) em aberto. Resolva-as antes de emitir — use a pílula no canto da tela.`,
+        "danger"
+      );
+      return;
+    }
+    if (!(await confirmar({
+      titulo: `Emitir a OS ${os!.numero}?`,
+      mensagem: "A OS passa a Emitida e os itens da EC que ela consolida ficam com a OS em OK. Depois disso, o que mudar exige uma nova versão.",
+      confirmarTexto: "Emitir OS",
+    }))) return;
+    await salvar("Emitida", { fase: "emitida" });
+    try {
+      await repo.oss.fecharItensNaEc(os!.id);
+    } catch (e) {
+      toast(`A OS foi emitida, mas os itens da EC não foram fechados: ${(e as Error).message}`, "warning");
+    }
+    setEditando(false);
   }
 
   return (
@@ -784,27 +885,99 @@ export function OsForm() {
       // esta barra quem entrava aqui perdia toda a referência de onde estava.
       subabas={ecCtx.projetoId ? <BarraProjeto projetoId={ecCtx.projetoId} atual="os" /> : undefined}
       topAction={
-        <div className="flex gap-2">
-          {/* Uma ação só para o documento: antes eram duas (Excel e "Ver / PDF"),
-              e a do PDF ainda pedia um segundo clique depois de abrir a tela.
-              O Excel da OS saiu — o documento do fornecedor é o PDF. */}
+        /*
+         * O MENU DA OS, como o da EC (15/09/2026).
+         *
+         * Eram quatro comandos soltos — Recolher, Baixar PDF, Salvar, Disparar —
+         * numa tela que estava sempre em edição. Agora ele acompanha o estado do
+         * documento: em leitura, oferece abrir a edição e o PDF; em edição,
+         * Revisar e Salvar; e, quando a fase muda de mãos, o botão que passa o
+         * bastão, que é o comando principal daquele momento.
+         *
+         * "Disparar OS" continua existindo, e só depois de emitida: mandar ao
+         * fornecedor um documento que ainda está sendo montado é o que a fase
+         * veio impedir.
+         */
+        <div className="flex gap-2 flex-wrap">
           <Button
             data-tour="baixar-pdf"
             variant="secondary"
             size="sm"
-            icon={<IcDownload width={16} height={16} />}
+            icon={<IcEye width={16} height={16} />}
             onClick={() => os.id ? navigate(`/ordens/${os.id}/imprimir?auto=1`) : toast("Salve a OS antes de baixar o PDF.", "info")}
           >
-            Baixar PDF
+            OS PDF
           </Button>
-          {podeEditar && <Button variant="secondary" size="sm" onClick={() => salvar()} disabled={busy}>Salvar</Button>}
-          {podeEditar && (
+
+          {/* LEITURA: o botão que abre a edição, para quem pode mexer no que a
+              fase atual tem aberto. */}
+          {!editando && (podeEditar || verFinanceiro) && !emitida && (
+            <Button size="sm" icon={<IcPencil width={15} height={15} />} onClick={() => setEditando(true)}>
+              Editar OS
+            </Button>
+          )}
+
+          {/* EDIÇÃO: salvar, e sair sem salvar. */}
+          {editando && (
+            <>
+              <Button variant="text" size="sm" onClick={() => { setEditando(false); if (os.id) iniciar(osExistente ?? os); }}>
+                Sair da edição
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => void salvar()} disabled={busy}>
+                {busy ? "Salvando…" : "Salvar"}
+              </Button>
+            </>
+          )}
+
+          {/* A PASSAGEM DE BASTÃO — o comando principal de cada fase. */}
+          {podeEditar && fase === "producao" && os.id && (
             <Button
               size="sm"
               icon={<IcSend width={15} height={15} />}
-              onClick={() => salvar("Disparada")}
+              disabled={busy}
+              onClick={() => void avancarFase("financeiro", {
+                titulo: "Enviar esta OS para a conclusão do Financeiro?",
+                mensagem: "Os blocos da produção passam a leitura e a OS vira pendência da Coordenação Administrativo-Financeira. Você pode receber a OS de volta, se precisar.",
+                confirmar: "Enviar ao Financeiro",
+              })}
+            >
+              Enviar OS para Conclusão Financeiro
+            </Button>
+          )}
+          {verFinanceiro && fase === "financeiro" && (
+            <Button
+              size="sm"
+              icon={<IcSend width={15} height={15} />}
+              disabled={busy}
+              onClick={() => void avancarFase("backoffice", {
+                titulo: "Enviar esta OS para emissão pelo Back-office?",
+                mensagem: "A OS vira pendência do Back-office, que a emite. Emissão e faturamento continuam editáveis até a emissão.",
+                confirmar: "Enviar ao Back-office",
+              })}
+            >
+              Enviar OS para Emissão Back-Office
+            </Button>
+          )}
+          {podeEditar && fase === "backoffice" && (
+            <Button size="sm" icon={<IcCheck width={15} height={15} />} disabled={busy} onClick={() => void emitirOs()}>
+              Emitir OS
+            </Button>
+          )}
+          {fase !== "producao" && !emitida && (podeEditar || verFinanceiro) && (
+            <Button variant="text" size="sm" disabled={busy} onClick={() => void devolverFase()}>
+              Devolver à etapa anterior
+            </Button>
+          )}
+
+          {/* O e-mail ao fornecedor é o último passo, e só do que já saiu. */}
+          {emitida && podeEditar && (
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<IcSend width={15} height={15} />}
+              onClick={() => void salvar(undefined, undefined, { disparar: true })}
               disabled={busy || !flags.disparoFornecedor}
-              title={flags.disparoFornecedor ? "Salva a OS e envia ao fornecedor" : MOTIVO_DISPARO_DESLIGADO}
+              title={flags.disparoFornecedor ? "Envia a OS emitida ao fornecedor" : MOTIVO_DISPARO_DESLIGADO}
             >
               Disparar OS
             </Button>
@@ -814,6 +987,21 @@ export function OsForm() {
     >
       <AvisoEmailPendente className="mb-4" />
       <AvisoHomologacaoEmail className="mb-4" />
+
+      {/* ONDE A OS ESTÁ, e o que isso trava (15/09/2026). Sem esta linha, os
+          campos em cinza pareceriam defeito: quem abre a OS na fase do
+          financeiro precisa saber por que o descritivo não aceita digitação. */}
+      <div className={cx(
+        "mb-4 flex items-center gap-3 flex-wrap rounded-card border px-4 py-2.5 text-[12.5px]",
+        emitida ? "border-success/40 bg-success-soft text-ink" : "border-border-soft bg-[#FBFBFC] text-ink-2"
+      )}>
+        <span className="font-extrabold uppercase tracking-[0.05em] text-[10.5px] text-ink-3">{ROTULO_FASE[fase]}</span>
+        <span>{ESPERANDO_FASE[fase]}</span>
+        {os.faseEm && <span className="text-ink-3">desde {dataBR(os.faseEm)}</span>}
+        {!editando && !emitida && (podeEditar || verFinanceiro) && (
+          <span className="ml-auto text-ink-3">Modo leitura</span>
+        )}
+      </div>
 
       <div className="space-y-4">
         {/* A CONVERSA vem primeiro (pedido de 09/09/2026), e com o mesmo rótulo
@@ -829,6 +1017,13 @@ export function OsForm() {
           minhas={pendenciasDoUsuario.filter((x) => x.tipo === "os.observacao" && x.osId === os.id).length}
           onChange={(observacoes) => setOs((o) => (o ? { ...o, observacoes } : o))}
         />
+
+        {/* OS BLOCOS DA PRODUÇÃO ficam em leitura assim que a OS passa adiante.
+            `fieldset disabled` trava input, select, textarea e botão de uma vez,
+            sem cada campo precisar saber da fase — o mesmo recurso da aba Dados
+            Gerais do projeto. Não é aviso: é o valor não mudando embaixo de quem
+            já o usou para emitir a nota. */}
+        <fieldset disabled={!mexeProducao} className="space-y-4 min-w-0 disabled:opacity-100">
 
         {/* Cabeçalho do modelo em Excel */}
         <CardOs secao="Ordem de Serviço">
@@ -1239,6 +1434,12 @@ export function OsForm() {
             </LinhaOs>
           </CardOs>
         </div>
+        </fieldset>
+
+        {/* OS BLOCOS DO FINANCEIRO só abrem na fase dele (e seguem abertos no
+            back-office, que ainda corrige um código de serviço na hora de
+            emitir). Emitida, nada mais se edita: o que muda vira nova versão. */}
+        <fieldset disabled={!mexeFinanceiro} className="space-y-4 min-w-0 disabled:opacity-100">
 
         {/* INFORMAÇÕES A SEREM PREENCHIDAS PELO FINANCEIRO DA PÓLOBH */}
         {verFinanceiro ? (
@@ -1459,12 +1660,13 @@ export function OsForm() {
             <TextosJaUsados valor={os.financeiro.acertoFinanceiro} opcoes={sugestoes.valores.acertoFinanceiro} onEscolher={(acertoFinanceiro) => updFin({ acertoFinanceiro })} />
           </LinhaOs>
         </CardOs>
+        </fieldset>
       </div>
 
       {/* Mesma pílula da EC, e o mesmo número do badge da linha desta OS na
           listagem: tudo o que se resolve aqui dentro — comentários, "emitir OS"
           e o cronograma vazio, que agora tem endereço no próprio bloco. */}
-      <NavegadorPendencias pendencias={pendenciasDaTela(pendenciasDoUsuario, { osId: os.id })} />
+      <NavegadorPendencias pendencias={pendenciasDaOs} />
     </PageShell>
   );
 
