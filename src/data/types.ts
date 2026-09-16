@@ -328,6 +328,20 @@ export interface BvItem {
   valor: number;
   /** Por que o BV está fora do padrão da casa (sem BV, ou abaixo de 15%). */
   justificativa: string;
+  /**
+   * As observações das outras duas formas de cobrança (15/09/2026).
+   *
+   * A "Alternativas de Custos" da Pólobh pede uma coluna "Observações sob o BV"
+   * EM CADA LINHA da tabela, e as duas formas sem BV também têm o que dizer
+   * ("fornecedor não trabalha com BV", "valor fechado no PIX"). Elas moram aqui
+   * dentro, e não em colunas novas de `ec_linhas`, porque `bv` já é um jsonb que
+   * atravessa inteiro os QUATRO lugares que listam coluna a coluna — a view
+   * mascarada, `salvar_ec_completa`, `nova_versao_ec` e `importar_ec`. Coluna
+   * nova exigiria acertar os quatro, e esquecer um deles é como o BV de uma EC
+   * importada nasceria zerado (ver README).
+   */
+  observacaoSemBvComNf?: string;
+  observacaoSemBvSemNf?: string;
 }
 
 /* ------------------- A contratação: o que a OS decide pagar --------------- */

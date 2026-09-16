@@ -27,7 +27,7 @@ import { ResumoPropostaModal } from "@/components/ResumoPropostaModal";
 import { NotifDot } from "@/components/NotifDot";
 import { MoverSetas } from "@/components/MoverSetas";
 import { destacarElemento, seguirElemento, idAncoraPendencia, idCampoDescricaoCompleta, idCampoPendencia, idGrupoEc } from "@/lib/destaque";
-import { aprovarLinha, faltasParaEmitirOs, reverterAprovacaoLinha, opcaoNaoSeAplica, OPCOES_VALOR_ITEM, valorItemNaEc, bvVazio, bvDaLinha, bvExigeJustificativa, limitarBvPercentual, BV_PADRAO_PERCENTUAL } from "@/domain/calc";
+import { aprovarLinha, faltasParaEmitirOs, reverterAprovacaoLinha, opcaoNaoSeAplica, OPCOES_VALOR_ITEM, bvVazio, bvDaLinha, bvExigeJustificativa, limitarBvPercentual, BV_PADRAO_PERCENTUAL } from "@/domain/calc";
 import { flags } from "@/lib/flags";
 import { brl, cx } from "@/lib/format";
 import type { BvItem, EcLinha, Fornecedor, Observacao, OpcaoValorDefinida, StatusAprovacao, StatusOs } from "@/data/types";
@@ -345,6 +345,26 @@ export function EcGrupos({
   const aprovarSelecionados = () => aplicarNaSelecao(aprovarLinha);
   const reverterSelecionados = () => aplicarNaSelecao(reverterAprovacaoLinha);
 
+  /**
+   * Os TRÊS status, em massa, separadamente ou em conjunto (pedido de
+   * 15/09/2026): *"o sistema deverá permitir a seleção de todos ou de alguns
+   * itens para alterar simultaneamente os Status Aprovação, OS e Contrato"*.
+   *
+   * A barra tinha só o par pronto "Aprovar e liberar OS" — que continua sendo o
+   * atalho do dia a dia, porque aprovar e pedir a OS é um gesto só. O que
+   * faltava era mexer em UM dos três sem mexer nos outros: marcar trinta itens
+   * como "Contrato: Não se Aplica" era trinta cliques em trinta seletores.
+   *
+   * Aprovação continua passando pela regra da casa (`aprovarLinha` /
+   * `reverterAprovacaoLinha`), que também acerta a OS: fora dela, "OK" aqui
+   * deixaria o item aprovado com a OS parada em Pendente, que é o defeito que
+   * essa regra existe para evitar.
+   */
+  const definirAprovacaoSelecionados = (valor: StatusAprovacao) =>
+    aplicarNaSelecao(valor === "OK" ? aprovarLinha : reverterAprovacaoLinha);
+  const definirStatusSelecionados = (campo: "statusOs" | "contratoStatus", valor: StatusOs) =>
+    aplicarNaSelecao((l) => ({ ...l, [campo]: valor }));
+
   const totalSelecionados = linhasSelecionadas.length;
   /** Todo item visível com Aprovação pendente, na EC inteira (atalho da barra de ferramentas). */
   const pendentesAprovacao = grupos.flatMap((g) => g.itens).filter((it) => !it.oculto && it.statusAprovacao === "Pendente");
@@ -482,6 +502,29 @@ export function EcGrupos({
             <button type="button" onClick={limparSelecao} className="ml-auto text-[12.5px] font-bold text-ink-2 hover:text-ink">
               Limpar seleção
             </button>
+          </div>
+
+          {/* Os três status, um a um: o atalho acima faz o par mais comum
+              (aprovar + liberar OS); aqui se muda só o que se quer mudar. */}
+          <div className="flex items-center gap-2 flex-wrap border-t border-primary/20 pt-1.5">
+            <span className="text-[11px] font-extrabold uppercase tracking-[0.05em] text-primary-dark/80">
+              Alterar em massa
+            </span>
+            <SeletorEmMassa
+              rotulo="Aprovação"
+              opcoes={["Pendente", "OK"]}
+              onEscolher={(v) => definirAprovacaoSelecionados(v as StatusAprovacao)}
+            />
+            <SeletorEmMassa
+              rotulo="OS"
+              opcoes={OPCOES_STATUS_OS}
+              onEscolher={(v) => definirStatusSelecionados("statusOs", v as StatusOs)}
+            />
+            <SeletorEmMassa
+              rotulo="Contrato"
+              opcoes={OPCOES_STATUS_OS}
+              onEscolher={(v) => definirStatusSelecionados("contratoStatus", v as StatusOs)}
+            />
           </div>
 
           {/* Prévia do efeito: o que sai pronto para OS e o que ainda vai travar.
@@ -1051,24 +1094,30 @@ function DaOs({ valor }: { valor: string }) {
 }
 
 /**
- * As três formas de cobrar o item — INFORMAÇÃO, não escolha.
+ * ALTERNATIVAS DE CUSTOS — as três formas de cobrar o item, numa tabela.
  *
- * A produção levanta quanto o item custaria de cada forma (ou responde "Não se
- * aplica"), e as três seguem lado a lado para a OS, que é onde se decide por
- * qual delas ele vai ser pago. Havia aqui um rádio elegendo "a que vale": ele
- * obrigava a decidir a condição de pagamento dentro de um documento que ainda
- * estava sendo montado, e a escolha nem chegava à planilha da OS, que já
- * imprimia as três colunas de qualquer jeito. A escolha passou para a OS,
- * item a item (ver `src/domain/contratacaoOs.ts`).
+ * O que são: a produção levanta quanto o item custaria de cada forma (ou
+ * responde "Não se aplica"), e as três seguem lado a lado para a OS, que é onde
+ * se decide por qual delas o item vai ser pago. Na EC não há escolha — havia um
+ * rádio elegendo "a que vale", e ele obrigava a fechar a condição de pagamento
+ * dentro de um documento ainda em montagem.
+ *
+ * COMO É DESENHADO mudou em 15/09/2026. Eram três cartões lado a lado, e eles
+ * comiam a largura da tela em toda linha da EC, preenchidos ou não. A Pólobh
+ * pediu "a menor ocupação possível" e "poder ser ocultada ou exibida, em cada
+ * item": virou uma tabela de três linhas — Modalidade · Valor · BV · Observações
+ * sob o BV —, recolhida por padrão, com uma linha-resumo que diz o que já foi
+ * informado. Quem está lançando custo abre; quem está conferindo outra coisa
+ * não perde meia tela com ela.
  *
  * O BV entra AQUI, e não só na OS, porque é aqui que ele é combinado: quem
- * negocia o valor negocia a bonificação no mesmo gesto. Ele aparece dentro da
- * forma "com BV e NF" (nas outras duas não existe BV, por definição) e a
- * justificativa fica embaixo, uma por item — é um BV por item, não um por
- * forma. A OS soma o BV dos itens que consolida (ver `bvConsolidado`) e já
- * nasce com tudo preenchido.
+ * negocia o valor negocia a bonificação no mesmo gesto. Ele só existe na linha
+ * "com BV e NF" — nas outras duas, por definição, não há BV, e a coluna diz
+ * isso em vez de ficar vazia.
  */
 function OpcoesDeValor({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinha>) => void }) {
+  const [aberta, setAberta] = useState(false);
+
   /**
    * Alterna entre digitar o valor e responder "Não se aplica".
    *
@@ -1083,55 +1132,158 @@ function OpcoesDeValor({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinh
     });
   };
 
+  // O resumo da linha fechada: o que já foi respondido, sem precisar abrir.
+  const respondidas = OPCOES_VALOR_ITEM.filter(
+    ({ opcao, campo }) => opcaoNaoSeAplica(l, opcao) || Number(l[campo] ?? 0) > 0
+  ).length;
+
   return (
-    <div className="px-2.5 pb-2.5 pt-2 border-t border-border-soft bg-[#FCFCFD]">
-      <div className="flex items-baseline gap-2 flex-wrap mb-1.5">
-        <span className="text-[10.5px] font-extrabold uppercase tracking-[0.05em] text-ink-3">
-          Formas de cobrar este item
+    <div className="px-2.5 pb-2 pt-1.5 border-t border-border-soft bg-[#FCFCFD]">
+      <button
+        type="button"
+        onClick={() => setAberta((v) => !v)}
+        aria-expanded={aberta}
+        className="w-full flex items-center gap-2 text-left py-0.5 group/alt"
+      >
+        <IcChevron
+          width={12}
+          height={12}
+          className={cx("shrink-0 text-ink-3 transition-transform", aberta ? "rotate-90" : "")}
+        />
+        <span className="text-[10.5px] font-extrabold uppercase tracking-[0.05em] text-ink-3 group-hover/alt:text-ink-2">
+          Alternativas de Custos
         </span>
-        <span className="text-[11px] text-ink-3">
-          Valor do item na EC: <b className="text-ink-2">{brl(valorItemNaEc(l))}</b> · informe quanto custaria de
-          cada forma; a escolha é feita na OS
+        <span className="text-[11px] text-ink-3 truncate">
+          {aberta
+            ? "Informe as negociações possíveis a serem definidas no ato da emissão das OS's"
+            : `${respondidas} de 3 formas informadas · a escolha é feita na OS`}
         </span>
-      </div>
-      <div className="grid sm:grid-cols-3 gap-2">
-        {OPCOES_VALOR_ITEM.map(({ opcao, rotulo, campo }) => {
-          const naoSeAplica = opcaoNaoSeAplica(l, opcao);
-          return (
-            <div key={opcao} className="rounded-btn border border-border-soft bg-surface px-2 py-1.5">
-              <span className="block text-[11px] font-bold leading-tight text-ink-2 mb-1">{rotulo}</span>
-              {/* Ou o valor, ou "Não se aplica" — as duas respostas possíveis. */}
-              {naoSeAplica ? (
-                <div className="h-8 flex items-center rounded-btn border border-border-soft bg-[#F1F2F5] px-2 text-[12.5px] font-bold text-ink-3">
-                  Não se aplica
-                </div>
-              ) : (
-                <CurrencyInput
-                  className="!h-8 !px-2 !text-[12.5px]"
-                  value={l[campo]}
-                  onValue={(v) => onUpd({ [campo]: v } as Partial<EcLinha>)}
-                  aria-label={`${rotulo} do item ${l.item || "sem título"}`}
-                />
-              )}
-              <button
-                type="button"
-                onClick={() => alternarNaoSeAplica(opcao)}
-                className="mt-1 text-[10.5px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded"
-                title={naoSeAplica ? "Voltar a informar um valor" : "Este item não é cobrado desta forma"}
-              >
-                {naoSeAplica ? "Informar valor" : "Não se aplica"}
-              </button>
-              {/* O BV mora na cobrança COM BV — nas outras duas ele não existe,
-                  por definição. Aparece assim que há um valor sobre o qual
-                  calculá-lo; antes esperava alguém eleger esta forma, e a eleição
-                  saiu da EC. */}
-              {opcao === "comBvNf" && !naoSeAplica && <CamposBv l={l} onUpd={onUpd} />}
-            </div>
-          );
-        })}
-      </div>
-      <JustificativaBv l={l} onUpd={onUpd} />
+      </button>
+
+      {aberta && (
+        <div className="mt-1.5 overflow-x-auto">
+          <table className="w-full text-[12px] border-separate border-spacing-0">
+            <thead>
+              <tr className="text-left">
+                {["Modalidade", "Valor", "BV", "Observações sob o BV"].map((c) => (
+                  <th
+                    key={c}
+                    className="px-2 py-1 text-[9.5px] font-extrabold uppercase tracking-[0.05em] text-ink-3 border-b border-border-soft"
+                  >
+                    {c}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {OPCOES_VALOR_ITEM.map(({ opcao, rotulo, campo }) => {
+                const naoSeAplica = opcaoNaoSeAplica(l, opcao);
+                return (
+                  <tr key={opcao} className="align-top">
+                    <td className="px-2 py-1 border-b border-border-soft">
+                      <span className="block text-[11.5px] font-bold text-ink-2 leading-tight">{rotulo}</span>
+                      <button
+                        type="button"
+                        onClick={() => alternarNaoSeAplica(opcao)}
+                        className="text-[10px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded"
+                        title={naoSeAplica ? "Voltar a informar um valor" : "Este item não é cobrado desta forma"}
+                      >
+                        {naoSeAplica ? "Informar valor" : "Não se aplica"}
+                      </button>
+                    </td>
+                    <td className="px-2 py-1 border-b border-border-soft w-[9rem]">
+                      {/* Ou o valor, ou "Não se aplica" — as duas respostas
+                          possíveis, ambas diferentes de deixar em branco. */}
+                      {naoSeAplica ? (
+                        <div className="h-8 flex items-center rounded-btn border border-border-soft bg-[#F1F2F5] px-2 text-[11.5px] font-bold text-ink-3">
+                          Não se aplica
+                        </div>
+                      ) : (
+                        <CurrencyInput
+                          className="!h-8 !px-2 !text-[12.5px]"
+                          value={l[campo]}
+                          onValue={(v) => onUpd({ [campo]: v } as Partial<EcLinha>)}
+                          aria-label={`${rotulo} do item ${l.item || "sem título"}`}
+                        />
+                      )}
+                    </td>
+                    <td className="px-2 py-1 border-b border-border-soft w-[11rem]">
+                      {opcao === "comBvNf" ? (
+                        naoSeAplica ? (
+                          <span className="text-[11px] text-ink-3">—</span>
+                        ) : (
+                          <CamposBv l={l} onUpd={onUpd} />
+                        )
+                      ) : (
+                        <span className="text-[11px] text-ink-3">Não se aplica</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-1 border-b border-border-soft">
+                      <ObservacaoDaForma opcao={opcao} l={l} onUpd={onUpd} />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
+  );
+}
+
+/**
+ * A observação de UMA forma de cobrança.
+ *
+ * Na linha "com BV e NF" ela é a justificativa do BV, que a casa exige quando o
+ * BV foge do padrão — e aí o campo fica vermelho enquanto faltar. Nas outras
+ * duas é uma nota livre ("o fornecedor não trabalha com BV"), guardada dentro do
+ * próprio `bv` para não custar coluna nova (ver `BvItem`).
+ */
+function ObservacaoDaForma({
+  opcao,
+  l,
+  onUpd,
+}: {
+  opcao: OpcaoValorDefinida;
+  l: EcLinha;
+  onUpd: (patch: Partial<EcLinha>) => void;
+}) {
+  const bv = l.bv ?? bvVazio();
+  if (opcao === "comBvNf") {
+    const exigida = bvExigeJustificativa(l);
+    const escrita = (bv.justificativa ?? "").trim();
+    const faltando = exigida && !escrita;
+    return (
+      <>
+        <AutoTextarea
+          className={cx("!text-[12px]", faltando && "!border-danger !bg-danger-soft")}
+          rows={1}
+          value={bv.justificativa ?? ""}
+          onChange={(e) => onUpd({ bv: { ...bv, justificativa: e.target.value } })}
+          placeholder={exigida ? "Por que este item sai sem BV ou abaixo de 15%" : "Observação (opcional)"}
+          aria-label={`Justificativa do BV do item ${l.item || "sem título"}`}
+        />
+        {faltando && (
+          <p className="mt-0.5 text-[10px] font-bold text-danger">
+            Obrigatória: {opcaoNaoSeAplica(l, "comBvNf")
+              ? "este item não é cobrado com BV"
+              : `o BV está ${bvDaLinha(l).valor > 0 ? `abaixo de ${BV_PADRAO_PERCENTUAL}%` : "zerado"}`}.
+          </p>
+        )}
+      </>
+    );
+  }
+  const chave = opcao === "semBvComNf" ? "observacaoSemBvComNf" : "observacaoSemBvSemNf";
+  return (
+    <AutoTextarea
+      className="!text-[12px]"
+      rows={1}
+      value={bv[chave] ?? ""}
+      onChange={(e) => onUpd({ bv: { ...bv, [chave]: e.target.value } })}
+      placeholder="Observação (opcional)"
+      aria-label={`Observação da forma ${opcao} do item ${l.item || "sem título"}`}
+    />
   );
 }
 
@@ -1149,9 +1301,8 @@ function CamposBv({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinha>) =
   const mudar = (patch: Partial<BvItem>) => onUpd({ bv: { ...bv, ...patch } });
 
   return (
-    <div className="mt-2 pt-2 border-t border-border-soft space-y-1.5">
+    <div className="space-y-1">
       <div className="flex items-center gap-1.5">
-        <span className="text-[10px] font-extrabold uppercase tracking-[0.05em] text-ink-3">BV</span>
         {/* Dois botões, não um <select>: são duas opções, e a escolhida precisa
             ser lida de relance enquanto se digita o número ao lado. */}
         <div className="flex rounded-btn border border-border-soft overflow-hidden">
@@ -1196,43 +1347,40 @@ function CamposBv({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinha>) =
 }
 
 /**
- * Justificativa do BV — uma por item, embaixo das três formas.
+ * Um seletor da barra de seleção: escolhe o valor e aplica em todos os marcados.
  *
- * Aparece quando a produção já RESPONDEU sobre a cobrança com BV e a resposta
- * foge do padrão da casa: "Não se aplica" (o item sai sem BV, de propósito) ou
- * um BV abaixo de 15%. Enquanto o campo "com BV e NF" está em branco não pede
- * nada — ali a pergunta ainda não foi respondida, e cobrar antes acenderia
- * alerta em toda linha recém-criada (ver `bvExigeJustificativa`).
- *
- * Continua visível se já tiver texto escrito, mesmo deixando de ser obrigatória:
- * nada some da tela levando junto o que alguém escreveu.
+ * Volta para "—" depois de aplicar, de propósito: ele não descreve o estado dos
+ * itens (que podem ter valores diferentes entre si), é um comando. Deixá-lo
+ * mostrando a última escolha sugeriria que aquele é o valor de todos.
  */
-function JustificativaBv({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinha>) => void }) {
-  const bv = l.bv ?? bvVazio();
-  const exigida = bvExigeJustificativa(l);
-  const escrita = (bv.justificativa ?? "").trim();
-  if (!exigida && !escrita) return null;
-  const faltando = exigida && !escrita;
-
+function SeletorEmMassa({
+  rotulo,
+  opcoes,
+  onEscolher,
+}: {
+  rotulo: string;
+  opcoes: readonly string[];
+  onEscolher: (valor: string) => void;
+}) {
   return (
-    <div className="mt-2 pt-2 border-t border-border-soft">
-      <Campo label="Justificativa do BV" obrigatorio={exigida}>
-        <AutoTextarea
-          className={cx("!text-[12.5px]", faltando && "!border-danger !bg-danger-soft")}
-          rows={2}
-          value={bv.justificativa ?? ""}
-          onChange={(e) => onUpd({ bv: { ...bv, justificativa: e.target.value } })}
-          placeholder="Por que este item sai sem BV ou abaixo de 15% (ex.: condição negociada com o fornecedor)."
-        />
-      </Campo>
-      {faltando && (
-        <p className="mt-1 text-[10.5px] font-bold text-danger">
-          Obrigatória: {opcaoNaoSeAplica(l, "comBvNf")
-            ? "este item não é cobrado com BV"
-            : `o BV deste item está ${bvDaLinha(l).valor > 0 ? `abaixo de ${BV_PADRAO_PERCENTUAL}%` : "zerado"}`}.
-        </p>
-      )}
-    </div>
+    <label className="flex items-center gap-1.5">
+      <span className="text-[11.5px] font-bold text-ink-2">{rotulo}</span>
+      <Select
+        className="!h-8 !px-2 !text-[12px] !w-auto"
+        value=""
+        onChange={(e) => {
+          if (!e.target.value) return;
+          onEscolher(e.target.value);
+          e.target.value = "";
+        }}
+        aria-label={`Alterar ${rotulo} dos itens selecionados`}
+      >
+        <option value="">—</option>
+        {opcoes.map((o) => (
+          <option key={o} value={o}>{o}</option>
+        ))}
+      </Select>
+    </label>
   );
 }
 
