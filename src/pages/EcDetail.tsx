@@ -33,7 +33,7 @@ import { ecEditavel, situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/d
 import { useMinhasPendencias } from "@/store/pendencias";
 import { EcItemLeitura } from "@/components/EcItemLeitura";
 import { brl, dataBR } from "@/lib/format";
-import { gerarEcExcel } from "@/lib/excel";
+import { gerarEcExcel, gerarRentabilidadeExcel } from "@/lib/excel";
 import { useAuth } from "@/store/auth";
 import { toast } from "@/store/toast";
 import { confirmar } from "@/store/confirm";
@@ -364,7 +364,14 @@ export function EcDetail() {
   const rentabilidadeCard = (
     <Card padded={false}>
       <div className="p-5"><CardTitle>Rentabilidade por item</CardTitle></div>
-      <RentabilidadeItens linhas={ec.linhas} gastoPorLinha={gastoPorLinha} />
+      {/* Em leitura os custos internos não se lançam: eles mudam a EC, e a EC
+          só muda na edição — ver o botão "Editar EC". */}
+      <RentabilidadeItens
+        ec={ec}
+        gastoPorLinha={gastoPorLinha}
+        onExportar={() => void gerarRentabilidadeExcel(ec, gastoPorLinha)}
+        onImprimir={() => navigate(`/estimativas/${ec.id}/imprimir?rentabilidade=1`)}
+      />
     </Card>
   );
 

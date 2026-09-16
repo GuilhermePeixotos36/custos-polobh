@@ -3,6 +3,7 @@
  * Fonte de verdade: planilhas reais em /reference.
  */
 import type { FaseOs } from "@/domain/faseOs";
+import type { CustoInterno } from "@/domain/rentabilidade";
 
 /**
  * Nível de segurança de dados. Governa a RLS no banco (`papel_atual()`) — por
@@ -561,6 +562,16 @@ export interface Ec {
   encargos: TaxaConfig;
   /** Rótulo editável de Honorários no resumo/planilha (vazio = usa o padrão). */
   honorariosRotulo?: string;
+  /**
+   * Custos da Pólobh que NÃO estão na EC e entram no cálculo da rentabilidade
+   * (15/09/2026) — a diária da equipe, o combustível, o que a casa gasta e não
+   * cobra do cliente item a item.
+   *
+   * Viajam dentro do jsonb `producao`, como as taxas: não é dado do documento
+   * que vai ao cliente, é dado de gestão, e coluna nova em `ecs` custaria
+   * migração para guardar o que já cabe onde as outras configurações estão.
+   */
+  custosInternos?: CustoInterno[];
   /** Rótulo editável de Encargos no resumo/planilha (vazio = usa o padrão). */
   encargosRotulo?: string;
   responsavel: string; // produtora responsável / visto Pólobh

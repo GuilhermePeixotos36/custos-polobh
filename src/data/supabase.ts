@@ -431,6 +431,7 @@ function mapEc(r: any): Ec {
     honorarios: r.producao?.honorarios ?? honorariosPadrao(),
     encargos: r.producao?.encargos ?? encargosPadrao(),
     honorariosRotulo: r.producao?.honorariosRotulo || undefined,
+    custosInternos: Array.isArray(r.producao?.custosInternos) ? r.producao.custosInternos : [],
     encargosRotulo: r.producao?.encargosRotulo || undefined,
     responsavel: r.responsavel ?? "",
     validadeDias: r.validade_dias ?? 30,
@@ -452,7 +453,15 @@ function ecRow(ec: Ec) {
     cliente: padronizarCliente(ec.cliente),
     projeto: sincronizarCamposLegados(padronizarProjetoInfo(ec.projeto)),
     // Embute as taxas e seus rótulos no jsonb `producao` (o mapEc separa de volta na leitura).
-    producao: { ...ec.producao, honorarios: ec.honorarios, encargos: ec.encargos, honorariosRotulo: ec.honorariosRotulo ?? "", encargosRotulo: ec.encargosRotulo ?? "" },
+    producao: {
+      ...ec.producao,
+      honorarios: ec.honorarios,
+      encargos: ec.encargos,
+      honorariosRotulo: ec.honorariosRotulo ?? "",
+      encargosRotulo: ec.encargosRotulo ?? "",
+      // Custos internos da rentabilidade (15/09/2026) — ver `Ec.custosInternos`.
+      custosInternos: ec.custosInternos ?? [],
+    },
     responsavel: padronizarTexto(ec.responsavel, "titulo"),
     validade_dias: ec.validadeDias,
     versao: ec.versao,

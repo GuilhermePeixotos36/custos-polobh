@@ -34,7 +34,7 @@ import {
 import { itensDoTemplate } from "@/domain/ecTemplates";
 import { motivoBloqueioEc, situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
 import { projetoInfoVazio } from "@/domain/projeto";
-import { gerarEcExcel } from "@/lib/excel";
+import { gerarEcExcel, gerarRentabilidadeExcel } from "@/lib/excel";
 import { revisarEc, type RevisaoEc } from "@/domain/revisaoEc";
 import { RevisaoEcModal } from "@/components/RevisaoEcModal";
 import { consultarCnpj } from "@/lib/cnpj";
@@ -414,7 +414,13 @@ export function EcForm() {
   const rentabilidadeCard = verFinanceiro ? (
     <Card padded={false}>
       <div className="p-5"><CardTitle>Rentabilidade por item</CardTitle></div>
-      <RentabilidadeItens linhas={ec.linhas} gastoPorLinha={gastoPorLinha} />
+      <RentabilidadeItens
+        ec={ec}
+        gastoPorLinha={gastoPorLinha}
+        podeEditar
+        onCustosInternos={(custosInternos) => setEc((e) => (e ? { ...e, custosInternos } : e))}
+        onExportar={() => void gerarRentabilidadeExcel(ec, gastoPorLinha)}
+      />
     </Card>
   ) : null;
 

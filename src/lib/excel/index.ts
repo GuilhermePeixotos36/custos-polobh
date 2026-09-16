@@ -68,6 +68,21 @@ export async function gerarEcExcel(
   return r;
 }
 
+/**
+ * A rentabilidade em Excel (15/09/2026) — planilha INTERNA, com a margem da
+ * casa. ExcelJS sob demanda, como as outras.
+ */
+export async function gerarRentabilidadeExcel(ec: Ec, gastoPorLinha: Record<string, number>): Promise<void> {
+  const { gerarRentabilidadeExcel: fn } = await import("./rentabilidade");
+  await fn(ec, gastoPorLinha);
+  auditar({
+    categoria: "Exportação",
+    acao: "ec.rentabilidade.excel",
+    mensagem: `Rentabilidade da EC ${ec.numero} exportada para Excel`,
+    alvoId: ec.id,
+  });
+}
+
 /** Geração da OS em Excel remontada com a marca (ExcelJS sob demanda). */
 export async function gerarOsExcel(
   os: Os,
