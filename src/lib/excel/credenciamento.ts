@@ -106,10 +106,27 @@ export async function criarCredenciamentoBuffer(d: CredenciamentoExcelDados): Pr
 
   r++;
   faixa("EQUIPE");
-  cabecalhoTabela(["Fornecedor", "Nome", "CPF", "Função"]);
+  /*
+   * As colunas seguem o que este evento PEDIU (15/09/2026): o credenciamento
+   * escolhe os campos, e uma coluna que ninguém preencheu é espaço gasto na
+   * folha que a portaria confere nome a nome. Fornecedor e Nome são sempre
+   * colunas — sem os dois, a linha não identifica ninguém.
+   */
+  const OPCIONAIS: { chave: keyof PessoaCredenciada; rotulo: string }[] = [
+    { chave: "cpf", rotulo: "CPF" },
+    { chave: "rg", rotulo: "RG" },
+    { chave: "funcao", rotulo: "Função" },
+    { chave: "telefone", rotulo: "Telefone" },
+    { chave: "aniversario", rotulo: "Aniversário" },
+    { chave: "endereco", rotulo: "Endereço" },
+  ];
+  const usadas = OPCIONAIS.filter(({ chave }) => d.equipe.some((p) => String(p[chave] ?? "").trim() !== ""));
+  cabecalhoTabela(["Fornecedor", "Nome", ...usadas.map((c) => c.rotulo)]);
   const cabecalhoEquipe = r - 1;
   if (d.equipe.length) {
-    for (const p of d.equipe) linhaDados([p.fornecedor, p.nome, p.cpf, p.funcao]);
+    for (const p of d.equipe) {
+      linhaDados([p.fornecedor, p.nome, ...usadas.map((c) => String(p[c.chave] ?? ""))]);
+    }
   } else {
     linhaDados(["(nenhum credenciamento recebido)"]);
   }

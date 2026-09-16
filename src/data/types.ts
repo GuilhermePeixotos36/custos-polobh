@@ -4,6 +4,7 @@
  */
 import type { FaseOs } from "@/domain/faseOs";
 import type { CustoInterno } from "@/domain/rentabilidade";
+import type { CampoCredenciamento } from "@/domain/credenciamentoCampos";
 
 /**
  * Nível de segurança de dados. Governa a RLS no banco (`papel_atual()`) — por
@@ -824,6 +825,12 @@ export interface FinanceiroOs {
 export interface Credenciamento {
   prazoLimite: string;
   linkFormulario: string;
+  /**
+   * O que o fornecedor preenche NESTE credenciamento. Vazio = o padrão de
+   * sempre (ver `camposDoCredenciamento`): mudar o padrão mudaria, em silêncio,
+   * o que os credenciamentos já disparados pedem de quem ainda não respondeu.
+   */
+  campos?: CampoCredenciamento[];
 }
 
 /** Bloco "Dados para Contrato" da OS (modelo Pólobh). */
@@ -848,6 +855,15 @@ export interface CredenciamentoMembro {
   nome: string;
   cpf: string;
   funcao: string;
+  /**
+   * Os campos que a Pólobh passou a poder pedir por evento (15/09/2026) — ver
+   * `domain/credenciamentoCampos`. Opcionais porque o credenciamento escolhe
+   * quais entram no formulário, e o que não foi pedido não existe na resposta.
+   */
+  rg?: string;
+  endereco?: string;
+  telefone?: string;
+  aniversario?: string;
 }
 export interface CredenciamentoVeiculo {
   modelo: string;

@@ -4,6 +4,7 @@ import { Button, Input } from "@/components/ui";
 import { useAsync } from "@/hooks/useAsync";
 import { cx, dataBR, maskCpfCnpjInput, maskPlaca } from "@/lib/format";
 import type { CredenciamentoMembro, CredenciamentoVeiculo } from "@/data/types";
+import { camposDoCredenciamento, pedeVeiculo, type CampoCredenciamento } from "@/domain/credenciamentoCampos";
 
 interface Contexto {
   evento: { titulo: string; local: string; data: string };
@@ -11,6 +12,12 @@ interface Contexto {
   prazoLimite: string;
   /** O servidor é quem decide: o prazo é do calendário da Pólobh (fuso de Brasília). */
   prazoEncerrado?: boolean;
+  /**
+   * Os campos que ESTE credenciamento pede (15/09/2026). Vêm do servidor junto
+   * do resto do contexto: o formulário é público, e deixar a escolha chegar
+   * pela URL seria deixar qualquer um pedir o RG da equipe alheia.
+   */
+  campos?: CampoCredenciamento[];
 }
 
 const base = import.meta.env.VITE_SUPABASE_URL as string;
@@ -18,6 +25,19 @@ const anon = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 const headers = { apikey: anon, Authorization: `Bearer ${anon}`, "Content-Type": "application/json" };
 
 const membroVazio = (): CredenciamentoMembro => ({ nome: "", cpf: "", funcao: "" });
+
+/** Rótulo e máscara de cada campo escolhido — o formulário se monta com isto. */
+const CAMPO_INPUT: Record<
+  Exclude<CampoCredenciamento, "veiculo" | "placa">,
+  { placeholder: string; tipo?: string; inputMode?: "numeric" | "tel"; mascara?: (v: string) => string }
+> = {
+  funcao: { placeholder: "Função" },
+  rg: { placeholder: "RG" },
+  cpf: { placeholder: "CPF", inputMode: "numeric", mascara: maskCpfCnpjInput },
+  endereco: { placeholder: "Endereço completo" },
+  telefone: { placeholder: "Telefone com DDD", inputMode: "tel" },
+  aniversario: { placeholder: "Aniversário", tipo: "date" },
+};
 const veiculoVazio = (): CredenciamentoVeiculo => ({ modelo: "", placa: "" });
 
 /** Formulário público (sem login) de credenciamento, preenchido pelo fornecedor. */
@@ -29,6 +49,10 @@ export function CredenciamentoPublico() {
     if (!resp.ok) return null;
     return (await resp.json()) as Contexto;
   }, [token]);
+
+  /** O que este credenciamento pede — com o padrão de sempre quando não veio nada. */
+  const campos = camposDoCredenciamento(ctx?.campos);
+  const camposDaPessoa = campos.filter((c) => c !== "veiculo" && c !== "placa") as Exclude<CampoCredenciamento, "veiculo" | "placa">[];
 
   const [equipe, setEquipe] = useState<CredenciamentoMembro[]>([membroVazio()]);
   const [veiculos, setVeiculos] = useState<CredenciamentoVeiculo[]>([veiculoVazio()]);
@@ -109,19 +133,45 @@ export function CredenciamentoPublico() {
               {/* Empilha no celular: este formulário é preenchido PELO
                   FORNECEDOR, quase sempre pelo telefone, e em colunas fixas o
                   campo de nome ficava com uns 90px. */}
-              <div className="space-y-2">
+              {/* O formulário se MONTA com o que a Pólobh escolheu para este
+                  credenciamento (15/09/2026): o de estádio pede RG e placa, o do
+                  almoço de trinta pessoas pede nome e função — e pedir o resto é
+                  atrito para o fornecedor e dado sensível guardado à toa.
+                  O NOME é sempre pedido: sem ele a linha não identifica ninguém. */}
+              <div className="space-y-3">
                 {equipe.map((m, i) => (
-                  <div key={i} className="grid grid-cols-1 sm:grid-cols-[1fr_120px_1fr_auto] gap-2 sm:items-center">
-                    <Input placeholder="Nome completo" value={m.nome} onChange={(e) => setEquipe((l) => l.map((x, j) => (j === i ? { ...x, nome: e.target.value } : x)))} />
-                    <Input placeholder="CPF" inputMode="numeric" value={m.cpf} onChange={(e) => setEquipe((l) => l.map((x, j) => (j === i ? { ...x, cpf: maskCpfCnpjInput(e.target.value) } : x)))} />
-                    <Input placeholder="Função" value={m.funcao} onChange={(e) => setEquipe((l) => l.map((x, j) => (j === i ? { ...x, funcao: e.target.value } : x)))} />
+                  <div key={i} className="flex flex-wrap items-center gap-2">
+                    <Input
+                      className="flex-1 min-w-[12rem]"
+                      placeholder="Nome completo"
+                      value={m.nome}
+                      onChange={(e) => setEquipe((l) => l.map((x, j) => (j === i ? { ...x, nome: e.target.value } : x)))}
+                    />
+                    {camposDaPessoa.map((campo) => {
+                      const def = CAMPO_INPUT[campo];
+                      return (
+                        <Input
+                          key={campo}
+                          className="flex-1 min-w-[9rem]"
+                          type={def.tipo}
+                          inputMode={def.inputMode}
+                          placeholder={def.placeholder}
+                          value={(m[campo] as string) ?? ""}
+                          onChange={(e) => {
+                            const valor = def.mascara ? def.mascara(e.target.value) : e.target.value;
+                            setEquipe((l) => l.map((x, j) => (j === i ? { ...x, [campo]: valor } : x)));
+                          }}
+                        />
+                      );
+                    })}
                     <button type="button" className="text-ink-3 hover:text-danger px-2" onClick={() => setEquipe((l) => l.filter((_, j) => j !== i))} aria-label="Remover">✕</button>
                   </div>
                 ))}
               </div>
             </section>
 
-            {/* Veículos */}
+            {/* Veículos — só quando este credenciamento os pede. */}
+            {pedeVeiculo(campos) && (
             <section className="bg-surface border border-border rounded-card shadow-card p-5">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-display font-bold text-ink">Veículos</h3>
@@ -137,6 +187,7 @@ export function CredenciamentoPublico() {
                 ))}
               </div>
             </section>
+            )}
 
             {erro && <p className="text-[13px] font-semibold text-danger bg-danger-soft rounded-btn px-3 py-2">{erro}</p>}
 
