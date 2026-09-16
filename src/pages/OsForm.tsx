@@ -4,7 +4,6 @@ import { PageShell } from "@/components/layout/AppLayout";
 import { BarraProjeto } from "@/components/layout/BarraSecao";
 import {
   Button,
-  Field,
   Input,
   TelefoneInput,
   Textarea,
@@ -55,7 +54,7 @@ import { ListaArrastavel, ItemArrastavel } from "@/components/ListaArrastavel";
 import { MoverSetas, moverNaLista } from "@/components/MoverSetas";
 import { InscricaoMunicipalInput } from "@/components/InscricaoMunicipalInput";
 import { TextosJaUsados } from "@/components/TextosJaUsados";
-import { idAncoraPendencia } from "@/lib/destaque";
+import { destacarElemento, idAncoraPendencia, idBlocoGrupoExtra } from "@/lib/destaque";
 import { Chevron, idSecao, useSecaoRecolhivel } from "@/components/layout/Recolher";
 import { ancoraCronogramaOs, pendenciasDaTela } from "@/domain/pendencias";
 import {
@@ -68,12 +67,14 @@ import {
   sincronizarContratacao,
 } from "@/domain/contratacaoOs";
 import {
-  CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, alternarNaoSeAplica, exigeNovaVersaoPorFornecedor,
-  naoSeAplica, temContrato,
+  CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, exigeNovaVersaoPorFornecedor,
+  itensDoBloco, temContrato,
 } from "@/domain/os";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import type { ResumoContratacao } from "@/domain/contratacaoOs";
 import type {
+  GrupoExtraOs,
+  ItemExtraOs,
   ItemContratacaoOs,
   DocumentoFiscal,
   Ec,
@@ -436,11 +437,6 @@ export function OsForm() {
 
   // Linhas da EC que esta OS consolida (mesmo fornecedor).
   const linhasConsolidadas = ecCtx.linhas.filter((l) => os.ecLinhaIds.includes(l.id));
-  /** Quantos itens de cada bloco ficam fora do documento — some no rótulo dele. */
-  const foraDoDocumento = (n: number) => (n ? `(${n} fora do documento)` : undefined);
-  const naoAplicaveisLogistica = os.logistica.naoAplicaveis?.length ?? 0;
-  const naoAplicaveisInfra = os.infraestrutura.naoAplicaveis?.length ?? 0;
-
   /** Ordem atual do cronograma, pelas chaves que o arraste manipula. */
   const idsCronograma = os.cronograma.map(idDaEtapa);
 
@@ -807,6 +803,31 @@ export function OsForm() {
       setBusy(false);
     }
   }
+
+  /* ---------------- Grupos criados nesta OS (além de Logística e Infra) ------ */
+
+  const adicionarGrupoExtra = () => {
+    const novo = { id: novoId(), nome: "Novo grupo", itens: [] as ItemExtraOs[] };
+    setOs((o) => (o ? { ...o, gruposExtras: [...(o.gruposExtras ?? []), novo] } : o));
+    // O grupo nasce fora do campo de visão numa OS longa — a mesma régua dos
+    // itens da EC e dos blocos do cronograma.
+    destacarElemento(idBlocoGrupoExtra(novo.id), "novo");
+  };
+
+  const atualizarGrupoExtra = (id: string, patch: Partial<GrupoExtraOs>) =>
+    setOs((o) =>
+      o ? { ...o, gruposExtras: (o.gruposExtras ?? []).map((g) => (g.id === id ? { ...g, ...patch } : g)) } : o
+    );
+
+  const removerGrupoExtra = async (id: string) => {
+    const grupo = (os?.gruposExtras ?? []).find((g) => g.id === id);
+    if (grupo?.itens.length && !(await confirmar({
+      titulo: `Excluir o grupo "${grupo.nome}"?`,
+      mensagem: `Os ${grupo.itens.length} item(ns) dele saem da OS.`,
+      confirmarTexto: "Excluir grupo",
+    }))) return;
+    setOs((o) => (o ? { ...o, gruposExtras: (o.gruposExtras ?? []).filter((g) => g.id !== id) } : o));
+  };
 
   /**
    * Passa o bastão: grava a OS e a manda para a fase seguinte.
@@ -1248,8 +1269,12 @@ export function OsForm() {
             tabela do que foi definido no bloco de cima. Estava tudo num card só
             com o Detalhamento, e o formulário virava uma coluna sem fim em que
             "o que se contrata" e "como se executa" se misturavam. */}
-        <CardOs secao="Resumo da Contratação">
-          <LinhaOs label="Entrega"><Input value={os.entrega} onChange={(e) => setOs((o) => (o ? { ...o, entrega: e.target.value } : o))} placeholder="Instalação, operação, acompanhamento…" /></LinhaOs>
+        {/* O NOME diz o que o bloco tem dentro (15/09/2026). "Resumo da
+            Contratação" prometia um resumo dos valores — que fica no
+            Detalhamento — e entregava cronograma, logística e infraestrutura.
+            A "Entrega" saiu junto: era um campo de texto livre que repetia o
+            que o cronograma já diz, linha a linha e com data. */}
+        <CardOs secao="Cronograma | Logística | Infraestrutura">
           {/* Cronograma específico do fornecedor — já vem do cronograma do projeto.
               O `id` é o endereço da pendência "cronograma não preenchido": ela é
               cobrada na etapa da OS e se resolve aqui, então a pílula pisca este
@@ -1258,12 +1283,30 @@ export function OsForm() {
             id={idAncoraPendencia(ancoraCronogramaOs(os.id))}
             label="Cronograma do Fornecedor"
             acao={
-              <Button variant="secondary" size="sm" onClick={() => setOs((o) => (o ? { ...o, cronograma: [...o.cronograma, { id: novoId(), etapa: "", data: "", horario: "", atividades: "" }] } : o))}>+ Etapa</Button>
+              <div className="flex items-center gap-2">
+                {/* O cronograma inteiro pode não se aplicar (15/09/2026): numa OS
+                    de locação sem montagem no local, a tabela vazia fazia o
+                    fornecedor procurar o que preencher. É resposta, não ausência. */}
+                <button
+                  type="button"
+                  onClick={() => setOs((o) => (o ? { ...o, cronogramaNaoSeAplica: !o.cronogramaNaoSeAplica } : o))}
+                  className="text-[10.5px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded px-1"
+                  title={os.cronogramaNaoSeAplica ? "Voltar a preencher o cronograma" : "Esta OS não tem cronograma — o bloco some do documento"}
+                >
+                  {os.cronogramaNaoSeAplica ? "Informar cronograma" : "Não se aplica"}
+                </button>
+                {!os.cronogramaNaoSeAplica && (
+                  <Button variant="secondary" size="sm" onClick={() => setOs((o) => (o ? { ...o, cronograma: [...o.cronograma, { id: novoId(), etapa: "", data: "", horario: "", atividades: "" }] } : o))}>+ Etapa</Button>
+                )}
+              </div>
             }
           >
             {/* No celular a tabela rola na horizontal em vez de espremer sete
                 colunas; `overflow-x-auto` só abaixo de md, para não criar
                 container de rolagem onde não precisa (ver ui/Table). */}
+            {os.cronogramaNaoSeAplica ? (
+              <div className="py-2 text-[12.5px] font-bold text-ink-3">Não se aplica — o cronograma não sai nesta OS.</div>
+            ) : (
             <div className="py-1.5 overflow-x-auto md:overflow-visible">
               {/* Duas colunas vazias na frente: a alça de arraste e as setas. */}
               <div className={cx(GRADE_CRONOGRAMA, "mb-2 text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3 px-1")}>
@@ -1308,52 +1351,67 @@ export function OsForm() {
               </ListaArrastavel>
               {os.cronograma.length === 0 && <p className="text-[12.5px] text-ink-3 px-1">Nenhuma etapa. Use “+ Etapa” para adicionar.</p>}
             </div>
+            )}
           </LinhaOs>
 
-          <LinhaOs label="Logística do Fornecedor" hint={foraDoDocumento(naoAplicaveisLogistica)}>
-            <div className="py-1.5 grid sm:grid-cols-2 gap-2">
-              {CAMPOS_LOGISTICA.map(({ campo, rotulo }) => (
-                <CampoOpcionalOs
-                  key={campo}
-                  rotulo={rotulo}
-                  valor={os.logistica[campo]}
-                  sugestoes={sugestoes.valores[campo]}
-                  naoSeAplica={naoSeAplica(os.logistica, campo)}
-                  className={campo === "uniformizacao" ? "sm:col-span-2" : undefined}
-                  onValor={(v) => updLog({ [campo]: v } as Partial<Os["logistica"]>)}
-                  onAlternar={() => setOs((o) => (o ? { ...o, logistica: alternarNaoSeAplica(o.logistica, campo) } : o))}
-                />
-              ))}
-            </div>
-          </LinhaOs>
+          {/* LOGÍSTICA e INFRAESTRUTURA, um item por linha (15/09/2026).
+              Lado a lado, o rótulo e o campo disputavam a mesma largura e os
+              itens de nome longo quebravam em duas linhas, desalinhando a
+              coluna vizinha. Cada um na sua linha também é o que dá lugar às
+              setas e ao "não se aplica" sem espremer nada.
+              Os dois blocos aceitam ITEM NOVO, criado nesta OS: a lista fixa
+              cobre o que se repete em toda OS, e o que é daquele evento
+              ("gerador de 180 kVA") não tinha onde ser escrito. */}
+          <BlocoDeItens
+            titulo="Logística do Fornecedor"
+            campos={CAMPOS_LOGISTICA}
+            bloco={os.logistica}
+            valorDe={(campo) => os.logistica[campo] ?? ""}
+            sugestoes={sugestoes.valores}
+            onBloco={(patch) => setOs((o) => (o ? { ...o, logistica: { ...o.logistica, ...patch } } : o))}
+            onCampo={(campo, valor) => updLog({ [campo]: valor } as Partial<Os["logistica"]>)}
+          />
 
-          <LinhaOs label="Infraestrutura" hint={foraDoDocumento(naoAplicaveisInfra)}>
-            <div className="py-1.5 grid sm:grid-cols-2 gap-2">
-              {CAMPOS_INFRAESTRUTURA.map(({ campo, rotulo }) => (
-                <CampoOpcionalOs
-                  key={campo}
-                  rotulo={rotulo}
-                  valor={os.infraestrutura[campo]}
-                  sugestoes={sugestoes.valores[campo]}
-                  naoSeAplica={naoSeAplica(os.infraestrutura, campo)}
-                  onValor={(v) => updInfra({ [campo]: v } as Partial<Os["infraestrutura"]>)}
-                  onAlternar={() => setOs((o) => (o ? { ...o, infraestrutura: alternarNaoSeAplica(o.infraestrutura, campo) } : o))}
-                />
-              ))}
-            </div>
-          </LinhaOs>
+          <BlocoDeItens
+            titulo="Infraestrutura"
+            campos={CAMPOS_INFRAESTRUTURA}
+            bloco={os.infraestrutura}
+            valorDe={(campo) => os.infraestrutura[campo] ?? ""}
+            sugestoes={sugestoes.valores}
+            onBloco={(patch) => setOs((o) => (o ? { ...o, infraestrutura: { ...o.infraestrutura, ...patch } } : o))}
+            onCampo={(campo, valor) => updInfra({ [campo]: valor } as Partial<Os["infraestrutura"]>)}
+          />
 
-          {/* Texto livre, escrito PARA O FORNECEDOR: sai no documento, no e-mail
-              e na planilha. A conversa interna da equipe fica no card próprio,
-              logo abaixo — eram a mesma coisa, e a thread interna acabava
-              impressa no documento que o fornecedor recebe. */}
-          <LinhaOs label="Observações Gerais" hint="(sai no documento e na planilha)">
-            <Textarea
-              className="min-h-[90px]"
-              value={os.observacoesGerais}
-              onChange={(e) => setOs((o) => (o ? { ...o, observacoesGerais: e.target.value } : o))}
-              placeholder="O que o fornecedor precisa saber e não coube nos outros campos."
+          {/* GRUPOS CRIADOS NESTA OS — "Segurança", "Limpeza". Entram depois dos
+              dois fixos, na ordem em que foram criados. */}
+          {(os.gruposExtras ?? []).map((grupo) => (
+            <BlocoDeItens
+              key={grupo.id}
+              titulo={grupo.nome}
+              tituloEditavel
+              campos={[] as readonly { campo: string; rotulo: string }[]}
+              ancoraDom={idBlocoGrupoExtra(grupo.id)}
+              bloco={{ extras: grupo.itens, ordem: grupo.ordem }}
+              valorDe={() => ""}
+              sugestoes={sugestoes.valores}
+              onTitulo={(nome) => atualizarGrupoExtra(grupo.id, { nome })}
+              onExcluir={() => void removerGrupoExtra(grupo.id)}
+              onBloco={(patch) => atualizarGrupoExtra(grupo.id, {
+                ...(patch.extras ? { itens: patch.extras } : {}),
+                ...(patch.ordem ? { ordem: patch.ordem } : {}),
+              })}
+              onCampo={() => {}}
             />
+          ))}
+
+          <LinhaOs label="">
+            <button
+              type="button"
+              onClick={adicionarGrupoExtra}
+              className="py-1.5 text-[12.5px] font-bold text-primary-dark hover:underline input-focus rounded"
+            >
+              + Novo grupo (além de Logística e Infraestrutura)
+            </button>
           </LinhaOs>
 
           {/* A tabela do que foi definido lá em cima, item a item. Fecha o bloco
@@ -1364,6 +1422,39 @@ export function OsForm() {
               <TabelaResumoCustos resumo={resumo} />
             </LinhaOs>
           )}
+        </CardOs>
+
+        {/* OBSERVAÇÕES GERAIS em módulo PRÓPRIO (15/09/2026).
+            Elas moravam dentro do bloco de cronograma e logística, e ali pareciam
+            observação daquelas listas — quando são o recado da OS inteira, o
+            último parágrafo que o fornecedor lê. Texto livre, escrito PARA ELE:
+            sai no documento, no e-mail e na planilha. A conversa interna da
+            equipe continua no card do topo. */}
+        <CardOs
+          secao="Observações Gerais"
+          acaoSecao={
+            <button
+              type="button"
+              onClick={() => setOs((o) => (o ? { ...o, observacoesGeraisNaoSeAplica: !o.observacoesGeraisNaoSeAplica } : o))}
+              className="text-[10.5px] font-bold text-ink-2 hover:text-primary-dark input-focus rounded px-1"
+              title={os.observacoesGeraisNaoSeAplica ? "Voltar a escrever observações" : "Esta OS não tem observações — o bloco some do documento"}
+            >
+              {os.observacoesGeraisNaoSeAplica ? "Informar" : "Não se aplica"}
+            </button>
+          }
+        >
+          <LinhaOs label="Observações Gerais" hint="(sai no documento e na planilha)">
+            {os.observacoesGeraisNaoSeAplica ? (
+              <div className="py-2 text-[12.5px] font-bold text-ink-3">Não se aplica — não saem nesta OS.</div>
+            ) : (
+              <Textarea
+                className="min-h-[90px]"
+                value={os.observacoesGerais}
+                onChange={(e) => setOs((o) => (o ? { ...o, observacoesGerais: e.target.value } : o))}
+                placeholder="O que o fornecedor precisa saber e não coube nos outros campos."
+              />
+            )}
+          </LinhaOs>
         </CardOs>
 
         {/* O CREDENCIAMENTO saiu daqui (29/08/2026): virou subaba do Projeto, onde
@@ -1823,46 +1914,194 @@ function LinhaOs({
  * O texto digitado NÃO é apagado ao marcar: quem marcou por engano volta atrás
  * sem perder o que escreveu.
  */
-function CampoOpcionalOs({
-  rotulo,
-  valor,
+/**
+ * Um bloco de itens da OS — Logística, Infraestrutura ou um grupo criado aqui.
+ *
+ * Três coisas mudaram em 15/09/2026, e as três vêm do mesmo pedido:
+ *
+ *  · UM ITEM POR LINHA. Lado a lado, o rótulo e o campo disputavam a mesma
+ *    largura, e os de nome longo ("Estacionamento Equipe") quebravam em duas
+ *    linhas desalinhando a coluna vizinha. Em linha própria também sobra lugar
+ *    para as setas e para o "não se aplica" sem espremer nada.
+ *  · ITEM NOVO, criado nesta OS. A lista fixa cobre o que se repete em toda OS;
+ *    o que é daquele evento ("gerador de 180 kVA", "balsa para a ilha") não
+ *    tinha onde ser escrito senão nas Observações Gerais, onde o fornecedor não
+ *    procura.
+ *  · ORDEM. Fixos e criados convivem na mesma lista e se movem com as setas —
+ *    o mesmo par arraste/setas do cronograma e dos itens da EC, aqui só com as
+ *    setas: a lista é curta e o arraste pediria uma alça em cada linha.
+ *
+ * O bloco INTEIRO pode não se aplicar (é o caso de um grupo criado e depois
+ * dispensado), e aí some do documento como qualquer item marcado.
+ */
+function BlocoDeItens<C extends string>({
+  titulo,
+  tituloEditavel,
+  campos,
+  bloco,
+  valorDe,
   sugestoes,
-  naoSeAplica,
-  className,
-  onValor,
-  onAlternar,
+  onBloco,
+  onCampo,
+  onTitulo,
+  onExcluir,
+  ancoraDom,
 }: {
-  rotulo: string;
-  valor: string;
-  sugestoes: string[];
-  naoSeAplica: boolean;
-  className?: string;
-  onValor: (v: string) => void;
-  onAlternar: () => void;
+  titulo: string;
+  tituloEditavel?: boolean;
+  campos: readonly { campo: C; rotulo: string }[];
+  bloco: { naoAplicaveis?: readonly C[]; extras?: ItemExtraOs[]; ordem?: string[] } | undefined;
+  /** O valor de cada campo fixo do bloco. */
+  valorDe: (campo: C) => string;
+  sugestoes: Record<string, string[]>;
+  /** Metadados do bloco: o que não se aplica, os itens criados aqui e a ordem. */
+  onBloco: (patch: { naoAplicaveis?: C[]; extras?: ItemExtraOs[]; ordem?: string[] }) => void;
+  /** O valor de um item FIXO — o único patch que depende do tipo do bloco. */
+  onCampo: (campo: C, valor: string) => void;
+  onTitulo?: (nome: string) => void;
+  onExcluir?: () => void;
+  ancoraDom?: string;
 }) {
+  const itens = itensDoBloco(bloco, campos, valorDe);
+  const fora: readonly C[] = bloco?.naoAplicaveis ?? [];
+  const extras = bloco?.extras ?? [];
+
+  /** A ordem atual, escrita por extenso — é o que as setas reescrevem. */
+  const ordemAtual = itens.map((i) => i.chave);
+
+  const mover = (indice: number, direcao: -1 | 1) => {
+    const destino = indice + direcao;
+    if (destino < 0 || destino >= ordemAtual.length) return;
+    const nova = [...ordemAtual];
+    [nova[indice], nova[destino]] = [nova[destino], nova[indice]];
+    onBloco({ ordem: nova });
+  };
+
+  const alternar = (chave: C, extra: boolean) => {
+    if (extra) {
+      onBloco({ extras: extras.map((e) => (e.id === chave ? { ...e, naoSeAplica: !e.naoSeAplica } : e)) });
+      return;
+    }
+    onBloco({
+      naoAplicaveis: fora.includes(chave) ? fora.filter((c) => c !== chave) : [...fora, chave],
+    });
+  };
+
+  const escrever = (chave: C, extra: boolean, valor: string) => {
+    if (extra) onBloco({ extras: extras.map((e) => (e.id === chave ? { ...e, valor } : e)) });
+    else onCampo(chave, valor);
+  };
+
+  const adicionarItem = () => {
+    const novo: ItemExtraOs = { id: novoId(), rotulo: "", valor: "" };
+    onBloco({ extras: [...extras, novo], ordem: [...ordemAtual, novo.id] });
+  };
+
+  const naoAplicaveisVisiveis = itens.filter((i) => i.naoSeAplica).length;
+
   return (
-    // Sem dica no rótulo: "não entra no documento" quebrava o nome em duas
-    // linhas e desalinhava as colunas do bloco. Quem diz isso é a caixa cinza,
-    // o contador no cabeçalho e a dica do botão.
-    <Field label={rotulo} className={className}>
-      {naoSeAplica ? (
-        <div className="h-9 flex items-center rounded-btn border border-border-soft bg-[#F1F2F5] px-2.5 text-[12.5px] font-bold text-ink-3">
-          Não se aplica
+    <LinhaOs
+      id={ancoraDom}
+      label={titulo}
+      hint={naoAplicaveisVisiveis ? `(${naoAplicaveisVisiveis} fora do documento)` : undefined}
+      acao={
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" size="sm" onClick={adicionarItem}>+ Item</Button>
+          {onExcluir && (
+            <button
+              type="button"
+              onClick={onExcluir}
+              className="text-ink-3 hover:text-danger px-1.5"
+              title={`Excluir o grupo ${titulo}`}
+              aria-label={`Excluir o grupo ${titulo}`}
+            >
+              ✕
+            </button>
+          )}
         </div>
-      ) : (
-        <Input className="!h-9" sugestoes={sugestoes} value={valor} onChange={(e) => onValor(e.target.value)} />
+      }
+    >
+      {tituloEditavel && onTitulo && (
+        <Input
+          className="!h-9 mb-2 font-bold"
+          value={titulo}
+          onChange={(e) => onTitulo(e.target.value)}
+          placeholder="Nome do grupo (ex.: Segurança)"
+          aria-label="Nome do grupo"
+        />
       )}
-      <button
-        type="button"
-        onClick={onAlternar}
-        className="mt-1 text-[10.5px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded"
-        title={naoSeAplica ? "Voltar a informar este item" : "Este item não se aplica — some do documento e da planilha"}
-      >
-        {naoSeAplica ? "Informar" : "Não se aplica"}
-      </button>
-    </Field>
+      <div className="py-1 space-y-1.5">
+        {itens.map((item, i) => {
+          const extraDoItem = extras.find((e) => e.id === item.chave);
+          return (
+            <div key={item.chave} className="grid grid-cols-[auto_minmax(0,13rem)_minmax(0,1fr)_auto] items-center gap-2">
+              <MoverSetas
+                rotulo={item.rotulo || "o item"}
+                podeSubir={i > 0}
+                podeDescer={i < itens.length - 1}
+                onSubir={() => mover(i, -1)}
+                onDescer={() => mover(i, 1)}
+              />
+              {/* O rótulo do item fixo é da casa e não se edita; o do item
+                  criado aqui é justamente o que quem cria precisa escrever. */}
+              {item.extra ? (
+                <Input
+                  className="!h-9 !text-[12.5px]"
+                  value={extraDoItem?.rotulo ?? ""}
+                  onChange={(e) => onBloco({ extras: extras.map((x) => (x.id === item.chave ? { ...x, rotulo: e.target.value } : x)) })}
+                  placeholder="Nome do item"
+                  aria-label="Nome do item"
+                />
+              ) : (
+                <span className="text-[11.5px] font-extrabold uppercase tracking-[0.03em] text-ink-2 truncate" title={item.rotulo}>
+                  {item.rotulo}
+                </span>
+              )}
+              {item.naoSeAplica ? (
+                <div className="h-9 flex items-center rounded-btn border border-border-soft bg-[#F1F2F5] px-2.5 text-[12.5px] font-bold text-ink-3">
+                  Não se aplica
+                </div>
+              ) : (
+                <Input
+                  className="!h-9"
+                  sugestoes={sugestoes[item.chave] ?? []}
+                  value={item.valor}
+                  onChange={(e) => escrever(item.chave as C, item.extra, e.target.value)}
+                  aria-label={item.rotulo || "Valor do item"}
+                />
+              )}
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => alternar(item.chave as C, item.extra)}
+                  className="text-[10.5px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded px-1"
+                  title={item.naoSeAplica ? "Voltar a informar este item" : "Este item não se aplica — some do documento e da planilha"}
+                >
+                  {item.naoSeAplica ? "Informar" : "Não se aplica"}
+                </button>
+                {item.extra && (
+                  <button
+                    type="button"
+                    onClick={() => onBloco({ extras: extras.filter((e) => e.id !== item.chave) })}
+                    className="text-ink-3 hover:text-danger px-1"
+                    title="Excluir este item"
+                    aria-label={`Excluir ${item.rotulo || "o item"}`}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+        {itens.length === 0 && (
+          <p className="text-[12.5px] text-ink-3 px-1">Nenhum item. Use “+ Item” para acrescentar.</p>
+        )}
+      </div>
+    </LinhaOs>
   );
 }
+
 
 /**
  * Tabela do Resumo dos Custos: o item e as três formas de cobrá-lo.

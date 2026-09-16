@@ -615,6 +615,40 @@ export type CampoLogistica =
   | "estacionamentoEquipe"
   | "uniformizacao";
 
+/**
+ * Um item CRIADO NA OS, além dos previstos na lista fixa (15/09/2026).
+ *
+ * "Permitir a criação de Novos Grupos e Novos Itens de Logística e
+ * Infraestrutura, além dos itens já previstos" — check-list da Pólobh. A lista
+ * fixa cobre o que se repete em toda OS; o que é daquele evento ("gerador de
+ * 180 kVA", "balsa para a ilha") não tinha onde ser escrito senão nas
+ * Observações Gerais, onde o fornecedor não procura.
+ *
+ * Mora dentro do próprio bloco (`Logistica.extras`), que é jsonb: nenhuma
+ * coluna nova, e o item novo já viaja para o documento e para a planilha pelo
+ * mesmo caminho dos fixos (ver `itensParaDocumento`).
+ */
+export interface ItemExtraOs {
+  id: string;
+  rotulo: string;
+  valor: string;
+  /** Mesma resposta dos itens fixos: some do documento, sem apagar o valor. */
+  naoSeAplica?: boolean;
+}
+
+/**
+ * Um grupo inteiro criado na OS, com os seus itens — "Segurança", "Limpeza".
+ * Vive em `Os.gruposExtras`, ao lado de Logística e Infraestrutura.
+ */
+export interface GrupoExtraOs {
+  id: string;
+  nome: string;
+  itens: ItemExtraOs[];
+  /** A ordem dos itens — ver `Logistica.ordem`. */
+  ordem?: string[];
+  naoSeAplica?: boolean;
+}
+
 export interface Logistica {
   transporteMaterial: string;
   transporteEquipe: string;
@@ -633,6 +667,14 @@ export interface Logistica {
    * engano volta atrás sem perder o que escreveu).
    */
   naoAplicaveis?: CampoLogistica[];
+  /** Itens criados nesta OS, além dos previstos acima. */
+  extras?: ItemExtraOs[];
+  /**
+   * A ordem em que os itens aparecem — chaves dos fixos e ids dos extras,
+   * misturados. Vazio (ou item ausente dela) significa "na ordem da lista fixa,
+   * e os extras no fim", que é como tudo nasce.
+   */
+  ordem?: string[];
 }
 
 /** Um dos itens de Infraestrutura (ver `CAMPOS_INFRAESTRUTURA` em domain/os). */
@@ -653,6 +695,10 @@ export interface Infraestrutura {
   artLaudos: string;
   /** Itens que não se aplicam a esta OS — mesma regra da Logística. */
   naoAplicaveis?: CampoInfraestrutura[];
+  /** Itens criados nesta OS, além dos previstos acima. */
+  extras?: ItemExtraOs[];
+  /** A ordem em que os itens aparecem — ver `Logistica.ordem`. */
+  ordem?: string[];
 }
 
 export interface Parcela {
@@ -809,6 +855,20 @@ export interface Os {
   cronograma: CronogramaItem[];
   logistica: Logistica;
   infraestrutura: Infraestrutura;
+  /**
+   * Grupos criados NESTA OS, além de Logística e Infraestrutura (15/09/2026).
+   * Saem no documento logo depois dos dois, na ordem em que foram criados.
+   */
+  gruposExtras?: GrupoExtraOs[];
+  /**
+   * O cronograma inteiro não se aplica a esta OS.
+   *
+   * É resposta, e não ausência: uma OS de locação sem montagem no local não tem
+   * cronograma, e a tabela vazia fazia o fornecedor procurar o que preencher.
+   */
+  cronogramaNaoSeAplica?: boolean;
+  /** As observações gerais não se aplicam — mesma ideia do cronograma. */
+  observacoesGeraisNaoSeAplica?: boolean;
   /**
    * Observações gerais da OS em TEXTO LIVRE, escritas para o fornecedor ler.
    * Saem no documento impresso, no e-mail e na planilha.

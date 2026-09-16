@@ -228,6 +228,9 @@ export const idCampoTrava = (campo: string) => `trava-${limpar(campo)}`;
 /** Campo "Descrição Completa" do item — onde o resumo da proposta é inserido. */
 export const idCampoDescricaoCompleta = (id: string) => `descricao-completa-${limpar(id)}`;
 
+/** Bloco de um grupo criado dentro da OS (Logística/Infraestrutura à parte). */
+export const idBlocoGrupoExtra = (id: string) => `grupo-os-${limpar(id)}`;
+
 export const idBlocoCronograma = (id: string) => `bloco-cronograma-${limpar(id)}`;
 export const idFaixaCronograma = (id: string) => `faixa-cronograma-${limpar(id)}`;
 export const idGrupoEc = (id: string) => `grupo-ec-${limpar(id)}`;

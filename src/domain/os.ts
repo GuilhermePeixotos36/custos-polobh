@@ -9,7 +9,7 @@
  * na ordem em que os itens aparecem na EC — a mesma ordem da planilha, para
  * quem lê os dois lados não precisar reconciliar nada.
  */
-import type { CampoInfraestrutura, CampoLogistica, Ec, EcLinha, Fornecedor, Os, StatusOs } from "@/data/types";
+import type { CampoInfraestrutura, CampoLogistica, Ec, EcLinha, Fornecedor, ItemExtraOs, Os, StatusOs } from "@/data/types";
 
 export interface ItemDaOs {
   id: string;
@@ -50,7 +50,7 @@ export function itensDaOs(os: Pick<Os, "ecId" | "ecLinhaIds">, ecs: Ec[]): ItemD
  *
  * As duas listas, com os rótulos, existiam em triplicata: uma cópia na tela,
  * uma no documento e uma na planilha. Foram juntadas aqui, e as três saídas
- * passam por `itensVisiveis`. Com as cópias soltas, bastava uma delas esquecer
+ * passam por `itensParaDocumento`. Com as cópias soltas, bastava uma delas esquecer
  * de filtrar para o item sumir da tela e continuar no papel que o fornecedor
  * recebe — que é justamente o erro que este recurso não pode cometer.
  */
@@ -89,23 +89,55 @@ export function naoSeAplica<B extends BlocoOpcional>(bloco: B | undefined, campo
 }
 
 /**
- * Os itens que ENTRAM no documento e na planilha.
+ * Os itens de um bloco na ORDEM da tela, fixos e criados na OS, já sem o que
+ * não se aplica (15/09/2026).
  *
- * O que não se aplica some — é o pedido. Item VAZIO continua saindo, com a
- * linha em branco para o fornecedor preencher: vazio é pergunta em aberto, e
- * escondê-la seria dar por respondida uma coisa que ninguém respondeu.
+ * É a lista que a tela desenha e a que sai no documento — uma só, para as duas
+ * nunca discordarem sobre o que o fornecedor vê. A ordem vem de `bloco.ordem`,
+ * e o que não estiver nela entra depois, na ordem natural: assim uma OS antiga
+ * (sem `ordem`) e uma recém-criada se comportam igual, e um item fixo novo que
+ * a casa venha a acrescentar não some das OS que já existem.
  */
-export function itensVisiveis<C extends string>(
-  // `Record`, e não `Partial<Record>`: o bloco precisa TER os campos da lista.
-  // Com Partial, passar `os.logistica` junto de `CAMPOS_INFRAESTRUTURA` seria
-  // aceito e devolveria seis linhas vazias, sem ninguém reclamar.
-  bloco: (Record<C, string> & BlocoOpcional) | undefined,
-  campos: readonly { campo: C; rotulo: string }[]
-): { campo: C; rotulo: string; valor: string }[] {
+export function itensDoBloco<C extends string>(
+  bloco: { naoAplicaveis?: readonly C[]; extras?: ItemExtraOs[]; ordem?: string[] } | undefined,
+  campos: readonly { campo: C; rotulo: string }[],
+  /** O valor de cada campo fixo. Separado do bloco para o grupo criado na OS —
+   *  que não tem campo fixo nenhum — não precisar fingir que tem. */
+  valorDe: (campo: C) => string
+): { chave: string; rotulo: string; valor: string; naoSeAplica: boolean; extra: boolean }[] {
   const fora = new Set<string>(bloco?.naoAplicaveis ?? []);
-  return campos
-    .filter(({ campo }) => !fora.has(campo))
-    .map(({ campo, rotulo }) => ({ campo, rotulo, valor: bloco?.[campo] ?? "" }));
+  const fixos = campos.map(({ campo, rotulo }) => ({
+    chave: campo as string,
+    rotulo,
+    valor: valorDe(campo),
+    naoSeAplica: fora.has(campo),
+    extra: false,
+  }));
+  const extras = (bloco?.extras ?? []).map((e) => ({
+    chave: e.id,
+    rotulo: e.rotulo,
+    valor: e.valor,
+    naoSeAplica: !!e.naoSeAplica,
+    extra: true,
+  }));
+  const todos = [...fixos, ...extras];
+  const ordem = bloco?.ordem ?? [];
+  if (!ordem.length) return todos;
+  const posicao = new Map(ordem.map((chave, i) => [chave, i]));
+  // Quem não está na ordem vai para o fim, preservando a ordem natural entre si.
+  return [...todos].sort(
+    (a, b) => (posicao.get(a.chave) ?? Number.MAX_SAFE_INTEGER) - (posicao.get(b.chave) ?? Number.MAX_SAFE_INTEGER)
+  );
+}
+
+/** O que sai no documento e na planilha: tudo o que não foi marcado como "não se aplica". */
+export function itensParaDocumento<C extends string>(
+  bloco: (Record<C, string> & BlocoOpcional & { extras?: ItemExtraOs[]; ordem?: string[] }) | undefined,
+  campos: readonly { campo: C; rotulo: string }[]
+): { rotulo: string; valor: string }[] {
+  return itensDoBloco(bloco as { naoAplicaveis?: readonly C[]; extras?: ItemExtraOs[]; ordem?: string[] } | undefined, campos, (c) => bloco?.[c] ?? "")
+    .filter((i) => !i.naoSeAplica)
+    .map(({ rotulo, valor }) => ({ rotulo, valor }));
 }
 
 /**

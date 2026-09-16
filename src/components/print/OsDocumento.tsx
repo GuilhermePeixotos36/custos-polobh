@@ -1,5 +1,5 @@
 /** OS como documento A4 — visualização em tela + PDF. Espelha o modelo em Excel. */
-import { itensVisiveis, temContrato, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA } from "@/domain/os";
+import { itensParaDocumento, temContrato, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA } from "@/domain/os";
 import type { Cliente, Ec, Os } from "@/data/types";
 import { brl, dataBR } from "@/lib/format";
 import { textoObjetoContrato, FORMA_PAGAMENTO_PADRAO, OBS_CONTRATO_PADRAO } from "@/domain/calc";
@@ -61,14 +61,17 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
   const b = f.dadosBancarios;
   const consolidadas = ec.linhas.filter((l) => os.ecLinhaIds.includes(l.id));
   /** Só o que se aplica a esta OS — o resto não vira linha para o fornecedor ler. */
-  const logistica = itensVisiveis(os.logistica, CAMPOS_LOGISTICA);
+  // `itensParaDocumento` traz os itens fixos E os criados nesta OS, na ordem da
+  // tela (15/09/2026): o item que alguém acrescentou é dado do fornecedor como
+  // qualquer outro, e ficar de fora do papel seria pior do que não existir.
+  const logistica = itensParaDocumento(os.logistica, CAMPOS_LOGISTICA);
   // O que a OS DEFINIU item a item (ver `domain/contratacaoOs`).
   // OS gravada antes desta revisão não tem contratação nenhuma: `sincronizar`
   // parte do que a EC levantou, para o documento nunca sair com a tabela vazia.
   const resumo = resumoContratacao(sincronizarContratacao(os.itens ?? [], consolidadas), consolidadas);
   /** Só as colunas com algum valor vão ao fornecedor — ver `resumoContratacao`. */
   const colunas = COLUNAS_CONTRATACAO.filter((c) => resumo.colunas[c.chave]);
-  const infraestrutura = itensVisiveis(os.infraestrutura, CAMPOS_INFRAESTRUTURA);
+  const infraestrutura = itensParaDocumento(os.infraestrutura, CAMPOS_INFRAESTRUTURA);
   const tom = fiscaisDe(os.financeiro.tomador, cli);
   const contr = fiscaisDe(os.contrato.contratante, cli);
 
@@ -159,8 +162,7 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
       <Secao titulo="Detalhamento da Contratação" />
       <LV label="Modalidade" valor={os.modalidade} />
       <LV label="Descritivo" valor={os.descritivo} />
-      <LV label="Entrega" valor={os.entrega} />
-      {/* Item marcado como "não se aplica" nem aparece — ver `itensVisiveis`.
+      {/* Item marcado como "não se aplica" nem aparece — ver `itensParaDocumento`.
           Bloco inteiro fora do documento quando nada se aplica. */}
       {logistica.length > 0 && (
         <LV
@@ -174,10 +176,28 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
           valor={infraestrutura.map(({ rotulo, valor }) => `${rotulo}: ${valor || "____"}`).join("\n")}
         />
       )}
+      {/* GRUPOS criados nesta OS, depois dos dois fixos (15/09/2026). */}
+      {(os.gruposExtras ?? [])
+        .filter((g) => !g.naoSeAplica && g.itens.some((i) => !i.naoSeAplica))
+        .map((g) => (
+          <LV
+            key={g.id}
+            label={g.nome || "Outros"}
+            valor={g.itens
+              .filter((i) => !i.naoSeAplica)
+              .map(({ rotulo, valor }) => `${rotulo}: ${valor || "____"}`)
+              .join("\n")}
+          />
+        ))}
       {/* Só o campo LIVRE. A thread de `os.observacoes` é conversa interna da
-          equipe e saía impressa aqui, no documento que o fornecedor recebe. */}
-      <LV label="Observações Gerais" valor={os.observacoesGerais} />
+          equipe e saía impressa aqui, no documento que o fornecedor recebe.
+          Marcado "não se aplica", o bloco não sai — como qualquer outro. */}
+      {!os.observacoesGeraisNaoSeAplica && <LV label="Observações Gerais" valor={os.observacoesGerais} />}
 
+      {/* Cronograma marcado como "não se aplica" não vira uma tabela vazia para
+          o fornecedor preencher: o bloco inteiro fica fora (15/09/2026). */}
+      {!os.cronogramaNaoSeAplica && (
+      <>
       <Secao titulo="Cronograma Específico do Fornecedor" />
       <table className="w-full text-[11px] border-collapse">
         <thead>
@@ -205,6 +225,8 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
           )}
         </tbody>
       </table>
+      </>
+      )}
 
       {/* O CREDENCIAMENTO saiu da OS (29/08/2026): virou subaba do Projeto, e o
           link chega ao fornecedor por e-mail. */}

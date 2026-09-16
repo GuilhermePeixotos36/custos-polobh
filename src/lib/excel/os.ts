@@ -26,7 +26,7 @@ import {
 } from "@/domain/calc";
 import { COLUNAS_CONTRATACAO, resumoContratacao, sincronizarContratacao } from "@/domain/contratacaoOs";
 import { datasDoEvento, ETAPAS_CRONOGRAMA, horariosDoEvento } from "@/domain/projeto";
-import { itensVisiveis, temContrato, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA } from "@/domain/os";
+import { itensParaDocumento, temContrato, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA } from "@/domain/os";
 import { COR, fill, FONT_LIGHT, baixar, nomeArquivo, carregarLogo, encaixarLogo, linhasVisuais, alturaParaLinhas } from "./shared";
 
 const moeda = '"R$" #,##0.00';
@@ -308,11 +308,16 @@ export async function criarOsExcelBuffer(
   linha("Descritivo:", os.descritivo, {
     altura: Math.max(60, alturaParaLinhas(linhasVisuais(os.descritivo, LARGURA_VALOR))),
   });
-  linha("Entrega:", os.entrega, { altura: 40 });
+  // "Entrega" saiu em 15/09/2026: repetia, em texto livre, o que o cronograma
+  // abaixo já diz linha a linha e com data.
 
-  const cron = [...(os.cronograma ?? [])].sort((a, c) => (a.data || "").localeCompare(c.data || ""));
+  const cron = os.cronogramaNaoSeAplica
+    ? []
+    : [...(os.cronograma ?? [])].sort((a, c) => (a.data || "").localeCompare(c.data || ""));
   const primeiraCronF = r;
-  if (!cron.length) {
+  if (os.cronogramaNaoSeAplica) {
+    linhaBlocos("Cronograma Específico do Fornecedor:", ["Não se aplica", "", "", ""]);
+  } else if (!cron.length) {
     linhaBlocos("Cronograma Específico do Fornecedor:", ["—", "", "", ""]);
   } else {
     cron.forEach((c, i) =>
@@ -326,8 +331,8 @@ export async function criarOsExcelBuffer(
   agruparRotulo(primeiraCronF, r - 1);
 
   // Item marcado como "não se aplica" não vira linha na planilha (ver
-  // `itensVisiveis`); com nada aplicável, a seção inteira fica de fora.
-  const logistica = itensVisiveis(os.logistica, CAMPOS_LOGISTICA);
+  // `itensParaDocumento`); com nada aplicável, a seção inteira fica de fora.
+  const logistica = itensParaDocumento(os.logistica, CAMPOS_LOGISTICA);
   if (logistica.length) {
     const primeiraLog = r;
     logistica.forEach(({ rotulo, valor }, i) =>
@@ -336,7 +341,7 @@ export async function criarOsExcelBuffer(
     agruparRotulo(primeiraLog, r - 1);
   }
 
-  const infra = itensVisiveis(os.infraestrutura, CAMPOS_INFRAESTRUTURA);
+  const infra = itensParaDocumento(os.infraestrutura, CAMPOS_INFRAESTRUTURA);
   if (infra.length) {
     const primeiraInf = r;
     infra.forEach(({ rotulo, valor }, i) =>
@@ -345,11 +350,27 @@ export async function criarOsExcelBuffer(
     agruparRotulo(primeiraInf, r - 1);
   }
 
+  // GRUPOS criados nesta OS, depois dos dois fixos (15/09/2026).
+  for (const grupo of os.gruposExtras ?? []) {
+    if (grupo.naoSeAplica) continue;
+    const itens = grupo.itens.filter((i) => !i.naoSeAplica);
+    if (!itens.length) continue;
+    const primeira = r;
+    itens.forEach(({ rotulo, valor }, i) =>
+      linhaBlocos(`${grupo.nome || "Outros"}:`, [rotulo, valor || "", "", ""], { semRotulo: i > 0 })
+    );
+    agruparRotulo(primeira, r - 1);
+  }
+
   // Só o campo LIVRE. A thread de `os.observacoes` é conversa interna da equipe
   // e saía impressa aqui — no documento que o fornecedor recebe.
-  linha("Observações Gerais:", os.observacoesGerais ?? "", {
-    altura: Math.max(40, alturaParaLinhas(linhasVisuais(os.observacoesGerais ?? "", LARGURA_VALOR))),
-  });
+  if (os.observacoesGeraisNaoSeAplica) {
+    linha("Observações Gerais:", "Não se aplica", { altura: 20 });
+  } else {
+    linha("Observações Gerais:", os.observacoesGerais ?? "", {
+      altura: Math.max(40, alturaParaLinhas(linhasVisuais(os.observacoesGerais ?? "", LARGURA_VALOR))),
+    });
+  }
 
   // O CREDENCIAMENTO saiu da OS (29/08/2026): virou subaba do Projeto, e o link
   // chega ao fornecedor por e-mail, disparado de lá para todos de uma vez.
