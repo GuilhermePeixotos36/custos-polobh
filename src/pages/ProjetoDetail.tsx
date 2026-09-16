@@ -48,7 +48,8 @@ import {
   type SnapshotEvento,
 } from "@/domain/mudancasEvento";
 import { ABAS_COM_CONVERSA } from "@/data/types";
-import type { AbaComConversa, Cliente, Ec, Observacao, Projeto, ProjetoInfo, StatusProjeto } from "@/data/types";
+import { nomeCurtoFornecedor } from "@/domain/fornecedor";
+import type { AbaComConversa, Cliente, Ec, Observacao, Projeto, ProjetoInfo, StatusOsDoc, StatusProjeto } from "@/data/types";
 import { ancoraConversaAba, ancoraProjetoSemEc, pendenciasDaTela, type Pendencia } from "@/domain/pendencias";
 import { CardConversa } from "@/components/CardConversa";
 import { situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
@@ -164,6 +165,8 @@ export function ProjetoDetail() {
   /** Diferenças a repercutir em EC/OS depois de salvar (ver RepercutirMudancasModal). */
   const [repercussao, setRepercussao] = useState<{ mudancas: MudancaEvento[]; atual: SnapshotEvento } | null>(null);
   const [filtroEc, setFiltroEc] = useState<"todas" | "ativas" | "arquivadas">("todas");
+  /** Mesmo filtro da EC, agora também na lista de OSs do projeto (15/09/2026). */
+  const [filtroOs, setFiltroOs] = useState<"todas" | StatusOsDoc>("todas");
   const [cnpjLoading, setCnpjLoading] = useState(false);
   const [cnpjMsg, setCnpjMsg] = useState("");
   const [cnpjFoco, setCnpjFoco] = useState(false);
@@ -207,8 +210,13 @@ export function ProjetoDetail() {
     () => ecsDoProjeto.filter((ec) => filtroEc === "todas" || (filtroEc === "ativas" ? ec.ativa : !ec.ativa)),
     [ecsDoProjeto, filtroEc]
   );
+
   const ecIds = useMemo(() => new Set(ecsDoProjeto.map((e) => e.id)), [ecsDoProjeto]);
   const ossDoProjeto = useMemo(() => (ossAll ?? []).filter((o) => ecIds.has(o.ecId)), [ossAll, ecIds]);
+  const ossFiltradas = useMemo(
+    () => ossDoProjeto.filter((os) => filtroOs === "todas" || os.status === filtroOs),
+    [ossDoProjeto, filtroOs]
+  );
   /**
    * Itens da EC que cada OS consolida — o conteúdo da caixinha do "olhinho" na
    * lista de OSs. Calculado uma vez para todas, e não por linha: a busca é na
@@ -250,7 +258,10 @@ export function ProjetoDetail() {
   );
 
   const etapas = useMemo<ItemConsolidado[]>(
-    () => ossDoProjeto.flatMap((o) => o.cronograma.map((c) => ({ ...c, fornecedor: o.fornecedor.razaoSocial || "Fornecedor" }))),
+    // NOME FANTASIA, não razão social (15/09/2026): o cronograma é lido no dia
+    // da montagem, e "Sonora" identifica o fornecedor melhor do que
+    // "Sonora Áudio e Iluminação Ltda" — que ainda estoura a coluna.
+    () => ossDoProjeto.flatMap((o) => o.cronograma.map((c) => ({ ...c, fornecedor: nomeCurtoFornecedor(o.fornecedor) || "Fornecedor" }))),
     [ossDoProjeto]
   );
   /**
@@ -279,11 +290,11 @@ export function ProjetoDetail() {
     { col: "status", dir: "asc" }
   );
   const ossOrdenadas = useOrdenacao(
-    ossDoProjeto,
+    ossFiltradas,
     {
       pendencias: (o) => porOs[o.id] ?? 0,
       numero: (o) => o.numero,
-      fornecedor: (o) => o.fornecedor.razaoSocial,
+      fornecedor: (o) => nomeCurtoFornecedor(o.fornecedor),
       status: (o) => o.status,
     },
     { col: "numero", dir: "asc" }
@@ -819,11 +830,11 @@ export function ProjetoDetail() {
           {!editando && podeEditarProjeto && (
             <div className="flex items-center gap-2 rounded-card border border-border-soft bg-[#FBFBFC] px-4 py-2.5 text-[12.5px] text-ink-2">
               <IcEye width={15} height={15} className="shrink-0 text-ink-3" />
-              <span>
-                Modo leitura. O evento muda — local, participantes, datas: use{" "}
-                <b className="text-ink">Editar dados gerais</b> para alterar. O que já foi emitido em
-                EC e OS não muda por conta disso.
-              </span>
+              {/* Só "Modo leitura" (15/09/2026): a explicação de três linhas
+                  dizia, toda vez, o que o botão ao lado já diz — e o que
+                  acontece com EC e OS emitidas agora é dito na hora certa, no
+                  alerta que aparece ao salvar. */}
+              <span>Modo leitura</span>
             </div>
           )}
           <Card data-tour="projeto-cliente">
@@ -1069,8 +1080,6 @@ export function ProjetoDetail() {
       {!novo && (ABAS_COM_CONVERSA as readonly string[]).includes(aba) && (
         <div className="mb-4">
           <CardConversa
-            titulo={`Observações — ${ABAS.find((a) => a.key === aba)?.label ?? ""}`}
-            hint="Conversa da equipe sobre esta etapa. Não sai em documento, e-mail nem planilha — quem é @mencionado fica com a pendência."
             ancora={ancoraConversaAba(id, aba)}
             ancoraDom={idAncoraPendencia(ancoraConversaAba(id, aba))}
             observacoes={p.conversas?.[aba as AbaComConversa] ?? []}
@@ -1224,8 +1233,35 @@ export function ProjetoDetail() {
       {aba === "os" && (
         <Card padded={false}>
           <div className="p-5"><CardTitle hint="Ordens de serviço geradas a partir das ECs deste projeto">Ordens de Serviço</CardTitle></div>
+          {/* Os mesmos filtros da lista de ECs (15/09/2026): a lista de OSs de um
+              projeto cresce a cada versão reemitida, e o que se procura quase
+              sempre é "as que ainda não saíram" ou "a que foi cancelada". */}
+          <div className="px-5 pb-4 flex items-center gap-1 flex-wrap border-b border-border-soft" role="group" aria-label="Filtrar ordens de serviço">
+            {([
+              ["todas", "Todas"],
+              ["Rascunho", "Rascunho"],
+              ["Emitida", "Emitida"],
+              ["Cancelada", "Cancelada"],
+              ["Arquivada", "Arquivada"],
+            ] as const).map(([valor, rotulo]) => (
+              <button
+                key={valor}
+                type="button"
+                aria-pressed={filtroOs === valor}
+                onClick={() => setFiltroOs(valor)}
+                className={cx(
+                  "h-8 rounded-pill px-3 text-[12.5px] font-bold transition-colors",
+                  filtroOs === valor ? "bg-primary-soft text-primary-dark" : "text-ink-2 hover:bg-[#F1F2F5] hover:text-ink"
+                )}
+              >
+                {rotulo}
+              </button>
+            ))}
+          </div>
           {ossDoProjeto.length === 0 ? (
             <div className="p-6"><EmptyState title="Nenhuma OS" hint="Gere OSs a partir das ECs do projeto." /></div>
+          ) : ossFiltradas.length === 0 ? (
+            <div className="p-6"><EmptyState title="Nenhuma OS neste filtro" hint="Selecione outro filtro para ver as demais ordens de serviço." /></div>
           ) : (
             <Table>
               <THead>
@@ -1242,7 +1278,7 @@ export function ProjetoDetail() {
                     <TdPendencias n={porOs[o.id] ?? 0} title="Ações pendentes suas nesta OS" />
                     <Td className="font-bold">{o.numero}</Td>
                     <TdItensOs itens={itensPorOs[o.id] ?? []} />
-                    <Td>{o.fornecedor.razaoSocial || "—"}</Td>
+                    <Td>{nomeCurtoFornecedor(o.fornecedor) || "—"}</Td>
                     <Td align="center"><Badge tom={tomStatusOs[o.status]}>{o.status}</Badge></Td>
                   </Tr>
                 ))}

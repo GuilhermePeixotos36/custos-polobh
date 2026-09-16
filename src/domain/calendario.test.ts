@@ -49,6 +49,7 @@ const item = (id: string, inicio: string, fim: string): ProjetoNoCalendario => (
   id,
   titulo: `Projeto ${id}`,
   cliente: "Cliente",
+  produtora: "",
   local: "",
   modalidade: "",
   status: "Ativo",

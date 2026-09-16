@@ -24,7 +24,7 @@ export async function enviarPeloBrevo(msg: EmailBrevo): Promise<{ messageId?: st
 
   // Remetente autenticado no domínio da Pólobh (registrado pelo TI).
   const remetenteEmail = Deno.env.get("BREVO_SENDER_EMAIL") ?? "noreply@polobh.com.br";
-  const remetenteNome = Deno.env.get("BREVO_SENDER_NAME") ?? "Pólobh Eventos";
+  const remetenteNome = Deno.env.get("BREVO_SENDER_NAME") ?? "Pólobh Promoções";
   // Como o envio sai de "noreply@", as respostas são direcionadas a uma caixa real
   // (BREVO_REPLY_TO) — a menos que a mensagem já especifique um "responderPara".
   const replyToPadrao = Deno.env.get("BREVO_REPLY_TO");

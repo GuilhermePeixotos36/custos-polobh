@@ -52,7 +52,6 @@ export function ObservacoesGeraisEc({
   return (
     <CardConversa
       ancora={ancoraObservacoesGeraisEc(ecId)}
-      hint="Conversa da equipe sobre o evento inteiro. Combine aqui e trate o detalhe dentro de cada item — quem é @mencionado fica com a pendência."
       observacoes={lista}
       usuarios={usuarios}
       minhas={minhas}

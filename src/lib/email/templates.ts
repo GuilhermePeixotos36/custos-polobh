@@ -39,7 +39,7 @@ export interface MensagemEmail {
   interna?: boolean;
 }
 
-const REMETENTE_NOME = "Pólobh Eventos";
+const REMETENTE_NOME = "Pólobh Promoções";
 
 const h = (valor: unknown): string => String(valor ?? "")
   .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
@@ -64,7 +64,7 @@ function wrap(titulo: string, corpoHtml: string): string {
     <h2 style="font-size:18px;margin:22px 0 12px">${titulo}</h2>
     ${corpoHtml}
     <p style="color:#A0A4AC;font-size:12px;margin-top:28px;border-top:1px solid #EEEFF2;padding-top:12px">
-      Mensagem automática do sistema Pólobh — Custos de Eventos.
+      Mensagem automática do sistema Pólobh — Gestão de Projetos.
     </p>
   </div>`;
 }

@@ -17,6 +17,7 @@
  */
 import { itensDaOs } from "./os";
 import type { Ec, Os } from "@/data/types";
+import { nomeCurtoFornecedor } from "@/domain/fornecedor";
 
 /** OS encerrada não vai para a folha: o fornecedor não está mais no evento. */
 const OS_ENCERRADA = ["Cancelada", "Arquivada"];
@@ -34,9 +35,6 @@ export interface LinhaDadosUteis {
   oss: string[];
 }
 
-const nomeCurto = (f: Os["fornecedor"]): string =>
-  (f.apelido || f.nomeFantasia || f.razaoSocial || "").trim();
-
 /**
  * A folha de contatos do projeto, em ordem alfabética — é assim que se procura
  * alguém numa lista impressa.
@@ -49,11 +47,11 @@ export function dadosUteisDosFornecedores(oss: Os[], ecs: Ec[]): LinhaDadosUteis
     const f = os.fornecedor;
     // A chave é o CNPJ quando existe: o mesmo fornecedor pode ter sido digitado
     // com razão social diferente em duas OSs, e viraria duas linhas.
-    const chave = (f.cnpj || nomeCurto(f)).trim();
+    const chave = (f.cnpj || nomeCurtoFornecedor(f)).trim();
     if (!chave) continue;
 
     const atual = porFornecedor.get(chave) ?? {
-      fornecedor: nomeCurto(f) || "Fornecedor",
+      fornecedor: nomeCurtoFornecedor(f) || "Fornecedor",
       itens: [],
       contato: "",
       telefone: "",

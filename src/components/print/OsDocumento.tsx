@@ -28,8 +28,8 @@ function SubSecao({ titulo }: { titulo: string }) {
 function LV({ label, valor, full }: { label: string; valor?: string | number | null; full?: boolean }) {
   return (
     <div className={`grid grid-cols-[170px_1fr] border-b border-border-soft text-[12px] ${full ? "col-span-2" : ""}`}>
-      <div className="bg-[#F2F2F2] font-bold px-3 py-1.5">{label}</div>
-      <div className="px-3 py-1.5 whitespace-pre-line">{valor ?? ""}</div>
+      <div className="bg-[#F2F2F2] font-bold px-3 py-1">{label}</div>
+      <div className="px-3 py-1 whitespace-pre-line">{valor ?? ""}</div>
     </div>
   );
 }
@@ -337,7 +337,7 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
       )}
 
       <div className="grid grid-cols-2 gap-8 mt-10 text-[11px] doc-avoid-break">
-        <div><div className="border-t border-ink pt-1">Pólobh Eventos</div></div>
+        <div><div className="border-t border-ink pt-1">Pólobh Promoções</div></div>
         <div><div className="border-t border-ink pt-1">{f.razaoSocial || "Fornecedor"} — Data: ____ ____ ______</div></div>
       </div>
     </div>

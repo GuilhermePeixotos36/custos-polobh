@@ -819,7 +819,6 @@ export function OsForm() {
         <CardConversa
           ancora={os.id}
           ancoraDom={idAncoraPendencia(os.id)}
-          hint="Só a equipe vê. Combine aqui o que esta OS tem de pendente — quem é @mencionado fica com a pendência."
           observacoes={os.observacoes}
           usuarios={usuarios}
           minhas={pendenciasDoUsuario.filter((x) => x.tipo === "os.observacao" && x.osId === os.id).length}
@@ -831,12 +830,11 @@ export function OsForm() {
           <LinhaOs label="Número da OS"><Auto v={os.numero} /></LinhaOs>
           <LinhaOs label="Projeto"><Auto v={os.projeto.titulo} /></LinhaOs>
           <LinhaOs label="Data de emissão"><Auto v={dataBR(os.criadoEm)} /></LinhaOs>
-          <LinhaOs label="Status da OS">
-            <div className="py-2 flex items-center gap-2 flex-wrap">
-              <Badge tom={tomStatusOs[os.status]}>{os.status}</Badge>
-              <span className="text-[12.5px] text-ink-3">Consolida {os.ecLinhaIds.length} linha(s) da EC</span>
-            </div>
-          </LinhaOs>
+          {/* A linha "Status da OS" saiu daqui (15/09/2026): o selo já está no
+              cabeçalho da página, ao lado do número, e na listagem. Dentro do
+              documento ele gastava uma linha para repetir o que a tela inteira
+              diz — e status não é conteúdo de ordem de serviço. */}
+          <LinhaOs label="Itens consolidados"><Auto v={`${os.ecLinhaIds.length} linha(s) da EC`} /></LinhaOs>
         </CardOs>
 
         {/* DADOS DO CLIENTE — automático da EC */}
@@ -1580,17 +1578,17 @@ function LinhaOs({
   children: ReactNode;
 }) {
   return (
-    <div id={id} className="grid md:grid-cols-[240px_minmax(0,1fr)] gap-x-4 items-start px-4 py-2 border-b border-border-soft last:border-b-0">
-      <div className="md:py-3 flex items-start justify-between gap-2">
+    <div id={id} className="grid md:grid-cols-[240px_minmax(0,1fr)] gap-x-4 items-start px-4 py-1 border-b border-border-soft last:border-b-0">
+      <div className="md:py-1.5 flex items-start justify-between gap-2">
         <div className="min-w-0">
           <span className="block text-[11.5px] font-extrabold uppercase tracking-[0.03em] text-ink-2">{label}</span>
           {hint && <span className="block text-[10.5px] font-semibold text-ink-3">{hint}</span>}
         </div>
         {acao && <div className="shrink-0 md:hidden">{acao}</div>}
       </div>
-      <div className="min-w-0 py-1 flex items-start gap-2">
+      <div className="min-w-0 py-0.5 flex items-start gap-2">
         <div className="min-w-0 flex-1">{children}</div>
-        {acao && <div className="shrink-0 hidden md:block pt-1">{acao}</div>}
+        {acao && <div className="shrink-0 hidden md:block pt-0.5">{acao}</div>}
       </div>
     </div>
   );
@@ -1941,7 +1939,7 @@ function CnaeDoFornecedor({
 /** Valor automático (vem do Projeto/EC) — somente leitura. */
 function Auto({ v }: { v: string | number | null | undefined }) {
   const txt = v === null || v === undefined || v === "" ? "—" : String(v);
-  return <div className="text-sm text-ink font-semibold py-2 whitespace-pre-wrap">{txt}</div>;
+  return <div className="text-sm text-ink font-semibold py-1 whitespace-pre-wrap">{txt}</div>;
 }
 
 /**

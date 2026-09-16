@@ -66,6 +66,21 @@ const chave = (t: string) =>
  * seguidas ("LSPRO"), e palavra sem vogal nenhuma também não existe ("MPG").
  * Serve para a sigla não virar "Lspro" ao acertar a caixa do texto.
  */
+/**
+ * Como o fornecedor se chama nas LISTAS do sistema — cronograma, OSs, dados
+ * úteis (pedido de 15/09/2026, estendido a todas as listagens).
+ *
+ * Apelido primeiro (é a escolha manual da casa e vence tudo), depois o nome
+ * fantasia, e só então a razão social. "Sonora" identifica o fornecedor melhor
+ * do que "Sonora Áudio e Iluminação Ltda" em qualquer lista lida de relance —
+ * e a razão social continua onde ela é obrigatória: no documento.
+ */
+export const nomeCurtoFornecedor = (f: {
+  apelido?: string;
+  nomeFantasia?: string;
+  razaoSocial?: string;
+}): string => (f.apelido || f.nomeFantasia || f.razaoSocial || "").trim();
+
 export const pareceSigla = (t: string): boolean => {
   const limpo = chave(t).replace(/[^a-z]/g, "");
   if (!limpo) return false;

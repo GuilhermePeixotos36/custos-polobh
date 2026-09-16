@@ -139,6 +139,8 @@ export interface ProjetoNoCalendario {
   id: string;
   titulo: string;
   cliente: string;
+  /** Quem responde pelo projeto — filtro e coluna do quadro (15/09/2026). */
+  produtora: string;
   local: string;
   modalidade: ModalidadeProjeto;
   status: StatusProjeto;
@@ -175,6 +177,7 @@ export function montarCalendario(projetos: Projeto[], ecs: Ec[] = []): Calendari
       id: p.id,
       titulo,
       cliente,
+      produtora: p.info?.produtoraResponsavel?.trim() ?? "",
       local: p.info?.local ?? "",
       modalidade: p.info?.modalidade ?? "",
       status: statusProjetoAutomatico(p, ecs),

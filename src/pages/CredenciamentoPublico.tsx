@@ -146,7 +146,7 @@ export function CredenciamentoPublico() {
           </form>
         )}
 
-        <p className="text-center text-ink-3 text-[12px] mt-10">© Pólobh Eventos</p>
+        <p className="text-center text-ink-3 text-[12px] mt-10">© Pólobh Promoções</p>
       </main>
     </div>
   );

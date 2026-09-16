@@ -35,6 +35,8 @@ import { itensDoTemplate } from "@/domain/ecTemplates";
 import { motivoBloqueioEc, situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
 import { projetoInfoVazio } from "@/domain/projeto";
 import { gerarEcExcel } from "@/lib/excel";
+import { revisarEc, type RevisaoEc } from "@/domain/revisaoEc";
+import { RevisaoEcModal } from "@/components/RevisaoEcModal";
 import { consultarCnpj } from "@/lib/cnpj";
 import { corrigirMaiusculas, corrigirMaiusculasHtml } from "@/lib/correcaoOrtografica";
 import { useAuth } from "@/store/auth";
@@ -135,6 +137,8 @@ export function EcForm() {
   const verFinanceiro = useAuth((s) => s.pode("financeiro"));
   const [ec, setEc] = useState<Ec | null>(null);
   const [baseline, setBaseline] = useState("");
+  /** O comparativo aberto pelo botão Revisar. `null` = fechado. */
+  const [revisao, setRevisao] = useState<RevisaoEc | null>(null);
   const [cnpjLoading, setCnpjLoading] = useState(false);
   const [cnpjMsg, setCnpjMsg] = useState("");
   const [salvando, setSalvando] = useState(false);
@@ -349,22 +353,32 @@ export function EcForm() {
     }
   }
 
-  /** Revisar (sem IA): padroniza formatação dos textos — maiúsculas de início de frase e espaçamento. */
+  /**
+   * Revisar: padroniza a formatação dos textos (sem IA) e ABRE O COMPARATIVO do
+   * que muda ao salvar — pedido de 15/09/2026.
+   *
+   * A ordem importa: a padronização acontece primeiro, e o comparativo já mostra
+   * o texto corrigido. Ao contrário, a pessoa conferiria uma coisa e gravaria
+   * outra — as correções de caixa entrariam depois da conferência, sem passar
+   * por olho nenhum.
+   */
   function revisar() {
-    setEc((e) =>
-      e
-        ? {
-            ...e,
-            linhas: e.linhas.map((linha) => ({
-              ...linha,
-              item: corrigirMaiusculas(linha.item),
-              descricao: corrigirMaiusculas(linha.descricao),
-              descricaoCompleta: corrigirMaiusculasHtml(linha.descricaoCompleta),
-            })),
-          }
-        : e
-    );
-    toast("Textos padronizados (maiúsculas e espaçamento). Confira e salve.", "info");
+    const corrigida = ec
+      ? {
+          ...ec,
+          linhas: ec.linhas.map((linha) => ({
+            ...linha,
+            item: corrigirMaiusculas(linha.item),
+            descricao: corrigirMaiusculas(linha.descricao),
+            descricaoCompleta: corrigirMaiusculasHtml(linha.descricaoCompleta),
+          })),
+        }
+      : ec;
+    setEc(corrigida);
+    // O comparativo é contra a última versão GRAVADA, que é o que a baseline
+    // guarda desde o carregamento da tela.
+    const gravada = baseline ? (JSON.parse(baseline) as typeof ec) : null;
+    setRevisao(corrigida ? revisarEc(gravada, corrigida) : null);
   }
 
   /**
@@ -436,22 +450,30 @@ export function EcForm() {
           <button onClick={() => navigate(voltarUrl)} className="inline-flex items-center gap-1.5 text-sm text-ink-2 hover:text-ink font-semibold shrink-0">
             <IcBack width={16} height={16} /> Voltar ao projeto
           </button>
+          {/* A BARRA DA EDIÇÃO é a mesma do modo leitura (15/09/2026), com
+              "Editar EC" trocado pelo par Revisar + Salvar.
+              Saíram três botões:
+              · "Cancelar" — a saída é "Sair da edição", e o guarda de alterações
+                não salvas já pergunta antes de deixar a página;
+              · "Arquivar EC" — não se arquiva o que se está editando;
+              · "Emitir OS" — emitir a partir de uma EC com alteração não gravada
+                produz OS com um valor que não está em lugar nenhum. */}
           <div className="flex gap-2 flex-wrap">
+            <Button
+              variant="text"
+              size="sm"
+              onClick={() => navigate(editando ? `/estimativas/${ec.id}` : voltarUrl)}
+            >
+              Sair da edição
+            </Button>
             <Button variant="secondary" size="sm" icon={<IcDownload width={16} height={16} />} onClick={() => gerarEcExcel({ ...ec, numero }, { modelo: "financeiro" })}>
               Excel Financeiro
             </Button>
             <Button variant="secondary" size="sm" icon={<IcDownload width={16} height={16} />} onClick={() => gerarEcExcel({ ...ec, numero }, { modelo: "completa" })}>
               Excel Completa
             </Button>
-            <Button variant="secondary" size="sm" onClick={revisar} disabled={salvando} title="Padroniza a formatação dos textos (sem IA)">
+            <Button variant="secondary" size="sm" onClick={revisar} disabled={salvando} title="Padroniza a formatação dos textos e mostra o que muda ao salvar">
               Revisar
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => navigate(editando ? `/estimativas/${ec.id}` : voltarUrl)}
-            >
-              Cancelar
             </Button>
             <Button size="sm" onClick={() => void salvar()} disabled={salvando || mostrarSalvo}>
               {salvando ? "Salvando…" : mostrarSalvo ? "Salvo" : "Salvar"}
@@ -554,6 +576,19 @@ export function EcForm() {
         {/* Totais (Resumo dos Custos) permanece como último bloco da guia geral da EC — só financeiro */}
         {verFinanceiro && resumoCard}
       </div>
+      )}
+
+      {/* O comparativo do Revisar: confere e salva daqui mesmo. */}
+      {revisao && (
+        <RevisaoEcModal
+          revisao={revisao}
+          salvando={salvando}
+          onVoltar={() => setRevisao(null)}
+          onSalvar={async () => {
+            const ok = await salvar();
+            if (ok) setRevisao(null);
+          }}
+        />
       )}
     </PageShell>
   );

@@ -17,7 +17,7 @@ import {
   useOrdenacao,
   tomStatusOs,
 } from "@/components/ui";
-import { IcBack, IcDownload, IcChevron, IcCopy } from "@/components/icons";
+import { IcBack, IcDownload, IcChevron, IcCopy, IcPencil, IcEye } from "@/components/icons";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import type { ItemEmissaoOs } from "@/domain/calc";
@@ -94,6 +94,8 @@ export function EcDetail() {
 
   const verFinanceiro = pode("financeiro");
   const podeEditar = pode("ecs.editar");
+  /** Arquivar uma EC sem pôr outra no lugar deixa o projeto sem estimativa: é da Direção. */
+  const podeArquivarEc = podeEditar && (papel === "Admin" || papel === "Direcao");
   // Administrativo (financeiro) só precisa da Descrição Financeira; os demais papéis
   // (Admin, Direção, Produção) veem a Descrição Completa também.
   const veDescricaoCompleta = papel !== "Administrativo";
@@ -422,10 +424,38 @@ export function EcDetail() {
             <IcBack width={16} height={16} /> Voltar ao projeto
           </button>
           <div className="flex gap-2 flex-wrap">
-          {/* Tirar do ar. Não existe "cancelar": a EC que não vale mais é
-              simplesmente arquivada, e o arquivo segue consultável e
-              importável — é de lá que se puxa uma estimativa de volta. */}
-          {podeEditar && ec.ativa && (
+          {/* A ORDEM é a do check-list de 15/09: Editar · Gerar nova versão ·
+              Arquivar · Excel · PDF · Emitir OS. Ela segue o dia de trabalho —
+              primeiro o que se faz com a estimativa, depois o que se tira dela,
+              por último o que ela gera. */}
+          {podeEditar && ecEditavel(ec) && (
+            <Button size="sm" icon={<IcPencil width={16} height={16} />} onClick={() => navigate(`/estimativas/${ec.id}/editar`)}>
+              Editar EC
+            </Button>
+          )}
+          {podeEditar && (
+            <Button variant="secondary" size="sm" icon={<IcCopy width={16} height={16} />}
+              onClick={async () => {
+                if (!(await confirmar({
+                  titulo: "Gerar a próxima versão desta EC?",
+                  mensagem: "Alerta: ao gerar uma nova versão da EC, a versão atual será arquivada automaticamente.",
+                  confirmarTexto: "Gerar nova versão",
+                }))) return;
+                const n = await repo.ecs.novaVersao(ec.id);
+                toast(`Nova versão V${String(n.versao).padStart(2, "0")} criada (cancela e substitui).`, "success");
+                navigate(`/estimativas/${n.id}/editar`);
+              }}>
+              Gerar Nova Versão EC
+            </Button>
+          )}
+          {/* ARQUIVAR EC continua existindo, e agora só para a Direção
+              (15/09/2026). A Pólobh perguntou para que ele serve, já que uma EC
+              em projeto ativo não sai do ar sem substituta e projeto arquivado
+              arquiva tudo sozinho. Serve para o caso que sobra: o evento que o
+              cliente cancelou, em que a estimativa sai do ar e NÃO há outra para
+              pôr no lugar. É raro e é grave — o projeto fica sem estimativa
+              valendo —, então deixou de ser um botão ao alcance de todo mundo. */}
+          {podeArquivarEc && ec.ativa && (
             <Button variant="secondary" size="sm"
               onClick={async () => {
                 if (!(await confirmar({
@@ -441,24 +471,9 @@ export function EcDetail() {
               Arquivar EC
             </Button>
           )}
-          {podeEditar && (
-            <Button variant="secondary" size="sm" icon={<IcCopy width={16} height={16} />}
-              onClick={async () => {
-                if (!(await confirmar({
-                  titulo: "Gerar a próxima versão desta EC?",
-                  mensagem: "Uma nova versão será criada e levará a frase \"cancela e substitui todas as anteriores\".",
-                  confirmarTexto: "Gerar nova versão",
-                }))) return;
-                const n = await repo.ecs.novaVersao(ec.id);
-                toast(`Nova versão V${String(n.versao).padStart(2, "0")} criada (cancela e substitui).`, "success");
-                navigate(`/estimativas/${n.id}/editar`);
-              }}>
-              Gerar nova versão
-            </Button>
-          )}
           <ExcelMenu ec={ec} />
-          <Button variant="secondary" size="sm" onClick={() => navigate(`/estimativas/${ec.id}/imprimir`)}>
-            Ver / PDF
+          <Button variant="secondary" size="sm" icon={<IcEye width={16} height={16} />} onClick={() => navigate(`/estimativas/${ec.id}/imprimir`)}>
+            EC PDF
           </Button>
           {pode("oss.editar") && ec.ativa && (emissao.prontos.length > 0 || emissao.bloqueados.length > 0) && (
             <Button
@@ -473,7 +488,7 @@ export function EcDetail() {
                   : "Itens aprovados, com fornecedor identificado e marcados para emitir"
               }
             >
-              {emitindo ? "Emitindo…" : `Emitir OS${emissao.prontos.length ? ` (${emissao.prontos.length})` : ""}`}
+              {emitindo ? "Emitindo…" : `Emitir OS(s)${emissao.prontos.length ? ` (${emissao.prontos.length})` : ""}`}
             </Button>
           )}
           {podeEditar && !ec.ativa && (
@@ -481,11 +496,6 @@ export function EcDetail() {
               Tornar EC ativa
             </Button>
           )}
-            {podeEditar && ecEditavel(ec) && (
-              <Button size="sm" onClick={() => navigate(`/estimativas/${ec.id}/editar`)}>
-                Editar EC
-              </Button>
-            )}
           </div>
         </>
       }
@@ -644,7 +654,7 @@ function ExcelMenu({ ec }: { ec: Ec }) {
     <div className="relative">
       <Button variant="secondary" size="sm" icon={<IcDownload width={16} height={16} />} onClick={() => setAberto((v) => !v)}>
         <span className="inline-flex items-center gap-1">
-          Excel <IcChevron width={13} height={13} className={cx("transition-transform", aberto && "rotate-90")} />
+          EC Excel <IcChevron width={13} height={13} className={cx("transition-transform", aberto && "rotate-90")} />
         </span>
       </Button>
       {aberto && (
