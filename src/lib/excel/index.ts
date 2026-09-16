@@ -1,7 +1,7 @@
 import type { Ec, Os } from "@/data/types";
 import type { CronogramaExcelDados } from "./cronograma";
 import { auditar } from "@/store/logs";
-import { empresaPadrao } from "@/store/empresas";
+import { empresaPadrao, useEmpresas } from "@/store/empresas";
 import { nomeEcExcel } from "./nomeEc";
 
 export type ModeloEcExcel = "financeiro" | "completa";
@@ -87,7 +87,9 @@ export async function gerarOsExcel(
         inscricaoMunicipal: emp.inscricaoMunicipal,
       }
     : undefined;
-  const r = await fn(os, ec, { ...opts, empresaPolobh });
+  // A lista INTEIRA das empresas do grupo vai junto (15/09/2026): o tomador
+  // pode ser a MF, e não só a emissora padrão (ver `domain/tomadorOs`).
+  const r = await fn(os, ec, { ...opts, empresaPolobh, empresas: useEmpresas.getState().empresas });
   auditar({
     categoria: "Exportação",
     acao: "os.excel",

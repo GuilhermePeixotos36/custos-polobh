@@ -718,8 +718,34 @@ export interface Orcamento {
 }
 
 /** Bloco financeiro Pólobh (restrito a Direção/Administrativo). */
+/**
+ * Os dados fiscais de um tomador que NÃO está cadastrado (15/09/2026).
+ *
+ * "Acrescentar MF e a permissão para que sejam lançados manualmente os dados de
+ * outro Tomador" — check-list da Pólobh. Acontece quando quem paga é uma
+ * empresa do cliente, uma coligada, um patrocinador: ninguém do grupo, ninguém
+ * do cadastro.
+ */
+export interface TomadorAvulso {
+  razaoSocial: string;
+  endereco: string;
+  cnpjCpf: string;
+  inscricaoEstadual: string;
+  inscricaoMunicipal: string;
+}
+
 export interface FinanceiroOs {
-  tomador: "Polobh" | "Cliente" | "";
+  /**
+   * Quem figura como tomador do serviço na nota.
+   *
+   * Pode ser o ID de uma empresa do grupo ("polobh", "mf" — ver
+   * `EmpresaGrupo`), o `Cliente` do projeto, ou `Outro`, com os dados lançados
+   * à mão em `tomadorAvulso`. "Polobh" (maiúsculo) é o valor das OS gravadas
+   * antes disto e continua valendo: significa a empresa padrão do grupo.
+   */
+  tomador: string;
+  /** Os dados do tomador quando ele é "Outro". */
+  tomadorAvulso?: TomadorAvulso;
   descritivoNf: string;
   /** Nome do projeto incentivado (aparece no descritivo da NF e no contrato). */
   projetoIncentivado?: string;
@@ -735,6 +761,13 @@ export interface FinanceiroOs {
    */
   leiIncentivo?: string;
   cnae: string;
+  /**
+   * As retenções fiscais que o fornecedor precisa destacar na nota
+   * (15/09/2026). Texto padrão da casa, editável, ou "não se aplica" — as duas
+   * são resposta. Sai em destaque na OS, em box de cor própria.
+   */
+  retencoes?: string;
+  retencoesNaoSeAplica?: boolean;
   codigoServico: string;
   /**
    * Ordem de compra do tomador (15/09/2026).
@@ -767,6 +800,14 @@ export interface FinanceiroOs {
    */
   bvJustificativa: string;
   acertoFinanceiro: string;
+  /**
+   * O acerto financeiro não se aplica a esta OS — é o PADRÃO (15/09/2026).
+   * A maioria das contratações não tem acerto nenhum, e seis campos zerados em
+   * todas elas seriam ruído. Ver `domain/acertoFinanceiro`.
+   */
+  acertoNaoSeAplica?: boolean;
+  /** % de encargos sobre o acréscimo — o único número digitado do acerto. */
+  encargosAcrescimoPercentual?: number;
 }
 
 export interface Credenciamento {

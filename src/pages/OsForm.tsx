@@ -48,6 +48,8 @@ import { confirmar } from "@/store/confirm";
 import { usePendencias, useMinhasPendencias } from "@/store/pendencias";
 import { useSugestoes } from "@/hooks/useSugestoes";
 import { urlCredenciamento } from "@/lib/links";
+import { calcularAcerto } from "@/domain/acertoFinanceiro";
+import { dadosDoTomador, opcoesDeTomador, RETENCOES_PADRAO, TOMADOR_OUTRO } from "@/domain/tomadorOs";
 import { editaFinanceiro, editaProducao, ESPERANDO_FASE, faseAnterior, faseDaOs, osEmitida, ROTULO_FASE, type FaseOs } from "@/domain/faseOs";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
 import { ListaArrastavel, ItemArrastavel } from "@/components/ListaArrastavel";
@@ -74,12 +76,12 @@ import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import type { ResumoContratacao } from "@/domain/contratacaoOs";
 import type {
   GrupoExtraOs,
+  TomadorAvulso,
   ItemExtraOs,
   ItemContratacaoOs,
   DocumentoFiscal,
   Ec,
   EcLinha,
-  EmpresaGrupo,
   Fornecedor,
   Modalidade,
   Os,
@@ -481,13 +483,6 @@ export function OsForm() {
           : o.contrato,
       };
     });
-  /**
-   * O BV daqui nasce do Resumo dos Custos e segue editável. Quando alguém o
-   * altera, ou quando os itens da EC mudam depois, os dois divergem — e sem
-   * dizer isso o campo passaria a mentir sobre o que foi combinado.
-   */
-  const bvDiverge = bvContratado.percentual > 0 && Math.abs(os.financeiro.bvPercentual - bvContratado.percentual) >= 0.01;
-
   /** Esta OS tem contrato? Quem decide é a coluna Contrato dos itens, na EC. */
   const haContrato = temContrato(os, linhasConsolidadas);
 
@@ -535,8 +530,15 @@ export function OsForm() {
     }))
     .filter((e) => e.faixas.length > 0);
 
-  const dadosTomador = dadosFiscais(os.financeiro.tomador, ecCtx, empresaPolobh);
-  const dadosContratante = dadosFiscais(os.contrato.contratante, ecCtx, empresaPolobh);
+  // A regra de "quem é o tomador" mora no domínio desde 15/09/2026, quando ele
+  // ganhou MF e "Outro" (ver `domain/tomadorOs`): eram três cópias da mesma
+  // resposta — aqui, na OS impressa e no contrato.
+  const dadosTomador = dadosDoTomador(os.financeiro.tomador, {
+    cliente: ecCtx.cliente,
+    empresas,
+    avulso: os.financeiro.tomadorAvulso,
+  });
+  const dadosContratante = dadosDoTomador(os.contrato.contratante, { cliente: ecCtx.cliente, empresas });
 
   /** Valor total do Faturamento — replica no Contrato enquanto estiver espelhado. */
   function setValorTotalFinanceiro(v: number) {
@@ -560,38 +562,13 @@ export function OsForm() {
   // continuar acessível a todos os perfis (o salvamento exige a justificativa).
   // Vai dentro de "Dados de Faturamento" para o financeiro e em card próprio para os demais.
   //
-  // Os três campos já nascem preenchidos pelo BV combinado ITEM A ITEM no
-  // Detalhamento da Contratação (ver `bvDaContratacao`): aqui é o lugar de
-  // conferir e ajustar, não de lembrar de cabeça o que se negociou semanas atrás.
-  const bvBloco = (
-    <>
-      <LinhaOs
-        label="BV Pólobh"
-        hint={bvContratado.valor > 0 ? `(do Detalhamento da Contratação: ${bvContratado.percentual}% · ${brl(bvContratado.valor)})` : "(do Detalhamento da Contratação)"}
-      >
-        <NumberInput value={os.financeiro.bvPercentual} onValue={(v) => updFin({ bvPercentual: v, bvValor: (os.financeiro.valorTotal * v) / 100 })} />
-        {bvDiverge && (
-          <div className="mt-1.5 flex items-center gap-2 flex-wrap text-[12px] text-warning">
-            <span className="font-semibold">Diferente do combinado nos itens ({bvContratado.percentual}%).</span>
-            <button
-              type="button"
-              onClick={() => updFin({ bvPercentual: bvContratado.percentual, bvValor: (os.financeiro.valorTotal * bvContratado.percentual) / 100 })}
-              className="font-bold text-primary-dark hover:underline"
-            >
-              Usar o BV da Contratação
-            </button>
-          </div>
-        )}
-      </LinhaOs>
-      <LinhaOs label="BV Pólobh — Valor">
-        <Auto v={brl((os.financeiro.valorTotal * os.financeiro.bvPercentual) / 100)} />
-      </LinhaOs>
-      {/* A JUSTIFICATIVA do BV saiu daqui (09/09/2026): ela é uma por FORMA, em
-          cada item do Detalhamento da Contratação, que é onde o BV é combinado.
-          Uma justificativa só, da OS inteira, não sabia dizer de qual item
-          falava. E não cobra mais nada: ver o comentário em `salvar`. */}
-    </>
-  );
+  /* O BLOCO DE BV saiu dos Acertos Financeiros (15/09/2026): ele é combinado
+     item a item, no Detalhamento da Contratação, e aqui era a mesma soma
+     repetida num lugar onde ninguém a ajustava. O acerto que ficou é outro —
+     quanto o fornecedor devolve à Pólobh (ver `domain/acertoFinanceiro`). */
+
+  /** A conta do acerto — tudo calculado, menos o percentual de encargos. */
+  const acerto = calcularAcerto(os.financeiro, os.orcamento, bvContratado.valor);
 
   const updF = (patch: Partial<Fornecedor>) => setOs((o) => (o ? { ...o, fornecedor: { ...o.fornecedor, ...patch } } : o));
   const updB = (patch: Partial<Fornecedor["dadosBancarios"]>) =>
@@ -1535,17 +1512,28 @@ export function OsForm() {
         {/* INFORMAÇÕES A SEREM PREENCHIDAS PELO FINANCEIRO DA PÓLOBH */}
         {verFinanceiro ? (
           <>
-          <CardOs className="border-active-border" secao="Dados Nota Fiscal, Fatura, etc...">
-            <SubSecao>Dados Emissão — Recibo Simples | Fatura | Nota Fiscal | Fatura e Nota Fiscal</SubSecao>
-
+          {/* O nome do módulo é o que ele faz (15/09/2026), e o subtítulo saiu:
+              ele listava os quatro documentos possíveis — que é a pergunta do
+              campo "Documento PG", não um título. */}
+          <CardOs className="border-active-border" secao="Dados Emissão Faturamento">
             <LinhaOs label="Tomador dos Serviços">
-              <Select value={os.financeiro.tomador} onChange={(e) => updFin({ tomador: e.target.value as Os["financeiro"]["tomador"] })}>
+              {/* Pólobh, MF, Cliente ou Outro. As empresas do grupo vêm do
+                  cadastro (Configurações › Empresas do Grupo): a MF já existia
+                  lá e não tinha como ser escolhida aqui — quem faturava por ela
+                  corrigia a razão social à mão, dentro do documento, toda vez. */}
+              <Select value={os.financeiro.tomador} onChange={(e) => updFin({ tomador: e.target.value })}>
                 <option value="">Selecione…</option>
-                <option value="Polobh">Pólobh</option>
-                <option value="Cliente">Cliente</option>
+                {opcoesDeTomador(empresas).map((o) => (
+                  <option key={o.valor} value={o.valor}>{o.rotulo}</option>
+                ))}
               </Select>
             </LinhaOs>
-            {dadosTomador ? (
+            {os.financeiro.tomador === TOMADOR_OUTRO ? (
+              <TomadorAvulsoCampos
+                dados={os.financeiro.tomadorAvulso}
+                onDados={(tomadorAvulso) => updFin({ tomadorAvulso })}
+              />
+            ) : dadosTomador ? (
               <>
                 <LinhaOs label="Razão Social"><Auto v={dadosTomador.razaoSocial} /></LinhaOs>
                 <LinhaOs label="Endereço"><Auto v={dadosTomador.endereco} /></LinhaOs>
@@ -1652,6 +1640,45 @@ export function OsForm() {
               <Input value={os.financeiro.ordemCompra ?? ""} sugestoes={sugestoes.valores.pedidoCompra} onChange={(e) => updFin({ ordemCompra: e.target.value })} placeholder="Ex.: PC-2026-119" />
             </LinhaOs>
 
+            {/* RETENÇÕES FISCAIS (15/09/2026) — texto padrão da casa, em box de
+                cor própria, porque é o aviso que evita o retrabalho mais caro
+                da OS: o fornecedor que emite a nota sem reter o ISSQN devolve
+                dinheiro depois, e cobrar essa correção é sempre pior do que o
+                aviso. "Não se aplica" é resposta; o campo em branco não. */}
+            <LinhaOs
+              label="Retenções Fiscais"
+              acao={
+                <button
+                  type="button"
+                  onClick={() => updFin({ retencoesNaoSeAplica: !os.financeiro.retencoesNaoSeAplica })}
+                  className="text-[10.5px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded px-1"
+                >
+                  {os.financeiro.retencoesNaoSeAplica ? "Usar o texto padrão" : "Não se aplica"}
+                </button>
+              }
+            >
+              {os.financeiro.retencoesNaoSeAplica ? (
+                <div className="py-2 text-[12.5px] font-bold text-ink-3">Não se aplica</div>
+              ) : (
+                <>
+                  <Textarea
+                    className="min-h-[86px] !bg-warning-soft !border-warning/50"
+                    value={os.financeiro.retencoes ?? RETENCOES_PADRAO}
+                    onChange={(e) => updFin({ retencoes: e.target.value })}
+                  />
+                  {(os.financeiro.retencoes ?? RETENCOES_PADRAO) !== RETENCOES_PADRAO && (
+                    <button
+                      type="button"
+                      onClick={() => updFin({ retencoes: RETENCOES_PADRAO })}
+                      className="mt-1 text-[12px] font-bold text-primary-dark hover:underline"
+                    >
+                      Voltar ao texto padrão
+                    </button>
+                  )}
+                </>
+              )}
+            </LinhaOs>
+
             {/* DADOS PARA CONTRATO — só existe quando a EC pediu "Emitir" ou
                 "Emitir Nova Versão" na coluna Contrato de algum item.
                 "Não se aplica" lá significa que não há contrato, e um grupo
@@ -1740,8 +1767,62 @@ export function OsForm() {
             fornecedor é a Produção, então este grupo aparece para todo perfil.
             O salvamento continua exigindo a justificativa quando o BV foge do
             padrão, para qualquer um. */}
-        <CardOs secao={SECAO_ACERTOS}>
-          {bvBloco}
+        {/* ACERTOS FINANCEIROS, redesenhado em 15/09/2026.
+            Saíram os dois campos de BV — ele é combinado item a item, no
+            Detalhamento, e aqui era só a soma repetida — e entrou a conta que
+            se fazia na calculadora, por OS, sem ficar registrada em lugar
+            nenhum: quanto o fornecedor devolve à Pólobh. Ver
+            `domain/acertoFinanceiro`; "Não se aplica" é o padrão, e é resposta. */}
+        <CardOs
+          secao={SECAO_ACERTOS}
+          acaoSecao={
+            <button
+              type="button"
+              onClick={() => updFin({ acertoNaoSeAplica: !(os.financeiro.acertoNaoSeAplica ?? true) })}
+              className="text-[10.5px] font-bold text-ink-2 hover:text-primary-dark input-focus rounded px-1"
+            >
+              {(os.financeiro.acertoNaoSeAplica ?? true) ? "Lançar acerto" : "Não se aplica"}
+            </button>
+          }
+        >
+          {(os.financeiro.acertoNaoSeAplica ?? true) ? (
+            <LinhaOs label="Acerto Financeiro">
+              <div className="py-2 text-[12.5px] font-bold text-ink-3">Não se aplica</div>
+            </LinhaOs>
+          ) : (
+            <>
+              <LinhaOs label="Valor original dos serviços" hint="(do Detalhamento da Contratação)">
+                <Auto v={brl(acerto.valorOriginal)} />
+              </LinhaOs>
+              <LinhaOs label="BV sobre o valor original" hint="(combinado item a item)">
+                <Auto v={brl(acerto.bvSobreOriginal)} />
+              </LinhaOs>
+              <LinhaOs label="Valor da NF" hint="(do bloco de emissão)">
+                <Auto v={brl(acerto.valorNf)} />
+              </LinhaOs>
+              <LinhaOs label="Valor do acréscimo" hint="(valor da NF menos o valor original)">
+                <Auto v={brl(acerto.acrescimo)} />
+              </LinhaOs>
+              <LinhaOs label="Encargos sobre o acréscimo" hint="(percentual editável)">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <NumberInput
+                    className="!w-24"
+                    value={acerto.encargosPercentual}
+                    onValue={(v) => updFin({ encargosAcrescimoPercentual: v })}
+                    aria-label="Percentual de encargos sobre o acréscimo"
+                  />
+                  <span className="text-[12.5px] text-ink-3">% ·</span>
+                  <span className="font-display font-bold text-ink">{brl(acerto.encargosSobreAcrescimo)}</span>
+                </div>
+              </LinhaOs>
+              <LinhaOs
+                label="Valor devolução Pólobh"
+                hint="(BV + acréscimo − encargos sobre o acréscimo)"
+              >
+                <div className="py-1 font-display font-bold text-[15px] text-ink">{brl(acerto.devolucaoPolobh)}</div>
+              </LinhaOs>
+            </>
+          )}
           <LinhaOs label="Observações">
             <Textarea
               value={os.financeiro.acertoFinanceiro}
@@ -1914,6 +1995,86 @@ function LinhaOs({
  * O texto digitado NÃO é apagado ao marcar: quem marcou por engano volta atrás
  * sem perder o que escreveu.
  */
+/**
+ * Os dados de um tomador que não está em cadastro nenhum (15/09/2026).
+ *
+ * "Acrescentar aqui as API's para preenchimento automático dos dados a partir
+ * do Número do CNPJ e Lupa para pesquisa da Inscrição Municipal no Site da PBH"
+ * — check-list da Pólobh. As duas coisas já existiam no sistema (a consulta de
+ * CNPJ do cliente e do fornecedor, e a lupa da Inscrição Municipal); o que
+ * faltava era o lugar onde usá-las.
+ *
+ * A consulta preenche o que a Receita devolve e NÃO apaga o que já estava
+ * escrito: quem corrigiu um endereço à mão não o perde por clicar na lupa
+ * depois.
+ */
+function TomadorAvulsoCampos({
+  dados,
+  onDados,
+}: {
+  dados: TomadorAvulso | undefined;
+  onDados: (d: TomadorAvulso) => void;
+}) {
+  const [buscando, setBuscando] = useState(false);
+  const [aviso, setAviso] = useState("");
+  const atual: TomadorAvulso = dados ?? {
+    razaoSocial: "", endereco: "", cnpjCpf: "", inscricaoEstadual: "", inscricaoMunicipal: "",
+  };
+  const mudar = (patch: Partial<TomadorAvulso>) => onDados({ ...atual, ...patch });
+
+  async function consultar() {
+    const cnpj = atual.cnpjCpf.replace(/\D/g, "");
+    if (cnpj.length !== 14) {
+      setAviso("Informe o CNPJ completo para consultar.");
+      return;
+    }
+    setBuscando(true);
+    setAviso("");
+    try {
+      const d = await consultarCnpj(cnpj);
+      mudar({
+        razaoSocial: atual.razaoSocial || d.razaoSocial,
+        endereco: atual.endereco || d.endereco,
+        inscricaoEstadual: atual.inscricaoEstadual || d.inscricaoEstadual,
+        inscricaoMunicipal: atual.inscricaoMunicipal || d.inscricaoMunicipal,
+      });
+      setAviso("Dados preenchidos pelas fontes cadastrais e fiscais integradas.");
+    } catch (e) {
+      setAviso((e as Error).message);
+    } finally {
+      setBuscando(false);
+    }
+  }
+
+  return (
+    <>
+      <LinhaOs
+        label="CNPJ/CPF"
+        acao={
+          <Button variant="soft" size="sm" icon={<IcSearch width={15} height={15} />} onClick={() => void consultar()} disabled={buscando || !flags.consultaCnpj}>
+            {buscando ? "Consultando…" : "Consultar CNPJ"}
+          </Button>
+        }
+      >
+        <Input value={atual.cnpjCpf} inputMode="numeric" placeholder="00.000.000/0000-00" onChange={(e) => mudar({ cnpjCpf: maskCpfCnpjInput(e.target.value) })} />
+        {aviso && <p className="mt-1 text-[12px] text-info">{aviso}</p>}
+      </LinhaOs>
+      <LinhaOs label="Razão Social">
+        <Input formato="titulo-empresa" value={atual.razaoSocial} onChange={(e) => mudar({ razaoSocial: e.target.value })} />
+      </LinhaOs>
+      <LinhaOs label="Endereço">
+        <Input formato="titulo" value={atual.endereco} onChange={(e) => mudar({ endereco: e.target.value })} />
+      </LinhaOs>
+      <LinhaOs label="Inscrição Estadual">
+        <Input value={atual.inscricaoEstadual} onChange={(e) => mudar({ inscricaoEstadual: e.target.value })} />
+      </LinhaOs>
+      <LinhaOs label="Inscrição Municipal">
+        <InscricaoMunicipalInput value={atual.inscricaoMunicipal} onChange={(inscricaoMunicipal) => mudar({ inscricaoMunicipal })} />
+      </LinhaOs>
+    </>
+  );
+}
+
 /**
  * Um bloco de itens da OS — Logística, Infraestrutura ou um grupo criado aqui.
  *
@@ -2399,33 +2560,4 @@ function Auto({ v }: { v: string | number | null | undefined }) {
   return <div className="text-sm text-ink font-semibold py-1 whitespace-pre-wrap">{txt}</div>;
 }
 
-/**
- * Dados fiscais de quem figura como tomador (faturamento) ou contratante (contrato).
- * "Cliente" vem do cadastro da EC; "Polobh" vem da empresa padrão do grupo (Configurações).
- */
-function dadosFiscais(
-  quem: "Polobh" | "Cliente" | "",
-  ec: Ec,
-  empresa: EmpresaGrupo | undefined
-): { razaoSocial: string; endereco: string; cnpjCpf: string; inscricaoEstadual: string; inscricaoMunicipal: string } | null {
-  if (quem === "Cliente") {
-    return {
-      razaoSocial: ec.cliente.razaoSocial || ec.cliente.nome,
-      endereco: ec.cliente.endereco,
-      cnpjCpf: ec.cliente.cnpjCpf,
-      inscricaoEstadual: ec.cliente.inscricaoEstadual,
-      inscricaoMunicipal: ec.cliente.inscricaoMunicipal,
-    };
-  }
-  if (quem === "Polobh") {
-    return {
-      razaoSocial: empresa?.razaoSocial ?? "",
-      endereco: empresa?.endereco ?? "",
-      cnpjCpf: empresa?.cnpj ?? "",
-      inscricaoEstadual: empresa?.inscricaoEstadual ?? "",
-      inscricaoMunicipal: empresa?.inscricaoMunicipal ?? "",
-    };
-  }
-  return null;
-}
 

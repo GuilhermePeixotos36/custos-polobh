@@ -19,14 +19,16 @@
  * logo abaixo, a opção de cobrança escolhida para ele (ver `opcaoEscolhidaDoItem`).
  */
 import ExcelJS from "exceljs";
-import type { Ec, EcLinha, Os } from "@/data/types";
+import type { Ec, EcLinha, EmpresaGrupo, Os } from "@/data/types";
 import { dataBR } from "@/lib/format";
 import {
   textoObjetoContrato, FORMA_PAGAMENTO_PADRAO, OBS_CONTRATO_PADRAO,
 } from "@/domain/calc";
-import { COLUNAS_CONTRATACAO, resumoContratacao, sincronizarContratacao } from "@/domain/contratacaoOs";
+import { bvDaContratacao, COLUNAS_CONTRATACAO, resumoContratacao, sincronizarContratacao } from "@/domain/contratacaoOs";
 import { datasDoEvento, ETAPAS_CRONOGRAMA, horariosDoEvento } from "@/domain/projeto";
 import { itensParaDocumento, temContrato, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA } from "@/domain/os";
+import { calcularAcerto } from "@/domain/acertoFinanceiro";
+import { dadosDoTomador, RETENCOES_PADRAO } from "@/domain/tomadorOs";
 import { COR, fill, FONT_LIGHT, baixar, nomeArquivo, carregarLogo, encaixarLogo, linhasVisuais, alturaParaLinhas } from "./shared";
 
 const moeda = '"R$" #,##0.00';
@@ -57,11 +59,21 @@ export interface EmpresaEmissora {
   inscricaoMunicipal: string;
 }
 
+/**
+ * A empresa emissora, no formato do cadastro — para a planilha poder usar a
+ * mesma resolução de tomador do resto do sistema quando só recebe a padrão.
+ */
+const empresaComoGrupo = (e: EmpresaEmissora): EmpresaGrupo => ({
+  id: "Polobh", nome: e.nome, razaoSocial: e.razaoSocial, cnpj: e.cnpj, endereco: e.endereco,
+  inscricaoEstadual: e.inscricaoEstadual, inscricaoMunicipal: e.inscricaoMunicipal,
+  padrao: true, ordem: 0,
+});
+
 /** Monta o buffer da OS em Excel sem baixar (usado no download normal e no anexo de e-mail). */
 export async function criarOsExcelBuffer(
   os: Os,
   ec: Ec,
-  opts: { incluirFinanceiro?: boolean; empresaPolobh?: EmpresaEmissora } = {}
+  opts: { incluirFinanceiro?: boolean; empresaPolobh?: EmpresaEmissora; empresas?: EmpresaGrupo[] } = {}
 ): Promise<{ buffer: ArrayBuffer; nome: string }> {
   const incluirFinanceiro = opts.incluirFinanceiro ?? true;
   const emp = opts.empresaPolobh;
@@ -457,21 +469,26 @@ export async function criarOsExcelBuffer(
     const fin = os.financeiro;
     secao("INFORMAÇÕES A SEREM PREENCHIDAS PELO FINANCEIRO DA PÓLOBH", "laranja");
     secao("DADOS EMISSÃO RECIBO SIMPLES | FATURA | NOTA FISCAL | FATURA E NOTA FISCAL");
-    const nomePolobh = emp?.nome ? `Pólobh — ${emp.nome}` : "Pólobh";
-    // Dados fiscais: do cliente (via EC) ou da empresa do grupo Pólobh (Configurações).
-    const tom =
-      fin.tomador === "Cliente"
-        ? { nome: cli.nome || "Cliente", razao: cli.razaoSocial, end: cli.endereco, doc: cli.cnpjCpf, ie: cli.inscricaoEstadual, im: cli.inscricaoMunicipal }
-        : fin.tomador === "Polobh" && emp
-          ? { nome: nomePolobh, razao: emp.razaoSocial, end: emp.endereco, doc: emp.cnpj, ie: emp.inscricaoEstadual, im: emp.inscricaoMunicipal }
-          : null;
-    linha("Tomador dos Serviços:", fin.tomador === "Polobh" ? nomePolobh : fin.tomador === "Cliente" ? "Cliente" : "");
-    linha("Cliente ou Pólobh:", tom?.nome ?? "");
-    linha("Razão Social:", tom?.razao ?? "");
-    linha("Endereço:", tom?.end ?? "");
-    linha("CNPJ/CPF:", tom?.doc ?? "");
-    linha("Inscrição Estadual:", tom?.ie ?? "");
-    linha("Inscrição Municipal:", tom?.im ?? "");
+    /*
+     * Quem é o tomador vem do DOMÍNIO (15/09/2026).
+     *
+     * Esta era a quarta cópia da mesma regra — tela, OS impressa, contrato e
+     * aqui —, e as quatro só conheciam "Pólobh" e "Cliente". Com MF e "Outro"
+     * entrando, manter quatro cópias era garantir que uma delas ficasse para
+     * trás. A lista de empresas chega por `opts.empresas`; sem ela, o valor
+     * legado "Polobh" ainda resolve pela `empresaPolobh` de sempre.
+     */
+    const tom = dadosDoTomador(fin.tomador, {
+      cliente: cli,
+      empresas: opts.empresas ?? (emp ? [empresaComoGrupo(emp)] : []),
+      avulso: fin.tomadorAvulso,
+    });
+    linha("Tomador dos Serviços:", tom?.rotulo ?? "");
+    linha("Razão Social:", tom?.razaoSocial ?? "");
+    linha("Endereço:", tom?.endereco ?? "");
+    linha("CNPJ/CPF:", tom?.cnpjCpf ?? "");
+    linha("Inscrição Estadual:", tom?.inscricaoEstadual ?? "");
+    linha("Inscrição Municipal:", tom?.inscricaoMunicipal ?? "");
 
     const primeiraNf = linha("Descritivo Nota Fiscal:", fin.descritivoNf, { altura: 30 });
     linha("", `Dados do Projeto: ${p.titulo}`, { semRotulo: true });
@@ -479,8 +496,7 @@ export async function criarOsExcelBuffer(
     linha("", `Nome Projeto Incentivado: ${fin.projetoIncentivado || (p.incentivosFiscais ? p.incentivosFiscais : "")}`, { semRotulo: true });
     // A lei já vem com o número do projeto na mesma string — uma linha só.
     linha("", `Lei de Incentivo à Cultura: ${fin.leiIncentivo || p.incentivosFiscais || ""}`, { semRotulo: true });
-    linha("", `CNAE: ${fin.cnae || ""}`, { semRotulo: true });
-    const ultimaNf = linha("", `Código de Serviço: ${fin.codigoServico || ""}`, { semRotulo: true });
+    const ultimaNf = linha("", `CNAE: ${fin.cnae || ""}`, { semRotulo: true });
     agruparRotulo(primeiraNf, ultimaNf);
 
     const primeiraVal = linha("Valor:", fin.valorUnitario, { money: true, rotuloInterno: "Valor unitário" });
@@ -496,26 +512,38 @@ export async function criarOsExcelBuffer(
     // dado de nota fiscal, e foram para a seção "Acertos Financeiros" no fim.
     agruparRotulo(primeiraVal, rPagarF);
 
+    // Os VALORES sobem e os dois códigos descem (15/09/2026): é pelos valores
+    // que se confere a nota, e os códigos são o último dado a se saber — o de
+    // serviço e a ordem de compra nascem aqui e voltam para os itens da EC.
+    linha("Forma de Pagamento:", fin.formaPagamento || "");
+    linha("Código de Serviço:", fin.codigoServico || "");
+    linha("Ordem de Compra:", fin.ordemCompra || "");
+
+    // RETENÇÕES FISCAIS: o aviso que evita o retrabalho mais caro da OS. Com
+    // altura própria, porque é um parágrafo — e é para ser lido.
+    const textoRetencoes = fin.retencoesNaoSeAplica ? "Não se aplica" : fin.retencoes || RETENCOES_PADRAO;
+    linha("Retenções Fiscais:", textoRetencoes, {
+      altura: Math.max(40, alturaParaLinhas(linhasVisuais(textoRetencoes, LARGURA_VALOR))),
+    });
+
     /* ------------------------- DADOS PARA CONTRATO --------------------- */
     // Sai da planilha inteiro quando a EC não pediu contrato para nenhum item
     // desta OS: descrever com valores e data um contrato que não existe é pior
     // do que não falar dele.
     const ct = os.contrato;
     if (temContrato(os, itens)) {
-    const contr =
-      ct.contratante === "Cliente"
-        ? { nome: cli.nome || "Cliente", razao: cli.razaoSocial, end: cli.endereco, doc: cli.cnpjCpf, ie: cli.inscricaoEstadual, im: cli.inscricaoMunicipal }
-        : ct.contratante === "Polobh" && emp
-          ? { nome: nomePolobh, razao: emp.razaoSocial, end: emp.endereco, doc: emp.cnpj, ie: emp.inscricaoEstadual, im: emp.inscricaoMunicipal }
-          : null;
+    // Mesma resolução do tomador, uma cópia a menos (ver acima).
+    const contr = dadosDoTomador(ct.contratante, {
+      cliente: cli,
+      empresas: opts.empresas ?? (emp ? [empresaComoGrupo(emp)] : []),
+    });
     secao("DADOS PARA CONTRATO");
-    linha("Contratante:", ct.contratante === "Polobh" ? nomePolobh : ct.contratante === "Cliente" ? "Cliente" : "");
-    linha("Cliente ou Pólobh:", contr?.nome ?? "");
-    linha("Razão Social:", contr?.razao ?? "");
-    linha("Endereço:", contr?.end ?? "");
-    linha("CNPJ/CPF:", contr?.doc ?? "");
-    linha("Inscrição Estadual:", contr?.ie ?? "");
-    linha("Inscrição Municipal:", contr?.im ?? "");
+    linha("Contratante:", contr?.rotulo ?? "");
+    linha("Razão Social:", contr?.razaoSocial ?? "");
+    linha("Endereço:", contr?.endereco ?? "");
+    linha("CNPJ/CPF:", contr?.cnpjCpf ?? "");
+    linha("Inscrição Estadual:", contr?.inscricaoEstadual ?? "");
+    linha("Inscrição Municipal:", contr?.inscricaoMunicipal ?? "");
 
     const primeiraDesc = linha("Descritivo da Contratação:", textoObjetoContrato(fin), { fixo: true, altura: 44 });
     linha("", `DESCRITIVO DOS SERVIÇOS E/OU PRODUTOS:\n${ct.descritivoServicos || fin.descritivoNf || os.descritivo}`, {
@@ -545,11 +573,19 @@ export async function criarOsExcelBuffer(
     // O que a Pólobh acerta por dentro — BV e as observações do acerto. Fica no
     // fim, depois de emissão e contrato, porque é consequência dos dois.
     secao("ACERTOS FINANCEIROS");
-    const rPctF = linha("BV Pólobh:", fin.bvPercentual ?? 0, { numFmt: '0.##"%"', rotuloInterno: "Percentual" });
-    const rBvF = linha("", ((fin.valorTotal || 0) * (fin.bvPercentual || 0)) / 100, {
-      semRotulo: true, money: true, rotuloInterno: "Valor", formula: `M${rTotF}*M${rPctF}/100`,
-    });
-    agruparRotulo(rPctF, rBvF);
+    // Os dois campos de BV saíram em 15/09/2026 (ele é combinado item a item, no
+    // Detalhamento) e entrou a conta da devolução — ver `domain/acertoFinanceiro`.
+    if (fin.acertoNaoSeAplica ?? true) {
+      linha("Acerto Financeiro:", "Não se aplica");
+    } else {
+      const acerto = calcularAcerto(fin, os.orcamento, bvDaContratacao(os.itens ?? []).valor);
+      linha("Valor original dos serviços:", acerto.valorOriginal, { money: true });
+      linha("BV sobre o valor original:", acerto.bvSobreOriginal, { money: true });
+      linha("Valor da NF:", acerto.valorNf, { money: true });
+      linha("Valor do acréscimo:", acerto.acrescimo, { money: true });
+      linha(`Encargos sobre o acréscimo (${acerto.encargosPercentual}%):`, acerto.encargosSobreAcrescimo, { money: true });
+      linha("Valor devolução Pólobh:", acerto.devolucaoPolobh, { money: true });
+    }
     linha("Observações:", fin.acertoFinanceiro);
   }
 
@@ -562,7 +598,7 @@ export async function criarOsExcelBuffer(
 export async function gerarOsExcel(
   os: Os,
   ec: Ec,
-  opts: { incluirFinanceiro?: boolean; empresaPolobh?: EmpresaEmissora } = {}
+  opts: { incluirFinanceiro?: boolean; empresaPolobh?: EmpresaEmissora; empresas?: EmpresaGrupo[] } = {}
 ): Promise<void> {
   const { buffer, nome } = await criarOsExcelBuffer(os, ec, opts);
   baixar(buffer, nome);

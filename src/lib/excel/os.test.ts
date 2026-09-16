@@ -280,26 +280,28 @@ describe("Excel da OS — modelo novo", () => {
     // (células mescladas repetem a fórmula do mestre — só a referência importa aqui)
     const referencias = formulas.map((f) => f.split(":")[1]);
     expect(referencias.every((f) => /^M\d+([-*]M\d+)+(\/100)?$/.test(f))).toBe(true);
-    expect(referencias.some((f) => f.includes("/100"))).toBe(true); // o BV continua vivo
+    // A fórmula do BV saiu junto com o bloco dele (15/09/2026): o BV é combinado
+    // item a item, no Detalhamento, e o acerto que ficou aqui é outra conta —
+    // calculada no domínio e gravada como número (ver `calcularAcerto`).
   });
 
-  it("o bloco de emissão termina no valor a pagar — BV e acerto vão para Acertos Financeiros", async () => {
+  it("o bloco de emissão termina nos códigos, e o acerto fica no fim", async () => {
     const { linhas } = await abrir(os(["l1"]), ec([linha({ id: "l1", valorPolobh: 10000 })]));
     const onde = (t: string) => linhas.findIndex((l) => l?.includes(t));
 
     const pagar = onde("Valor total a pagar");
     const acertos = onde("ACERTOS FINANCEIROS");
     const contrato = onde("DADOS PARA CONTRATO");
-    const bv = onde("BV Pólobh");
     expect(pagar).toBeGreaterThan(0);
 
-    // Nada entre o valor a pagar e o fim do bloco de emissão: era ali que BV e
-    // acerto ficavam, no meio dos dados da nota.
-    expect(contrato).toBe(pagar + 1);
-    // O grupo novo vem depois do contrato, e leva o BV e as observações.
+    // Os valores sobem e os dois códigos descem (15/09/2026): é pelos valores
+    // que se confere a nota, e o código de serviço é o último dado a se saber.
+    expect(onde("Código de Serviço")).toBeGreaterThan(pagar);
+    expect(onde("Ordem de Compra")).toBeGreaterThan(pagar);
+    // O contrato vem depois do bloco de emissão, e o acerto fecha a OS.
+    expect(contrato).toBeGreaterThan(pagar);
     expect(acertos).toBeGreaterThan(contrato);
-    expect(bv).toBeGreaterThan(acertos);
-    expect(onde("Observações:")).toBeGreaterThan(bv);
+    expect(onde("Observações:")).toBeGreaterThan(acertos);
     expect(linhas.slice(acertos).join("\n")).toContain("Depósito em 30 dias");
   });
 
