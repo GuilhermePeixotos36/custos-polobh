@@ -266,21 +266,33 @@ export function destinatariosDaVez(observacao: Observacao, usuarios: string[] = 
 }
 
 /**
- * Uma conversa aberta vira pendência de quem está com a batata — e do Produtor
- * Responsável do projeto, SEMPRE (regra revista em 08/09/2026).
+ * Uma conversa aberta vira pendência de QUEM ESTÁ COM A BATATA — e de mais
+ * ninguém (regra revista em 15/09/2026).
  *
- * Por um tempo ele só entrava quando a vez era dele, para o badge não crescer a
- * cada resposta trocada entre duas colegas. O efeito colateral foi pior do que o
- * ruído: uma cobrança podia ficar semanas parada com outra pessoa sem que quem
- * responde pelo projeto tivesse qualquer sinal disso. Ele volta a ver tudo o que
- * nasce no projeto dele; o "eventualmente" é do destinatário, que entra e sai
- * conforme a vez.
+ * A história deste parâmetro em três atos. Primeiro, o Produtor Responsável só
+ * entrava quando a vez era dele. Depois (08/09/2026) passou a ver toda conversa
+ * do projeto, porque uma cobrança podia ficar semanas parada com outra pessoa
+ * sem que quem responde pelo projeto tivesse qualquer sinal. Agora a Pólobh
+ * desfaz esse pedido com todas as letras: *"que o número e as pendências
+ * apareçam apenas para os seus responsáveis — sempre para os destinatários dos
+ * comentários"*.
+ *
+ * O motivo é o mesmo de sempre, visto do outro lado: quem responde por seis
+ * projetos herdava a bolinha de cada resposta trocada entre duas colegas, e o
+ * número vermelho parou de significar "tenho o que fazer".
+ *
+ * O que NÃO mudou, e é o que impede o pedido de virar buraco: as pendências sem
+ * destinatário nominal — OS em rascunho, cronograma vazio, credenciamento sem
+ * resposta, projeto sem EC, OS/Contrato a emitir — continuam endereçadas ao
+ * Produtor Responsável. Elas não têm a quem mais pertencer, e sem ele
+ * simplesmente sumiriam do sistema. O próprio check-list pede isso ao exigir que
+ * "Emitir OS" seja pendência da produtora: o que ela deixa de herdar é conversa
+ * dos outros, não o trabalho do projeto dela.
  */
 function pendenciaDeConversa(
   observacao: Observacao,
-  usuarios: string[],
-  responsavelProjeto?: string
-): { pessoas: string[]; responsavelProjeto?: string; resumo: string } | null {
+  usuarios: string[]
+): { pessoas: string[]; resumo: string } | null {
   const texto = observacao.texto?.trim() ?? "";
   if (!texto || observacao.resolvida) return null;
   const pessoas = destinatariosDaVez(observacao, usuarios);
@@ -289,7 +301,6 @@ function pendenciaDeConversa(
   const ultima = (observacao.respostas ?? []).at(-1)?.texto?.trim() || texto;
   return {
     pessoas,
-    responsavelProjeto: responsavelProjeto?.trim() || undefined,
     resumo: ultima.length > 80 ? `${ultima.slice(0, 77)}…` : ultima,
   };
 }
@@ -386,14 +397,13 @@ export function calcularPendencias(
     const ec = ecPorId.get(os.ecId);
     if (!ec?.projetoId || encerrado(ec.projetoId)) continue;
     (os.observacoes ?? []).forEach((observacao, indice) => {
-      const vez = pendenciaDeConversa(observacao, usuarios, respDe(ec.projetoId));
+      const vez = pendenciaDeConversa(observacao, usuarios);
       if (!vez) return;
       out.push({
         id: `os.observacao:${os.id}:${observacao.id || indice}`,
         tipo: "os.observacao",
         titulo: `Observação para ${vez.pessoas.join(", ")} na OS ${os.numero}: ${vez.resumo}`,
         pessoas: vez.pessoas,
-        responsavelProjeto: vez.responsavelProjeto,
         recurso: "projetos",
         projetoId: ec.projetoId,
         aba: "os",
@@ -463,14 +473,13 @@ export function calcularPendencias(
 
     // Conversa GERAL da EC — a pauta do evento, antes de virar assunto de item.
     (ec.observacoes ?? []).forEach((observacao, indice) => {
-      const vez = pendenciaDeConversa(observacao, usuarios, respDe(ec.projetoId));
+      const vez = pendenciaDeConversa(observacao, usuarios);
       if (!vez) return;
       out.push({
         id: `ec.observacaoGeral:${ec.id}:${observacao.id || indice}`,
         tipo: "ec.observacaoGeral",
         titulo: `Observação geral para ${vez.pessoas.join(", ")} na ${ec.numero}: ${vez.resumo}`,
         pessoas: vez.pessoas,
-        responsavelProjeto: vez.responsavelProjeto,
         recurso: "projetos",
         projetoId: ec.projetoId,
         aba: "ec",
@@ -488,14 +497,13 @@ export function calcularPendencias(
       if (linha.oculto) continue;
       (linha.observacoes ?? []).forEach((observacao, indice) => {
         // Resolvida, sem texto ou sem ninguém com a vez: não cobra ninguém.
-        const vez = pendenciaDeConversa(observacao, usuarios, respDe(ec.projetoId));
+        const vez = pendenciaDeConversa(observacao, usuarios);
         if (!vez) return;
         out.push({
           id: `ec.observacao:${ec.id}:${linha.id}:${observacao.id || indice}`,
           tipo: "ec.observacao",
           titulo: `Observação para ${vez.pessoas.join(", ")} em ${linha.item || linha.grupo}: ${vez.resumo}`,
           pessoas: vez.pessoas,
-          responsavelProjeto: vez.responsavelProjeto,
           recurso: "projetos",
           projetoId: ec.projetoId,
           aba: "ec",
@@ -555,14 +563,13 @@ export function calcularPendencias(
       // Tarefa criada à mão pode estar sem título até alguém escrever nela.
       const nomeItem = item.titulo.trim() || "(tarefa sem título)";
       for (const observacao of item.observacoes ?? []) {
-        const vez = pendenciaDeConversa(observacao, usuarios, responsavelProjeto);
+        const vez = pendenciaDeConversa(observacao, usuarios);
         if (!vez) continue;
         out.push({
           id: `checklist.observacao:${item.id}:${observacao.id}`,
           tipo: "checklist.observacao",
           titulo: `Observação para ${vez.pessoas.join(", ")} em ${nomeItem}: ${vez.resumo}`,
           pessoas: vez.pessoas,
-          responsavelProjeto: vez.responsavelProjeto,
           recurso: "projetos",
           projetoId: checklist.projetoId,
           aba: "checklist",
@@ -582,8 +589,10 @@ export function calcularPendencias(
         id: `checklist.prazo:${item.id}`,
         tipo: situacao === "atrasado" ? "checklist.atrasado" : "checklist.vencendo",
         titulo: situacao === "atrasado" ? `Tarefa atrasada: ${nomeItem}` : `Tarefa para hoje: ${nomeItem}`,
+        // `dono` já é o responsável da tarefa OU, na falta dele, o produtor:
+        // a tarefa não fica órfã, e o produtor não vira destinatário das que
+        // têm dono (15/09/2026).
         pessoas: [dono],
-        responsavelProjeto: responsavelProjeto || undefined,
         recurso: "projetos",
         projetoId: checklist.projetoId,
         aba: "checklist",
@@ -600,21 +609,23 @@ export function calcularPendencias(
   // dele. A pendência mora na ABA, então ela é contada no badge daquela subguia
   // e o navegador leva até o card no topo dela.
   for (const p of projetos) {
-    if (statusProjetoAutomatico(p, ecs) === "Concluido") continue;
+    // Antes havia aqui um "projeto Concluído não cobra". O selo saiu
+    // (15/09/2026), e quem encerra as pendências é o ARQUIVAMENTO — já aplicado
+    // a todas elas por `encerrado`, logo abaixo.
+    if (encerrado(p.id)) continue;
     for (const [aba, observacoes] of Object.entries(p.conversas ?? {})) {
       // Só as abas que mostram a conversa cobram por ela (15/09/2026). EC e OS
       // saíram da listagem, e uma pendência sem tela onde se resolver é
       // exatamente o número que não se consegue achar.
       if (!(ABAS_COM_CONVERSA as readonly string[]).includes(aba)) continue;
       for (const [indice, observacao] of (observacoes ?? []).entries()) {
-        const vez = pendenciaDeConversa(observacao, usuarios, p.info.produtoraResponsavel?.trim() || "");
+        const vez = pendenciaDeConversa(observacao, usuarios);
         if (!vez) continue;
         out.push({
           id: `projeto.conversa:${p.id}:${aba}:${observacao.id || indice}`,
           tipo: "projeto.conversa",
           titulo: `Observação para ${vez.pessoas.join(", ")} em ${ROTULO_ABA[aba] ?? aba}: ${vez.resumo}`,
           pessoas: vez.pessoas,
-          responsavelProjeto: vez.responsavelProjeto,
           recurso: "projetos",
           projetoId: p.id,
           aba: aba as AbaProjeto,
@@ -679,14 +690,24 @@ function normalizarPessoa(valor: string): string {
 /**
  * Filtra as pendências que são DESTA pessoa. Duas portas, e só elas:
  *
- *  1. ela é o Produtor(a) Responsável do projeto — e aí conta QUALQUER pendência
- *     nascida ali dentro, mesmo endereçada a outra pessoa;
- *  2. ela foi mencionada/escolhida na observação, ou é dona da tarefa.
+ *  1. ela foi mencionada/escolhida na observação, ou é dona da tarefa;
+ *  2. ela é o Produtor(a) Responsável — e aí conta só o que NÃO TEM outro dono:
+ *     OS em rascunho, cronograma vazio, credenciamento sem resposta, projeto
+ *     sem EC, OS/Contrato a emitir. Quem marca essas é quem as cria, pondo
+ *     `responsavelProjeto` na pendência (ver `respDe`).
  *
- * Nenhuma outra: nem o papel, nem quem escreveu o comentário. O número vermelho
- * é uma lista de tarefas, não um resumo do que anda acontecendo na casa — e todo
- * badge, popup e sininho do sistema sai desta mesma lista, então tudo o que é
- * contado pode ser encontrado na tela.
+ * A porta 2 já foi larga: até 15/09/2026 o produtor recebia TUDO o que nascia
+ * no projeto dele, conversa dos outros inclusive, e o número vermelho de quem
+ * responde por seis projetos parou de significar "tenho o que fazer". A Pólobh
+ * pediu o recorte de volta — "apenas para os seus responsáveis, sempre para os
+ * destinatários dos comentários" — e ele foi feito no lugar certo: as conversas
+ * deixaram de carregar o produtor (`pendenciaDeConversa`), e o que não tem
+ * destinatário nominal continua com ele, porque senão sumiria do sistema.
+ *
+ * Nenhuma outra porta: nem o papel, nem quem escreveu o comentário. O número
+ * vermelho é uma lista de tarefas, não um resumo do que anda acontecendo na
+ * casa — e todo badge, popup e sininho sai desta mesma lista, então tudo o que
+ * é contado pode ser encontrado na tela.
  */
 export function agregarPendencias(itens: Pendencia[], pessoa?: string): PendenciasAgregadas {
   const nome = pessoa ? normalizarPessoa(pessoa) : "";

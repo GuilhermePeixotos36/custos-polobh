@@ -19,6 +19,7 @@ export type Recurso =
   | "fornecedores"
   | "fornecedores.editar"
   | "financeiro"
+  | "rentabilidade"
   | "configuracoes"
   | "logs"
   | "guia";
@@ -37,6 +38,7 @@ export const TODOS_RECURSOS: Recurso[] = [
   "fornecedores",
   "fornecedores.editar",
   "financeiro",
+  "rentabilidade",
   "configuracoes",
   "logs",
   "guia",
@@ -61,7 +63,21 @@ export const PERMISSOES_ESPECIAIS: { key: Recurso; label: string; hint: string }
   {
     key: "financeiro",
     label: "Bloco financeiro",
-    hint: "Valores Pólobh, valores do cliente e rentabilidade na EC e na OS",
+    hint: "Valores Pólobh, valores do cliente e o financeiro da OS",
+  },
+  /**
+   * A RENTABILIDADE ganhou permissão própria (15/09/2026).
+   *
+   * Ela vinha junto do bloco financeiro — quem via valor via margem —, e a
+   * Pólobh separou as duas coisas: a aba mostra quanto a casa ganha em cada
+   * item, e o pedido é que ela fique com Diretoria e Coordenação (Produção e
+   * Administrativo-Financeiro). Quem lança custo e emite OS continua vendo
+   * valor sem ver margem.
+   */
+  {
+    key: "rentabilidade",
+    label: "Rentabilidade por item",
+    hint: "A margem da Pólobh item a item, na EC — separada do bloco financeiro",
   },
   { key: "configuracoes", label: "Configurações", hint: "Empresas do grupo, áreas e usuários" },
   { key: "logs", label: "Logs do sistema", hint: "Trilha de auditoria — normalmente só o Administrador" },
@@ -88,6 +104,7 @@ export const PERMISSOES: Record<Papel, Recurso[]> = {
     "fornecedores",
     "fornecedores.editar",
     "financeiro",
+    "rentabilidade",
     "configuracoes",
     "guia",
   ],

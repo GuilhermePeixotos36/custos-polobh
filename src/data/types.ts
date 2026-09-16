@@ -438,7 +438,11 @@ export interface Producao {
 /* ------------------------------- Projeto -------------------------------- */
 
 export type TemplateEc = "Corporativo" | "Cultural" | "";
-export type StatusProjeto = "Ativo" | "Arquivado" | "Concluido" | "Cancelado";
+/**
+ * O projeto está no ar, ou está no arquivo — dois estados, como a EC
+ * (15/09/2026). "Concluído" e "Cancelado" saíram; ver `domain/statusProjeto`.
+ */
+export type StatusProjeto = "Ativo" | "Arquivado";
 
 /**
  * Projeto = container de tudo (segue a hierarquia project-centric).

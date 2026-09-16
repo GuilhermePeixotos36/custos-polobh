@@ -39,8 +39,6 @@ import type { StatusProjeto } from "@/data/types";
 const tomStatus: Record<StatusProjeto, Tom> = {
   Ativo: "success",
   Arquivado: "neutral",
-  Concluido: "info",
-  Cancelado: "danger",
 };
 
 type FiltroStatus = "Todos" | "Ativos" | "Arquivados";
@@ -240,7 +238,7 @@ export function Calendario() {
                 hint={
                   filtrando
                     ? "Ajuste a busca ou os filtros — o quadro mostra tudo o que existe no ano."
-                    : "Assim que um projeto receber a data do evento no cronograma, ele aparece aqui sozinho."
+                    : "Assim que um projeto receber datas no cronograma, ele aparece aqui sozinho — da montagem à desmontagem."
                 }
                 action={<Button size="sm" variant="secondary" onClick={() => navigate("/projetos")}>Ver projetos</Button>}
               />
@@ -338,7 +336,7 @@ function CardMes({
                     left: `${((seg.diaInicio - 1) / dias) * 100}%`,
                     width: `${((seg.diaFim - seg.diaInicio + 1) / dias) * 100}%`,
                     background: seg.item.cor.forte,
-                    opacity: seg.item.status === "Cancelado" ? 0.4 : 1,
+                    opacity: seg.item.status === "Arquivado" ? 0.4 : 1,
                   }}
                 />
               ))}
@@ -381,7 +379,7 @@ function LinhaProjetoCard({ seg }: { seg: SegmentoMes }) {
   return (
     <span className="flex items-center gap-2 min-w-0" title={`${item.titulo} — ${rotuloPeriodo(item)}`}>
       <span className="h-2 w-2 rounded-full shrink-0" style={{ background: item.cor.forte }} />
-      <span className={cx("text-[12.5px] font-semibold text-ink truncate flex-1 min-w-0", item.status === "Cancelado" && "line-through text-ink-3")}>
+      <span className={cx("text-[12.5px] font-semibold text-ink truncate flex-1 min-w-0", item.status === "Arquivado" && "line-through text-ink-3")}>
         {item.titulo}
       </span>
       <span className="text-[11px] font-bold text-ink-3 tabular-nums shrink-0">
@@ -450,7 +448,7 @@ function VistaLista({
                     <span className="h-9 w-1.5 rounded-full shrink-0" style={{ background: item.cor.forte }} />
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-2 flex-wrap">
-                        <span className={cx("text-[14px] font-bold text-ink truncate", item.status === "Cancelado" && "line-through text-ink-3")}>
+                        <span className={cx("text-[14px] font-bold text-ink truncate", item.status === "Arquivado" && "line-through text-ink-3")}>
                           {item.titulo}
                         </span>
                         {acontecendo && <Badge tom="success">acontecendo</Badge>}
@@ -473,7 +471,7 @@ function VistaLista({
                         {dataBR(item.inicio)}{item.inicio !== item.fim ? ` › ${dataBR(item.fim)}` : ""}
                       </span>
                       <span className="block text-[11px] text-ink-3">
-                        {item.dias} dia{item.dias > 1 ? "s" : ""}
+                        {item.dias} dia{item.dias > 1 ? "s" : ""} (com montagem e desmontagem)
                         {item.modalidade ? ` · ${item.modalidade}` : ""}
                       </span>
                     </span>

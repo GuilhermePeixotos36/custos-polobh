@@ -135,6 +135,8 @@ export function EcForm() {
   const { data: existente } = useAsync(() => (id ? repo.ecs.obter(id) : Promise.resolve(undefined)), [id]);
 
   const verFinanceiro = useAuth((s) => s.pode("financeiro"));
+  /** A margem tem dono próprio desde 15/09/2026 — ver `PERMISSOES_ESPECIAIS`. */
+  const verRentabilidade = useAuth((s) => s.pode("rentabilidade"));
   const [ec, setEc] = useState<Ec | null>(null);
   const [baseline, setBaseline] = useState("");
   /** O comparativo aberto pelo botão Revisar. `null` = fechado. */
@@ -487,7 +489,7 @@ export function EcForm() {
       subabas={
         <>
           {ec.projetoId && <BarraProjeto projetoId={ec.projetoId} atual="ec" />}
-          <EcSubGuias atual={subaba} onChange={setSubaba} temResumo={verFinanceiro} temRentabilidade={verFinanceiro} />
+          <EcSubGuias atual={subaba} onChange={setSubaba} temResumo={verFinanceiro} temRentabilidade={verRentabilidade} />
         </>
       }
     >
@@ -495,7 +497,7 @@ export function EcForm() {
       {subaba === "ec" && <NavegadorPendencias pendencias={pendenciasDaEc} />}
 
       {verFinanceiro && subaba === "resumo" && <div className="space-y-4">{resumoCard}</div>}
-      {verFinanceiro && subaba === "rentabilidade" && <div className="space-y-4">{rentabilidadeCard}</div>}
+      {verRentabilidade && subaba === "rentabilidade" && <div className="space-y-4">{rentabilidadeCard}</div>}
 
       {subaba === "ec" && (
       <div className="space-y-4">

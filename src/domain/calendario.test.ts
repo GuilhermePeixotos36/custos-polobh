@@ -7,6 +7,7 @@ import {
   duracaoEmDias,
   isoDoDia,
   montarCalendario,
+  etapasDoProjeto,
   periodoDoProjeto,
   projetosDoAno,
   rotuloDias,
@@ -19,7 +20,10 @@ import {
 import { projetoInfoVazio } from "@/domain/projeto";
 import type { Projeto } from "@/data/types";
 
-/** Projeto mínimo com as faixas da etapa "Evento" já preenchidas. */
+/**
+ * Projeto mínimo, com montagem em 25/02, desmontagem em 30/03 e as faixas do
+ * evento que o teste pedir. As três etapas entram no quadro desde 15/09/2026.
+ */
 function projeto(id: string, datasEvento: string[], extra: Partial<Projeto> = {}): Projeto {
   const info = projetoInfoVazio();
   return {
@@ -51,6 +55,7 @@ const item = (id: string, inicio: string, fim: string): ProjetoNoCalendario => (
   cliente: "Cliente",
   produtora: "",
   local: "",
+  etapas: [{ etapa: "evento" as const, inicio, fim }],
   modalidade: "",
   status: "Ativo",
   inicio,
@@ -60,32 +65,60 @@ const item = (id: string, inicio: string, fim: string): ProjetoNoCalendario => (
 });
 
 describe("período do projeto", () => {
-  it("usa só a etapa Evento — montagem e desmontagem ficam de fora", () => {
+  // A regra virou em 15/09/2026: o quadro mostra a OCUPAÇÃO da equipe, do
+  // primeiro dia de montagem ao último de desmontagem. Quem olha o quadro está
+  // decidindo se cabe mais um projeto na semana, e a equipe já está em campo
+  // desde a montagem.
+  it("vai da primeira montagem à última desmontagem", () => {
     expect(periodoDoProjeto(projeto("a", ["2026-03-05", "2026-03-07", "2026-03-06"]))).toEqual({
-      inicio: "2026-03-05",
-      fim: "2026-03-07",
+      inicio: "2026-02-25",
+      fim: "2026-03-30",
     });
   });
 
-  it("evento de um dia começa e termina no mesmo dia", () => {
-    expect(periodoDoProjeto(projeto("b", ["2026-03-05"]))).toEqual({ inicio: "2026-03-05", fim: "2026-03-05" });
+  it("sem montagem nem desmontagem, o período é o do evento", () => {
+    const p = projeto("b", ["2026-03-05"]);
+    p.info.cronograma.montagem = [];
+    p.info.cronograma.desmontagem = [];
+    expect(periodoDoProjeto(p)).toEqual({ inicio: "2026-03-05", fim: "2026-03-05" });
   });
 
   it("ignora faixas em branco e datas mal formadas", () => {
-    expect(periodoDoProjeto(projeto("c", ["", "  ", "05/03/2026", "2026-03-09"]))).toEqual({
-      inicio: "2026-03-09",
-      fim: "2026-03-09",
-    });
+    const p = projeto("c", ["", "  ", "05/03/2026", "2026-03-09"]);
+    p.info.cronograma.montagem = [];
+    p.info.cronograma.desmontagem = [];
+    expect(periodoDoProjeto(p)).toEqual({ inicio: "2026-03-09", fim: "2026-03-09" });
   });
 
-  it("sem data de evento não tem período", () => {
-    expect(periodoDoProjeto(projeto("d", []))).toBeNull();
+  it("sem data nenhuma não tem período", () => {
+    const p = projeto("d", []);
+    p.info.cronograma.montagem = [];
+    p.info.cronograma.desmontagem = [];
+    expect(periodoDoProjeto(p)).toBeNull();
   });
 
   it("cai no campo legado quando o projeto é anterior ao cronograma por faixas", () => {
     const p = projeto("e", []);
+    p.info.cronograma.montagem = [];
+    p.info.cronograma.desmontagem = [];
     p.info.evento = "2026-07-14";
     expect(periodoDoProjeto(p)).toEqual({ inicio: "2026-07-14", fim: "2026-07-14" });
+  });
+});
+
+describe("etapas do projeto — o que dá cor à barra", () => {
+  it("devolve montagem, evento e desmontagem, cada uma com o seu trecho", () => {
+    expect(etapasDoProjeto(projeto("a", ["2026-03-05", "2026-03-07"]))).toEqual([
+      { etapa: "montagem", inicio: "2026-02-25", fim: "2026-02-25" },
+      { etapa: "evento", inicio: "2026-03-05", fim: "2026-03-07" },
+      { etapa: "desmontagem", inicio: "2026-03-30", fim: "2026-03-30" },
+    ]);
+  });
+
+  it("etapa não preenchida não vira trecho — não se inventa dia de montagem", () => {
+    const p = projeto("b", ["2026-03-05"]);
+    p.info.cronograma.montagem = [];
+    expect(etapasDoProjeto(p).map((e) => e.etapa)).toEqual(["evento", "desmontagem"]);
   });
 });
 
@@ -107,10 +140,13 @@ describe("montagem do quadro", () => {
     projeto("z", []),
   ];
 
-  it("ordena por data e separa quem ainda não tem data", () => {
+  it("ordena por data e continua cobrando quem não tem a data do evento", () => {
     const { itens, semData } = montarCalendario(projetos, []);
-    expect(itens.map((i) => i.id)).toEqual(["a", "b"]);
-    expect(itens[1].dias).toBe(3);
+    // Os três têm montagem em 25/02 (é o que o quadro desenha), então o
+    // desempate é o título.
+    expect(itens.map((i) => i.id)).toEqual(["a", "b", "z"]);
+    // "z" aparece no quadro pelo que já tem E segue cobrado pelo que falta:
+    // com o período completo, ele deixaria de ser cobrado em silêncio.
     expect(semData.map((s) => s.id)).toEqual(["z"]);
   });
 

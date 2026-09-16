@@ -13,17 +13,20 @@ import { useNavigate } from "react-router-dom";
 import { IcChevron, IcFechar } from "@/components/icons";
 import { cx } from "@/lib/format";
 import {
+  ETAPAS_DO_QUADRO,
   INICIAIS_SEMANA,
   MESES,
+  OPACIDADE_ETAPA,
+  ROTULO_ETAPA,
   diaDaSemana,
   diasNoMes,
   fimDeSemana,
   hojeIso,
   isoDoDia,
-  rotuloDias,
-  rotuloPeriodo,
   segmentosDoMes,
+  trechosDeEtapaNoMes,
   type ProjetoNoCalendario,
+  type TrechoEtapaMes,
 } from "@/domain/calendario";
 
 /** Largura mínima de um dia. Abaixo disso a régua vira um borrão e passa a rolar. */
@@ -109,7 +112,7 @@ export function CalendarioMesModal({
             <div className="p-10 text-center">
               <p className="text-ink-2 text-sm">Nada marcado em {MESES[mes].toLowerCase()}.</p>
               <p className="text-ink-3 text-[12.5px] mt-1">
-                Os projetos entram aqui sozinhos assim que recebem a data do evento.
+                Os projetos entram aqui sozinhos assim que recebem datas no cronograma.
               </p>
             </div>
           ) : (
@@ -149,8 +152,8 @@ export function CalendarioMesModal({
               {/* uma linha por projeto */}
               {segmentos.map((seg) => {
                 const { item } = seg;
-                const largura = seg.diaFim - seg.diaInicio + 1;
-                const encerrado = item.status === "Cancelado";
+                const trechos = trechosDeEtapaNoMes(item, ano, mes);
+                const encerrado = item.status === "Arquivado";
                 return (
                   <div
                     key={item.id}
@@ -168,7 +171,13 @@ export function CalendarioMesModal({
                         <span className={cx("block text-[13px] font-bold text-ink truncate", encerrado && "line-through text-ink-3")}>
                           {item.titulo}
                         </span>
-                        {item.cliente && <span className="block text-[11px] text-ink-3 truncate">{item.cliente}</span>}
+                        {/* A PRODUTORA RESPONSÁVEL no lugar do cliente
+                            (15/09/2026): quem abre o detalhamento do mês está
+                            procurando quem toca o quê, e o cliente já está no
+                            título do projeto. */}
+                        {(item.produtora || item.cliente) && (
+                          <span className="block text-[11px] text-ink-3 truncate">{item.produtora || item.cliente}</span>
+                        )}
                       </span>
                     </button>
 
@@ -188,35 +197,50 @@ export function CalendarioMesModal({
                       );
                     })}
 
-                    {/* a barrinha do projeto */}
-                    <div
-                      style={{ gridRow: 1, gridColumn: `${seg.diaInicio + 1} / span ${largura}` }}
-                      className="relative z-[5] px-[3px]"
-                    >
-                      <button
-                        onClick={() => navigate(`/projetos/${item.id}`)}
-                        title={`${item.titulo} — ${rotuloPeriodo(item)}${item.local ? ` · ${item.local}` : ""}`}
-                        style={{
-                          background: `linear-gradient(135deg, ${item.cor.forte}, ${item.cor.forte}D9)`,
-                          opacity: encerrado ? 0.45 : 1,
-                        }}
-                        className={cx(
-                          "w-full h-[30px] flex items-center justify-center gap-1 text-white overflow-hidden",
-                          largura === 1 ? "px-0" : "px-1.5",
-                          "shadow-[0_4px_10px_-6px_rgba(16,30,66,.6)] hover:brightness-110 transition-all",
-                          seg.continuaAntes ? "rounded-l-[3px]" : "rounded-l-pill",
-                          seg.continuaDepois ? "rounded-r-[3px]" : "rounded-r-pill"
-                        )}
-                      >
-                        {seg.continuaAntes && <span className="text-[11px] font-bold leading-none shrink-0">◄</span>}
-                        {!(seg.continuaAntes && seg.continuaDepois) && (
-                          <span className="text-[11px] font-extrabold tabular-nums whitespace-nowrap truncate min-w-0">
-                            {rotuloDias(seg)}
-                          </span>
-                        )}
-                        {seg.continuaDepois && <span className="text-[11px] font-bold leading-none shrink-0">►</span>}
-                      </button>
-                    </div>
+                    {/* A BARRA, ETAPA POR ETAPA (15/09/2026).
+                        Ela cobre o período inteiro — montagem, evento e
+                        desmontagem —, e cada trecho ganha um tom da MESMA cor
+                        do projeto: a identidade que faz reconhecer o projeto de
+                        longe continua sendo a cor, e o que muda é a intensidade.
+                        Cores diferentes por etapa competiriam com ela, e o
+                        quadro viraria um mosaico sem dono.
+                        Quando não há etapa desenhável (projeto antigo, só com o
+                        campo legado), cai na barra inteira de sempre. */}
+                    {(trechos.length ? trechos : [{ etapa: "evento", diaInicio: seg.diaInicio, diaFim: seg.diaFim }] as TrechoEtapaMes[]).map((t: TrechoEtapaMes) => {
+                      const larguraTrecho = t.diaFim - t.diaInicio + 1;
+                      const primeiro = t.diaInicio === seg.diaInicio;
+                      const ultimo = t.diaFim === seg.diaFim;
+                      return (
+                        <div
+                          key={`${t.etapa}-${t.diaInicio}`}
+                          style={{ gridRow: 1, gridColumn: `${t.diaInicio + 1} / span ${larguraTrecho}` }}
+                          className="relative z-[5] px-[1px] first:pl-[3px] last:pr-[3px]"
+                        >
+                          <button
+                            onClick={() => navigate(`/projetos/${item.id}`)}
+                            title={`${item.titulo} — ${ROTULO_ETAPA[t.etapa]}${item.local ? ` · ${item.local}` : ""}`}
+                            style={{
+                              background: `linear-gradient(135deg, ${item.cor.forte}, ${item.cor.forte}D9)`,
+                              opacity: encerrado ? 0.45 : OPACIDADE_ETAPA[t.etapa],
+                            }}
+                            className={cx(
+                              "w-full h-[30px] flex items-center justify-center gap-1 text-white overflow-hidden",
+                              "shadow-[0_4px_10px_-6px_rgba(16,30,66,.6)] hover:brightness-110 transition-all",
+                              primeiro && seg.continuaAntes ? "rounded-l-[3px]" : primeiro ? "rounded-l-pill" : "rounded-l-[2px]",
+                              ultimo && seg.continuaDepois ? "rounded-r-[3px]" : ultimo ? "rounded-r-pill" : "rounded-r-[2px]"
+                            )}
+                          >
+                            {primeiro && seg.continuaAntes && <span className="text-[11px] font-bold leading-none shrink-0">◄</span>}
+                            {larguraTrecho > 1 && (
+                              <span className="text-[10.5px] font-extrabold uppercase tracking-[0.04em] whitespace-nowrap truncate min-w-0">
+                                {ROTULO_ETAPA[t.etapa]}
+                              </span>
+                            )}
+                            {ultimo && seg.continuaDepois && <span className="text-[11px] font-bold leading-none shrink-0">►</span>}
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })}
@@ -227,9 +251,18 @@ export function CalendarioMesModal({
         {/* -------------------------------- rodapé --------------------------------- */}
         <div className="px-5 py-3 border-t border-border-soft bg-[#FCFCFD] flex items-center gap-3 flex-wrap">
           <span className="text-[11.5px] text-ink-3">
-            A barra cobre a duração do projeto (etapa <strong className="text-ink-2">Evento</strong>) — montagem e desmontagem não entram.
+            A barra considera todas as etapas do projeto — Montagem, Evento e Desmontagem.
           </span>
-          <span className="ml-auto flex items-center gap-3 text-[11px] text-ink-3">
+          <span className="ml-auto flex items-center gap-3 text-[11px] text-ink-3 flex-wrap">
+            {ETAPAS_DO_QUADRO.map((etapa) => (
+              <span key={etapa} className="flex items-center gap-1.5">
+                <span
+                  className="h-3 w-3 rounded-[4px] bg-ink-2"
+                  style={{ opacity: OPACIDADE_ETAPA[etapa] }}
+                />
+                {ROTULO_ETAPA[etapa].toLowerCase()}
+              </span>
+            ))}
             <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-[4px] bg-[#F1F3F7] border border-border" /> fim de semana</span>
             <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-[4px] bg-primary-soft border border-active-border" /> hoje</span>
           </span>

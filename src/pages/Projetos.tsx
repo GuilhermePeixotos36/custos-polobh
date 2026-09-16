@@ -18,8 +18,6 @@ import type { StatusProjeto } from "@/data/types";
 const tomStatusProjeto: Record<StatusProjeto, Tom> = {
   Ativo: "success",
   Arquivado: "neutral",
-  Concluido: "info",
-  Cancelado: "danger",
 };
 
 type FiltroProjeto = "Todos" | "Ativo" | "Arquivado";

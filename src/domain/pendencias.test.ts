@@ -85,12 +85,14 @@ describe("quem vê a pendência de uma observação", () => {
     expect(de(itens, "Ana").total).toBe(0);
   });
 
-  it("fica TAMBÉM com o Produtor Responsável, mesmo quando a vez é de outra pessoa", () => {
-    // A conversa está com o Bruno, e continua sendo dele a ação. Mas Carla
-    // responde pelo projeto inteiro: sem ela no quadro, uma cobrança podia ficar
-    // semanas parada com outra pessoa sem que ninguém percebesse
-    // (regra revista em 08/09/2026).
-    expect(de(itens, "Carla").total).toBe(1);
+  it("NÃO fica com o Produtor Responsável quando a vez é de outra pessoa", () => {
+    // A conversa está com o Bruno, e é dele a ação. Carla responde pelo projeto,
+    // e por um tempo (08/09/2026) via toda conversa que nascia nele — o preço
+    // foi o número vermelho de quem toca seis projetos deixar de significar
+    // "tenho o que fazer". A Pólobh pediu o recorte de volta em 15/09/2026:
+    // conversa é de quem foi cobrado. O que não tem destinatário nominal
+    // continua com ela (ver os testes de OS em rascunho e projeto sem EC).
+    expect(de(itens, "Carla").total).toBe(0);
   });
 
   it("conta para o Produtor Responsável quando a vez é dele", () => {
@@ -141,12 +143,17 @@ describe("tarefa do check-list vira pendência", () => {
     expect(de(depois, "Carla").total).toBe(0);
   });
 
-  it("cobra o responsável da tarefa quando há um", () => {
+  it("cobra o responsável da tarefa, e só ele", () => {
     const itens = pendenciasCom([tarefa({ responsavel: "Bruno" })]);
     expect(de(itens, "Bruno").total).toBe(1);
-    // ...e o Produtor Responsável continua vendo, porque o projeto é dele.
-    expect(de(itens, "Carla").total).toBe(1);
+    // A tarefa TEM dono: o Produtor Responsável não a herda (15/09/2026).
+    expect(de(itens, "Carla").total).toBe(0);
     expect(de(itens, "Ana").total).toBe(0);
+  });
+
+  it("tarefa sem responsável cai para o Produtor Responsável — ninguém fica órfão", () => {
+    const itens = pendenciasCom([tarefa({ responsavel: "" })]);
+    expect(de(itens, "Carla").total).toBe(1);
   });
 
   it("tarefa concluída não cobra mais nada", () => {
@@ -590,9 +597,10 @@ describe("conversa das abas do projeto", () => {
     expect(daAba({ cronograma: [observacao({ resolvida: true, responsavelNome: "Bruno" })] }, "Bruno")).toEqual([]);
   });
 
-  it("o Produtor Responsável enxerga o que se passa no projeto dele", () => {
+  it("a conversa da aba não carrega o Produtor Responsável", () => {
     const [p] = daAba({ cronograma: [observacao({ responsavelNome: "Bruno" })] }, "Bruno");
-    expect(p.responsavelProjeto).toBe("Ana");
+    expect(p.responsavelProjeto).toBeUndefined();
+    expect(p.pessoas).toEqual(["Bruno"]);
   });
 
   it("projeto sem conversa nenhuma não gera nada", () => {

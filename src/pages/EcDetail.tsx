@@ -93,6 +93,8 @@ export function EcDetail() {
   if (!ec) return <PageShell title="EC não encontrada">{null}</PageShell>;
 
   const verFinanceiro = pode("financeiro");
+  /** A margem tem dono próprio desde 15/09/2026 — ver `PERMISSOES_ESPECIAIS`. */
+  const verRentabilidade = pode("rentabilidade");
   const podeEditar = pode("ecs.editar");
   /** Arquivar uma EC sem pôr outra no lugar deixa o projeto sem estimativa: é da Direção. */
   const podeArquivarEc = podeEditar && (papel === "Admin" || papel === "Direcao");
@@ -507,14 +509,14 @@ export function EcDetail() {
       subabas={
         <>
           {ec.projetoId && <BarraProjeto projetoId={ec.projetoId} atual="ec" />}
-          {verFinanceiro && <EcSubGuias atual={subaba} onChange={setSubaba} temResumo temRentabilidade />}
+          {verFinanceiro && <EcSubGuias atual={subaba} onChange={setSubaba} temResumo temRentabilidade={verRentabilidade} />}
         </>
       }
     >
       {verFinanceiro && subaba === "resumo" && (
         <div className="space-y-4">{totaisCard}</div>
       )}
-      {verFinanceiro && subaba === "rentabilidade" && (
+      {verRentabilidade && subaba === "rentabilidade" && (
         <div className="space-y-4">{rentabilidadeCard}</div>
       )}
 

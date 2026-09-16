@@ -38,7 +38,7 @@ import { useChecklistProjeto } from "@/hooks/useChecklistProjeto";
 import { janelaDoProjeto } from "@/domain/checklist";
 import { confirmar } from "@/store/confirm";
 import { corrigirRoteirosProjeto } from "@/lib/correcaoOrtografica";
-import { statusProjetoAutomatico } from "@/domain/statusProjeto";
+import { eventoEncerradoHaDias, statusProjetoAutomatico } from "@/domain/statusProjeto";
 import { RepercutirMudancasModal } from "@/components/RepercutirMudancasModal";
 import {
   ecsAtualizaveis,
@@ -60,7 +60,7 @@ import { dadosUteisDosFornecedores } from "@/domain/dadosUteis";
 import { EnvioCronograma } from "@/components/EnvioCronograma";
 
 const tomStatusProjeto: Record<StatusProjeto, Tom> = {
-  Ativo: "success", Arquivado: "neutral", Concluido: "info", Cancelado: "danger",
+  Ativo: "success", Arquivado: "neutral",
 };
 
 const clienteVazio = (): Cliente => ({
@@ -228,6 +228,8 @@ export function ProjetoDetail() {
     return mapa;
   }, [ossDoProjeto, ecsAll]);
   const statusExibido = useMemo(() => statusProjetoAutomatico(p, ecsDoProjeto), [p, ecsDoProjeto]);
+  /** Dias desde o fim do evento — alimenta o lembrete de arquivar (ver abaixo). */
+  const diasDesdeOEvento = useMemo(() => eventoEncerradoHaDias(p), [p]);
   /**
    * Projetos de origem da importação, derivados das ECs existentes.
    *
@@ -832,6 +834,23 @@ export function ProjetoDetail() {
             minhas={minhasPendencias.filter((x) => x.tipo === "projeto.conversa" && x.projetoId === id && x.aba === aba).length}
             onChange={(observacoes) => gravarConversa(aba as AbaComConversa, observacoes)}
           />
+        </div>
+      )}
+
+      {/* O LEMBRETE QUE SUBSTITUI O "CONCLUÍDO" (15/09/2026).
+          O selo saiu porque encerrava as pendências sozinho na virada da data
+          do evento — e é justamente aí que sobram nota, acerto e pagamento. Só
+          que sem ele o projeto ficaria ativo para sempre. Então o sistema
+          lembra, e quem decide é quem sabe se ainda falta alguma coisa. */}
+      {!novo && aba === "dados" && diasDesdeOEvento !== null && diasDesdeOEvento >= 7 && statusExibido === "Ativo" && podeEditarProjeto && (
+        <div className="mb-4 flex items-center gap-3 flex-wrap rounded-card border border-warning/40 bg-warning-soft px-4 py-3 text-[13px] text-ink">
+          <span>
+            O evento terminou há <b>{diasDesdeOEvento} dias</b> e o projeto continua ativo — ele segue cobrando
+            pendências da equipe. Se não há mais nota, acerto ou pagamento em aberto, arquive-o.
+          </span>
+          <Button size="sm" variant="secondary" className="ml-auto" onClick={arquivarProjeto}>
+            Arquivar projeto
+          </Button>
         </div>
       )}
 

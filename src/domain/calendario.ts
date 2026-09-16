@@ -2,13 +2,22 @@
  * Calendário anual dos projetos — o "quadro do ano" da produção.
  *
  * Substitui o quadro preto onde a equipe anotava, à mão, tudo o que aconteceria
- * no ano. A regra é uma só: o que entra aqui é a **data do projeto** — a etapa
- * "Evento" do cronograma. Montagem, desmontagem, alinhamentos e ensaios ficam
- * de fora de propósito: no quadro interessa quando o projeto ACONTECE, não
- * quando a equipe entra no local.
+ * no ano. Nada é digitado duas vezes: o calendário lê os projetos que já
+ * existem, e um projeto novo aparece assim que ganha data.
  *
- * Nada é digitado duas vezes: o calendário lê os projetos que já existem, e um
- * projeto novo aparece no quadro assim que ganha a data do evento.
+ * O QUE ENTRA mudou em 15/09/2026. Era só a etapa "Evento" — "no quadro
+ * interessa quando o projeto ACONTECE, não quando a equipe entra no local" —, e
+ * a Pólobh pediu o contrário: *"o sistema deverá registrar o período completo,
+ * considerando Montagem, Evento e Desmontagem"*. O motivo é de quem usa: quem
+ * olha o quadro está decidindo se cabe mais um projeto na semana, e a equipe
+ * está ocupada desde a montagem — um evento de sábado com montagem na
+ * quinta-feira bloqueia três dias, não um.
+ *
+ * As outras duas etapas do cronograma (alinhamentos e ensaios) continuam fora:
+ * elas são reuniões, não ocupação de equipe no local.
+ *
+ * Por isso cada projeto do quadro traz DUAS leituras: o `periodo` inteiro, que
+ * é o que a barra desenha, e as `etapas`, que dão a cor de cada trecho.
  */
 import type { Ec, ModalidadeProjeto, Projeto, StatusProjeto } from "@/data/types";
 import { statusProjetoAutomatico } from "@/domain/statusProjeto";
@@ -62,26 +71,82 @@ export interface PeriodoProjeto {
   fim: string;
 }
 
+/** As etapas que OCUPAM a equipe — as que o quadro do ano desenha. */
+export const ETAPAS_DO_QUADRO = ["montagem", "evento", "desmontagem"] as const;
+export type EtapaDoQuadro = (typeof ETAPAS_DO_QUADRO)[number];
+
+/** Como cada etapa se chama na tela. */
+export const ROTULO_ETAPA: Record<EtapaDoQuadro, string> = {
+  montagem: "Montagem",
+  evento: "Evento",
+  desmontagem: "Desmontagem",
+};
+
 /**
- * Período do projeto no quadro: da primeira à última data da etapa **Evento**.
+ * O tom de cada etapa dentro da COR DO PROJETO.
  *
- * A etapa aceita várias faixas (um evento de três dias tem três linhas), então
- * o período é o intervalo entre a menor e a maior — e um evento de um dia só
- * vira `inicio === fim`. Projeto sem data de evento devolve `null`: ele não
- * some do sistema, apenas não tem onde ser desenhado ainda.
+ * A identidade continua sendo a cor — é ela que faz reconhecer o projeto de
+ * longe, no card, na barra e na lista. Cores diferentes por etapa competiriam
+ * com isso e transformariam o quadro num mosaico sem dono. Então o que muda é a
+ * intensidade: o evento é o cheio, montagem e desmontagem são os preparos.
  */
-export function periodoDoProjeto(projeto: Projeto): PeriodoProjeto | null {
+export const OPACIDADE_ETAPA: Record<EtapaDoQuadro, number> = {
+  montagem: 0.55,
+  evento: 1,
+  desmontagem: 0.4,
+};
+
+/** Um trecho colorido da barra: de quando a quando cada etapa ocupa a equipe. */
+export interface PeriodoEtapa extends PeriodoProjeto {
+  etapa: EtapaDoQuadro;
+}
+
+/** Datas válidas de uma etapa do cronograma, já ordenadas. */
+function datasDaEtapa(projeto: Projeto, etapa: EtapaDoQuadro): string[] {
   const datas: string[] = [];
-  for (const faixa of projeto.info?.cronograma?.evento ?? []) {
+  for (const faixa of projeto.info?.cronograma?.[etapa] ?? []) {
     const d = (faixa?.data ?? "").trim();
     if (RE_DATA.test(d)) datas.push(d);
   }
-  // Projetos anteriores ao cronograma por faixas só têm o campo legado.
-  const legado = (projeto.info?.evento ?? "").trim();
-  if (!datas.length && RE_DATA.test(legado)) datas.push(legado);
-  if (!datas.length) return null;
-  datas.sort();
-  return { inicio: datas[0], fim: datas[datas.length - 1] };
+  return datas.sort();
+}
+
+/**
+ * Cada etapa que ocupa a equipe, com o seu próprio começo e fim.
+ *
+ * Só entram as etapas preenchidas: projeto sem montagem cadastrada tem uma
+ * barra de evento e mais nada — não se inventa um dia de montagem que ninguém
+ * marcou.
+ */
+export function etapasDoProjeto(projeto: Projeto): PeriodoEtapa[] {
+  const out: PeriodoEtapa[] = [];
+  for (const etapa of ETAPAS_DO_QUADRO) {
+    const datas = datasDaEtapa(projeto, etapa);
+    if (datas.length) out.push({ etapa, inicio: datas[0], fim: datas[datas.length - 1] });
+  }
+  // Projeto anterior ao cronograma por faixas só tem o campo legado do evento.
+  if (!out.length) {
+    const legado = (projeto.info?.evento ?? "").trim();
+    if (RE_DATA.test(legado)) out.push({ etapa: "evento", inicio: legado, fim: legado });
+  }
+  return out;
+}
+
+/**
+ * Período do projeto no quadro: do PRIMEIRO dia de montagem ao ÚLTIMO de
+ * desmontagem (15/09/2026 — antes era só a etapa Evento).
+ *
+ * Cada etapa aceita várias faixas (um evento de três dias tem três linhas),
+ * então o período é o intervalo entre a menor e a maior data de todas elas — e
+ * um projeto de um dia só vira `inicio === fim`. Projeto sem data nenhuma
+ * devolve `null`: ele não some do sistema, apenas não tem onde ser desenhado.
+ */
+export function periodoDoProjeto(projeto: Projeto): PeriodoProjeto | null {
+  const etapas = etapasDoProjeto(projeto);
+  if (!etapas.length) return null;
+  const inicio = etapas.reduce((a, e) => (e.inicio < a ? e.inicio : a), etapas[0].inicio);
+  const fim = etapas.reduce((a, e) => (e.fim > a ? e.fim : a), etapas[0].fim);
+  return { inicio, fim };
 }
 
 /** Dias corridos do período, contando as duas pontas (um dia só = 1). */
@@ -146,15 +211,25 @@ export interface ProjetoNoCalendario {
   status: StatusProjeto;
   inicio: string;
   fim: string;
-  /** Dias corridos do evento, contando as duas pontas. */
+  /** Dias corridos do período inteiro, contando as duas pontas. */
   dias: number;
+  /** Montagem, evento e desmontagem — cada uma com o seu trecho, para a cor. */
+  etapas: PeriodoEtapa[];
   cor: CorProjeto;
 }
 
 export interface CalendarioProjetos {
-  /** Projetos com data de evento — os que o quadro consegue desenhar. */
+  /** Projetos com alguma data — os que o quadro consegue desenhar. */
   itens: ProjetoNoCalendario[];
-  /** Projetos sem data de evento, para a tela poder cobrá-los. */
+  /**
+   * Projetos sem a data do EVENTO, para a tela poder cobrá-los.
+   *
+   * Continua sendo o evento que se cobra, e não o período (15/09/2026): com o
+   * quadro passando a desenhar montagem e desmontagem, um projeto que tem só a
+   * montagem marcada já aparece — e sem esta lista ele deixaria de ser cobrado
+   * justamente pelo dado que falta. Ele pode estar nos dois lugares: desenhado
+   * pelo que já tem, cobrado pelo que ainda não tem.
+   */
   semData: { id: string; titulo: string; cliente: string }[];
 }
 
@@ -166,13 +241,12 @@ export function montarCalendario(projetos: Projeto[], ecs: Ec[] = []): Calendari
   const semData: CalendarioProjetos["semData"] = [];
 
   for (const p of projetos) {
+    const etapas = etapasDoProjeto(p);
     const periodo = periodoDoProjeto(p);
     const titulo = nomeDoProjeto(p);
     const cliente = p.cliente?.nome ?? "";
-    if (!periodo) {
-      semData.push({ id: p.id, titulo, cliente });
-      continue;
-    }
+    if (!etapas.some((e) => e.etapa === "evento")) semData.push({ id: p.id, titulo, cliente });
+    if (!periodo) continue;
     itens.push({
       id: p.id,
       titulo,
@@ -184,6 +258,7 @@ export function montarCalendario(projetos: Projeto[], ecs: Ec[] = []): Calendari
       inicio: periodo.inicio,
       fim: periodo.fim,
       dias: duracaoEmDias(periodo),
+      etapas,
       cor: corDoProjeto(p.id),
     });
   }
@@ -241,6 +316,43 @@ export function segmentoNoMes(item: ProjetoNoCalendario, anoAlvo: number, mesAlv
     continuaAntes: comecaAntes,
     continuaDepois: terminaDepois,
   };
+}
+
+/** Um trecho de ETAPA recortado no mês — o que dá a cor a cada pedaço da barra. */
+export interface TrechoEtapaMes {
+  etapa: EtapaDoQuadro;
+  diaInicio: number;
+  diaFim: number;
+}
+
+/**
+ * Os trechos de montagem, evento e desmontagem dentro de um mês (15/09/2026).
+ *
+ * A barra do projeto passou a cobrir o período inteiro, e uma barra de cor só
+ * não diz onde a equipe monta e onde o evento acontece — que é a diferença que
+ * a produção lê no quadro. Cada etapa vira um pedaço com o seu tom.
+ *
+ * Etapas vazias somem, e a lista sai ordenada pelo dia: é nessa ordem que os
+ * pedaços são desenhados.
+ */
+export function trechosDeEtapaNoMes(
+  item: ProjetoNoCalendario,
+  anoAlvo: number,
+  mesAlvo: number
+): TrechoEtapaMes[] {
+  const primeiro = isoDoDia(anoAlvo, mesAlvo, 1);
+  const ultimoDia = diasNoMes(anoAlvo, mesAlvo);
+  const ultimo = isoDoDia(anoAlvo, mesAlvo, ultimoDia);
+  const out: TrechoEtapaMes[] = [];
+  for (const e of item.etapas ?? []) {
+    if (e.fim < primeiro || e.inicio > ultimo) continue;
+    out.push({
+      etapa: e.etapa,
+      diaInicio: e.inicio < primeiro ? 1 : dia(e.inicio),
+      diaFim: e.fim > ultimo ? ultimoDia : dia(e.fim),
+    });
+  }
+  return out.sort((a, b) => a.diaInicio - b.diaInicio);
 }
 
 /** Todos os segmentos do mês, na ordem em que começam (mais longo primeiro no empate). */
