@@ -446,14 +446,33 @@ export type StatusProjeto = "Ativo" | "Arquivado" | "Concluido" | "Cancelado";
  * e é dono das ECs (que podem ter versões).
  */
 /**
- * As abas do projeto que têm CONVERSA — o corredor de cada etapa.
+ * Toda aba do projeto que JÁ TEVE conversa gravada.
  *
- * "Dados Gerais" e "Check-list" ficam de fora de propósito: a primeira é o
- * cadastro do evento, e a segunda já é feita de tarefas com dono e prazo, que é
- * uma forma melhor de cobrar alguém do que um comentário.
+ * É o formato do que está no banco (`projetos.conversas`), e por isso continua
+ * incluindo "ec" e "os" mesmo depois de as duas saírem de cena: apagar a chave
+ * do tipo não apagaria os comentários gravados lá, só os tornaria ilegíveis.
  */
-export const ABAS_COM_CONVERSA = ["ec", "os", "fornecedores", "cronograma", "credenciamento"] as const;
-export type AbaComConversa = (typeof ABAS_COM_CONVERSA)[number];
+export const ABAS_CONVERSA_GRAVADAS = [
+  "dados", "checklist", "ec", "os", "fornecedores", "cronograma", "credenciamento",
+] as const;
+export type AbaComConversa = (typeof ABAS_CONVERSA_GRAVADAS)[number];
+
+/**
+ * As abas que MOSTRAM a conversa — o corredor de cada etapa (15/09/2026).
+ *
+ * Dados Gerais e Check-list entraram, a pedido da Pólobh. As duas tinham ficado
+ * de fora por bom motivo (uma é o cadastro do evento, a outra já é feita de
+ * tarefas com dono e prazo), mas na prática o recado da etapa ia parar no campo
+ * de texto mais próximo, que era pior.
+ *
+ * EC e OS saíram: ali a conversa fica DENTRO do documento, que é onde o assunto
+ * mora. No corredor da listagem ela era uma terceira caixa de texto para o mesmo
+ * assunto — e, de quebra, era ela o número "a mais" que fazia a pílula da
+ * subguia divergir do badge da linha da EC.
+ */
+export const ABAS_COM_CONVERSA = [
+  "dados", "checklist", "fornecedores", "cronograma", "credenciamento",
+] as const;
 
 export interface Projeto {
   id: string;
@@ -647,6 +666,15 @@ export interface FinanceiroOs {
   leiIncentivo?: string;
   cnae: string;
   codigoServico: string;
+  /**
+   * Ordem de compra do tomador (15/09/2026).
+   *
+   * Nasce aqui, na emissão do faturamento, e volta para o item da EC válida
+   * junto com o código de serviço — os dois são decisão de quem emite a nota,
+   * e na EC são leitura. Antes o "Pedido de Compra" era digitado na EC e a OS
+   * nem o conhecia: dois campos, dois donos, um dado só.
+   */
+  ordemCompra?: string;
   valorUnitario: number;
   valorTotal: number;
   descontoNegociado: number;

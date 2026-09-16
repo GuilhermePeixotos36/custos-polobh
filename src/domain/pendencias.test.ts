@@ -568,22 +568,30 @@ describe("conversa das abas do projeto", () => {
   it("cada aba responde por si — conversas separadas, pendências separadas", () => {
     const itens = daAba(
       {
-        ec: [observacao({ id: "a", responsavelNome: "Bruno" })],
+        cronograma: [observacao({ id: "a", responsavelNome: "Bruno" })],
         fornecedores: [observacao({ id: "b", responsavelNome: "Bruno" })],
       },
       "Bruno"
     );
-    expect(itens.map((p) => p.aba).sort()).toEqual(["ec", "fornecedores"]);
+    expect(itens.map((p) => p.aba).sort()).toEqual(["cronograma", "fornecedores"]);
     // Ids distintos: duas pendências, e não uma contada duas vezes.
     expect(new Set(itens.map((p) => p.id)).size).toBe(2);
   });
 
+  // A conversa da LISTAGEM de ECs e de OSs saiu das telas (15/09/2026), e o que
+  // ficou gravado lá não pode continuar cobrando: seria um número vermelho sem
+  // nenhuma tela onde resolvê-lo. Dentro da EC e da OS a conversa continua.
+  it("conversa gravada nas abas EC e OS não cobra mais ninguém", () => {
+    expect(daAba({ ec: [observacao({ responsavelNome: "Bruno" })] }, "Bruno")).toEqual([]);
+    expect(daAba({ os: [observacao({ responsavelNome: "Bruno" })] }, "Bruno")).toEqual([]);
+  });
+
   it("observação resolvida não cobra mais ninguém", () => {
-    expect(daAba({ os: [observacao({ resolvida: true, responsavelNome: "Bruno" })] }, "Bruno")).toEqual([]);
+    expect(daAba({ cronograma: [observacao({ resolvida: true, responsavelNome: "Bruno" })] }, "Bruno")).toEqual([]);
   });
 
   it("o Produtor Responsável enxerga o que se passa no projeto dele", () => {
-    const [p] = daAba({ ec: [observacao({ responsavelNome: "Bruno" })] }, "Bruno");
+    const [p] = daAba({ cronograma: [observacao({ responsavelNome: "Bruno" })] }, "Bruno");
     expect(p.responsavelProjeto).toBe("Ana");
   });
 

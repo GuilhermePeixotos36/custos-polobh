@@ -42,6 +42,7 @@
  * para "OS/Contrato a emitir"). Para adicionar uma nova regra, basta empurrar
  * mais objetos em `calcularPendencias`.
  */
+import { ABAS_COM_CONVERSA } from "@/data/types";
 import type { Checklist, Ec, Observacao, Os, Projeto, StatusOs } from "@/data/types";
 import { extrairMencoes } from "@/domain/mencoes";
 import { statusProjetoAutomatico } from "@/domain/statusProjeto";
@@ -601,6 +602,10 @@ export function calcularPendencias(
   for (const p of projetos) {
     if (statusProjetoAutomatico(p, ecs) === "Concluido") continue;
     for (const [aba, observacoes] of Object.entries(p.conversas ?? {})) {
+      // Só as abas que mostram a conversa cobram por ela (15/09/2026). EC e OS
+      // saíram da listagem, e uma pendência sem tela onde se resolver é
+      // exatamente o número que não se consegue achar.
+      if (!(ABAS_COM_CONVERSA as readonly string[]).includes(aba)) continue;
       for (const [indice, observacao] of (observacoes ?? []).entries()) {
         const vez = pendenciaDeConversa(observacao, usuarios, p.info.produtoraResponsavel?.trim() || "");
         if (!vez) continue;

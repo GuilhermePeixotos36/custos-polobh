@@ -35,7 +35,7 @@ function podeFinanceiro(): boolean {
 }
 
 const financeiroVazio = () => ({
-  tomador: "" as const, descritivoNf: "", cnae: "", codigoServico: "",
+  tomador: "" as const, descritivoNf: "", cnae: "", codigoServico: "", ordemCompra: "",
   valorUnitario: 0, valorTotal: 0, descontoNegociado: 0, valorAPagar: 0,
   bvPercentual: 0, bvValor: 0, bvJustificativa: "", acertoFinanceiro: "",
 });
@@ -716,6 +716,17 @@ const osRepo: OsRepository = {
     // Sem essa guarda, um perfil sem acesso salvaria zeros por cima do real.
     if (podeFinanceiro()) {
       ok(await supabase.from("os_financeiro").upsert({ os_id: id, dados: os.financeiro, atualizado_em: nowIso() }));
+      // O CAMINHO DE VOLTA para a EC (15/09/2026): código de serviço e ordem de
+      // compra são decididos aqui e a EC só os lê. A escrita é por RPC porque
+      // quem preenche o faturamento não tem permissão de editar EC — pela tela,
+      // a RLS recusaria, e os campos da EC ficariam vazios para sempre.
+      // Falhar aqui não pode derrubar o salvamento da OS, que já aconteceu.
+      const { error: erroDevolucao } = await supabase.rpc("devolver_dados_fiscais_para_ec", {
+        p_os_id: id,
+        p_codigo_servico: os.financeiro.codigoServico ?? "",
+        p_ordem_compra: os.financeiro.ordemCompra ?? "",
+      });
+      if (erroDevolucao) console.warn("Não foi possível devolver os dados fiscais à EC:", erroDevolucao.message);
     }
     const salvo = await this.obter(id);
     if (!salvo) throw new Error("Falha ao reler a OS salva.");

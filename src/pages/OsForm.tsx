@@ -172,8 +172,12 @@ function aplicarAutoPreenchimento(os: Os, ec: Ec): Os {
   const docEc = primeiroPreenchido(linhas.map((l) => l.faturaNf));
   const docFiscalEc = (DOCS as string[]).includes(docEc) ? (docEc as DocumentoFiscal) : "";
 
-  // Código de serviço: idem, o que estiver nos itens consolidados.
+  // Código de serviço e ordem de compra: o que já estiver nos itens
+  // consolidados. Desde 15/09/2026 os dois são decididos AQUI e devolvidos à
+  // EC — este auto-preenchimento é o que faz a OS reaberta (e a EC que já
+  // recebeu a devolução) continuarem dizendo a mesma coisa.
   const codigoServico = primeiroPreenchido(linhas.map((l) => l.codigoServico));
+  const ordemCompra = primeiroPreenchido(linhas.map((l) => l.pedidoCompra));
   // CNAE: só quando o cadastro do fornecedor tem um único — vários exigem escolha.
   const cnaeUnico = os.fornecedor.cnaes?.length === 1 ? os.fornecedor.cnaes[0] : "";
 
@@ -231,6 +235,7 @@ function aplicarAutoPreenchimento(os: Os, ec: Ec): Os {
     },
     financeiro: {
       ...os.financeiro,
+      ordemCompra: os.financeiro.ordemCompra || ordemCompra,
       descritivoNf,
       // Tomador: quem contrata o fornecedor é a Pólobh — é ela que emite a OS e
       // recebe a nota. Deixar em branco só obrigava a escolher a única resposta
@@ -1306,9 +1311,6 @@ export function OsForm() {
                 onValor={(cnae) => updFin({ cnae })}
               />
             </LinhaOs>
-            <LinhaOs label="Código de Serviço" hint="(auto dos itens da EC)">
-              <Input value={os.financeiro.codigoServico} sugestoes={sugestoes.valores.codigoServico} onChange={(e) => updFin({ codigoServico: e.target.value })} />
-            </LinhaOs>
             <LinhaOs label="Valor unitário"><NumberInput value={os.financeiro.valorUnitario} onValue={(v) => updFin({ valorUnitario: v })} /></LinhaOs>
             <LinhaOs label="Valor total" hint={finDessincronizado ? undefined : "(espelha o valor negociado no Orçamento)"}>
               <NumberInput value={os.financeiro.valorTotal} onValue={setValorTotalFinanceiro} />
@@ -1342,6 +1344,20 @@ export function OsForm() {
                 onChange={(e) => updFin({ formaPagamento: e.target.value })}
                 placeholder={FORMA_PAGAMENTO_PADRAO}
               />
+            </LinhaOs>
+
+            {/* CÓDIGO DE SERVIÇO e ORDEM DE COMPRA fecham o bloco (15/09/2026):
+                os valores subiram, porque é por eles que se confere a nota, e
+                estes dois desceram porque são o último dado a se saber.
+                Eles NASCEM AQUI e voltam preenchidos para os itens da EC válida
+                (ver a RPC `devolver_dados_fiscais_para_ec`): na EC os dois são
+                leitura. Antes o "Pedido de Compra" era digitado lá, a OS nem o
+                conhecia, e a EC ainda esperava por ele para deixar a OS nascer. */}
+            <LinhaOs label="Código de Serviço" hint="(vai para os itens da EC)">
+              <Input value={os.financeiro.codigoServico} sugestoes={sugestoes.valores.codigoServico} onChange={(e) => updFin({ codigoServico: e.target.value })} />
+            </LinhaOs>
+            <LinhaOs label="Ordem de Compra" hint="(vai para os itens da EC)">
+              <Input value={os.financeiro.ordemCompra ?? ""} sugestoes={sugestoes.valores.pedidoCompra} onChange={(e) => updFin({ ordemCompra: e.target.value })} placeholder="Ex.: PC-2026-119" />
             </LinhaOs>
 
             {/* DADOS PARA CONTRATO — só existe quando a EC pediu "Emitir" ou

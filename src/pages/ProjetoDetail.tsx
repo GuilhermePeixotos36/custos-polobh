@@ -816,6 +816,25 @@ export function ProjetoDetail() {
         />
       }
     >
+      {/* A CONVERSA DA ABA — o corredor da etapa, no topo dela.
+          Quais abas têm uma está em `ABAS_COM_CONVERSA`, e a lista mudou em
+          15/09/2026: Dados Gerais e Check-list entraram (o recado da etapa ia
+          parar no campo de texto mais próximo), EC e OS saíram (ali a conversa
+          mora DENTRO do documento — no corredor da listagem era uma terceira
+          caixa de texto para o mesmo assunto). */}
+      {!novo && (ABAS_COM_CONVERSA as readonly string[]).includes(aba) && (
+        <div className="mb-4">
+          <CardConversa
+            ancora={ancoraConversaAba(id, aba)}
+            ancoraDom={idAncoraPendencia(ancoraConversaAba(id, aba))}
+            observacoes={p.conversas?.[aba as AbaComConversa] ?? []}
+            usuarios={nomesUsuarios}
+            minhas={minhasPendencias.filter((x) => x.tipo === "projeto.conversa" && x.projetoId === id && x.aba === aba).length}
+            onChange={(observacoes) => gravarConversa(aba as AbaComConversa, observacoes)}
+          />
+        </div>
+      )}
+
       {aba === "dados" && (
         /*
          * `fieldset disabled` trava de uma vez todos os campos da aba — input,
@@ -1071,25 +1090,6 @@ export function ProjetoDetail() {
         </fieldset>
       )}
 
-      {/* A CONVERSA DA ABA — o corredor da etapa, no topo dela.
-          Cinco abas têm uma (ver `ABAS_COM_CONVERSA`): recado de etapa não
-          tinha onde morar, e acabava escrito numa observação de item que nada
-          tinha a ver com o assunto, só porque era o campo de texto mais perto.
-          Dados Gerais e Check-list ficam de fora: uma é cadastro, a outra já é
-          feita de tarefas com dono e prazo. */}
-      {!novo && (ABAS_COM_CONVERSA as readonly string[]).includes(aba) && (
-        <div className="mb-4">
-          <CardConversa
-            ancora={ancoraConversaAba(id, aba)}
-            ancoraDom={idAncoraPendencia(ancoraConversaAba(id, aba))}
-            observacoes={p.conversas?.[aba as AbaComConversa] ?? []}
-            usuarios={nomesUsuarios}
-            minhas={minhasPendencias.filter((x) => x.tipo === "projeto.conversa" && x.projetoId === id && x.aba === aba).length}
-            onChange={(observacoes) => gravarConversa(aba as AbaComConversa, observacoes)}
-          />
-        </div>
-      )}
-
       {aba === "ec" && (
         <Card padded={false}>
           <div
@@ -1320,8 +1320,12 @@ export function ProjetoDetail() {
         </div>
       )}
 
-      {/* Pílula flutuante: o que se resolve NESTA aba, uma de cada vez. */}
-      {!novo && <NavegadorPendencias pendencias={pendenciasDaTelaAtual} />}
+      {/* Pílula flutuante: o que se resolve NESTA aba, uma de cada vez.
+          Fora das LISTAGENS de EC e de OS (15/09/2026): ali ela não resolvia
+          nada — as pendências daquelas linhas se resolvem dentro do documento,
+          e a pílula só sabia fazer a linha piscar. O badge vermelho de cada
+          linha continua, e é ele que leva à EC/OS certa. */}
+      {!novo && aba !== "ec" && aba !== "os" && <NavegadorPendencias pendencias={pendenciasDaTelaAtual} />}
 
       {/* O projeto já foi salvo; aqui se decide o que fazer com o que já saiu. */}
       {repercussao && (

@@ -382,13 +382,17 @@ describe("analisarEmissaoOs", () => {
     );
   });
 
-  it("barra item sem campos fiscais obrigatórios e lista todos", () => {
+  // Documento PG, Código de Serviço e Pedido de Compra NASCEM NA OS
+  // (15/09/2026). Exigi-los aqui era pedir à EC o que só o documento seguinte
+  // produz — e era o que impedia a emissão de qualquer OS.
+  it("emite o item mesmo sem os campos que vêm da OS", () => {
     const r = analisarEmissaoOs([completo({ id: "a", faturaNf: "", codigoServico: "", pedidoCompra: "" })]);
-    expect(r.bloqueados[0].faltas).toEqual(["Documento PG", "Código de Serviço", "Pedido de Compra"]);
+    expect(r.prontos.map((l) => l.id)).toEqual(["a"]);
+    expect(r.bloqueados).toHaveLength(0);
   });
 
   it("separa prontos de bloqueados na mesma EC", () => {
-    const r = analisarEmissaoOs([completo({ id: "ok" }), completo({ id: "nao", pedidoCompra: "" })]);
+    const r = analisarEmissaoOs([completo({ id: "ok" }), completo({ id: "nao", fornecedorCnpj: "" })]);
     expect(r.prontos.map((l) => l.id)).toEqual(["ok"]);
     expect(r.bloqueados.map((b) => b.linha.id)).toEqual(["nao"]);
   });

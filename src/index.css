@@ -176,6 +176,32 @@ body {
   .destaque-novo { animation: none; box-shadow: 0 0 0 3px rgba(242, 130, 13, 0.45); }
 }
 
+/* ---- A pendência que FICA vermelha (15/09/2026) ----
+   O pisca acima é um aceno de dois segundos; era tudo o que existia, e quem
+   desviava o olho perdia o lugar. Agora ele acontece POR CIMA de duas marcas
+   que ficam:
+
+   · `com-pendencia`  — contorno discreto em tudo o que tem pendência aberta.
+     Desenhado com `outline`, e não com `box-shadow`, para conviver com o pisca
+     sem que um apague o outro; `outline-offset` negativo mantém o traço dentro
+     do elemento, senão em lista ele encostaria na linha vizinha.
+   · `pendencia-atual` — o realce forte do item que a pílula aponta agora, com
+     fundo próprio, para se distinguir dos outros itens que também têm pendência.
+
+   As duas somem sozinhas: a primeira quando a pendência é resolvida, a segunda
+   quando a seta leva para a próxima. */
+.com-pendencia {
+  border-radius: 16px;
+  outline: 2px solid rgba(193, 52, 56, 0.45);
+  outline-offset: -2px;
+}
+.pendencia-atual {
+  border-radius: 16px;
+  outline: 3px solid rgba(193, 52, 56, 0.9);
+  outline-offset: -2px;
+  background-color: #FDF3F3;
+}
+
 /* ---- Camadas fixas do app ----
    As barras que "grudam" no topo precisam se empilhar sem se cobrir. A altura
    da barra de navegação vive aqui (e não solta no Tailwind) porque a barra de

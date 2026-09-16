@@ -31,6 +31,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { IcChevron, IcComment } from "@/components/icons";
 import { focarPendencia } from "@/lib/focoPendencia";
+import { limparMarcasDePendencia, marcarPendenciaAtual, marcarPendencias } from "@/lib/destaque";
 import { cx } from "@/lib/format";
 import type { Pendencia } from "@/domain/pendencias";
 
@@ -73,6 +74,30 @@ export function NavegadorPendencias({ pendencias }: { pendencias: Pendencia[] })
   useEffect(() => {
     setPosicao((p) => (pendencias.length === 0 ? 0 : Math.min(p, pendencias.length - 1)));
   }, [pendencias.length]);
+
+  /**
+   * O CONTORNO VERMELHO PERMANENTE (15/09/2026).
+   *
+   * Quem conhece as pendências da tela é esta pílula — ela já recebe a lista
+   * recortada —, então é daqui que as marcas são postas e tiradas. A varredura
+   * roda a cada mudança da lista: resolver uma observação apaga o contorno dela
+   * sem que nenhuma tela precise saber disso.
+   *
+   * A chave do efeito é a lista de âncoras, e não o array: `pendenciasDaTela`
+   * devolve um array novo a cada render, e o efeito rodaria em todo quadro.
+   */
+  const ancoras = pendencias.map((p) => p.ancora).filter(Boolean).join("|");
+  useEffect(() => {
+    marcarPendencias(ancoras ? ancoras.split("|") : []);
+    return limparMarcasDePendencia;
+  }, [ancoras]);
+
+  // E o realce forte acompanha a posição da pílula — inclusive na primeira
+  // pintura, antes de alguém apertar seta nenhuma.
+  const ancoraAtual = pendencias[Math.min(posicao, Math.max(0, pendencias.length - 1))]?.ancora ?? null;
+  useEffect(() => {
+    marcarPendenciaAtual(ancoraAtual ?? null);
+  }, [ancoraAtual]);
 
   if (!pendencias.length) return null;
 

@@ -508,9 +508,15 @@ export function faltasParaEmitirOs(l: EcLinha): string[] {
   if (l.statusAprovacao !== "OK") faltas.push("Aprovação (item ainda pendente)");
   if (!l.fornecedorRazao?.trim()) faltas.push("Fornecedor (razão social)");
   if (l.fornecedorCnpj.replace(/\D/g, "").length !== 14) faltas.push("CNPJ do fornecedor");
-  if (!l.faturaNf?.trim()) faltas.push("Documento PG");
-  if (!l.codigoServico?.trim()) faltas.push("Código de Serviço");
-  if (!l.pedidoCompra?.trim()) faltas.push("Pedido de Compra");
+  // DOCUMENTO PG, CÓDIGO DE SERVIÇO e PEDIDO DE COMPRA saíram desta peneira
+  // (15/09/2026), e isso era um nó: a EC exigia, para emitir a OS, três dados
+  // que só a OS produz. O check-list da Pólobh diz, com todas as letras, que
+  // eles "não serão editáveis" na EC e que "o sistema vai puxar as informações
+  // a partir da OS de cada fornecedor" — ou seja, esperá-los aqui era esperar
+  // pelo documento que ainda não pode nascer. Era esta a queixa "não estou
+  // conseguindo emitir OS's": item aprovado, fornecedor identificado, e a
+  // emissão barrada por campos fiscais que ninguém tinha como preencher ainda.
+  //
   // O BV fora do padrão precisa de motivo escrito ANTES da OS sair: depois de
   // emitida, quem lê o documento não tem a quem perguntar por que a Pólobh
   // abriu mão da bonificação neste item.

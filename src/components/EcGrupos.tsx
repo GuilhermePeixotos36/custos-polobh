@@ -26,123 +26,16 @@ import { ObservacoesThread } from "@/components/ObservacoesPopup";
 import { ResumoPropostaModal } from "@/components/ResumoPropostaModal";
 import { NotifDot } from "@/components/NotifDot";
 import { MoverSetas } from "@/components/MoverSetas";
-import { destacarElemento, seguirElemento, idAncoraPendencia, idCampoPendencia, idGrupoEc } from "@/lib/destaque";
+import { destacarElemento, seguirElemento, idAncoraPendencia, idCampoDescricaoCompleta, idCampoPendencia, idGrupoEc } from "@/lib/destaque";
 import { aprovarLinha, faltasParaEmitirOs, reverterAprovacaoLinha, opcaoNaoSeAplica, OPCOES_VALOR_ITEM, valorItemNaEc, bvVazio, bvDaLinha, bvExigeJustificativa, limitarBvPercentual, BV_PADRAO_PERCENTUAL } from "@/domain/calc";
 import { flags } from "@/lib/flags";
 import { brl, cx } from "@/lib/format";
-import type { BvItem, DocumentoPg, EcLinha, Fornecedor, Observacao, OpcaoValorDefinida, StatusAprovacao, StatusOs } from "@/data/types";
+import type { BvItem, EcLinha, Fornecedor, Observacao, OpcaoValorDefinida, StatusAprovacao, StatusOs } from "@/data/types";
 import type { Sugestoes } from "@/domain/sugestoes";
 
 /** Opções de status de OS e de Contrato — a mesma lista nos dois campos. */
 const OPCOES_STATUS_OS: StatusOs[] = ["Pendente", "Emitir", "Emitir Nova Versão", "OK", "Não se Aplica"];
 
-const OPCOES_STATUS_TEXTO = ["Pendente", "Não se Aplica"];
-const OPCOES_SELECT_TEXTO = [
-  { valor: "Pendente", rotulo: "Pendente" },
-  { valor: "Não se Aplica", rotulo: "Não se Aplica" },
-  { valor: "outro", rotulo: "Outro (preencher)" },
-];
-// Mesma seta usada no <Select> padrão (ver ui/Field.tsx), reaproveitada aqui como imagem de fundo.
-const SETA_SELECT_ESTILO = {
-  backgroundImage:
-    "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236A6E78' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")",
-  backgroundPosition: "right 8px center",
-};
-
-/**
- * Select (Pendente/Não se Aplica) com opção "Outro" que transforma o próprio campo
- * em texto livre (fundo cinza), em vez de abrir um segundo campo abaixo. A seta
- * continua clicável para reabrir a lista e trocar de opção.
- */
-function SelectComTexto({
-  value,
-  onChange,
-  className,
-  sugestoes,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  className?: string;
-  /** Valores já usados neste campo em outras ECs (modo "Outro"). */
-  sugestoes?: string[];
-}) {
-  const [modoOutro, setModoOutro] = useState(false);
-  const [menuAberto, setMenuAberto] = useState(false);
-  const personalizado = value !== "" && !OPCOES_STATUS_TEXTO.includes(value);
-  const emOutro = modoOutro || personalizado;
-
-  useEffect(() => {
-    if (value && OPCOES_STATUS_TEXTO.includes(value)) setModoOutro(false);
-  }, [value]);
-
-  function escolher(opcao: string) {
-    setMenuAberto(false);
-    if (opcao === "outro") {
-      setModoOutro(true);
-      if (!personalizado) onChange("");
-    } else {
-      setModoOutro(false);
-      onChange(opcao);
-    }
-  }
-
-  return (
-    <div className="relative">
-      {emOutro ? (
-        <Input
-          autoFocus={modoOutro && !personalizado}
-          // O preenchimento do status vem do esquema de cores; sem valor, o cinza de antes.
-          className={cx("!h-9 !pl-2 !pr-7 !text-[12.5px]", value ? classeCampoStatus(value) : "!bg-[#EDEEF1]", className)}
-          value={value}
-          sugestoes={sugestoes}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="Outro (preencher)"
-        />
-      ) : (
-        <button
-          type="button"
-          onClick={() => setMenuAberto((v) => !v)}
-          style={SETA_SELECT_ESTILO}
-          className={cx(
-            "!h-9 w-full appearance-none bg-no-repeat bg-surface border-[1.5px] border-[#BFC4CE] rounded-btn pl-2 pr-7 text-[12.5px] text-left truncate",
-            value ? "text-ink" : "text-ink-3",
-            classeCampoStatus(value),
-            className,
-          )}
-        >
-          {value || "Selecione…"}
-        </button>
-      )}
-      {emOutro && (
-        <button
-          type="button"
-          onClick={() => setMenuAberto((v) => !v)}
-          style={SETA_SELECT_ESTILO}
-          aria-label="Alterar opção"
-          title="Clique para escolher outra opção"
-          className="absolute right-0 top-0 h-9 w-7 bg-no-repeat"
-        />
-      )}
-      {menuAberto && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setMenuAberto(false)} />
-          <div className="absolute left-0 right-0 mt-1 z-50 min-w-[140px] rounded-btn border border-border bg-white shadow-2xl py-1">
-            {OPCOES_SELECT_TEXTO.map((o) => (
-              <button
-                key={o.valor}
-                type="button"
-                onClick={() => escolher(o.valor)}
-                className="block w-full text-left px-3 py-1.5 text-[12.5px] text-ink hover:bg-primary-soft"
-              >
-                {o.rotulo}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
 
 interface Grupo {
   id: string;
@@ -936,9 +829,19 @@ function ItemRow({
   const style = { transform: CSS.Translate.toString(sortable.transform), transition: sortable.transition };
   const [resumoAberto, setResumoAberto] = useState(false);
 
+  /**
+   * O resumo da proposta entra na Descrição Completa — e a tela mostra onde.
+   *
+   * O texto é ACRESCENTADO ao que já existe (ninguém quer perder o descritivo
+   * que escreveu), só que num campo já preenchido ele caía abaixo da dobra do
+   * editor: o modal fechava, nada aparecia, e o recurso parecia quebrado. Agora
+   * o campo é destacado depois da inserção, com a mesma marca do resto do
+   * sistema para "isto acabou de aparecer".
+   */
   const inserirResumo = (html: string) => {
     if (!html) return;
     onUpd({ descricaoCompleta: l.descricaoCompleta ? `${l.descricaoCompleta}${html}` : html });
+    destacarElemento(idCampoDescricaoCompleta(l.id), "novo");
   };
 
   return (
@@ -1014,7 +917,7 @@ function ItemRow({
               onChange={(e) => onUpd({ descricao: e.target.value })}
             />
           </Campo>
-          <Campo label="Descrição Completa">
+          <Campo label="Descrição Completa" id={idCampoDescricaoCompleta(l.id)}>
             <RichTextField
               value={l.descricaoCompleta}
               onChange={(html) => onUpd({ descricaoCompleta: html })}
@@ -1073,32 +976,11 @@ function ItemRow({
             <option>OK</option>
           </Select>
         </Campo>
-        <Campo label="Fornecedor (CNPJ / Razão social)" className="sm:col-span-2 xl:col-span-1 w-full min-w-0" obrigatorio>
-          <FornecedorField
-            razao={l.fornecedorRazao}
-            cnpj={l.fornecedorCnpj}
-            fornecedores={fornecedores}
-            onChange={onUpd}
-            onValidar={onValidarFornecedor}
-          />
-        </Campo>
-        <Campo label="Documento PG" className="w-full" obrigatorio>
-          <Select className="!h-9 !px-2 !text-[12.5px]" value={l.faturaNf} onChange={(e) => onUpd({ faturaNf: e.target.value as DocumentoPg })}>
-            <option value="">Selecione…</option>
-            <option value="Fatura">Fatura</option>
-            <option value="Nota Fiscal">Nota Fiscal</option>
-            <option value="Fatura e Nota Fiscal">Fatura e Nota Fiscal</option>
-            <option value="Recibo Simples">Recibo Simples</option>
-            <option value="Não se aplica">Não se aplica</option>
-          </Select>
-        </Campo>
-        <Campo label="Código de Serviço" className="w-full" obrigatorio>
-          <SelectComTexto value={l.codigoServico} sugestoes={sugestoes.valores.codigoServico} onChange={(v) => onUpd({ codigoServico: v })} />
-        </Campo>
-        <Campo label="Pedido de Compra" className="w-full" obrigatorio>
-          <SelectComTexto value={l.pedidoCompra} sugestoes={sugestoes.valores.pedidoCompra} onChange={(v) => onUpd({ pedidoCompra: v })} />
-        </Campo>
-        {/* Os dois campos levam id próprio: "OS a emitir" é uma pendência, e o
+        {/* OS e CONTRATO logo depois da Aprovação (15/09/2026): é a sequência
+            da decisão — aprovou, decide o que emitir — e era o que obrigava a
+            atravessar os dados do fornecedor para chegar nos dois seletores que
+            mais se mexem.
+            Os dois levam id próprio: "OS a emitir" é uma pendência, e o
             navegador/sininho pisca exatamente este pedaço da linha. */}
         <Campo label="OS" className="w-full" id={idCampoPendencia(l.id, "os")}>
           <Select className={cx("!h-9 !px-2 !text-[12.5px]", classeCampoStatus(l.statusOs))} value={l.statusOs} onChange={(e) => onUpd({ statusOs: e.target.value as StatusOs })}>
@@ -1110,6 +992,29 @@ function ItemRow({
           <Select className={cx("!h-9 !px-2 !text-[12.5px]", classeCampoStatus(l.contratoStatus))} value={l.contratoStatus} onChange={(e) => onUpd({ contratoStatus: e.target.value as StatusOs })}>
             {OPCOES_STATUS_OS.map((o) => <option key={o}>{o}</option>)}
           </Select>
+        </Campo>
+        <Campo label="Fornecedor (CNPJ / Razão social)" className="sm:col-span-2 xl:col-span-1 w-full min-w-0" obrigatorio>
+          <FornecedorField
+            razao={l.fornecedorRazao}
+            cnpj={l.fornecedorCnpj}
+            fornecedores={fornecedores}
+            onChange={onUpd}
+            onValidar={onValidarFornecedor}
+          />
+        </Campo>
+        {/* DOCUMENTO PG, CÓDIGO DE SERVIÇO e PEDIDO DE COMPRA são LEITURA aqui
+            (15/09/2026). Eles são decididos na OS, por quem emite o faturamento,
+            e voltam preenchidos para o item da EC válida. Editáveis dos dois
+            lados, a EC e a OS discordavam sobre o mesmo dado — e, pior, a EC
+            esperava por eles para deixar a OS nascer. */}
+        <Campo label="Documento PG" className="w-full">
+          <DaOs valor={l.faturaNf} />
+        </Campo>
+        <Campo label="Código de Serviço" className="w-full">
+          <DaOs valor={l.codigoServico} />
+        </Campo>
+        <Campo label="Pedido de Compra" className="w-full">
+          <DaOs valor={l.pedidoCompra} />
         </Campo>
       </div>
 
@@ -1123,6 +1028,24 @@ function ItemRow({
       />
 
       {resumoAberto && <ResumoPropostaModal onInserir={inserirResumo} onClose={() => setResumoAberto(false)} />}
+    </div>
+  );
+}
+
+/**
+ * Campo do item que a OS preenche — aqui ele é leitura.
+ *
+ * Vazio não é erro: quer dizer que a OS daquele fornecedor ainda não chegou a
+ * esta etapa. Escrever de onde vem evita o que acontecia antes, que era alguém
+ * digitar um código de serviço na EC e a OS gravar outro por cima.
+ */
+function DaOs({ valor }: { valor: string }) {
+  return (
+    <div
+      className="h-9 px-2 flex items-center rounded-btn bg-[#F1F2F5] border border-border-soft text-[12.5px] text-ink-2 truncate"
+      title={valor ? `${valor} — preenchido na OS` : "Será preenchido na OS deste fornecedor"}
+    >
+      {valor || <span className="text-ink-3">— vem da OS</span>}
     </div>
   );
 }
