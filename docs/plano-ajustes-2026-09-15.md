@@ -4,7 +4,13 @@ Leitura item a item do check-list enviado pela Pólobh, cruzada com o código qu
 está no ar. Para cada ponto: **onde é no aplicativo**, **o que entendi que
 querem**, **o que proponho fazer** e **o que precisa da sua decisão antes**.
 
-Nada aqui foi implementado. É documento de decisão.
+> **Estado em 16/09/2026 — a maior parte disto foi implementada.**
+> O plano continua sendo o mapa (onde é no app, o que quiseram, o que muda), e
+> ganhou no fim a seção **[12. O que foi feito, e o que
+> falta](#12-o-que-foi-feito-e-o-que-falta)** com o estado item a item. Onde a
+> decisão era sua e a obra não podia parar, seguimos com a recomendação deste
+> documento — e cada uma dessas está marcada lá, para você confirmar ou mandar
+> mudar.
 
 ## Como ler
 
@@ -891,3 +897,98 @@ Rentabilidade (E13), contratos (O20), credenciamento configurável (CD3).
 
 **Bloco 5 — infraestrutura.** Esqueceu a senha (G3), back-up externo (G4), Dropbox
 (G5), trava de edição simultânea (G9), WhatsApp (CR5, CD6), feriados (C7).
+
+---
+
+# 12. O que foi feito, e o que falta
+
+Executado entre 15 e 16/09/2026, no ramo `claude/relaxed-newton-9kb6hj`.
+**928 testes passando, `tsc` limpo, build de produção verde.**
+
+## Os dois defeitos
+
+| | Estado |
+| --- | --- |
+| 🐞 **Emissão de OS travada** (E8) | **Corrigido.** Documento PG, Código de Serviço e Pedido de Compra saíram da peneira de emissão, viraram leitura na EC e voltam preenchidos da OS por RPC (quem emite o faturamento não tem escrita em `ec_linhas`). |
+| 🐞 **Resumo da proposta** (E7) | **Dois caminhos silenciosos fechados:** IA sem texto para extrair devolvia "ok" vazio e o modal fechava como se tivesse funcionado; e a inserção não dizia onde o texto tinha entrado. Se ainda falhar, agora a mensagem diz o motivo — e aí é a Edge Function `resumo-proposta` que precisa ser publicada/ter saldo. |
+
+## Feito, por bloco
+
+**Geral** — marca sem fundo branco e sem slogan (G2), "Pólobh Promoções" em todo
+o sistema, "Esqueceu a senha?" com link por e-mail (G3), pendências recortadas
+(G6), badges e pílula conciliados (G7).
+
+**Calendário** — "Arquivados" (C2), "Todos" (C3), filtro por produtora (C4),
+faixa de resumo removida (C6), feriados nacionais pela BrasilAPI e municipais em
+Configurações (C7), fim do "Concluído" (C8), período completo com cores por
+etapa (C9/C12), card limpo (C10), produtora na lista (C11).
+
+**Projetos** — colunas de produtora e datas (P1/P2), frase do modo leitura
+(P6), conversa em Dados Gerais (P8), conversinha padronizada (P9).
+
+**Check-list** — conversa na aba (CL2), conversa abaixo do item (CL3), criar,
+renomear e mover etapas e tarefas (CL4), pendência vermelha permanente (CL5).
+
+**EC** — conversa e pílula fora da listagem (E1/E2), barras de leitura e edição
+(E3/E4), "Revisar" mostrando o que mudou antes de salvar, campos do item
+reordenados e os três status em massa (E8), Alternativas de Custos em tabela
+recolhível (E9), pílula não cobre mais a planilha (E11), Rentabilidade
+redesenhada com Excel e PDF (E13).
+
+**OS** — fases com passagem de bastão e modo leitura (O4, O15, O21, O22, O23),
+quatro status (O2), filtros na listagem do projeto (O3), altura das linhas
+(O7–O10), "Cronograma | Logística | Infraestrutura" com itens e grupos novos
+(O12), Observações Gerais em módulo próprio (O13), "Dados Emissão Faturamento"
+com MF/Outro, CNAE, Ordem de Compra e Retenções Fiscais (O17), Acertos
+Financeiros com a conta da devolução (O18).
+
+**Cronograma e Fornecedores** — nome fantasia nas listagens (CR4), conversa e
+pílula conferidas (CR1/CR2, F1–F3).
+
+**Credenciamento** — campos escolhidos por evento, com RG, endereço, telefone e
+aniversário (CD3); a planilha da portaria só cria coluna do que foi preenchido.
+
+## As decisões que tomei por você — confirme ou mande mudar
+
+1. **Produtora nas pendências (G6):** ela saiu das **conversas** e ficou no que
+   não tem destinatário nominal (OS em rascunho, cronograma vazio,
+   credenciamento sem resposta, projeto sem EC, OS/Contrato a emitir). Tirá-la
+   de tudo faria essas cinco sumirem do sistema.
+2. **Arquivar EC (E3):** o botão ficou, e agora só para a Direção. Ele serve ao
+   caso que sobra — o evento que o cliente cancelou, sem estimativa substituta.
+3. **"Revisar" da EC (E4):** faz as duas coisas numa tela só — padroniza o texto
+   e mostra o comparativo antes de salvar.
+4. **Encargos na rentabilidade (E13):** entram como **custo real**; honorários
+   como **margem** (gasto zero). É uma constante no topo de
+   `domain/rentabilidade.ts` — muda numa linha. **Me mande um exemplo numérico
+   de um projeto com o resultado esperado** e eu confiro a conta.
+5. **Alerta dos Dados Gerais (P7):** o comparativo continua, com o texto do
+   check-list como aviso de abertura e as opções desmarcadas.
+6. **"Disparar OS" (O4):** continua existindo, e só **depois de emitida**.
+
+## O que ficou pendente, e por quê
+
+| Item | O que falta |
+| --- | --- |
+| **Matriz dos sete perfis** (E5, E13, O16) | A estrutura está pronta (Áreas + o recurso novo `rentabilidade` + as fases da OS). Falta **a tabela de vocês**: sete perfis × o que cada um vê e edita em todas as telas. Com ela, cadastro as Áreas e passa a ser autoatendimento em Configurações. |
+| **Modelos de contrato** (O20) | O .docx chegou **sem os anexos**. Preciso dos dois arquivos — Corporativo e Cultural — com as instruções de preenchimento. |
+| **Modelos de check-list** (CL1) | Vocês já avisaram que vinham depois. Quando chegarem, é cadastro em Configurações, sem código. |
+| **WhatsApp** (CR5, CD6) | Escolha sua: **(a)** botão que abre o WhatsApp com a mensagem pronta (rápido, sem custo, um envio por vez) ou **(b)** API oficial (automático, exige conta Meta verificada, número dedicado, aprovação dos modelos e custo por mensagem). Os **textos padrão** dos dois avisos já podem ser ajustados no e-mail, que existe. |
+| **Dropbox** (G5) | Depende de o Max autorizar um app Dropbox na conta da empresa e de vocês definirem a estrutura de pastas e o padrão de nome. |
+| **Back-up** (G4) | Recomendação: plano Pro do Supabase (back-up diário + restauração a um ponto no tempo) **mais** uma cópia semanal para fora, no Dropbox/Drive de vocês. Precisa da sua decisão sobre o plano. |
+| **Trava de edição simultânea** (G9) | Hoje existe a trava otimista (avisa no salvamento). A trava de presença ("Marisa está editando desde 14h20") é obra à parte, e ficou para depois das decisões acima. |
+| **Revisão de texto por IA em tudo** (G8) | A caixa alta/baixa já é resolvida no caminho da gravação e a revisão por IA cobre os descritivos da EC e do projeto. Estender à OS e ao check-list aumenta o custo por salvamento — confirme o escopo. |
+| **Três campos de incentivo** (P10, O9, O17) | Pede migração e conversão do que já está gravado. Ficou para o próximo lote, junto com a matriz de perfis. |
+
+## Migrações do banco a aplicar
+
+Quatro, em ordem de nome (`supabase/migrations/`):
+
+- `20260916100000_os_devolve_codigo_servico_e_ordem_compra.sql`
+- `20260916110000_permissao_propria_da_rentabilidade.sql`
+- `20260916120000_os_em_fases.sql`
+- `20260916130000_os_quatro_status.sql`
+
+As duas últimas **normalizam dado existente** (OS emitida entra na fase certa;
+"Disparada" vira "Emitida" com o carimbo de envio), então rodam uma vez e na
+ordem — como todas as outras deste repositório.

@@ -44,6 +44,35 @@ supabase/schema.sql          schema completo + RLS
 supabase/migrations/         atualizações incrementais do banco
 ```
 
+## A revisão de 15/09/2026 (check-list da Pólobh)
+
+A Pólobh mandou um check-list de cerca de 120 pedidos sobre o aplicativo
+inteiro. A leitura item a item — onde é no app, o que quiseram, o que muda —
+está em [`docs/plano-ajustes-2026-09-15.md`](docs/plano-ajustes-2026-09-15.md),
+com o que já foi feito, o que ficou pendente e por quê.
+
+Vale ler antes de mexer no que ela tocou, porque vários pedidos **desfazem
+decisões anteriores** documentadas aqui embaixo — e as seções que eles mudaram
+estão atualizadas, mas a história de por que a regra era outra continua no
+histórico do git. Os maiores:
+
+- **a Produtora Responsável saiu das conversas** (era a regra de 08/09) e ficou
+  só no que não tem destinatário nominal;
+- **"Concluído" acabou** no projeto: sobraram Ativo e Arquivado, como na EC;
+- **o Calendário passou a mostrar o período inteiro** (montagem → desmontagem),
+  e não só a etapa Evento;
+- **a OS ganhou fases** — produção monta, financeiro conclui, back-office
+  emite — e abre em modo leitura;
+- **"Disparada" deixou de ser status da OS** e virou carimbo de envio;
+- a conversa **saiu** das listagens de EC e OS e **entrou** em Dados Gerais e
+  Check-list.
+
+**O que ficou pendente, e por quê:** a matriz dos sete perfis da Pólobh (falta a
+tabela de quem vê o quê), os dois modelos de contrato (não vieram anexados), a
+conta da rentabilidade com honorários e encargos (falta um exemplo numérico da
+casa), o Dropbox e o WhatsApp (dependem de decisão e de conta). O plano detalha
+cada um.
+
 ## Perfis de acesso
 | Recurso | Direção | Produção | Administrativo |
 |---|:--:|:--:|:--:|
@@ -180,13 +209,20 @@ mão). Ela é a última do tipo: a regra agora vive no código.
 
 ## Pendências (quem vê o quê)
 O número vermelho é uma lista de tarefa, não um painel do que anda acontecendo.
-Duas portas, e só elas (`domain/pendencias.ts` → `agregarPendencias`):
-- o **Produtor(a) Responsável** do projeto — **sempre**, e para ele conta
-  **qualquer** pendência nascida ali dentro, inclusive a conversa que no momento
-  está com outra pessoa;
+Três portas, e só elas (`domain/pendencias.ts` → `agregarPendencias`):
 - o **destinatário** da cobrança — @mencionado ou escolhido como responsável do
-  comentário, e o dono da tarefa do check-list. É o "eventualmente": entra e sai
-  conforme a vez (ver a batata quente, abaixo).
+  comentário, e o dono da tarefa do check-list. Entra e sai conforme a vez (ver
+  a batata quente, abaixo);
+- o **Produtor(a) Responsável**, mas só no que **não tem outro dono**: OS em
+  rascunho, cronograma vazio, credenciamento sem resposta, projeto sem EC,
+  OS/Contrato a emitir. **Conversa não entra** (revisão de 15/09/2026). Ele já
+  recebeu tudo o que nascia no projeto — regra de 08/09 — e o preço foi o
+  número vermelho de quem responde por seis projetos deixar de significar
+  "tenho o que fazer". Sem esta porta, porém, as cinco pendências acima sumiriam
+  do sistema: elas não têm a quem mais pertencer;
+- a **função**, e só nas passagens de bastão da OS ("aguardando o financeiro"):
+  ninguém é nomeado quando a OS vai *para o financeiro*. Fora daí o papel
+  continua sem abrir porta nenhuma.
 
 Não abrem porta: o **papel** (antes todo Admin/Direção/Administrativo via "emitir
 OS" da casa inteira) e o **autor** do comentário (quem cobrava carregava a
@@ -289,6 +325,38 @@ Duas regras do **BV** saíram junto do seletor:
   BV e a resposta foge do padrão: "Não se aplica" (o item sai sem BV, de
   propósito) ou um BV abaixo de 15%. Campo em branco não pede nada, senão toda
   linha recém-criada nasceria com alerta. Ela é **opcional** — ver adiante.
+
+## A OS caminha em fases (revisão de 15/09/2026)
+
+A OS era um formulário só: quem podia editar editava tudo, em qualquer ordem, e
+"está pronta para o financeiro" era conversa de corredor. Agora ela tem o
+caminho que a casa já faz na prática (`domain/faseOs.ts`):
+
+**Produção monta → Financeiro conclui → Back-office emite.**
+
+- **A fase TRAVA, não avisa.** Os blocos da etapa anterior ficam em leitura,
+  porque o que isso impede é o valor mudando embaixo de quem já o usou para
+  emitir a nota. Devolver à etapa anterior é possível e explícito.
+- **Permissão e fase são coisas diferentes** e precisam concordar: a permissão
+  diz o que a PESSOA pode (`oss.editar`, `financeiro`), a fase diz o que o
+  DOCUMENTO aceita agora. É assim que "a partir desta etapa a Produção não edita
+  mais" se cumpre sem depender de os sete perfis da Pólobh já existirem.
+- **Cada passagem vira pendência de quem recebeu**, endereçada à FUNÇÃO — a OS
+  vai "para o financeiro", não "para a Marisa".
+- **Emitir fecha o ciclo:** a OS vira Emitida e os itens da EC que ela consolida
+  passam de "Emitir" para "OK" (RPC `marcar_itens_da_os_como_emitidos`; pela
+  tela não daria, porque quem emite não escreve em `ec_linhas`). Antes disso,
+  **OS com pendência aberta não é emitida** — a trava é de EMISSÃO, não de
+  salvamento: salvar segue livre, como ficou combinado em 10/09.
+- **A OS abre em modo leitura**, e "Editar OS" libera o que a fase permite.
+
+**Quatro status, e "Disparada" não é um deles.** Rascunho · Emitida · Cancelada ·
+Arquivada. "Disparada" não dizia em que estado o documento está, dizia que um
+e-mail saiu — uma OS entregue em mãos ficava para sempre parecendo menos pronta
+que uma enviada por e-mail. Virou o carimbo `disparadaEm`, e é ele que destrava
+as cobranças de cronograma e credenciamento (elas só fazem sentido com o
+fornecedor de posse do documento). O carimbo só é gravado quando o e-mail sai de
+verdade.
 
 ## A OS em dois blocos: Detalhamento e Resumo da Contratação
 Revisão de 09/09/2026. A OS é o documento que vira **contrato com o fornecedor**,
@@ -581,15 +649,24 @@ cliente de e-mail não escreve no chamado — a resposta que o sistema registra 
 escrita na tela do Help Desk. É para isso que o aviso leva um link para ela.
 
 ## Conversa por aba do projeto
-Cinco abas — **EC, OS, Fornecedores, Cronograma e Credenciamento** — têm o seu
-corredor: "@Marisa o palco não respondeu o credenciamento". Sem ele, esse tipo
-de recado ou não era escrito, ou ia parar numa observação de item que nada tinha
-a ver com o assunto, só porque era o campo de texto mais perto — e quem fosse
-procurar depois não achava.
+Cinco abas — **Dados Gerais, Check-list, Fornecedores, Cronograma e
+Credenciamento** — têm o seu corredor: "@Marisa o palco não respondeu o
+credenciamento". Sem ele, esse tipo de recado ou não era escrito, ou ia parar
+numa observação de item que nada tinha a ver com o assunto, só porque era o
+campo de texto mais perto — e quem fosse procurar depois não achava.
 
-Dados Gerais e Check-list ficam de fora de propósito: a primeira é o cadastro do
-evento, e a segunda já é feita de tarefas com dono e prazo, que é uma forma
-melhor de cobrar alguém do que um comentário.
+**A lista mudou em 15/09/2026.** Dados Gerais e Check-list entraram (tinham
+ficado de fora por bom motivo — uma é cadastro, a outra já é feita de tarefas
+com dono e prazo —, mas na prática o recado da etapa ia parar no campo de texto
+mais próximo). **EC e OS saíram**: ali a conversa mora DENTRO do documento, e no
+corredor da listagem ela era uma terceira caixa de texto para o mesmo assunto —
+e era ela o número "a mais" que fazia a pílula da subguia divergir do badge da
+linha da EC.
+
+O que ficou gravado nas duas abas antigas continua no banco e **deixa de
+cobrar**: pendência sem tela onde se resolver é justamente o número que não se
+consegue achar (`ABAS_CONVERSA_GRAVADAS` guarda o formato; `ABAS_COM_CONVERSA` é
+quem mostra).
 
 Guardadas em `projetos.conversas` (jsonb, `{"<aba>": [observacoes]}`, migração
 `20260910140000`) e gravadas **uma aba por vez** (`salvar_conversa_projeto`,
@@ -604,6 +681,19 @@ aba — não ao projeto.
 
 O card em si é o mesmo da EC e da OS (`components/CardConversa.tsx`): o rótulo
 do botão é **"Adicionar Observação"** em toda parte.
+
+## Código de Serviço e Ordem de Compra: nascem na OS, voltam para a EC
+
+Revisão de 15/09/2026, e era um nó que travava o sistema inteiro. Documento PG,
+Código de Serviço e Pedido de Compra eram **digitados na EC** e, ao mesmo tempo,
+**exigidos para emitir a OS** — só que quem os conhece é quem emite o
+faturamento, ou seja, a própria OS. Na prática: item aprovado, fornecedor
+identificado, e a emissão barrada esperando por um dado que só existiria depois
+dela. Era a queixa *"não estou conseguindo emitir OS's"*.
+
+Agora eles são **leitura na EC** e decisão da OS, e voltam por RPC
+(`devolver_dados_fiscais_para_ec`) — pela tela não daria: quem preenche o
+faturamento é o Administrativo, que não edita EC, e a RLS recusaria.
 
 ## Cálculos da EC (fixos)
 - `somaFornecedores` = Σ(valor Pólobh) + Σ(produção)
@@ -743,11 +833,23 @@ lugar — o mês mais cheio, que abre o mês, e o que acontece agora ou vem a
 seguir. O quadro nunca teve badge de pendências, e continua sem: aqui não se
 resolve nada.
 
-- **O que entra:** só a **data do projeto**, isto é, a etapa **Evento** do
-  cronograma (`info.cronograma.evento`). Montagem, alinhamentos, ensaios e
-  desmontagem **não** entram: o quadro é de "quando o projeto acontece". O
-  período é do **menor ao maior dia** da etapa (evento de um dia = um dia só);
-  projeto anterior ao cronograma por faixas cai no campo legado `info.evento`.
+- **O que entra:** o **período inteiro de ocupação da equipe** — do primeiro dia
+  de **Montagem** ao último de **Desmontagem**, passando pelo Evento (revisão de
+  15/09/2026; antes era só a etapa Evento). Quem olha o quadro está decidindo se
+  cabe mais um projeto na semana, e a equipe está em campo desde a montagem: um
+  evento de sábado com montagem na quinta bloqueia três dias, não um.
+  Alinhamentos e ensaios continuam fora — são reuniões, não ocupação no local.
+  Cada etapa vira um trecho da barra, em **tons da mesma cor do projeto** (cor
+  diferente por etapa competiria com a identidade que faz reconhecer o projeto
+  de longe). Projeto anterior ao cronograma por faixas cai no campo legado
+  `info.evento`.
+- **"Projeto sem data" continua sendo sem data de EVENTO:** com o período
+  completo, um projeto que só tem montagem marcada já aparece no quadro — e
+  deixaria de ser cobrado justamente pelo dado que falta.
+- **Feriados** (15/09/2026): os **nacionais** vêm sozinhos da BrasilAPI
+  (`/feriados/v1/{ano}`), inclusive as datas móveis; os **municipais de BH** são
+  lançados à mão em Configurações › Geral, porque deles **não existe fonte
+  oficial em formato de dados**. Ver `domain/feriados.ts`.
 - **Vista Calendário:** doze cards de mês, cada um com a mancha do mês em
   trilhas (projetos que se sobrepõem caem em linhas diferentes), a contagem e
   **todos** os nomes — o card cresce o quanto precisar. Ele cortava em quatro e
