@@ -19,6 +19,8 @@ import { IcChevron, IcSearch, IcCalendar, IcGrid, IcList } from "@/components/ic
 import { CalendarioMesModal } from "@/components/CalendarioMesModal";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
+import { garantirFeriadosNacionais } from "@/lib/feriados";
+import { feriadosDoAno, indiceDeFeriados } from "@/domain/feriados";
 import { cx, dataBR } from "@/lib/format";
 import {
   MESES,
@@ -101,6 +103,20 @@ export function Calendario() {
     else if (mes > 11) mudarParams({ ano: String(ano + 1), mes: "1" });
     else mudarParams({ mes: String(mes + 1) });
   };
+
+  /**
+   * FERIADOS do ano (15/09/2026). Os nacionais vêm da BrasilAPI e ficam
+   * guardados; os municipais de BH são lançados à mão em Configurações, porque
+   * deles não há fonte oficial em formato de dados (ver `domain/feriados`).
+   *
+   * A busca é por ano e não trava a tela: o quadro funciona sem feriado nenhum,
+   * ele só fica menos informado.
+   */
+  const { data: feriadosGuardados } = useAsync(() => garantirFeriadosNacionais(ano), [ano]);
+  const feriados = useMemo(
+    () => indiceDeFeriados(feriadosDoAno(feriadosGuardados, ano)),
+    [feriadosGuardados, ano]
+  );
 
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState<FiltroStatus>("Todos");
@@ -262,6 +278,7 @@ export function Calendario() {
           ano={ano}
           mes={mesAberto}
           itens={doAno}
+          feriados={feriados}
           onTrocarMes={trocarMes}
           onFechar={() => mudarParams({ mes: null })}
         />

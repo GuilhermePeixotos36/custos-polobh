@@ -10,6 +10,8 @@ import { useEmpresas } from "@/store/empresas";
 import { useConfigApp } from "@/store/configApp";
 import { useAsync } from "@/hooks/useAsync";
 import { repo } from "@/data";
+import { lerFeriados, salvarFeriadosMunicipais } from "@/lib/feriados";
+import { feriadosVazios, type Feriado } from "@/domain/feriados";
 import { toast } from "@/store/toast";
 import { confirmar } from "@/store/confirm";
 import { cx } from "@/lib/format";
@@ -45,6 +47,8 @@ export function Configuracoes() {
           <NotificacoesCard />
 
           <HelpDeskCard />
+
+          <FeriadosCard />
 
           <Card>
             <CardTitle hint="Arquivar ≠ apagar — registros arquivados continuam consultáveis">Retenção de dados</CardTitle>
@@ -229,6 +233,114 @@ function EmpresasGrupoCard() {
         As alterações são salvas ao sair de cada campo. A empresa <b>padrão</b> é usada na emissão;
         se o tomador/contratante da OS for a Pólobh, estes dados entram na planilha.
       </p>
+    </Card>
+  );
+}
+
+/* ------------------------------- Feriados -------------------------------- */
+
+/**
+ * Os feriados MUNICIPAIS de Belo Horizonte, lançados à mão.
+ *
+ * A pergunta da Pólobh foi "qual seria a nossa fonte oficial?", e a resposta
+ * honesta tem duas partes: os NACIONAIS vêm da BrasilAPI, sozinhos, inclusive
+ * as datas móveis; os MUNICIPAIS não têm fonte oficial em formato de dados —
+ * eles saem de lei municipal, e o que circula na internet são listas de
+ * terceiros que ninguém garante.
+ *
+ * Então eles são lançados aqui, uma vez por ano, por quem administra. É pouco
+ * trabalho (são três ou quatro datas) e é a única forma de o quadro não mentir:
+ * um feriado municipal errado é uma montagem marcada num dia em que a cidade
+ * para.
+ */
+function FeriadosCard() {
+  const anoAtual = new Date().getFullYear();
+  const [ano, setAno] = useState(anoAtual);
+  const { data, loading, reload } = useAsync(() => lerFeriados(), []);
+  const [rascunho, setRascunho] = useState<Feriado[] | null>(null);
+
+  const guardados = data ?? feriadosVazios();
+  const municipais = rascunho ?? guardados.municipais[String(ano)] ?? [];
+  const nacionais = guardados.nacionais[String(ano)] ?? [];
+
+  const mudar = (i: number, patch: Partial<Feriado>) =>
+    setRascunho(municipais.map((f, j) => (j === i ? { ...f, ...patch } : f)));
+
+  async function salvar() {
+    try {
+      await salvarFeriadosMunicipais(ano, municipais.filter((f) => f.data));
+      setRascunho(null);
+      reload();
+      toast("Feriados salvos.", "success");
+    } catch (e) {
+      toast(`Não foi possível salvar: ${(e as Error).message}`, "danger");
+    }
+  }
+
+  return (
+    <Card>
+      <CardTitle hint="Os nacionais vêm sozinhos da BrasilAPI; os municipais de BH não têm fonte oficial em dados e são lançados aqui">
+        Feriados do calendário
+      </CardTitle>
+
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <Field label="Ano" className="max-w-[8rem]">
+          <Input
+            type="number"
+            value={ano}
+            onChange={(e) => { setAno(Number(e.target.value) || anoAtual); setRascunho(null); }}
+          />
+        </Field>
+        <span className="text-[12.5px] text-ink-3 self-end pb-2">
+          {loading ? "Carregando…" : `${nacionais.length} feriado(s) nacional(is) já no sistema`}
+        </span>
+      </div>
+
+      <div className="space-y-2">
+        {municipais.map((f, i) => (
+          <div key={i} className="flex items-center gap-2 flex-wrap">
+            <Input
+              type="date"
+              className="max-w-[11rem]"
+              value={f.data}
+              onChange={(e) => mudar(i, { data: e.target.value })}
+              aria-label="Data do feriado"
+            />
+            <Input
+              className="flex-1 min-w-[14rem]"
+              value={f.nome}
+              placeholder="Nome do feriado (ex.: Nossa Senhora da Conceição)"
+              onChange={(e) => mudar(i, { nome: e.target.value })}
+              aria-label="Nome do feriado"
+            />
+            <button
+              type="button"
+              className="text-ink-3 hover:text-danger px-2"
+              onClick={() => setRascunho(municipais.filter((_, j) => j !== i))}
+              aria-label="Remover feriado"
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+        {municipais.length === 0 && (
+          <p className="text-[12.5px] text-ink-3">Nenhum feriado municipal lançado para {ano}.</p>
+        )}
+      </div>
+
+      <div className="mt-3 flex items-center gap-2">
+        <Button
+          variant="secondary"
+          size="sm"
+          icon={<IcPlus width={15} height={15} />}
+          onClick={() => setRascunho([...municipais, { data: "", nome: "", origem: "municipal" }])}
+        >
+          Feriado municipal
+        </Button>
+        <Button size="sm" disabled={!rascunho} onClick={() => void salvar()}>
+          Salvar feriados
+        </Button>
+      </div>
     </Card>
   );
 }

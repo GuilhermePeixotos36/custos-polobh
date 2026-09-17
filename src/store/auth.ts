@@ -164,6 +164,10 @@ interface AuthState {
   entrarComEmail: (email: string, senha: string) => Promise<{ ok: boolean; erro?: string }>;
   /** Troca a própria senha, já logado. Pede a atual para confirmar quem é. */
   trocarSenha: (atual: string, nova: string) => Promise<{ ok: boolean; erro?: string }>;
+  /** Manda o e-mail de redefinição de senha (a tela de login, sem sessão). */
+  pedirRedefinicaoSenha: (email: string) => Promise<{ ok: boolean; erro?: string }>;
+  /** Grava a senha nova de quem chegou pelo link do e-mail. */
+  definirSenhaPeloLink: (nova: string) => Promise<{ ok: boolean; erro?: string }>;
   sair: () => Promise<void>;
   /** Inicializa a sessão a partir do Supabase (chamado uma vez no boot). */
   bootstrap: () => Promise<void>;
@@ -289,6 +293,52 @@ export const useAuth = create<AuthState>((set, get) => {
         mensagem: "Senha alterada pelo próprio usuário",
         usuario: u.nome,
         papel: u.papel,
+      });
+      return { ok: true };
+    },
+
+    /**
+     * "Esqueceu a senha?" — o caminho que faltava (15/09/2026).
+     *
+     * Até aqui, quem esquecia a senha pedia ao suporte um convite novo, e o
+     * resultado prático era a senha do primeiro dia valendo para sempre: ninguém
+     * abre um chamado para trocar de senha.
+     *
+     * A resposta é SEMPRE a mesma, tenha o e-mail cadastro ou não. Dizer "este
+     * e-mail não existe" entrega quem trabalha na casa a quem perguntar — e o
+     * sistema tem os nomes de toda a equipe.
+     */
+    pedirRedefinicaoSenha: async (email) => {
+      const limpo = email.trim().toLowerCase();
+      if (!limpo) return { ok: false, erro: "Informe o seu e-mail." };
+      const { error } = await supabase.auth.resetPasswordForEmail(limpo, {
+        redirectTo: `${window.location.origin}/nova-senha`,
+      });
+      // O erro do Supabase aqui costuma ser limite de envio, não "não existe".
+      if (error) return { ok: false, erro: traduzirErroDeSenha(error.message) };
+      auditar({
+        categoria: "Autenticação",
+        acao: "auth.senha.redefinicao",
+        mensagem: `Redefinição de senha solicitada para ${limpo}`,
+      });
+      return { ok: true };
+    },
+
+    /**
+     * A senha nova de quem chegou pelo link do e-mail.
+     *
+     * Aqui NÃO se pede a senha atual — quem chegou por este caminho não a tem,
+     * e é justamente isso que o link resolve. Quem garante que é a pessoa é o
+     * e-mail: o Supabase abre uma sessão de recuperação ao abrir o link, e sem
+     * ela `updateUser` falha.
+     */
+    definirSenhaPeloLink: async (nova) => {
+      const { error } = await supabase.auth.updateUser({ password: nova });
+      if (error) return { ok: false, erro: traduzirErroDeSenha(error.message) };
+      auditar({
+        categoria: "Autenticação",
+        acao: "auth.senha.redefinida",
+        mensagem: "Senha redefinida pelo link enviado por e-mail",
       });
       return { ok: true };
     },

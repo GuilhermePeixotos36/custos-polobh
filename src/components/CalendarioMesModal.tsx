@@ -41,6 +41,7 @@ export function CalendarioMesModal({
   ano,
   mes,
   itens,
+  feriados,
   onTrocarMes,
   onFechar,
 }: {
@@ -48,6 +49,8 @@ export function CalendarioMesModal({
   mes: number;
   /** Projetos do ano inteiro — o recorte do mês é feito aqui dentro. */
   itens: ProjetoNoCalendario[];
+  /** Feriados do ano, por data (ver `domain/feriados`). */
+  feriados?: Map<string, { nome: string; origem: string }>;
   /** Navega para outro mês (pode passar de -1 a 12: a tela vira o ano). */
   onTrocarMes: (mes: number) => void;
   onFechar: () => void;
@@ -124,13 +127,21 @@ export function CalendarioMesModal({
                 </div>
                 {Array.from({ length: dias }, (_, i) => {
                   const d = i + 1;
-                  const ehHoje = isoDoDia(ano, mes, d) === hoje;
+                  const iso = isoDoDia(ano, mes, d);
+                  const ehHoje = iso === hoje;
+                  const feriado = feriados?.get(iso);
                   return (
                     <div
                       key={d}
+                      title={feriado?.nome}
                       className={cx(
                         "py-1.5 text-center border-l border-border-soft",
-                        fimDeSemana(ano, mes, d) && "bg-[#F1F3F7]"
+                        fimDeSemana(ano, mes, d) && "bg-[#F1F3F7]",
+                        // FERIADO tem cor própria (15/09/2026): quem marca
+                        // montagem precisa ver, antes de marcar, o dia em que a
+                        // cidade para. Vem por cima do fim de semana — um
+                        // feriado numa segunda é o que importa enxergar.
+                        feriado && "bg-[#EFE7FB]"
                       )}
                     >
                       <div
@@ -184,6 +195,7 @@ export function CalendarioMesModal({
                     {/* fundo dos dias (fim de semana e hoje) */}
                     {Array.from({ length: dias }, (_, i) => {
                       const d = i + 1;
+                      const iso = isoDoDia(ano, mes, d);
                       return (
                         <div
                           key={d}
@@ -191,7 +203,8 @@ export function CalendarioMesModal({
                           className={cx(
                             "h-[46px] border-l border-border-soft",
                             fimDeSemana(ano, mes, d) && "bg-[#F1F3F7]",
-                            isoDoDia(ano, mes, d) === hoje && "bg-primary-soft"
+                            feriados?.has(iso) && "bg-[#EFE7FB]",
+                            iso === hoje && "bg-primary-soft"
                           )}
                         />
                       );
@@ -264,6 +277,7 @@ export function CalendarioMesModal({
               </span>
             ))}
             <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-[4px] bg-[#F1F3F7] border border-border" /> fim de semana</span>
+            <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-[4px] bg-[#EFE7FB] border border-[#C9B6EA]" /> feriado</span>
             <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-[4px] bg-primary-soft border border-active-border" /> hoje</span>
           </span>
         </div>
