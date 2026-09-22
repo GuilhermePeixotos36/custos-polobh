@@ -13,6 +13,7 @@ export type Recurso =
   | "ecs.editar"
   | "oss"
   | "oss.editar"
+  | "oss.emitir"
   | "checklists"
   | "checklists.editar"
   | "cronogramas"
@@ -32,6 +33,7 @@ export const TODOS_RECURSOS: Recurso[] = [
   "ecs.editar",
   "oss",
   "oss.editar",
+  "oss.emitir",
   "checklists",
   "checklists.editar",
   "cronogramas",
@@ -79,6 +81,22 @@ export const PERMISSOES_ESPECIAIS: { key: Recurso; label: string; hint: string }
     label: "Rentabilidade por item",
     hint: "A margem da Pólobh item a item, na EC — separada do bloco financeiro",
   },
+  /**
+   * EMITIR A OS é a última fase, e ganhou recurso próprio (16/09/2026).
+   *
+   * O check-list separa a OS em dois momentos e diz, com todas as letras, quem
+   * edita cada um: até "Enviar para Conclusão Financeiro" entra a Produção; a
+   * partir dali, não. Montar a OS é `Ordens de Serviço › editar`, e concluir o
+   * faturamento é `Bloco financeiro` — os dois já existiam. Faltava o terceiro
+   * momento: a emissão pelo Back-office. Sem chave própria, ela cairia em
+   * `oss.editar`, e a Produção, que precisa dele para montar, voltaria a poder
+   * emitir o documento que a fase acabou de tirar das mãos dela.
+   */
+  {
+    key: "oss.emitir",
+    label: "Emitir a OS (Back-office)",
+    hint: "A última fase: emitir a OS já concluída pelo financeiro",
+  },
   { key: "configuracoes", label: "Configurações", hint: "Empresas do grupo, áreas e usuários" },
   { key: "logs", label: "Logs do sistema", hint: "Trilha de auditoria — normalmente só o Administrador" },
 ];
@@ -98,6 +116,7 @@ export const PERMISSOES: Record<Papel, Recurso[]> = {
     "ecs.editar",
     "oss",
     "oss.editar",
+    "oss.emitir",
     "checklists",
     "checklists.editar",
     "cronogramas",
@@ -127,6 +146,7 @@ export const PERMISSOES: Record<Papel, Recurso[]> = {
     "ecs",
     "oss",
     "oss.editar",
+    "oss.emitir",
     "checklists",
     "checklists.editar",
     "cronogramas",

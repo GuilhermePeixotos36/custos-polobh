@@ -5,6 +5,7 @@
 import type { FaseOs } from "@/domain/faseOs";
 import type { CustoInterno } from "@/domain/rentabilidade";
 import type { CampoCredenciamento } from "@/domain/credenciamentoCampos";
+import type { ChaveClausula, ModeloContrato } from "@/domain/contratoModelo";
 
 /**
  * Nível de segurança de dados. Governa a RLS no banco (`papel_atual()`) — por
@@ -772,6 +773,17 @@ export interface FinanceiroOs {
    * campo nasce preenchido com a string inteira do Projeto.
    */
   leiIncentivo?: string;
+  /**
+   * O CÓDIGO do projeto incentivado, sozinho (16/09/2026).
+   *
+   * `leiIncentivo` guarda a lei e o número juntos, como o Projeto os guarda, e
+   * é assim que eles aparecem na nota. O contrato Cultural, porém, cita os dois
+   * em lugares diferentes da Cláusula Primeira — "no âmbito da LEI, sob o
+   * CÓDIGO" —, e partir a string na hora de gerar o Word seria adivinhar onde
+   * a lei acaba. Então o código também existe à parte, e nasce preenchido a
+   * partir do que estiver depois do travessão em `leiIncentivo`.
+   */
+  codigoProjetoIncentivado?: string;
   cnae: string;
   /**
    * As retenções fiscais que o fornecedor precisa destacar na nota
@@ -835,7 +847,14 @@ export interface Credenciamento {
 
 /** Bloco "Dados para Contrato" da OS (modelo Pólobh). */
 export interface ContratoOs {
-  contratante: "Polobh" | "Cliente" | "";
+  /**
+   * Quem figura como CONTRATANTE. Mesmo vocabulário do tomador da nota (ver
+   * `domain/tomadorOs`): id de empresa do grupo, `Cliente` ou `Outro`. Os
+   * valores antigos "Polobh" e "Cliente" continuam valendo e significam o
+   * mesmo. Em branco quer dizer "segue o tomador do faturamento", que é o que
+   * o modelo de contrato manda fazer.
+   */
+  contratante: string;
   descritivoServicos: string; // parte do descritivo NF, editável
   informacoesComplementares: string;
   valorUnitario: number;
@@ -848,6 +867,33 @@ export interface ContratoOs {
   observacoesGerais?: string;
   dataContrato: string; // ISO date
   rubrica: string;
+  /**
+   * Qual dos dois modelos da casa este contrato usa (16/09/2026).
+   *
+   * Em branco significa "o que a modalidade do projeto disser" — Cultural para
+   * projeto cultural, Corporativo para o resto. Fica gravado só quando alguém
+   * escolhe o outro: um projeto corporativo com item incentivado existe, e é
+   * mais raro do que a regra, não o contrário.
+   */
+  modelo?: ModeloContrato;
+  /**
+   * As cláusulas que a pessoa reescreveu, por chave (ver `domain/contratoModelo`).
+   *
+   * Só o que saiu do padrão mora aqui. Guardar as sete sempre congelaria o
+   * texto do modelo dentro de cada OS: corrigir uma vírgula na vigência deixaria
+   * de valer para os contratos já feitos — e eles ainda não foram assinados.
+   */
+  clausulas?: Partial<Record<ChaveClausula, string>>;
+  /** Cidade da assinatura. Vazio = Belo Horizonte. */
+  cidade?: string;
+  testemunha1?: TestemunhaContrato;
+  testemunha2?: TestemunhaContrato;
+}
+
+/** Quem assina como testemunha. Os dois campos do modelo: nome e CPF. */
+export interface TestemunhaContrato {
+  nome: string;
+  cpf: string;
 }
 
 /* Respostas do formulário público de credenciamento (preenchido pelo fornecedor) */

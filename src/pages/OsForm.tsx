@@ -17,7 +17,7 @@ import {
   AvisoHomologacaoEmail,
   MOTIVO_DISPARO_DESLIGADO,
 } from "@/components/ui";
-import { IcCheck, IcEye, IcPencil, IcSearch, IcSend, IcSpark } from "@/components/icons";
+import { IcCheck, IcDoc, IcEye, IcPencil, IcSearch, IcSend, IcSpark } from "@/components/icons";
 import { CardConversa } from "@/components/CardConversa";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
@@ -49,6 +49,8 @@ import { usePendencias, useMinhasPendencias } from "@/store/pendencias";
 import { useSugestoes } from "@/hooks/useSugestoes";
 import { urlCredenciamento } from "@/lib/links";
 import { calcularAcerto } from "@/domain/acertoFinanceiro";
+import { clausulasPadrao, modeloDoContrato, type ChaveClausula, type ModeloContrato } from "@/domain/contratoModelo";
+import { baixarContrato } from "@/lib/docx";
 import { dadosDoTomador, opcoesDeTomador, RETENCOES_PADRAO, TOMADOR_OUTRO } from "@/domain/tomadorOs";
 import { editaFinanceiro, editaProducao, ESPERANDO_FASE, faseAnterior, faseDaOs, osEmitida, ROTULO_FASE, type FaseOs } from "@/domain/faseOs";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
@@ -269,8 +271,11 @@ function aplicarAutoPreenchimento(os: Os, ec: Ec): Os {
     contrato: temContrato(os, linhas)
       ? {
           ...os.contrato,
-          // Quem contrata o fornecedor é a Pólobh, mesma resposta do tomador.
-          contratante: os.contrato.contratante || "Polobh",
+          // O CONTRATANTE fica em branco de propósito: em branco ele SEGUE o
+          // tomador do faturamento, que é o que os dois modelos de contrato
+          // mandam fazer ("CONTRATANTE – Razão Social do Tomador"). Antes ele
+          // nascia "Polobh", e a OS faturada pela MF ou pelo cliente saía com
+          // um contratante que ninguém tinha escolhido — e que estava errado.
           descritivoServicos: os.contrato.descritivoServicos || descritivoNf,
           formaPagamento: os.contrato.formaPagamento || FORMA_PAGAMENTO_PADRAO,
           observacoesGerais: os.contrato.observacoesGerais || OBS_CONTRATO_PADRAO,
@@ -289,6 +294,7 @@ export function OsForm() {
   const pode = useAuth((s) => s.pode);
   const verFinanceiro = pode("financeiro");
   const podeEditar = pode("oss.editar");
+  const podeEmitir = pode("oss.emitir");
   /**
    * MODO LEITURA (15/09/2026). A OS abria sempre em edição, e qualquer pessoa
    * que a abrisse para conferir estava, tecnicamente, editando um documento que
@@ -451,7 +457,7 @@ export function OsForm() {
   /**
    * Muda uma forma de cobrança de um item — e leva o total junto.
    *
-   * Os três totais do Pagamento ao Fornecedor são a soma do que se definiu item
+   * Os três totais do Resumo dos Custos são a soma do que se definiu item
    * a item, e é do "com BV e NF" que vivem o Faturamento e o Contrato. Eles
    * acompanham enquanto estiverem espelhados, isto é, enquanto ninguém os tiver
    * ajustado à mão — quem ajustou tinha um motivo, e não se desfaz isso por
@@ -538,7 +544,47 @@ export function OsForm() {
     empresas,
     avulso: os.financeiro.tomadorAvulso,
   });
-  const dadosContratante = dadosDoTomador(os.contrato.contratante, { cliente: ecCtx.cliente, empresas });
+  /*
+   * O CONTRATANTE do contrato é o TOMADOR do serviço — é o que o bloco de
+   * assinaturas dos dois modelos diz ("CONTRATANTE – Razão Social do Tomador").
+   * Por isso, em branco, ele segue o tomador do faturamento em vez de exigir
+   * que a mesma pergunta seja respondida duas vezes na mesma OS. Escolher aqui
+   * continua possível, para o caso raro em que quem paga o fornecedor não é
+   * quem recebe a nota.
+   */
+  const quemContrata = os.contrato.contratante || os.financeiro.tomador;
+  const dadosContratante = dadosDoTomador(quemContrata, {
+    cliente: ecCtx.cliente,
+    empresas,
+    avulso: os.financeiro.tomadorAvulso,
+  });
+
+  /**
+   * O código do projeto sugerido a partir da lei — o que vem depois do travessão
+   * em "Lei Federal de Incentivo à Cultura (Rouanet) — PRONAC 26 1234". É
+   * sugestão, com um clique para aceitar, e não preenchimento automático: um
+   * texto sem travessão daria um código errado, e código de incentivo errado
+   * num contrato é prestação de contas rejeitada.
+   */
+  const codigoSugerido = (os.financeiro.leiIncentivo ?? "").split(/\s[—–-]\s/).slice(1).join(" - ").trim();
+
+  /** Qual dos dois modelos vale aqui: o escolhido, ou o da modalidade do projeto. */
+  const modeloContrato: ModeloContrato = os.contrato.modelo || modeloDoContrato(os.projeto.modalidade);
+  const clausulas = clausulasPadrao(modeloContrato);
+  const updClausula = (chave: ChaveClausula, texto: string) =>
+    updCt({ clausulas: { ...(os.contrato.clausulas ?? {}), [chave]: texto } });
+
+  const clienteDoProjeto = ecCtx.cliente;
+  async function baixarOContrato() {
+    try {
+      await baixarContrato(
+        { ...os!, contrato: { ...os!.contrato, contratante: quemContrata } },
+        { cliente: clienteDoProjeto, empresas }
+      );
+    } catch (e) {
+      toast(`Não foi possível gerar o contrato: ${(e as Error).message}`, "danger");
+    }
+  }
 
   /** Valor total do Faturamento — replica no Contrato enquanto estiver espelhado. */
   function setValorTotalFinanceiro(v: number) {
@@ -907,6 +953,23 @@ export function OsForm() {
             OS PDF
           </Button>
 
+          {/* CONTRATO EM WORD (16/09/2026) — o documento que o fornecedor
+              assina, nos modelos Corporativo e Cultural da casa. Sai em .docx,
+              e não em PDF, porque é ele que vai para o jurídico do fornecedor,
+              que devolve com alteração: um PDF obrigaria a refazer tudo aqui.
+              Só aparece quando a EC pediu contrato — sem isso, não há o que
+              gerar, e o botão só ofereceria um documento vazio. */}
+          {haContrato && (
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<IcDoc width={15} height={15} />}
+              onClick={() => void baixarOContrato()}
+            >
+              Contrato Word
+            </Button>
+          )}
+
           {/* LEITURA: o botão que abre a edição, para quem pode mexer no que a
               fase atual tem aberto. */}
           {!editando && (podeEditar || verFinanceiro) && !emitida && (
@@ -956,7 +1019,10 @@ export function OsForm() {
               Enviar OS para Emissão Back-Office
             </Button>
           )}
-          {podeEditar && fase === "backoffice" && (
+          {/* A emissão é do BACK-OFFICE, e pede a chave dela (`oss.emitir`).
+              Com `oss.editar`, quem monta a OS — a Produção — emitiria o
+              documento que a fase acabou de tirar das mãos dela. */}
+          {podeEmitir && fase === "backoffice" && (
             <Button size="sm" icon={<IcCheck width={15} height={15} />} disabled={busy} onClick={() => void emitirOs()}>
               Emitir OS
             </Button>
@@ -1239,6 +1305,85 @@ export function OsForm() {
           {/* Sem memória de preenchimento, por decisão: a entrega é específica de
               cada contratação, e oferecer a de outra OS convidava a repetir o
               que não vale para esta. */}
+
+          {/* RESUMO DOS CUSTOS — o fim do Detalhamento (16/09/2026).
+              Ele era um módulo à parte, "Pagamento ao Fornecedor", e o pedido do
+              check-list é explícito nos dois sentidos: "no final de todos os
+              itens, o sistema deverá consolidar o valor total contratado, o
+              valor total do BV e o valor líquido, prazo de pagamento, documento
+              fiscal … sob o título Resumo dos Custos", e "Módulo Pagamento ao
+              Fornecedor — excluir". O motivo é de leitura: os totais só querem
+              dizer alguma coisa ao lado dos itens que os produziram, e dois
+              cards distantes convidavam a conferir um sem o outro.
+              Quem vê o quê não mudou junto: o bloco era aberto a quem abre a
+              OS, e continua — mover um módulo de lugar não é hora de mexer em
+              permissão. Só a tabela final segue restrita ao financeiro, como já
+              estava. */}
+          <SubSecao>Resumo dos Custos</SubSecao>
+
+            <LinhaOs label="Valor do Item na EC do Projeto" hint="(soma dos itens consolidados)"><Auto v={brl(os.orcamento.valorEc)} /></LinhaOs>
+            {/* Os três totais são o que foi definido item a item, em Detalhamento
+                da Contratação — não são digitáveis aqui. Eram, e havia duas
+                verdades sobre o mesmo número: o que a produção fechou no item e
+                o que alguém escreveu na OS inteira. É deste "com BV e NF" que
+                vivem o Faturamento e o Contrato. */}
+            <LinhaOs label="Valor com BV e NF" hint="(total definido no Detalhamento — alimenta Faturamento e Contrato)">
+              <Auto v={brl(resumo.totais.comBvNf)} />
+            </LinhaOs>
+            <LinhaOs label="Valor Sem BV e Com Nota Fiscal" hint="(total definido no Detalhamento)"><Auto v={brl(resumo.totais.semBvComNf)} /></LinhaOs>
+            <LinhaOs label="Valor Sem BV e Sem NF" hint="(total definido no Detalhamento)"><Auto v={brl(resumo.totais.semBvSemNf)} /></LinhaOs>
+
+            <LinhaOs
+              label="Prazo de Pagamento"
+              hint="(parcelas)"
+              acao={
+                <Button variant="secondary" size="sm" onClick={() => updOrc({ parcelas: [...os.orcamento.parcelas, { id: novoId(), descricao: "", valor: 0 }] })}>+ Parcela</Button>
+              }
+            >
+              <div className="py-1.5 space-y-2">
+                {os.orcamento.parcelas.map((pc, i) => (
+                  <div key={pc.id ?? i} className="grid grid-cols-[1fr_150px_auto] gap-2 items-center">
+                    <Input className="!h-9" placeholder={`Descrição da ${i + 1}ª parcela`} sugestoes={sugestoes.valores.descricaoParcela} value={pc.descricao} onChange={(e) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, descricao: e.target.value } : x)) })} />
+                    <NumberInput className="!h-9" value={pc.valor} onValue={(v) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, valor: v } : x)) })} />
+                    <button className="text-ink-3 hover:text-danger px-2" title="Remover parcela" onClick={() => updOrc({ parcelas: os.orcamento.parcelas.filter((_, j) => j !== i) })}>✕</button>
+                  </div>
+                ))}
+                {os.orcamento.parcelas.length === 0 && <p className="text-[12.5px] text-ink-3">Sem parcelas. Use “+ Parcela”.</p>}
+
+                {os.orcamento.parcelas.length > 0 && (
+                  <div
+                    className={cx(
+                      "flex items-center justify-between gap-3 rounded-btn px-3 py-2 text-[12.5px]",
+                      parcelasDivergem ? "bg-danger-soft text-danger font-semibold" : "bg-[#FAFAFB] text-ink-2"
+                    )}
+                  >
+                    <span>
+                      Soma das parcelas: <b className="font-display">{brl(somaParcelas)}</b>
+                    </span>
+                    {parcelasDivergem ? (
+                      <span>
+                        Não fecha com o {refParcelas.rotulo} ({brl(refParcelas.valor)}) — diferença de{" "}
+                        {brl(Math.abs(somaParcelas - refParcelas.valor))}.
+                      </span>
+                    ) : (
+                      refParcelas.valor > 0 && <span>Confere com o {refParcelas.rotulo}.</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </LinhaOs>
+
+            <LinhaOs label="Documento Fiscal" hint="(auto do “Documento PG” da EC)">
+              <Select value={os.orcamento.documentoFiscal} onChange={(e) => updOrc({ documentoFiscal: e.target.value as DocumentoFiscal })}>
+                <option value="">Selecione…</option>
+                {DOCS.map((d) => <option key={d}>{d}</option>)}
+              </Select>
+            </LinhaOs>
+                    {verFinanceiro && (
+            <LinhaOs label="Definido item a item" hint="(o que sai no PDF e na planilha)">
+              <TabelaResumoCustos resumo={resumo} />
+            </LinhaOs>
+          )}
         </CardOs>
 
         {/* RESUMO DA CONTRATAÇÃO — o que o fornecedor precisa fazer e receber:
@@ -1391,14 +1536,6 @@ export function OsForm() {
             </button>
           </LinhaOs>
 
-          {/* A tabela do que foi definido lá em cima, item a item. Fecha o bloco
-              porque é o que o fornecedor confere por último — e é ela que sai no
-              PDF e na planilha, com as colunas vazias omitidas. */}
-          {verFinanceiro && (
-            <LinhaOs label="Resumo dos Custos" hint="(o que foi definido no Detalhamento)">
-              <TabelaResumoCustos resumo={resumo} />
-            </LinhaOs>
-          )}
         </CardOs>
 
         {/* OBSERVAÇÕES GERAIS em módulo PRÓPRIO (15/09/2026).
@@ -1436,72 +1573,9 @@ export function OsForm() {
 
         {/* O CREDENCIAMENTO saiu daqui (29/08/2026): virou subaba do Projeto, onde
             se vê a fila inteira e se dispara para todos os fornecedores de uma
-            vez. O link continua sendo o desta OS — o que mudou foi o comando. */}
-        <div className="space-y-4">
-          {/* PAGAMENTO — parcelas e documento fiscal, sobre o que a contratação
-              definiu. A tabela em si fica no Resumo da Contratação, junto do
-              resto do que o fornecedor recebe. */}
-          <CardOs secao="Pagamento ao Fornecedor">
-            <LinhaOs label="Valor do Item na EC do Projeto" hint="(soma dos itens consolidados)"><Auto v={brl(os.orcamento.valorEc)} /></LinhaOs>
-            {/* Os três totais são o que foi definido item a item, em Detalhamento
-                da Contratação — não são digitáveis aqui. Eram, e havia duas
-                verdades sobre o mesmo número: o que a produção fechou no item e
-                o que alguém escreveu na OS inteira. É deste "com BV e NF" que
-                vivem o Faturamento e o Contrato. */}
-            <LinhaOs label="Valor com BV e NF" hint="(total definido no Detalhamento — alimenta Faturamento e Contrato)">
-              <Auto v={brl(resumo.totais.comBvNf)} />
-            </LinhaOs>
-            <LinhaOs label="Valor Sem BV e Com Nota Fiscal" hint="(total definido no Detalhamento)"><Auto v={brl(resumo.totais.semBvComNf)} /></LinhaOs>
-            <LinhaOs label="Valor Sem BV e Sem NF" hint="(total definido no Detalhamento)"><Auto v={brl(resumo.totais.semBvSemNf)} /></LinhaOs>
-
-            <LinhaOs
-              label="Prazo de Pagamento"
-              hint="(parcelas)"
-              acao={
-                <Button variant="secondary" size="sm" onClick={() => updOrc({ parcelas: [...os.orcamento.parcelas, { id: novoId(), descricao: "", valor: 0 }] })}>+ Parcela</Button>
-              }
-            >
-              <div className="py-1.5 space-y-2">
-                {os.orcamento.parcelas.map((pc, i) => (
-                  <div key={pc.id ?? i} className="grid grid-cols-[1fr_150px_auto] gap-2 items-center">
-                    <Input className="!h-9" placeholder={`Descrição da ${i + 1}ª parcela`} sugestoes={sugestoes.valores.descricaoParcela} value={pc.descricao} onChange={(e) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, descricao: e.target.value } : x)) })} />
-                    <NumberInput className="!h-9" value={pc.valor} onValue={(v) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, valor: v } : x)) })} />
-                    <button className="text-ink-3 hover:text-danger px-2" title="Remover parcela" onClick={() => updOrc({ parcelas: os.orcamento.parcelas.filter((_, j) => j !== i) })}>✕</button>
-                  </div>
-                ))}
-                {os.orcamento.parcelas.length === 0 && <p className="text-[12.5px] text-ink-3">Sem parcelas. Use “+ Parcela”.</p>}
-
-                {os.orcamento.parcelas.length > 0 && (
-                  <div
-                    className={cx(
-                      "flex items-center justify-between gap-3 rounded-btn px-3 py-2 text-[12.5px]",
-                      parcelasDivergem ? "bg-danger-soft text-danger font-semibold" : "bg-[#FAFAFB] text-ink-2"
-                    )}
-                  >
-                    <span>
-                      Soma das parcelas: <b className="font-display">{brl(somaParcelas)}</b>
-                    </span>
-                    {parcelasDivergem ? (
-                      <span>
-                        Não fecha com o {refParcelas.rotulo} ({brl(refParcelas.valor)}) — diferença de{" "}
-                        {brl(Math.abs(somaParcelas - refParcelas.valor))}.
-                      </span>
-                    ) : (
-                      refParcelas.valor > 0 && <span>Confere com o {refParcelas.rotulo}.</span>
-                    )}
-                  </div>
-                )}
-              </div>
-            </LinhaOs>
-
-            <LinhaOs label="Documento Fiscal" hint="(auto do “Documento PG” da EC)">
-              <Select value={os.orcamento.documentoFiscal} onChange={(e) => updOrc({ documentoFiscal: e.target.value as DocumentoFiscal })}>
-                <option value="">Selecione…</option>
-                {DOCS.map((d) => <option key={d}>{d}</option>)}
-              </Select>
-            </LinhaOs>
-          </CardOs>
-        </div>
+            vez. O link continua sendo o desta OS — o que mudou foi o comando.
+            O "Pagamento ao Fornecedor" saiu daqui em 16/09/2026: virou o
+            "Resumo dos Custos", no fim do Detalhamento da Contratação. */}
         </fieldset>
 
         {/* OS BLOCOS DO FINANCEIRO só abrem na fase dele (e seguem abertos no
@@ -1580,6 +1654,33 @@ export function OsForm() {
                 </button>
               )}
             </LinhaOs>
+            {/* CÓDIGO DO PROJETO INCENTIVADO, sozinho (16/09/2026).
+                O campo acima guarda a lei E o número juntos, porque é assim que
+                eles aparecem na nota e é assim que o Projeto os guarda. Mas o
+                contrato Cultural cita os dois em lugares diferentes da Cláusula
+                Primeira — "no âmbito da LEI, sob o CÓDIGO" —, e partir a string
+                na hora de gerar o Word seria adivinhar onde a lei acaba. Então
+                o código também existe à parte, e nasce sugerido do que vier
+                depois do travessão. Só o contrato Cultural o usa. */}
+            {modeloContrato === "Cultural" && (
+              <LinhaOs label="Código do Projeto Incentivado" hint="(vai para a Cláusula Primeira do contrato)">
+                <Input
+                  value={os.financeiro.codigoProjetoIncentivado ?? ""}
+                  sugestoes={sugestoes.valores.codigoProjetoIncentivado}
+                  onChange={(e) => updFin({ codigoProjetoIncentivado: e.target.value })}
+                  placeholder="Ex.: PRONAC 26 1234"
+                />
+                {!os.financeiro.codigoProjetoIncentivado && codigoSugerido && (
+                  <button
+                    type="button"
+                    onClick={() => updFin({ codigoProjetoIncentivado: codigoSugerido })}
+                    className="mt-1.5 text-[12px] font-bold text-primary-dark hover:underline"
+                  >
+                    Usar “{codigoSugerido}”, da lei acima
+                  </button>
+                )}
+              </LinhaOs>
+            )}
             <LinhaOs
               label="CNAE"
               hint={os.fornecedor.cnaes?.length ? `(${os.fornecedor.cnaes.length} do cartão CNPJ)` : "(consulte o CNPJ do fornecedor)"}
@@ -1689,11 +1790,41 @@ export function OsForm() {
             {haContrato && (
             <>
             <SubSecao>Dados para Contrato</SubSecao>
-            <LinhaOs label="Contratante" hint="(auto — quem contrata o fornecedor)">
-              <Select value={os.contrato.contratante} onChange={(e) => updCt({ contratante: e.target.value as Os["contrato"]["contratante"] })}>
-                <option value="">Selecione…</option>
-                <option value="Polobh">Pólobh</option>
-                <option value="Cliente">Cliente</option>
+
+            {/* MODELO — Corporativo ou Cultural, os dois .docx que a Pólobh
+                mandou em 16/09/2026. A modalidade do projeto já responde isso
+                na quase totalidade dos casos, e é ela que vale enquanto
+                ninguém escolher: o seletor existe para o projeto corporativo
+                com um item incentivado, que é raro e existe. */}
+            <LinhaOs label="Modelo do Contrato" hint={`(o projeto é ${os.projeto.modalidade || "sem modalidade"})`}>
+              <Select
+                value={os.contrato.modelo ?? ""}
+                onChange={(e) => updCt({ modelo: (e.target.value || undefined) as ModeloContrato | undefined })}
+              >
+                <option value="">Pela modalidade do projeto — {modeloContrato}</option>
+                <option value="Corporativo">Corporativo</option>
+                <option value="Cultural">Cultural</option>
+              </Select>
+              {modeloContrato === "Cultural" && (
+                <p className="mt-1.5 text-[12px] text-ink-2">
+                  O modelo Cultural nomeia o projeto incentivado, a lei e o código na Cláusula Primeira —
+                  os três vêm do bloco de faturamento, acima.
+                </p>
+              )}
+            </LinhaOs>
+
+            {/* CONTRATANTE = TOMADOR. O modelo é explícito no bloco de
+                assinaturas ("CONTRATANTE – Razão Social do Tomador"), então o
+                padrão é seguir o que já foi respondido no faturamento, e não
+                perguntar de novo. */}
+            <LinhaOs label="Contratante" hint="(quem contrata o fornecedor — por padrão, o tomador da nota)">
+              <Select value={os.contrato.contratante} onChange={(e) => updCt({ contratante: e.target.value })}>
+                <option value="">
+                  Mesmo do faturamento{dadosTomador ? ` — ${dadosTomador.rotulo}` : ""}
+                </option>
+                {opcoesDeTomador(empresas).map((o) => (
+                  <option key={o.valor} value={o.valor}>{o.rotulo}</option>
+                ))}
               </Select>
             </LinhaOs>
             {dadosContratante ? (
@@ -1752,6 +1883,81 @@ export function OsForm() {
             </LinhaOs>
             <LinhaOs label="Data do Contrato" hint="(auto — data da emissão da OS)"><Input type="date" value={os.contrato.dataContrato} onChange={(e) => updCt({ dataContrato: e.target.value })} /></LinhaOs>
             <LinhaOs label="Rubrica" hint="(preencher)"><Input value={os.contrato.rubrica} sugestoes={sugestoes.valores.rubrica} onChange={(e) => updCt({ rubrica: e.target.value })} placeholder="Iniciais de quem responde pelo contrato" /></LinhaOs>
+
+            {/* AS SETE CLÁUSULAS. Nos dois modelos, cada uma traz à margem a
+                anotação "Manter este campo editável" — é o texto da casa, e ele
+                sai do padrão quando o negócio pede. Cada campo nasce com o texto
+                do modelo e só é gravado quando muda: assim, corrigir o padrão
+                mais tarde vale para os contratos que ainda não foram assinados.
+                A Cláusula Primeira é a exceção — o que se escreve aqui é a
+                abertura; o descritivo e os valores logo abaixo dela são montados
+                com os dados da OS, e é por isso que o rótulo diz isso. */}
+            <SubSecao>Cláusulas do Contrato — modelo {modeloContrato}</SubSecao>
+            {clausulas.map((c) => {
+              const escrito = os.contrato.clausulas?.[c.chave];
+              const mudou = !!escrito && escrito.trim() !== c.padrao;
+              return (
+                <LinhaOs
+                  key={c.chave}
+                  label={c.titulo}
+                  hint={c.chave === "objeto" ? "(a abertura — o objeto e os valores entram abaixo dela, da OS)" : "(texto do modelo — editável)"}
+                  acao={
+                    mudou ? (
+                      <button
+                        type="button"
+                        onClick={() => updClausula(c.chave, c.padrao)}
+                        className="text-[10.5px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded px-1"
+                      >
+                        Voltar ao texto do modelo
+                      </button>
+                    ) : undefined
+                  }
+                >
+                  <Textarea
+                    className="min-h-[92px]"
+                    value={escrito ?? c.padrao}
+                    onChange={(e) => updClausula(c.chave, e.target.value)}
+                  />
+                </LinhaOs>
+              );
+            })}
+
+            <SubSecao>Assinatura</SubSecao>
+            <LinhaOs label="Cidade" hint="(onde se assina)">
+              <Input
+                formato="titulo"
+                value={os.contrato.cidade ?? ""}
+                onChange={(e) => updCt({ cidade: e.target.value })}
+                placeholder="Belo Horizonte"
+              />
+            </LinhaOs>
+            {/* As duas testemunhas do modelo. Ficam em branco no documento
+                quando ninguém as informa — é assim que o contrato sai hoje, para
+                ser assinado à mão, e é assim que ele continua saindo. */}
+            {([1, 2] as const).map((n) => {
+              const campo = n === 1 ? "testemunha1" : "testemunha2";
+              const t = os.contrato[campo] ?? { nome: "", cpf: "" };
+              return (
+                <LinhaOs key={campo} label={`Testemunha ${n}`} hint="(nome e CPF — em branco, assina à mão)">
+                  <div className="flex gap-2 flex-wrap">
+                    <Input
+                      className="flex-1 min-w-[180px]"
+                      formato="titulo"
+                      value={t.nome}
+                      onChange={(e) => updCt({ [campo]: { ...t, nome: e.target.value } })}
+                      placeholder="Nome"
+                    />
+                    <Input
+                      className="w-[170px]"
+                      value={t.cpf}
+                      onChange={(e) => updCt({ [campo]: { ...t, cpf: maskCpfCnpjInput(e.target.value) } })}
+                      placeholder="CPF"
+                      inputMode="numeric"
+                    />
+                  </div>
+                </LinhaOs>
+              );
+            })}
             </>
             )}
           </CardOs>

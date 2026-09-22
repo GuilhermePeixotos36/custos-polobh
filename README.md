@@ -359,6 +359,13 @@ fornecedor de posse do documento). O carimbo só é gravado quando o e-mail sai 
 verdade.
 
 ## A OS em dois blocos: Detalhamento e Resumo da Contratação
+
+> **16/09/2026** — o módulo "Pagamento ao Fornecedor" deixou de existir: os
+> totais, o prazo de pagamento e o documento fiscal viraram o **Resumo dos
+> Custos**, no fim do Detalhamento da Contratação, como o check-list pediu nos
+> dois sentidos ("consolidar … sob o título Resumo dos Custos" e "Módulo
+> Pagamento ao Fornecedor — excluir"). Os totais só querem dizer alguma coisa
+> ao lado dos itens que os produziram.
 Revisão de 09/09/2026. A OS é o documento que vira **contrato com o fornecedor**,
 e ela agora se lê em duas metades, na ordem em que a decisão acontece.
 
@@ -681,6 +688,72 @@ aba — não ao projeto.
 
 O card em si é o mesmo da EC e da OS (`components/CardConversa.tsx`): o rótulo
 do botão é **"Adicionar Observação"** em toda parte.
+
+## O contrato em Word (16/09/2026)
+
+Os dois modelos da casa — **Corporativo** e **Cultural** — chegaram como .docx
+anotados, e o sistema gera o documento a partir deles. Quem baixa clica em
+**Contrato Word**, no alto da OS; o botão só aparece quando a EC pediu contrato
+("Emitir" ou "Emitir Nova Versão" na coluna Contrato de algum item).
+
+Os modelos separam três coisas, e o sistema respeita a separação:
+
+| No modelo | No app |
+| --- | --- |
+| *"O sistema lança automaticamente…"* | Vem da OS e não se digita no contrato: número, data, tomador, fornecedor, valores, forma de pagamento. Reeditar aqui criaria uma segunda verdade para o mesmo dado. |
+| *"Manter este campo editável."* | Cada uma das sete cláusulas é um campo, já preenchido com o texto do modelo. Só o que muda fica gravado — assim, corrigir o padrão depois vale para os contratos que ainda não foram assinados. |
+| Em branco no modelo | Cidade da assinatura e as duas testemunhas (nome e CPF). Em branco, saem para assinar à mão. |
+
+**Qual modelo vale** é a modalidade do projeto que decide — a mesma que escolhe
+o modelo da EC e do check-list. Projeto sem modalidade cai no Corporativo, e o
+seletor existe para o caso raro do contrário. O Cultural difere em três pontos,
+todos de direito cultural: nomeia o projeto incentivado, a lei e o código na
+Cláusula Primeira; acrescenta, entre as obrigações do CONTRATANTE, receber e
+administrar os recursos do incentivo; e acrescenta, nas considerações finais,
+que serviço novo pede contrato novo.
+
+**CONTRATANTE é o tomador do serviço; CONTRATADO(A) é o fornecedor.** No alto
+dos dois modelos, os dois blocos trazem a mesma anotação ("os dados do Tomador
+de Serviço"), e é o bloco de assinaturas deles que desfaz o engano. Por isso o
+contratante, em branco, segue o tomador do faturamento em vez de perguntar duas
+vezes a mesma coisa na mesma OS.
+
+Sai em **.docx, e não em PDF**, porque é ele que vai para o jurídico do
+fornecedor, que devolve com alteração — um PDF obrigaria a refazer tudo no app.
+
+Onde mora: `domain/contratoModelo` (os textos dos dois modelos),
+`domain/contratoDocumento` (o que entra em cada lugar, função pura da OS, com
+teste) e `lib/docx/contrato` (o desenho). As tarjas cinzas das cláusulas são
+tabelas de uma célula, e não as caixas de texto flutuantes do modelo original:
+a tabela acompanha o texto quando a cláusula cresce, e a caixa flutuante ficaria
+por cima do parágrafo seguinte.
+
+## As sete áreas da Pólobh (16/09/2026)
+
+A matriz de perfis estava escrita no check-list, em três lugares diferentes, e
+virou a migração `20260922100000_os_sete_perfis_da_polobh.sql`:
+
+| Perfil | Edita EC | Vê rentabilidade | Monta a OS | Conclui e emite |
+| --- | :---: | :---: | :---: | :---: |
+| Diretoria Produção | ✅ | ✅ | ✅ | ✅ |
+| Direção Administrativo-Financeira | — | ✅ | ✅ | ✅ |
+| Coordenação Produção | ✅ | ✅ | ✅ | ✅ |
+| Coordenação Administrativo-Financeira | — | ✅ | ✅ | ✅ |
+| Assistência Administrativo-Financeira | — | — | — | — |
+| Produção | ✅ | — | ✅ | — |
+| Back-office | ✅ | — | ✅ | ✅ |
+
+A última coluna pediu uma chave nova, `oss.emitir`. A emissão pelo Back-office
+usava `oss.editar`, que é a chave de MONTAR a OS — e com uma chave só, "a partir
+desta etapa a Produção não edita mais" não se cumpre: a Produção precisa de
+`oss.editar` para montar, e com ela emitiria o documento que a fase acabou de
+tirar das mãos dela.
+
+As quatro áreas antigas **continuam existindo**, e ligadas a quem já usa o
+sistema: a troca é feita usuário a usuário em Configurações. O teste
+`domain/perfisPolobh.test` lê a própria migração e confere as quatro regras do
+check-list — uma cópia da matriz em TypeScript passaria a divergir do banco no
+dia em que alguém corrigisse só um dos dois.
 
 ## Código de Serviço e Ordem de Compra: nascem na OS, voltam para a EC
 

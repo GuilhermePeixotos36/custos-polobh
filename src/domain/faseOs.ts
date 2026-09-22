@@ -94,7 +94,10 @@ export const faseAnterior = (fase: FaseOs): FaseOs | null => {
  * Administrativo-Financeira, Back-office…), é aqui que o endereço fica mais
  * fino — uma linha, sem tocar no resto.
  */
-export const RECURSO_DA_FASE: Partial<Record<FaseOs, "financeiro" | "oss.editar">> = {
+export const RECURSO_DA_FASE: Partial<Record<FaseOs, "financeiro" | "oss.emitir">> = {
   financeiro: "financeiro",
-  backoffice: "oss.editar",
+  // A emissão tem chave própria (`oss.emitir`) desde 16/09/2026. Antes era
+  // `oss.editar`, e aí a pendência do back-office caía também em quem só monta
+  // a OS — justamente quem esta fase tirou do caminho.
+  backoffice: "oss.emitir",
 };
