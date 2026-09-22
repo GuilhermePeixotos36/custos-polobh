@@ -29,10 +29,11 @@
  * exclusão da OS nomeia só a Assistência. Se estiver errado, é tirar dois
  * recursos de uma área em Configurações, sem migração.
  *
- * AS ÁREAS ANTIGAS NÃO SAEM. Elas continuam existindo e ligadas a quem já usa
- * o sistema: apagá-las deixaria gente sem acesso no meio do expediente. As sete
- * novas entram ao lado, e a troca é feita usuário a usuário em Configurações,
- * quando a Pólobh quiser.
+ * AS ÁREAS ANTIGAS NÃO SAEM. Em produção são três — Direção, Financeiro e
+ * Produção —, e elas continuam existindo e ligadas a quem já usa o sistema:
+ * apagá-las deixaria gente sem acesso no meio do expediente. As sete novas
+ * entram ao lado, e a troca é feita usuário a usuário em Configurações, quando
+ * a Pólobh quiser.
  */
 
 /* ------------------------------------------------------------------ *
@@ -50,6 +51,32 @@ update areas
    and not ('oss.emitir' = any(recursos));
 
 /* ------------------------------------------------------------------ *
+ * 1b. Abrir espaço para o nome "Produção".
+ *
+ * Em produção já existe uma área com esse nome — uma das três de fábrica
+ * (Direção, Financeiro, Produção) —, e ela NÃO tem a matriz do check-list: ela
+ * emite OS, porque até aqui emitir era `oss.editar`. Sem isto, o `on conflict`
+ * lá embaixo engoliria a área nova em silêncio, e a matriz ficaria com seis
+ * perfis em vez de sete — sem ninguém perceber.
+ *
+ * A saída é renomear a antiga, e não sobrescrevê-la: quem está nela continua
+ * com exatamente os acessos que tinha hoje (o vínculo é por id, não por nome, e
+ * `papel_base` não muda, então a RLS também não). A Pólobh move a pessoa para a
+ * área nova quando quiser, em Configurações.
+ *
+ * "Direção" e "Financeiro" não colidem com nenhum dos sete nomes e ficam como
+ * estão.
+ *
+ * O que distingue as duas, para esta migração poder rodar duas vezes sem
+ * estrago: a antiga acabou de receber `oss.emitir` no passo 1, e a nova, pela
+ * matriz, não o tem. Então só renomeia quem o tem.
+ * ------------------------------------------------------------------ */
+update areas
+   set nome = 'Produção (legado)'
+ where nome = 'Produção'
+   and 'oss.emitir' = any(recursos);
+
+/* ------------------------------------------------------------------ *
  * 2. As sete áreas da Pólobh.
  *
  * `papel_base` é o nível de segurança NO BANCO (governa a RLS), e não a matriz
@@ -57,41 +84,40 @@ update areas
  * 'Administrativo' para o administrativo-financeiro. Quem decide tela é
  * `recursos`, abaixo, e é lá que a matriz do check-list está escrita.
  *
- * `sistema` fica FALSE de propósito: são áreas da casa, e a Pólobh precisa
- * poder excluí-las se mudar de organograma. As quatro de fábrica é que não
- * podem sair, para o sistema nunca ficar sem nenhum acesso.
+ * `ativa` fica TRUE: área inativa não pode ser atribuída a ninguém, e estas
+ * nascem justamente para receber gente.
  * ------------------------------------------------------------------ */
-insert into areas (nome, papel_base, recursos, sistema) values
+insert into areas (nome, papel_base, recursos, ativa) values
 
   -- Produção, direção: tudo do lado da produção, mais a rentabilidade.
   ('Diretoria Produção', 'Direcao', array[
      'projetos','projetos.editar','ecs','ecs.editar','oss','oss.editar','oss.emitir',
      'checklists','checklists.editar','cronogramas','fornecedores','fornecedores.editar',
-     'financeiro','rentabilidade','guia'], false),
+     'financeiro','rentabilidade','guia'], true),
 
   -- Administrativo-financeiro, direção: vê e edita OS e faturamento, vê a
   -- margem — e NÃO edita EC, que o check-list lhe nega expressamente.
   ('Direção Administrativo-Financeira', 'Direcao', array[
      'projetos','ecs','oss','oss.editar','oss.emitir',
      'checklists','cronogramas','fornecedores','fornecedores.editar',
-     'financeiro','rentabilidade','guia'], false),
+     'financeiro','rentabilidade','guia'], true),
 
   ('Coordenação Produção', 'Producao', array[
      'projetos','projetos.editar','ecs','ecs.editar','oss','oss.editar','oss.emitir',
      'checklists','checklists.editar','cronogramas','fornecedores','fornecedores.editar',
-     'financeiro','rentabilidade','guia'], false),
+     'financeiro','rentabilidade','guia'], true),
 
   -- É a coordenação administrativo-financeira que recebe a OS do "Enviar para
   -- Conclusão Financeiro" — ela edita as duas etapas, e não edita EC.
   ('Coordenação Administrativo-Financeira', 'Administrativo', array[
      'projetos','ecs','oss','oss.editar','oss.emitir',
      'checklists','cronogramas','fornecedores','fornecedores.editar',
-     'financeiro','rentabilidade','guia'], false),
+     'financeiro','rentabilidade','guia'], true),
 
   -- A Assistência é o único perfil excluído das DUAS etapas da OS, e da
   -- rentabilidade, e da edição de EC. Ela acompanha: vê tudo, não edita.
   ('Assistência Administrativo-Financeira', 'Administrativo', array[
-     'projetos','ecs','oss','checklists','cronogramas','fornecedores','guia'], false),
+     'projetos','ecs','oss','checklists','cronogramas','fornecedores','guia'], true),
 
   -- Produção monta a EC e monta a OS — e para no "Enviar para Conclusão
   -- Financeiro": sem `financeiro` e sem `oss.emitir`, os blocos de faturamento
@@ -99,13 +125,13 @@ insert into areas (nome, papel_base, recursos, sistema) values
   ('Produção', 'Producao', array[
      'projetos','projetos.editar','ecs','ecs.editar','oss','oss.editar',
      'checklists','checklists.editar','cronogramas','fornecedores','fornecedores.editar',
-     'guia'], false),
+     'guia'], true),
 
   -- Back-office edita EC, edita as duas etapas da OS e emite — mas não vê
   -- margem: o check-list o exclui da rentabilidade.
   ('Back-office', 'Producao', array[
      'projetos','projetos.editar','ecs','ecs.editar','oss','oss.editar','oss.emitir',
      'checklists','checklists.editar','cronogramas','fornecedores','fornecedores.editar',
-     'financeiro','guia'], false)
+     'financeiro','guia'], true)
 
 on conflict (nome) do nothing;

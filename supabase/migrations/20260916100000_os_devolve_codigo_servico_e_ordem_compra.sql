@@ -72,7 +72,12 @@ begin
 end;
 $$;
 
-revoke all on function devolver_dados_fiscais_para_ec(uuid, text, text) from public;
+-- `from public, anon`, e não só `from public`: o schema `public` do Supabase
+-- concede EXECUTE a `anon` por DEFAULT PRIVILEGES em toda função nova, e essa
+-- concessão é do papel — o revoke no pseudo-papel PUBLIC não a alcança. Numa
+-- função `security definer`, que passa por cima da RLS, isso é a diferença
+-- entre uma RPC interna e um endpoint aberto em /rest/v1/rpc.
+revoke all on function devolver_dados_fiscais_para_ec(uuid, text, text) from public, anon;
 grant execute on function devolver_dados_fiscais_para_ec(uuid, text, text) to authenticated;
 
 comment on function devolver_dados_fiscais_para_ec(uuid, text, text) is

@@ -1074,6 +1074,38 @@ servidor. Enquanto `VITE_FEATURE_EMAIL=false` (ou sem endpoint), os envios são
 4. No `.env`: `VITE_FEATURE_EMAIL=true`; a sessão Supabase autentica a chamada automaticamente.
 5. Criar `CRON_SECRET`, configurá-lo nos secrets da função e enviá-lo no header `x-cron-secret` do `pg_cron`.
 
+## Aplicando migrações: o que o banco real ensinou (22/09/2026)
+
+As cinco migrações pendentes foram aplicadas no projeto POLOBH. Três coisas só
+apareceram ao conferir o schema de produção antes de rodar, e valem para a
+próxima vez:
+
+1. **A pasta `supabase/migrations/` não é espelho fiel da produção.** A tabela
+   `areas` tem, no banco, a coluna **`ativa`** (área inativa não pode ser
+   atribuída a novos usuários) — e não `sistema`, que é o que o arquivo
+   `20260809120000_areas_permissoes.sql` declara. Uma migração escrita a partir
+   do arquivo teria falhado; escrita com `sistema = false` traduzido para
+   `ativa = false`, teria criado as sete áreas **inatribuíveis**. Confira o
+   schema real antes de escrever `insert`.
+2. **Nome de área é único, e "Produção" já existia.** Um `on conflict (nome) do
+   nothing` teria engolido a área nova em silêncio, deixando a matriz com seis
+   perfis. A antiga virou **"Produção (legado)"** e manteve seus acessos — o
+   vínculo do usuário é por id, e `papel_base` não mudou, então a RLS também
+   não.
+3. **`revoke all ... from public` NÃO tira o `anon`.** O schema `public` do
+   Supabase concede EXECUTE a `anon` e `authenticated` por DEFAULT PRIVILEGES em
+   toda função nova, e essa concessão pertence ao papel — o revoke no
+   pseudo-papel PUBLIC não a alcança. Numa função `security definer`, que passa
+   por cima da RLS de propósito, é a diferença entre uma RPC interna e um
+   endpoint aberto em `/rest/v1/rpc`. **A convenção deste banco é
+   `from public, anon`** — foi o linter de segurança do Supabase que pegou as
+   duas que escaparam dela.
+
+Fora isso, ficou um aviso de segurança que não é do nosso código e vale um
+clique: **proteção contra senha vazada desligada** no Supabase Auth (ele checa a
+senha contra o HaveIBeenPwned na hora de cadastrar). Liga em Authentication ›
+Policies.
+
 ## Banco Supabase
 `supabase/schema.sql` é a **baseline** (o banco como estava em 21/07/2026). Tudo
 que veio depois vive **só** em `supabase/migrations/` — inclusive módulos
