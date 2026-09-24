@@ -1,11 +1,22 @@
 /**
- * Detalhamento de um mês do calendário — a régua de dias com a barrinha de
- * cada projeto.
+ * Detalhamento de um mês do calendário — a régua de dias, com os dias de cada
+ * projeto PINTADOS.
  *
  * É a resposta à pergunta que o card do mês não responde: "em QUE dias isso
- * acontece?". Cada projeto vira uma linha; a barra percorre do primeiro ao
- * último dia do evento, e ganha uma seta na ponta quando o projeto começa antes
- * ou termina depois do mês que está aberto.
+ * acontece?". Cada projeto vira uma linha, e cada dia em que ele acontece fica
+ * pintado de ponta a ponta na célula; a seta na ponta aparece quando o projeto
+ * começa antes ou termina depois do mês que está aberto.
+ *
+ * SEM PÍLULAS, SEM RÓTULOS, UMA COR SÓ (25/09/2026). Antes cada projeto tinha a
+ * sua cor, cada etapa tinha o seu tom, e dentro da pílula vinha escrito
+ * "MONTAGEM", "EVENTO", "DESMONTAGEM". A Pólobh pediu o contrário de tudo isso,
+ * e o motivo é bom: num mês cheio, doze cores e três tons viram um mosaico em
+ * que não se lê nada — e a pergunta que se faz aqui é só uma, "que dias estão
+ * ocupados". Uma cor só, a laranja da casa, responde melhor. O que cada etapa
+ * é continua a um passo de distância, no projeto.
+ *
+ * Pintar a CÉLULA, e não uma barra por cima dela, é o que mantém as divisórias
+ * dos dias visíveis: a pessoa consegue contar os dias com o dedo.
  */
 import { useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
@@ -13,20 +24,15 @@ import { useNavigate } from "react-router-dom";
 import { IcChevron, IcFechar } from "@/components/icons";
 import { cx } from "@/lib/format";
 import {
-  ETAPAS_DO_QUADRO,
   INICIAIS_SEMANA,
   MESES,
-  OPACIDADE_ETAPA,
-  ROTULO_ETAPA,
   diaDaSemana,
   diasNoMes,
   fimDeSemana,
   hojeIso,
   isoDoDia,
   segmentosDoMes,
-  trechosDeEtapaNoMes,
   type ProjetoNoCalendario,
-  type TrechoEtapaMes,
 } from "@/domain/calendario";
 
 /** Largura mínima de um dia. Abaixo disso a régua vira um borrão e passa a rolar. */
@@ -163,7 +169,6 @@ export function CalendarioMesModal({
               {/* uma linha por projeto */}
               {segmentos.map((seg) => {
                 const { item } = seg;
-                const trechos = trechosDeEtapaNoMes(item, ano, mes);
                 const encerrado = item.status === "Arquivado";
                 return (
                   <div
@@ -177,7 +182,9 @@ export function CalendarioMesModal({
                       style={{ gridRow: 1, gridColumn: 1 }}
                       className="sticky left-0 z-10 bg-surface hover:bg-[#F7F8FA] border-r border-border-soft h-[46px] px-4 flex items-center gap-2.5 text-left min-w-0 transition-colors"
                     >
-                      <span className="h-6 w-1.5 rounded-full shrink-0" style={{ background: item.cor.forte }} />
+                      {/* Uma cor só, como no resto do quadro: a identidade do
+                          projeto é o nome, não o tom. */}
+                      <span className="h-6 w-1.5 rounded-full shrink-0 bg-primary" />
                       <span className="min-w-0">
                         <span className={cx("block text-[13px] font-bold text-ink truncate", encerrado && "line-through text-ink-3")}>
                           {item.titulo}
@@ -192,66 +199,56 @@ export function CalendarioMesModal({
                       </span>
                     </button>
 
-                    {/* fundo dos dias (fim de semana e hoje) */}
+                    {/* OS DIAS. Cada célula é pintada por inteiro quando o
+                        projeto acontece naquele dia — é isto que substituiu a
+                        pílula. A célula pintada é clicável: quem vê o dia
+                        ocupado quer, quase sempre, abrir o projeto. */}
                     {Array.from({ length: dias }, (_, i) => {
                       const d = i + 1;
                       const iso = isoDoDia(ano, mes, d);
+                      const ocupado = d >= seg.diaInicio && d <= seg.diaFim;
+                      const ehHoje = iso === hoje;
+
+                      if (!ocupado) {
+                        return (
+                          <div
+                            key={d}
+                            style={{ gridRow: 1, gridColumn: d + 1 }}
+                            className={cx(
+                              "h-[46px] border-l border-border-soft",
+                              fimDeSemana(ano, mes, d) && "bg-[#F1F3F7]",
+                              feriados?.has(iso) && "bg-[#EFE7FB]",
+                              ehHoje && "bg-primary-soft"
+                            )}
+                          />
+                        );
+                      }
+
+                      const primeiro = d === seg.diaInicio;
+                      const ultimo = d === seg.diaFim;
                       return (
-                        <div
+                        <button
                           key={d}
+                          onClick={() => navigate(`/projetos/${item.id}`)}
+                          title={`${item.titulo}${item.local ? ` · ${item.local}` : ""}`}
                           style={{ gridRow: 1, gridColumn: d + 1 }}
                           className={cx(
-                            "h-[46px] border-l border-border-soft",
-                            fimDeSemana(ano, mes, d) && "bg-[#F1F3F7]",
-                            feriados?.has(iso) && "bg-[#EFE7FB]",
-                            iso === hoje && "bg-primary-soft"
+                            "h-[46px] border-l border-white/25 bg-primary flex items-center justify-center",
+                            "hover:brightness-105 transition-all",
+                            // O dia de hoje precisa continuar localizável mesmo
+                            // dentro de uma sequência pintada — sem isto, a
+                            // coluna de hoje some no meio do laranja.
+                            ehHoje && "ring-2 ring-inset ring-white/80",
+                            encerrado && "opacity-45"
                           )}
-                        />
-                      );
-                    })}
-
-                    {/* A BARRA, ETAPA POR ETAPA (15/09/2026).
-                        Ela cobre o período inteiro — montagem, evento e
-                        desmontagem —, e cada trecho ganha um tom da MESMA cor
-                        do projeto: a identidade que faz reconhecer o projeto de
-                        longe continua sendo a cor, e o que muda é a intensidade.
-                        Cores diferentes por etapa competiriam com ela, e o
-                        quadro viraria um mosaico sem dono.
-                        Quando não há etapa desenhável (projeto antigo, só com o
-                        campo legado), cai na barra inteira de sempre. */}
-                    {(trechos.length ? trechos : [{ etapa: "evento", diaInicio: seg.diaInicio, diaFim: seg.diaFim }] as TrechoEtapaMes[]).map((t: TrechoEtapaMes) => {
-                      const larguraTrecho = t.diaFim - t.diaInicio + 1;
-                      const primeiro = t.diaInicio === seg.diaInicio;
-                      const ultimo = t.diaFim === seg.diaFim;
-                      return (
-                        <div
-                          key={`${t.etapa}-${t.diaInicio}`}
-                          style={{ gridRow: 1, gridColumn: `${t.diaInicio + 1} / span ${larguraTrecho}` }}
-                          className="relative z-[5] px-[1px] first:pl-[3px] last:pr-[3px]"
                         >
-                          <button
-                            onClick={() => navigate(`/projetos/${item.id}`)}
-                            title={`${item.titulo} — ${ROTULO_ETAPA[t.etapa]}${item.local ? ` · ${item.local}` : ""}`}
-                            style={{
-                              background: `linear-gradient(135deg, ${item.cor.forte}, ${item.cor.forte}D9)`,
-                              opacity: encerrado ? 0.45 : OPACIDADE_ETAPA[t.etapa],
-                            }}
-                            className={cx(
-                              "w-full h-[30px] flex items-center justify-center gap-1 text-white overflow-hidden",
-                              "shadow-[0_4px_10px_-6px_rgba(16,30,66,.6)] hover:brightness-110 transition-all",
-                              primeiro && seg.continuaAntes ? "rounded-l-[3px]" : primeiro ? "rounded-l-pill" : "rounded-l-[2px]",
-                              ultimo && seg.continuaDepois ? "rounded-r-[3px]" : ultimo ? "rounded-r-pill" : "rounded-r-[2px]"
-                            )}
-                          >
-                            {primeiro && seg.continuaAntes && <span className="text-[11px] font-bold leading-none shrink-0">◄</span>}
-                            {larguraTrecho > 1 && (
-                              <span className="text-[10.5px] font-extrabold uppercase tracking-[0.04em] whitespace-nowrap truncate min-w-0">
-                                {ROTULO_ETAPA[t.etapa]}
-                              </span>
-                            )}
-                            {ultimo && seg.continuaDepois && <span className="text-[11px] font-bold leading-none shrink-0">►</span>}
-                          </button>
-                        </div>
+                          {primeiro && seg.continuaAntes && (
+                            <span className="text-[11px] font-bold leading-none text-white">◄</span>
+                          )}
+                          {ultimo && seg.continuaDepois && (
+                            <span className="text-[11px] font-bold leading-none text-white">►</span>
+                          )}
+                        </button>
                       );
                     })}
                   </div>
@@ -264,18 +261,11 @@ export function CalendarioMesModal({
         {/* -------------------------------- rodapé --------------------------------- */}
         <div className="px-5 py-3 border-t border-border-soft bg-[#FCFCFD] flex items-center gap-3 flex-wrap">
           <span className="text-[11.5px] text-ink-3">
-            A barra considera todas as etapas do projeto — Montagem, Evento e Desmontagem.
+            O dia pintado é dia ocupado — a marcação cobre todas as etapas do projeto
+            (montagem, evento e desmontagem).
           </span>
           <span className="ml-auto flex items-center gap-3 text-[11px] text-ink-3 flex-wrap">
-            {ETAPAS_DO_QUADRO.map((etapa) => (
-              <span key={etapa} className="flex items-center gap-1.5">
-                <span
-                  className="h-3 w-3 rounded-[4px] bg-ink-2"
-                  style={{ opacity: OPACIDADE_ETAPA[etapa] }}
-                />
-                {ROTULO_ETAPA[etapa].toLowerCase()}
-              </span>
-            ))}
+            <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-[4px] bg-primary" /> projeto</span>
             <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-[4px] bg-[#F1F3F7] border border-border" /> fim de semana</span>
             <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-[4px] bg-[#EFE7FB] border border-[#C9B6EA]" /> feriado</span>
             <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-[4px] bg-primary-soft border border-active-border" /> hoje</span>
