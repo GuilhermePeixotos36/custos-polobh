@@ -248,7 +248,19 @@ export const ancoraConversaAba = (projetoId: string, aba: string) => `projeto-co
  *   · quem ela @menciona (na raiz, também o responsável escolhido no campo);
  *   · sem menção nenhuma, volta para quem estava esperando — o autor da última
  *     mensagem anterior que não seja da mesma pessoa;
- *   · nunca o autor da própria última mensagem.
+ *   · nunca o autor da própria última mensagem — SALVO quando foi ele mesmo
+ *     quem se endereçou (ver abaixo).
+ *
+ * O LEMBRETE PARA SI MESMO (24/09/2026). Tirar o autor da lista é o que impede
+ * todo comentário de acender uma bolinha para quem acabou de escrevê-lo. Mas a
+ * regra estava comendo um caso legítimo: a pessoa escrever um recado escolhendo
+ * a SI MESMA no "Para" (ou se @mencionando) — que é como se anota "não esquecer
+ * disto". O comentário era gravado, aparecia na conversa, e não virava pendência
+ * para ninguém: um lembrete que não lembra.
+ *
+ * A diferença é INTENÇÃO. Endereçar-se é um ato explícito, e vale. Já a volta
+ * automática da bola ("ok, feito" devolvendo a vez a quem falou antes) é
+ * dedução nossa, e essa continua nunca apontando para o próprio autor.
  *
  * Devolve lista vazia quando a conversa não cobra ninguém (um recado solto que
  * não endereça e não responde a ninguém) — e aí ela não vira pendência.
@@ -266,6 +278,10 @@ export function destinatariosDaVez(observacao: Observacao, usuarios: string[] = 
   // sempre, mesmo já tendo respondido.
   if (ultima.raiz && observacao.responsavelNome?.trim()) alvos.add(observacao.responsavelNome.trim());
 
+  // Quem foi endereçado DE PROPÓSITO, antes de qualquer dedução nossa. É esta
+  // lista que autoriza o autor a permanecer na vez quando se endereçou sozinho.
+  const explicitos = new Set([...alvos].map(normalizarPessoa));
+
   if (!alvos.size) {
     // Resposta sem endereço ("ok, feito"): a bola volta para quem falou antes —
     // pulando as mensagens seguidas da mesma pessoa, que são continuação da fala.
@@ -280,7 +296,11 @@ export function destinatariosDaVez(observacao: Observacao, usuarios: string[] = 
   }
 
   const autorDaVez = normalizarPessoa(ultima.autor);
-  return [...alvos].filter((nome) => nome.trim() && normalizarPessoa(nome) !== autorDaVez);
+  return [...alvos].filter((nome) => {
+    if (!nome.trim()) return false;
+    const pessoa = normalizarPessoa(nome);
+    return pessoa !== autorDaVez || explicitos.has(pessoa);
+  });
 }
 
 /**

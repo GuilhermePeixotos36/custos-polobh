@@ -105,5 +105,6 @@ export const NAV_CONFIG: (SecaoNav & { rota: string })[] = [
   { key: "checklist", label: "Check-list", rota: "/configuracoes?aba=checklist", recurso: "configuracoes" },
   { key: "areas", label: "Áreas e permissões", rota: "/configuracoes?aba=areas", recurso: "configuracoes" },
   { key: "usuarios", label: "Usuários", rota: "/configuracoes?aba=usuarios", recurso: "configuracoes" },
+  { key: "backup", label: "Back-up", rota: "/configuracoes?aba=backup", recurso: "configuracoes" },
   { key: "logs", label: "Logs do sistema", rota: "/logs", recurso: "logs" },
 ];

@@ -1151,3 +1151,92 @@ O cabeçalho do arquivo traz os `delete` para remover tudo quando não precisar 
 ## Retenção (baixo custo)
 Guardamos **dados estruturados** e regeneramos Excel/PDF sob demanda. Projetos
 concluídos são **arquivados (não apagados)** — configurável (sugestão 24 meses).
+
+## Back-up do sistema (25/09/2026)
+
+A pergunta da Pólobh foi "qual a frequência do back-up e como teremos acesso a
+ele". A resposta honesta tem duas metades.
+
+**O que o Supabase faz sozinho.** Ele tira back-up do banco todo dia. No plano
+gratuito, a retenção é curta e a cópia mora na mesma conta. Isso cobre o
+acidente comum (alguém apagou um projeto na terça) e não cobre perder a conta
+nem descobrir um estrago depois do fim da retenção.
+
+**O que o sistema passou a fazer.** Um pacote `.zip` com a base inteira, que sai
+do servidor e vai para a mão da casa: por e-mail, para uma pasta do Dropbox, ou
+no download direto da tela — em **Configurações › Back-up**, onde também mora a
+explicação acima, em português de gente, para quem for decidir a frequência.
+
+### As peças
+
+| Onde | O quê |
+| --- | --- |
+| `supabase/migrations/20260925100000_backup_do_sistema.sql` | tabela `backups` (histórico), `backup_tabelas()`, `backup_anexos()`, a chave `config_app.backup` e o job `backup-do-sistema` |
+| `supabase/functions/backup/` | `index.ts` (orquestra), `pacote.ts` (o conteúdo), `zip.ts` (o container), `dropbox.ts` (o envio) |
+| `src/domain/backup.ts` | a situação na tela: em dia, atrasado, nunca, desligado |
+| `src/pages/Configuracoes.tsx` › `BackupCard` | a tela e o texto didático |
+
+### Decisões que não são óbvias
+
+- **A lista de tabelas sai do catálogo do banco, não de uma lista à mão.** Lista
+  à mão envelhece: a tabela nova entra no sistema, ninguém lembra do back-up, e
+  a falta só aparece no dia da restauração. E a consulta termina num `LEFT JOIN`
+  com todas as tabelas — uma tabela dentro de um ciclo de chaves estrangeiras
+  não seria alcançada pela recursão e sumiria do pacote, calada.
+- **O cron roda todo dia; quem decide se hoje é dia é a função**, lendo
+  `config_app.backup.frequencia`. Trocar semanal por diário é um clique na tela,
+  não uma migração.
+- **A comparação é por distância, não por dia da semana.** Se a função ficou
+  fora do ar na segunda, ela roda na terça. Back-up atrasado é o que se quer;
+  back-up pulado, não.
+- **O `.zip` é escrito à mão, sem biblioteca** (`zip.ts`, ~120 linhas). O motivo
+  é poder testá-lo: o código roda no Deno (onde o back-up nasce) e no Node (onde
+  a suíte roda), e a suíte abre o pacote pelo índice do fim do arquivo, como faz
+  um descompactador de verdade. O teste já pegou um defeito real — a compressão
+  desligada em silêncio, que só apareceria no dia em que um pacote grande não
+  coubesse no e-mail.
+- **Os CSV saem com `;` e BOM.** O destino é o Excel em português: com vírgula
+  ele joga a linha numa coluna só, e sem BOM "Promoções" vira "PromoÃ§Ãµes".
+- **Anexos entram até 25 MB.** Sem teto, o dia em que a casa subir muitos
+  arquivos é o dia em que o back-up passa a falhar. O que não coube é listado
+  pelo nome no `LEIA-ME` e no `manifesto.json`, em vez de sumir.
+- **Quem tira é Admin e Direção** — recorte mais estreito que a tela de
+  Configurações, porque o pacote leva a base inteira, financeiro incluído. O
+  Administrativo lê a explicação e o histórico.
+- **O agendamento só executa a ação `agendado`.** Assim o segredo do cron, se
+  vazar, não vira um jeito de alguém de fora mandar a base para o próprio
+  e-mail.
+
+### Ligar o Dropbox (opcional, uma vez só)
+
+O envio por e-mail funciona sem configuração nenhuma. O Dropbox precisa de três
+segredos, criados uma vez:
+
+1. em <https://www.dropbox.com/developers/apps>, criar um app *Scoped access* →
+   *App folder* → dar um nome;
+2. na aba **Permissions**, marcar `files.content.write` e `files.content.read`,
+   e **Submit**;
+3. na aba **Settings**, copiar o **App key** e o **App secret**;
+4. gerar um *refresh token* (não o "generated access token" da tela — esse dura
+   4 horas e o back-up pararia de subir na mesma tarde, em silêncio):
+   - abrir no navegador
+     `https://www.dropbox.com/oauth2/authorize?client_id=APP_KEY&response_type=code&token_access_type=offline`,
+     autorizar e copiar o código;
+   - trocar o código pelo refresh token:
+     ```
+     curl -u APP_KEY:APP_SECRET https://api.dropbox.com/oauth2/token \
+       -d code=CODIGO -d grant_type=authorization_code
+     ```
+5. gravar os três no Supabase (Edge Functions › Secrets):
+   `DROPBOX_APP_KEY`, `DROPBOX_APP_SECRET`, `DROPBOX_REFRESH_TOKEN` — e, se
+   quiser outra pasta, `DROPBOX_PASTA`.
+
+Com os segredos no lugar, basta ligar o interruptor na tela. Sem eles, ligar o
+interruptor faz o histórico registrar "Dropbox não configurado" — de propósito:
+falha visível é melhor do que um back-up que a casa acha que tem.
+
+### O que o pacote NÃO leva
+
+Senhas (nem embaralhadas — quem as guarda é o serviço de autenticação) e os
+logins em si. O cadastro de perfis está lá; recriar o acesso é um passo à parte,
+por convite. Está escrito no `LEIA-ME` dentro de cada pacote.

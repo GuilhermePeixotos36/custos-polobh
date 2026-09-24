@@ -1153,3 +1153,25 @@ export interface Checklist {
   criadoEm: string;
   atualizadoEm: string;
 }
+
+/**
+ * Uma linha do histórico de back-up.
+ *
+ * Existe para que "temos back-up" deixe de ser uma crença e passe a ser uma
+ * data e um tamanho na tela. Quem escreve é a Edge Function, com a chave de
+ * serviço; o aplicativo só lê.
+ */
+export interface RegistroBackup {
+  id: string;
+  criadoEm: string;
+  origem: "manual" | "automatico";
+  /** Para onde foi de fato: "email", "dropbox", "download". */
+  destinos: string[];
+  arquivo?: string;
+  tamanhoBytes?: number;
+  /** Quantas linhas de cada tabela entraram no pacote. */
+  tabelas: Record<string, number>;
+  anexos: number;
+  status: "concluido" | "parcial" | "erro";
+  erro?: string;
+}

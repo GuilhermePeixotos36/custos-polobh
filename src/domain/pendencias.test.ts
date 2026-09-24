@@ -481,6 +481,61 @@ describe("de quem é a vez na conversa", () => {
     expect(destinatariosDaVez(observacao({ texto: "anotando aqui", responsavelNome: "" }), USUARIOS)).toEqual([]);
   });
 
+  /**
+   * O lembrete para si mesmo (24/09/2026).
+   *
+   * Escrever um recado escolhendo a si mesma no "Para" é como se anota "não
+   * esquecer disto". A regra de tirar o autor da vez — que existe para um
+   * comentário não acender bolinha para quem acabou de escrevê-lo — estava
+   * comendo esse caso: o recado era gravado, aparecia na conversa, e não virava
+   * pendência para ninguém.
+   */
+  it("quem se endereça a si mesmo fica com a própria pendência", () => {
+    const paraMim = observacao({ autorNome: "Ana", texto: "testeteste", responsavelNome: "Ana" });
+    expect(destinatariosDaVez(paraMim, USUARIOS)).toEqual(["Ana"]);
+  });
+
+  it("o mesmo vale pela menção, e junto com outra pessoa", () => {
+    const o = observacao({ autorNome: "Ana", texto: "@Ana não esquecer, e @Bruno confirma", responsavelNome: "" });
+    expect(destinatariosDaVez(o, USUARIOS).sort()).toEqual(["Ana", "Bruno"]);
+  });
+
+  // A volta automática da bola é DEDUÇÃO nossa, não intenção de ninguém — essa
+  // continua nunca apontando para quem acabou de falar.
+  it("mas a devolução automática continua sem voltar para o próprio autor", () => {
+    const o = observacao({
+      autorNome: "Ana",
+      texto: "@Bruno confere o orçamento",
+      responsavelNome: "",
+      respostas: [resposta("Bruno", "conferido"), resposta("Ana", "obrigada!")],
+    });
+    expect(destinatariosDaVez(o, USUARIOS)).toEqual(["Bruno"]);
+  });
+
+  // Endereçar-se vale na RAIZ, que é onde o campo "Para" existe. Depois que a
+  // conversa anda, quem manda é a última mensagem: o lembrete não fica colado
+  // na thread — ele volta a ser uma conversa normal, e aqui a bola volta para a
+  // Ana porque foi o Bruno quem falou por último.
+  it("virando conversa, o lembrete segue a regra normal da vez", () => {
+    const o = observacao({
+      autorNome: "Ana",
+      texto: "testeteste",
+      responsavelNome: "Ana",
+      respostas: [resposta("Bruno", "já cuidei disso")],
+    });
+    expect(destinatariosDaVez(o, USUARIOS)).toEqual(["Ana"]);
+  });
+
+  it("o lembrete para si mesmo aparece no quadro de quem o escreveu", () => {
+    const itens = calcularPendencias(
+      [projeto("Carla")],
+      [ec([linha([observacao({ autorNome: "Ana", texto: "testeteste", responsavelNome: "Ana" })])])],
+      [], USUARIOS, [], [], HOJE,
+    );
+    expect(de(itens, "Ana").total).toBe(1);
+    expect(de(itens, "Bruno").total).toBe(0);
+  });
+
   it("resolvida some do quadro de qualquer pessoa", () => {
     const itens = calcularPendencias(
       [projeto("Carla")], [ec([linha([observacao({ resolvida: true })])])], [], USUARIOS, [], [], HOJE

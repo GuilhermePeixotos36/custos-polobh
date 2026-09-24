@@ -5,7 +5,7 @@
  */
 import type {
   AbaComConversa, AnexoObservacao, Area, Chamado, Checklist, Cliente, CredenciamentoResposta, Ec, EmpresaGrupo, Fornecedor,
-  ItemChecklist, ModeloChecklist, Observacao, Os, Projeto, ProjetoInfo, Usuario,
+  ItemChecklist, ModeloChecklist, Observacao, Os, Projeto, ProjetoInfo, RegistroBackup, Usuario,
 } from "./types";
 
 export interface ProjetoRepository {
@@ -235,6 +235,23 @@ export interface ChecklistRepository {
   removerAnexos(caminhos: string[]): Promise<void>;
 }
 
+/**
+ * O back-up do sistema.
+ *
+ * Tudo passa pela Edge Function, e não pelo navegador: o pacote leva a base
+ * inteira, e montá-lo aqui exigiria que o cliente lesse todas as tabelas — o
+ * que a RLS (com razão) não permite a ninguém. `baixar` é a única que devolve
+ * bytes; as outras entregam no destino configurado.
+ */
+export interface BackupRepository {
+  /** Gera o pacote e devolve os bytes, para o navegador salvar. */
+  baixar(): Promise<{ nome: string; zipBase64: string; tamanho: number }>;
+  /** Gera e entrega agora nos destinos configurados (e-mail e/ou Dropbox). */
+  enviarAgora(): Promise<{ destinos: string[]; nome: string; tamanho: number; erro?: string | null }>;
+  /** As últimas linhas do histórico, da mais nova para a mais velha. */
+  historico(limite?: number): Promise<RegistroBackup[]>;
+}
+
 export interface Repositorios {
   projetos: ProjetoRepository;
   clientes: ClienteRepository;
@@ -247,4 +264,5 @@ export interface Repositorios {
   config: ConfigRepository;
   chamados: ChamadosRepository;
   checklists: ChecklistRepository;
+  backup: BackupRepository;
 }

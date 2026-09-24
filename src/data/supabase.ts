@@ -44,6 +44,7 @@ import type {
   AuthRepository,
   ChamadosRepository,
   ChecklistRepository,
+  BackupRepository,
   ConfigRepository,
   ClienteRepository,
   EcRepository,
@@ -72,6 +73,7 @@ import type {
   Os,
   Producao,
   Projeto,
+  RegistroBackup,
   Representante,
   Usuario,
 } from "./types";
@@ -1406,6 +1408,51 @@ const checklistRepo: ChecklistRepository = {
   },
 };
 
+/* --------------------------------- Back-up -------------------------------- */
+
+/**
+ * Chama a Edge Function `backup`, que roda com a chave de serviço.
+ *
+ * O pacote NÃO é montado aqui de propósito: ele leva a base inteira, e montá-lo
+ * no navegador exigiria que o cliente conseguisse ler todas as tabelas — o que
+ * a RLS, com razão, não concede a ninguém. O que chega aqui é o pacote pronto.
+ */
+async function chamarBackup<T>(acao: string): Promise<T> {
+  const { data, error } = await supabase.functions.invoke("backup", { body: { acao } });
+  if (error) throw new Error((error as { message?: string }).message ?? "Falha ao chamar o back-up.");
+  const resposta = data as { ok: boolean; erro?: string };
+  if (!resposta?.ok) throw new Error(resposta?.erro ?? "Não foi possível gerar o back-up.");
+  return resposta as T;
+}
+
+const backupRepo: BackupRepository = {
+  baixar: () => chamarBackup<{ nome: string; zipBase64: string; tamanho: number }>("baixar"),
+  enviarAgora: () =>
+    chamarBackup<{ destinos: string[]; nome: string; tamanho: number; erro?: string | null }>("enviar"),
+  async historico(limite = 20) {
+    const data = ok(
+      await supabase
+        .from("backups")
+        .select("id, criado_em, origem, destinos, arquivo, tamanho_bytes, tabelas, anexos, status, erro")
+        .order("criado_em", { ascending: false })
+        .limit(limite),
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (data ?? []).map((r: any): RegistroBackup => ({
+      id: r.id,
+      criadoEm: r.criado_em,
+      origem: r.origem,
+      destinos: r.destinos ?? [],
+      arquivo: r.arquivo ?? undefined,
+      tamanhoBytes: r.tamanho_bytes ?? undefined,
+      tabelas: r.tabelas ?? {},
+      anexos: r.anexos ?? 0,
+      status: r.status,
+      erro: r.erro ?? undefined,
+    }));
+  },
+};
+
 export const supabaseRepositorios: Repositorios = {
   projetos: projetoRepo,
   clientes: clienteRepo,
@@ -1418,4 +1465,5 @@ export const supabaseRepositorios: Repositorios = {
   config: configRepo,
   chamados: chamadosRepo,
   checklists: checklistRepo,
+  backup: backupRepo,
 };

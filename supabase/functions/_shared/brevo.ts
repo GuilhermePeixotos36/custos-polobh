@@ -9,11 +9,23 @@ export interface Destinatario {
   nome?: string;
 }
 
+/** Um arquivo junto da mensagem. O Brevo recebe o conteúdo em base64. */
+export interface AnexoBrevo {
+  nome: string;
+  conteudoBase64: string;
+}
+
 export interface EmailBrevo {
   para: Destinatario[];
   assunto: string;
   html: string;
   responderPara?: Destinatario;
+  /**
+   * Anexos. O Brevo recusa mensagens grandes, e quem chama é que decide o que
+   * cabe — aqui não há corte automático de propósito: um anexo silenciosamente
+   * descartado é pior do que um envio que falha e aparece no log.
+   */
+  anexos?: AnexoBrevo[];
 }
 
 const BREVO_URL = "https://api.brevo.com/v3/smtp/email";
@@ -47,6 +59,9 @@ export async function enviarPeloBrevo(msg: EmailBrevo): Promise<{ messageId?: st
       replyTo,
       subject: msg.assunto,
       htmlContent: msg.html,
+      attachment: msg.anexos?.length
+        ? msg.anexos.map((a) => ({ name: a.nome, content: a.conteudoBase64 }))
+        : undefined,
     }),
   });
 
