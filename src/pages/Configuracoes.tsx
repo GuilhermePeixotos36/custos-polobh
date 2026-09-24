@@ -18,6 +18,11 @@ import { cx } from "@/lib/format";
 import {
   notificar, pedirPermissao, permissaoAtual, type PermissaoNotificacao,
 } from "@/lib/notificacoes";
+import {
+  motivoParaNaoMudar,
+  podeAtivarUsuarios,
+  quantosPodemAtivar,
+} from "@/domain/usuarioAtivo";
 import type { Area, Papel, Usuario } from "@/data/types";
 
 type AbaConfig = "geral" | "checklist" | "areas" | "usuarios";
@@ -722,8 +727,41 @@ function UsuariosCard() {
   const { data: areas } = useAsync(() => repo.areas.listar(), []);
   const [edit, setEdit] = useState<Usuario | null>(null);
   const [salvando, setSalvando] = useState(false);
+  /** Qual linha está no meio da troca — para travar só o botão dela. */
+  const [alterando, setAlterando] = useState<string | null>(null);
+  const usuarioAtual = useAuth((st) => st.usuario);
+  const podeAtivar = podeAtivarUsuarios(usuarioAtual?.papel);
 
   const lista = data ?? [];
+
+  /**
+   * Liga e desliga o acesso de alguém.
+   *
+   * A confirmação existe porque inativar derruba a sessão da pessoa na hora —
+   * quem está com a tela aberta perde o acesso no comando seguinte, e isso não
+   * pode acontecer por um clique errado numa lista.
+   */
+  async function alternarAcesso(u: Usuario) {
+    const ativo = !(u.ativo ?? true);
+    if (!ativo && !(await confirmar({
+      titulo: `Inativar ${u.nome}?`,
+      mensagem:
+        "O acesso é cortado imediatamente, inclusive se a pessoa estiver com o sistema aberto. " +
+        "O histórico é preservado — inativar não é apagar.",
+      confirmarTexto: "Inativar",
+      cancelarTexto: "Voltar",
+    }))) return;
+    setAlterando(u.id);
+    try {
+      await repo.auth.definirUsuarioAtivo({ id: u.id, ativo });
+      toast(ativo ? `${u.nome} voltou a ter acesso.` : `${u.nome} está sem acesso.`, "success");
+      reload();
+    } catch (e) {
+      toast((e as Error).message, "danger");
+    } finally {
+      setAlterando(null);
+    }
+  }
 
   async function salvar() {
     if (!edit) return;
@@ -767,19 +805,53 @@ function UsuariosCard() {
           <EmptyState title="Nenhum usuário cadastrado" />
         ) : (
           <Table>
-            <THead><Th>Nome</Th><Th>E-mail</Th><Th>Telefone</Th><Th align="center">Área</Th></THead>
+            <THead>
+              <Th>Nome</Th><Th>E-mail</Th><Th>Telefone</Th>
+              <Th align="center">Área</Th><Th align="center">Acesso</Th>
+              {podeAtivar && <Th align="center">Ações</Th>}
+            </THead>
             <tbody>
-              {lista.map((u) => (
+              {lista.map((u) => {
+                const ativo = u.ativo ?? true;
+                const impedimento = motivoParaNaoMudar(
+                  { id: usuarioAtual?.id ?? "", papel: usuarioAtual?.papel ?? "Producao" },
+                  { id: u.id, papel: u.papel, ativo },
+                  quantosPodemAtivar(lista)
+                );
+                return (
                 <Tr key={u.id} onClick={() => setEdit({ ...u })}>
-                  <Td className="font-bold">{u.nome}</Td>
-                  <Td className="text-[12.5px]">{u.email || "—"}</Td>
+                  <Td className={cx("font-bold", !ativo && "text-ink-3")}>{u.nome}</Td>
+                  <Td className={cx("text-[12.5px]", !ativo && "text-ink-3")}>{u.email || "—"}</Td>
                   <Td className="text-[12.5px]">{u.telefone || "—"}</Td>
                   {/* Sem área é o caso do desenvolvedor (papel Admin) — não é uma área, é a ausência dela. */}
                   <Td align="center">
                     {u.areaNome ? <Badge tom="info">{u.areaNome}</Badge> : <span className="text-ink-3">—</span>}
                   </Td>
+                  <Td align="center">
+                    <Badge tom={ativo ? "success" : "danger"}>{ativo ? "Ativo" : "Inativo"}</Badge>
+                  </Td>
+                  {podeAtivar && (
+                    <Td align="center">
+                      {/* O botão some quando a mudança é impossível, e o motivo
+                          vira o título — um botão que falha em silêncio faz a
+                          pessoa tentar de novo e abrir chamado. */}
+                      <button
+                        type="button"
+                        disabled={!!impedimento || alterando === u.id}
+                        title={impedimento ?? (ativo ? "Tira o acesso, preservando o histórico" : "Devolve o acesso")}
+                        onClick={(e) => { e.stopPropagation(); void alternarAcesso(u); }}
+                        className={cx(
+                          "text-[12px] font-bold rounded px-2 py-1 input-focus",
+                          impedimento ? "text-ink-3 cursor-not-allowed" : ativo ? "text-danger hover:underline" : "text-success hover:underline"
+                        )}
+                      >
+                        {alterando === u.id ? "…" : ativo ? "Inativar" : "Ativar"}
+                      </button>
+                    </Td>
+                  )}
                 </Tr>
-              ))}
+                );
+              })}
             </tbody>
           </Table>
         )}

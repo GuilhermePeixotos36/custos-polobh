@@ -124,6 +124,14 @@ export interface AuthRepository {
   criarUsuario(dados: { email: string; nome: string; areaId: string; telefone: string }): Promise<Usuario>;
   /** Atualiza nome/telefone/área/e-mail de um usuário existente. */
   atualizarUsuario(dados: { id: string; nome?: string; telefone?: string; areaId?: string; email?: string }): Promise<Usuario>;
+  /**
+   * Liga e desliga o acesso de alguém (24/09/2026).
+   *
+   * Separado de `atualizarUsuario` porque o recorte de quem pode é outro: o
+   * cadastro é do Administrativo para cima; cortar acesso é da Direção para
+   * cima. Quem decide é o servidor — ver a Edge Function `gerenciar-usuarios`.
+   */
+  definirUsuarioAtivo(dados: { id: string; ativo: boolean }): Promise<Usuario>;
 }
 
 /** Áreas = grupos de permissão cadastráveis (Configurações → Áreas). */

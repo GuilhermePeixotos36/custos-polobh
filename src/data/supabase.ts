@@ -834,7 +834,7 @@ async function gerenciarUsuarios(body: Record<string, unknown>): Promise<Usuario
 
 const authRepo: AuthRepository = {
   async usuarios() {
-    const data = ok(await supabase.from("perfis").select("id, nome, papel, telefone, area_id, areas(nome)").order("nome"));
+    const data = ok(await supabase.from("perfis").select("id, nome, papel, telefone, area_id, ativo, areas(nome)").order("nome"));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return (data ?? []).map((r: any): Usuario => {
       const area = Array.isArray(r.areas) ? r.areas[0] : r.areas;
@@ -844,6 +844,7 @@ const authRepo: AuthRepository = {
         email: "",
         telefone: r.telefone ?? "",
         papel: r.papel,
+        ativo: r.ativo ?? true,
         areaId: r.area_id ?? undefined,
         areaNome: area?.nome ?? undefined,
       };
@@ -858,6 +859,7 @@ const authRepo: AuthRepository = {
   },
   criarUsuario: (dados) => gerenciarUsuarios({ acao: "criar", ...dados }),
   atualizarUsuario: (dados) => gerenciarUsuarios({ acao: "atualizar", ...dados }),
+  definirUsuarioAtivo: (dados) => gerenciarUsuarios({ acao: "definirAtivo", ...dados }),
 };
 
 /* ---------------------------------- Áreas -------------------------------- */

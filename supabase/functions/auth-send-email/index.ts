@@ -144,6 +144,11 @@ Deno.serve(async (req) => {
       });
     } catch (e) {
       const texto = String((e as Error).message);
+      // No LOG, e não só na tabela `emails`: quando isto falha, quem investiga
+      // está olhando o log da função — e o corpo da resposta de erro morre no
+      // GoTrue, que só registra "hook devolveu 500". Sem esta linha, o motivo
+      // real (uma recusa do Brevo, por exemplo) fica escondido.
+      console.error(`auth-send-email: falha ao enviar para ${m.para} (${assunto}) — ${texto}`);
       await registrar({ assunto, destinatarios: [m.para], status: "erro", erro: texto });
       return erro(`Falha ao enviar pelo Brevo: ${texto}`, 500);
     }

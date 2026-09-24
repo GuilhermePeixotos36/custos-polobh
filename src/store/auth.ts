@@ -204,7 +204,7 @@ export const useAuth = create<AuthState>((set, get) => {
   async function carregarPerfil(user: User) {
     const { data, error } = await supabase
       .from("perfis")
-      .select("nome, papel, telefone, area_id, areas(nome, recursos)")
+      .select("nome, papel, telefone, area_id, ativo, areas(nome, recursos)")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -213,6 +213,16 @@ export const useAuth = create<AuthState>((set, get) => {
       definirAtor(null);
       set({ usuario: null, recursos: null, carregando: false });
       return null;
+    }
+    // CONTA INATIVA (24/09/2026). A RLS já recusa tudo — o que falta é dizer o
+    // motivo. A política de `perfis` deixa cada um ler a PRÓPRIA linha
+    // justamente para esta distinção existir: sem ela, a tela não saberia
+    // separar "sua conta foi desativada" de "seu usuário não tem perfil", e a
+    // pessoa abriria chamado de um defeito que não existe.
+    if ((data as { ativo?: boolean }).ativo === false) {
+      definirAtor(null);
+      set({ usuario: null, recursos: null, carregando: false });
+      return "inativo" as const;
     }
     // O join volta como objeto (relação 1:1) — o tipo gerado do supabase-js
     // descreve como array, daí o normalize abaixo.
@@ -260,6 +270,13 @@ export const useAuth = create<AuthState>((set, get) => {
         return { ok: false, erro: "E-mail ou senha inválidos." };
       }
       const u = await carregarPerfil(data.user);
+      if (u === "inativo") {
+        await supabase.auth.signOut();
+        return {
+          ok: false,
+          erro: "A sua conta está inativa. Procure a Direção da Pólobh para reativar o acesso.",
+        };
+      }
       if (!u) {
         await supabase.auth.signOut();
         return { ok: false, erro: "Seu usuário não tem um perfil de acesso configurado." };

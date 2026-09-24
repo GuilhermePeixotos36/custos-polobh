@@ -37,6 +37,15 @@ export interface Usuario {
   areaId?: string;
   /** Nome da área, para exibição em listas. */
   areaNome?: string;
+  /**
+   * Conta ativa (24/09/2026). Ausente conta como ATIVA — é o que a coluna nova
+   * assume no banco, e tratar ausente como inativo apagaria o acesso de todo
+   * mundo de uma vez.
+   *
+   * Inativar não é apagar: o login para de valer, e o histórico continua com
+   * dono. O bloqueio é na RLS (ver `papel_atual`), não na tela.
+   */
+  ativo?: boolean;
 }
 
 /** Empresa emissora do grupo Pólobh (dados fiscais usados na OS). */
