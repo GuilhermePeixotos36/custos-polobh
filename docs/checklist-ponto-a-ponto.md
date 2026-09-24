@@ -1,15 +1,23 @@
 # Check-list da Pólobh — ponto a ponto
 
-*Atualizado em 22/09/2026, depois de aplicar as migrações no banco de produção.*
-*Ramo `claude/relaxed-newton-9kb6hj` · 37 arquivos de teste, 982 testes passando,
-`tsc` limpo, build de produção verde.*
+*Atualizado em 25/09/2026, com o back-up do sistema (G4) publicado e testado em
+produção.*
+*Ramo `claude/relaxed-newton-9kb6hj` · 41 arquivos de teste, 1.064 testes
+passando, `tsc` limpo, build de produção verde.*
 
 Este é **o relatório corrente**. Ele substitui os dois anteriores (21 e 22/09),
 que ficaram só no histórico do Git.
 
 ## O que mudou desde o último
 
-As **seis migrações foram aplicadas** no projeto POLOBH. Com isso, tudo que
+**O back-up do sistema (G4) saiu do papel.** Deixou de ser uma recomendação e
+virou tela: frequência escolhida pela Direção, `.zip` com a base inteira saindo
+para fora da conta do Supabase — por e-mail, Dropbox ou download —, com LEIA-ME
+dentro e histórico verificável. Testado em produção de ponta a ponta: o pacote
+foi montado (20 tabelas) e o e-mail chegou com o arquivo anexado. O único
+pendente é a **autorização do app Dropbox** (G5), que é acesso de vocês.
+
+Antes disso, as **seis migrações foram aplicadas** no projeto POLOBH. Com isso, tudo que
 estava marcado como "pronto, mas dormindo" **acordou**: as fases da OS, os quatro
 status, a aba Rentabilidade e a volta do Código de Serviço para a EC. Não há mais
 nada esperando banco.
@@ -22,8 +30,8 @@ nada esperando banco.
 | ⏳ | Falta uma decisão sua ou um arquivo. Eu não fecho sozinho. |
 | ❓ | Entendi o pedido, mas há duas leituras e a escolha muda o resultado. |
 
-**Placar, dos 87 pontos do check-list:** **82 estão ✅**. Cinco não têm nada
-pronto — G1, G4, G5, G8 e CL1 —, e destes só o G1 é pergunta; os outros quatro
+**Placar, dos 87 pontos do check-list:** **83 estão ✅**. Quatro não têm nada
+pronto — G1, G5, G8 e CL1 —, e destes só o G1 é pergunta; os outros três
 esperam uma decisão sua. Entre os 82 prontos, oito carregam uma ressalva ⏳ e
 três, uma pergunta ❓ — estão marcados linha a linha.
 
@@ -36,8 +44,8 @@ três, uma pergunta ❓ — estão marcados linha a linha.
 | **G1** · URL e armazenamento | ❓ | Preciso saber se a pergunta é trocar o endereço (`polobh.com.br` no lugar do endereço da Vercel) ou onde ficam os dados. São duas conversas. |
 | **G2** · Tela de acesso | ✅ | Marca sem fundo branco e sem slogan; "Pólobh Promoções" em todo o sistema. |
 | **G3** · "Esqueceu a sua senha" | ✅ | Deixou de ser chamado para o suporte: o botão manda o link por e-mail e a pessoa cria a senha sozinha. Link expirado avisa antes de a pessoa preencher. |
-| **G4** · Back-up | ⏳ | Recomendo o plano Pro do Supabase (back-up diário + volta a um ponto no tempo) **mais** uma cópia semanal para fora. Falta sua decisão — é custo mensal. |
-| **G5** · Dropbox | ⏳ | Depende do Max autorizar um app Dropbox na conta da empresa e de vocês definirem pastas e padrão de nome. |
+| **G4** · Back-up | ✅ | **Configurações › Back-up.** A Direção escolhe a frequência (diário/semanal/mensal/desligado) e o sistema monta sozinho um `.zip` com a base inteira — dados, planilhas em `.csv` e anexos —, que sai **para fora da conta do Supabase**: por e-mail, para o Dropbox e no botão "Baixar agora". Histórico com data, tamanho e destino na própria tela. O plano Pro continua valendo a pena, mas deixou de ser a única proteção. Falta só vocês informarem o e-mail que recebe. |
+| **G5** · Dropbox | ⏳ | Depende do Max autorizar um app Dropbox na conta da empresa e de vocês definirem pastas e padrão de nome. A **mesma autorização** já destrava o destino do back-up (G4), que está programado e publicado esperando a credencial. |
 | **G6** · Quem vê qual pendência | ✅ | Três portas: destinatário nominal, produtora responsável e função. A produtora saiu das **conversas** e ficou no que não tem dono. 55 testes cobrem a regra. |
 | **G7** · Número do sino = número do pop-up | ✅ | Batiam diferente porque a conversa da aba entrava num e não no outro. Os dois vêm da mesma conta agora. |
 | **G8** · Revisão de texto por IA | ⏳ | Caixa alta/baixa já é resolvida na gravação, em todo o sistema; a IA cobre os descritivos da EC e do projeto. Estender à OS e ao check-list **aumenta o custo por salvamento** — confirme o escopo. |
@@ -254,8 +262,12 @@ Quatro decisões suas e três perguntas. **Nada depende de programação.**
    pronta — rápido, sem custo, um envio por vez; ou **(b)** API oficial —
    automático, mas exige conta Meta verificada, número dedicado, aprovação dos
    modelos e custo por mensagem.
-3. **Dropbox (G5) e back-up (G4).** O Dropbox depende do Max autorizar o app e de
-   vocês definirem as pastas. O back-up depende da decisão sobre o plano Pro.
+3. **Dropbox (G5).** Depende do Max autorizar um app na conta da empresa
+   (`dropbox.com/developers/apps`, uns 5 minutos, sem custo) e de vocês
+   definirem as pastas. A mesma credencial liga o destino Dropbox do back-up —
+   que já está publicado e, enquanto isso, entrega por e-mail e por download
+   normalmente. O **back-up saiu desta lista**: está feito (G4); o que resta
+   dele é informar o e-mail que recebe, na tela.
 4. **Modelos de check-list (CL1).** Quando chegarem, é cadastro, sem programação.
 
 **As três perguntas:** G1 (URL ou armazenamento?), O11 (o Financeiro pode alterar
