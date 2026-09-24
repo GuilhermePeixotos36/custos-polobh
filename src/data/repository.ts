@@ -7,6 +7,7 @@ import type {
   AbaComConversa, AnexoObservacao, Area, Chamado, Checklist, Cliente, CredenciamentoResposta, Ec, EmpresaGrupo, Fornecedor,
   ItemChecklist, ModeloChecklist, Observacao, Os, Projeto, ProjetoInfo, RegistroBackup, Usuario,
 } from "./types";
+import type { PosseDeEdicao } from "@/domain/travaEdicao";
 
 export interface ProjetoRepository {
   listar(): Promise<Projeto[]>;
@@ -252,6 +253,22 @@ export interface BackupRepository {
   historico(limite?: number): Promise<RegistroBackup[]>;
 }
 
+/**
+ * A trava de PRESENÇA — quem está com um documento aberto em modo de edição.
+ *
+ * Tudo por RPC, e nenhuma escrita direta na tabela: uma policy de insert
+ * deixaria o cliente escolher o `usuario_id` que quisesse, e tomar o documento
+ * em nome de outra pessoa.
+ */
+export interface TravaEdicaoRepository {
+  /** Toma (ou renova) a posse. Devolve o estado atual — inclusive quando é de outro. */
+  abrir(documento: string): Promise<PosseDeEdicao>;
+  /** Consulta sem tomar posse, para avisar ANTES de a pessoa clicar em "Editar". */
+  quem(documento: string): Promise<PosseDeEdicao | null>;
+  /** Larga o que é meu. Nunca derruba a posse de outra pessoa. */
+  fechar(documento: string): Promise<void>;
+}
+
 export interface Repositorios {
   projetos: ProjetoRepository;
   clientes: ClienteRepository;
@@ -265,4 +282,5 @@ export interface Repositorios {
   chamados: ChamadosRepository;
   checklists: ChecklistRepository;
   backup: BackupRepository;
+  travaEdicao: TravaEdicaoRepository;
 }

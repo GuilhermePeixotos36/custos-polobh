@@ -91,6 +91,9 @@ import type {
 } from "@/data/types";
 import { AVISO_REVISAO_PARCIAL, revisarDocumento } from "@/lib/correcaoOrtografica";
 import { aplicarNaOs, camposDaOs } from "@/domain/revisaoTexto";
+import { chaveDocumento } from "@/domain/travaEdicao";
+import { useTravaEdicao } from "@/hooks/useTravaEdicao";
+import { AvisoTravaEdicao } from "@/components/AvisoTravaEdicao";
 
 const MODALIDADES: Modalidade[] = ["Produto", "Serviço", "Locação", "Produto + Serviço", "Locação + Serviço"];
 const DOCS: DocumentoFiscal[] = ["Recibo Simples", "Fatura", "Nota Fiscal", "Fatura e Nota Fiscal"];
@@ -306,6 +309,32 @@ export function OsForm() {
    * OS nova nasce em edição: não há o que conferir num documento em branco.
    */
   const [editando, setEditando] = useState(!id);
+
+  /**
+   * TRAVA DE PRESENÇA (25/09/2026). Quem entra em edição toma o documento; quem
+   * chegar depois fica em leitura até o primeiro sair, ou até a posse caducar
+   * por falta de sinal.
+   *
+   * É a leitura literal do pedido da Pólobh — "não pode PERMITIR que seja
+   * editado, substituído, arquivado, cancelado ou emitido se outro usuário
+   * estiver com ele aberto em modo de edição". A trava otimista do salvamento
+   * continua embaixo desta e faz outro trabalho: ela pega o que escapa (a posse
+   * que caducou por engano, a edição por outro caminho), mas só avisa DEPOIS do
+   * trabalho feito. Esta avisa antes da primeira letra.
+   */
+  const trava = useTravaEdicao(id ? chaveDocumento("os", id) : "", editando);
+
+  /*
+   * Perdeu a disputa: a tela volta para leitura sozinha. Sem isto, a pessoa
+   * seguiria digitando num formulário cujo salvamento seria recusado — que é
+   * exatamente o trabalho perdido que a trava existe para evitar.
+   */
+  useEffect(() => {
+    if (trava.travado && editando) {
+      setEditando(false);
+      toast(trava.aviso, "warning");
+    }
+  }, [trava.travado, trava.aviso, editando]);
   // Empresas do grupo (carregadas no boot) — dados fiscais quando o tomador/contratante é a Pólobh.
   const empresas = useEmpresas((s) => s.empresas);
   const empresaPolobh = empresas.find((e) => e.padrao) ?? empresas[0];
@@ -994,7 +1023,15 @@ export function OsForm() {
           {/* LEITURA: o botão que abre a edição, para quem pode mexer no que a
               fase atual tem aberto. */}
           {!editando && (podeEditar || verFinanceiro) && !emitida && (
-            <Button size="sm" icon={<IcPencil width={15} height={15} />} onClick={() => setEditando(true)}>
+            <Button
+              size="sm"
+              icon={<IcPencil width={15} height={15} />}
+              // Travado por outra pessoa: o botão fica desligado com o motivo à
+              // mão, em vez de abrir a edição e recusar o salvamento no fim.
+              disabled={trava.travado}
+              title={trava.travado ? trava.aviso : undefined}
+              onClick={() => setEditando(true)}
+            >
               Editar OS
             </Button>
           )}
@@ -1070,6 +1107,7 @@ export function OsForm() {
         </div>
       }
     >
+      <AvisoTravaEdicao trava={trava} />
       <AvisoEmailPendente className="mb-4" />
       <AvisoHomologacaoEmail className="mb-4" />
 

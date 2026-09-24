@@ -30,9 +30,10 @@ nada esperando banco.
 | ⏳ | Falta uma decisão sua ou um arquivo. Eu não fecho sozinho. |
 | ❓ | Entendi o pedido, mas há duas leituras e a escolha muda o resultado. |
 
-**Placar, dos 87 pontos do check-list:** **83 estão ✅**. Quatro não têm nada
-pronto — G1, G5, G8 e CL1 —, e destes só o G1 é pergunta; os outros três
-esperam uma decisão sua. Entre os 82 prontos, oito carregam uma ressalva ⏳ e
+**Placar, dos 87 pontos do check-list:** **85 estão ✅**. Dois não têm nada
+pronto — G1 e CL1 —, e o G1 é pergunta; o CL1 espera os arquivos de vocês. O G5
+(Dropbox) está programado e publicado, esperando só a autorização na conta da
+empresa. Entre os 82 prontos, oito carregam uma ressalva ⏳ e
 três, uma pergunta ❓ — estão marcados linha a linha.
 
 ---
@@ -48,8 +49,8 @@ três, uma pergunta ❓ — estão marcados linha a linha.
 | **G5** · Dropbox | ⏳ | Depende do Max autorizar um app Dropbox na conta da empresa e de vocês definirem pastas e padrão de nome. A **mesma autorização** já destrava o destino do back-up (G4), que está programado e publicado esperando a credencial. |
 | **G6** · Quem vê qual pendência | ✅ | Três portas: destinatário nominal, produtora responsável e função. A produtora saiu das **conversas** e ficou no que não tem dono. 55 testes cobrem a regra. |
 | **G7** · Número do sino = número do pop-up | ✅ | Batiam diferente porque a conversa da aba entrava num e não no outro. Os dois vêm da mesma conta agora. |
-| **G8** · Revisão de texto por IA | ⏳ | Caixa alta/baixa já é resolvida na gravação, em todo o sistema; a IA cobre os descritivos da EC e do projeto. Estender à OS e ao check-list **aumenta o custo por salvamento** — confirme o escopo. |
-| **G9** · Duas pessoas no mesmo documento | ✅ (parcial) | A trava que **avisa no salvamento** existe. A trava de presença ("fulano está editando desde 14h20") é obra à parte e continua fora. |
+| **G8** · Revisão de texto por IA | ✅ | Obrigatória no salvamento da **EC, da OS e das tarefas do check-list**, além dos roteiros do projeto. Ao ligar apareceu algo pior que a falta: a EC **tinha** o revisor programado e nenhuma tela o chamava. Sobre o custo: só o texto que **mudou** é enviado, então a conta cresce com as edições de texto, não com os salvamentos. Ficam de fora as conversas (são as palavras de cada um), as cláusulas do contrato (texto jurídico) e os cadastros (são identificadores, não prosa). |
+| **G9** · Duas pessoas no mesmo documento | ✅ | **Duas travas, uma em cima da outra.** A de PRESENÇA impede: quem entra em edição toma o documento, e quem chega depois fica em leitura, com o aviso nomeando quem está e desde que horas ("Marisa está editando desde as 14h20"). A posse cai sozinha após 90 segundos sem sinal, para um notebook fechado não prender o documento. Embaixo dela, a trava do SALVAMENTO recusa gravar por cima — e essa, ao conferir, só existia na EC: a OS e o projeto gravavam por cima **em silêncio**. Agora as três têm. |
 
 ---
 
@@ -274,8 +275,7 @@ Quatro decisões suas e três perguntas. **Nada depende de programação.**
 valor ou só escolher? modalidades diferentes viram OSs separadas?) e F3 (apelido
 na frente do nome fantasia?).
 
-**Fora da lista, por escolha e não por esquecimento:** a trava de presença (G9), a
-IA estendida à OS e ao check-list (G8, aumenta o custo por salvamento) e os três
+**Fora da lista, por escolha e não por esquecimento:** os três
 campos de incentivo nos **Dados Gerais do Projeto** (P10 — na OS já existem;
 separar no Projeto pede migração e conversão do que está gravado).
 

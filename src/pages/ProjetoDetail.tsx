@@ -38,6 +38,9 @@ import { useChecklistProjeto } from "@/hooks/useChecklistProjeto";
 import { janelaDoProjeto } from "@/domain/checklist";
 import { confirmar } from "@/store/confirm";
 import { corrigirRoteirosProjeto } from "@/lib/correcaoOrtografica";
+import { chaveDocumento } from "@/domain/travaEdicao";
+import { useTravaEdicao } from "@/hooks/useTravaEdicao";
+import { AvisoTravaEdicao } from "@/components/AvisoTravaEdicao";
 import { eventoEncerradoHaDias, statusProjetoAutomatico } from "@/domain/statusProjeto";
 import { RepercutirMudancasModal } from "@/components/RepercutirMudancasModal";
 import {
@@ -162,6 +165,23 @@ export function ProjetoDetail() {
    * ali o ato é criar.
    */
   const [editando, setEditando] = useState(novo);
+
+  /**
+   * TRAVA DE PRESENÇA (25/09/2026). Os Dados Gerais alimentam a EC e a OS —
+   * mexer neles com outra pessoa mexendo junto é o caso em que o estrago não
+   * fica num documento só. Quem entra em edição toma a vez; quem chega depois
+   * fica em leitura até o primeiro sair ou a posse caducar.
+   */
+  const trava = useTravaEdicao(novo ? "" : chaveDocumento("projeto", id), editando);
+
+  // Perdeu a disputa: volta para leitura sozinho, em vez de deixar a pessoa
+  // digitar num formulário cujo salvamento seria recusado.
+  useEffect(() => {
+    if (trava.travado && editando && !novo) {
+      setEditando(false);
+      toast(trava.aviso, "warning");
+    }
+  }, [trava.travado, trava.aviso, editando, novo]);
   /** Diferenças a repercutir em EC/OS depois de salvar (ver RepercutirMudancasModal). */
   const [repercussao, setRepercussao] = useState<{ mudancas: MudancaEvento[]; atual: SnapshotEvento } | null>(null);
   const [filtroEc, setFiltroEc] = useState<"todas" | "ativas" | "arquivadas">("todas");
@@ -778,7 +798,13 @@ export function ProjetoDetail() {
                 <Button variant="secondary" size="sm" onClick={arquivarProjeto}>Arquivar projeto</Button>
               )}
               {!editando ? (
-                <Button size="sm" icon={<IcPencil width={15} height={15} />} onClick={() => setEditando(true)}>
+                <Button
+                  size="sm"
+                  icon={<IcPencil width={15} height={15} />}
+                  disabled={trava.travado}
+                  title={trava.travado ? trava.aviso : undefined}
+                  onClick={() => setEditando(true)}
+                >
                   Editar dados gerais
                 </Button>
               ) : (
@@ -853,6 +879,8 @@ export function ProjetoDetail() {
           </Button>
         </div>
       )}
+
+      {aba === "dados" && <AvisoTravaEdicao trava={trava} />}
 
       {aba === "dados" && (
         /*

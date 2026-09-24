@@ -45,6 +45,7 @@ import type {
   ChamadosRepository,
   ChecklistRepository,
   BackupRepository,
+  TravaEdicaoRepository,
   ConfigRepository,
   ClienteRepository,
   EcRepository,
@@ -77,6 +78,7 @@ import type {
   Representante,
   Usuario,
 } from "./types";
+import type { PosseDeEdicao } from "@/domain/travaEdicao";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -87,15 +89,54 @@ function ok<T>({ data, error }: { data: T; error: { message: string } | null }):
   return data;
 }
 
-/** Erro de edição concorrente na EC — a tela oferece recarregar em vez de sobrescrever. */
+/**
+ * Erro de edição concorrente — a tela oferece recarregar em vez de sobrescrever.
+ *
+ * Nasceu só para a EC. Em 25/09/2026 a trava foi estendida à OS e ao projeto,
+ * que até então gravavam por cima sem avisar: se duas pessoas abrissem a mesma
+ * OS, quem salvasse por último apagava o trabalho da outra EM SILÊNCIO — e a OS
+ * é justamente o documento que sai da casa.
+ */
 export class ConflitoEdicaoError extends Error {
-  constructor() {
+  constructor(documento = "Esta EC") {
     super(
-      "Esta EC foi alterada por outra pessoa depois que você abriu a tela. " +
+      `${documento} foi alterado(a) por outra pessoa depois que você abriu a tela. ` +
         "Recarregue para ver a versão atual — salvar agora apagaria o que ela incluiu."
     );
     this.name = "ConflitoEdicaoError";
   }
+}
+
+/**
+ * Grava só se o registro ainda estiver na versão que a tela carregou.
+ *
+ * A comparação é pelo texto EXATO de `atualizado_em` como o PostgREST o
+ * devolveu — e é por isso que ele não pode ser reconstruído a partir de um
+ * `Date` do JavaScript no caminho: o Postgres guarda microssegundos, o `Date`
+ * só vai até o milissegundo, e a comparação falharia sempre, transformando a
+ * trava num bloqueio permanente.
+ *
+ * Zero linhas afetadas tem duas causas, e elas pedem respostas diferentes:
+ * outra pessoa salvou antes (conflito) ou o registro sumiu. Por isso a
+ * conferência seguinte, em vez de um erro genérico.
+ */
+async function atualizarSeIntacto(
+  tabela: "oss" | "projetos",
+  id: string,
+  linha: Record<string, unknown>,
+  esperadoEm: string | undefined,
+  rotulo: string,
+): Promise<void> {
+  if (!esperadoEm) {
+    throw new Error(`Recarregue a página: esta aba está com uma versão antiga de ${rotulo.toLowerCase()}.`);
+  }
+  const afetadas = ok(
+    await supabase.from(tabela).update(linha).eq("id", id).eq("atualizado_em", esperadoEm).select("id")
+  );
+  if (afetadas?.length) return;
+  const existe = ok(await supabase.from(tabela).select("id").eq("id", id).maybeSingle());
+  if (!existe) throw new Error(`${rotulo} não existe mais — ele pode ter sido removido por outra pessoa.`);
+  throw new ConflitoEdicaoError(rotulo);
 }
 
 /** Converte os erros da trava otimista da RPC em algo que o usuário entende. */
@@ -725,7 +766,7 @@ const osRepo: OsRepository = {
     const atualizando = isUuid(os.id);
     let id: string;
     if (atualizando) {
-      ok(await supabase.from("oss").update(osRow(os)).eq("id", os.id).select("id").single());
+      await atualizarSeIntacto("oss", os.id, osRow(os), os.atualizadoEm, "Esta OS");
       id = os.id;
     } else {
       const novo = ok(await supabase.from("oss").insert(osRow(os)).select("id").single())!;
@@ -965,8 +1006,9 @@ const projetoRepo: ProjetoRepository = {
   },
   async salvar(p) {
     const atualizando = isUuid(p.id);
+    if (atualizando) await atualizarSeIntacto("projetos", p.id, projetoRow(p), p.atualizadoEm, "Este projeto");
     const data = atualizando
-      ? ok(await supabase.from("projetos").update(projetoRow(p)).eq("id", p.id).select("*").single())!
+      ? ok(await supabase.from("projetos").select("*").eq("id", p.id).single())!
       : ok(await supabase.from("projetos").insert(projetoRow(p)).select("*").single())!;
     const proj = mapProjeto(data);
     auditar({
@@ -1453,6 +1495,24 @@ const backupRepo: BackupRepository = {
   },
 };
 
+/* ----------------------------- Trava de edição ---------------------------- */
+
+const travaEdicaoRepo: TravaEdicaoRepository = {
+  async abrir(documento) {
+    const data = ok(await supabase.rpc("abrir_edicao", { p_documento: documento }));
+    return data as unknown as PosseDeEdicao;
+  },
+  async quem(documento) {
+    const data = ok(await supabase.rpc("quem_edita", { p_documento: documento }));
+    return (data as unknown as PosseDeEdicao | null) ?? null;
+  },
+  async fechar(documento) {
+    // Falhar ao largar não pode estourar na cara de ninguém: a posse caduca
+    // sozinha em 90 segundos, e a pessoa está saindo da tela.
+    await supabase.rpc("fechar_edicao", { p_documento: documento });
+  },
+};
+
 export const supabaseRepositorios: Repositorios = {
   projetos: projetoRepo,
   clientes: clienteRepo,
@@ -1466,4 +1526,5 @@ export const supabaseRepositorios: Repositorios = {
   chamados: chamadosRepo,
   checklists: checklistRepo,
   backup: backupRepo,
+  travaEdicao: travaEdicaoRepo,
 };

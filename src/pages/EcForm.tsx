@@ -42,6 +42,9 @@ import {
   AVISO_REVISAO_PARCIAL, corrigirMaiusculas, corrigirMaiusculasHtml, revisarDocumento,
 } from "@/lib/correcaoOrtografica";
 import { aplicarNaEc, camposDaEc } from "@/domain/revisaoTexto";
+import { chaveDocumento } from "@/domain/travaEdicao";
+import { useTravaEdicao } from "@/hooks/useTravaEdicao";
+import { AvisoTravaEdicao } from "@/components/AvisoTravaEdicao";
 import { useAuth } from "@/store/auth";
 import { RentabilidadeItens } from "@/components/RentabilidadeItens";
 import { EcGrupos } from "@/components/EcGrupos";
@@ -255,6 +258,13 @@ export function EcForm() {
     return <PageShell title="Carregando…">{null}</PageShell>;
   }
 
+  /**
+   * TRAVA DE PRESENÇA (25/09/2026). A tela da EC é o formulário inteiro: abrir
+   * já é editar. Por isso a posse é tomada na abertura, e quem chegar depois vê
+   * o aviso em vez do formulário.
+   */
+  const trava = useTravaEdicao(id ? chaveDocumento("ec", id) : "", editando);
+
   // Trava de edição: edita-se a EC que está NO AR (ver `domain/ec`). A arquivada
   // fica preservada — para mexer nela, traga-a de volta ou copie para uma versão
   // nova.
@@ -272,6 +282,36 @@ export function EcForm() {
           </p>
           <div className="mt-4 flex gap-2">
             <Button size="sm" onClick={() => navigate(`/estimativas/${ec.id}`)}>Ver EC / gerar nova versão</Button>
+          </div>
+        </Card>
+      </PageShell>
+    );
+  }
+
+  /*
+   * Outra pessoa está com esta EC. A tela inteira é o formulário, então não há
+   * "modo leitura" para onde cair: o que se mostra é o aviso, com o caminho de
+   * volta e — se a posse já caducou — o botão de assumir.
+   */
+  if (editando && trava.travado) {
+    return (
+      <PageShell title="EC em edição por outra pessoa">
+        <AvisoTravaEdicao trava={trava} />
+        <Card>
+          <CardTitle>Espere um instante</CardTitle>
+          <p className="mt-2 text-sm text-ink-2">
+            Duas pessoas editando a mesma EC ao mesmo tempo é como o trabalho de uma some: quem
+            salva por último grava por cima. Por isso o sistema segura a vez.
+          </p>
+          <p className="mt-2 text-sm text-ink-2">
+            Assim que a outra pessoa fechar a EC, ela libera sozinha. Se o computador dela tiver
+            sido desligado no meio, a vez também cai sozinha em pouco mais de um minuto.
+          </p>
+          <div className="mt-4 flex gap-2">
+            <Button size="sm" variant="secondary" onClick={() => navigate(`/estimativas/${ec.id}`)}>
+              Ver a EC (sem editar)
+            </Button>
+            <Button size="sm" onClick={trava.tentarDeNovo}>Tentar de novo</Button>
           </div>
         </Card>
       </PageShell>

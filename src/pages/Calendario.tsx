@@ -151,7 +151,7 @@ export function Calendario() {
   return (
     <PageShell
       title="Calendário Pólobh"
-      subtitle="O ano inteiro num quadro só: todo projeto do primeiro ao último dia."
+      subtitle="O ano inteiro em um quadro só: Todos os projetos do primeiro ao último dia."
       topAction={
         <div className="flex items-center gap-2">
           {ano !== anoAtual && (
