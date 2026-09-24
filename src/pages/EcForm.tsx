@@ -38,7 +38,10 @@ import { gerarEcExcel, gerarRentabilidadeExcel } from "@/lib/excel";
 import { revisarEc, type RevisaoEc } from "@/domain/revisaoEc";
 import { RevisaoEcModal } from "@/components/RevisaoEcModal";
 import { consultarCnpj } from "@/lib/cnpj";
-import { corrigirMaiusculas, corrigirMaiusculasHtml } from "@/lib/correcaoOrtografica";
+import {
+  AVISO_REVISAO_PARCIAL, corrigirMaiusculas, corrigirMaiusculasHtml, revisarDocumento,
+} from "@/lib/correcaoOrtografica";
+import { aplicarNaEc, camposDaEc } from "@/domain/revisaoTexto";
 import { useAuth } from "@/store/auth";
 import { RentabilidadeItens } from "@/components/RentabilidadeItens";
 import { EcGrupos } from "@/components/EcGrupos";
@@ -391,11 +394,30 @@ export function EcForm() {
   async function salvar(): Promise<boolean> {
     setSalvando(true);
     try {
+      /*
+       * REVISÃO DE TEXTO (25/09/2026). Até aqui a EC só passava pela correção
+       * de maiúsculas, e apenas quando alguém clicava em "Revisar" — o revisor
+       * por IA estava programado (`corrigirDescricoes`) e não era chamado por
+       * tela nenhuma. De fora parecia que a revisão acontecia.
+       *
+       * Agora ela é obrigatória no salvamento, como a Pólobh pediu, e vai só o
+       * que MUDOU desde a última gravação: é o que mantém o custo preso ao
+       * número de edições de texto, e não ao de salvamentos.
+       */
+      const gravada = baseline ? (JSON.parse(baseline) as Ec) : null;
+      const { documento: linhas, revisaoCompleta } = await revisarDocumento(
+        camposDaEc(ec!.linhas),
+        camposDaEc(gravada?.linhas ?? []),
+        (revisados) => aplicarNaEc(ec!.linhas, revisados),
+      );
+
       const salvo = await repo.ecs.salvar({
         ...ec!,
+        linhas,
         numero,
         responsavel: ec!.responsavel || ec!.projeto.produtoraResponsavel,
       });
+      if (!revisaoCompleta) toast(AVISO_REVISAO_PARCIAL, "warning");
       setEc(salvo);
       // Registra/atualiza os fornecedores citados e acumula seus contatos.
       await acumularFornecedores(ec!.linhas).catch(() => {});

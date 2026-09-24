@@ -89,6 +89,8 @@ import type {
   Os,
   ProjetoInfo,
 } from "@/data/types";
+import { AVISO_REVISAO_PARCIAL, revisarDocumento } from "@/lib/correcaoOrtografica";
+import { aplicarNaOs, camposDaOs } from "@/domain/revisaoTexto";
 
 const MODALIDADES: Modalidade[] = ["Produto", "Serviço", "Locação", "Produto + Serviço", "Locação + Serviço"];
 const DOCS: DocumentoFiscal[] = ["Recibo Simples", "Fatura", "Nota Fiscal", "Fatura e Nota Fiscal"];
@@ -789,9 +791,28 @@ export function OsForm() {
         : os!.financeiro.bvValor;
       // mantém o link de credenciamento coerente com o token da OS (p/ e-mail/impressão)
       const linkCred = urlCredenciamento(os!);
+
+      /*
+       * REVISÃO DE TEXTO (25/09/2026). A OS é o documento que SAI DA CASA — vai
+       * por e-mail para o fornecedor, impressa e em planilha. Era justamente a
+       * que não passava por revisão nenhuma.
+       *
+       * Vai só o que mudou desde a última gravação: numa OS de sessenta linhas,
+       * corrigir um valor não remanda sessenta descrições para a IA. O que está
+       * marcado como "não se aplica" também fica de fora — não sai no documento,
+       * e revisar o que ninguém vai ler é gastar por nada.
+       */
+      const gravada = baseline ? (JSON.parse(baseline) as Os) : null;
+      const comPatch = { ...os!, ...patch };
+      const { documento: revisada, revisaoCompleta } = await revisarDocumento(
+        camposDaOs(comPatch),
+        camposDaOs(gravada ?? comPatch),
+        (revisados) => aplicarNaOs(comPatch, revisados),
+      );
+      if (!revisaoCompleta) toast(AVISO_REVISAO_PARCIAL, "warning");
+
       let salvo = await repo.oss.salvar({
-        ...os!,
-        ...patch,
+        ...revisada,
         // A fase muda junto com o carimbo de quando ela mudou — é o que a tela
         // mostra em "com o financeiro desde…".
         faseEm: patch?.fase && patch.fase !== os!.fase ? new Date().toISOString() : os!.faseEm,
