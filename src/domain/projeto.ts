@@ -82,6 +82,9 @@ export function projetoInfoVazio(): ProjetoInfo {
     horario: "",
     roteiro: "",
     incentivosFiscais: "",
+    projetoIncentivado: "",
+    leiIncentivo: "",
+    codigoProjetoIncentivado: "",
     cronograma: cronogramaProjetoVazio(),
     cronogramaExtras: [],
     cronogramaOrdem: cronogramaOrdemPadrao(),
@@ -177,10 +180,17 @@ export function normalizarProjetoInfo(valor: unknown): ProjetoInfo {
     ]
     : [...idsCronograma];
 
+  // Projeto anterior aos três campos de incentivo: o texto único de antes vira a
+  // "Lei de Incentivo" (é lá que ele já era lido), sem perder o que foi escrito.
+  const semCamposDeIncentivo = !raw.leiIncentivo && !raw.codigoProjetoIncentivado && !raw.projetoIncentivado;
+
   return {
     ...base,
     ...raw,
     ...(migrado ?? {}),
+    projetoIncentivado: raw.projetoIncentivado ?? "",
+    codigoProjetoIncentivado: raw.codigoProjetoIncentivado ?? "",
+    leiIncentivo: semCamposDeIncentivo ? (raw.incentivosFiscais ?? "") : (raw.leiIncentivo ?? ""),
     modalidade: raw.modalidade === "Cultural" || raw.modalidade === "Corporativo" ? raw.modalidade : "",
     cronograma: {
       montagem: normalizarFaixas(cron.montagem, raw.preEvento),
@@ -212,8 +222,14 @@ export function sincronizarCamposLegados(info: ProjetoInfo): ProjetoInfo {
   const primeira = (etapa: EtapaCronogramaProjeto) =>
     normalizado.cronograma[etapa].find((faixa) => faixa.data || faixa.inicio || faixa.fim) ?? normalizado.cronograma[etapa][0];
   const evento = primeira("evento");
+  // O texto composto que a EC/OS já liam sai dos três campos novos.
+  const composto = [normalizado.leiIncentivo, normalizado.codigoProjetoIncentivado]
+    .map((t) => (t ?? "").trim())
+    .filter(Boolean)
+    .join(" — ");
   return {
     ...normalizado,
+    incentivosFiscais: composto || normalizado.incentivosFiscais,
     preEvento: primeira("montagem")?.data ?? "",
     evento: evento?.data ?? "",
     posEvento: primeira("desmontagem")?.data ?? "",

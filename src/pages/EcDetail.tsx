@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { comDadosAtuaisDoProjeto } from "@/lib/projetoAoVivo";
 import { LegendaProjeto } from "@/components/layout/LegendaProjeto";
 import { PageShell } from "@/components/layout/AppLayout";
 import { BarraProjeto } from "@/components/layout/BarraSecao";
@@ -216,6 +217,8 @@ export function EcDetail() {
       const grupos = agruparPorFornecedor(prontos);
       const idsEmitidos = new Set<string>();
       let criadas = 0;
+      // A OS nova nasce com os dados gerais de HOJE do projeto, não os da EC antiga.
+      const ecViva = await comDadosAtuaisDoProjeto(ec!);
       for (const g of grupos) {
         const idsG = new Set(g.linhas.map((l) => l.id));
         const temReversao = g.linhas.some((l) => l.statusOs === "Emitir Nova Versão");
@@ -233,7 +236,7 @@ export function EcDetail() {
         // Qual versão desta OS: conta as que já existem para este fornecedor
         // nesta EC, inclusive as que acabaram de ser arquivadas acima.
         const versao = versaoOs(oss ?? [], ec!.id, g.fornecedorCnpj, g.fornecedorRazao);
-        await repo.oss.salvar(montarOsEmissao(ec!, g.linhas, seq, versao, fornCadastro));
+        await repo.oss.salvar(montarOsEmissao(ecViva, g.linhas, seq, versao, fornCadastro));
         criadas += 1;
         g.linhas.forEach((l) => idsEmitidos.add(l.id));
       }
@@ -426,7 +429,7 @@ export function EcDetail() {
     <PageShell
       title={tituloEc(ec)}
       titleAdornment={statusBadge}
-      legenda={<LegendaProjeto info={ec.projeto} />}
+      legenda={<LegendaProjeto info={ec.projeto} projetoId={ec.projetoId} />}
       // Grudam junto com o título (ver PageShell): a EC é longa, e as ações
       // sumiam de vista assim que se rolava a lista de itens.
       acoes={

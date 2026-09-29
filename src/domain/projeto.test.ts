@@ -166,3 +166,21 @@ describe("datas e horários do evento (todos)", () => {
     expect(horariosDoEvento(projetoInfoVazio())).toBe("");
   });
 });
+
+describe("incentivos fiscais em três campos", () => {
+  it("o texto único antigo vira a Lei de Incentivo, sem perder o que foi escrito", () => {
+    const info = normalizarProjetoInfo({ incentivosFiscais: "Rouanet — PRONAC 26 1234" });
+    expect(info.leiIncentivo).toBe("Rouanet — PRONAC 26 1234");
+    expect(info.codigoProjetoIncentivado).toBe("");
+  });
+
+  it("o texto composto que a EC/OS leem sai dos três campos novos", () => {
+    const info = sincronizarCamposLegados({
+      ...projetoInfoVazio(),
+      leiIncentivo: "Lei Rouanet",
+      codigoProjetoIncentivado: "PRONAC 26 1234",
+      projetoIncentivado: "Festival",
+    });
+    expect(info.incentivosFiscais).toBe("Lei Rouanet — PRONAC 26 1234");
+  });
+});

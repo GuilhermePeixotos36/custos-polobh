@@ -71,6 +71,8 @@ export function RepercutirMudancasModal({
   };
 
   const total = ecsMarcadas.size + ossMarcadas.size;
+  /** Sem EC nem OS em aberto, o alerta é só informativo: não há o que substituir. */
+  const haAlvos = ecsAlvo.length > 0 || ossAlvo.length > 0 || !podeEditarEc || !podeEditarOs;
 
   async function aplicar() {
     setAplicando(true);
@@ -123,13 +125,13 @@ export function RepercutirMudancasModal({
       <div className="relative w-full max-w-[760px] max-h-[92vh] flex flex-col bg-surface rounded-card-lg shadow-modal border border-border animate-[fadein_.14s_ease] overflow-hidden">
         <div className="flex items-start gap-3 px-5 py-4 border-b border-border-soft">
           <div className="min-w-0">
-            <h3 className="font-display font-bold text-[18px] text-ink tracking-[-0.3px]">
-              O evento mudou. E os documentos já emitidos?
-            </h3>
+            <h3 className="font-display font-bold text-[18px] text-ink tracking-[-0.3px]">Alerta</h3>
+            {/* Texto definido pela Pólobh (29/09/2026). */}
             <p className="text-[12.5px] text-ink-2 mt-1 leading-relaxed">
-              O projeto já foi salvo. <b>Nada do que já saiu muda sozinho</b> — a EC e a OS que o
-              cliente e os fornecedores receberam continuam como estão. Marque abaixo só o que você
-              quer levar adiante.
+              Os dados gerais deste projeto foram atualizados. Os próximos documentos (ECs, OSs,
+              cronogramas, etc...) serão emitidos com as novas informações.{" "}
+              <b>Os documentos já emitidos não serão alterados.</b> Substitua os documentos que
+              precisarem de atualização.
             </p>
           </div>
           <button
@@ -143,7 +145,7 @@ export function RepercutirMudancasModal({
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
-          <Bloco titulo="O que mudou">
+          <Bloco titulo="Veja o que mudou:">
             <div className="rounded-card border border-border-soft overflow-hidden">
               {mudancas.map((m, i) => (
                 <div
@@ -164,6 +166,8 @@ export function RepercutirMudancasModal({
             </div>
           </Bloco>
 
+          {haAlvos && (
+            <>
           <Bloco
             titulo="Estimativas de Custo"
             hint="Atualiza os dados do evento na EC. As OSs já emitidas a partir dela não mudam."
@@ -211,19 +215,23 @@ export function RepercutirMudancasModal({
               ))
             )}
           </Bloco>
+            </>
+          )}
         </div>
 
         <div className="px-5 py-3.5 border-t border-border-soft bg-[#FCFCFD] flex items-center justify-between gap-3 flex-wrap">
           <span className="text-[12px] text-ink-3">
-            {total === 0 ? "Nenhum documento marcado." : `${total} documento(s) marcado(s).`}
+            {!haAlvos ? "" : total === 0 ? "Nenhum documento marcado." : `${total} documento(s) marcado(s).`}
           </span>
           <div className="flex items-center gap-2">
-            <Button variant="secondary" size="sm" onClick={onFechar} disabled={aplicando}>
-              Agora não
+            <Button variant={haAlvos ? "secondary" : "primary"} size="sm" onClick={onFechar} disabled={aplicando}>
+              {haAlvos ? "Agora não" : "Entendi"}
             </Button>
-            <Button size="sm" onClick={aplicar} disabled={aplicando || total === 0}>
-              {aplicando ? "Aplicando…" : `Aplicar${total ? ` (${total})` : ""}`}
-            </Button>
+            {haAlvos && (
+              <Button size="sm" onClick={aplicar} disabled={aplicando || total === 0}>
+                {aplicando ? "Aplicando…" : `Aplicar${total ? ` (${total})` : ""}`}
+              </Button>
+            )}
           </div>
         </div>
       </div>

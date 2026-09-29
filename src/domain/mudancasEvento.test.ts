@@ -175,3 +175,18 @@ describe("quem ainda pode receber", () => {
     expect(ossReemitiveis(lista).map((o) => o.status)).toEqual(["Rascunho", "Emitida"]);
   });
 });
+
+describe("mudanças dos campos de incentivo", () => {
+  it("cada um dos três campos aparece no relatório", () => {
+    const antes = { info: projetoInfoVazio(), cliente: clienteBase() };
+    const depois = {
+      info: { ...projetoInfoVazio(), projetoIncentivado: "Festival", leiIncentivo: "Rouanet", codigoProjetoIncentivado: "123" },
+      cliente: clienteBase(),
+    };
+    expect(mudancasDoEvento(antes, depois).map((m) => m.label)).toEqual([
+      "Nome do projeto incentivado",
+      "Lei de incentivo à cultura",
+      "Código do projeto incentivado",
+    ]);
+  });
+});

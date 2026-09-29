@@ -300,7 +300,16 @@ export interface ProjetoInfo {
   posEvento: string;
   horario: string;
   roteiro: string;
+  /**
+   * Texto composto "lei — código", MANTIDO por compatibilidade: é o que a EC, a
+   * OS e as exportações já liam. Desde 29/09/2026 ele é DERIVADO dos três campos
+   * abaixo (ver `sincronizarCamposLegados`) — quem edita são eles.
+   */
   incentivosFiscais: string;
+  /** Campos que aparecem na NF (29/09/2026), no lugar do antigo campo único. */
+  projetoIncentivado: string;
+  leiIncentivo: string;
+  codigoProjetoIncentivado: string;
   cronograma: CronogramaProjeto;
   /** Blocos adicionais, livres, do cronograma. */
   cronogramaExtras: BlocoCronogramaExtra[];

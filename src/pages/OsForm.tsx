@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { comDadosAtuaisDoProjeto } from "@/lib/projetoAoVivo";
 import { LegendaProjeto } from "@/components/layout/LegendaProjeto";
 import { PageShell } from "@/components/layout/AppLayout";
 import { BarraProjeto } from "@/components/layout/BarraSecao";
@@ -258,7 +259,9 @@ function aplicarAutoPreenchimento(os: Os, ec: Ec): Os {
       codigoServico: os.financeiro.codigoServico || codigoServico,
       cnae: os.financeiro.cnae || cnaeUnico,
       projetoIncentivado:
-        os.financeiro.projetoIncentivado || os.projeto.nomeProjeto || os.projeto.titulo,
+        os.financeiro.projetoIncentivado || os.projeto.projetoIncentivado || os.projeto.nomeProjeto || os.projeto.titulo,
+      // O código vem do Projeto (Dados Gerais) quando a OS ainda não tem o seu.
+      codigoProjetoIncentivado: os.financeiro.codigoProjetoIncentivado || os.projeto.codigoProjetoIncentivado || "",
       // Lei COM o número do projeto: é assim que o Projeto já guarda
       // ("Lei Federal de Incentivo à Cultura (Rouanet) — PRONAC 26 1234").
       leiIncentivo: os.financeiro.leiIncentivo || os.projeto.incentivosFiscais || LEI_INCENTIVO_PADRAO,
@@ -401,7 +404,10 @@ export function OsForm() {
       repo.oss.proximaSeq(ec.id),
       g?.fornecedorCnpj ? repo.fornecedores.porCnpj(g.fornecedorCnpj) : Promise.resolve(undefined),
       repo.oss.porEc(ec.id),
-    ]).then(([seq, fornCadastro, ossDaEc]) => {
+      // A OS nova nasce com os dados gerais de HOJE do projeto (ver `projetoAoVivo`).
+      comDadosAtuaisDoProjeto(ec),
+    ]).then(([seq, fornCadastro, ossDaEc, ecOriginal]) => {
+      const ec = ecOriginal;
       const agora = new Date().toISOString();
       const fornecedor = fornCadastro ?? fornecedorVazio(g?.fornecedorRazao, g?.fornecedorCnpj);
       setEcCtx(ec);
@@ -977,7 +983,7 @@ export function OsForm() {
       // documento é este, a barra do projeto já diz: a aba OS está acesa.
       title={os.numero}
       titleAdornment={<Badge tom={tomStatusOs[os.status]}>{os.status}</Badge>}
-      legenda={<LegendaProjeto info={os.projeto ?? ecCtx.projeto} />}
+      legenda={<LegendaProjeto info={os.projeto ?? ecCtx.projeto} projetoId={ecCtx.projetoId} />}
       // O segundo cabeçalho do projeto: a OS é uma página interna dele, e sem
       // esta barra quem entrava aqui perdia toda a referência de onde estava.
       subabas={ecCtx.projetoId ? <BarraProjeto projetoId={ecCtx.projetoId} atual="os" /> : undefined}
