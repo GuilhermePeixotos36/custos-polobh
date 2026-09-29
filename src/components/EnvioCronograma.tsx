@@ -206,7 +206,7 @@ export function EnvioCronograma({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
                 )}
               </Td>
               <Td align="right">
-                <div className="flex justify-end gap-1.5 flex-wrap">
+                <div className="flex justify-end gap-1.5 whitespace-nowrap">
                 <Button variant="text" size="sm" onClick={() => navigate(`/ordens/${f.os.id}`)} title="Abrir a OS para preencher as etapas">
                   Abrir OS
                 </Button>

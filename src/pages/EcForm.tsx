@@ -259,16 +259,20 @@ export function EcForm() {
   const sujo = !!ec && baseline !== "" && JSON.stringify(ec) !== baseline;
   useUnsavedGuard(sujo);
 
-  if (!ec || !t) {
-    return <PageShell title="Carregando…">{null}</PageShell>;
-  }
-
   /**
    * TRAVA DE PRESENÇA (25/09/2026). A tela da EC é o formulário inteiro: abrir
    * já é editar. Por isso a posse é tomada na abertura, e quem chegar depois vê
    * o aviso em vez do formulário.
+   *
+   * Fica ANTES do "Carregando…" abaixo: hook depois de um retorno antecipado
+   * muda a quantidade de hooks entre a primeira renderização e a seguinte, e o
+   * React derruba a tela ("Rendered more hooks…") no instante em que a EC chega.
    */
   const trava = useTravaEdicao(id ? chaveDocumento("ec", id) : "", editando);
+
+  if (!ec || !t) {
+    return <PageShell title="Carregando…">{null}</PageShell>;
+  }
 
   // Trava de edição: edita-se a EC que está NO AR (ver `domain/ec`). A arquivada
   // fica preservada — para mexer nela, traga-a de volta ou copie para uma versão

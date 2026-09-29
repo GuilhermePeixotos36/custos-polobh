@@ -22,7 +22,15 @@ import { nomeCurtoFornecedor } from "@/domain/fornecedor";
 /** OS encerrada não vai para a folha: o fornecedor não está mais no evento. */
 const OS_ENCERRADA = ["Cancelada", "Arquivada"];
 
+/** Chave do fornecedor na folha: o CNPJ quando existe, senão o nome curto. */
+export const chaveFornecedorUtil = (f?: Os["fornecedor"]): string => (f?.cnpj || nomeCurtoFornecedor(f ?? {})).trim();
+
+/** Âncora da linha do fornecedor na aba Fornecedores — o endereço da pendência de contato. */
+export const ancoraFornecedorUtil = (projetoId: string, chave: string) => `fornecedor-util:${projetoId}:${chave}`;
+
 export interface LinhaDadosUteis {
+  /** Identifica a linha (ver `chaveFornecedorUtil`) — é o que a âncora da pendência usa. */
+  chave: string;
   /** Nome curto do fornecedor — como a equipe o chama. */
   fornecedor: string;
   /** O que ele entrega neste projeto, pelos itens da EC. */
@@ -47,10 +55,11 @@ export function dadosUteisDosFornecedores(oss: Os[], ecs: Ec[]): LinhaDadosUteis
     const f = os.fornecedor;
     // A chave é o CNPJ quando existe: o mesmo fornecedor pode ter sido digitado
     // com razão social diferente em duas OSs, e viraria duas linhas.
-    const chave = (f.cnpj || nomeCurtoFornecedor(f)).trim();
+    const chave = chaveFornecedorUtil(f);
     if (!chave) continue;
 
     const atual = porFornecedor.get(chave) ?? {
+      chave,
       fornecedor: nomeCurtoFornecedor(f) || "Fornecedor",
       itens: [],
       contato: "",

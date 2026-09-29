@@ -4,6 +4,7 @@ import { criarDadosUteisBuffer } from "./dadosUteis";
 
 const folha = [
   {
+    chave: "1",
     fornecedor: "Som & Luz",
     itens: ["Sonorização", "Iluminação cênica"],
     contato: "Beltrano",
@@ -12,6 +13,7 @@ const folha = [
     oss: ["OS 01"],
   },
   {
+    chave: "2",
     fornecedor: "Buffet Sabor",
     itens: ["Coffee break"],
     contato: "",

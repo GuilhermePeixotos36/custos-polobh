@@ -54,6 +54,7 @@ import { nomeCurtoFornecedor } from "@/domain/fornecedor";
 import type { AbaComConversa, Cliente, Ec, Observacao, Projeto, ProjetoInfo, StatusOsDoc, StatusProjeto } from "@/data/types";
 import { ancoraConversaAba, ancoraProjetoSemEc, pendenciasDaTela, type Pendencia } from "@/domain/pendencias";
 import { CardConversa } from "@/components/CardConversa";
+import { ancoraFornecedorUtil } from "@/domain/dadosUteis";
 import { situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
 import { itensDaOs } from "@/domain/os";
 import { ThItensOs, TdItensOs } from "@/components/ColunaItensOs";
@@ -1456,7 +1457,7 @@ export function ProjetoDetail() {
               </THead>
               <tbody>
                 {fornecedoresOrdenados.ordenados.map((f, i) => (
-                  <Tr key={i}>
+                  <Tr key={i} id={idAncoraPendencia(ancoraFornecedorUtil(id, f.chave))}>
                     <Td className="font-bold text-ink">{f.fornecedor}</Td>
                     {/* Um item por linha: a lista corrida vira um bloco de texto
                         que ninguém bate com o olho. */}

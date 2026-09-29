@@ -47,6 +47,11 @@ import { ESPERANDO_FASE, faseDaOs, RECURSO_DA_FASE } from "@/domain/faseOs";
 import type { Recurso } from "@/store/auth";
 import type { Checklist, Ec, Observacao, Os, Projeto, StatusOs } from "@/data/types";
 import { extrairMencoes } from "@/domain/mencoes";
+import { ancoraFornecedorUtil, chaveFornecedorUtil } from "@/domain/dadosUteis";
+import { nomeCurtoFornecedor } from "@/domain/fornecedor";
+
+/** OS encerrada não cobra contato de ninguém. */
+const ENCERRADA_OS: string[] = ["Cancelada", "Arquivada"];
 import { statusProjetoAutomatico } from "@/domain/statusProjeto";
 // `encerrado` já é o nome do teste de projeto encerrado aqui — o do item vem com alias.
 import { encerrado as itemEncerrado, situacaoPrazo } from "@/domain/checklist";
@@ -561,6 +566,42 @@ export function calcularPendencias(
         ancora: os.id,
       });
     }
+  }
+
+  // Contato do fornecedor na folha de Dados Úteis (29/09/2026): a aba
+  // Fornecedores do projeto é a folha de contatos do dia da montagem, e um
+  // fornecedor sem telefone ou e-mail nela é uma ligação que não se faz. Uma
+  // pendência por fornecedor (e não por OS), com a linha da aba como endereço.
+  const contatosCobrados = new Set<string>();
+  for (const os of oss) {
+    if (!os.disparadaEm || ENCERRADA_OS.includes(os.status)) continue;
+    const ec = ecPorId.get(os.ecId);
+    if (!ec?.projetoId || encerrado(ec.projetoId)) continue;
+    const responsavel = responsavelPorProjeto.get(ec.projetoId);
+    if (!responsavel) continue;
+    const chave = chaveFornecedorUtil(os.fornecedor);
+    const id = `fornecedor.contato:${ec.projetoId}:${chave}`;
+    if (!chave || contatosCobrados.has(id)) continue;
+    // O mesmo fornecedor em duas OSs: basta UMA delas trazer o dado.
+    const mesmas = oss.filter((o) => !ENCERRADA_OS.includes(o.status) && ecPorId.get(o.ecId)?.projetoId === ec.projetoId && chaveFornecedorUtil(o.fornecedor) === chave);
+    const falta = [
+      mesmas.some((o) => o.fornecedor.telefone?.trim()) ? "" : "telefone",
+      mesmas.some((o) => o.fornecedor.email?.trim()) ? "" : "e-mail",
+    ].filter(Boolean);
+    if (!falta.length) continue;
+    contatosCobrados.add(id);
+    out.push({
+      id,
+      tipo: "fornecedor.contato",
+      titulo: `Fornecedor sem ${falta.join(" e ")} nos Dados Úteis: ${nomeCurtoFornecedor(os.fornecedor ?? {}) || "Fornecedor"}`,
+      pessoas: [responsavel],
+      responsavelProjeto: responsavel,
+      recurso: "projetos",
+      projetoId: ec.projetoId,
+      aba: "fornecedores",
+      ecId: os.ecId,
+      ancora: ancoraFornecedorUtil(ec.projetoId, chave),
+    });
   }
 
   for (const ec of ecs) {

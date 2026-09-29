@@ -336,6 +336,20 @@ describe("badge e pílula contam a mesma coisa", () => {
     expect(rotaDaPendencia(p)).toContain("aba=cronograma");
   });
 
+  it("fornecedor sem telefone/e-mail nos Dados Úteis é cobrado na aba Fornecedores, uma vez por fornecedor", () => {
+    const sem = { fornecedor: { razaoSocial: "Som Ltda", cnpj: "11", telefone: "", email: "" } } as Partial<Os>;
+    const itens = calcularPendencias(
+      [projeto("Carla")], [ec([linha([])])],
+      [os({ status: "Emitida", disparadaEm: "2026-08-20T10:00:00Z", cronograma: [{ etapa: "E" } as never], ...sem }), os({ id: "os2", status: "Emitida", disparadaEm: "2026-08-20T10:00:00Z", cronograma: [{ etapa: "E" } as never], ...sem })],
+      USUARIOS, [], [], HOJE
+    );
+    const ps = itens.filter((x) => x.tipo === "fornecedor.contato");
+    expect(ps).toHaveLength(1);
+    expect(ps[0].aba).toBe("fornecedores");
+    expect(ps[0].titulo).toContain("telefone e e-mail");
+    expect(ps[0].ancora).toContain("fornecedor-util:");
+  });
+
   it("credenciamento sem resposta é achável na linha do painel do projeto", () => {
     const itens = calcularPendencias(
       [projeto("Carla")], [ec([linha([])])],
