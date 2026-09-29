@@ -100,9 +100,10 @@ export function responsavelPadraoDosFeriados(usuarios: { nome: string; ativo?: b
 }
 
 /**
- * A pendência automática de janeiro: lançar os feriados MUNICIPAIS do ano que
- * começa. Existe de 1º a 31 de janeiro e some sozinha assim que o ano tem ao
- * menos um feriado municipal lançado. Sem responsável (nem escolhido nem o
+ * A pendência automática de janeiro: lançar os feriados MUNICIPAIS do ANO
+ * SEGUINTE (em janeiro de 2027, os de 2028 — a produção marca datas com
+ * antecedência). Existe de 1º a 31 de janeiro e some sozinha assim que o ano
+ * seguinte tem ao menos um feriado municipal lançado. Sem responsável (nem escolhido nem o
  * padrão), não há a quem cobrar e nada é gerado.
  */
 export function pendenciaDeFeriados(opts: {
@@ -112,7 +113,7 @@ export function pendenciaDeFeriados(opts: {
   /** Nome de quem recebe (já resolvido: escolhido ou padrão). */
   responsavel: string;
 }): { id: string; ano: number; pessoas: string[]; titulo: string } | null {
-  const ano = Number(opts.hoje.slice(0, 4));
+  const ano = Number(opts.hoje.slice(0, 4)) + 1;
   const mes = Number(opts.hoje.slice(5, 7)) - 1;
   if (mes !== MES_DO_LEMBRETE_DE_FERIADOS || !opts.responsavel.trim()) return null;
   if ((opts.guardados?.municipais?.[String(ano)] ?? []).length) return null;

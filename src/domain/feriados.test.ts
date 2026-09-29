@@ -74,12 +74,14 @@ describe("lembrete de janeiro", () => {
   it("em janeiro, sem municipais lançados, cobra o responsável", () => {
     const p = pendenciaDeFeriados({ hoje: "2027-01-10", guardados: g0(), responsavel: "Tiago" });
     expect(p?.pessoas).toEqual(["Tiago"]);
-    expect(p?.ano).toBe(2027);
+    expect(p?.ano).toBe(2028);
   });
 
-  it("some quando o ano já tem feriado municipal lançado", () => {
-    const g = g0({ "2027": [{ data: "2027-08-15", nome: "Assunção", origem: "municipal" }] });
+  it("cobra o ano SEGUINTE: feriado do ano corrente não resolve, o do seguinte sim", () => {
+    const g = g0({ "2028": [{ data: "2028-08-15", nome: "Assunção", origem: "municipal" }] });
     expect(pendenciaDeFeriados({ hoje: "2027-01-10", guardados: g, responsavel: "Tiago" })).toBeNull();
+    const soCorrente = g0({ "2027": [{ data: "2027-08-15", nome: "Assunção", origem: "municipal" }] });
+    expect(pendenciaDeFeriados({ hoje: "2027-01-10", guardados: soCorrente, responsavel: "Tiago" })?.ano).toBe(2028);
   });
 
   it("só existe em janeiro e só com alguém a quem cobrar", () => {

@@ -274,7 +274,8 @@ function EmpresasGrupoCard() {
  */
 function FeriadosCard() {
   const anoAtual = new Date().getFullYear();
-  const [ano, setAno] = useState(anoAtual);
+  // Em janeiro a tela abre no ano SEGUINTE — é o que o lembrete cobra.
+  const [ano, setAno] = useState(new Date().getMonth() === 0 ? anoAtual + 1 : anoAtual);
   const { data, loading, reload } = useAsync(() => lerFeriados(), []);
   const [rascunho, setRascunho] = useState<Feriado[] | null>(null);
   const { data: usuarios } = useAsync(() => repo.auth.usuarios().catch(() => [] as Usuario[]), []);
@@ -319,7 +320,7 @@ function FeriadosCard() {
       </CardTitle>
 
       {/* Todo mês de janeiro o sistema cria uma pendência para esta pessoa
-          lançar os feriados municipais do ano que começa; ela some quando o ano
+          lançar os feriados municipais do ANO SEGUINTE; ela some quando o ano
           tem feriado lançado. Quem administra (Admin, Direção, Coordenação,
           Financeiro) escolhe quem recebe. */}
       <Field label="Quem recebe o lembrete de janeiro" className="max-w-[22rem] mb-3">
