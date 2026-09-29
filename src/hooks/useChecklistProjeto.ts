@@ -38,6 +38,10 @@ export interface EstadoChecklist {
   /** Devolve o id da tarefa criada — a tela usa para dar foco nela. */
   criarItem: (base?: { etapa?: string; dataLimite?: string }) => Promise<string | void>;
   removerItem: (item: ItemChecklist) => Promise<void>;
+  /** Grava várias tarefas de uma vez (reordenar, concluir em lote): uma ida ao banco só. */
+  salvarVarios: (itens: ItemChecklist[]) => Promise<void>;
+  /** Apaga várias tarefas de uma vez (exclusão em lote). */
+  removerVarios: (itens: ItemChecklist[]) => Promise<void>;
   aplicarRecalculo: () => Promise<void>;
   sincronizar: () => Promise<void>;
   regenerar: () => Promise<void>;
@@ -226,6 +230,43 @@ export function useChecklistProjeto(
     [carregar, recarregarPendencias]
   );
 
+  /**
+   * Grava várias tarefas de uma vez. Sem revisão de texto por IA: quem chega
+   * aqui mexeu em ordem, etapa ou status — nunca reescreveu um título. A tela é
+   * atualizada antes do banco, e as pendências recarregam UMA vez no fim.
+   */
+  const salvarVarios = useCallback(
+    async (itens: ItemChecklist[]) => {
+      if (!itens.length) return;
+      const porId = new Map(itens.map((i) => [i.id, i]));
+      setChecklist((c) => (c ? { ...c, itens: c.itens.map((i) => porId.get(i.id) ?? i) } : c));
+      try {
+        await repo.checklists.salvarItens(itens);
+        void recarregarPendencias(true);
+      } catch (erro) {
+        toast(`Não foi possível salvar as tarefas: ${(erro as Error).message}`, "danger");
+        await carregar();
+      }
+    },
+    [carregar, recarregarPendencias]
+  );
+
+  const removerVarios = useCallback(
+    async (itens: ItemChecklist[]) => {
+      if (!itens.length) return;
+      const ids = new Set(itens.map((i) => i.id));
+      setChecklist((c) => (c ? { ...c, itens: c.itens.filter((i) => !ids.has(i.id)) } : c));
+      try {
+        await repo.checklists.removerItens([...ids]);
+        void recarregarPendencias(true);
+      } catch (erro) {
+        toast(`Não foi possível excluir as tarefas: ${(erro as Error).message}`, "danger");
+        await carregar();
+      }
+    },
+    [carregar, recarregarPendencias]
+  );
+
   const aplicarRecalculo = useCallback(async () => {
     if (!checklist || !projeto || !modelo) return;
     const recalculado = recalcularPrazos(checklist, projeto, modelo);
@@ -287,6 +328,8 @@ export function useChecklistProjeto(
     salvarItem,
     criarItem,
     removerItem,
+    salvarVarios,
+    removerVarios,
     aplicarRecalculo,
     sincronizar,
     regenerar,

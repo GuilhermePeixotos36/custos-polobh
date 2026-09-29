@@ -10,6 +10,11 @@ import {
   diasEntre,
   gerarChecklist,
   janelaDoProjeto,
+  gruposDeEtapa,
+  moverEtapaSobre,
+  moverItemParaEtapa,
+  moverItemPorSeta,
+  moverItemSobre,
   ordenarPorPrazo,
   recalcularPrazos,
   resumirChecklist,
@@ -424,5 +429,58 @@ describe("pendências geradas pelo check-list", () => {
     expect(comEc.some((x) => x.tipo?.startsWith("checklist."))).toBe(false);
     // Sanidade: sem a EC arquivada, a mesma tarefa É cobrada.
     expect(pendencias(c, p).some((x) => x.tipo === "checklist.atrasado")).toBe(true);
+  });
+});
+
+describe("ordem das etapas e das tarefas", () => {
+  const t = (id: string, etapa: string, ordem: number): ItemChecklist => ({
+    id, checklistId: "c", origemModeloItemId: "", titulo: id, descricao: "", etapa, status: "Pendente",
+    dataLimite: "", dataManual: false, concluidoEm: "", concluidoPor: "", responsavel: "", observacoes: [],
+    oculto: false, ordem,
+  });
+  // A: a1 a2 | B: b1 b2
+  const lista = () => [t("a1", "A", 0), t("a2", "A", 1), t("b1", "B", 2), t("b2", "B", 3)];
+  const aplicar = (base: ItemChecklist[], mudou: ItemChecklist[]) =>
+    gruposDeEtapa(base.map((i) => mudou.find((m) => m.id === i.id) ?? i)).map((g) => [g.chave, g.itens.map((i) => i.id)]);
+
+  it("agrupa pela ordem das tarefas", () => {
+    expect(gruposDeEtapa(lista()).map((g) => g.chave)).toEqual(["A", "B"]);
+  });
+
+  it("uma seta desce a tarefa uma posição dentro da etapa", () => {
+    const base = lista();
+    expect(aplicar(base, moverItemPorSeta(base, "a1", 1))).toEqual([["A", ["a2", "a1"]], ["B", ["b1", "b2"]]]);
+  });
+
+  it("na borda, a seta atravessa para a etapa vizinha", () => {
+    const base = lista();
+    expect(aplicar(base, moverItemPorSeta(base, "a2", 1))).toEqual([["A", ["a1"]], ["B", ["a2", "b1", "b2"]]]);
+    expect(aplicar(base, moverItemPorSeta(base, "b1", -1))).toEqual([["A", ["a1", "a2", "b1"]], ["B", ["b2"]]]);
+    expect(moverItemPorSeta(base, "a1", -1)).toEqual([]);
+  });
+
+  it("arrastar sobre uma tarefa de outra etapa muda a etapa e a posição", () => {
+    const base = lista();
+    const mudou = moverItemSobre(base, "a1", "b2");
+    expect(mudou.find((i) => i.id === "a1")?.etapa).toBe("B");
+    expect(aplicar(base, mudou)).toEqual([["A", ["a2"]], ["B", ["b1", "a1", "b2"]]]);
+  });
+
+  it("mover a etapa leva as tarefas dela junto", () => {
+    const base = lista();
+    expect(aplicar(base, moverEtapaSobre(base, "A", "B"))).toEqual([["B", ["b1", "b2"]], ["A", ["a1", "a2"]]]);
+  });
+
+  it("só devolve o que mudou", () => {
+    const base = lista();
+    expect(moverItemSobre(base, "b2", "b1").map((i) => i.id).sort()).toEqual(["b1", "b2"]);
+    expect(moverItemParaEtapa(base, "b2", "B", "fim")).toEqual([]);
+  });
+
+  it("tarefa sem etapa é a etapa OUTROS e volta a ficar vazia ao gravar", () => {
+    const base = [t("x", "", 0), t("a1", "A", 1)];
+    expect(gruposDeEtapa(base).map((g) => g.chave)).toEqual(["OUTROS", "A"]);
+    const mudou = moverItemParaEtapa(base, "a1", "OUTROS", "fim");
+    expect(mudou.find((i) => i.id === "a1")?.etapa).toBe("");
   });
 });

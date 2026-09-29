@@ -1620,6 +1620,8 @@ function ChecklistPainel({
         onSalvarItem={(item) => void estado.salvarItem(item)}
         onCriarItem={(base) => estado.criarItem(base)}
         onRemoverItem={(item) => void estado.removerItem(item)}
+        onSalvarVarios={(itens) => void estado.salvarVarios(itens)}
+        onRemoverVarios={(itens) => void estado.removerVarios(itens)}
         onSincronizar={() => void estado.sincronizar()}
         itensNovosNoModelo={estado.itensNovosNoModelo}
         pendenciasPorItem={pendenciasPorItem}

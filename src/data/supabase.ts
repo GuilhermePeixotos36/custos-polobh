@@ -1393,6 +1393,10 @@ const checklistRepo: ChecklistRepository = {
   async removerItem(id) {
     ok(await supabase.from("checklist_itens").delete().eq("id", id));
   },
+  async removerItens(ids) {
+    if (!ids.length) return;
+    ok(await supabase.from("checklist_itens").delete().in("id", ids));
+  },
   async remover(checklistId) {
     // Os itens saem por cascade.
     ok(await supabase.from("checklists").delete().eq("id", checklistId));
