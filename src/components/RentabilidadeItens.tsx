@@ -1,6 +1,9 @@
+import { useState } from "react";
 import { brl, pct, cx } from "@/lib/format";
-import { rentabilidadeItem, rentabilidadeTotal } from "@/domain/calc";
-import type { EcLinha } from "@/data/types";
+import { Button, Input, CurrencyInput } from "@/components/ui";
+import { IcDownload, IcEye, IcPlus } from "@/components/icons";
+import { calcularRentabilidade, type CustoInterno, type LinhaRentabilidade } from "@/domain/rentabilidade";
+import type { Ec } from "@/data/types";
 
 /** Cor do percentual de rentabilidade. */
 function tomRent(p: number | null): string {
@@ -10,104 +13,205 @@ function tomRent(p: number | null): string {
   return "text-success";
 }
 
+const novoId = () =>
+  globalThis.crypto?.randomUUID?.() ?? `ci-${Math.random().toString(36).slice(2)}`;
+
 /**
- * Rentabilidade ITEM A ITEM da EC: A = estimado, B = gasto (automático das OS's),
- * C = (A − B) / A — sempre calculado sobre cada item, nunca sobre o grupo de
- * despesa. Os grupos aparecem apenas como cabeçalho, para localizar o item; o
- * subtotal do grupo é informativo e não entra em nenhum percentual de item.
+ * A RENTABILIDADE do projeto — redesenhada em 15/09/2026 (ver
+ * `domain/rentabilidade`, onde mora a conta).
  *
- * O "Gasto" vem do valor a pagar das OS's rateado por item (via `gastoPorLinha`),
- * não é digitado. Só aparecem itens que tiveram custo na EC ou pagamento por OS;
- * itens ocultos ficam de fora.
+ * As colunas passaram a ser as do check-list: **Item · Valor na EC · Valor
+ * Líquido OS · Rentabilidade · Justificativa**. Entraram as linhas de
+ * honorários e encargos (elas estão no total da EC, e sem elas a tabela não
+ * batia com o documento) e os **custos internos**, lançados aqui — a diária da
+ * equipe, o combustível, o que a casa gasta e não cobra item a item.
+ *
+ * A JUSTIFICATIVA é a do BV do item, e abre no clique: o texto costuma ter duas
+ * linhas e, em coluna fixa, empurraria os valores para fora da tela. Era a
+ * informação que obrigava a abrir a EC item a item para achar.
+ *
+ * O percentual do rodapé é sobre o **valor total da EC**, como pedido.
  */
 export function RentabilidadeItens({
-  linhas,
+  ec,
   gastoPorLinha,
+  podeEditar = false,
+  onCustosInternos,
+  onExportar,
+  onImprimir,
 }: {
-  linhas: EcLinha[];
+  ec: Ec;
   gastoPorLinha?: Record<string, number>;
+  /** Custos internos são lançados aqui; a EC os guarda (ver `Ec.custosInternos`). */
+  podeEditar?: boolean;
+  onCustosInternos?: (custos: CustoInterno[]) => void;
+  onExportar?: () => void;
+  onImprimir?: () => void;
 }) {
-  const gastoDe = (l: EcLinha) => gastoPorLinha?.[l.id] ?? l.valorGasto ?? 0;
-  const comValores = linhas.map((l) => ({ ...l, valorGasto: gastoDe(l) }));
-  const visiveis = comValores.filter(
-    (l) => !l.oculto && ((l.valorPolobh || 0) + (l.valorCliente || 0) > 0 || l.valorGasto > 0)
-  );
-  const total = rentabilidadeTotal(visiveis);
+  const custos = ec.custosInternos ?? [];
+  const r = calcularRentabilidade(ec, gastoPorLinha ?? {}, custos);
+  const [justificativaAberta, setJustificativaAberta] = useState<string | null>(null);
+
+  const mudarCusto = (id: string, patch: Partial<CustoInterno>) =>
+    onCustosInternos?.(custos.map((c) => (c.id === id ? { ...c, ...patch } : c)));
 
   // Agrupa só para exibir: preserva a ordem de aparição dos grupos na EC.
-  const grupos: { nome: string; itens: typeof visiveis }[] = [];
-  for (const l of visiveis) {
-    const nome = l.grupo || "GERAL";
+  const grupos: { nome: string; itens: LinhaRentabilidade[] }[] = [];
+  for (const l of r.linhas) {
     const atual = grupos.at(-1);
-    if (atual?.nome === nome) atual.itens.push(l);
-    else grupos.push({ nome, itens: [l] });
+    if (atual?.nome === l.grupo) atual.itens.push(l);
+    else grupos.push({ nome: l.grupo, itens: [l] });
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left border-y border-border bg-[#FAFAFB]">
-            <th className="px-3 py-2 text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Item</th>
-            <th className="px-3 py-2 text-right text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Estimado (A)</th>
-            <th className="px-3 py-2 text-right text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Gasto OS (B)</th>
-            <th className="px-3 py-2 text-right text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Rentab. (C)</th>
-          </tr>
-        </thead>
-        <tbody>
-          {visiveis.length === 0 && (
-            <tr>
-              <td colSpan={4} className="px-3 py-6 text-center text-ink-3 text-[12.5px]">
-                Nenhum item com custo na EC ou pagamento por OS ainda.
-              </td>
+    <div>
+      <div className="flex items-center justify-end gap-2 px-3 py-2 flex-wrap">
+        {onExportar && (
+          <Button variant="secondary" size="sm" icon={<IcDownload width={15} height={15} />} onClick={onExportar}>
+            Rentabilidade Excel
+          </Button>
+        )}
+        {onImprimir && (
+          <Button variant="secondary" size="sm" icon={<IcEye width={15} height={15} />} onClick={onImprimir}>
+            Rentabilidade PDF
+          </Button>
+        )}
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left border-y border-border bg-[#FAFAFB]">
+              <th className="px-3 py-2 text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Item</th>
+              <th className="px-3 py-2 text-right text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Valor na EC</th>
+              <th className="px-3 py-2 text-right text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Valor Líquido OS</th>
+              <th className="px-3 py-2 text-right text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Rentabilidade</th>
+              <th className="px-3 py-2 text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Justificativa</th>
             </tr>
-          )}
-          {grupos.map((g) => {
-            const subtotal = rentabilidadeTotal(g.itens);
-            return (
+          </thead>
+          <tbody>
+            {r.linhas.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-3 py-6 text-center text-ink-3 text-[12.5px]">
+                  Nenhum item com custo na EC ou pagamento por OS ainda.
+                </td>
+              </tr>
+            )}
+            {grupos.map((g) => (
               <FragmentoGrupo key={g.nome} nome={g.nome}>
-                {g.itens.map((l) => {
-                  const r = rentabilidadeItem(l);
-                  return (
-                    <tr key={l.id} className="border-b border-border-soft">
-                      <td className="px-3 py-2.5 pl-6">
-                        <div className="font-semibold text-ink">{l.item || l.descricao || "—"}</div>
-                      </td>
-                      <td className="px-3 py-2.5 text-right font-display font-bold text-ink whitespace-nowrap">{brl(r.estimado)}</td>
-                      <td className="px-3 py-2.5 text-right font-semibold text-ink whitespace-nowrap">{brl(r.gasto)}</td>
-                      <td className={cx("px-3 py-2.5 text-right font-display font-bold whitespace-nowrap", tomRent(r.percent))}>
-                        {r.percent === null ? "—" : pct(r.percent)}
-                      </td>
-                    </tr>
-                  );
-                })}
-                {/* Subtotal do grupo: referência de leitura, não entra no cálculo dos itens. */}
-                <tr className="border-b border-border-soft text-ink-2">
-                  <td className="px-3 py-1.5 pl-6 text-[11.5px] font-bold italic">Subtotal do grupo</td>
-                  <td className="px-3 py-1.5 text-right text-[12px] font-semibold whitespace-nowrap">{brl(subtotal.estimado)}</td>
-                  <td className="px-3 py-1.5 text-right text-[12px] font-semibold whitespace-nowrap">{brl(subtotal.gasto)}</td>
-                  <td className="px-3 py-1.5 text-right text-[12px] font-semibold whitespace-nowrap">
-                    {subtotal.percent === null ? "—" : pct(subtotal.percent)}
+                {g.itens.map((l) => (
+                  <tr key={l.id} className="border-b border-border-soft align-top">
+                    <td className="px-3 py-2.5 pl-6">
+                      <div className={cx("font-semibold", l.origem === "item" ? "text-ink" : "text-ink-2 italic")}>
+                        {l.item}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 text-right font-display font-bold text-ink whitespace-nowrap">{brl(l.valorEc)}</td>
+                    <td className="px-3 py-2.5 text-right font-semibold text-ink whitespace-nowrap">{brl(l.valorLiquidoOs)}</td>
+                    <td className={cx("px-3 py-2.5 text-right font-display font-bold whitespace-nowrap", tomRent(l.percent))}>
+                      {l.percent === null ? "—" : pct(l.percent)}
+                    </td>
+                    <td className="px-3 py-2.5 text-[12px] text-ink-2 max-w-[18rem]">
+                      {l.justificativa ? (
+                        justificativaAberta === l.id ? (
+                          <button type="button" onClick={() => setJustificativaAberta(null)} className="text-left">
+                            {l.justificativa}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setJustificativaAberta(l.id)}
+                            className="font-bold text-primary-dark hover:underline"
+                            title="Ver a justificativa do BV deste item"
+                          >
+                            ver justificativa
+                          </button>
+                        )
+                      ) : (
+                        <span className="text-ink-3">—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </FragmentoGrupo>
+            ))}
+
+            {/* CUSTOS INTERNOS — lançados aqui, guardados na EC. */}
+            {podeEditar && onCustosInternos && (
+              <>
+                <tr className="bg-[#F4F5F7]">
+                  <td colSpan={5} className="px-3 py-1.5">
+                    <span className="text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-ink-2">
+                      Lançar custo interno
+                    </span>
+                    <span className="ml-2 text-[11.5px] text-ink-3">
+                      o que a Pólobh gasta e não está na EC — entra no cálculo, não no documento
+                    </span>
                   </td>
                 </tr>
-              </FragmentoGrupo>
-            );
-          })}
-          {visiveis.length > 0 && (
-            <tr className="bg-[#FAFAFB]">
-              <td className="px-3 py-2.5 font-bold text-ink">Total da EC</td>
-              <td className="px-3 py-2.5 text-right font-display font-bold text-ink">{brl(total.estimado)}</td>
-              <td className="px-3 py-2.5 text-right font-display font-bold text-ink">{brl(total.gasto)}</td>
-              <td className={cx("px-3 py-2.5 text-right font-display font-bold", tomRent(total.percent))}>
-                {total.percent === null ? "—" : pct(total.percent)}
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+                {custos.map((c) => (
+                  <tr key={c.id} className="border-b border-border-soft">
+                    <td className="px-3 py-1.5 pl-6" colSpan={2}>
+                      <Input
+                        className="!h-9 !text-[12.5px]"
+                        value={c.descricao}
+                        onChange={(e) => mudarCusto(c.id, { descricao: e.target.value })}
+                        placeholder="Ex.: diária da equipe de produção"
+                        aria-label="Descrição do custo interno"
+                      />
+                    </td>
+                    <td className="px-3 py-1.5">
+                      <CurrencyInput
+                        className="!h-9 !text-[12.5px]"
+                        value={c.valor}
+                        onValue={(valor) => mudarCusto(c.id, { valor })}
+                        aria-label="Valor do custo interno"
+                      />
+                    </td>
+                    <td className="px-3 py-1.5" colSpan={2}>
+                      <button
+                        type="button"
+                        onClick={() => onCustosInternos(custos.filter((x) => x.id !== c.id))}
+                        className="text-[12px] font-bold text-ink-3 hover:text-danger"
+                      >
+                        Excluir
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                <tr>
+                  <td colSpan={5} className="px-3 py-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon={<IcPlus width={15} height={15} />}
+                      onClick={() => onCustosInternos([...custos, { id: novoId(), descricao: "", valor: 0 }])}
+                    >
+                      Custo interno
+                    </Button>
+                  </td>
+                </tr>
+              </>
+            )}
+
+            {r.linhas.length > 0 && (
+              <tr className="bg-[#FAFAFB]">
+                <td className="px-3 py-2.5 font-bold text-ink">Total do projeto</td>
+                <td className="px-3 py-2.5 text-right font-display font-bold text-ink">{brl(r.totalEc)}</td>
+                <td className="px-3 py-2.5 text-right font-display font-bold text-ink">{brl(r.totalLiquidoOs)}</td>
+                <td className={cx("px-3 py-2.5 text-right font-display font-bold", tomRent(r.percentSobreEc))}>
+                  {r.percentSobreEc === null ? "—" : pct(r.percentSobreEc)}
+                </td>
+                <td />
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
       <p className="px-3 py-2 text-[11.5px] text-ink-3">
-        A = estimado na EC · B = gasto (valor a pagar das OS's, rateado por item) · C = (A − B) ÷ A,
-        calculado item a item. O subtotal por grupo é apenas informativo.
+        Valor na EC = o que o documento cobrou · Valor Líquido OS = o que saiu, pelas OSs e pelos custos internos ·
+        Rentabilidade = (EC − líquido) ÷ EC, e o total é calculado sobre o valor total da EC.
+        Honorários e encargos entram como linha porque compõem esse total.
       </p>
     </div>
   );
@@ -118,7 +222,7 @@ function FragmentoGrupo({ nome, children }: { nome: string; children: React.Reac
   return (
     <>
       <tr className="bg-[#F4F5F7]">
-        <td colSpan={4} className="px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.06em] text-ink-2">
+        <td colSpan={5} className="px-3 py-1.5 text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-ink-2">
           {nome}
         </td>
       </tr>

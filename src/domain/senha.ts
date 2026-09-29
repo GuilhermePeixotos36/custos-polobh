@@ -33,6 +33,22 @@ export function motivoSenhaInvalida(atual: string, nova: string, confirmacao: st
 }
 
 /**
+ * A senha nova de quem chegou pelo LINK do e-mail (15/09/2026).
+ *
+ * É a mesma régua da troca comum, menos a senha atual: quem chegou por aqui não
+ * a tem — é justamente isso que o link resolve. Quem garante que é a pessoa é o
+ * e-mail, não uma senha que ela esqueceu.
+ */
+export function motivoSenhaNovaInvalida(nova: string, confirmacao: string): string | null {
+  if (!nova.trim()) return "Digite a nova senha.";
+  if (nova.length < TAMANHO_MINIMO_SENHA) {
+    return `A senha precisa de pelo menos ${TAMANHO_MINIMO_SENHA} caracteres.`;
+  }
+  if (nova !== confirmacao) return "A confirmação não confere com a nova senha.";
+  return null;
+}
+
+/**
  * Traduz o que o Supabase devolve ao trocar a senha.
  *
  * As mensagens dele chegam em inglês e falam a língua da API ("New password

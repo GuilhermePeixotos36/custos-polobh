@@ -19,11 +19,12 @@ import { IcChevron, IcSearch, IcCalendar, IcGrid, IcList } from "@/components/ic
 import { CalendarioMesModal } from "@/components/CalendarioMesModal";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
+import { garantirFeriadosNacionais } from "@/lib/feriados";
+import { feriadosDoAno, indiceDeFeriados } from "@/domain/feriados";
 import { cx, dataBR } from "@/lib/format";
 import {
   MESES,
   anosComProjetos,
-  contagemPorMes,
   diasNoMes,
   hojeIso,
   montarCalendario,
@@ -40,15 +41,13 @@ import type { StatusProjeto } from "@/data/types";
 const tomStatus: Record<StatusProjeto, Tom> = {
   Ativo: "success",
   Arquivado: "neutral",
-  Concluido: "info",
-  Cancelado: "danger",
 };
 
-type FiltroStatus = "Todos" | "Ativos" | "Encerrados";
+type FiltroStatus = "Todos" | "Ativos" | "Arquivados";
 const FILTROS: { key: FiltroStatus; label: string }[] = [
   { key: "Todos", label: "Todos" },
   { key: "Ativos", label: "Ativos" },
-  { key: "Encerrados", label: "Encerrados" },
+  { key: "Arquivados", label: "Arquivados" },
 ];
 
 /**
@@ -105,13 +104,34 @@ export function Calendario() {
     else mudarParams({ mes: String(mes + 1) });
   };
 
+  /**
+   * FERIADOS do ano (15/09/2026). Os nacionais vêm da BrasilAPI e ficam
+   * guardados; os municipais de BH são lançados à mão em Configurações, porque
+   * deles não há fonte oficial em formato de dados (ver `domain/feriados`).
+   *
+   * A busca é por ano e não trava a tela: o quadro funciona sem feriado nenhum,
+   * ele só fica menos informado.
+   */
+  const { data: feriadosGuardados } = useAsync(() => garantirFeriadosNacionais(ano), [ano]);
+  const feriados = useMemo(
+    () => indiceDeFeriados(feriadosDoAno(feriadosGuardados, ano)),
+    [feriadosGuardados, ano]
+  );
+
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState<FiltroStatus>("Todos");
   const [modalidade, setModalidade] = useState("");
+  const [produtora, setProdutora] = useState("");
 
   const { itens, semData } = useMemo(
     () => montarCalendario(data?.projetos ?? [], data?.ecs ?? []),
     [data]
+  );
+
+  /** Quem aparece no seletor de produtora: só quem responde por algum projeto. */
+  const produtoras = useMemo(
+    () => [...new Set(itens.map((i) => i.produtora).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR")),
+    [itens]
   );
 
   const filtrados = useMemo(() => {
@@ -119,30 +139,19 @@ export function Calendario() {
     return itens
       .filter((i) => (filtro === "Todos" ? true : filtro === "Ativos" ? i.status === "Ativo" : i.status !== "Ativo"))
       .filter((i) => !modalidade || i.modalidade === modalidade)
-      .filter((i) => !q || `${i.titulo} ${i.cliente} ${i.local}`.toLowerCase().includes(q));
-  }, [itens, busca, filtro, modalidade]);
+      .filter((i) => !produtora || i.produtora === produtora)
+      .filter((i) => !q || `${i.titulo} ${i.cliente} ${i.local} ${i.produtora}`.toLowerCase().includes(q));
+  }, [itens, busca, filtro, modalidade, produtora]);
 
   const doAno = useMemo(() => projetosDoAno(filtrados, ano), [filtrados, ano]);
-  const contagem = useMemo(() => contagemPorMes(doAno, ano), [doAno, ano]);
   const anosDisponiveis = useMemo(() => anosComProjetos(itens), [itens]);
 
-  const mesMaisCheio = useMemo(() => {
-    const pico = Math.max(0, ...contagem);
-    return pico === 0 ? null : { mes: contagem.indexOf(pico), n: pico };
-  }, [contagem]);
-
-  /** O próximo projeto a acontecer (ou o que está em cartaz hoje) — de qualquer ano. */
-  const proximo = useMemo(
-    () => filtrados.find((i) => i.fim >= hoje) ?? null,
-    [filtrados, hoje]
-  );
-
-  const filtrando = Boolean(busca.trim() || modalidade || filtro !== "Todos");
+  const filtrando = Boolean(busca.trim() || modalidade || produtora || filtro !== "Todos");
 
   return (
     <PageShell
       title="Calendário Pólobh"
-      subtitle="O ano inteiro num quadro só: todo projeto do primeiro ao último dia."
+      subtitle="O ano inteiro em um quadro só: Todos os projetos do primeiro ao último dia."
       topAction={
         <div className="flex items-center gap-2">
           {ano !== anoAtual && (
@@ -187,10 +196,20 @@ export function Calendario() {
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <Select className="!h-9 !w-auto min-w-[150px]" value={modalidade} onChange={(e) => setModalidade(e.target.value)}>
-              <option value="">Toda modalidade</option>
+              <option value="">Todos</option>
               <option value="Corporativo">Corporativo</option>
               <option value="Cultural">Cultural</option>
             </Select>
+            {/* Os três filtros agem JUNTOS (pergunta do check-list de 15/09):
+                Ativos + Culturais + "Marisa" devolve os culturais ativos dela. */}
+            {produtoras.length > 0 && (
+              <Select className="!h-9 !w-auto min-w-[170px]" value={produtora} onChange={(e) => setProdutora(e.target.value)}>
+                <option value="">Toda produtora</option>
+                {produtoras.map((nome) => (
+                  <option key={nome} value={nome}>{nome}</option>
+                ))}
+              </Select>
+            )}
             <div className="relative min-w-[220px]">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-3"><IcSearch width={16} height={16} /></span>
               <input
@@ -210,13 +229,6 @@ export function Calendario() {
         <Card><div className="py-10 text-center text-ink-3 text-sm">Carregando o calendário…</div></Card>
       ) : (
         <>
-          <FaixaResumo
-            mesMaisCheio={mesMaisCheio}
-            proximo={proximo}
-            hoje={hoje}
-            onAbrirMes={abrirMes}
-          />
-
           {anosDisponiveis.length > 1 && (
             <div className="flex items-center gap-2 flex-wrap mb-4">
               <span className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-ink-3">Anos com projeto</span>
@@ -242,7 +254,7 @@ export function Calendario() {
                 hint={
                   filtrando
                     ? "Ajuste a busca ou os filtros — o quadro mostra tudo o que existe no ano."
-                    : "Assim que um projeto receber a data do evento no cronograma, ele aparece aqui sozinho."
+                    : "Assim que um projeto receber datas no cronograma, ele aparece aqui sozinho — da montagem à desmontagem."
                 }
                 action={<Button size="sm" variant="secondary" onClick={() => navigate("/projetos")}>Ver projetos</Button>}
               />
@@ -266,6 +278,7 @@ export function Calendario() {
           ano={ano}
           mes={mesAberto}
           itens={doAno}
+          feriados={feriados}
           onTrocarMes={trocarMes}
           onFechar={() => mudarParams({ mes: null })}
         />
@@ -276,87 +289,13 @@ export function Calendario() {
 
 /* ------------------------------- resumo ---------------------------------- */
 
-/**
- * A faixa de resumo do ano — DUAS caixas, não quatro (revisão de 09/09/2026).
- *
- * A primeira linha eram dois contadores: "Projetos em 2026" e "Dias ocupados".
- * Os dois respondiam perguntas que ninguém faz olhando um calendário — o número
- * de projetos do ano já está escrito no badge de cada mês, somado a olho, e
- * "dias ocupados" é uma estatística, não uma informação de trabalho. Ocupavam
- * a primeira dobra inteira antes do quadro, que é o que a tela existe para
- * mostrar.
- *
- * Ficaram as duas que levam a algum lugar: o mês mais cheio (que abre o mês) e
- * o que está acontecendo agora ou vem a seguir.
+/*
+ * A FAIXA DE RESUMO saiu (15/09/2026). Ela chegou a ter quatro caixas, foi
+ * reduzida a duas — "Mês mais cheio" e "Acontecendo agora / Próximo projeto" —
+ * e agora sai inteira, a pedido da Pólobh. O que ela dizia, o quadro já diz: o
+ * mês mais cheio se vê pela mancha, e o que vem a seguir, pela coluna de hoje.
+ * O que ela custava era a primeira dobra da tela, antes do quadro.
  */
-function FaixaResumo({
-  mesMaisCheio,
-  proximo,
-  hoje,
-  onAbrirMes,
-}: {
-  mesMaisCheio: { mes: number; n: number } | null;
-  proximo: ProjetoNoCalendario | null;
-  hoje: string;
-  onAbrirMes: (mes: number) => void;
-}) {
-  const emCartaz = proximo ? proximo.inicio <= hoje : false;
-  return (
-    <div className="grid gap-3 sm:grid-cols-2 mb-5">
-      <Bloco
-        titulo="Mês mais cheio"
-        valor={mesMaisCheio ? MESES[mesMaisCheio.mes] : "—"}
-        legenda={mesMaisCheio ? `${mesMaisCheio.n} projeto${mesMaisCheio.n > 1 ? "s" : ""}` : "sem projetos no ano"}
-        onClick={mesMaisCheio ? () => onAbrirMes(mesMaisCheio.mes) : undefined}
-      />
-      <div className="bg-surface border border-border rounded-card shadow-card p-4 min-w-0">
-        <div className="text-[10.5px] font-extrabold uppercase tracking-[0.12em] text-ink-3">
-          {emCartaz ? "Acontecendo agora" : "Próximo projeto"}
-        </div>
-        {proximo ? (
-          <div className="mt-1.5 flex items-start gap-2 min-w-0">
-            <span className="mt-1 h-4 w-1.5 rounded-full shrink-0" style={{ background: proximo.cor.forte }} />
-            <div className="min-w-0">
-              <div className="font-display font-bold text-[15px] text-ink truncate">{proximo.titulo}</div>
-              <div className="text-[12px] text-ink-2 truncate">{rotuloPeriodo(proximo)}</div>
-            </div>
-          </div>
-        ) : (
-          <div className="mt-1.5 font-display font-bold text-[15px] text-ink-3">Nada à frente</div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function Bloco({
-  titulo,
-  valor,
-  legenda,
-  onClick,
-}: {
-  titulo: string;
-  valor: string;
-  legenda: string;
-  onClick?: () => void;
-}) {
-  const conteudo = (
-    <>
-      <div className="text-[10.5px] font-extrabold uppercase tracking-[0.12em] text-ink-3">{titulo}</div>
-      <div className="font-display font-extrabold text-[24px] text-ink leading-tight mt-1 truncate">{valor}</div>
-      <div className="text-[12px] text-ink-2 truncate">{legenda}</div>
-    </>
-  );
-  if (!onClick) return <div className="bg-surface border border-border rounded-card shadow-card p-4 min-w-0">{conteudo}</div>;
-  return (
-    <button
-      onClick={onClick}
-      className="text-left bg-surface border border-border rounded-card shadow-card p-4 min-w-0 hover:border-primary/50 hover:bg-[#FFFDFA] transition-colors"
-    >
-      {conteudo}
-    </button>
-  );
-}
 
 /* ----------------------------- card do mês -------------------------------- */
 
@@ -414,7 +353,7 @@ function CardMes({
                     left: `${((seg.diaInicio - 1) / dias) * 100}%`,
                     width: `${((seg.diaFim - seg.diaInicio + 1) / dias) * 100}%`,
                     background: seg.item.cor.forte,
-                    opacity: seg.item.status === "Cancelado" ? 0.4 : 1,
+                    opacity: seg.item.status === "Arquivado" ? 0.4 : 1,
                   }}
                 />
               ))}
@@ -440,17 +379,14 @@ function CardMes({
           "+6 projetos" obrigava a abrir o mês para descobrir quais. O card cresce
           o quanto precisar, e a grade acompanha — as linhas de cards já se
           alinham pela altura do mais alto. */}
+      {/* Mês vazio fica vazio mesmo (15/09/2026): a frase "Nenhum projeto neste
+          mês" era uma linha de texto para dizer o que a ausência de linhas já
+          dizia, repetida em até doze cards. E o rodapé "Ver os dias" saiu porque
+          o card INTEIRO é o botão que abre o mês — o rótulo anunciava um clique
+          que a pessoa já podia dar em qualquer ponto do card. */}
       <div className="flex flex-col gap-1.5 min-h-[52px]">
-        {segmentos.length === 0 ? (
-          <span className="text-[12px] text-ink-3 italic">Nenhum projeto neste mês</span>
-        ) : (
-          segmentos.map((seg) => <LinhaProjetoCard key={seg.item.id} seg={seg} />)
-        )}
+        {segmentos.map((seg) => <LinhaProjetoCard key={seg.item.id} seg={seg} />)}
       </div>
-
-      <span className="text-[11.5px] font-bold text-ink-3 group-hover:text-primary-dark transition-colors flex items-center gap-1 mt-auto">
-        Ver os dias <IcChevron width={13} height={13} className="transition-transform group-hover:translate-x-0.5" />
-      </span>
     </button>
   );
 }
@@ -460,7 +396,7 @@ function LinhaProjetoCard({ seg }: { seg: SegmentoMes }) {
   return (
     <span className="flex items-center gap-2 min-w-0" title={`${item.titulo} — ${rotuloPeriodo(item)}`}>
       <span className="h-2 w-2 rounded-full shrink-0" style={{ background: item.cor.forte }} />
-      <span className={cx("text-[12.5px] font-semibold text-ink truncate flex-1 min-w-0", item.status === "Cancelado" && "line-through text-ink-3")}>
+      <span className={cx("text-[12.5px] font-semibold text-ink truncate flex-1 min-w-0", item.status === "Arquivado" && "line-through text-ink-3")}>
         {item.titulo}
       </span>
       <span className="text-[11px] font-bold text-ink-3 tabular-nums shrink-0">
@@ -510,9 +446,10 @@ function VistaLista({
               <Badge tom="warning">{segmentos.length} projeto{segmentos.length > 1 ? "s" : ""}</Badge>
               <button
                 onClick={() => onAbrirMes(mes)}
+                title={`Abrir ${MESES[mes]} dia a dia`}
                 className="ml-auto text-[12px] font-bold text-ink-2 hover:text-primary-dark transition-colors flex items-center gap-1"
               >
-                <IcCalendar width={14} height={14} /> Ver os dias
+                <IcCalendar width={14} height={14} /> {MESES[mes]} dia a dia
               </button>
             </div>
             <div className="divide-y divide-border-soft">
@@ -528,21 +465,30 @@ function VistaLista({
                     <span className="h-9 w-1.5 rounded-full shrink-0" style={{ background: item.cor.forte }} />
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-2 flex-wrap">
-                        <span className={cx("text-[14px] font-bold text-ink truncate", item.status === "Cancelado" && "line-through text-ink-3")}>
+                        <span className={cx("text-[14px] font-bold text-ink truncate", item.status === "Arquivado" && "line-through text-ink-3")}>
                           {item.titulo}
                         </span>
                         {acontecendo && <Badge tom="success">acontecendo</Badge>}
                       </span>
+                      {/* A PRODUTORA RESPONSÁVEL entra aqui (15/09/2026): é por
+                          ela que se procura um projeto na lista, e até então o
+                          nome de quem responde não aparecia em lugar nenhum do
+                          quadro do ano. */}
                       <span className="block text-[12px] text-ink-2 truncate">
                         {[item.cliente, item.local].filter(Boolean).join(" · ") || "—"}
                       </span>
+                      {item.produtora && (
+                        <span className="block text-[12px] text-ink-3 truncate">
+                          Produtora: <span className="font-semibold text-ink-2">{item.produtora}</span>
+                        </span>
+                      )}
                     </span>
                     <span className="hidden md:block text-right shrink-0">
                       <span className="block text-[12.5px] font-bold text-ink tabular-nums">
                         {dataBR(item.inicio)}{item.inicio !== item.fim ? ` › ${dataBR(item.fim)}` : ""}
                       </span>
                       <span className="block text-[11px] text-ink-3">
-                        {item.dias} dia{item.dias > 1 ? "s" : ""}
+                        {item.dias} dia{item.dias > 1 ? "s" : ""} (com montagem e desmontagem)
                         {item.modalidade ? ` · ${item.modalidade}` : ""}
                       </span>
                     </span>

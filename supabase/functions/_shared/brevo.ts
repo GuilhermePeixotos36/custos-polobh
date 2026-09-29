@@ -9,11 +9,23 @@ export interface Destinatario {
   nome?: string;
 }
 
+/** Um arquivo junto da mensagem. O Brevo recebe o conteúdo em base64. */
+export interface AnexoBrevo {
+  nome: string;
+  conteudoBase64: string;
+}
+
 export interface EmailBrevo {
   para: Destinatario[];
   assunto: string;
   html: string;
   responderPara?: Destinatario;
+  /**
+   * Anexos. O Brevo recusa mensagens grandes, e quem chama é que decide o que
+   * cabe — aqui não há corte automático de propósito: um anexo silenciosamente
+   * descartado é pior do que um envio que falha e aparece no log.
+   */
+  anexos?: AnexoBrevo[];
 }
 
 const BREVO_URL = "https://api.brevo.com/v3/smtp/email";
@@ -24,7 +36,7 @@ export async function enviarPeloBrevo(msg: EmailBrevo): Promise<{ messageId?: st
 
   // Remetente autenticado no domínio da Pólobh (registrado pelo TI).
   const remetenteEmail = Deno.env.get("BREVO_SENDER_EMAIL") ?? "noreply@polobh.com.br";
-  const remetenteNome = Deno.env.get("BREVO_SENDER_NAME") ?? "Pólobh Eventos";
+  const remetenteNome = Deno.env.get("BREVO_SENDER_NAME") ?? "Pólobh Promoções";
   // Como o envio sai de "noreply@", as respostas são direcionadas a uma caixa real
   // (BREVO_REPLY_TO) — a menos que a mensagem já especifique um "responderPara".
   const replyToPadrao = Deno.env.get("BREVO_REPLY_TO");
@@ -47,6 +59,9 @@ export async function enviarPeloBrevo(msg: EmailBrevo): Promise<{ messageId?: st
       replyTo,
       subject: msg.assunto,
       htmlContent: msg.html,
+      attachment: msg.anexos?.length
+        ? msg.anexos.map((a) => ({ name: a.nome, content: a.conteudoBase64 }))
+        : undefined,
     }),
   });
 

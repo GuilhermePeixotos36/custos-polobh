@@ -12,7 +12,7 @@ import { autorizar, respostaAutorizacao } from "../_shared/auth.ts";
  * Segredos (no Supabase):
  *   BREVO_API_KEY=...            (obrigatório — chave do Brevo)
  *   BREVO_SENDER_EMAIL=noreply@polobh.com.br
- *   BREVO_SENDER_NAME="Pólobh Eventos"
+ *   BREVO_SENDER_NAME="Pólobh Promoções"
  *   BREVO_REPLY_TO=contato@polobh.com.br   (opcional — respostas; noreply não recebe)
  */
 
@@ -88,7 +88,7 @@ async function enviarPeloBrevo(msg: EmailBrevo): Promise<{ messageId?: string }>
   if (!apiKey) throw new Error("BREVO_API_KEY não configurada.");
 
   const remetenteEmail = Deno.env.get("BREVO_SENDER_EMAIL") ?? "noreply@polobh.com.br";
-  const remetenteNome = Deno.env.get("BREVO_SENDER_NAME") ?? "Pólobh Eventos";
+  const remetenteNome = Deno.env.get("BREVO_SENDER_NAME") ?? "Pólobh Promoções";
   const replyToPadrao = Deno.env.get("BREVO_REPLY_TO");
   const replyTo = msg.responderPara
     ? { email: msg.responderPara.email, name: msg.responderPara.nome }

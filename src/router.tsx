@@ -3,6 +3,7 @@ import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { RequireRecurso } from "@/components/layout/RequireRecurso";
 import { Login } from "@/pages/Login";
+import { NovaSenha } from "@/pages/NovaSenha";
 import { ErroAplicacao } from "@/pages/ErroAplicacao";
 import { lazyComRecuperacao } from "@/lib/lazyComRecuperacao";
 
@@ -32,6 +33,9 @@ function P({ children }: { children: ReactNode }) {
 
 export const router = createBrowserRouter([
   { path: "/login", element: <Login />, errorElement: <ErroAplicacao /> },
+  // Sem login: quem chega aqui vem do link do e-mail, com uma sessão de
+  // recuperação aberta pelo Supabase (ver `NovaSenha`).
+  { path: "/nova-senha", element: <NovaSenha />, errorElement: <ErroAplicacao /> },
   { path: "/cronograma/:slug", element: <P><CronogramaPublico /></P>, errorElement: <ErroAplicacao /> }, // público (sem login)
   { path: "/credenciamento/:token", element: <P><CredenciamentoPublico /></P>, errorElement: <ErroAplicacao /> }, // público (sem login)
   { path: "/estimativas/:id/imprimir", element: <P><ImprimirEc /></P>, errorElement: <ErroAplicacao /> },

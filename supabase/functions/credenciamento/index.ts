@@ -64,6 +64,10 @@ Deno.serve(async (req) => {
         evento: { titulo: proj.titulo ?? "", local: proj.local ?? "", data: proj.evento ?? "" },
         fornecedor: forn.razaoSocial ?? "",
         prazoLimite,
+        // Os campos que ESTE credenciamento pede (15/09/2026). Vêm daqui, e não
+        // da URL: o formulário é público, e deixar a escolha viajar pelo
+        // endereço seria deixar qualquer um pedir o RG da equipe alheia.
+        campos: Array.isArray(cred.campos) ? cred.campos : [],
         // A tela precisa saber ANTES de a pessoa preencher tudo — descobrir só
         // no envio, com o formulário cheio, é a pior hora de dar a notícia.
         prazoEncerrado: !!limite && !isNaN(limite.getTime()) && new Date() > limite,
@@ -98,8 +102,16 @@ Deno.serve(async (req) => {
       }
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // Os campos opcionais entram com o mesmo corte de tamanho dos demais: o
+      // formulário é público, e "quanto texto cabe" é decisão do servidor.
       const equipe = (Array.isArray(body?.equipe) ? body.equipe : []).slice(0, 200).map((p: any) => ({
-        nome: str(p?.nome), cpf: str(p?.cpf, 20), funcao: str(p?.funcao, 80),
+        nome: str(p?.nome),
+        cpf: str(p?.cpf, 20),
+        funcao: str(p?.funcao, 80),
+        rg: str(p?.rg, 20),
+        endereco: str(p?.endereco, 200),
+        telefone: str(p?.telefone, 30),
+        aniversario: str(p?.aniversario, 10),
       })).filter((p: { nome: string }) => p.nome.trim() !== "");
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

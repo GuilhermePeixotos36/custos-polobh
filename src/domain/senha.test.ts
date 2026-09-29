@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { motivoSenhaInvalida, traduzirErroDeSenha, TAMANHO_MINIMO_SENHA } from "./senha";
+import { motivoSenhaInvalida, motivoSenhaNovaInvalida, traduzirErroDeSenha, TAMANHO_MINIMO_SENHA } from "./senha";
 
 describe("regra da senha nova", () => {
   const ok = (atual: string, nova: string, conf: string) => motivoSenhaInvalida(atual, nova, conf) === null;
@@ -54,5 +54,19 @@ describe("mensagens do Supabase viram português", () => {
     expect(traduzirErroDeSenha("Unexpected failure from the auth server")).toBe(
       "Unexpected failure from the auth server"
     );
+  });
+});
+
+describe("senha nova pelo link do e-mail (15/09/2026)", () => {
+  it("aceita uma senha longa e confirmada", () => {
+    expect(motivoSenhaNovaInvalida("frase secreta da casa", "frase secreta da casa")).toBeNull();
+  });
+
+  // Aqui NÃO se pede a senha atual: quem chegou pelo link não a tem, e é
+  // justamente isso que o link resolve.
+  it("cobra tamanho e confirmação, e só", () => {
+    expect(motivoSenhaNovaInvalida("", "")).toBe("Digite a nova senha.");
+    expect(motivoSenhaNovaInvalida("curta", "curta")).toContain("8 caracteres");
+    expect(motivoSenhaNovaInvalida("frase secreta", "outra coisa")).toContain("confirmação");
   });
 });

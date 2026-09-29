@@ -171,6 +171,13 @@ export function PageShell({
         )}
       </div>
       {children}
+      {/* Espaço para a PÍLULA DE PENDÊNCIAS (15/09/2026).
+          Ela é fixa no canto inferior direito e tapava a última linha do que
+          estivesse embaixo — a queixa veio do Resumo de Custos, onde o que ficava
+          coberto era justamente um total. A folga sai da altura real da pílula
+          (`--altura-pilula`, medida por ResizeObserver) e é ZERO nas telas que
+          não têm pílula, então nenhuma página ganha um rodapé vazio. */}
+      <div aria-hidden className="no-print" style={{ height: "calc(var(--altura-pilula, 0px) + 1.5rem)" }} />
     </main>
     </ProvedorRecolher>
   );

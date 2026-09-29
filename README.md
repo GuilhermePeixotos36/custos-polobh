@@ -44,6 +44,35 @@ supabase/schema.sql          schema completo + RLS
 supabase/migrations/         atualizações incrementais do banco
 ```
 
+## A revisão de 15/09/2026 (check-list da Pólobh)
+
+A Pólobh mandou um check-list de cerca de 120 pedidos sobre o aplicativo
+inteiro. A leitura item a item — onde é no app, o que quiseram, o que muda —
+está em [`docs/plano-ajustes-2026-09-15.md`](docs/plano-ajustes-2026-09-15.md),
+com o que já foi feito, o que ficou pendente e por quê.
+
+Vale ler antes de mexer no que ela tocou, porque vários pedidos **desfazem
+decisões anteriores** documentadas aqui embaixo — e as seções que eles mudaram
+estão atualizadas, mas a história de por que a regra era outra continua no
+histórico do git. Os maiores:
+
+- **a Produtora Responsável saiu das conversas** (era a regra de 08/09) e ficou
+  só no que não tem destinatário nominal;
+- **"Concluído" acabou** no projeto: sobraram Ativo e Arquivado, como na EC;
+- **o Calendário passou a mostrar o período inteiro** (montagem → desmontagem),
+  e não só a etapa Evento;
+- **a OS ganhou fases** — produção monta, financeiro conclui, back-office
+  emite — e abre em modo leitura;
+- **"Disparada" deixou de ser status da OS** e virou carimbo de envio;
+- a conversa **saiu** das listagens de EC e OS e **entrou** em Dados Gerais e
+  Check-list.
+
+**O que ficou pendente, e por quê:** a matriz dos sete perfis da Pólobh (falta a
+tabela de quem vê o quê), os dois modelos de contrato (não vieram anexados), a
+conta da rentabilidade com honorários e encargos (falta um exemplo numérico da
+casa), o Dropbox e o WhatsApp (dependem de decisão e de conta). O plano detalha
+cada um.
+
 ## Perfis de acesso
 | Recurso | Direção | Produção | Administrativo |
 |---|:--:|:--:|:--:|
@@ -180,13 +209,20 @@ mão). Ela é a última do tipo: a regra agora vive no código.
 
 ## Pendências (quem vê o quê)
 O número vermelho é uma lista de tarefa, não um painel do que anda acontecendo.
-Duas portas, e só elas (`domain/pendencias.ts` → `agregarPendencias`):
-- o **Produtor(a) Responsável** do projeto — **sempre**, e para ele conta
-  **qualquer** pendência nascida ali dentro, inclusive a conversa que no momento
-  está com outra pessoa;
+Três portas, e só elas (`domain/pendencias.ts` → `agregarPendencias`):
 - o **destinatário** da cobrança — @mencionado ou escolhido como responsável do
-  comentário, e o dono da tarefa do check-list. É o "eventualmente": entra e sai
-  conforme a vez (ver a batata quente, abaixo).
+  comentário, e o dono da tarefa do check-list. Entra e sai conforme a vez (ver
+  a batata quente, abaixo);
+- o **Produtor(a) Responsável**, mas só no que **não tem outro dono**: OS em
+  rascunho, cronograma vazio, credenciamento sem resposta, projeto sem EC,
+  OS/Contrato a emitir. **Conversa não entra** (revisão de 15/09/2026). Ele já
+  recebeu tudo o que nascia no projeto — regra de 08/09 — e o preço foi o
+  número vermelho de quem responde por seis projetos deixar de significar
+  "tenho o que fazer". Sem esta porta, porém, as cinco pendências acima sumiriam
+  do sistema: elas não têm a quem mais pertencer;
+- a **função**, e só nas passagens de bastão da OS ("aguardando o financeiro"):
+  ninguém é nomeado quando a OS vai *para o financeiro*. Fora daí o papel
+  continua sem abrir porta nenhuma.
 
 Não abrem porta: o **papel** (antes todo Admin/Direção/Administrativo via "emitir
 OS" da casa inteira) e o **autor** do comentário (quem cobrava carregava a
@@ -290,7 +326,46 @@ Duas regras do **BV** saíram junto do seletor:
   propósito) ou um BV abaixo de 15%. Campo em branco não pede nada, senão toda
   linha recém-criada nasceria com alerta. Ela é **opcional** — ver adiante.
 
+## A OS caminha em fases (revisão de 15/09/2026)
+
+A OS era um formulário só: quem podia editar editava tudo, em qualquer ordem, e
+"está pronta para o financeiro" era conversa de corredor. Agora ela tem o
+caminho que a casa já faz na prática (`domain/faseOs.ts`):
+
+**Produção monta → Financeiro conclui → Back-office emite.**
+
+- **A fase TRAVA, não avisa.** Os blocos da etapa anterior ficam em leitura,
+  porque o que isso impede é o valor mudando embaixo de quem já o usou para
+  emitir a nota. Devolver à etapa anterior é possível e explícito.
+- **Permissão e fase são coisas diferentes** e precisam concordar: a permissão
+  diz o que a PESSOA pode (`oss.editar`, `financeiro`), a fase diz o que o
+  DOCUMENTO aceita agora. É assim que "a partir desta etapa a Produção não edita
+  mais" se cumpre sem depender de os sete perfis da Pólobh já existirem.
+- **Cada passagem vira pendência de quem recebeu**, endereçada à FUNÇÃO — a OS
+  vai "para o financeiro", não "para a Marisa".
+- **Emitir fecha o ciclo:** a OS vira Emitida e os itens da EC que ela consolida
+  passam de "Emitir" para "OK" (RPC `marcar_itens_da_os_como_emitidos`; pela
+  tela não daria, porque quem emite não escreve em `ec_linhas`). Antes disso,
+  **OS com pendência aberta não é emitida** — a trava é de EMISSÃO, não de
+  salvamento: salvar segue livre, como ficou combinado em 10/09.
+- **A OS abre em modo leitura**, e "Editar OS" libera o que a fase permite.
+
+**Quatro status, e "Disparada" não é um deles.** Rascunho · Emitida · Cancelada ·
+Arquivada. "Disparada" não dizia em que estado o documento está, dizia que um
+e-mail saiu — uma OS entregue em mãos ficava para sempre parecendo menos pronta
+que uma enviada por e-mail. Virou o carimbo `disparadaEm`, e é ele que destrava
+as cobranças de cronograma e credenciamento (elas só fazem sentido com o
+fornecedor de posse do documento). O carimbo só é gravado quando o e-mail sai de
+verdade.
+
 ## A OS em dois blocos: Detalhamento e Resumo da Contratação
+
+> **16/09/2026** — o módulo "Pagamento ao Fornecedor" deixou de existir: os
+> totais, o prazo de pagamento e o documento fiscal viraram o **Resumo dos
+> Custos**, no fim do Detalhamento da Contratação, como o check-list pediu nos
+> dois sentidos ("consolidar … sob o título Resumo dos Custos" e "Módulo
+> Pagamento ao Fornecedor — excluir"). Os totais só querem dizer alguma coisa
+> ao lado dos itens que os produziram.
 Revisão de 09/09/2026. A OS é o documento que vira **contrato com o fornecedor**,
 e ela agora se lê em duas metades, na ordem em que a decisão acontece.
 
@@ -581,15 +656,24 @@ cliente de e-mail não escreve no chamado — a resposta que o sistema registra 
 escrita na tela do Help Desk. É para isso que o aviso leva um link para ela.
 
 ## Conversa por aba do projeto
-Cinco abas — **EC, OS, Fornecedores, Cronograma e Credenciamento** — têm o seu
-corredor: "@Marisa o palco não respondeu o credenciamento". Sem ele, esse tipo
-de recado ou não era escrito, ou ia parar numa observação de item que nada tinha
-a ver com o assunto, só porque era o campo de texto mais perto — e quem fosse
-procurar depois não achava.
+Cinco abas — **Dados Gerais, Check-list, Fornecedores, Cronograma e
+Credenciamento** — têm o seu corredor: "@Marisa o palco não respondeu o
+credenciamento". Sem ele, esse tipo de recado ou não era escrito, ou ia parar
+numa observação de item que nada tinha a ver com o assunto, só porque era o
+campo de texto mais perto — e quem fosse procurar depois não achava.
 
-Dados Gerais e Check-list ficam de fora de propósito: a primeira é o cadastro do
-evento, e a segunda já é feita de tarefas com dono e prazo, que é uma forma
-melhor de cobrar alguém do que um comentário.
+**A lista mudou em 15/09/2026.** Dados Gerais e Check-list entraram (tinham
+ficado de fora por bom motivo — uma é cadastro, a outra já é feita de tarefas
+com dono e prazo —, mas na prática o recado da etapa ia parar no campo de texto
+mais próximo). **EC e OS saíram**: ali a conversa mora DENTRO do documento, e no
+corredor da listagem ela era uma terceira caixa de texto para o mesmo assunto —
+e era ela o número "a mais" que fazia a pílula da subguia divergir do badge da
+linha da EC.
+
+O que ficou gravado nas duas abas antigas continua no banco e **deixa de
+cobrar**: pendência sem tela onde se resolver é justamente o número que não se
+consegue achar (`ABAS_CONVERSA_GRAVADAS` guarda o formato; `ABAS_COM_CONVERSA` é
+quem mostra).
 
 Guardadas em `projetos.conversas` (jsonb, `{"<aba>": [observacoes]}`, migração
 `20260910140000`) e gravadas **uma aba por vez** (`salvar_conversa_projeto`,
@@ -604,6 +688,85 @@ aba — não ao projeto.
 
 O card em si é o mesmo da EC e da OS (`components/CardConversa.tsx`): o rótulo
 do botão é **"Adicionar Observação"** em toda parte.
+
+## O contrato em Word (16/09/2026)
+
+Os dois modelos da casa — **Corporativo** e **Cultural** — chegaram como .docx
+anotados, e o sistema gera o documento a partir deles. Quem baixa clica em
+**Contrato Word**, no alto da OS; o botão só aparece quando a EC pediu contrato
+("Emitir" ou "Emitir Nova Versão" na coluna Contrato de algum item).
+
+Os modelos separam três coisas, e o sistema respeita a separação:
+
+| No modelo | No app |
+| --- | --- |
+| *"O sistema lança automaticamente…"* | Vem da OS e não se digita no contrato: número, data, tomador, fornecedor, valores, forma de pagamento. Reeditar aqui criaria uma segunda verdade para o mesmo dado. |
+| *"Manter este campo editável."* | Cada uma das sete cláusulas é um campo, já preenchido com o texto do modelo. Só o que muda fica gravado — assim, corrigir o padrão depois vale para os contratos que ainda não foram assinados. |
+| Em branco no modelo | Cidade da assinatura e as duas testemunhas (nome e CPF). Em branco, saem para assinar à mão. |
+
+**Qual modelo vale** é a modalidade do projeto que decide — a mesma que escolhe
+o modelo da EC e do check-list. Projeto sem modalidade cai no Corporativo, e o
+seletor existe para o caso raro do contrário. O Cultural difere em três pontos,
+todos de direito cultural: nomeia o projeto incentivado, a lei e o código na
+Cláusula Primeira; acrescenta, entre as obrigações do CONTRATANTE, receber e
+administrar os recursos do incentivo; e acrescenta, nas considerações finais,
+que serviço novo pede contrato novo.
+
+**CONTRATANTE é o tomador do serviço; CONTRATADO(A) é o fornecedor.** No alto
+dos dois modelos, os dois blocos trazem a mesma anotação ("os dados do Tomador
+de Serviço"), e é o bloco de assinaturas deles que desfaz o engano. Por isso o
+contratante, em branco, segue o tomador do faturamento em vez de perguntar duas
+vezes a mesma coisa na mesma OS.
+
+Sai em **.docx, e não em PDF**, porque é ele que vai para o jurídico do
+fornecedor, que devolve com alteração — um PDF obrigaria a refazer tudo no app.
+
+Onde mora: `domain/contratoModelo` (os textos dos dois modelos),
+`domain/contratoDocumento` (o que entra em cada lugar, função pura da OS, com
+teste) e `lib/docx/contrato` (o desenho). As tarjas cinzas das cláusulas são
+tabelas de uma célula, e não as caixas de texto flutuantes do modelo original:
+a tabela acompanha o texto quando a cláusula cresce, e a caixa flutuante ficaria
+por cima do parágrafo seguinte.
+
+## As sete áreas da Pólobh (16/09/2026)
+
+A matriz de perfis estava escrita no check-list, em três lugares diferentes, e
+virou a migração `20260922100000_os_sete_perfis_da_polobh.sql`:
+
+| Perfil | Edita EC | Vê rentabilidade | Monta a OS | Conclui e emite |
+| --- | :---: | :---: | :---: | :---: |
+| Diretoria Produção | ✅ | ✅ | ✅ | ✅ |
+| Direção Administrativo-Financeira | — | ✅ | ✅ | ✅ |
+| Coordenação Produção | ✅ | ✅ | ✅ | ✅ |
+| Coordenação Administrativo-Financeira | — | ✅ | ✅ | ✅ |
+| Assistência Administrativo-Financeira | — | — | — | — |
+| Produção | ✅ | — | ✅ | — |
+| Back-office | ✅ | — | ✅ | ✅ |
+
+A última coluna pediu uma chave nova, `oss.emitir`. A emissão pelo Back-office
+usava `oss.editar`, que é a chave de MONTAR a OS — e com uma chave só, "a partir
+desta etapa a Produção não edita mais" não se cumpre: a Produção precisa de
+`oss.editar` para montar, e com ela emitiria o documento que a fase acabou de
+tirar das mãos dela.
+
+As quatro áreas antigas **continuam existindo**, e ligadas a quem já usa o
+sistema: a troca é feita usuário a usuário em Configurações. O teste
+`domain/perfisPolobh.test` lê a própria migração e confere as quatro regras do
+check-list — uma cópia da matriz em TypeScript passaria a divergir do banco no
+dia em que alguém corrigisse só um dos dois.
+
+## Código de Serviço e Ordem de Compra: nascem na OS, voltam para a EC
+
+Revisão de 15/09/2026, e era um nó que travava o sistema inteiro. Documento PG,
+Código de Serviço e Pedido de Compra eram **digitados na EC** e, ao mesmo tempo,
+**exigidos para emitir a OS** — só que quem os conhece é quem emite o
+faturamento, ou seja, a própria OS. Na prática: item aprovado, fornecedor
+identificado, e a emissão barrada esperando por um dado que só existiria depois
+dela. Era a queixa *"não estou conseguindo emitir OS's"*.
+
+Agora eles são **leitura na EC** e decisão da OS, e voltam por RPC
+(`devolver_dados_fiscais_para_ec`) — pela tela não daria: quem preenche o
+faturamento é o Administrativo, que não edita EC, e a RLS recusaria.
 
 ## Cálculos da EC (fixos)
 - `somaFornecedores` = Σ(valor Pólobh) + Σ(produção)
@@ -743,11 +906,23 @@ lugar — o mês mais cheio, que abre o mês, e o que acontece agora ou vem a
 seguir. O quadro nunca teve badge de pendências, e continua sem: aqui não se
 resolve nada.
 
-- **O que entra:** só a **data do projeto**, isto é, a etapa **Evento** do
-  cronograma (`info.cronograma.evento`). Montagem, alinhamentos, ensaios e
-  desmontagem **não** entram: o quadro é de "quando o projeto acontece". O
-  período é do **menor ao maior dia** da etapa (evento de um dia = um dia só);
-  projeto anterior ao cronograma por faixas cai no campo legado `info.evento`.
+- **O que entra:** o **período inteiro de ocupação da equipe** — do primeiro dia
+  de **Montagem** ao último de **Desmontagem**, passando pelo Evento (revisão de
+  15/09/2026; antes era só a etapa Evento). Quem olha o quadro está decidindo se
+  cabe mais um projeto na semana, e a equipe está em campo desde a montagem: um
+  evento de sábado com montagem na quinta bloqueia três dias, não um.
+  Alinhamentos e ensaios continuam fora — são reuniões, não ocupação no local.
+  Cada etapa vira um trecho da barra, em **tons da mesma cor do projeto** (cor
+  diferente por etapa competiria com a identidade que faz reconhecer o projeto
+  de longe). Projeto anterior ao cronograma por faixas cai no campo legado
+  `info.evento`.
+- **"Projeto sem data" continua sendo sem data de EVENTO:** com o período
+  completo, um projeto que só tem montagem marcada já aparece no quadro — e
+  deixaria de ser cobrado justamente pelo dado que falta.
+- **Feriados** (15/09/2026): os **nacionais** vêm sozinhos da BrasilAPI
+  (`/feriados/v1/{ano}`), inclusive as datas móveis; os **municipais de BH** são
+  lançados à mão em Configurações › Geral, porque deles **não existe fonte
+  oficial em formato de dados**. Ver `domain/feriados.ts`.
 - **Vista Calendário:** doze cards de mês, cada um com a mancha do mês em
   trilhas (projetos que se sobrepõem caem em linhas diferentes), a contagem e
   **todos** os nomes — o card cresce o quanto precisar. Ele cortava em quatro e
@@ -899,6 +1074,38 @@ servidor. Enquanto `VITE_FEATURE_EMAIL=false` (ou sem endpoint), os envios são
 4. No `.env`: `VITE_FEATURE_EMAIL=true`; a sessão Supabase autentica a chamada automaticamente.
 5. Criar `CRON_SECRET`, configurá-lo nos secrets da função e enviá-lo no header `x-cron-secret` do `pg_cron`.
 
+## Aplicando migrações: o que o banco real ensinou (22/09/2026)
+
+As cinco migrações pendentes foram aplicadas no projeto POLOBH. Três coisas só
+apareceram ao conferir o schema de produção antes de rodar, e valem para a
+próxima vez:
+
+1. **A pasta `supabase/migrations/` não é espelho fiel da produção.** A tabela
+   `areas` tem, no banco, a coluna **`ativa`** (área inativa não pode ser
+   atribuída a novos usuários) — e não `sistema`, que é o que o arquivo
+   `20260809120000_areas_permissoes.sql` declara. Uma migração escrita a partir
+   do arquivo teria falhado; escrita com `sistema = false` traduzido para
+   `ativa = false`, teria criado as sete áreas **inatribuíveis**. Confira o
+   schema real antes de escrever `insert`.
+2. **Nome de área é único, e "Produção" já existia.** Um `on conflict (nome) do
+   nothing` teria engolido a área nova em silêncio, deixando a matriz com seis
+   perfis. A antiga virou **"Produção (legado)"** e manteve seus acessos — o
+   vínculo do usuário é por id, e `papel_base` não mudou, então a RLS também
+   não.
+3. **`revoke all ... from public` NÃO tira o `anon`.** O schema `public` do
+   Supabase concede EXECUTE a `anon` e `authenticated` por DEFAULT PRIVILEGES em
+   toda função nova, e essa concessão pertence ao papel — o revoke no
+   pseudo-papel PUBLIC não a alcança. Numa função `security definer`, que passa
+   por cima da RLS de propósito, é a diferença entre uma RPC interna e um
+   endpoint aberto em `/rest/v1/rpc`. **A convenção deste banco é
+   `from public, anon`** — foi o linter de segurança do Supabase que pegou as
+   duas que escaparam dela.
+
+Fora isso, ficou um aviso de segurança que não é do nosso código e vale um
+clique: **proteção contra senha vazada desligada** no Supabase Auth (ele checa a
+senha contra o HaveIBeenPwned na hora de cadastrar). Liga em Authentication ›
+Policies.
+
 ## Banco Supabase
 `supabase/schema.sql` é a **baseline** (o banco como estava em 21/07/2026). Tudo
 que veio depois vive **só** em `supabase/migrations/` — inclusive módulos
@@ -944,3 +1151,92 @@ O cabeçalho do arquivo traz os `delete` para remover tudo quando não precisar 
 ## Retenção (baixo custo)
 Guardamos **dados estruturados** e regeneramos Excel/PDF sob demanda. Projetos
 concluídos são **arquivados (não apagados)** — configurável (sugestão 24 meses).
+
+## Back-up do sistema (25/09/2026)
+
+A pergunta da Pólobh foi "qual a frequência do back-up e como teremos acesso a
+ele". A resposta honesta tem duas metades.
+
+**O que o Supabase faz sozinho.** Ele tira back-up do banco todo dia. No plano
+gratuito, a retenção é curta e a cópia mora na mesma conta. Isso cobre o
+acidente comum (alguém apagou um projeto na terça) e não cobre perder a conta
+nem descobrir um estrago depois do fim da retenção.
+
+**O que o sistema passou a fazer.** Um pacote `.zip` com a base inteira, que sai
+do servidor e vai para a mão da casa: por e-mail, para uma pasta do Dropbox, ou
+no download direto da tela — em **Configurações › Back-up**, onde também mora a
+explicação acima, em português de gente, para quem for decidir a frequência.
+
+### As peças
+
+| Onde | O quê |
+| --- | --- |
+| `supabase/migrations/20260925100000_backup_do_sistema.sql` | tabela `backups` (histórico), `backup_tabelas()`, `backup_anexos()`, a chave `config_app.backup` e o job `backup-do-sistema` |
+| `supabase/functions/backup/` | `index.ts` (orquestra), `pacote.ts` (o conteúdo), `zip.ts` (o container), `dropbox.ts` (o envio) |
+| `src/domain/backup.ts` | a situação na tela: em dia, atrasado, nunca, desligado |
+| `src/pages/Configuracoes.tsx` › `BackupCard` | a tela e o texto didático |
+
+### Decisões que não são óbvias
+
+- **A lista de tabelas sai do catálogo do banco, não de uma lista à mão.** Lista
+  à mão envelhece: a tabela nova entra no sistema, ninguém lembra do back-up, e
+  a falta só aparece no dia da restauração. E a consulta termina num `LEFT JOIN`
+  com todas as tabelas — uma tabela dentro de um ciclo de chaves estrangeiras
+  não seria alcançada pela recursão e sumiria do pacote, calada.
+- **O cron roda todo dia; quem decide se hoje é dia é a função**, lendo
+  `config_app.backup.frequencia`. Trocar semanal por diário é um clique na tela,
+  não uma migração.
+- **A comparação é por distância, não por dia da semana.** Se a função ficou
+  fora do ar na segunda, ela roda na terça. Back-up atrasado é o que se quer;
+  back-up pulado, não.
+- **O `.zip` é escrito à mão, sem biblioteca** (`zip.ts`, ~120 linhas). O motivo
+  é poder testá-lo: o código roda no Deno (onde o back-up nasce) e no Node (onde
+  a suíte roda), e a suíte abre o pacote pelo índice do fim do arquivo, como faz
+  um descompactador de verdade. O teste já pegou um defeito real — a compressão
+  desligada em silêncio, que só apareceria no dia em que um pacote grande não
+  coubesse no e-mail.
+- **Os CSV saem com `;` e BOM.** O destino é o Excel em português: com vírgula
+  ele joga a linha numa coluna só, e sem BOM "Promoções" vira "PromoÃ§Ãµes".
+- **Anexos entram até 25 MB.** Sem teto, o dia em que a casa subir muitos
+  arquivos é o dia em que o back-up passa a falhar. O que não coube é listado
+  pelo nome no `LEIA-ME` e no `manifesto.json`, em vez de sumir.
+- **Quem tira é Admin e Direção** — recorte mais estreito que a tela de
+  Configurações, porque o pacote leva a base inteira, financeiro incluído. O
+  Administrativo lê a explicação e o histórico.
+- **O agendamento só executa a ação `agendado`.** Assim o segredo do cron, se
+  vazar, não vira um jeito de alguém de fora mandar a base para o próprio
+  e-mail.
+
+### Ligar o Dropbox (opcional, uma vez só)
+
+O envio por e-mail funciona sem configuração nenhuma. O Dropbox precisa de três
+segredos, criados uma vez:
+
+1. em <https://www.dropbox.com/developers/apps>, criar um app *Scoped access* →
+   *App folder* → dar um nome;
+2. na aba **Permissions**, marcar `files.content.write` e `files.content.read`,
+   e **Submit**;
+3. na aba **Settings**, copiar o **App key** e o **App secret**;
+4. gerar um *refresh token* (não o "generated access token" da tela — esse dura
+   4 horas e o back-up pararia de subir na mesma tarde, em silêncio):
+   - abrir no navegador
+     `https://www.dropbox.com/oauth2/authorize?client_id=APP_KEY&response_type=code&token_access_type=offline`,
+     autorizar e copiar o código;
+   - trocar o código pelo refresh token:
+     ```
+     curl -u APP_KEY:APP_SECRET https://api.dropbox.com/oauth2/token \
+       -d code=CODIGO -d grant_type=authorization_code
+     ```
+5. gravar os três no Supabase (Edge Functions › Secrets):
+   `DROPBOX_APP_KEY`, `DROPBOX_APP_SECRET`, `DROPBOX_REFRESH_TOKEN` — e, se
+   quiser outra pasta, `DROPBOX_PASTA`.
+
+Com os segredos no lugar, basta ligar o interruptor na tela. Sem eles, ligar o
+interruptor faz o histórico registrar "Dropbox não configurado" — de propósito:
+falha visível é melhor do que um back-up que a casa acha que tem.
+
+### O que o pacote NÃO leva
+
+Senhas (nem embaralhadas — quem as guarda é o serviço de autenticação) e os
+logins em si. O cadastro de perfis está lá; recriar o acesso é um passo à parte,
+por convite. Está escrito no `LEIA-ME` dentro de cada pacote.

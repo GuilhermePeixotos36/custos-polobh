@@ -1,11 +1,22 @@
 /**
- * Detalhamento de um mês do calendário — a régua de dias com a barrinha de
- * cada projeto.
+ * Detalhamento de um mês do calendário — a régua de dias, com os dias de cada
+ * projeto PINTADOS.
  *
  * É a resposta à pergunta que o card do mês não responde: "em QUE dias isso
- * acontece?". Cada projeto vira uma linha; a barra percorre do primeiro ao
- * último dia do evento, e ganha uma seta na ponta quando o projeto começa antes
- * ou termina depois do mês que está aberto.
+ * acontece?". Cada projeto vira uma linha, e cada dia em que ele acontece fica
+ * pintado de ponta a ponta na célula; a seta na ponta aparece quando o projeto
+ * começa antes ou termina depois do mês que está aberto.
+ *
+ * SEM PÍLULAS, SEM RÓTULOS, UMA COR SÓ (25/09/2026). Antes cada projeto tinha a
+ * sua cor, cada etapa tinha o seu tom, e dentro da pílula vinha escrito
+ * "MONTAGEM", "EVENTO", "DESMONTAGEM". A Pólobh pediu o contrário de tudo isso,
+ * e o motivo é bom: num mês cheio, doze cores e três tons viram um mosaico em
+ * que não se lê nada — e a pergunta que se faz aqui é só uma, "que dias estão
+ * ocupados". Uma cor só, a laranja da casa, responde melhor. O que cada etapa
+ * é continua a um passo de distância, no projeto.
+ *
+ * Pintar a CÉLULA, e não uma barra por cima dela, é o que mantém as divisórias
+ * dos dias visíveis: a pessoa consegue contar os dias com o dedo.
  */
 import { useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
@@ -20,8 +31,6 @@ import {
   fimDeSemana,
   hojeIso,
   isoDoDia,
-  rotuloDias,
-  rotuloPeriodo,
   segmentosDoMes,
   type ProjetoNoCalendario,
 } from "@/domain/calendario";
@@ -38,6 +47,7 @@ export function CalendarioMesModal({
   ano,
   mes,
   itens,
+  feriados,
   onTrocarMes,
   onFechar,
 }: {
@@ -45,6 +55,8 @@ export function CalendarioMesModal({
   mes: number;
   /** Projetos do ano inteiro — o recorte do mês é feito aqui dentro. */
   itens: ProjetoNoCalendario[];
+  /** Feriados do ano, por data (ver `domain/feriados`). */
+  feriados?: Map<string, { nome: string; origem: string }>;
   /** Navega para outro mês (pode passar de -1 a 12: a tela vira o ano). */
   onTrocarMes: (mes: number) => void;
   onFechar: () => void;
@@ -109,7 +121,7 @@ export function CalendarioMesModal({
             <div className="p-10 text-center">
               <p className="text-ink-2 text-sm">Nada marcado em {MESES[mes].toLowerCase()}.</p>
               <p className="text-ink-3 text-[12.5px] mt-1">
-                Os projetos entram aqui sozinhos assim que recebem a data do evento.
+                Os projetos entram aqui sozinhos assim que recebem datas no cronograma.
               </p>
             </div>
           ) : (
@@ -121,13 +133,21 @@ export function CalendarioMesModal({
                 </div>
                 {Array.from({ length: dias }, (_, i) => {
                   const d = i + 1;
-                  const ehHoje = isoDoDia(ano, mes, d) === hoje;
+                  const iso = isoDoDia(ano, mes, d);
+                  const ehHoje = iso === hoje;
+                  const feriado = feriados?.get(iso);
                   return (
                     <div
                       key={d}
+                      title={feriado?.nome}
                       className={cx(
                         "py-1.5 text-center border-l border-border-soft",
-                        fimDeSemana(ano, mes, d) && "bg-[#F1F3F7]"
+                        fimDeSemana(ano, mes, d) && "bg-[#F1F3F7]",
+                        // FERIADO tem cor própria (15/09/2026): quem marca
+                        // montagem precisa ver, antes de marcar, o dia em que a
+                        // cidade para. Vem por cima do fim de semana — um
+                        // feriado numa segunda é o que importa enxergar.
+                        feriado && "bg-[#EFE7FB]"
                       )}
                     >
                       <div
@@ -149,8 +169,7 @@ export function CalendarioMesModal({
               {/* uma linha por projeto */}
               {segmentos.map((seg) => {
                 const { item } = seg;
-                const largura = seg.diaFim - seg.diaInicio + 1;
-                const encerrado = item.status === "Cancelado";
+                const encerrado = item.status === "Arquivado";
                 return (
                   <div
                     key={item.id}
@@ -163,60 +182,75 @@ export function CalendarioMesModal({
                       style={{ gridRow: 1, gridColumn: 1 }}
                       className="sticky left-0 z-10 bg-surface hover:bg-[#F7F8FA] border-r border-border-soft h-[46px] px-4 flex items-center gap-2.5 text-left min-w-0 transition-colors"
                     >
-                      <span className="h-6 w-1.5 rounded-full shrink-0" style={{ background: item.cor.forte }} />
+                      {/* Uma cor só, como no resto do quadro: a identidade do
+                          projeto é o nome, não o tom. */}
+                      <span className="h-6 w-1.5 rounded-full shrink-0 bg-primary" />
                       <span className="min-w-0">
                         <span className={cx("block text-[13px] font-bold text-ink truncate", encerrado && "line-through text-ink-3")}>
                           {item.titulo}
                         </span>
-                        {item.cliente && <span className="block text-[11px] text-ink-3 truncate">{item.cliente}</span>}
+                        {/* A PRODUTORA RESPONSÁVEL no lugar do cliente
+                            (15/09/2026): quem abre o detalhamento do mês está
+                            procurando quem toca o quê, e o cliente já está no
+                            título do projeto. */}
+                        {(item.produtora || item.cliente) && (
+                          <span className="block text-[11px] text-ink-3 truncate">{item.produtora || item.cliente}</span>
+                        )}
                       </span>
                     </button>
 
-                    {/* fundo dos dias (fim de semana e hoje) */}
+                    {/* OS DIAS. Cada célula é pintada por inteiro quando o
+                        projeto acontece naquele dia — é isto que substituiu a
+                        pílula. A célula pintada é clicável: quem vê o dia
+                        ocupado quer, quase sempre, abrir o projeto. */}
                     {Array.from({ length: dias }, (_, i) => {
                       const d = i + 1;
+                      const iso = isoDoDia(ano, mes, d);
+                      const ocupado = d >= seg.diaInicio && d <= seg.diaFim;
+                      const ehHoje = iso === hoje;
+
+                      if (!ocupado) {
+                        return (
+                          <div
+                            key={d}
+                            style={{ gridRow: 1, gridColumn: d + 1 }}
+                            className={cx(
+                              "h-[46px] border-l border-border-soft",
+                              fimDeSemana(ano, mes, d) && "bg-[#F1F3F7]",
+                              feriados?.has(iso) && "bg-[#EFE7FB]",
+                              ehHoje && "bg-primary-soft"
+                            )}
+                          />
+                        );
+                      }
+
+                      const primeiro = d === seg.diaInicio;
+                      const ultimo = d === seg.diaFim;
                       return (
-                        <div
+                        <button
                           key={d}
+                          onClick={() => navigate(`/projetos/${item.id}`)}
+                          title={`${item.titulo}${item.local ? ` · ${item.local}` : ""}`}
                           style={{ gridRow: 1, gridColumn: d + 1 }}
                           className={cx(
-                            "h-[46px] border-l border-border-soft",
-                            fimDeSemana(ano, mes, d) && "bg-[#F1F3F7]",
-                            isoDoDia(ano, mes, d) === hoje && "bg-primary-soft"
+                            "h-[46px] border-l border-white/25 bg-primary flex items-center justify-center",
+                            "hover:brightness-105 transition-all",
+                            // O dia de hoje precisa continuar localizável mesmo
+                            // dentro de uma sequência pintada — sem isto, a
+                            // coluna de hoje some no meio do laranja.
+                            ehHoje && "ring-2 ring-inset ring-white/80",
+                            encerrado && "opacity-45"
                           )}
-                        />
+                        >
+                          {primeiro && seg.continuaAntes && (
+                            <span className="text-[11px] font-bold leading-none text-white">◄</span>
+                          )}
+                          {ultimo && seg.continuaDepois && (
+                            <span className="text-[11px] font-bold leading-none text-white">►</span>
+                          )}
+                        </button>
                       );
                     })}
-
-                    {/* a barrinha do projeto */}
-                    <div
-                      style={{ gridRow: 1, gridColumn: `${seg.diaInicio + 1} / span ${largura}` }}
-                      className="relative z-[5] px-[3px]"
-                    >
-                      <button
-                        onClick={() => navigate(`/projetos/${item.id}`)}
-                        title={`${item.titulo} — ${rotuloPeriodo(item)}${item.local ? ` · ${item.local}` : ""}`}
-                        style={{
-                          background: `linear-gradient(135deg, ${item.cor.forte}, ${item.cor.forte}D9)`,
-                          opacity: encerrado ? 0.45 : 1,
-                        }}
-                        className={cx(
-                          "w-full h-[30px] flex items-center justify-center gap-1 text-white overflow-hidden",
-                          largura === 1 ? "px-0" : "px-1.5",
-                          "shadow-[0_4px_10px_-6px_rgba(16,30,66,.6)] hover:brightness-110 transition-all",
-                          seg.continuaAntes ? "rounded-l-[3px]" : "rounded-l-pill",
-                          seg.continuaDepois ? "rounded-r-[3px]" : "rounded-r-pill"
-                        )}
-                      >
-                        {seg.continuaAntes && <span className="text-[11px] font-bold leading-none shrink-0">◄</span>}
-                        {!(seg.continuaAntes && seg.continuaDepois) && (
-                          <span className="text-[11px] font-extrabold tabular-nums whitespace-nowrap truncate min-w-0">
-                            {rotuloDias(seg)}
-                          </span>
-                        )}
-                        {seg.continuaDepois && <span className="text-[11px] font-bold leading-none shrink-0">►</span>}
-                      </button>
-                    </div>
                   </div>
                 );
               })}
@@ -227,10 +261,13 @@ export function CalendarioMesModal({
         {/* -------------------------------- rodapé --------------------------------- */}
         <div className="px-5 py-3 border-t border-border-soft bg-[#FCFCFD] flex items-center gap-3 flex-wrap">
           <span className="text-[11.5px] text-ink-3">
-            A barra cobre a duração do projeto (etapa <strong className="text-ink-2">Evento</strong>) — montagem e desmontagem não entram.
+            O dia pintado é dia ocupado — a marcação cobre todas as etapas do projeto
+            (montagem, evento e desmontagem).
           </span>
-          <span className="ml-auto flex items-center gap-3 text-[11px] text-ink-3">
+          <span className="ml-auto flex items-center gap-3 text-[11px] text-ink-3 flex-wrap">
+            <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-[4px] bg-primary" /> projeto</span>
             <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-[4px] bg-[#F1F3F7] border border-border" /> fim de semana</span>
+            <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-[4px] bg-[#EFE7FB] border border-[#C9B6EA]" /> feriado</span>
             <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-[4px] bg-primary-soft border border-active-border" /> hoje</span>
           </span>
         </div>

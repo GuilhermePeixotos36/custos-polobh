@@ -13,12 +13,14 @@ export type Recurso =
   | "ecs.editar"
   | "oss"
   | "oss.editar"
+  | "oss.emitir"
   | "checklists"
   | "checklists.editar"
   | "cronogramas"
   | "fornecedores"
   | "fornecedores.editar"
   | "financeiro"
+  | "rentabilidade"
   | "configuracoes"
   | "logs"
   | "guia";
@@ -31,12 +33,14 @@ export const TODOS_RECURSOS: Recurso[] = [
   "ecs.editar",
   "oss",
   "oss.editar",
+  "oss.emitir",
   "checklists",
   "checklists.editar",
   "cronogramas",
   "fornecedores",
   "fornecedores.editar",
   "financeiro",
+  "rentabilidade",
   "configuracoes",
   "logs",
   "guia",
@@ -61,7 +65,37 @@ export const PERMISSOES_ESPECIAIS: { key: Recurso; label: string; hint: string }
   {
     key: "financeiro",
     label: "Bloco financeiro",
-    hint: "Valores Pólobh, valores do cliente e rentabilidade na EC e na OS",
+    hint: "Valores Pólobh, valores do cliente e o financeiro da OS",
+  },
+  /**
+   * A RENTABILIDADE ganhou permissão própria (15/09/2026).
+   *
+   * Ela vinha junto do bloco financeiro — quem via valor via margem —, e a
+   * Pólobh separou as duas coisas: a aba mostra quanto a casa ganha em cada
+   * item, e o pedido é que ela fique com Diretoria e Coordenação (Produção e
+   * Administrativo-Financeiro). Quem lança custo e emite OS continua vendo
+   * valor sem ver margem.
+   */
+  {
+    key: "rentabilidade",
+    label: "Rentabilidade por item",
+    hint: "A margem da Pólobh item a item, na EC — separada do bloco financeiro",
+  },
+  /**
+   * EMITIR A OS é a última fase, e ganhou recurso próprio (16/09/2026).
+   *
+   * O check-list separa a OS em dois momentos e diz, com todas as letras, quem
+   * edita cada um: até "Enviar para Conclusão Financeiro" entra a Produção; a
+   * partir dali, não. Montar a OS é `Ordens de Serviço › editar`, e concluir o
+   * faturamento é `Bloco financeiro` — os dois já existiam. Faltava o terceiro
+   * momento: a emissão pelo Back-office. Sem chave própria, ela cairia em
+   * `oss.editar`, e a Produção, que precisa dele para montar, voltaria a poder
+   * emitir o documento que a fase acabou de tirar das mãos dela.
+   */
+  {
+    key: "oss.emitir",
+    label: "Emitir a OS (Back-office)",
+    hint: "A última fase: emitir a OS já concluída pelo financeiro",
   },
   { key: "configuracoes", label: "Configurações", hint: "Empresas do grupo, áreas e usuários" },
   { key: "logs", label: "Logs do sistema", hint: "Trilha de auditoria — normalmente só o Administrador" },
@@ -82,12 +116,14 @@ export const PERMISSOES: Record<Papel, Recurso[]> = {
     "ecs.editar",
     "oss",
     "oss.editar",
+    "oss.emitir",
     "checklists",
     "checklists.editar",
     "cronogramas",
     "fornecedores",
     "fornecedores.editar",
     "financeiro",
+    "rentabilidade",
     "configuracoes",
     "guia",
   ],
@@ -110,6 +146,7 @@ export const PERMISSOES: Record<Papel, Recurso[]> = {
     "ecs",
     "oss",
     "oss.editar",
+    "oss.emitir",
     "checklists",
     "checklists.editar",
     "cronogramas",
@@ -147,6 +184,10 @@ interface AuthState {
   entrarComEmail: (email: string, senha: string) => Promise<{ ok: boolean; erro?: string }>;
   /** Troca a própria senha, já logado. Pede a atual para confirmar quem é. */
   trocarSenha: (atual: string, nova: string) => Promise<{ ok: boolean; erro?: string }>;
+  /** Manda o e-mail de redefinição de senha (a tela de login, sem sessão). */
+  pedirRedefinicaoSenha: (email: string) => Promise<{ ok: boolean; erro?: string }>;
+  /** Grava a senha nova de quem chegou pelo link do e-mail. */
+  definirSenhaPeloLink: (nova: string) => Promise<{ ok: boolean; erro?: string }>;
   sair: () => Promise<void>;
   /** Inicializa a sessão a partir do Supabase (chamado uma vez no boot). */
   bootstrap: () => Promise<void>;
@@ -163,7 +204,7 @@ export const useAuth = create<AuthState>((set, get) => {
   async function carregarPerfil(user: User) {
     const { data, error } = await supabase
       .from("perfis")
-      .select("nome, papel, telefone, area_id, areas(nome, recursos)")
+      .select("nome, papel, telefone, area_id, ativo, areas(nome, recursos)")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -172,6 +213,16 @@ export const useAuth = create<AuthState>((set, get) => {
       definirAtor(null);
       set({ usuario: null, recursos: null, carregando: false });
       return null;
+    }
+    // CONTA INATIVA (24/09/2026). A RLS já recusa tudo — o que falta é dizer o
+    // motivo. A política de `perfis` deixa cada um ler a PRÓPRIA linha
+    // justamente para esta distinção existir: sem ela, a tela não saberia
+    // separar "sua conta foi desativada" de "seu usuário não tem perfil", e a
+    // pessoa abriria chamado de um defeito que não existe.
+    if ((data as { ativo?: boolean }).ativo === false) {
+      definirAtor(null);
+      set({ usuario: null, recursos: null, carregando: false });
+      return "inativo" as const;
     }
     // O join volta como objeto (relação 1:1) — o tipo gerado do supabase-js
     // descreve como array, daí o normalize abaixo.
@@ -219,6 +270,13 @@ export const useAuth = create<AuthState>((set, get) => {
         return { ok: false, erro: "E-mail ou senha inválidos." };
       }
       const u = await carregarPerfil(data.user);
+      if (u === "inativo") {
+        await supabase.auth.signOut();
+        return {
+          ok: false,
+          erro: "A sua conta está inativa. Procure a Direção da Pólobh para reativar o acesso.",
+        };
+      }
       if (!u) {
         await supabase.auth.signOut();
         return { ok: false, erro: "Seu usuário não tem um perfil de acesso configurado." };
@@ -272,6 +330,52 @@ export const useAuth = create<AuthState>((set, get) => {
         mensagem: "Senha alterada pelo próprio usuário",
         usuario: u.nome,
         papel: u.papel,
+      });
+      return { ok: true };
+    },
+
+    /**
+     * "Esqueceu a senha?" — o caminho que faltava (15/09/2026).
+     *
+     * Até aqui, quem esquecia a senha pedia ao suporte um convite novo, e o
+     * resultado prático era a senha do primeiro dia valendo para sempre: ninguém
+     * abre um chamado para trocar de senha.
+     *
+     * A resposta é SEMPRE a mesma, tenha o e-mail cadastro ou não. Dizer "este
+     * e-mail não existe" entrega quem trabalha na casa a quem perguntar — e o
+     * sistema tem os nomes de toda a equipe.
+     */
+    pedirRedefinicaoSenha: async (email) => {
+      const limpo = email.trim().toLowerCase();
+      if (!limpo) return { ok: false, erro: "Informe o seu e-mail." };
+      const { error } = await supabase.auth.resetPasswordForEmail(limpo, {
+        redirectTo: `${window.location.origin}/nova-senha`,
+      });
+      // O erro do Supabase aqui costuma ser limite de envio, não "não existe".
+      if (error) return { ok: false, erro: traduzirErroDeSenha(error.message) };
+      auditar({
+        categoria: "Autenticação",
+        acao: "auth.senha.redefinicao",
+        mensagem: `Redefinição de senha solicitada para ${limpo}`,
+      });
+      return { ok: true };
+    },
+
+    /**
+     * A senha nova de quem chegou pelo link do e-mail.
+     *
+     * Aqui NÃO se pede a senha atual — quem chegou por este caminho não a tem,
+     * e é justamente isso que o link resolve. Quem garante que é a pessoa é o
+     * e-mail: o Supabase abre uma sessão de recuperação ao abrir o link, e sem
+     * ela `updateUser` falha.
+     */
+    definirSenhaPeloLink: async (nova) => {
+      const { error } = await supabase.auth.updateUser({ password: nova });
+      if (error) return { ok: false, erro: traduzirErroDeSenha(error.message) };
+      auditar({
+        categoria: "Autenticação",
+        acao: "auth.senha.redefinida",
+        mensagem: "Senha redefinida pelo link enviado por e-mail",
       });
       return { ok: true };
     },

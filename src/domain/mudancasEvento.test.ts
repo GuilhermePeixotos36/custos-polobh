@@ -171,7 +171,7 @@ describe("quem ainda pode receber", () => {
   });
 
   it("OS encerrada não gera nova versão", () => {
-    const lista = [os("Rascunho"), os("Emitida"), os("Disparada"), os("Cancelada"), os("Arquivada")];
-    expect(ossReemitiveis(lista).map((o) => o.status)).toEqual(["Rascunho", "Emitida", "Disparada"]);
+    const lista = [os("Rascunho"), os("Emitida"), os("Cancelada"), os("Arquivada")];
+    expect(ossReemitiveis(lista).map((o) => o.status)).toEqual(["Rascunho", "Emitida"]);
   });
 });

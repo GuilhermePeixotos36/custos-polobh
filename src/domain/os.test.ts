@@ -3,7 +3,7 @@ import {
   itensDaOs,
   CAMPOS_LOGISTICA,
   CAMPOS_INFRAESTRUTURA,
-  itensVisiveis,
+  itensParaDocumento,
   naoSeAplica,
   alternarNaoSeAplica,
   temContrato,
@@ -63,7 +63,7 @@ describe("itens que cada OS consolida", () => {
  */
 describe("logística que não se aplica", () => {
   /** Atalho: quase todo caso deste bloco olha a Logística. */
-  const daLogistica = (l: Logistica | undefined) => itensVisiveis(l, CAMPOS_LOGISTICA);
+  const daLogistica = (l: Logistica | undefined) => itensParaDocumento(l, CAMPOS_LOGISTICA);
 
   const logistica = (p: Partial<Logistica> = {}): Logistica => ({
     transporteMaterial: "Por conta do fornecedor",
@@ -79,13 +79,13 @@ describe("logística que não se aplica", () => {
   it("sem nada marcado, os sete itens saem — na ordem da tela", () => {
     const visiveis = daLogistica(logistica());
     expect(visiveis).toHaveLength(CAMPOS_LOGISTICA.length);
-    expect(visiveis[0]).toEqual({ campo: "transporteMaterial", rotulo: "Transporte Material", valor: "Por conta do fornecedor" });
+    expect(visiveis[0]).toEqual({ rotulo: "Transporte Material", valor: "Por conta do fornecedor" });
   });
 
   it("o item marcado some da lista que vira documento e planilha", () => {
     const visiveis = daLogistica(logistica({ naoAplicaveis: ["hospedagem", "alimentacao"] }));
-    expect(visiveis.map((i) => i.campo)).not.toContain("hospedagem");
-    expect(visiveis.map((i) => i.campo)).not.toContain("alimentacao");
+    expect(visiveis.map((i) => i.rotulo)).not.toContain("Hospedagem Equipe");
+    expect(visiveis.map((i) => i.rotulo)).not.toContain("Alimentação Equipe");
     expect(visiveis).toHaveLength(5);
   });
 
@@ -93,7 +93,7 @@ describe("logística que não se aplica", () => {
     // Esconder o vazio daria por respondido o que ninguém respondeu; a linha
     // sai em branco no documento para o fornecedor preencher.
     const visiveis = daLogistica(logistica({ alimentacao: "" }));
-    expect(visiveis.map((i) => i.campo)).toContain("alimentacao");
+    expect(visiveis.map((i) => i.rotulo)).toContain("Alimentação Equipe");
   });
 
   it("tudo marcado devolve lista vazia — a seção inteira fica fora", () => {
@@ -121,7 +121,7 @@ describe("logística que não se aplica", () => {
       const voltou = alternarNaoSeAplica(marcada, "hospedagem");
       expect(naoSeAplica(voltou, "hospedagem")).toBe(false);
       expect(voltou.hospedagem).toBe("Hotel Ouro Minas");
-      expect(daLogistica(voltou).map((i) => i.campo)).toContain("hospedagem");
+      expect(daLogistica(voltou).map((i) => i.rotulo)).toContain("Hospedagem Equipe");
     });
 
     it("marcar duas vezes não duplica a entrada na lista", () => {
@@ -149,12 +149,14 @@ describe("infraestrutura que não se aplica", () => {
   });
 
   it("os seis itens saem quando nada está marcado", () => {
-    expect(itensVisiveis(infra(), CAMPOS_INFRAESTRUTURA)).toHaveLength(CAMPOS_INFRAESTRUTURA.length);
+    expect(itensParaDocumento(infra(), CAMPOS_INFRAESTRUTURA)).toHaveLength(CAMPOS_INFRAESTRUTURA.length);
   });
 
   it("o item marcado some do documento e da planilha", () => {
-    const visiveis = itensVisiveis(infra({ naoAplicaveis: ["internet", "artLaudos"] }), CAMPOS_INFRAESTRUTURA);
-    expect(visiveis.map((i) => i.campo)).toEqual(["energia", "pontosEletricos", "estruturas", "servicosApoio"]);
+    const visiveis = itensParaDocumento(infra({ naoAplicaveis: ["internet", "artLaudos"] }), CAMPOS_INFRAESTRUTURA);
+    expect(visiveis.map((i) => i.rotulo)).toEqual([
+      "Energia", "Pontos Elétricos", "Estruturas Diversas", "Serviços de Apoio",
+    ]);
   });
 
   it("marcar não apaga o texto, e desmarcar devolve o item", () => {
@@ -167,7 +169,7 @@ describe("infraestrutura que não se aplica", () => {
   });
 
   it("OS antiga, sem a lista, se comporta como nada marcado", () => {
-    expect(itensVisiveis(undefined, CAMPOS_INFRAESTRUTURA)).toHaveLength(CAMPOS_INFRAESTRUTURA.length);
+    expect(itensParaDocumento(undefined, CAMPOS_INFRAESTRUTURA)).toHaveLength(CAMPOS_INFRAESTRUTURA.length);
   });
 
   it("os rótulos são os do documento — é deles que as três saídas leem", () => {
@@ -265,9 +267,10 @@ describe("troca de fornecedor numa OS", () => {
     expect(exigeNovaVersaoPorFornecedor({ status: "Rascunho" }, som, outro)).toBe(false);
   });
 
-  it("emitida ou disparada, trocar exige versão nova", () => {
+  it("emitida, trocar exige versão nova", () => {
+    // "Disparada" deixou de ser status em 15/09/2026: o envio ao fornecedor
+    // virou carimbo (`disparadaEm`) ao lado de uma OS Emitida.
     expect(exigeNovaVersaoPorFornecedor({ status: "Emitida" }, som, outro)).toBe(true);
-    expect(exigeNovaVersaoPorFornecedor({ status: "Disparada" }, som, outro)).toBe(true);
   });
 
   it("mexer no cadastro do MESMO fornecedor não é troca", () => {
@@ -283,5 +286,58 @@ describe("troca de fornecedor numa OS", () => {
   it("OS já encerrada não entra na conta", () => {
     // Cancelada/Arquivada não reemite: a própria RPC recusa.
     expect(exigeNovaVersaoPorFornecedor({ status: "Cancelada" }, som, outro)).toBe(false);
+  });
+});
+
+describe("itens criados dentro da OS (15/09/2026)", () => {
+  const comExtras = (
+    extras: { id: string; rotulo: string; valor: string; naoSeAplica?: boolean }[],
+    ordem?: string[]
+  ): Logistica => ({
+    transporteMaterial: "Por conta do fornecedor",
+    transporteEquipe: "",
+    hospedagem: "",
+    alimentacao: "",
+    estacionamentoCarga: "",
+    estacionamentoEquipe: "",
+    uniformizacao: "",
+    extras,
+    ordem,
+  });
+
+  it("o item criado sai no documento junto dos fixos", () => {
+    const lista = itensParaDocumento(
+      comExtras([{ id: "x1", rotulo: "Gerador 180 kVA", valor: "Por conta da Pólobh" }]),
+      CAMPOS_LOGISTICA
+    );
+    expect(lista.map((i) => i.rotulo)).toContain("Gerador 180 kVA");
+    // Sem ordem definida, ele entra depois dos fixos — que é como nasce.
+    expect(lista.at(-1)).toEqual({ rotulo: "Gerador 180 kVA", valor: "Por conta da Pólobh" });
+  });
+
+  it("o item criado também aceita 'não se aplica' e some do documento", () => {
+    const lista = itensParaDocumento(
+      comExtras([{ id: "x1", rotulo: "Gerador", valor: "…", naoSeAplica: true }]),
+      CAMPOS_LOGISTICA
+    );
+    expect(lista.map((i) => i.rotulo)).not.toContain("Gerador");
+  });
+
+  it("a ordem reordena fixos e criados na mesma lista", () => {
+    const lista = itensParaDocumento(
+      comExtras([{ id: "x1", rotulo: "Gerador", valor: "" }], ["x1", "transporteMaterial"]),
+      CAMPOS_LOGISTICA
+    );
+    expect(lista[0].rotulo).toBe("Gerador");
+    expect(lista[1].rotulo).toBe("Transporte Material");
+  });
+
+  // Uma OS gravada antes disto não tem `ordem`, e um item fixo que a casa venha
+  // a acrescentar não aparece na ordem de nenhuma OS antiga: os dois casos caem
+  // na mesma regra — quem não está na ordem entra no fim, na ordem natural.
+  it("quem não está na ordem entra no fim, sem sumir", () => {
+    const lista = itensParaDocumento(comExtras([], ["uniformizacao"]), CAMPOS_LOGISTICA);
+    expect(lista[0].rotulo).toBe("Uniformização Equipe");
+    expect(lista).toHaveLength(CAMPOS_LOGISTICA.length);
   });
 });

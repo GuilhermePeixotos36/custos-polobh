@@ -12,6 +12,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Badge, Button, Card, EmptyState, Input, ProgressBar, Select, type Tom } from "@/components/ui";
 import { IcCheck, IcPlus, IcEye, IcEyeOff, IcCalendar, IcTrash } from "@/components/icons";
 import { ObservacoesThread } from "@/components/ObservacoesPopup";
+import { MoverSetas } from "@/components/MoverSetas";
 import { NotifDot } from "@/components/NotifDot";
 import { useAnexosChecklist } from "@/hooks/useAnexosChecklist";
 import { idAncoraPendencia } from "@/lib/destaque";
@@ -204,6 +205,16 @@ export function ChecklistProjeto({
     [checklist.itens]
   );
 
+  /** As etapas da lista, na ordem do processo — alimentam o seletor do item. */
+  const etapasExistentes = useMemo(() => {
+    const vistas: string[] = [];
+    for (const item of [...checklist.itens].sort((a, b) => a.ordem - b.ordem)) {
+      const nome = (item.etapa || "").trim();
+      if (nome && !vistas.includes(nome)) vistas.push(nome);
+    }
+    return vistas;
+  }, [checklist.itens]);
+
   const alterar = (item: ItemChecklist, patch: Partial<ItemChecklist>) => {
     // Recolher à mão é dizer "some daqui": aí a tarefa some mesmo, mesmo que
     // tenha sido encerrada nesta sessão.
@@ -217,6 +228,43 @@ export function ChecklistProjeto({
       encerrado(depois) ? [...new Set([...ids, item.id])] : ids.filter((id) => id !== item.id)
     );
     onSalvarItem(depois);
+  };
+
+  /**
+   * RENOMEAR A ETAPA acerta todas as tarefas dela de uma vez (15/09/2026).
+   *
+   * A etapa não é um registro: ela é o nome que as tarefas carregam. Renomear
+   * item a item produziria, na metade do caminho, duas etapas com nomes
+   * parecidos — e a lista quebraria em duas.
+   */
+  const renomearEtapa = async (antiga: string, nova: string) => {
+    const nome = nova.trim();
+    if (!nome || nome === antiga) return;
+    for (const item of checklist.itens.filter((i) => (i.etapa || "OUTROS") === antiga)) {
+      onSalvarItem({ ...item, etapa: nome });
+    }
+  };
+
+  /**
+   * MOVER A ETAPA leva as tarefas dela junto.
+   *
+   * A ordem das etapas é a ordem das tarefas (`item.ordem`): não há registro de
+   * etapa para reordenar. Então mover é reescrever a ordem de todas as tarefas
+   * das duas etapas que trocam de lugar — que é o que faz a etapa inteira
+   * andar, e não só a primeira tarefa dela.
+   */
+  const moverEtapa = (indice: number, direcao: -1 | 1) => {
+    const destino = indice + direcao;
+    if (destino < 0 || destino >= blocos.length) return;
+    const ordemNova = [...blocos];
+    [ordemNova[indice], ordemNova[destino]] = [ordemNova[destino], ordemNova[indice]];
+    let n = 0;
+    for (const bloco of ordemNova) {
+      for (const item of bloco.itens) {
+        if (item.ordem !== n) onSalvarItem({ ...item, ordem: n });
+        n++;
+      }
+    }
   };
 
   /**
@@ -285,6 +333,21 @@ export function ChecklistProjeto({
               Nova tarefa
             </Button>
           )}
+          {/* CRIAR ETAPA (15/09/2026). A etapa é o nome que as tarefas carregam,
+              então criar uma é criar a primeira tarefa dela — e é assim que ela
+              nasce com conteúdo em vez de virar um cabeçalho vazio que alguém
+              esquece na lista. */}
+          {podeEditar && agrupamento === "etapa" && (
+            <Button
+              size="sm"
+              variant="secondary"
+              icon={<IcPlus width={16} height={16} />}
+              onClick={() => void criar({ etapa: nomeDeEtapaNova(checklist.itens) })}
+              title="Cria a etapa com a primeira tarefa dela"
+            >
+              Nova etapa
+            </Button>
+          )}
           <Select
             className="!h-9 !w-auto !text-[13px]"
             value={agrupamento}
@@ -347,15 +410,37 @@ export function ChecklistProjeto({
           linhas separadas por um fio, e o título preso no topo. Com um cartão
           por tarefa — borda, sombra e respiro em cada uma — doze tarefas viravam
           doze objetos, e a leitura de cima a baixo se perdia. */}
-      {blocos.map((bloco) => {
+      {blocos.map((bloco, indiceBloco) => {
         const progresso = progressoDoGrupo.get(bloco.chave) ?? { feitas: 0, contam: 0 };
         return (
           <section key={bloco.chave} className="rounded-card border border-border bg-surface shadow-card overflow-hidden">
             <header className="flex items-center gap-2 px-4 py-2.5 bg-[#FAFAFB] border-b border-border-soft">
               {agrupamento === "data" && <IcCalendar width={15} height={15} className="text-ink-3 shrink-0" />}
-              <h3 className="text-[12.5px] font-extrabold uppercase tracking-[0.06em] text-ink-2 truncate">
-                {bloco.titulo}
-              </h3>
+              {/* MOVER A ETAPA (15/09/2026): as setas trocam a etapa de lugar
+                  levando as tarefas dela junto. O check-list pedia "movimentar
+                  etapas e itens"; o arraste ficou de fora aqui porque uma etapa
+                  arrastada por engano leva doze tarefas consigo, e a seta erra
+                  uma posição por vez. */}
+              {agrupamento === "etapa" && podeEditar && (
+                <MoverSetas
+                  rotulo={`a etapa ${bloco.titulo}`}
+                  podeSubir={indiceBloco > 0}
+                  podeDescer={indiceBloco < blocos.length - 1}
+                  onSubir={() => moverEtapa(indiceBloco, -1)}
+                  onDescer={() => moverEtapa(indiceBloco, 1)}
+                />
+              )}
+              {/* RENOMEAR A ETAPA: texto que vira campo no clique, como o resto
+                  da lista. Renomear acerta todas as tarefas dela de uma vez —
+                  item a item, uma etapa de doze tarefas viraria duas etapas com
+                  nomes parecidos na metade do caminho. */}
+              {agrupamento === "etapa" && podeEditar && bloco.chave !== "OUTROS" ? (
+                <NomeDaEtapa nome={bloco.titulo} onRenomear={(nome) => void renomearEtapa(bloco.chave, nome)} />
+              ) : (
+                <h3 className="text-[12.5px] font-extrabold uppercase tracking-[0.06em] text-ink-2 truncate">
+                  {bloco.titulo}
+                </h3>
+              )}
               {/* "3 de 8" diz mais que "8": é o progresso do grupo, à vista. */}
               <span className="ml-auto shrink-0 text-[11.5px] font-bold text-ink-3 tabular-nums">
                 {progresso.feitas} de {progresso.contam}
@@ -366,6 +451,7 @@ export function ChecklistProjeto({
                 <ItemCard
                   key={item.id}
                   sugestoesTitulo={sugestoes.valores.tituloTarefa}
+                  etapas={etapasExistentes}
                   item={item}
                   hoje={hoje}
                   usuarios={usuarios}
@@ -417,6 +503,7 @@ function ItemCard({
   usuarios,
   podeEditar,
   sugestoesTitulo,
+  etapas,
   pendencias,
   autoFoco,
   onAlterar,
@@ -430,6 +517,8 @@ function ItemCard({
   podeEditar: boolean;
   /** Títulos de tarefa já usados na casa — o mesmo trabalho se repete a cada projeto. */
   sugestoesTitulo: string[];
+  /** As etapas que a lista já tem — para mover a tarefa sem redigitar o nome. */
+  etapas: string[];
   /** Pendências do usuário nesta tarefa — o mesmo número do badge da aba. */
   pendencias: number;
   /** Tarefa recém-criada: o cursor vai direto para o título. */
@@ -624,6 +713,32 @@ function ItemCard({
               lista de doze tarefas. Cada uma vira o controle de verdade quando
               recebe o clique (ver `CampoDiscreto`). */}
           <div className="mt-1 flex items-center gap-x-3 gap-y-1 flex-wrap text-[12.5px]">
+            {/* MOVER A TAREFA DE ETAPA (15/09/2026) — o outro lado de
+                "movimentar etapas e itens". Trocar a etapa no seletor é o que
+                move a tarefa, porque a etapa é o nome que ela carrega; e as
+                etapas que a lista já tem entram como opção, para não nascerem
+                duas com nomes parecidos. */}
+            {etapas.length > 0 && (
+              <CampoDiscreto
+                titulo="Etapa"
+                vazio={!item.etapa}
+                rotulo={item.etapa || "Sem etapa"}
+                podeEditar={podeEditar}
+              >
+                <Select
+                  className="!h-7 !px-1.5 !text-[12.5px] !w-[14rem]"
+                  value={item.etapa}
+                  onChange={(e) => onAlterar({ etapa: e.target.value })}
+                  aria-label="Etapa da tarefa"
+                >
+                  <option value="">Sem etapa</option>
+                  {etapas.map((e) => (
+                    <option key={e} value={e}>{e}</option>
+                  ))}
+                </Select>
+              </CampoDiscreto>
+            )}
+
             <CampoDiscreto
               icone={<IcCalendar width={13} height={13} />}
               titulo="Data-limite"
@@ -710,20 +825,32 @@ function ItemCard({
               </button>
             )}
 
-            {/* A conversa entra na PRÓPRIA linha de dados, encostada à direita.
-                Ela ocupava uma faixa inteira por tarefa — um terço da altura da
-                lista gasto para dizer "Adicionar Observação" em tarefas que não
-                têm observação nenhuma. Quando há conversa, a contagem fica à
-                vista (é informação); quando não há, o convite só aparece ao
-                passar o mouse — e sempre no toque, onde não existe hover. */}
-            <div
-              className={cx(
-                // No celular ela ganha a linha inteira: espremida no fim de uma
-                // linha estreita, "1 observação · 1 aberta" quebrava em três.
-                "ml-auto max-md:ml-0 max-md:w-full",
-                !temConversa && "opacity-0 group-hover:opacity-100 focus-within:opacity-100 max-md:opacity-100 transition-opacity"
-              )}
-            >
+            {/* O CONVITE para conversar fica na linha de dados quando não há
+                conversa nenhuma — ali ele custa nada. Havendo conversa ou
+                pendência, ela desce para a linha de baixo, inteira (ver adiante). */}
+            {!temConversa && (
+              <div className="ml-auto max-md:ml-0 max-md:w-full opacity-0 group-hover:opacity-100 focus-within:opacity-100 max-md:opacity-100 transition-opacity">
+                <ObservacoesThread
+                  className="!border-t-0 !px-0 !py-0"
+                  ancora={item.id}
+                  observacoes={item.observacoes ?? []}
+                  usuarios={usuarios}
+                  onChange={onObservacoes}
+                  anexos={anexos}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* A CONVERSA, QUANDO EXISTE, FICA NA LINHA DE BAIXO (15/09/2026).
+              É o padrão da EC, que a Pólobh pediu aqui: "uma linha embaixo do
+              item e não um box na lateral".
+              Espremida no fim da linha de dados, a thread virava três linhas
+              estreitas e o texto do comentário não cabia. O convite sem conversa
+              continua na lateral — era dele que vinha o ganho de altura da
+              revisão de 10/09, e ele não é conversa, é convite. */}
+          {temConversa && (
+            <div className="mt-1.5 pt-1.5 border-t border-border-soft">
               <ObservacoesThread
                 className="!border-t-0 !px-0 !py-0"
                 ancora={item.id}
@@ -735,7 +862,7 @@ function ItemCard({
                 anexos={anexos}
               />
             </div>
-          </div>
+          )}
         </div>
 
         {/* Recolher e excluir só aparecem no hover (e sempre no toque, onde não
@@ -766,6 +893,78 @@ function ItemCard({
         )}
       </div>
     </li>
+  );
+}
+
+/**
+ * O nome de uma etapa que ainda não existe: "Nova etapa", "Nova etapa 2"…
+ *
+ * Numerar é o que evita duas etapas com o mesmo nome — e duas etapas com o
+ * mesmo nome seriam UMA na tela, porque o agrupamento é pelo nome.
+ */
+function nomeDeEtapaNova(itens: ItemChecklist[]): string {
+  const existentes = new Set(itens.map((i) => (i.etapa || "").trim().toLocaleLowerCase("pt-BR")));
+  const base = "Nova etapa";
+  if (!existentes.has(base.toLocaleLowerCase("pt-BR"))) return base;
+  for (let n = 2; n < 100; n++) {
+    const tentativa = `${base} ${n}`;
+    if (!existentes.has(tentativa.toLocaleLowerCase("pt-BR"))) return tentativa;
+  }
+  return `${base} ${Date.now()}`;
+}
+
+/**
+ * O nome da ETAPA — texto que vira campo no clique, como o resto da lista.
+ *
+ * Renomear daqui acerta todas as tarefas da etapa de uma vez (ver
+ * `renomearEtapa`): a etapa não é um registro, é o nome que as tarefas
+ * carregam, e mudá-lo item a item partiria a lista em duas no meio do caminho.
+ *
+ * Nome vazio volta ao anterior: uma etapa sem nome cairia em "OUTROS" levando
+ * as tarefas junto, e a pessoa não veria de onde elas sumiram.
+ */
+function NomeDaEtapa({ nome, onRenomear }: { nome: string; onRenomear: (nome: string) => void }) {
+  const [editando, setEditando] = useState(false);
+  const [texto, setTexto] = useState(nome);
+  useEffect(() => {
+    if (!editando) setTexto(nome);
+  }, [nome, editando]);
+
+  const commit = () => {
+    setEditando(false);
+    const limpo = colapsarEspacos(texto);
+    if (!limpo || limpo === nome) {
+      setTexto(nome);
+      return;
+    }
+    onRenomear(limpo);
+  };
+
+  if (!editando) {
+    return (
+      <button
+        type="button"
+        onClick={() => setEditando(true)}
+        title="Renomear a etapa (vale para todas as tarefas dela)"
+        className="text-[12.5px] font-extrabold uppercase tracking-[0.06em] text-ink-2 truncate text-left rounded px-1 -mx-1 hover:bg-[#F1F2F5] input-focus"
+      >
+        {nome}
+      </button>
+    );
+  }
+  return (
+    <input
+      autoFocus
+      value={texto}
+      onChange={(e) => setTexto(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") commit();
+        if (e.key === "Escape") { setTexto(nome); setEditando(false); }
+      }}
+      aria-label={`Nome da etapa ${nome}`}
+      className="h-7 min-w-0 flex-1 rounded-btn border-[1.5px] border-[#BFC4CE] px-2 text-[12.5px] font-extrabold uppercase tracking-[0.06em] text-ink input-focus"
+    />
   );
 }
 

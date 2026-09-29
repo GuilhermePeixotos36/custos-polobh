@@ -106,12 +106,12 @@ function moldura(titulo: string, corpo: string): string {
       <span style="font-size:20px;font-weight:800;letter-spacing:-.5px">
         <span style="color:#6A6E78">polo</span><span style="color:#E36F0A">bh</span>
       </span>
-      <span style="color:#A0A4AC;font-size:12px;margin-left:8px">Pólobh Eventos</span>
+      <span style="color:#A0A4AC;font-size:12px;margin-left:8px">Pólobh Promoções</span>
     </div>
     <h2 style="font-size:18px;margin:22px 0 12px">${titulo}</h2>
     ${corpo}
     <p style="color:#A0A4AC;font-size:12px;margin-top:28px;border-top:1px solid #EEEFF2;padding-top:12px">
-      Mensagem automática do sistema Pólobh — Custos de Eventos.
+      Mensagem automática do sistema Pólobh — Gestão de Projetos.
     </p>
   </div>`;
 }

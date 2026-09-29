@@ -2,6 +2,10 @@
  * Modelo de domínio do sistema Pólobh (EC e OS).
  * Fonte de verdade: planilhas reais em /reference.
  */
+import type { FaseOs } from "@/domain/faseOs";
+import type { CustoInterno } from "@/domain/rentabilidade";
+import type { CampoCredenciamento } from "@/domain/credenciamentoCampos";
+import type { ChaveClausula, ModeloContrato } from "@/domain/contratoModelo";
 
 /**
  * Nível de segurança de dados. Governa a RLS no banco (`papel_atual()`) — por
@@ -33,6 +37,15 @@ export interface Usuario {
   areaId?: string;
   /** Nome da área, para exibição em listas. */
   areaNome?: string;
+  /**
+   * Conta ativa (24/09/2026). Ausente conta como ATIVA — é o que a coluna nova
+   * assume no banco, e tratar ausente como inativo apagaria o acesso de todo
+   * mundo de uma vez.
+   *
+   * Inativar não é apagar: o login para de valer, e o histórico continua com
+   * dono. O bloqueio é na RLS (ver `papel_atual`), não na tela.
+   */
+  ativo?: boolean;
 }
 
 /** Empresa emissora do grupo Pólobh (dados fiscais usados na OS). */
@@ -328,6 +341,20 @@ export interface BvItem {
   valor: number;
   /** Por que o BV está fora do padrão da casa (sem BV, ou abaixo de 15%). */
   justificativa: string;
+  /**
+   * As observações das outras duas formas de cobrança (15/09/2026).
+   *
+   * A "Alternativas de Custos" da Pólobh pede uma coluna "Observações sob o BV"
+   * EM CADA LINHA da tabela, e as duas formas sem BV também têm o que dizer
+   * ("fornecedor não trabalha com BV", "valor fechado no PIX"). Elas moram aqui
+   * dentro, e não em colunas novas de `ec_linhas`, porque `bv` já é um jsonb que
+   * atravessa inteiro os QUATRO lugares que listam coluna a coluna — a view
+   * mascarada, `salvar_ec_completa`, `nova_versao_ec` e `importar_ec`. Coluna
+   * nova exigiria acertar os quatro, e esquecer um deles é como o BV de uma EC
+   * importada nasceria zerado (ver README).
+   */
+  observacaoSemBvComNf?: string;
+  observacaoSemBvSemNf?: string;
 }
 
 /* ------------------- A contratação: o que a OS decide pagar --------------- */
@@ -438,7 +465,11 @@ export interface Producao {
 /* ------------------------------- Projeto -------------------------------- */
 
 export type TemplateEc = "Corporativo" | "Cultural" | "";
-export type StatusProjeto = "Ativo" | "Arquivado" | "Concluido" | "Cancelado";
+/**
+ * O projeto está no ar, ou está no arquivo — dois estados, como a EC
+ * (15/09/2026). "Concluído" e "Cancelado" saíram; ver `domain/statusProjeto`.
+ */
+export type StatusProjeto = "Ativo" | "Arquivado";
 
 /**
  * Projeto = container de tudo (segue a hierarquia project-centric).
@@ -446,14 +477,33 @@ export type StatusProjeto = "Ativo" | "Arquivado" | "Concluido" | "Cancelado";
  * e é dono das ECs (que podem ter versões).
  */
 /**
- * As abas do projeto que têm CONVERSA — o corredor de cada etapa.
+ * Toda aba do projeto que JÁ TEVE conversa gravada.
  *
- * "Dados Gerais" e "Check-list" ficam de fora de propósito: a primeira é o
- * cadastro do evento, e a segunda já é feita de tarefas com dono e prazo, que é
- * uma forma melhor de cobrar alguém do que um comentário.
+ * É o formato do que está no banco (`projetos.conversas`), e por isso continua
+ * incluindo "ec" e "os" mesmo depois de as duas saírem de cena: apagar a chave
+ * do tipo não apagaria os comentários gravados lá, só os tornaria ilegíveis.
  */
-export const ABAS_COM_CONVERSA = ["ec", "os", "fornecedores", "cronograma", "credenciamento"] as const;
-export type AbaComConversa = (typeof ABAS_COM_CONVERSA)[number];
+export const ABAS_CONVERSA_GRAVADAS = [
+  "dados", "checklist", "ec", "os", "fornecedores", "cronograma", "credenciamento",
+] as const;
+export type AbaComConversa = (typeof ABAS_CONVERSA_GRAVADAS)[number];
+
+/**
+ * As abas que MOSTRAM a conversa — o corredor de cada etapa (15/09/2026).
+ *
+ * Dados Gerais e Check-list entraram, a pedido da Pólobh. As duas tinham ficado
+ * de fora por bom motivo (uma é o cadastro do evento, a outra já é feita de
+ * tarefas com dono e prazo), mas na prática o recado da etapa ia parar no campo
+ * de texto mais próximo, que era pior.
+ *
+ * EC e OS saíram: ali a conversa fica DENTRO do documento, que é onde o assunto
+ * mora. No corredor da listagem ela era uma terceira caixa de texto para o mesmo
+ * assunto — e, de quebra, era ela o número "a mais" que fazia a pílula da
+ * subguia divergir do badge da linha da EC.
+ */
+export const ABAS_COM_CONVERSA = [
+  "dados", "checklist", "fornecedores", "cronograma", "credenciamento",
+] as const;
 
 export interface Projeto {
   id: string;
@@ -523,6 +573,16 @@ export interface Ec {
   encargos: TaxaConfig;
   /** Rótulo editável de Honorários no resumo/planilha (vazio = usa o padrão). */
   honorariosRotulo?: string;
+  /**
+   * Custos da Pólobh que NÃO estão na EC e entram no cálculo da rentabilidade
+   * (15/09/2026) — a diária da equipe, o combustível, o que a casa gasta e não
+   * cobra do cliente item a item.
+   *
+   * Viajam dentro do jsonb `producao`, como as taxas: não é dado do documento
+   * que vai ao cliente, é dado de gestão, e coluna nova em `ecs` custaria
+   * migração para guardar o que já cabe onde as outras configurações estão.
+   */
+  custosInternos?: CustoInterno[];
   /** Rótulo editável de Encargos no resumo/planilha (vazio = usa o padrão). */
   encargosRotulo?: string;
   responsavel: string; // produtora responsável / visto Pólobh
@@ -536,7 +596,12 @@ export interface Ec {
 
 /* --------------------------------- OS ----------------------------------- */
 
-export type StatusOsDoc = "Rascunho" | "Emitida" | "Disparada" | "Cancelada" | "Arquivada";
+/**
+ * Os quatro estados da OS (15/09/2026). "Disparada" saiu: ela não dizia em que
+ * estado o documento está, dizia que um e-mail saiu — virou o carimbo
+ * `disparadaEm`, ao lado do status. Ver a migração `20260916130000`.
+ */
+export type StatusOsDoc = "Rascunho" | "Emitida" | "Cancelada" | "Arquivada";
 
 export type Modalidade =
   | "Produto"
@@ -572,6 +637,40 @@ export type CampoLogistica =
   | "estacionamentoEquipe"
   | "uniformizacao";
 
+/**
+ * Um item CRIADO NA OS, além dos previstos na lista fixa (15/09/2026).
+ *
+ * "Permitir a criação de Novos Grupos e Novos Itens de Logística e
+ * Infraestrutura, além dos itens já previstos" — check-list da Pólobh. A lista
+ * fixa cobre o que se repete em toda OS; o que é daquele evento ("gerador de
+ * 180 kVA", "balsa para a ilha") não tinha onde ser escrito senão nas
+ * Observações Gerais, onde o fornecedor não procura.
+ *
+ * Mora dentro do próprio bloco (`Logistica.extras`), que é jsonb: nenhuma
+ * coluna nova, e o item novo já viaja para o documento e para a planilha pelo
+ * mesmo caminho dos fixos (ver `itensParaDocumento`).
+ */
+export interface ItemExtraOs {
+  id: string;
+  rotulo: string;
+  valor: string;
+  /** Mesma resposta dos itens fixos: some do documento, sem apagar o valor. */
+  naoSeAplica?: boolean;
+}
+
+/**
+ * Um grupo inteiro criado na OS, com os seus itens — "Segurança", "Limpeza".
+ * Vive em `Os.gruposExtras`, ao lado de Logística e Infraestrutura.
+ */
+export interface GrupoExtraOs {
+  id: string;
+  nome: string;
+  itens: ItemExtraOs[];
+  /** A ordem dos itens — ver `Logistica.ordem`. */
+  ordem?: string[];
+  naoSeAplica?: boolean;
+}
+
 export interface Logistica {
   transporteMaterial: string;
   transporteEquipe: string;
@@ -590,6 +689,14 @@ export interface Logistica {
    * engano volta atrás sem perder o que escreveu).
    */
   naoAplicaveis?: CampoLogistica[];
+  /** Itens criados nesta OS, além dos previstos acima. */
+  extras?: ItemExtraOs[];
+  /**
+   * A ordem em que os itens aparecem — chaves dos fixos e ids dos extras,
+   * misturados. Vazio (ou item ausente dela) significa "na ordem da lista fixa,
+   * e os extras no fim", que é como tudo nasce.
+   */
+  ordem?: string[];
 }
 
 /** Um dos itens de Infraestrutura (ver `CAMPOS_INFRAESTRUTURA` em domain/os). */
@@ -610,6 +717,10 @@ export interface Infraestrutura {
   artLaudos: string;
   /** Itens que não se aplicam a esta OS — mesma regra da Logística. */
   naoAplicaveis?: CampoInfraestrutura[];
+  /** Itens criados nesta OS, além dos previstos acima. */
+  extras?: ItemExtraOs[];
+  /** A ordem em que os itens aparecem — ver `Logistica.ordem`. */
+  ordem?: string[];
 }
 
 export interface Parcela {
@@ -629,8 +740,34 @@ export interface Orcamento {
 }
 
 /** Bloco financeiro Pólobh (restrito a Direção/Administrativo). */
+/**
+ * Os dados fiscais de um tomador que NÃO está cadastrado (15/09/2026).
+ *
+ * "Acrescentar MF e a permissão para que sejam lançados manualmente os dados de
+ * outro Tomador" — check-list da Pólobh. Acontece quando quem paga é uma
+ * empresa do cliente, uma coligada, um patrocinador: ninguém do grupo, ninguém
+ * do cadastro.
+ */
+export interface TomadorAvulso {
+  razaoSocial: string;
+  endereco: string;
+  cnpjCpf: string;
+  inscricaoEstadual: string;
+  inscricaoMunicipal: string;
+}
+
 export interface FinanceiroOs {
-  tomador: "Polobh" | "Cliente" | "";
+  /**
+   * Quem figura como tomador do serviço na nota.
+   *
+   * Pode ser o ID de uma empresa do grupo ("polobh", "mf" — ver
+   * `EmpresaGrupo`), o `Cliente` do projeto, ou `Outro`, com os dados lançados
+   * à mão em `tomadorAvulso`. "Polobh" (maiúsculo) é o valor das OS gravadas
+   * antes disto e continua valendo: significa a empresa padrão do grupo.
+   */
+  tomador: string;
+  /** Os dados do tomador quando ele é "Outro". */
+  tomadorAvulso?: TomadorAvulso;
   descritivoNf: string;
   /** Nome do projeto incentivado (aparece no descritivo da NF e no contrato). */
   projetoIncentivado?: string;
@@ -645,8 +782,35 @@ export interface FinanceiroOs {
    * campo nasce preenchido com a string inteira do Projeto.
    */
   leiIncentivo?: string;
+  /**
+   * O CÓDIGO do projeto incentivado, sozinho (16/09/2026).
+   *
+   * `leiIncentivo` guarda a lei e o número juntos, como o Projeto os guarda, e
+   * é assim que eles aparecem na nota. O contrato Cultural, porém, cita os dois
+   * em lugares diferentes da Cláusula Primeira — "no âmbito da LEI, sob o
+   * CÓDIGO" —, e partir a string na hora de gerar o Word seria adivinhar onde
+   * a lei acaba. Então o código também existe à parte, e nasce preenchido a
+   * partir do que estiver depois do travessão em `leiIncentivo`.
+   */
+  codigoProjetoIncentivado?: string;
   cnae: string;
+  /**
+   * As retenções fiscais que o fornecedor precisa destacar na nota
+   * (15/09/2026). Texto padrão da casa, editável, ou "não se aplica" — as duas
+   * são resposta. Sai em destaque na OS, em box de cor própria.
+   */
+  retencoes?: string;
+  retencoesNaoSeAplica?: boolean;
   codigoServico: string;
+  /**
+   * Ordem de compra do tomador (15/09/2026).
+   *
+   * Nasce aqui, na emissão do faturamento, e volta para o item da EC válida
+   * junto com o código de serviço — os dois são decisão de quem emite a nota,
+   * e na EC são leitura. Antes o "Pedido de Compra" era digitado na EC e a OS
+   * nem o conhecia: dois campos, dois donos, um dado só.
+   */
+  ordemCompra?: string;
   valorUnitario: number;
   valorTotal: number;
   descontoNegociado: number;
@@ -669,16 +833,37 @@ export interface FinanceiroOs {
    */
   bvJustificativa: string;
   acertoFinanceiro: string;
+  /**
+   * O acerto financeiro não se aplica a esta OS — é o PADRÃO (15/09/2026).
+   * A maioria das contratações não tem acerto nenhum, e seis campos zerados em
+   * todas elas seriam ruído. Ver `domain/acertoFinanceiro`.
+   */
+  acertoNaoSeAplica?: boolean;
+  /** % de encargos sobre o acréscimo — o único número digitado do acerto. */
+  encargosAcrescimoPercentual?: number;
 }
 
 export interface Credenciamento {
   prazoLimite: string;
   linkFormulario: string;
+  /**
+   * O que o fornecedor preenche NESTE credenciamento. Vazio = o padrão de
+   * sempre (ver `camposDoCredenciamento`): mudar o padrão mudaria, em silêncio,
+   * o que os credenciamentos já disparados pedem de quem ainda não respondeu.
+   */
+  campos?: CampoCredenciamento[];
 }
 
 /** Bloco "Dados para Contrato" da OS (modelo Pólobh). */
 export interface ContratoOs {
-  contratante: "Polobh" | "Cliente" | "";
+  /**
+   * Quem figura como CONTRATANTE. Mesmo vocabulário do tomador da nota (ver
+   * `domain/tomadorOs`): id de empresa do grupo, `Cliente` ou `Outro`. Os
+   * valores antigos "Polobh" e "Cliente" continuam valendo e significam o
+   * mesmo. Em branco quer dizer "segue o tomador do faturamento", que é o que
+   * o modelo de contrato manda fazer.
+   */
+  contratante: string;
   descritivoServicos: string; // parte do descritivo NF, editável
   informacoesComplementares: string;
   valorUnitario: number;
@@ -691,6 +876,33 @@ export interface ContratoOs {
   observacoesGerais?: string;
   dataContrato: string; // ISO date
   rubrica: string;
+  /**
+   * Qual dos dois modelos da casa este contrato usa (16/09/2026).
+   *
+   * Em branco significa "o que a modalidade do projeto disser" — Cultural para
+   * projeto cultural, Corporativo para o resto. Fica gravado só quando alguém
+   * escolhe o outro: um projeto corporativo com item incentivado existe, e é
+   * mais raro do que a regra, não o contrário.
+   */
+  modelo?: ModeloContrato;
+  /**
+   * As cláusulas que a pessoa reescreveu, por chave (ver `domain/contratoModelo`).
+   *
+   * Só o que saiu do padrão mora aqui. Guardar as sete sempre congelaria o
+   * texto do modelo dentro de cada OS: corrigir uma vírgula na vigência deixaria
+   * de valer para os contratos já feitos — e eles ainda não foram assinados.
+   */
+  clausulas?: Partial<Record<ChaveClausula, string>>;
+  /** Cidade da assinatura. Vazio = Belo Horizonte. */
+  cidade?: string;
+  testemunha1?: TestemunhaContrato;
+  testemunha2?: TestemunhaContrato;
+}
+
+/** Quem assina como testemunha. Os dois campos do modelo: nome e CPF. */
+export interface TestemunhaContrato {
+  nome: string;
+  cpf: string;
 }
 
 /* Respostas do formulário público de credenciamento (preenchido pelo fornecedor) */
@@ -698,6 +910,15 @@ export interface CredenciamentoMembro {
   nome: string;
   cpf: string;
   funcao: string;
+  /**
+   * Os campos que a Pólobh passou a poder pedir por evento (15/09/2026) — ver
+   * `domain/credenciamentoCampos`. Opcionais porque o credenciamento escolhe
+   * quais entram no formulário, e o que não foi pedido não existe na resposta.
+   */
+  rg?: string;
+  endereco?: string;
+  telefone?: string;
+  aniversario?: string;
 }
 export interface CredenciamentoVeiculo {
   modelo: string;
@@ -726,6 +947,16 @@ export interface Os {
    */
   itens: ItemContratacaoOs[];
   status: StatusOsDoc;
+  /**
+   * Em que etapa do fluxo a OS está (15/09/2026): produção monta, financeiro
+   * conclui, back-office emite. Ver `domain/faseOs` — é a fase, e não só a
+   * permissão da pessoa, que decide o que está aberto para edição.
+   */
+  fase?: FaseOs;
+  /** Quando a OS entrou na fase atual. */
+  faseEm?: string;
+  /** Quando a OS foi enviada ao fornecedor por e-mail — carimbo, não status. */
+  disparadaEm?: string;
   fornecedor: Fornecedor; // snapshot
   /**
    * Dados gerais do evento COMO ESTAVAM na emissão desta OS — o bloco "Dados do
@@ -747,6 +978,20 @@ export interface Os {
   cronograma: CronogramaItem[];
   logistica: Logistica;
   infraestrutura: Infraestrutura;
+  /**
+   * Grupos criados NESTA OS, além de Logística e Infraestrutura (15/09/2026).
+   * Saem no documento logo depois dos dois, na ordem em que foram criados.
+   */
+  gruposExtras?: GrupoExtraOs[];
+  /**
+   * O cronograma inteiro não se aplica a esta OS.
+   *
+   * É resposta, e não ausência: uma OS de locação sem montagem no local não tem
+   * cronograma, e a tabela vazia fazia o fornecedor procurar o que preencher.
+   */
+  cronogramaNaoSeAplica?: boolean;
+  /** As observações gerais não se aplicam — mesma ideia do cronograma. */
+  observacoesGeraisNaoSeAplica?: boolean;
   /**
    * Observações gerais da OS em TEXTO LIVRE, escritas para o fornecedor ler.
    * Saem no documento impresso, no e-mail e na planilha.
@@ -907,4 +1152,26 @@ export interface Checklist {
   itens: ItemChecklist[];
   criadoEm: string;
   atualizadoEm: string;
+}
+
+/**
+ * Uma linha do histórico de back-up.
+ *
+ * Existe para que "temos back-up" deixe de ser uma crença e passe a ser uma
+ * data e um tamanho na tela. Quem escreve é a Edge Function, com a chave de
+ * serviço; o aplicativo só lê.
+ */
+export interface RegistroBackup {
+  id: string;
+  criadoEm: string;
+  origem: "manual" | "automatico";
+  /** Para onde foi de fato: "email", "dropbox", "download". */
+  destinos: string[];
+  arquivo?: string;
+  tamanhoBytes?: number;
+  /** Quantas linhas de cada tabela entraram no pacote. */
+  tabelas: Record<string, number>;
+  anexos: number;
+  status: "concluido" | "parcial" | "erro";
+  erro?: string;
 }

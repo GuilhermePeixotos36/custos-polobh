@@ -1,8 +1,14 @@
 import { autorizar, respostaAutorizacao } from "../_shared/auth.ts";
 
 /**
- * Revisa as descrições financeiras dos itens de uma EC com a mesma chave
- * OpenRouter já usada pelas demais funções de IA do projeto.
+ * O revisor de português do sistema.
+ *
+ * O nome ficou preso à origem (nasceu para as descrições da EC), mas desde
+ * 25/09/2026 ele atende TODOS os textos livres do aplicativo — EC, OS,
+ * check-list e os roteiros do projeto. O que chega aqui é sempre a mesma coisa:
+ * uma lista de { id, descricao }, e quem sabe de onde cada id veio é a tela.
+ *
+ * Usa a mesma chave OpenRouter das demais funções de IA do projeto.
  *
  * Deploy: supabase functions deploy corrigir-descricoes-ec
  */
@@ -38,7 +44,11 @@ Deno.serve(async (req) => {
     });
 
   try {
-    await autorizar(req, ["Admin", "Direcao", "Producao"]);
+    // O Administrativo entrou em 25/09/2026, junto com a revisão da OS e do
+    // check-list: ele edita a OS na fase do financeiro, e sem isto a revisão
+    // dele voltaria 403 — o texto gravava, mas com um aviso de "IA
+    // indisponível" a cada salvamento, que é o pior dos dois mundos.
+    await autorizar(req, ["Admin", "Direcao", "Producao", "Administrativo"]);
     const apiKey = Deno.env.get("OPENROUTER_API_KEY");
     if (!apiKey) return json({ ok: false, erro: "OPENROUTER_API_KEY não configurada." }, 500);
 

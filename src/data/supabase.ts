@@ -35,7 +35,7 @@ function podeFinanceiro(): boolean {
 }
 
 const financeiroVazio = () => ({
-  tomador: "" as const, descritivoNf: "", cnae: "", codigoServico: "",
+  tomador: "" as const, descritivoNf: "", cnae: "", codigoServico: "", ordemCompra: "",
   valorUnitario: 0, valorTotal: 0, descontoNegociado: 0, valorAPagar: 0,
   bvPercentual: 0, bvValor: 0, bvJustificativa: "", acertoFinanceiro: "",
 });
@@ -44,6 +44,8 @@ import type {
   AuthRepository,
   ChamadosRepository,
   ChecklistRepository,
+  BackupRepository,
+  TravaEdicaoRepository,
   ConfigRepository,
   ClienteRepository,
   EcRepository,
@@ -72,9 +74,11 @@ import type {
   Os,
   Producao,
   Projeto,
+  RegistroBackup,
   Representante,
   Usuario,
 } from "./types";
+import type { PosseDeEdicao } from "@/domain/travaEdicao";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -85,15 +89,54 @@ function ok<T>({ data, error }: { data: T; error: { message: string } | null }):
   return data;
 }
 
-/** Erro de edição concorrente na EC — a tela oferece recarregar em vez de sobrescrever. */
+/**
+ * Erro de edição concorrente — a tela oferece recarregar em vez de sobrescrever.
+ *
+ * Nasceu só para a EC. Em 25/09/2026 a trava foi estendida à OS e ao projeto,
+ * que até então gravavam por cima sem avisar: se duas pessoas abrissem a mesma
+ * OS, quem salvasse por último apagava o trabalho da outra EM SILÊNCIO — e a OS
+ * é justamente o documento que sai da casa.
+ */
 export class ConflitoEdicaoError extends Error {
-  constructor() {
+  constructor(documento = "Esta EC") {
     super(
-      "Esta EC foi alterada por outra pessoa depois que você abriu a tela. " +
+      `${documento} foi alterado(a) por outra pessoa depois que você abriu a tela. ` +
         "Recarregue para ver a versão atual — salvar agora apagaria o que ela incluiu."
     );
     this.name = "ConflitoEdicaoError";
   }
+}
+
+/**
+ * Grava só se o registro ainda estiver na versão que a tela carregou.
+ *
+ * A comparação é pelo texto EXATO de `atualizado_em` como o PostgREST o
+ * devolveu — e é por isso que ele não pode ser reconstruído a partir de um
+ * `Date` do JavaScript no caminho: o Postgres guarda microssegundos, o `Date`
+ * só vai até o milissegundo, e a comparação falharia sempre, transformando a
+ * trava num bloqueio permanente.
+ *
+ * Zero linhas afetadas tem duas causas, e elas pedem respostas diferentes:
+ * outra pessoa salvou antes (conflito) ou o registro sumiu. Por isso a
+ * conferência seguinte, em vez de um erro genérico.
+ */
+async function atualizarSeIntacto(
+  tabela: "oss" | "projetos",
+  id: string,
+  linha: Record<string, unknown>,
+  esperadoEm: string | undefined,
+  rotulo: string,
+): Promise<void> {
+  if (!esperadoEm) {
+    throw new Error(`Recarregue a página: esta aba está com uma versão antiga de ${rotulo.toLowerCase()}.`);
+  }
+  const afetadas = ok(
+    await supabase.from(tabela).update(linha).eq("id", id).eq("atualizado_em", esperadoEm).select("id")
+  );
+  if (afetadas?.length) return;
+  const existe = ok(await supabase.from(tabela).select("id").eq("id", id).maybeSingle());
+  if (!existe) throw new Error(`${rotulo} não existe mais — ele pode ter sido removido por outra pessoa.`);
+  throw new ConflitoEdicaoError(rotulo);
 }
 
 /** Converte os erros da trava otimista da RPC em algo que o usuário entende. */
@@ -431,6 +474,7 @@ function mapEc(r: any): Ec {
     honorarios: r.producao?.honorarios ?? honorariosPadrao(),
     encargos: r.producao?.encargos ?? encargosPadrao(),
     honorariosRotulo: r.producao?.honorariosRotulo || undefined,
+    custosInternos: Array.isArray(r.producao?.custosInternos) ? r.producao.custosInternos : [],
     encargosRotulo: r.producao?.encargosRotulo || undefined,
     responsavel: r.responsavel ?? "",
     validadeDias: r.validade_dias ?? 30,
@@ -452,7 +496,15 @@ function ecRow(ec: Ec) {
     cliente: padronizarCliente(ec.cliente),
     projeto: sincronizarCamposLegados(padronizarProjetoInfo(ec.projeto)),
     // Embute as taxas e seus rótulos no jsonb `producao` (o mapEc separa de volta na leitura).
-    producao: { ...ec.producao, honorarios: ec.honorarios, encargos: ec.encargos, honorariosRotulo: ec.honorariosRotulo ?? "", encargosRotulo: ec.encargosRotulo ?? "" },
+    producao: {
+      ...ec.producao,
+      honorarios: ec.honorarios,
+      encargos: ec.encargos,
+      honorariosRotulo: ec.honorariosRotulo ?? "",
+      encargosRotulo: ec.encargosRotulo ?? "",
+      // Custos internos da rentabilidade (15/09/2026) — ver `Ec.custosInternos`.
+      custosInternos: ec.custosInternos ?? [],
+    },
     responsavel: padronizarTexto(ec.responsavel, "titulo"),
     validade_dias: ec.validadeDias,
     versao: ec.versao,
@@ -618,6 +670,12 @@ function mapOs(r: any): Os {
     // sem `itens`: a tela os monta a partir da EC ao abrir (`sincronizarContratacao`).
     itens: Array.isArray(r.itens) ? r.itens : [],
     status: r.status,
+    // OS gravada antes das fases (migração `20260916120000`) vem sem `fase`:
+    // `faseDaOs` deduz pelo status, para uma OS já emitida não aparecer como
+    // "a produção está montando".
+    fase: r.fase ?? undefined,
+    faseEm: r.fase_em ?? undefined,
+    disparadaEm: r.disparada_em ?? undefined,
     fornecedor: r.fornecedor,
     projeto: normalizarProjetoInfo(r.projeto ?? r.ec?.projeto),
     cliente: r.cliente ?? r.ec?.cliente ?? clienteVazio(),
@@ -668,6 +726,9 @@ function osRow(os: Os) {
     observacoes_gerais: os.observacoesGerais ?? "",
     observacoes: os.observacoes,
     status: os.status,
+    fase: os.fase ?? "producao",
+    fase_em: os.faseEm ?? null,
+    disparada_em: os.disparadaEm ?? null,
     atualizado_em: nowIso(),
   };
 }
@@ -705,7 +766,7 @@ const osRepo: OsRepository = {
     const atualizando = isUuid(os.id);
     let id: string;
     if (atualizando) {
-      ok(await supabase.from("oss").update(osRow(os)).eq("id", os.id).select("id").single());
+      await atualizarSeIntacto("oss", os.id, osRow(os), os.atualizadoEm, "Esta OS");
       id = os.id;
     } else {
       const novo = ok(await supabase.from("oss").insert(osRow(os)).select("id").single())!;
@@ -716,6 +777,17 @@ const osRepo: OsRepository = {
     // Sem essa guarda, um perfil sem acesso salvaria zeros por cima do real.
     if (podeFinanceiro()) {
       ok(await supabase.from("os_financeiro").upsert({ os_id: id, dados: os.financeiro, atualizado_em: nowIso() }));
+      // O CAMINHO DE VOLTA para a EC (15/09/2026): código de serviço e ordem de
+      // compra são decididos aqui e a EC só os lê. A escrita é por RPC porque
+      // quem preenche o faturamento não tem permissão de editar EC — pela tela,
+      // a RLS recusaria, e os campos da EC ficariam vazios para sempre.
+      // Falhar aqui não pode derrubar o salvamento da OS, que já aconteceu.
+      const { error: erroDevolucao } = await supabase.rpc("devolver_dados_fiscais_para_ec", {
+        p_os_id: id,
+        p_codigo_servico: os.financeiro.codigoServico ?? "",
+        p_ordem_compra: os.financeiro.ordemCompra ?? "",
+      });
+      if (erroDevolucao) console.warn("Não foi possível devolver os dados fiscais à EC:", erroDevolucao.message);
     }
     const salvo = await this.obter(id);
     if (!salvo) throw new Error("Falha ao reler a OS salva.");
@@ -727,6 +799,12 @@ const osRepo: OsRepository = {
     });
     return salvo;
   },
+  async fecharItensNaEc(osId) {
+    const { data, error } = await supabase.rpc("marcar_itens_da_os_como_emitidos", { p_os_id: osId });
+    if (error) throw new Error(error.message);
+    return Number(data ?? 0);
+  },
+
   async gerarNovaVersao(os, dados) {
     // A cópia acontece no servidor (ver a função `gerar_nova_versao_os`): o
     // financeiro da OS é restrito por RLS, e copiá-lo pela tela apagaria o que
@@ -799,7 +877,7 @@ async function gerenciarUsuarios(body: Record<string, unknown>): Promise<Usuario
 
 const authRepo: AuthRepository = {
   async usuarios() {
-    const data = ok(await supabase.from("perfis").select("id, nome, papel, telefone, area_id, areas(nome)").order("nome"));
+    const data = ok(await supabase.from("perfis").select("id, nome, papel, telefone, area_id, ativo, areas(nome)").order("nome"));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return (data ?? []).map((r: any): Usuario => {
       const area = Array.isArray(r.areas) ? r.areas[0] : r.areas;
@@ -809,6 +887,7 @@ const authRepo: AuthRepository = {
         email: "",
         telefone: r.telefone ?? "",
         papel: r.papel,
+        ativo: r.ativo ?? true,
         areaId: r.area_id ?? undefined,
         areaNome: area?.nome ?? undefined,
       };
@@ -823,6 +902,7 @@ const authRepo: AuthRepository = {
   },
   criarUsuario: (dados) => gerenciarUsuarios({ acao: "criar", ...dados }),
   atualizarUsuario: (dados) => gerenciarUsuarios({ acao: "atualizar", ...dados }),
+  definirUsuarioAtivo: (dados) => gerenciarUsuarios({ acao: "definirAtivo", ...dados }),
 };
 
 /* ---------------------------------- Áreas -------------------------------- */
@@ -926,8 +1006,9 @@ const projetoRepo: ProjetoRepository = {
   },
   async salvar(p) {
     const atualizando = isUuid(p.id);
+    if (atualizando) await atualizarSeIntacto("projetos", p.id, projetoRow(p), p.atualizadoEm, "Este projeto");
     const data = atualizando
-      ? ok(await supabase.from("projetos").update(projetoRow(p)).eq("id", p.id).select("*").single())!
+      ? ok(await supabase.from("projetos").select("*").eq("id", p.id).single())!
       : ok(await supabase.from("projetos").insert(projetoRow(p)).select("*").single())!;
     const proj = mapProjeto(data);
     auditar({
@@ -1369,6 +1450,69 @@ const checklistRepo: ChecklistRepository = {
   },
 };
 
+/* --------------------------------- Back-up -------------------------------- */
+
+/**
+ * Chama a Edge Function `backup`, que roda com a chave de serviço.
+ *
+ * O pacote NÃO é montado aqui de propósito: ele leva a base inteira, e montá-lo
+ * no navegador exigiria que o cliente conseguisse ler todas as tabelas — o que
+ * a RLS, com razão, não concede a ninguém. O que chega aqui é o pacote pronto.
+ */
+async function chamarBackup<T>(acao: string): Promise<T> {
+  const { data, error } = await supabase.functions.invoke("backup", { body: { acao } });
+  if (error) throw new Error((error as { message?: string }).message ?? "Falha ao chamar o back-up.");
+  const resposta = data as { ok: boolean; erro?: string };
+  if (!resposta?.ok) throw new Error(resposta?.erro ?? "Não foi possível gerar o back-up.");
+  return resposta as T;
+}
+
+const backupRepo: BackupRepository = {
+  baixar: () => chamarBackup<{ nome: string; zipBase64: string; tamanho: number }>("baixar"),
+  enviarAgora: () =>
+    chamarBackup<{ destinos: string[]; nome: string; tamanho: number; erro?: string | null }>("enviar"),
+  async historico(limite = 20) {
+    const data = ok(
+      await supabase
+        .from("backups")
+        .select("id, criado_em, origem, destinos, arquivo, tamanho_bytes, tabelas, anexos, status, erro")
+        .order("criado_em", { ascending: false })
+        .limit(limite),
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (data ?? []).map((r: any): RegistroBackup => ({
+      id: r.id,
+      criadoEm: r.criado_em,
+      origem: r.origem,
+      destinos: r.destinos ?? [],
+      arquivo: r.arquivo ?? undefined,
+      tamanhoBytes: r.tamanho_bytes ?? undefined,
+      tabelas: r.tabelas ?? {},
+      anexos: r.anexos ?? 0,
+      status: r.status,
+      erro: r.erro ?? undefined,
+    }));
+  },
+};
+
+/* ----------------------------- Trava de edição ---------------------------- */
+
+const travaEdicaoRepo: TravaEdicaoRepository = {
+  async abrir(documento) {
+    const data = ok(await supabase.rpc("abrir_edicao", { p_documento: documento }));
+    return data as unknown as PosseDeEdicao;
+  },
+  async quem(documento) {
+    const data = ok(await supabase.rpc("quem_edita", { p_documento: documento }));
+    return (data as unknown as PosseDeEdicao | null) ?? null;
+  },
+  async fechar(documento) {
+    // Falhar ao largar não pode estourar na cara de ninguém: a posse caduca
+    // sozinha em 90 segundos, e a pessoa está saindo da tela.
+    await supabase.rpc("fechar_edicao", { p_documento: documento });
+  },
+};
+
 export const supabaseRepositorios: Repositorios = {
   projetos: projetoRepo,
   clientes: clienteRepo,
@@ -1381,4 +1525,6 @@ export const supabaseRepositorios: Repositorios = {
   config: configRepo,
   chamados: chamadosRepo,
   checklists: checklistRepo,
+  backup: backupRepo,
+  travaEdicao: travaEdicaoRepo,
 };

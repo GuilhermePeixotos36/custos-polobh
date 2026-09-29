@@ -14,6 +14,7 @@ import { autorizar, respostaAutorizacao, type Papel } from "../_shared/auth.ts";
  *   listar                                     -> { ok, usuarios: [...] }
  *   criar    { email, nome, areaId, telefone }  -> convida por e-mail + cria o perfil na área
  *   atualizar { id, nome?, areaId?, telefone?, email? } -> atualiza perfil (+ e-mail no Auth se mudou)
+ *   definirAtivo { id, ativo }                  -> liga/desliga o acesso (só Admin e Direção)
  *
  * O `papel` (nível de segurança usado pela RLS) NÃO vem do cliente: é derivado
  * do `papel_base` da área por trigger no banco — ver a migração
@@ -31,6 +32,15 @@ const json = (body: unknown, status = 200) =>
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const QUEM_GERENCIA: Papel[] = ["Admin", "Direcao", "Administrativo"];
+/**
+ * Quem ATIVA e INATIVA (24/09/2026) — recorte mais estreito que o de gerenciar.
+ *
+ * O Administrativo administra o cadastro (nome, telefone, área); cortar o acesso
+ * de alguém é decisão de quem responde pela casa. As travas contra ficar sem
+ * ninguém capaz de reverter estão no banco, como gatilho — aqui elas aparecem
+ * para a mensagem ser legível, lá para serem verdade.
+ */
+const QUEM_ATIVA: Papel[] = ["Admin", "Direcao"];
 
 interface UsuarioRow {
   id: string;
@@ -40,6 +50,7 @@ interface UsuarioRow {
   papel: Papel;
   areaId: string | null;
   areaNome: string | null;
+  ativo: boolean;
 }
 
 /** Confere se a área existe; devolve o papel_base para gravar junto (a trigger reforça). */
@@ -62,7 +73,7 @@ function admin() {
 async function listarUsuarios(sb: ReturnType<typeof admin>): Promise<UsuarioRow[]> {
   const { data: perfis, error: perfisErro } = await sb
     .from("perfis")
-    .select("id, nome, papel, telefone, area_id, areas(nome)")
+    .select("id, nome, papel, telefone, area_id, ativo, areas(nome)")
     .order("nome");
   if (perfisErro) throw new Error(perfisErro.message);
 
@@ -79,6 +90,7 @@ async function listarUsuarios(sb: ReturnType<typeof admin>): Promise<UsuarioRow[
     email: emailPorId.get(p.id) ?? "",
     areaId: p.area_id ?? null,
     areaNome: (Array.isArray(p.areas) ? p.areas[0]?.nome : p.areas?.nome) ?? null,
+    ativo: p.ativo ?? true,
   }));
 }
 
@@ -109,7 +121,7 @@ async function criarUsuario(sb: ReturnType<typeof admin>, body: Record<string, u
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const area = (Array.isArray((perfil as any)?.areas) ? (perfil as any).areas[0] : (perfil as any)?.areas) ?? null;
-  return { id: convite.user.id, nome, telefone, papel, email, areaId, areaNome: area?.nome ?? null };
+  return { id: convite.user.id, nome, telefone, papel, email, areaId, areaNome: area?.nome ?? null, ativo: true };
 }
 
 async function atualizarUsuario(sb: ReturnType<typeof admin>, body: Record<string, unknown>): Promise<UsuarioRow> {
@@ -138,7 +150,7 @@ async function atualizarUsuario(sb: ReturnType<typeof admin>, body: Record<strin
 
   const { data: perfil, error: perfilErro } = await sb
     .from("perfis")
-    .select("id, nome, papel, telefone, area_id, areas(nome)")
+    .select("id, nome, papel, telefone, area_id, ativo, areas(nome)")
     .eq("id", id)
     .maybeSingle();
   if (perfilErro || !perfil) throw new Error(perfilErro?.message ?? "Usuário não encontrado após atualizar.");
@@ -154,6 +166,62 @@ async function atualizarUsuario(sb: ReturnType<typeof admin>, body: Record<strin
     email: authUser?.user?.email ?? "",
     areaId: p.area_id ?? null,
     areaNome: area?.nome ?? null,
+    ativo: p.ativo ?? true,
+  };
+}
+
+/**
+ * Liga e desliga o acesso de alguém.
+ *
+ * O bloqueio de verdade não está aqui: está na RLS, porque `papel_atual()`
+ * devolve nulo para quem está inativo, e aí todas as políticas recusam — vale
+ * até para uma sessão já aberta, no comando seguinte. Esta função só vira a
+ * chave e derruba as sessões, para a pessoa não seguir com a tela montada.
+ *
+ * As travas (ninguém se inativa, ninguém inativa o último que pode reverter)
+ * moram no gatilho `perfis_impedir_lockout`. Se elas dispararem, a mensagem do
+ * banco sobe como está — foi escrita para ser lida por quem clicou.
+ */
+async function definirAtivo(
+  sb: ReturnType<typeof admin>,
+  quem: { id: string; papel: Papel },
+  body: Record<string, unknown>,
+): Promise<UsuarioRow> {
+  if (!QUEM_ATIVA.includes(quem.papel)) {
+    throw new Error("Apenas a Direção e o Administrador ativam ou inativam usuários.");
+  }
+  const id = String(body.id ?? "").trim();
+  if (!id) throw new Error("Usuário não informado.");
+  if (typeof body.ativo !== "boolean") throw new Error("Informe se a conta fica ativa ou inativa.");
+  const ativo = body.ativo;
+
+  const { error } = await sb.from("perfis").update({ ativo }).eq("id", id);
+  if (error) throw new Error(error.message);
+
+  // Sem isto, quem acabou de ser inativado continua com a tela montada até o
+  // token vencer. A RLS já recusa tudo, mas o que a pessoa vê é um aplicativo
+  // quebrado em vez de uma saída limpa.
+  if (!ativo) await sb.auth.admin.signOut(id, "global").catch(() => {});
+
+  const { data: perfil, error: perfilErro } = await sb
+    .from("perfis")
+    .select("id, nome, papel, telefone, area_id, ativo, areas(nome)")
+    .eq("id", id)
+    .maybeSingle();
+  if (perfilErro || !perfil) throw new Error(perfilErro?.message ?? "Usuário não encontrado.");
+  const { data: authUser } = await sb.auth.admin.getUserById(id);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const p = perfil as any;
+  const area = (Array.isArray(p.areas) ? p.areas[0] : p.areas) ?? null;
+  return {
+    id: p.id,
+    nome: p.nome ?? "",
+    telefone: p.telefone ?? "",
+    papel: p.papel as Papel,
+    email: authUser?.user?.email ?? "",
+    areaId: p.area_id ?? null,
+    areaNome: area?.nome ?? null,
+    ativo: p.ativo ?? true,
   };
 }
 
@@ -161,8 +229,9 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ ok: false, erro: "Method not allowed" }, 405);
 
+  let quem: { id: string; papel: Papel };
   try {
-    await autorizar(req, QUEM_GERENCIA);
+    quem = await autorizar(req, QUEM_GERENCIA);
   } catch (erro) {
     return respostaAutorizacao(erro, cors) ?? json({ ok: false, erro: "Falha ao validar a sessão." }, 500);
   }
@@ -183,6 +252,8 @@ Deno.serve(async (req) => {
         return json({ ok: true, usuario: await criarUsuario(sb, body) });
       case "atualizar":
         return json({ ok: true, usuario: await atualizarUsuario(sb, body) });
+      case "definirAtivo":
+        return json({ ok: true, usuario: await definirAtivo(sb, quem, body) });
       default:
         return json({ ok: false, erro: "Ação desconhecida." }, 400);
     }
