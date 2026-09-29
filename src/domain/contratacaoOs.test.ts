@@ -3,6 +3,8 @@ import {
   bvDaContratacao,
   bvDoItem,
   exigeJustificativa,
+  formaDoItem,
+  problemasDaContratacao,
   itemContratacaoVazio,
   itemDaLinhaEc,
   justificativasFaltando,
@@ -204,5 +206,48 @@ describe("quando a justificativa do BV é exigida", () => {
       semBvSemNf: { naoSeAplica: false, valor: 8000, justificativaBv: "fornecedor não trabalha com BV" },
     });
     expect(justificativasFaltando(i)).toEqual(["comBvNf"]);
+  });
+});
+
+describe("a forma de pagamento adotada por item", () => {
+  const com = (over: Partial<ItemContratacaoOs>) =>
+    item({
+      comBvNf: { naoSeAplica: false, valor: 1000, justificativaBv: "" },
+      bv: { modo: "percentual", valor: 15 },
+      semBvComNf: { naoSeAplica: false, valor: 900, justificativaBv: "" },
+      semBvSemNf: { naoSeAplica: true, valor: 0, justificativaBv: "" },
+      ...over,
+    });
+
+  it("vale a escolhida; sem escolha e com duas formas, falta escolher", () => {
+    expect(formaDoItem(com({ forma: "semBvComNf" }))).toBe("semBvComNf");
+    expect(formaDoItem(com({}))).toBeUndefined();
+  });
+
+  it("com uma forma só, é ela — sem precisar clicar", () => {
+    expect(formaDoItem(com({ semBvComNf: { naoSeAplica: true, valor: 0, justificativaBv: "" } }))).toBe("comBvNf");
+  });
+
+  it("o resumo soma só a forma adotada, e o BV só existe na 'com BV e NF'", () => {
+    const r = resumoContratacao([com({ forma: "semBvComNf" })], [linha({ id: "l1" })]);
+    expect(r.contratado).toBe(900);
+    expect(r.bvTotal).toBe(0);
+    expect(r.liquido).toBe(900);
+    const c = resumoContratacao([com({ forma: "comBvNf" })], [linha({ id: "l1" })]);
+    expect(c.contratado).toBe(1000);
+    expect(c.bvTotal).toBe(150);
+    expect(c.liquido).toBe(850);
+  });
+
+  it("trava: item sem escolha, forma sem valor e forma misturada na mesma OS", () => {
+    const nome = (id: string) => `item ${id}`;
+    expect(problemasDaContratacao([com({})], nome)[0]).toContain("escolha a forma");
+    expect(problemasDaContratacao([com({ forma: "semBvSemNf" })], nome)[0]).toContain("não tem valor");
+    const misturada = problemasDaContratacao(
+      [com({ ecLinhaId: "a", forma: "comBvNf" }), com({ ecLinhaId: "b", forma: "semBvComNf" })],
+      nome
+    );
+    expect(misturada.some((m) => m.includes("mistura formas"))).toBe(true);
+    expect(problemasDaContratacao([com({ forma: "comBvNf" })], nome)).toEqual([]);
   });
 });

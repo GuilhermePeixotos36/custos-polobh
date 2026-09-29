@@ -86,6 +86,50 @@ export const COLUNAS_CONTRATACAO = [
 const valorDefinido = (o: OpcaoContratacaoOs | undefined): number | null =>
   !o || o.naoSeAplica ? null : Number(o.valor ?? 0) || 0;
 
+/**
+ * A forma de pagamento que vale neste item: a ESCOLHIDA (se ainda tem valor) ou,
+ * quando só uma das três tem valor, essa. `undefined` = falta escolher — e aí o
+ * resumo cai no comportamento antigo (mostra o que cada forma valeria), para OS
+ * gravada antes da escolha existir continuar se lendo como sempre.
+ */
+export function formaDoItem(i: ItemContratacaoOs): OpcaoValorDefinida | undefined {
+  const vale = (o: OpcaoValorDefinida) => (valorDefinido(i[o]) ?? 0) > 0;
+  if (i.forma && vale(i.forma)) return i.forma;
+  const validas = OPCOES_VALOR_ITEM.map((o) => o.opcao).filter(vale);
+  return validas.length === 1 ? validas[0] : undefined;
+}
+
+/**
+ * O que impede a contratação de estar pronta para a emissão (lista vazia = ok).
+ *
+ * Três coisas, decididas com a Pólobh (29/09/2026): todo item tem uma forma
+ * escolhida; a forma escolhida tem valor naquele item; e a OS NÃO mistura
+ * formas — "COM BV e COM NF", "SEM BV e COM NF" e "SEM BV e SEM NF" não
+ * convivem numa mesma ordem de serviço.
+ */
+export function problemasDaContratacao(itens: ItemContratacaoOs[], nomeDoItem: (ecLinhaId: string) => string): string[] {
+  const out: string[] = [];
+  const usadas = new Set<OpcaoValorDefinida>();
+  for (const i of itens) {
+    const nome = nomeDoItem(i.ecLinhaId);
+    if (i.forma && !((valorDefinido(i[i.forma]) ?? 0) > 0)) {
+      out.push(`${nome}: a forma escolhida não tem valor neste item — escolha outra ou ajuste a EC.`);
+      continue;
+    }
+    const forma = formaDoItem(i);
+    if (!forma) {
+      out.push(`${nome}: escolha a forma de pagamento.`);
+      continue;
+    }
+    usadas.add(forma);
+  }
+  if (usadas.size > 1) {
+    const rotulos = COLUNAS_CONTRATACAO.filter((c) => usadas.has(c.chave)).map((c) => c.curto);
+    out.push(`A OS mistura formas de pagamento (${rotulos.join(", ")}) — use a mesma em todos os itens.`);
+  }
+  return out;
+}
+
 export interface LinhaResumoContratacao {
   ecLinhaId: string;
   item: string;
@@ -110,6 +154,12 @@ export interface ResumoContratacao {
   totalComNota: number;
   /** O que é pago sem nota. Sai separado, para não se somar ao de cima. */
   totalSemNota: number;
+  /** O valor total contratado — a soma do que cada item adotou. */
+  contratado: number;
+  /** O BV total, só dos itens que adotaram "com BV e NF". */
+  bvTotal: number;
+  /** Contratado menos o BV. */
+  liquido: number;
 }
 
 /**
@@ -120,12 +170,18 @@ export interface ResumoContratacao {
  */
 export function resumoContratacao(itens: ItemContratacaoOs[], linhas: EcLinha[]): ResumoContratacao {
   const nome = new Map(linhas.map((l) => [l.id, l.item?.trim() || l.descricao?.trim() || "(item sem nome)"]));
+  // Com a forma definida, só ela aparece no item; sem forma, o comportamento de
+  // antes (as três), para OS antiga não mudar de leitura.
+  const doItem = (i: ItemContratacaoOs, opcao: OpcaoValorDefinida) => {
+    const forma = formaDoItem(i);
+    return forma && forma !== opcao ? null : valorDefinido(i[opcao]);
+  };
   const out: LinhaResumoContratacao[] = itens.map((i) => ({
     ecLinhaId: i.ecLinhaId,
     item: nome.get(i.ecLinhaId) ?? "(item sem nome)",
-    comBvNf: valorDefinido(i.comBvNf),
-    semBvComNf: valorDefinido(i.semBvComNf),
-    semBvSemNf: valorDefinido(i.semBvSemNf),
+    comBvNf: doItem(i, "comBvNf"),
+    semBvComNf: doItem(i, "semBvComNf"),
+    semBvSemNf: doItem(i, "semBvSemNf"),
   }));
 
   const somar = (ler: (l: LinhaResumoContratacao) => number | null) =>
@@ -150,6 +206,9 @@ export function resumoContratacao(itens: ItemContratacaoOs[], linhas: EcLinha[])
     },
     totalComNota: r2(totais.comBvNf + totais.semBvComNf),
     totalSemNota: totais.semBvSemNf,
+    contratado: r2(totais.comBvNf + totais.semBvComNf + totais.semBvSemNf),
+    bvTotal: bvDaContratacao(itens).valor,
+    liquido: r2(totais.comBvNf + totais.semBvComNf + totais.semBvSemNf - bvDaContratacao(itens).valor),
   };
 }
 
@@ -163,7 +222,9 @@ export function resumoContratacao(itens: ItemContratacaoOs[], linhas: EcLinha[])
  * OS fechou por outro número, o BV acompanha.
  */
 export function bvDoItem(i: ItemContratacaoOs): { base: number; valor: number; percentual: number } {
-  const base = valorDefinido(i.comBvNf) ?? 0;
+  // O BV só existe quando o item adotou "com BV e NF" (ou ainda não adotou nada).
+  const forma = formaDoItem(i);
+  const base = forma && forma !== "comBvNf" ? 0 : valorDefinido(i.comBvNf) ?? 0;
   if (!base) return { base: 0, valor: 0, percentual: 0 };
   const bv = i.bv ?? { modo: "percentual" as const, valor: 0 };
   const numero = Number(bv.valor ?? 0) || 0;
