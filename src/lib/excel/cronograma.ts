@@ -27,6 +27,8 @@ export interface CronogramaExcelDados {
   enderecoLocal: string;
   itens: CronogramaLinha[];
   nomeArquivo: string;
+  /** Projeto dono: liga a cópia automática na pasta Dropbox dele. */
+  projetoId?: string;
 }
 
 const CINZA = "FFD9D9D9";
@@ -110,5 +112,5 @@ export async function gerarCronogramaExcel(d: CronogramaExcelDados): Promise<voi
   }
 
   const buffer = await wb.xlsx.writeBuffer();
-  baixar(buffer as ArrayBuffer, `${nomeArquivo(d.nomeArquivo)}.xlsx`);
+  baixar(buffer as ArrayBuffer, `${nomeArquivo(d.nomeArquivo)}.xlsx`, d.projetoId);
 }

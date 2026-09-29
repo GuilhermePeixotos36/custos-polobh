@@ -544,5 +544,5 @@ export async function gerarOsExcel(
   opts: { incluirFinanceiro?: boolean; empresaPolobh?: EmpresaEmissora } = {}
 ): Promise<void> {
   const { buffer, nome } = await criarOsExcelBuffer(os, ec, opts);
-  baixar(buffer, nome);
+  baixar(buffer, nome, ec.projetoId);
 }

@@ -54,7 +54,14 @@ não são apagados (um por dia; retenção é decisão da Pólobh).
   Resumo de proposta e e-mails ficam de fora.
 - **Falha:** o aviso aparece na tela e a geração do documento segue normalmente.
 
+**Ligado aos botões (29/09/2026):** ao gerar o Excel da EC (Financeiro/Completa),
+o Cronograma ou a OS, o app baixa o arquivo como sempre e, em segundo plano, envia
+uma cópia para a pasta Dropbox do projeto (só se o projeto tiver o link). Sucesso
+e falha aparecem como aviso; nada trava o download. A OS oficial é o PDF, gerado
+pela impressão do navegador, que não entrega arquivo — então "Baixar PDF" envia a
+OS em **Excel** (sem financeiro) como cópia.
+
 **Pendente (depende do acesso ao Dropbox):** validar com uma pasta real da Pólobh
-(link `/scl/fo/…` resolve? conta é Business?), e só então ligar o helper aos botões
-de gerar EC/OS/cronograma. Se o link não resolver, plano B: guardar o **caminho**
-da pasta (ex.: `/Pólobh (HGM)/Projetos/ACME`) em vez do link.
+(link `/scl/fo/…` resolve? conta é Business?), publicar `arquivar-documento` e
+definir os segredos. Se o link não resolver, plano B: guardar o **caminho** da
+pasta (ex.: `/Pólobh (HGM)/Projetos/ACME`) em vez do link.
