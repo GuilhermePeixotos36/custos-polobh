@@ -494,7 +494,12 @@ export function OsForm() {
   /** Resumo dos Custos: o que a contratação decidiu, item a item, com os totais. */
   const resumo = resumoContratacao(os.itens, linhasConsolidadas);
   /** O que trava a emissão na contratação: forma sem escolher, sem valor, ou misturada. */
-  const pendenciasAbertasDaOs = pendenciasDaOs.filter((p) => p.tipo !== "os.fase");
+  // O cronograma vazio é cobrado na subguia Cronograma do projeto, mas a
+  // emissão continua travada por ele: a âncora é a do bloco desta tela.
+  const pendenciasAbertasDaOs = [
+    ...pendenciasDaOs.filter((p) => p.tipo !== "os.fase"),
+    ...pendenciasDoUsuario.filter((p) => p.tipo === "os.cronograma" && p.osId === os.id),
+  ];
   /** Rola até o campo da pendência e o faz latejar. */
   const irParaPendencia = (p: (typeof pendenciasDaOs)[number]) => {
     if (p.ancora) destacarElemento(idAncoraPendencia(p.ancora), "pendencia");

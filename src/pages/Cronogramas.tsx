@@ -1,3 +1,4 @@
+import { nomeCurtoFornecedor } from "@/domain/fornecedor";
 import { useMemo, useState } from "react";
 import { PageShell } from "@/components/layout/AppLayout";
 import { Card, CardTitle, Button, Select, Badge, EmptyState, tomStatusOs } from "@/components/ui";
@@ -63,7 +64,7 @@ export function Cronogramas() {
   const etapasConsolidadas = useMemo<ItemConsolidado[]>(
     () =>
       ossDoProjeto.flatMap((o) =>
-        o.cronograma.map((c) => ({ ...c, fornecedor: o.fornecedor.razaoSocial || o.fornecedor.nomeFantasia || "Fornecedor" }))
+        o.cronograma.map((c) => ({ ...c, fornecedor: nomeCurtoFornecedor(o.fornecedor) || "Fornecedor" }))
       ),
     [ossDoProjeto]
   );
@@ -137,7 +138,7 @@ export function Cronogramas() {
               {ossDoProjeto.map((o) => (
                 <Card key={o.id}>
                   <CardTitle action={<Badge tom={tomStatusOs[o.status]}>{o.status}</Badge>}>
-                    {o.fornecedor.razaoSocial || "Fornecedor"} · {o.numero}
+                    {nomeCurtoFornecedor(o.fornecedor) || "Fornecedor"} · {o.numero}
                   </CardTitle>
                   <Timeline itens={o.cronograma} />
                 </Card>

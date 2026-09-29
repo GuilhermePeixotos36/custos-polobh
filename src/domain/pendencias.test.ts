@@ -324,16 +324,16 @@ describe("badge e pílula contam a mesma coisa", () => {
     expect(meus.total).toBe(meus.itens.length);
   });
 
-  it("cronograma vazio da OS é cobrado na etapa da OS, com endereço no card", () => {
+  it("cronograma vazio da OS é cobrado na subguia Cronograma, na linha do fornecedor", () => {
     const itens = calcularPendencias(
       [projeto("Carla")], [ec([linha([])])],
       [os({ status: "Emitida", disparadaEm: "2026-08-20T10:00:00Z", cronograma: [] })],
       USUARIOS, [], [], HOJE
     );
     const p = itens.find((x) => x.tipo === "os.cronograma")!;
-    expect(p.aba).toBe("os");
+    expect(p.aba).toBe("cronograma");
     expect(p.ancora).toBe(ancoraCronogramaOs("os1"));
-    expect(rotaDaPendencia(p)).toBe("/ordens/os1");
+    expect(rotaDaPendencia(p)).toContain("aba=cronograma");
   });
 
   it("credenciamento sem resposta é achável na linha do painel do projeto", () => {

@@ -12,6 +12,7 @@
  * horários que não são dele.
  */
 import type { Ec, Os } from "@/data/types";
+import { nomeCurtoFornecedor } from "@/domain/fornecedor";
 
 /** OS encerrada não tem cronograma a cumprir. */
 const ENCERRADA = ["Cancelada", "Arquivada"];
@@ -22,8 +23,17 @@ export interface NaFilaCronograma {
   ec: Ec | undefined;
   fornecedor: string;
   email: string;
+  /** Telefone do cadastro — só dígitos, com DDI 55 quando faltar. Vazio sem telefone. */
+  whatsapp: string;
   /** Quantas etapas o cronograma da OS tem — zero significa nada a contar. */
   etapas: number;
+}
+
+/** Só dígitos, com DDI: é o que o link do WhatsApp (wa.me) exige. */
+export function telefoneWhatsApp(tel?: string): string {
+  const d = (tel ?? "").replace(/\D/g, "");
+  if (d.length < 10) return "";
+  return d.length <= 11 ? `55${d}` : d;
 }
 
 /**
@@ -36,9 +46,9 @@ export function filaDeCronograma(oss: Os[], ecs: Ec[]): NaFilaCronograma[] {
     .map((os) => ({
       os,
       ec: ecs.find((e) => e.id === os.ecId),
-      fornecedor:
-        os.fornecedor.apelido || os.fornecedor.nomeFantasia || os.fornecedor.razaoSocial || "Fornecedor",
+      fornecedor: nomeCurtoFornecedor(os.fornecedor) || "Fornecedor",
       email: os.fornecedor.email?.trim() ?? "",
+      whatsapp: telefoneWhatsApp(os.fornecedor.telefone),
       etapas: (os.cronograma ?? []).filter((c) => c.data || c.horario || c.atividades?.trim()).length,
     }))
     .sort((a, b) => a.fornecedor.localeCompare(b.fornecedor, "pt-BR"));

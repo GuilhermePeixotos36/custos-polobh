@@ -4,11 +4,11 @@
  */
 import type { Ec, Os } from "@/data/types";
 import { urlCredenciamento } from "@/lib/links";
-import { corpoCronogramaFornecedor } from "../../../supabase/functions/_shared/cronogramaEmail";
+import { corpoCronogramaFornecedor, textoCronogramaFornecedor, type EtapaProjetoTexto } from "../../../supabase/functions/_shared/cronogramaEmail";
 import { dataBR } from "@/lib/format";
 // Todas as faixas do evento: o e-mail que leva a OS ao fornecedor dizia só o
 // primeiro dia (ver `datasDoEvento`).
-import { datasDoEvento, horariosDoEvento } from "@/domain/projeto";
+import { datasDoEvento, ETAPAS_CRONOGRAMA, horariosDoEvento } from "@/domain/projeto";
 
 export interface AnexoEmail {
   nome: string;
@@ -123,13 +123,42 @@ export function emailCredenciamento(os: Os, ec: Ec): MensagemEmail {
  * fornecedor para um evento de um dia. Agora é uma régua só, e ela é
  * TypeScript puro justamente para caber nos dois lados.
  */
+/** As etapas do cronograma do PROJETO, no formato "Dados do Projeto" da OS. */
+function etapasDoProjetoEmTexto(projeto: Os["projeto"]): EtapaProjetoTexto[] {
+  return ETAPAS_CRONOGRAMA.filter(({ key }) => !(projeto.etapasOcultas ?? []).includes(key))
+    .map(({ key, label }) => ({
+      label: `Cronograma do Projeto — ${label}`,
+      faixas: (projeto.cronograma?.[key] ?? [])
+        .filter((f) => f.data || f.inicio || f.fim)
+        .map((f) => [dataBR(f.data), [f.inicio, f.fim].filter(Boolean).join(" às ")].filter(Boolean).join(" · "))
+        .join("  |  "),
+    }))
+    .filter((e) => e.faixas);
+}
+
+/**
+ * O MESMO texto padrão, em mensagem simples, para o WhatsApp (29/09/2026): sai
+ * dos mesmos dados do e-mail, então os dois não podem se contradizer.
+ */
+export function textoWhatsAppCronograma(os: Os, ec: Ec): string {
+  const projeto = os.projeto ?? ec.projeto;
+  return textoCronogramaFornecedor({
+    projeto,
+    etapas: os.cronograma ?? [],
+    numeroOs: os.numero,
+    etapasProjeto: etapasDoProjetoEmTexto(projeto),
+  });
+}
+
 export function emailCronogramaDoFornecedor(os: Os, ec: Ec): MensagemEmail {
+  const projeto = os.projeto ?? ec.projeto;
   const { assunto, html } = corpoCronogramaFornecedor({
     // A foto do evento que a OS guarda — é ela que o fornecedor recebeu.
-    projeto: os.projeto ?? ec.projeto,
+    projeto,
     fornecedor: os.fornecedor,
     etapas: os.cronograma ?? [],
     numeroOs: os.numero,
+    etapasProjeto: etapasDoProjetoEmTexto(projeto),
   });
   return {
     para: os.fornecedor.email ? [{ email: os.fornecedor.email, nome: os.fornecedor.razaoSocial }] : [],

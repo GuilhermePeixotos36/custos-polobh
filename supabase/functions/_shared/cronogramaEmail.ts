@@ -28,6 +28,12 @@ export interface FaixaJson {
 /** O jsonb `projetos.projeto` / `ecs.projeto`, no que interessa aqui. */
 export interface ProjetoJson {
   titulo?: string;
+  modalidade?: string;
+  projetoIncentivado?: string;
+  leiIncentivo?: string;
+  incentivosFiscais?: string;
+  codigoProjetoIncentivado?: string;
+  participantes?: number | null;
   local?: string;
   enderecoLocal?: string;
   produtoraResponsavel?: string;
@@ -116,6 +122,69 @@ function moldura(titulo: string, corpo: string): string {
   </div>`;
 }
 
+/** Uma etapa do cronograma do PROJETO (Pré-evento, Montagem…), já formatada. */
+export interface EtapaProjetoTexto {
+  label: string;
+  faixas: string;
+}
+
+/**
+ * "Dados do Projeto", com os mesmos campos e a mesma ordem do módulo de mesmo
+ * nome na OS (29/09/2026). Campo vazio não vira linha.
+ */
+export function linhasDadosDoProjeto(p: ProjetoJson, etapasProjeto: EtapaProjetoTexto[] = []): [string, string][] {
+  const linhas: [string, string][] = [
+    ["Título", p.titulo ?? ""],
+    ["Modalidade", p.modalidade ?? ""],
+    ["Nome do Projeto Incentivado", p.projetoIncentivado ?? ""],
+    ["Lei de Incentivo à Cultura", p.leiIncentivo || p.incentivosFiscais || ""],
+    ["Código do Projeto Incentivado", p.codigoProjetoIncentivado ?? ""],
+    ["Data(s)", datasDoEvento(p)],
+    ["Horário(s)", horariosDoEvento(p)],
+    ["Local", p.local ?? ""],
+    ["Endereço do Local", p.enderecoLocal ?? ""],
+    ["Nº Participantes", p.participantes != null ? String(p.participantes) : ""],
+    ["Produtora Responsável", p.produtoraResponsavel ?? ""],
+    ["Telefone", p.telefoneProdutora ?? ""],
+    ["E-mail", p.emailProdutora ?? ""],
+    ...etapasProjeto.map((e): [string, string] => [e.label, e.faixas]),
+  ];
+  return linhas.filter(([, v]) => String(v).trim());
+}
+
+const ABERTURA_PADRAO = [
+  "Esta é uma mensagem automática gerada pelo sistema de gestão da Pólobh.",
+  "Veja abaixo a confirmação do cronograma das ações que foram confirmadas para a sua empresa.",
+];
+
+/**
+ * O MESMO texto em mensagem simples (WhatsApp): título, abertura padrão, Dados
+ * do Projeto e o cronograma completo do fornecedor.
+ */
+export function textoCronogramaFornecedor(opcoes: {
+  projeto: ProjetoJson;
+  etapas: EtapaOsJson[];
+  numeroOs?: string;
+  etapasProjeto?: EtapaProjetoTexto[];
+}): string {
+  const { projeto: p, etapas, numeroOs, etapasProjeto } = opcoes;
+  const dados = linhasDadosDoProjeto(p, etapasProjeto).map(([k, v]) => `${k}: ${v}`);
+  const cron = [...etapas]
+    .sort((a, b) => (a?.data || "").localeCompare(b?.data || ""))
+    .map((c) => `• ${[c.etapa || "Etapa", dataBR(c.data), c.horario].filter(Boolean).join(" · ")}${c.atividades ? ` — ${c.atividades}` : ""}`);
+  return [
+    "*Alerta: Cronograma*",
+    "",
+    ...ABERTURA_PADRAO,
+    "",
+    "*Dados do Projeto*",
+    ...dados,
+    "",
+    `*Cronograma${numeroOs ? ` — ${numeroOs}` : ""}*`,
+    ...(cron.length ? cron : ["Sem etapas cadastradas nesta OS."]),
+  ].join("\n");
+}
+
 export interface CorpoCronograma {
   assunto: string;
   html: string;
@@ -136,8 +205,9 @@ export function corpoCronogramaFornecedor(opcoes: {
   etapas: EtapaOsJson[];
   numeroOs?: string;
   lembrete?: boolean;
+  etapasProjeto?: EtapaProjetoTexto[];
 }): CorpoCronograma {
-  const { projeto: p, fornecedor: f, etapas, numeroOs, lembrete } = opcoes;
+  const { projeto: p, fornecedor: f, etapas, numeroOs, lembrete, etapasProjeto } = opcoes;
   const h = escapar;
 
   const linhas = [...etapas]
@@ -162,37 +232,32 @@ export function corpoCronogramaFornecedor(opcoes: {
   const abertura = lembrete
     ? `<p>Seu evento é logo, e este é o lembrete do cronograma da sua equipe para o projeto
        <b>${h(p.titulo)}</b>${numeroOs ? `, conforme a <b>${h(numeroOs)}</b>` : ""}.</p>`
-    : `<p>Segue o cronograma da sua equipe para o projeto <b>${h(p.titulo)}</b>${
-        numeroOs ? `, conforme a <b>${h(numeroOs)}</b>` : ""
-      }. Confira as etapas abaixo e confirme se há qualquer divergência com o que foi combinado.</p>`;
+    : ABERTURA_PADRAO.map((t) => `<p>${h(t)}</p>`).join("");
 
   const corpo = `
     <p>Olá, ${h(f.representante || f.razaoSocial || "fornecedor")}.</p>
     ${abertura}
 
-    <table style="border-collapse:collapse;margin:8px 0 16px">
-      <tr><td style="padding:2px 12px 2px 0;color:#6A6E78;font-size:13px">Data(s)</td>
-          <td style="padding:2px 0;font-size:13px"><b>${h(datasDoEvento(p))}</b></td></tr>
-      <tr><td style="padding:2px 12px 2px 0;color:#6A6E78;font-size:13px">Horário(s)</td>
-          <td style="padding:2px 0;font-size:13px">${h(horariosDoEvento(p))}</td></tr>
-      <tr><td style="padding:2px 12px 2px 0;color:#6A6E78;font-size:13px">Local</td>
-          <td style="padding:2px 0;font-size:13px">${h(p.local)}</td></tr>
-      ${p.enderecoLocal ? `<tr><td style="padding:2px 12px 2px 0;color:#6A6E78;font-size:13px">Endereço</td>
-          <td style="padding:2px 0;font-size:13px">${h(p.enderecoLocal)}</td></tr>` : ""}
+    <p style="font-size:13px;font-weight:bold;margin-bottom:4px">Dados do Projeto</p>
+    <table style="border-collapse:collapse;margin:4px 0 16px">
+      ${linhasDadosDoProjeto(p, etapasProjeto)
+        .map(([k, v]) => `<tr><td style="padding:2px 12px 2px 0;color:#6A6E78;font-size:13px;vertical-align:top">${h(k)}</td>
+          <td style="padding:2px 0;font-size:13px">${h(v)}</td></tr>`)
+        .join("")}
     </table>
 
-    <p style="font-size:13px;font-weight:bold;margin-bottom:4px">Cronograma da sua equipe</p>
+    <p style="font-size:13px;font-weight:bold;margin-bottom:4px">Cronograma${numeroOs ? ` — ${h(numeroOs)}` : ""}</p>
     <table style="border-collapse:collapse;width:100%;border-top:1px solid #EEEFF2">
       ${linhas || `<tr><td style="padding:8px 0;font-size:13px;color:#A0A4AC">Sem etapas cadastradas nesta OS.</td></tr>`}
     </table>
 
-    ${contato ? `<p style="font-size:13px;margin-top:16px"><b>Produtora responsável:</b> ${contato}</p>` : ""}
+    ${contato && lembrete ? `<p style="font-size:13px;margin-top:16px"><b>Produtora responsável:</b> ${contato}</p>` : ""}
     <p style="font-size:14px">Qualquer dúvida, responda este e-mail.</p>`;
 
   return {
     assunto: lembrete
       ? `Lembrete de cronograma — ${p.titulo ?? ""}`
-      : `Cronograma — ${p.titulo ?? ""}${numeroOs ? ` (${numeroOs})` : ""}`,
-    html: moldura(lembrete ? "Lembrete de cronograma" : "Cronograma da sua equipe", corpo),
+      : `Alerta: Cronograma — ${p.titulo ?? ""}${numeroOs ? ` (${numeroOs})` : ""}`,
+    html: moldura(lembrete ? "Lembrete de cronograma" : "Alerta: Cronograma", corpo),
   };
 }
