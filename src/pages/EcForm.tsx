@@ -15,7 +15,7 @@ import {
   CurrencyInput,
   Select,
 } from "@/components/ui";
-import { IcDownload, IcSearch, IcBack } from "@/components/icons";
+import { IcCopy, IcEye, IcSearch, IcBack } from "@/components/icons";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import { useResponsaveis } from "@/hooks/useResponsaveis";
@@ -35,7 +35,9 @@ import {
 import { itensDoTemplate } from "@/domain/ecTemplates";
 import { motivoBloqueioEc, situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
 import { projetoInfoVazio } from "@/domain/projeto";
-import { gerarEcExcel, gerarRentabilidadeExcel } from "@/lib/excel";
+import { gerarRentabilidadeExcel } from "@/lib/excel";
+import { ExcelEcMenu } from "@/components/ExcelEcMenu";
+import { gerarNovaVersaoEc } from "@/lib/novaVersaoEc";
 import { revisarEc, type RevisaoEc } from "@/domain/revisaoEc";
 import { RevisaoEcModal } from "@/components/RevisaoEcModal";
 import { consultarCnpj } from "@/lib/cnpj";
@@ -52,7 +54,7 @@ import { EcGrupos } from "@/components/EcGrupos";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
 import { ObservacoesGeraisEc } from "@/components/ObservacoesGeraisEc";
 import { pendenciasDaTela } from "@/domain/pendencias";
-import { bvVazio } from "@/domain/calc";
+import { analisarEmissaoOs, bvVazio } from "@/domain/calc";
 import { contatoDeTexto, mesclarContatos } from "@/domain/fornecedor";
 import { useMinhasPendencias } from "@/store/pendencias";
 import { useSugestoes } from "@/hooks/useSugestoes";
@@ -141,6 +143,8 @@ export function EcForm() {
   const editando = Boolean(id);
   const { data: existente } = useAsync(() => (id ? repo.ecs.obter(id) : Promise.resolve(undefined)), [id]);
 
+  const pode = useAuth((s) => s.pode);
+  const podeEditar = pode("ecs.editar");
   const verFinanceiro = useAuth((s) => s.pode("financeiro"));
   /** A margem tem dono próprio desde 15/09/2026 — ver `PERMISSOES_ESPECIAIS`. */
   const verRentabilidade = useAuth((s) => s.pode("rentabilidade"));
@@ -508,6 +512,8 @@ export function EcForm() {
   // Mesma leitura do EcDetail e da lista do projeto (ver `domain/ec`): ou a EC
   // está no ar ("Ativa"), ou está no arquivo ("Arquivada").
   const situacao = situacaoEc(ec);
+  // Quem entra na emissão de OS — o mesmo cálculo do modo leitura.
+  const emissao = analisarEmissaoOs(ec.linhas);
   const statusBadge = <Badge tom={TOM_SITUACAO_EC[situacao]}>{ROTULO_SITUACAO_EC[situacao]}</Badge>;
 
   return (
@@ -522,34 +528,44 @@ export function EcForm() {
           <button onClick={() => navigate(voltarUrl)} className="inline-flex items-center gap-1.5 text-sm text-ink-2 hover:text-ink font-semibold shrink-0">
             <IcBack width={16} height={16} /> Voltar ao projeto
           </button>
-          {/* A BARRA DA EDIÇÃO é a mesma do modo leitura (15/09/2026), com
-              "Editar EC" trocado pelo par Revisar + Salvar.
-              Saíram três botões:
-              · "Cancelar" — a saída é "Sair da edição", e o guarda de alterações
-                não salvas já pergunta antes de deixar a página;
-              · "Arquivar EC" — não se arquiva o que se está editando;
-              · "Emitir OS" — emitir a partir de uma EC com alteração não gravada
-                produz OS com um valor que não está em lugar nenhum. */}
+          {/* A BARRA DA EDIÇÃO é a mesma do modo leitura (ver EcDetail), com
+              "Editar EC" trocado pelo par Revisar + Salvar — um botão para cada
+              função. "Revisar" mostra o que mudou antes de gravar. As ações que
+              partem da EC GRAVADA (nova versão, PDF, emitir OS) ficam à mão, e
+              as que só fazem sentido com tudo salvo avisam. */}
           <div className="flex gap-2 flex-wrap">
-            <Button
-              variant="text"
-              size="sm"
-              onClick={() => navigate(editando ? `/estimativas/${ec.id}` : voltarUrl)}
-            >
-              Sair da edição
-            </Button>
-            <Button variant="secondary" size="sm" icon={<IcDownload width={16} height={16} />} onClick={() => gerarEcExcel({ ...ec, numero }, { modelo: "financeiro" })}>
-              Excel Financeiro
-            </Button>
-            <Button variant="secondary" size="sm" icon={<IcDownload width={16} height={16} />} onClick={() => gerarEcExcel({ ...ec, numero }, { modelo: "completa" })}>
-              Excel Completa
-            </Button>
             <Button variant="secondary" size="sm" onClick={revisar} disabled={salvando} title="Padroniza a formatação dos textos e mostra o que muda ao salvar">
               Revisar
             </Button>
             <Button size="sm" onClick={() => void salvar()} disabled={salvando || mostrarSalvo}>
               {salvando ? "Salvando…" : mostrarSalvo ? "Salvo" : "Salvar"}
             </Button>
+            {!!ec.id && podeEditar && (
+              <Button variant="secondary" size="sm" icon={<IcCopy width={16} height={16} />}
+                onClick={async () => {
+                  const nova = await gerarNovaVersaoEc(ec, { alteracoesNaoSalvas: sujo });
+                  if (nova) navigate(`/estimativas/${nova.id}/editar`);
+                }}>
+                Gerar Nova Versão EC
+              </Button>
+            )}
+            <ExcelEcMenu ec={{ ...ec, numero }} />
+            {!!ec.id && (
+              <Button variant="secondary" size="sm" icon={<IcEye width={16} height={16} />} onClick={() => navigate(`/estimativas/${ec.id}/imprimir`)}>
+                EC PDF
+              </Button>
+            )}
+            {!!ec.id && ec.ativa && pode("oss.editar") && (emissao.prontos.length > 0 || emissao.bloqueados.length > 0) && (
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={sujo}
+                title={sujo ? "Salve a EC antes de emitir OS" : undefined}
+                onClick={() => navigate(`/estimativas/${ec.id}?emitir=1`)}
+              >
+                Emitir OS(s){emissao.prontos.length ? ` (${emissao.prontos.length})` : ""}
+              </Button>
+            )}
           </div>
         </>
       }
