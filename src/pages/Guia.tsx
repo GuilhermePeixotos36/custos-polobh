@@ -914,8 +914,9 @@ const MODULOS: Modulo[] = [
         </Secao>
         <Secao titulo="Colunas, etapas e movimento">
           <p>
-            A lista tem quatro colunas: <b>Tarefa</b>, <b>Responsável</b>, <b>Data de Conclusão</b> e{" "}
-            <b>Status</b> — <Tag tom="warning">Pendente</Tag>, <Tag>Atrasado</Tag> ou{" "}
+            A lista tem cinco colunas: <b>Tarefa</b>, <b>Responsável</b>, <b>Data Prevista</b> (o prazo que o
+            sistema distribui — dá para ajustar à mão, clicando na data), <b>Data de Conclusão</b> (quando a tarefa foi
+            de fato concluída; também editável) e <b>Status</b> — <Tag tom="warning">Pendente</Tag>, <Tag>Atrasado</Tag> ou{" "}
             <Tag tom="success">Concluído</Tag>. "Atrasado" não se escolhe: aparece sozinho quando o prazo passa e a
             tarefa continua aberta.
           </p>

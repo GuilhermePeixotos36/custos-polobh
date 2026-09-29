@@ -60,12 +60,14 @@ const tomStatusExibido: Record<StatusExibido, Tom> = {
 };
 
 /**
- * As colunas da lista — o desenho do app "LZ": Tarefa, Responsável, Data de
- * Conclusão e Status. As duas primeiras (seleção e movimento) e a última
+ * As colunas da lista — o desenho do app "LZ": Tarefa, Responsável, Data
+ * Prevista, Data de Conclusão e Status. A PREVISTA é o prazo que o sistema
+ * distribui (e que se pode ajustar à mão); a de CONCLUSÃO é quando a tarefa foi
+ * de fato concluída. As duas primeiras (seleção e movimento) e a última
  * (recolher/excluir) são ferramentas, não dados.
  */
 const GRADE_COLUNAS =
-  "grid gap-x-3 gap-y-1 items-start grid-cols-[auto_auto_minmax(0,1fr)] md:grid-cols-[22px_60px_minmax(0,1fr)_170px_140px_150px_56px]";
+  "grid gap-x-3 gap-y-1 items-start grid-cols-[auto_auto_minmax(0,1fr)] md:grid-cols-[22px_60px_minmax(0,1fr)_170px_130px_170px_130px_56px]";
 
 /** Como o prazo aparece na tela: só o que precisa de atenção ganha destaque. */
 const AVISO_PRAZO: Record<SituacaoPrazo, { tom: Tom; rotulo: string } | null> = {
@@ -608,6 +610,7 @@ export function ChecklistProjeto({
                       <span />
                       <span>Tarefa</span>
                       <span>Responsável</span>
+                      <span>Data Prevista</span>
                       <span>Data de Conclusão</span>
                       <span>Status</span>
                       <span />
@@ -1053,7 +1056,7 @@ function ItemCard({
           <div className="md:pt-1">
             <CampoDiscreto
               icone={<IcCalendar width={13} height={13} />}
-              titulo="Data de Conclusão (prazo da tarefa)"
+              titulo="Data Prevista — o prazo calculado pelo sistema; clique para ajustar à mão"
               vazio={!item.dataLimite}
               rotulo={item.dataLimite ? dataBR(item.dataLimite) : "Sem data"}
               tom={situacao === "atrasado" ? "danger" : undefined}
@@ -1066,9 +1069,20 @@ function ItemCard({
                 // Editar a data trava o item contra o recálculo automático: o
                 // ajuste da pessoa vale mais que a régua do modelo.
                 onChange={(e) => onAlterar({ dataLimite: e.target.value, dataManual: true })}
-                aria-label="Data de conclusão da tarefa"
+                aria-label="Data prevista da tarefa"
               />
             </CampoDiscreto>
+          </div>
+
+          {/* DATA DE CONCLUSÃO: quando a tarefa foi de fato concluída. Vazia
+              enquanto a tarefa está aberta; depois de concluída, editável
+              (quem terminou na sexta e marcou na segunda corrige aqui). */}
+          <div className="min-w-0 md:pt-1">
+            {item.status === "Concluído" ? (
+              <ConclusaoDoItem item={item} podeEditar={podeEditar} onAlterar={onAlterar} />
+            ) : (
+              <span className="font-semibold text-ink-3">—</span>
+            )}
           </div>
 
           <div className="min-w-0 md:pt-1">
@@ -1086,11 +1100,6 @@ function ItemCard({
                 <option value="Não se aplica">Não se aplica</option>
               </Select>
             </CampoDiscreto>
-            {item.status === "Concluído" && (
-              <div className="mt-0.5">
-                <ConclusaoDoItem item={item} podeEditar={podeEditar} onAlterar={onAlterar} />
-              </div>
-            )}
           </div>
         </div>
 

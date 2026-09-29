@@ -36,9 +36,9 @@ const tela = (itens: ItemChecklist[], podeEditar = true) =>
   );
 
 describe("tela do check-list", () => {
-  it("mostra as colunas Tarefa, Responsável, Data de Conclusão e Status", () => {
+  it("mostra as colunas Tarefa, Responsável, Data Prevista, Data de Conclusão e Status", () => {
     const html = tela([t("a", "PRÉ", 0), t("b", "PRÉ", 1, { status: "Concluído", oculto: false })]);
-    for (const coluna of ["Tarefa", "Responsável", "Data de Conclusão", "Status"]) expect(html).toContain(coluna);
+    for (const coluna of ["Tarefa", "Responsável", "Data Prevista", "Data de Conclusão", "Status"]) expect(html).toContain(coluna);
   });
 
   it("status: Atrasado quando o prazo passou, Concluído quando encerrada", () => {
