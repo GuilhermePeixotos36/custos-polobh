@@ -9,8 +9,18 @@
  * trabalhando em tarefas diferentes do mesmo projeto nunca se sobrescrevem.
  */
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Badge, Button, Card, EmptyState, Input, ProgressBar, Select, type Tom } from "@/components/ui";
-import { IcCheck, IcPlus, IcEye, IcEyeOff, IcCalendar, IcTrash } from "@/components/icons";
+import { IcCheck, IcPlus, IcEye, IcEyeOff, IcCalendar, IcTrash, IcGrip } from "@/components/icons";
 import { ObservacoesThread } from "@/components/ObservacoesPopup";
 import { MoverSetas } from "@/components/MoverSetas";
 import { NotifDot } from "@/components/NotifDot";
@@ -23,25 +33,39 @@ import {
   paraCampoDataHora,
   definirStatus,
   encerrado,
+  moverEtapaSobre,
+  moverItemParaEtapa,
+  moverItemPorSeta,
+  moverItemSobre,
   ordenarPorPrazo,
   resumirChecklist,
+  SEM_ETAPA,
   situacaoPrazo,
+  statusExibido,
   type SituacaoPrazo,
+  type StatusExibido,
 } from "@/domain/checklist";
+import { confirmar } from "@/store/confirm";
 import { useAuth } from "@/store/auth";
 import { useSugestoes } from "@/hooks/useSugestoes";
 import { colapsarEspacos, cx, dataBR } from "@/lib/format";
 import type { Checklist, ItemChecklist, Observacao, StatusChecklist } from "@/data/types";
 
-const STATUS: StatusChecklist[] = ["Pendente", "Em andamento", "Concluído", "Não se aplica"];
-
-/** Cor do status, no mesmo vocabulário visual dos status da EC. */
-const tomStatus: Record<StatusChecklist, Tom> = {
+/** Cor de cada status da COLUNA "Status" (Pendente, Atrasado, Concluído). */
+const tomStatusExibido: Record<StatusExibido, Tom> = {
   Pendente: "warning",
-  "Em andamento": "info",
+  Atrasado: "danger",
   Concluído: "success",
   "Não se aplica": "neutral",
 };
+
+/**
+ * As colunas da lista — o desenho do app "LZ": Tarefa, Responsável, Data de
+ * Conclusão e Status. As duas primeiras (seleção e movimento) e a última
+ * (recolher/excluir) são ferramentas, não dados.
+ */
+const GRADE_COLUNAS =
+  "grid gap-x-3 gap-y-1 items-start grid-cols-[auto_auto_minmax(0,1fr)] md:grid-cols-[22px_60px_minmax(0,1fr)_170px_140px_150px_56px]";
 
 /** Como o prazo aparece na tela: só o que precisa de atenção ganha destaque. */
 const AVISO_PRAZO: Record<SituacaoPrazo, { tom: Tom; rotulo: string } | null> = {
@@ -76,6 +100,10 @@ interface Props {
    */
   onCriarItem: (base?: { etapa?: string; dataLimite?: string }) => Promise<string | void>;
   onRemoverItem: (item: ItemChecklist) => void;
+  /** Grava várias tarefas de uma vez — reordenar, mover de etapa, concluir em lote. */
+  onSalvarVarios: (itens: ItemChecklist[]) => void;
+  /** Apaga várias tarefas de uma vez. */
+  onRemoverVarios: (itens: ItemChecklist[]) => void;
   /** Traz para este check-list os itens acrescentados à lista padrão depois. */
   onSincronizar?: () => void;
   itensNovosNoModelo?: number;
@@ -94,6 +122,8 @@ export function ChecklistProjeto({
   onSalvarItem,
   onCriarItem,
   onRemoverItem,
+  onSalvarVarios,
+  onRemoverVarios,
   onSincronizar,
   itensNovosNoModelo = 0,
   pendenciasPorItem = {},
@@ -118,6 +148,9 @@ export function ChecklistProjeto({
    * isto é só a tela não escondendo o que acabou de acontecer.
    */
   const [encerradasAgora, setEncerradasAgora] = useState<string[]>([]);
+  /** Tarefas marcadas para concluir ou excluir em lote. */
+  const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
+  const sensores = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   const resumo = useMemo(() => resumirChecklist(checklist, hoje), [checklist, hoje]);
 
@@ -169,10 +202,12 @@ export function ChecklistProjeto({
       if (!mapa.has(chave)) mapa.set(chave, []);
       mapa.get(chave)!.push(item);
     }
+    // Dentro da etapa vale a ORDEM ARRUMADA (setas e arraste), e não a data:
+    // ordenar por prazo desfazia qualquer arrumação a cada gravação.
     return [...mapa.entries()].map(([chave, itens]) => ({
       chave,
       titulo: chave,
-      itens: ordenarPorPrazo(itens),
+      itens,
     }));
   }, [visiveis, agrupamento]);
 
@@ -246,25 +281,95 @@ export function ChecklistProjeto({
   };
 
   /**
-   * MOVER A ETAPA leva as tarefas dela junto.
-   *
-   * A ordem das etapas é a ordem das tarefas (`item.ordem`): não há registro de
-   * etapa para reordenar. Então mover é reescrever a ordem de todas as tarefas
-   * das duas etapas que trocam de lugar — que é o que faz a etapa inteira
-   * andar, e não só a primeira tarefa dela.
+   * MOVER A ETAPA leva as tarefas dela junto — as que estão à vista e as
+   * recolhidas. A ordem das etapas sai da ordem das tarefas (`item.ordem`), então
+   * mover é reescrever a ordem (ver `moverEtapaSobre`).
    */
   const moverEtapa = (indice: number, direcao: -1 | 1) => {
-    const destino = indice + direcao;
-    if (destino < 0 || destino >= blocos.length) return;
-    const ordemNova = [...blocos];
-    [ordemNova[indice], ordemNova[destino]] = [ordemNova[destino], ordemNova[indice]];
-    let n = 0;
-    for (const bloco of ordemNova) {
-      for (const item of bloco.itens) {
-        if (item.ordem !== n) onSalvarItem({ ...item, ordem: n });
-        n++;
-      }
+    const vizinha = blocos[indice + direcao];
+    if (!vizinha) return;
+    onSalvarVarios(moverEtapaSobre(checklist.itens, blocos[indice].chave, vizinha.chave));
+  };
+
+  /** As setas de uma tarefa: uma posição por vez, atravessando para a etapa vizinha na borda. */
+  const moverTarefa = (item: ItemChecklist, direcao: -1 | 1) =>
+    onSalvarVarios(moverItemPorSeta(checklist.itens, item.id, direcao, visiveis.map((i) => i.id)));
+
+  /** Soltar depois de arrastar: uma tarefa (entre tarefas ou etapas) ou uma etapa inteira. */
+  const aoSoltar = (e: DragEndEvent) => {
+    if (!e.over) return;
+    const ativo = String(e.active.id);
+    const sobre = String(e.over.id);
+    if (ativo === sobre) return;
+    const ehEtapa = (id: string) => id.startsWith("etapa:");
+    // Soltar uma etapa sobre uma TAREFA vale como soltar sobre a etapa dela.
+    const etapaDe = (id: string) =>
+      ehEtapa(id) ? id.slice(6) : (checklist.itens.find((i) => i.id === id)?.etapa || SEM_ETAPA);
+    if (ehEtapa(ativo)) {
+      const alvo = etapaDe(sobre);
+      if (alvo) onSalvarVarios(moverEtapaSobre(checklist.itens, ativo.slice(6), alvo));
+      return;
     }
+    onSalvarVarios(
+      ehEtapa(sobre)
+        ? moverItemParaEtapa(checklist.itens, ativo, sobre.slice(6), "fim")
+        : moverItemSobre(checklist.itens, ativo, sobre)
+    );
+  };
+
+  /* ------------------------------ em lote ------------------------------ */
+
+  const marcadas = useMemo(
+    () => checklist.itens.filter((i) => selecionadas.has(i.id)),
+    [checklist.itens, selecionadas]
+  );
+  const idsVisiveis = useMemo(() => visiveis.map((i) => i.id), [visiveis]);
+  const todasMarcadas = idsVisiveis.length > 0 && idsVisiveis.every((id) => selecionadas.has(id));
+
+  const alternarMarca = (ids: string[], marcar: boolean) =>
+    setSelecionadas((atual) => {
+      const novo = new Set(atual);
+      for (const id of ids) marcar ? novo.add(id) : novo.delete(id);
+      return novo;
+    });
+
+  const concluirMarcadas = () => {
+    const alvo = marcadas.filter((i) => !encerrado(i));
+    if (alvo.length) {
+      const agora = new Date().toISOString();
+      setEncerradasAgora((ids) => [...new Set([...ids, ...alvo.map((i) => i.id)])]);
+      onSalvarVarios(alvo.map((i) => definirStatus(i, "Concluído", nomeAtual, agora)));
+    }
+    setSelecionadas(new Set());
+  };
+
+  /**
+   * Excluir em lote. A tarefa que veio da lista padrão não some do banco — a
+   * lista padrão continua sendo o padrão, e a tarefa reaparecia como "nova" no
+   * aviso de sincronização —, então ela vira "Não se aplica" e sai da vista, que
+   * é o mesmo que a exclusão individual sempre fez por ela. As criadas à mão
+   * são apagadas de vez.
+   */
+  const excluirMarcadas = async () => {
+    if (!marcadas.length) return;
+    const doModelo = marcadas.filter((i) => i.origemModeloItemId);
+    const avulsas = marcadas.filter((i) => !i.origemModeloItemId);
+    const ok = await confirmar({
+      titulo: `Excluir ${marcadas.length} ${marcadas.length === 1 ? "tarefa" : "tarefas"}?`,
+      mensagem: doModelo.length
+        ? `${avulsas.length} ${avulsas.length === 1 ? "será apagada" : "serão apagadas"} de vez. ` +
+          `As ${doModelo.length} que vieram da lista padrão ficam como “Não se aplica” e saem da lista (a lista padrão não muda).`
+        : "As tarefas são apagadas de vez e isso não pode ser desfeito.",
+      confirmarTexto: "Excluir",
+      tom: "danger",
+    });
+    if (!ok) return;
+    const agora = new Date().toISOString();
+    onSalvarVarios(
+      doModelo.filter((i) => i.status !== "Não se aplica").map((i) => definirStatus(i, "Não se aplica", nomeAtual, agora))
+    );
+    onRemoverVarios(avulsas);
+    setSelecionadas(new Set());
   };
 
   /**
@@ -391,6 +496,44 @@ export function ChecklistProjeto({
         </button>
       </div>
 
+      {/* ---------------------- concluir / excluir em lote ---------------------- */}
+      {podeEditar && visiveis.length > 0 && (
+        <div
+          className={cx(
+            "flex items-center gap-3 flex-wrap rounded-btn border px-3 py-2",
+            marcadas.length ? "border-primary bg-primary-soft" : "border-border-soft bg-surface"
+          )}
+        >
+          <label className="inline-flex items-center gap-2 text-[12.5px] font-bold text-ink-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={todasMarcadas}
+              onChange={(e) => alternarMarca(idsVisiveis, e.target.checked)}
+              className="h-4 w-4 accent-[#F2820D]"
+            />
+            Selecionar todas
+          </label>
+          <span className="text-[12.5px] font-bold text-ink-3">
+            {marcadas.length
+              ? `${marcadas.length} ${marcadas.length === 1 ? "selecionada" : "selecionadas"}`
+              : "Marque tarefas para concluir ou excluir em lote"}
+          </span>
+          {marcadas.length > 0 && (
+            <div className="ml-auto flex items-center gap-2 flex-wrap">
+              <Button size="sm" variant="secondary" icon={<IcCheck width={15} height={15} />} onClick={concluirMarcadas}>
+                Concluir selecionadas
+              </Button>
+              <Button size="sm" variant="danger" icon={<IcTrash width={15} height={15} />} onClick={() => void excluirMarcadas()}>
+                Excluir selecionadas
+              </Button>
+              <Button size="sm" variant="text" onClick={() => setSelecionadas(new Set())}>
+                Limpar seleção
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ------------------------------ lista ----------------------------- */}
       {!visiveis.length && (
         <EmptyState
@@ -410,88 +553,162 @@ export function ChecklistProjeto({
           linhas separadas por um fio, e o título preso no topo. Com um cartão
           por tarefa — borda, sombra e respiro em cada uma — doze tarefas viravam
           doze objetos, e a leitura de cima a baixo se perdia. */}
-      {blocos.map((bloco, indiceBloco) => {
-        const progresso = progressoDoGrupo.get(bloco.chave) ?? { feitas: 0, contam: 0 };
-        return (
-          <section key={bloco.chave} className="rounded-card border border-border bg-surface shadow-card overflow-hidden">
-            <header className="flex items-center gap-2 px-4 py-2.5 bg-[#FAFAFB] border-b border-border-soft">
-              {agrupamento === "data" && <IcCalendar width={15} height={15} className="text-ink-3 shrink-0" />}
-              {/* MOVER A ETAPA (15/09/2026): as setas trocam a etapa de lugar
-                  levando as tarefas dela junto. O check-list pedia "movimentar
-                  etapas e itens"; o arraste ficou de fora aqui porque uma etapa
-                  arrastada por engano leva doze tarefas consigo, e a seta erra
-                  uma posição por vez. */}
-              {agrupamento === "etapa" && podeEditar && (
-                <MoverSetas
-                  rotulo={`a etapa ${bloco.titulo}`}
-                  podeSubir={indiceBloco > 0}
-                  podeDescer={indiceBloco < blocos.length - 1}
-                  onSubir={() => moverEtapa(indiceBloco, -1)}
-                  onDescer={() => moverEtapa(indiceBloco, 1)}
-                />
-              )}
-              {/* RENOMEAR A ETAPA: texto que vira campo no clique, como o resto
-                  da lista. Renomear acerta todas as tarefas dela de uma vez —
-                  item a item, uma etapa de doze tarefas viraria duas etapas com
-                  nomes parecidos na metade do caminho. */}
-              {agrupamento === "etapa" && podeEditar && bloco.chave !== "OUTROS" ? (
-                <NomeDaEtapa nome={bloco.titulo} onRenomear={(nome) => void renomearEtapa(bloco.chave, nome)} />
-              ) : (
-                <h3 className="text-[12.5px] font-extrabold uppercase tracking-[0.06em] text-ink-2 truncate">
-                  {bloco.titulo}
-                </h3>
-              )}
-              {/* "3 de 8" diz mais que "8": é o progresso do grupo, à vista. */}
-              <span className="ml-auto shrink-0 text-[11.5px] font-bold text-ink-3 tabular-nums">
-                {progresso.feitas} de {progresso.contam}
-              </span>
-            </header>
-            <ul className="divide-y divide-border-soft">
-              {bloco.itens.map((item) => (
-                <ItemCard
-                  key={item.id}
-                  sugestoesTitulo={sugestoes.valores.tituloTarefa}
-                  etapas={etapasExistentes}
-                  item={item}
-                  hoje={hoje}
-                  usuarios={usuarios}
-                  podeEditar={podeEditar}
-                  pendencias={pendenciasPorItem[item.id] ?? 0}
-                  autoFoco={item.id === idRecemCriado}
-                  onAlterar={(patch) => alterar(item, patch)}
-                  onStatus={(s) => mudarStatus(item, s)}
-                  onObservacoes={(observacoes) => alterar(item, { observacoes })}
-                  onRemover={() => onRemoverItem(item)}
-                />
-              ))}
-              {/* Acrescentar onde se está olhando. O botão do topo cria a tarefa
-                  no fim da lista inteira; este cria DENTRO do grupo — na etapa
-                  que a pessoa está revisando, ou no dia que ela está montando. */}
-              {podeEditar && (
-                <li>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void criar(
-                        agrupamento === "data" ? { dataLimite: bloco.chave } : { etapa: bloco.chave === "OUTROS" ? "" : bloco.chave }
-                      )
-                    }
-                    className="w-full text-left px-4 py-2 text-[12.5px] font-bold text-ink-3 hover:bg-[#FCFCFD] hover:text-primary-dark inline-flex items-center gap-1.5"
-                  >
-                    <IcPlus width={14} height={14} />
-                    {agrupamento === "data"
-                      ? bloco.chave
-                        ? `Nova tarefa em ${dataBR(bloco.chave)}`
-                        : "Nova tarefa sem data"
-                      : `Nova tarefa em ${bloco.titulo}`}
-                  </button>
-                </li>
-              )}
-            </ul>
-          </section>
-        );
-      })}
+      <DndContext sensors={sensores} collisionDetection={closestCenter} onDragEnd={aoSoltar}>
+        <SortableContext items={blocos.map((b) => `etapa:${b.chave}`)} strategy={verticalListSortingStrategy}>
+          {blocos.map((bloco, indiceBloco) => {
+            const progresso = progressoDoGrupo.get(bloco.chave) ?? { feitas: 0, contam: 0 };
+            const idsDoBloco = bloco.itens.map((i) => i.id);
+            const blocoMarcado = idsDoBloco.length > 0 && idsDoBloco.every((id) => selecionadas.has(id));
+            return (
+              <SecaoEtapa key={bloco.chave} id={`etapa:${bloco.chave}`} ordenavel={podeEditar && agrupamento === "etapa"}>
+                {(alcaEtapa) => (
+                  <>
+                    <header className="flex items-center gap-2 px-4 py-2.5 bg-[#FAFAFB] border-b border-border-soft">
+                      {podeEditar && (
+                        <input
+                          type="checkbox"
+                          checked={blocoMarcado}
+                          onChange={(e) => alternarMarca(idsDoBloco, e.target.checked)}
+                          title="Selecionar as tarefas desta etapa"
+                          aria-label={`Selecionar as tarefas de ${bloco.titulo}`}
+                          className="h-4 w-4 accent-[#F2820D] shrink-0"
+                        />
+                      )}
+                      {agrupamento === "data" && <IcCalendar width={15} height={15} className="text-ink-3 shrink-0" />}
+                      {/* MOVER A ETAPA: arraste pela alça (saltos grandes) ou
+                          pelas setas (uma posição por vez). Nos dois casos as
+                          tarefas dela vão junto. */}
+                      {agrupamento === "etapa" && podeEditar && (
+                        <>
+                          {alcaEtapa}
+                          <MoverSetas
+                            rotulo={`a etapa ${bloco.titulo}`}
+                            podeSubir={indiceBloco > 0}
+                            podeDescer={indiceBloco < blocos.length - 1}
+                            onSubir={() => moverEtapa(indiceBloco, -1)}
+                            onDescer={() => moverEtapa(indiceBloco, 1)}
+                          />
+                        </>
+                      )}
+                      {/* RENOMEAR A ETAPA: texto que vira campo no clique. */}
+                      {agrupamento === "etapa" && podeEditar && bloco.chave !== SEM_ETAPA ? (
+                        <NomeDaEtapa nome={bloco.titulo} onRenomear={(nome) => void renomearEtapa(bloco.chave, nome)} />
+                      ) : (
+                        <h3 className="text-[12.5px] font-extrabold uppercase tracking-[0.06em] text-ink-2 truncate">
+                          {bloco.titulo}
+                        </h3>
+                      )}
+                      <span className="ml-auto shrink-0 text-[11.5px] font-bold text-ink-3 tabular-nums">
+                        {progresso.feitas} de {progresso.contam}
+                      </span>
+                    </header>
+                    {/* Cabeçalho das colunas (só em tela larga). */}
+                    <div className={cx(GRADE_COLUNAS, "max-md:hidden px-4 py-1.5 border-b border-border-soft text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-ink-3")}>
+                      <span />
+                      <span />
+                      <span>Tarefa</span>
+                      <span>Responsável</span>
+                      <span>Data de Conclusão</span>
+                      <span>Status</span>
+                      <span />
+                    </div>
+                    <SortableContext items={idsDoBloco} strategy={verticalListSortingStrategy}>
+                      <ul className="divide-y divide-border-soft">
+                        {bloco.itens.map((item, indiceItem) => (
+                          <ItemCard
+                            key={item.id}
+                            sugestoesTitulo={sugestoes.valores.tituloTarefa}
+                            etapas={etapasExistentes}
+                            item={item}
+                            hoje={hoje}
+                            usuarios={usuarios}
+                            podeEditar={podeEditar}
+                            ordenavel={podeEditar && agrupamento === "etapa"}
+                            selecionada={selecionadas.has(item.id)}
+                            onSelecionar={(marcar) => alternarMarca([item.id], marcar)}
+                            podeSubir={indiceItem > 0 || indiceBloco > 0}
+                            podeDescer={indiceItem < bloco.itens.length - 1 || indiceBloco < blocos.length - 1}
+                            onSeta={(direcao) => moverTarefa(item, direcao)}
+                            pendencias={pendenciasPorItem[item.id] ?? 0}
+                            autoFoco={item.id === idRecemCriado}
+                            onAlterar={(patch) => alterar(item, patch)}
+                            onStatus={(s) => mudarStatus(item, s)}
+                            onObservacoes={(observacoes) => alterar(item, { observacoes })}
+                            onRemover={() => onRemoverItem(item)}
+                          />
+                        ))}
+                        {/* Acrescentar onde se está olhando. */}
+                        {podeEditar && (
+                          <li>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void criar(
+                                  agrupamento === "data" ? { dataLimite: bloco.chave } : { etapa: bloco.chave === SEM_ETAPA ? "" : bloco.chave }
+                                )
+                              }
+                              className="w-full text-left px-4 py-2 text-[12.5px] font-bold text-ink-3 hover:bg-[#FCFCFD] hover:text-primary-dark inline-flex items-center gap-1.5"
+                            >
+                              <IcPlus width={14} height={14} />
+                              {agrupamento === "data"
+                                ? bloco.chave
+                                  ? `Nova tarefa em ${dataBR(bloco.chave)}`
+                                  : "Nova tarefa sem data"
+                                : `Nova tarefa em ${bloco.titulo}`}
+                            </button>
+                          </li>
+                        )}
+                      </ul>
+                    </SortableContext>
+                  </>
+                )}
+              </SecaoEtapa>
+            );
+          })}
+        </SortableContext>
+      </DndContext>
     </div>
+  );
+}
+
+/**
+ * A etapa como bloco arrastável: o cartão inteiro se move, e a alça (entregue ao
+ * cabeçalho) é o que a pessoa segura.
+ */
+function SecaoEtapa({
+  id,
+  ordenavel,
+  children,
+}: {
+  id: string;
+  ordenavel: boolean;
+  children: (alca: ReactNode) => ReactNode;
+}) {
+  const sortable = useSortable({ id, disabled: !ordenavel });
+  const alca = ordenavel ? (
+    <button
+      ref={sortable.setActivatorNodeRef}
+      {...sortable.listeners}
+      {...sortable.attributes}
+      type="button"
+      className="cursor-grab active:cursor-grabbing text-ink-3 hover:text-ink shrink-0 touch-none"
+      title="Arraste para mover a etapa (as tarefas vão junto)"
+      aria-label="Arrastar a etapa"
+    >
+      <IcGrip width={18} height={18} />
+    </button>
+  ) : null;
+  return (
+    <section
+      ref={sortable.setNodeRef}
+      style={{ transform: CSS.Translate.toString(sortable.transform), transition: sortable.transition }}
+      className={cx(
+        "rounded-card border border-border bg-surface shadow-card overflow-hidden",
+        sortable.isDragging && "opacity-50 relative z-10"
+      )}
+    >
+      {children(alca)}
+    </section>
   );
 }
 
@@ -502,6 +719,12 @@ function ItemCard({
   hoje,
   usuarios,
   podeEditar,
+  ordenavel,
+  selecionada,
+  onSelecionar,
+  podeSubir,
+  podeDescer,
+  onSeta,
   sugestoesTitulo,
   etapas,
   pendencias,
@@ -515,6 +738,14 @@ function ItemCard({
   hoje: string;
   usuarios: string[];
   podeEditar: boolean;
+  /** Arraste e setas ligados (só no agrupamento por etapa). */
+  ordenavel: boolean;
+  /** Marcada para concluir/excluir em lote. */
+  selecionada: boolean;
+  onSelecionar: (marcar: boolean) => void;
+  podeSubir: boolean;
+  podeDescer: boolean;
+  onSeta: (direcao: -1 | 1) => void;
   /** Títulos de tarefa já usados na casa — o mesmo trabalho se repete a cada projeto. */
   sugestoesTitulo: string[];
   /** As etapas que a lista já tem — para mover a tarefa sem redigitar o nome. */
@@ -589,49 +820,68 @@ function ItemCard({
    */
   const temConversa = (item.observacoes ?? []).length > 0 || pendencias > 0;
 
+  const sortable = useSortable({ id: item.id, disabled: !ordenavel });
+  const status = statusExibido(item, hoje);
+
   return (
     <li
+      ref={sortable.setNodeRef}
+      style={{ transform: CSS.Translate.toString(sortable.transform), transition: sortable.transition }}
       id={idAncoraPendencia(item.id)}
       className={cx(
         "group relative px-4 py-2.5 transition-colors hover:bg-[#FCFCFD]",
-        // Atrasada ganha um fio vermelho na lateral, não uma borda inteira: a
-        // linha continua sendo linha, e a lista não vira um mural de molduras.
+        // Atrasada ganha um fio vermelho na lateral, não uma borda inteira.
         situacao === "atrasado" && "before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:bg-danger",
         item.oculto && "opacity-60",
+        selecionada && "bg-primary-soft/50",
+        sortable.isDragging && "opacity-50 relative z-10 bg-surface shadow-card",
         recolhidaAberta && "bg-[repeating-linear-gradient(135deg,transparent,transparent_6px,#F7F8FA_6px,#F7F8FA_12px)]"
       )}
     >
-      <div className="flex items-start gap-3">
-        {/* Concluir com um clique — o gesto mais frequente da tela, e por isso
-            o maior alvo da linha. */}
-        <button
-          type="button"
-          disabled={!podeEditar}
-          onClick={() => onStatus(item.status === "Concluído" ? "Pendente" : "Concluído")}
-          title={item.status === "Concluído" ? "Reabrir tarefa" : "Marcar como concluída"}
-          aria-pressed={item.status === "Concluído"}
-          className={cx(
-            "mt-[3px] h-[22px] w-[22px] shrink-0 rounded-md border-[1.5px] grid place-items-center transition-all",
-            item.status === "Concluído"
-              ? "bg-success border-success text-white"
-              : "border-[#C9CDD6] hover:border-success hover:bg-success-soft",
-            !podeEditar && "cursor-not-allowed opacity-60"
+      <div className={GRADE_COLUNAS}>
+        {/* ---- seleção (em lote) ---- */}
+        <span className="pt-[3px]">
+          {podeEditar && (
+            <input
+              type="checkbox"
+              checked={selecionada}
+              onChange={(e) => onSelecionar(e.target.checked)}
+              aria-label={`Selecionar a tarefa ${item.titulo || "sem título"}`}
+              className="h-4 w-4 accent-[#F2820D]"
+            />
           )}
-        >
-          {item.status === "Concluído" ? (
-            <IcCheck width={14} height={14} />
-          ) : (
-            // O tique aparece esmaecido ao passar o mouse: mostra o que o clique
-            // vai fazer antes de a pessoa clicar.
-            <IcCheck width={14} height={14} className="text-success opacity-0 group-hover:opacity-40 transition-opacity" />
-          )}
-        </button>
+        </span>
 
-        <div className="min-w-0 flex-1">
-          {/* ------------------------- o título ------------------------- */}
-          {/* Texto, e não uma caixa de digitação sempre aberta. A tarefa é para
-              LER; editar é a exceção, e acontece ao clicar. Com um input por
-              linha, doze tarefas viravam doze formulários. */}
+        {/* ---- mover: alça de arraste + setas ---- */}
+        <div className="flex items-center gap-1 pt-0.5">
+          {ordenavel && (
+            <>
+              <button
+                ref={sortable.setActivatorNodeRef}
+                {...sortable.listeners}
+                {...sortable.attributes}
+                type="button"
+                className="cursor-grab active:cursor-grabbing text-ink-3 hover:text-ink shrink-0 touch-none"
+                title="Arraste para mover a tarefa (inclusive para outra etapa)"
+                aria-label="Arrastar a tarefa"
+              >
+                <IcGrip width={16} height={16} />
+              </button>
+              <MoverSetas
+                rotulo={`a tarefa ${item.titulo || "sem título"}`}
+                podeSubir={podeSubir}
+                podeDescer={podeDescer}
+                onSubir={() => onSeta(-1)}
+                onDescer={() => onSeta(1)}
+              />
+            </>
+          )}
+        </div>
+
+        {/* ---- Tarefa ---- */}
+        <div className="min-w-0">
+          {/* Texto, e não uma caixa de digitação sempre aberta: a tarefa é para
+              LER; editar é a exceção, e acontece ao clicar. */}
           {editandoTitulo ? (
             <Input
               autoFocus
@@ -641,8 +891,7 @@ function ItemCard({
               placeholder="Descreva a tarefa"
               disabled={!podeEditar}
               onChange={(e) => setTitulo(e.target.value)}
-              // Grava ao sair do campo (ou no Enter), NÃO a cada tecla: digitar
-              // um título disparava uma gravação por caractere.
+              // Grava ao sair do campo (ou no Enter), NÃO a cada tecla.
               onBlur={commitTitulo}
               onKeyDown={(e) => {
                 if (e.key === "Enter") (e.target as HTMLInputElement).blur();
@@ -670,10 +919,7 @@ function ItemCard({
             </button>
           )}
 
-          {/* ------------------------ a descrição ----------------------- */}
-          {/* O "como fazer" da tarefa, embaixo do título. Some quando não há o
-              que dizer — e o convite para escrever aparece no hover, como o da
-              conversa, para não encher a lista de linhas vazias. */}
+          {/* A descrição: o "como fazer", embaixo do título. */}
           {editandoDescricao ? (
             <Input
               autoFocus
@@ -707,17 +953,8 @@ function ItemCard({
             </button>
           ) : null}
 
-          {/* ------------------------- a linha de dados ------------------ */}
-          {/* Prazo, responsável e status como TEXTO, lado a lado. Eram três
-              caixas com borda, sempre visíveis — trinta e seis molduras numa
-              lista de doze tarefas. Cada uma vira o controle de verdade quando
-              recebe o clique (ver `CampoDiscreto`). */}
+          {/* Linha de apoio da tarefa: etapa (mover por seletor), avisos e convites. */}
           <div className="mt-1 flex items-center gap-x-3 gap-y-1 flex-wrap text-[12.5px]">
-            {/* MOVER A TAREFA DE ETAPA (15/09/2026) — o outro lado de
-                "movimentar etapas e itens". Trocar a etapa no seletor é o que
-                move a tarefa, porque a etapa é o nome que ela carrega; e as
-                etapas que a lista já tem entram como opção, para não nascerem
-                duas com nomes parecidos. */}
             {etapas.length > 0 && (
               <CampoDiscreto
                 titulo="Etapa"
@@ -738,26 +975,59 @@ function ItemCard({
                 </Select>
               </CampoDiscreto>
             )}
+            {/* O atraso já se lê na coluna Status; aqui ficam só os avisos que a
+                coluna não diz (vence hoje, vence em breve). */}
+            {aviso && situacao !== "atrasado" && <Badge tom={aviso.tom}>{aviso.rotulo}</Badge>}
+            {recolhidaAberta && <Badge tom="neutral">Recolhida</Badge>}
+            {item.dataManual && (
+              <span className="text-[11px] font-bold text-ink-3" title="O recálculo de prazos não altera esta data">
+                data à mão
+              </span>
+            )}
+            <NotifDot inline n={pendencias} title={`${pendencias} pendência(s) sua(s) nesta tarefa`} />
+            {!item.descricao && podeEditar && (
+              <button
+                type="button"
+                onClick={() => setEditandoDescricao(true)}
+                className="font-bold text-ink-3 hover:text-primary-dark rounded px-1 -mx-1 input-focus opacity-0 group-hover:opacity-100 focus:opacity-100 max-md:opacity-100 transition-opacity"
+              >
+                + descrição
+              </button>
+            )}
+            {!temConversa && (
+              <div className="ml-auto max-md:ml-0 max-md:w-full opacity-0 group-hover:opacity-100 focus-within:opacity-100 max-md:opacity-100 transition-opacity">
+                <ObservacoesThread
+                  className="!border-t-0 !px-0 !py-0"
+                  ancora={item.id}
+                  observacoes={item.observacoes ?? []}
+                  usuarios={usuarios}
+                  onChange={onObservacoes}
+                  anexos={anexos}
+                />
+              </div>
+            )}
+          </div>
 
-            <CampoDiscreto
-              icone={<IcCalendar width={13} height={13} />}
-              titulo="Data-limite"
-              vazio={!item.dataLimite}
-              rotulo={item.dataLimite ? dataBR(item.dataLimite) : "Sem data"}
-              tom={aviso?.tom}
-              podeEditar={podeEditar}
-            >
-              <Input
-                type="date"
-                className="!h-7 !px-1.5 !text-[12.5px] !w-[9.5rem]"
-                value={item.dataLimite}
-                // Editar a data trava o item contra o recálculo automático: o
-                // ajuste da pessoa vale mais que a régua do modelo.
-                onChange={(e) => onAlterar({ dataLimite: e.target.value, dataManual: true })}
-                aria-label="Data-limite da tarefa"
+          {/* A conversa, quando existe, fica na linha de baixo (padrão da EC). */}
+          {temConversa && (
+            <div className="mt-1.5 pt-1.5 border-t border-border-soft">
+              <ObservacoesThread
+                className="!border-t-0 !px-0 !py-0"
+                ancora={item.id}
+                observacoes={item.observacoes ?? []}
+                usuarios={usuarios}
+                onChange={onObservacoes}
+                anexos={anexos}
               />
-            </CampoDiscreto>
+            </div>
+          )}
+        </div>
 
+        {/* ---- Responsável · Data de Conclusão · Status ----
+            Em tela larga são colunas da grade; no celular descem juntas, em
+            linha, embaixo da tarefa. */}
+        <div className="col-span-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px] md:contents">
+          <div className="min-w-0 md:pt-1">
             <CampoDiscreto
               titulo="Responsável"
               vazio={!item.responsavel}
@@ -778,97 +1048,55 @@ function ItemCard({
                 ))}
               </Select>
             </CampoDiscreto>
+          </div>
 
-            {/* O status aparecia DUAS vezes: no seletor e num selo logo abaixo.
-                Agora é um só, e ele é o próprio controle. */}
-            <CampoDiscreto titulo="Status" rotulo={item.status} tom={tomStatus[item.status]} podeEditar={podeEditar}>
+          <div className="md:pt-1">
+            <CampoDiscreto
+              icone={<IcCalendar width={13} height={13} />}
+              titulo="Data de Conclusão (prazo da tarefa)"
+              vazio={!item.dataLimite}
+              rotulo={item.dataLimite ? dataBR(item.dataLimite) : "Sem data"}
+              tom={situacao === "atrasado" ? "danger" : undefined}
+              podeEditar={podeEditar}
+            >
+              <Input
+                type="date"
+                className="!h-7 !px-1.5 !text-[12.5px] !w-[9.5rem]"
+                value={item.dataLimite}
+                // Editar a data trava o item contra o recálculo automático: o
+                // ajuste da pessoa vale mais que a régua do modelo.
+                onChange={(e) => onAlterar({ dataLimite: e.target.value, dataManual: true })}
+                aria-label="Data de conclusão da tarefa"
+              />
+            </CampoDiscreto>
+          </div>
+
+          <div className="min-w-0 md:pt-1">
+            {/* Pendente, Atrasado ou Concluído — o valor mostrado sai do prazo;
+                o que se escolhe é Pendente, Concluído ou Não se aplica. */}
+            <CampoDiscreto titulo="Status" rotulo={status} tom={tomStatusExibido[status]} podeEditar={podeEditar}>
               <Select
-                className="!h-7 !px-1.5 !text-[12.5px] !w-[11rem]"
-                value={item.status}
+                className="!h-7 !px-1.5 !text-[12.5px] !w-[9.5rem]"
+                value={item.status === "Concluído" || item.status === "Não se aplica" ? item.status : "Pendente"}
                 onChange={(e) => onStatus(e.target.value as StatusChecklist)}
                 aria-label="Status da tarefa"
               >
-                {STATUS.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
+                <option value="Pendente">Pendente</option>
+                <option value="Concluído">Concluído</option>
+                <option value="Não se aplica">Não se aplica</option>
               </Select>
             </CampoDiscreto>
-
-            {/* Quando foi concluída, por quem e se saiu no prazo — ao lado do
-                resto, e não numa linha própria. */}
             {item.status === "Concluído" && (
-              <ConclusaoDoItem item={item} podeEditar={podeEditar} onAlterar={onAlterar} />
-            )}
-
-            {aviso && <Badge tom={aviso.tom}>{aviso.rotulo}</Badge>}
-            {recolhidaAberta && <Badge tom="neutral">Recolhida</Badge>}
-            {item.dataManual && (
-              <span className="text-[11px] font-bold text-ink-3" title="O recálculo de prazos não altera esta data">
-                data à mão
-              </span>
-            )}
-            <NotifDot inline n={pendencias} title={`${pendencias} pendência(s) sua(s) nesta tarefa`} />
-
-            {/* O convite para descrever fica na LINHA DE DADOS, e no fim dela:
-                numa linha própria, toda tarefa sem descrição reservava a altura
-                de uma linha invisível; no meio da linha, abria um buraco entre
-                dois dados. Aqui ele encosta nas outras ações de hover. */}
-            {!item.descricao && podeEditar && (
-              <button
-                type="button"
-                onClick={() => setEditandoDescricao(true)}
-                className="font-bold text-ink-3 hover:text-primary-dark rounded px-1 -mx-1 input-focus opacity-0 group-hover:opacity-100 focus:opacity-100 max-md:opacity-100 transition-opacity"
-              >
-                + descrição
-              </button>
-            )}
-
-            {/* O CONVITE para conversar fica na linha de dados quando não há
-                conversa nenhuma — ali ele custa nada. Havendo conversa ou
-                pendência, ela desce para a linha de baixo, inteira (ver adiante). */}
-            {!temConversa && (
-              <div className="ml-auto max-md:ml-0 max-md:w-full opacity-0 group-hover:opacity-100 focus-within:opacity-100 max-md:opacity-100 transition-opacity">
-                <ObservacoesThread
-                  className="!border-t-0 !px-0 !py-0"
-                  ancora={item.id}
-                  observacoes={item.observacoes ?? []}
-                  usuarios={usuarios}
-                  onChange={onObservacoes}
-                  anexos={anexos}
-                />
+              <div className="mt-0.5">
+                <ConclusaoDoItem item={item} podeEditar={podeEditar} onAlterar={onAlterar} />
               </div>
             )}
           </div>
-
-          {/* A CONVERSA, QUANDO EXISTE, FICA NA LINHA DE BAIXO (15/09/2026).
-              É o padrão da EC, que a Pólobh pediu aqui: "uma linha embaixo do
-              item e não um box na lateral".
-              Espremida no fim da linha de dados, a thread virava três linhas
-              estreitas e o texto do comentário não cabia. O convite sem conversa
-              continua na lateral — era dele que vinha o ganho de altura da
-              revisão de 10/09, e ele não é conversa, é convite. */}
-          {temConversa && (
-            <div className="mt-1.5 pt-1.5 border-t border-border-soft">
-              <ObservacoesThread
-                className="!border-t-0 !px-0 !py-0"
-                ancora={item.id}
-                observacoes={item.observacoes ?? []}
-                usuarios={usuarios}
-                onChange={onObservacoes}
-                // Só aqui: a tarefa do check-list é o único lugar do sistema com
-                // anexo na conversa (ver `domain/anexos`).
-                anexos={anexos}
-              />
-            </div>
-          )}
         </div>
 
-        {/* Recolher e excluir só aparecem no hover (e sempre no toque, onde não
-            existe hover): são ações raras, e ocupavam lugar fixo em toda linha. */}
-        {podeEditar && (
-          <div className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 max-md:opacity-100 transition-opacity">
+        {/* ---- recolher / excluir: só no hover (e sempre no toque) ---- */}
+        {podeEditar ? (
+          <div className="col-span-3 md:col-span-1 flex items-center gap-0.5 justify-end opacity-0 group-hover:opacity-100 focus-within:opacity-100 max-md:opacity-100 transition-opacity">
             <button
               type="button"
               onClick={() => onAlterar({ oculto: !item.oculto })}
@@ -877,8 +1105,9 @@ function ItemCard({
             >
               {item.oculto ? <IcEye width={16} height={16} /> : <IcEyeOff width={16} height={16} />}
             </button>
-            {/* Só o item criado à mão pode ser apagado: o que veio do modelo
-                se recolhe ou vira "Não se aplica", preservando o padrão. */}
+            {/* Só o item criado à mão pode ser apagado um a um; o que veio do
+                modelo se recolhe ou vira "Não se aplica". (A exclusão em lote
+                trata os dois casos — ver `excluirMarcadas`.) */}
             {!item.origemModeloItemId && (
               <button
                 type="button"
@@ -890,6 +1119,8 @@ function ItemCard({
               </button>
             )}
           </div>
+        ) : (
+          <span className="max-md:hidden" />
         )}
       </div>
     </li>

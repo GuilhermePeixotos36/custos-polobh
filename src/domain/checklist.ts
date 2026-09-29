@@ -380,3 +380,150 @@ export function modeloDaModalidade(
 ): ModeloChecklist | undefined {
   return modelos.find((m) => m.modalidade === modalidade);
 }
+
+/* ---------------------- ordem das etapas e das tarefas --------------------- */
+
+/**
+ * A ETAPA de uma tarefa. Tarefa sem etapa cai em "OUTROS" — o mesmo nome que a
+ * tela mostra. É a chave do grupo; ao gravar, "OUTROS" volta a ser etapa vazia.
+ */
+export const SEM_ETAPA = "OUTROS";
+export const chaveEtapa = (item: ItemChecklist): string => item.etapa || SEM_ETAPA;
+
+export interface GrupoEtapa {
+  chave: string;
+  itens: ItemChecklist[];
+}
+
+/**
+ * As etapas na ordem do processo, cada uma com as suas tarefas na ordem em que
+ * foram arrumadas. Considera TODAS as tarefas (inclusive as recolhidas): mover
+ * uma etapa leva consigo o que está escondido nela.
+ *
+ * A ordem das etapas não é um registro à parte — ela sai da ordem das tarefas
+ * (`item.ordem`): a etapa vem na posição da sua primeira tarefa.
+ */
+export function gruposDeEtapa(itens: ItemChecklist[]): GrupoEtapa[] {
+  const grupos: GrupoEtapa[] = [];
+  for (const item of [...itens].sort((a, b) => a.ordem - b.ordem)) {
+    const chave = chaveEtapa(item);
+    let grupo = grupos.find((g) => g.chave === chave);
+    if (!grupo) grupos.push((grupo = { chave, itens: [] }));
+    grupo.itens.push(item);
+  }
+  return grupos;
+}
+
+/** Reescreve `ordem` e `etapa` conforme os grupos, devolvendo SÓ o que mudou. */
+function renumerar(originais: ItemChecklist[], grupos: GrupoEtapa[]): ItemChecklist[] {
+  const antes = new Map(originais.map((i) => [i.id, i]));
+  const mudaram: ItemChecklist[] = [];
+  let n = 0;
+  for (const grupo of grupos) {
+    const etapa = grupo.chave === SEM_ETAPA ? "" : grupo.chave;
+    for (const item of grupo.itens) {
+      const ordem = n++;
+      const original = antes.get(item.id);
+      if (!original || original.ordem !== ordem || original.etapa !== etapa) {
+        mudaram.push({ ...item, ordem, etapa });
+      }
+    }
+  }
+  return mudaram;
+}
+
+function arrayMove<T>(lista: T[], de: number, para: number): T[] {
+  const copia = [...lista];
+  const [x] = copia.splice(de, 1);
+  copia.splice(para, 0, x);
+  return copia;
+}
+
+/**
+ * Move a tarefa para a posição de OUTRA (`sobreId`) — no mesmo grupo ou em outro
+ * (é o que o arraste e as setas fazem). Devolve as tarefas que mudaram de ordem
+ * ou de etapa, prontas para gravar.
+ */
+export function moverItemSobre(itens: ItemChecklist[], itemId: string, sobreId: string): ItemChecklist[] {
+  if (itemId === sobreId) return [];
+  const grupos = gruposDeEtapa(itens);
+  const gOrigem = grupos.find((g) => g.itens.some((i) => i.id === itemId));
+  const gAlvo = grupos.find((g) => g.itens.some((i) => i.id === sobreId));
+  if (!gOrigem || !gAlvo) return [];
+  const de = gOrigem.itens.findIndex((i) => i.id === itemId);
+  const para = gAlvo.itens.findIndex((i) => i.id === sobreId);
+  if (gOrigem === gAlvo) {
+    gOrigem.itens = arrayMove(gOrigem.itens, de, para);
+  } else {
+    const [item] = gOrigem.itens.splice(de, 1);
+    gAlvo.itens.splice(para, 0, item);
+  }
+  return renumerar(itens, grupos.filter((g) => g.itens.length));
+}
+
+/** Move a tarefa para o começo ou o fim de uma etapa (criando a etapa, se preciso). */
+export function moverItemParaEtapa(
+  itens: ItemChecklist[],
+  itemId: string,
+  chaveDestino: string,
+  posicao: "inicio" | "fim" = "fim"
+): ItemChecklist[] {
+  const grupos = gruposDeEtapa(itens);
+  const gOrigem = grupos.find((g) => g.itens.some((i) => i.id === itemId));
+  if (!gOrigem) return [];
+  const [item] = gOrigem.itens.splice(gOrigem.itens.findIndex((i) => i.id === itemId), 1);
+  let gDestino = grupos.find((g) => g.chave === chaveDestino);
+  if (!gDestino) grupos.push((gDestino = { chave: chaveDestino, itens: [] }));
+  if (posicao === "inicio") gDestino.itens.unshift(item);
+  else gDestino.itens.push(item);
+  return renumerar(itens, grupos.filter((g) => g.itens.length));
+}
+
+/**
+ * As setas: sobem/descem a tarefa uma posição ENTRE AS QUE ESTÃO À VISTA
+ * (`visiveis`, na ordem da tela, da mesma etapa) e, na borda da etapa, atravessam
+ * para a vizinha — a primeira sobe para o fim da etapa de cima, a última desce
+ * para o começo da de baixo.
+ */
+export function moverItemPorSeta(
+  itens: ItemChecklist[],
+  itemId: string,
+  direcao: -1 | 1,
+  visiveis: string[] = []
+): ItemChecklist[] {
+  const grupos = gruposDeEtapa(itens);
+  const indiceGrupo = grupos.findIndex((g) => g.itens.some((i) => i.id === itemId));
+  if (indiceGrupo < 0) return [];
+  const grupo = grupos[indiceGrupo];
+  const naEtapa = visiveis.length ? grupo.itens.filter((i) => visiveis.includes(i.id)) : grupo.itens;
+  const pos = naEtapa.findIndex((i) => i.id === itemId);
+  const vizinha = naEtapa[pos + direcao];
+  if (vizinha) return moverItemSobre(itens, itemId, vizinha.id);
+  const outra = grupos[indiceGrupo + direcao];
+  if (!outra) return [];
+  return moverItemParaEtapa(itens, itemId, outra.chave, direcao === -1 ? "fim" : "inicio");
+}
+
+/** Move a ETAPA inteira para a posição de outra, levando as tarefas dela. */
+export function moverEtapaSobre(itens: ItemChecklist[], chave: string, sobreChave: string): ItemChecklist[] {
+  if (chave === sobreChave) return [];
+  const grupos = gruposDeEtapa(itens);
+  const de = grupos.findIndex((g) => g.chave === chave);
+  const para = grupos.findIndex((g) => g.chave === sobreChave);
+  if (de < 0 || para < 0) return [];
+  return renumerar(itens, arrayMove(grupos, de, para));
+}
+
+/**
+ * O status como a coluna "Status" o mostra: Pendente, Atrasado ou Concluído
+ * (mais "Não se aplica", que é a tarefa fora do jogo). "Atrasado" não é um
+ * estado gravado — sai do prazo vencido de uma tarefa ainda aberta —, e
+ * "Em andamento" aparece como Pendente: para a coluna, tudo o que não acabou.
+ */
+export type StatusExibido = "Pendente" | "Atrasado" | "Concluído" | "Não se aplica";
+
+export function statusExibido(item: ItemChecklist, hojeIso: string): StatusExibido {
+  if (item.status === "Concluído") return "Concluído";
+  if (item.status === "Não se aplica") return "Não se aplica";
+  return situacaoPrazo(item, hojeIso) === "atrasado" ? "Atrasado" : "Pendente";
+}

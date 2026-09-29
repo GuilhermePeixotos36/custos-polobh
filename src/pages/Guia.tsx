@@ -912,6 +912,20 @@ const MODULOS: Modulo[] = [
           </p>
           <Dica>Trocar as datas do projeto <b>não</b> mexe nos prazos sozinho: a tela avisa quantas tarefas mudariam e você decide com o botão <b>Recalcular prazos</b>.</Dica>
         </Secao>
+        <Secao titulo="Colunas, etapas e movimento">
+          <p>
+            A lista tem quatro colunas: <b>Tarefa</b>, <b>Responsável</b>, <b>Data de Conclusão</b> e{" "}
+            <b>Status</b> — <Tag tom="warning">Pendente</Tag>, <Tag tom="danger">Atrasado</Tag> ou{" "}
+            <Tag tom="success">Concluído</Tag>. "Atrasado" não se escolhe: aparece sozinho quando o prazo passa e a
+            tarefa continua aberta.
+          </p>
+          <Passos>
+            <span><b>Nova etapa</b> e <b>Nova tarefa</b> (ou o <b>+</b> no fim de cada etapa) criam etapas e tarefas só deste projeto.</span>
+            <span>Para <b>mover</b>, arraste pela alça (⠿) ou use as setas ▲▼. Na ponta de uma etapa a seta leva a tarefa para a etapa vizinha; arrastar a etapa inteira leva as tarefas junto.</span>
+            <span>Para <b>concluir ou excluir várias</b> de uma vez, marque as tarefas (ou a etapa, ou <b>Selecionar todas</b>) e use os botões que aparecem no alto da lista.</span>
+          </Passos>
+          <Dica>Ao excluir em lote, a tarefa que veio da lista padrão não é apagada: fica como <b>Não se aplica</b> e sai da lista. Só as criadas à mão somem de vez.</Dica>
+        </Secao>
         <Secao titulo="Prazo de cada tarefa">
           <p>O modelo define a régua de cada tarefa, de dois jeitos:</p>
           <Passos>

@@ -217,6 +217,8 @@ export interface ChecklistRepository {
   /** Gravação em lote — usada no recálculo de prazos e na ordenação. */
   salvarItens(itens: ItemChecklist[]): Promise<void>;
   removerItem(id: string): Promise<void>;
+  /** Apaga várias tarefas de uma vez (exclusão em lote). */
+  removerItens(ids: string[]): Promise<void>;
   /** Apaga o check-list do projeto (usado ao trocar a modalidade). */
   remover(checklistId: string): Promise<void>;
 
