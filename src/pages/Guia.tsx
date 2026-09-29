@@ -668,7 +668,9 @@ const MODULOS: Modulo[] = [
           </Tela>
           <Passos>
             <span><b>Atualizar a EC</b> — a EC em aberto passa a mostrar os dados novos. As OSs já emitidas a partir dela <b>não</b> mudam.</span>
-            <span><b>Gerar nova versão da OS</b> — nasce uma OS rascunho com os dados novos; a atual é <b>cancelada</b> e fica no histórico, com tudo que tinha dentro (itens, financeiro, contrato).</span>
+            <span><b>Forma de pagamento por item:</b> a tabela de valores e BV vem da EC e <b>não se edita na OS</b>. O Financeiro escolhe, item a item, <b>uma</b> das três formas (com BV e NF · sem BV e com NF · sem BV e sem NF); quando só uma tem valor, ela já vem escolhida. O Resumo dos Custos acompanha. A OS <b>não mistura formas</b>: item sem escolha, forma sem valor ou formas diferentes na mesma OS <b>travam a emissão</b>.</span>
+            <span><b>Os quatro status da OS:</b> <b>Rascunho</b> (sendo montada) · <b>Emitida</b> (saiu para o fornecedor) · <b>Cancelada</b> (o negócio caiu — só por decisão de uma pessoa, no botão <b>Cancelar OS</b>) · <b>Arquivada</b> (saiu de cena sem o negócio cair). A OS vira <b>Emitida</b> em <b>Emitir OS</b>; vira <b>Arquivada</b> sozinha quando é substituída por uma nova versão ou quando o projeto é arquivado.</span>
+            <span><b>Gerar nova versão da OS</b> — nasce uma OS rascunho com os dados novos; a atual é <b>arquivada automaticamente</b> e fica no histórico, com tudo que tinha dentro (itens, financeiro, contrato).</span>
             <span><b>Agora não</b> também é resposta: o projeto já foi salvo, e nenhum documento é tocado.</span>
           </Passos>
         </Secao>

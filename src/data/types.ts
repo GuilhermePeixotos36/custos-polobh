@@ -393,6 +393,13 @@ export interface ItemContratacaoOs {
   bv: { modo: "percentual" | "fixo"; valor: number };
   semBvComNf: OpcaoContratacaoOs;
   semBvSemNf: OpcaoContratacaoOs;
+  /**
+   * A forma de pagamento ADOTADA para este item (29/09/2026), escolhida pelo
+   * Financeiro. Os valores das três formas vêm da EC e não se editam na OS; aqui
+   * se decide qual vale. Ausente = ainda não escolhida — e, quando só uma forma
+   * tem valor, é ela (ver `formaDoItem`).
+   */
+  forma?: "comBvNf" | "semBvComNf" | "semBvSemNf";
 }
 
 export interface EcLinha {

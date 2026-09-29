@@ -32,14 +32,17 @@ export function RevisaoEcModal({
   salvando,
   onSalvar,
   onVoltar,
+  documento = "EC",
 }: {
   revisao: RevisaoEc;
+  /** Que documento está sendo conferido — a EC e a OS usam este mesmo modal. */
+  documento?: "EC" | "OS";
   salvando: boolean;
   onSalvar: () => void;
   onVoltar: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" role="dialog" aria-modal="true" aria-label="Conferir alterações da EC">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" role="dialog" aria-modal="true" aria-label={`Conferir alterações da ${documento}`}>
       <div className="bg-surface rounded-card-lg shadow-card w-full max-w-[860px] max-h-[85vh] flex flex-col">
         <div className="px-6 pt-5 pb-3 border-b border-border-soft">
           <h2 className="font-display font-bold text-lg text-ink">Conferir alterações</h2>
@@ -57,7 +60,7 @@ export function RevisaoEcModal({
 
           {revisao.gerais.length > 0 && (
             <section>
-              <h3 className="text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-ink-3 mb-2">Dados da EC</h3>
+              <h3 className="text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-ink-3 mb-2">Dados da {documento}</h3>
               <div className="rounded-card border border-border divide-y divide-border-soft">
                 {revisao.gerais.map((c) => (
                   <LinhaCampo key={c.label} label={c.label} antes={c.antes} depois={c.depois} />
@@ -100,7 +103,7 @@ export function RevisaoEcModal({
             Voltar a editar
           </Button>
           <Button size="sm" onClick={onSalvar} disabled={salvando}>
-            {salvando ? "Salvando…" : "Salvar EC"}
+            {salvando ? "Salvando…" : `Salvar ${documento}`}
           </Button>
         </div>
       </div>
