@@ -13,6 +13,26 @@ export const ENCARGOS = 0.1633;
 export const honorariosPadrao = (): TaxaConfig => ({ modo: "percentual", valor: HONORARIOS, minimo: 0 });
 export const encargosPadrao = (): TaxaConfig => ({ modo: "percentual", valor: ENCARGOS, minimo: 0 });
 
+/**
+ * Lê a taxa (honorários ou encargos) como veio do banco, sem perder o padrão.
+ *
+ * Havia EC gravada no formato antigo, `{ modo, percentual: 0.1633 }`, com o
+ * campo `valor` ausente ou zerado — e a tela, que só lê `valor`, mostrava
+ * "Encargos 0 %" numa EC que devia usar os 16,33% da casa. Quando `valor` não
+ * diz nada e o campo antigo diz, vale o antigo. O objeto devolvido não carrega o
+ * `percentual`: gravado de novo, um zero digitado à mão continua sendo zero.
+ */
+export function normalizarTaxa(bruta: unknown, padrao: TaxaConfig): TaxaConfig {
+  if (!bruta || typeof bruta !== "object") return padrao;
+  const t = bruta as { modo?: string; valor?: unknown; percentual?: unknown; minimo?: unknown };
+  const modo = t.modo === "fixo" ? "fixo" : "percentual";
+  let valor = Number(t.valor);
+  if (!Number.isFinite(valor)) valor = padrao.valor;
+  if (modo === "percentual" && !(valor > 0) && Number(t.percentual) > 0) valor = Number(t.percentual);
+  const minimo = Number(t.minimo);
+  return { modo, valor, ...(minimo > 0 ? { minimo } : {}) };
+}
+
 /** Rótulos padrão do resumo de custos (usados quando a EC não tem rótulo personalizado). */
 export const ROTULO_HONORARIOS_PADRAO = "Honorários Pólobh (Organização e Planejamento)";
 export const ROTULO_ENCARGOS_PADRAO = "Encargos (sobre serviços de terceiros)";

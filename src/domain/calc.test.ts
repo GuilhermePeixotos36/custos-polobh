@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   calcularTotais,
+  normalizarTaxa,
   valorTaxa,
   numeroEc,
   numeroOs,
@@ -586,3 +587,22 @@ describe("BV consolidado na OS", () => {
   });
 });
 
+
+describe("normalizarTaxa — EC gravada no formato antigo", () => {
+  it("usa o percentual antigo quando o valor está zerado ou ausente", () => {
+    expect(normalizarTaxa({ modo: "percentual", valor: 0, percentual: 0.1633 }, encargosPadrao()).valor).toBe(0.1633);
+    expect(normalizarTaxa({ modo: "percentual", percentual: 0.15 }, honorariosPadrao()).valor).toBe(0.15);
+  });
+
+  it("não devolve o campo antigo — um zero digitado depois continua sendo zero", () => {
+    const t = normalizarTaxa({ modo: "percentual", valor: 0, percentual: 0.1633 }, encargosPadrao());
+    expect("percentual" in t).toBe(false);
+    expect(normalizarTaxa({ modo: "percentual", valor: 0 }, encargosPadrao()).valor).toBe(0);
+  });
+
+  it("mantém o que está certo e o mínimo, e cai no padrão sem nada", () => {
+    expect(normalizarTaxa({ modo: "percentual", valor: 0.15, minimo: 5999 }, honorariosPadrao())).toEqual({ modo: "percentual", valor: 0.15, minimo: 5999 });
+    expect(normalizarTaxa({ modo: "fixo", valor: 1200 }, honorariosPadrao())).toEqual({ modo: "fixo", valor: 1200 });
+    expect(normalizarTaxa(undefined, encargosPadrao())).toEqual(encargosPadrao());
+  });
+});

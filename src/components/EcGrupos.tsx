@@ -1182,14 +1182,20 @@ function OpcoesDeValor({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinh
                   <tr key={opcao} className="align-top">
                     <td className="px-2 py-1 border-b border-border-soft">
                       <span className="block text-[11.5px] font-bold text-ink-2 leading-tight">{rotulo}</span>
-                      <button
-                        type="button"
-                        onClick={() => alternarNaoSeAplica(opcao)}
-                        className="text-[10px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded"
-                        title={naoSeAplica ? "Voltar a informar um valor" : "Este item não é cobrado desta forma"}
-                      >
-                        {naoSeAplica ? "Informar valor" : "Não se aplica"}
-                      </button>
+                      {/* "Valor Sem BV e Sem NF" só aceita valor (tabela da
+                          Pólobh de 29/09/2026): o "Não se aplica" não é oferecido.
+                          Se um item antigo já o tem marcado, o botão aparece só
+                          para desfazer. */}
+                      {(opcao !== "semBvSemNf" || naoSeAplica) && (
+                        <button
+                          type="button"
+                          onClick={() => alternarNaoSeAplica(opcao)}
+                          className="text-[10px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded"
+                          title={naoSeAplica ? "Voltar a informar um valor" : "Este item não é cobrado desta forma"}
+                        >
+                          {naoSeAplica ? "Informar valor" : "Não se aplica"}
+                        </button>
+                      )}
                     </td>
                     <td className="px-2 py-1 border-b border-border-soft w-[9rem]">
                       {/* Ou o valor, ou "Não se aplica" — as duas respostas
