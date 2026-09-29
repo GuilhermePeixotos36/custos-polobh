@@ -14,6 +14,9 @@ import { create } from "zustand";
 import { repo } from "@/data";
 import { useAuth } from "@/store/auth";
 import { calcularPendencias, agregarPendencias, type Pendencia } from "@/domain/pendencias";
+import { hojeIso } from "@/domain/calendario";
+import { pendenciaDeFeriados, responsavelPadraoDosFeriados } from "@/domain/feriados";
+import { lerFeriados, lerResponsavelFeriados } from "@/lib/feriados";
 import type { Checklist, Ec, Os, Projeto } from "@/data/types";
 
 interface State {
@@ -63,8 +66,32 @@ export const usePendencias = create<State>((set, get) => ({
         repo.checklists.listar(),
       ]);
       const nomes = usuarios.map((u) => u.nome).filter(Boolean);
+      const itens = calcularPendencias(projetos, ecs, oss, nomes, credenciados, checklists);
+      // Lembrete de janeiro: os feriados municipais do ano. Falha de leitura
+      // aqui não derruba as demais pendências.
+      try {
+        const [guardados, escolhido] = await Promise.all([lerFeriados(), lerResponsavelFeriados()]);
+        const f = pendenciaDeFeriados({
+          hoje: hojeIso(),
+          guardados,
+          responsavel: escolhido || responsavelPadraoDosFeriados(usuarios),
+        });
+        if (f) {
+          itens.push({
+            id: f.id,
+            tipo: "feriados",
+            titulo: f.titulo,
+            pessoas: f.pessoas,
+            recurso: "projetos",
+            rota: "/configuracoes",
+            ancora: "feriados-do-calendario",
+          });
+        }
+      } catch (e) {
+        console.error("[pendencias] lembrete de feriados indisponível:", e);
+      }
       set({
-        itens: calcularPendencias(projetos, ecs, oss, nomes, credenciados, checklists),
+        itens,
         projetos,
         ecsPainel: ecs,
         oss,
@@ -86,11 +113,14 @@ export const usePendencias = create<State>((set, get) => ({
 /**
  * Pendências do usuário atual, já agregadas por recurso/projeto/subguia/EC/OS.
  *
- * O recorte é só pelo NOME: pendência é de quem responde pelo projeto ou de quem
- * foi cobrado nela — o papel não abre porta nenhuma (ver `agregarPendencias`).
+ * O recorte é pelo NOME — pendência é de quem foi cobrado nela, ou de quem
+ * responde pelo projeto quando ela não tem outro dono. A única exceção são as
+ * passagens de bastão da OS ("aguardando o financeiro"), que não nomeiam
+ * ninguém e por isso são endereçadas à FUNÇÃO (ver `agregarPendencias`).
  */
 export function useMinhasPendencias() {
   const itens = usePendencias((s) => s.itens);
   const pessoa = useAuth((s) => s.usuario?.nome);
-  return useMemo(() => agregarPendencias(itens, pessoa), [itens, pessoa]);
+  const pode = useAuth((s) => s.pode);
+  return useMemo(() => agregarPendencias(itens, pessoa, pode), [itens, pessoa, pode]);
 }

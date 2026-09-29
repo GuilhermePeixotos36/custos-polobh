@@ -5,8 +5,9 @@
  */
 import type {
   AbaComConversa, AnexoObservacao, Area, Chamado, Checklist, Cliente, CredenciamentoResposta, Ec, EmpresaGrupo, Fornecedor,
-  ItemChecklist, ModeloChecklist, Observacao, Os, Projeto, ProjetoInfo, Usuario,
+  ItemChecklist, ModeloChecklist, Observacao, Os, Projeto, ProjetoInfo, RegistroBackup, Usuario,
 } from "./types";
+import type { PosseDeEdicao } from "@/domain/travaEdicao";
 
 export interface ProjetoRepository {
   listar(): Promise<Projeto[]>;
@@ -81,6 +82,13 @@ export interface EcRepository {
 }
 
 export interface OsRepository {
+  /**
+   * Fecha na EC os itens que esta OS consolida (status da OS: Emitir → OK).
+   *
+   * É RPC, e não UPDATE: quem emite a OS é o Back-office, que não tem escrita em
+   * `ec_linhas`. Chamada quando a OS é emitida — o fecho do ciclo EC → OS → EC.
+   */
+  fecharItensNaEc(osId: string): Promise<number>;
   listar(): Promise<Os[]>;
   porEc(ecId: string): Promise<Os[]>;
   obter(id: string): Promise<Os | undefined>;
@@ -117,6 +125,14 @@ export interface AuthRepository {
   criarUsuario(dados: { email: string; nome: string; areaId: string; telefone: string }): Promise<Usuario>;
   /** Atualiza nome/telefone/área/e-mail de um usuário existente. */
   atualizarUsuario(dados: { id: string; nome?: string; telefone?: string; areaId?: string; email?: string }): Promise<Usuario>;
+  /**
+   * Liga e desliga o acesso de alguém (24/09/2026).
+   *
+   * Separado de `atualizarUsuario` porque o recorte de quem pode é outro: o
+   * cadastro é do Administrativo para cima; cortar acesso é da Direção para
+   * cima. Quem decide é o servidor — ver a Edge Function `gerenciar-usuarios`.
+   */
+  definirUsuarioAtivo(dados: { id: string; ativo: boolean }): Promise<Usuario>;
 }
 
 /** Áreas = grupos de permissão cadastráveis (Configurações → Áreas). */
@@ -220,6 +236,39 @@ export interface ChecklistRepository {
   removerAnexos(caminhos: string[]): Promise<void>;
 }
 
+/**
+ * O back-up do sistema.
+ *
+ * Tudo passa pela Edge Function, e não pelo navegador: o pacote leva a base
+ * inteira, e montá-lo aqui exigiria que o cliente lesse todas as tabelas — o
+ * que a RLS (com razão) não permite a ninguém. `baixar` é a única que devolve
+ * bytes; as outras entregam no destino configurado.
+ */
+export interface BackupRepository {
+  /** Gera o pacote e devolve os bytes, para o navegador salvar. */
+  baixar(): Promise<{ nome: string; zipBase64: string; tamanho: number }>;
+  /** Gera e entrega agora nos destinos configurados (e-mail e/ou Dropbox). */
+  enviarAgora(): Promise<{ destinos: string[]; nome: string; tamanho: number; erro?: string | null }>;
+  /** As últimas linhas do histórico, da mais nova para a mais velha. */
+  historico(limite?: number): Promise<RegistroBackup[]>;
+}
+
+/**
+ * A trava de PRESENÇA — quem está com um documento aberto em modo de edição.
+ *
+ * Tudo por RPC, e nenhuma escrita direta na tabela: uma policy de insert
+ * deixaria o cliente escolher o `usuario_id` que quisesse, e tomar o documento
+ * em nome de outra pessoa.
+ */
+export interface TravaEdicaoRepository {
+  /** Toma (ou renova) a posse. Devolve o estado atual — inclusive quando é de outro. */
+  abrir(documento: string): Promise<PosseDeEdicao>;
+  /** Consulta sem tomar posse, para avisar ANTES de a pessoa clicar em "Editar". */
+  quem(documento: string): Promise<PosseDeEdicao | null>;
+  /** Larga o que é meu. Nunca derruba a posse de outra pessoa. */
+  fechar(documento: string): Promise<void>;
+}
+
 export interface Repositorios {
   projetos: ProjetoRepository;
   clientes: ClienteRepository;
@@ -232,4 +281,6 @@ export interface Repositorios {
   config: ConfigRepository;
   chamados: ChamadosRepository;
   checklists: ChecklistRepository;
+  backup: BackupRepository;
+  travaEdicao: TravaEdicaoRepository;
 }

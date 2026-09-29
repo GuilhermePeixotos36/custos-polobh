@@ -3,22 +3,42 @@ import { ChecklistModelosCard } from "@/components/ChecklistModelosCard";
 import { createPortal } from "react-dom";
 import { PageShell } from "@/components/layout/AppLayout";
 import { BarraConfiguracoes, useSecaoConfig } from "@/components/layout/BarraSecao";
-import { Card, CardTitle, Toggle, Badge, Field, Input, TelefoneInput, Select, Button, Table, THead, Th, Tr, Td, EmptyState } from "@/components/ui";
+import { Card, CardTitle, Toggle, Badge, Field, Input, Textarea, TelefoneInput, Select, Button, Table, THead, Th, Tr, Td, EmptyState } from "@/components/ui";
 import { IcPlus, IcPencil, IcTrash, IcBloqueio, IcFechar, IcCheck } from "@/components/icons";
 import { ROTULO_PAPEL, PAPEIS_AREA, TELAS, PERMISSOES_ESPECIAIS, useAuth, type Recurso } from "@/store/auth";
 import { useEmpresas } from "@/store/empresas";
 import { useConfigApp } from "@/store/configApp";
 import { useAsync } from "@/hooks/useAsync";
 import { repo } from "@/data";
+import { gravarResponsavelFeriados, lerFeriados, lerResponsavelFeriados, salvarFeriadosMunicipais } from "@/lib/feriados";
+import { idAncoraPendencia } from "@/lib/destaque";
+import { feriadosVazios, responsavelPadraoDosFeriados, type Feriado } from "@/domain/feriados";
 import { toast } from "@/store/toast";
 import { confirmar } from "@/store/confirm";
 import { cx } from "@/lib/format";
 import {
   notificar, pedirPermissao, permissaoAtual, type PermissaoNotificacao,
 } from "@/lib/notificacoes";
+import {
+  motivoParaNaoMudar,
+  podeAtivarUsuarios,
+  quantosPodemAtivar,
+} from "@/domain/usuarioAtivo";
+import {
+  CONFIG_BACKUP_PADRAO,
+  OPCOES_FREQUENCIA,
+  formatarTamanho,
+  haQuantoTempo,
+  lerDestinatarios,
+  podeTirarBackup,
+  situacaoDoBackup,
+  type ConfigBackup,
+  type Frequencia,
+} from "@/domain/backup";
+import { baixarArquivoBase64 } from "@/lib/backup/baixar";
 import type { Area, Papel, Usuario } from "@/data/types";
 
-type AbaConfig = "geral" | "checklist" | "areas" | "usuarios";
+type AbaConfig = "geral" | "checklist" | "areas" | "usuarios" | "backup";
 
 /**
  * A aba vem da URL (`?aba=`), e não de estado solto: a barra de Configurações
@@ -46,6 +66,8 @@ export function Configuracoes() {
 
           <HelpDeskCard />
 
+          <FeriadosCard />
+
           <Card>
             <CardTitle hint="Arquivar ≠ apagar — registros arquivados continuam consultáveis">Retenção de dados</CardTitle>
             <div className="space-y-4">
@@ -67,6 +89,7 @@ export function Configuracoes() {
 
       {aba === "areas" && <AreasCard />}
       {aba === "usuarios" && <UsuariosCard />}
+      {aba === "backup" && <BackupCard />}
     </PageShell>
   );
 }
@@ -229,6 +252,145 @@ function EmpresasGrupoCard() {
         As alterações são salvas ao sair de cada campo. A empresa <b>padrão</b> é usada na emissão;
         se o tomador/contratante da OS for a Pólobh, estes dados entram na planilha.
       </p>
+    </Card>
+  );
+}
+
+/* ------------------------------- Feriados -------------------------------- */
+
+/**
+ * Os feriados MUNICIPAIS de Belo Horizonte, lançados à mão.
+ *
+ * A pergunta da Pólobh foi "qual seria a nossa fonte oficial?", e a resposta
+ * honesta tem duas partes: os NACIONAIS vêm da BrasilAPI, sozinhos, inclusive
+ * as datas móveis; os MUNICIPAIS não têm fonte oficial em formato de dados —
+ * eles saem de lei municipal, e o que circula na internet são listas de
+ * terceiros que ninguém garante.
+ *
+ * Então eles são lançados aqui, uma vez por ano, por quem administra. É pouco
+ * trabalho (são três ou quatro datas) e é a única forma de o quadro não mentir:
+ * um feriado municipal errado é uma montagem marcada num dia em que a cidade
+ * para.
+ */
+function FeriadosCard() {
+  const anoAtual = new Date().getFullYear();
+  // Em janeiro a tela abre no ano SEGUINTE — é o que o lembrete cobra.
+  const [ano, setAno] = useState(new Date().getMonth() === 0 ? anoAtual + 1 : anoAtual);
+  const { data, loading, reload } = useAsync(() => lerFeriados(), []);
+  const [rascunho, setRascunho] = useState<Feriado[] | null>(null);
+  const { data: usuarios } = useAsync(() => repo.auth.usuarios().catch(() => [] as Usuario[]), []);
+  const { data: escolhido, reload: recarregarResponsavel } = useAsync(() => lerResponsavelFeriados(), []);
+  const ativos = (usuarios ?? []).filter((u) => u.ativo !== false);
+  // Sem escolha, o padrão é o Tiago (financeiro) — a tela mostra quem é.
+  const responsavel = escolhido || responsavelPadraoDosFeriados(ativos);
+
+  async function trocarResponsavel(nome: string) {
+    try {
+      await gravarResponsavelFeriados(nome);
+      recarregarResponsavel();
+      toast("Responsável pelo lembrete de janeiro atualizado.", "success");
+    } catch (e) {
+      toast(`Não foi possível salvar: ${(e as Error).message}`, "danger");
+    }
+  }
+
+  const guardados = data ?? feriadosVazios();
+  const municipais = rascunho ?? guardados.municipais[String(ano)] ?? [];
+  const nacionais = guardados.nacionais[String(ano)] ?? [];
+
+  const mudar = (i: number, patch: Partial<Feriado>) =>
+    setRascunho(municipais.map((f, j) => (j === i ? { ...f, ...patch } : f)));
+
+  async function salvar() {
+    try {
+      await salvarFeriadosMunicipais(ano, municipais.filter((f) => f.data));
+      setRascunho(null);
+      reload();
+      toast("Feriados salvos.", "success");
+    } catch (e) {
+      toast(`Não foi possível salvar: ${(e as Error).message}`, "danger");
+    }
+  }
+
+  return (
+    <Card>
+      <div id={idAncoraPendencia("feriados-do-calendario")}>
+      <CardTitle hint="Os nacionais vêm sozinhos da BrasilAPI; os municipais de BH não têm fonte oficial em dados e são lançados aqui">
+        Feriados do calendário
+      </CardTitle>
+
+      {/* Todo mês de janeiro o sistema cria uma pendência para esta pessoa
+          lançar os feriados municipais do ANO SEGUINTE; ela some quando o ano
+          tem feriado lançado. Quem administra (Admin, Direção, Coordenação,
+          Financeiro) escolhe quem recebe. */}
+      <Field label="Quem recebe o lembrete de janeiro" className="max-w-[22rem] mb-3">
+        <Select value={responsavel} onChange={(e) => void trocarResponsavel(e.target.value)}>
+          <option value="">Ninguém</option>
+          {ativos.map((u) => (
+            <option key={u.id} value={u.nome}>{u.nome}</option>
+          ))}
+        </Select>
+      </Field>
+
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <Field label="Ano" className="max-w-[8rem]">
+          <Input
+            type="number"
+            value={ano}
+            onChange={(e) => { setAno(Number(e.target.value) || anoAtual); setRascunho(null); }}
+          />
+        </Field>
+        <span className="text-[12.5px] text-ink-3 self-end pb-2">
+          {loading ? "Carregando…" : `${nacionais.length} feriado(s) nacional(is) já no sistema`}
+        </span>
+      </div>
+
+      <div className="space-y-2">
+        {municipais.map((f, i) => (
+          <div key={i} className="flex items-center gap-2 flex-wrap">
+            <Input
+              type="date"
+              className="max-w-[11rem]"
+              value={f.data}
+              onChange={(e) => mudar(i, { data: e.target.value })}
+              aria-label="Data do feriado"
+            />
+            <Input
+              className="flex-1 min-w-[14rem]"
+              value={f.nome}
+              placeholder="Nome do feriado (ex.: Nossa Senhora da Conceição)"
+              onChange={(e) => mudar(i, { nome: e.target.value })}
+              aria-label="Nome do feriado"
+            />
+            <button
+              type="button"
+              className="text-ink-3 hover:text-danger px-2"
+              onClick={() => setRascunho(municipais.filter((_, j) => j !== i))}
+              aria-label="Remover feriado"
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+        {municipais.length === 0 && (
+          <p className="text-[12.5px] text-ink-3">Nenhum feriado municipal lançado para {ano}.</p>
+        )}
+      </div>
+
+      <div className="mt-3 flex items-center gap-2">
+        <Button
+          variant="secondary"
+          size="sm"
+          icon={<IcPlus width={15} height={15} />}
+          onClick={() => setRascunho([...municipais, { data: "", nome: "", origem: "municipal" }])}
+        >
+          Feriado municipal
+        </Button>
+        <Button size="sm" disabled={!rascunho} onClick={() => void salvar()}>
+          Salvar feriados
+        </Button>
+      </div>
+      </div>
     </Card>
   );
 }
@@ -610,8 +772,41 @@ function UsuariosCard() {
   const { data: areas } = useAsync(() => repo.areas.listar(), []);
   const [edit, setEdit] = useState<Usuario | null>(null);
   const [salvando, setSalvando] = useState(false);
+  /** Qual linha está no meio da troca — para travar só o botão dela. */
+  const [alterando, setAlterando] = useState<string | null>(null);
+  const usuarioAtual = useAuth((st) => st.usuario);
+  const podeAtivar = podeAtivarUsuarios(usuarioAtual?.papel);
 
   const lista = data ?? [];
+
+  /**
+   * Liga e desliga o acesso de alguém.
+   *
+   * A confirmação existe porque inativar derruba a sessão da pessoa na hora —
+   * quem está com a tela aberta perde o acesso no comando seguinte, e isso não
+   * pode acontecer por um clique errado numa lista.
+   */
+  async function alternarAcesso(u: Usuario) {
+    const ativo = !(u.ativo ?? true);
+    if (!ativo && !(await confirmar({
+      titulo: `Inativar ${u.nome}?`,
+      mensagem:
+        "O acesso é cortado imediatamente, inclusive se a pessoa estiver com o sistema aberto. " +
+        "O histórico é preservado — inativar não é apagar.",
+      confirmarTexto: "Inativar",
+      cancelarTexto: "Voltar",
+    }))) return;
+    setAlterando(u.id);
+    try {
+      await repo.auth.definirUsuarioAtivo({ id: u.id, ativo });
+      toast(ativo ? `${u.nome} voltou a ter acesso.` : `${u.nome} está sem acesso.`, "success");
+      reload();
+    } catch (e) {
+      toast((e as Error).message, "danger");
+    } finally {
+      setAlterando(null);
+    }
+  }
 
   async function salvar() {
     if (!edit) return;
@@ -655,19 +850,53 @@ function UsuariosCard() {
           <EmptyState title="Nenhum usuário cadastrado" />
         ) : (
           <Table>
-            <THead><Th>Nome</Th><Th>E-mail</Th><Th>Telefone</Th><Th align="center">Área</Th></THead>
+            <THead>
+              <Th>Nome</Th><Th>E-mail</Th><Th>Telefone</Th>
+              <Th align="center">Área</Th><Th align="center">Acesso</Th>
+              {podeAtivar && <Th align="center">Ações</Th>}
+            </THead>
             <tbody>
-              {lista.map((u) => (
+              {lista.map((u) => {
+                const ativo = u.ativo ?? true;
+                const impedimento = motivoParaNaoMudar(
+                  { id: usuarioAtual?.id ?? "", papel: usuarioAtual?.papel ?? "Producao" },
+                  { id: u.id, papel: u.papel, ativo },
+                  quantosPodemAtivar(lista)
+                );
+                return (
                 <Tr key={u.id} onClick={() => setEdit({ ...u })}>
-                  <Td className="font-bold">{u.nome}</Td>
-                  <Td className="text-[12.5px]">{u.email || "—"}</Td>
+                  <Td className={cx("font-bold", !ativo && "text-ink-3")}>{u.nome}</Td>
+                  <Td className={cx("text-[12.5px]", !ativo && "text-ink-3")}>{u.email || "—"}</Td>
                   <Td className="text-[12.5px]">{u.telefone || "—"}</Td>
                   {/* Sem área é o caso do desenvolvedor (papel Admin) — não é uma área, é a ausência dela. */}
                   <Td align="center">
                     {u.areaNome ? <Badge tom="info">{u.areaNome}</Badge> : <span className="text-ink-3">—</span>}
                   </Td>
+                  <Td align="center">
+                    <Badge tom={ativo ? "success" : "danger"}>{ativo ? "Ativo" : "Inativo"}</Badge>
+                  </Td>
+                  {podeAtivar && (
+                    <Td align="center">
+                      {/* O botão some quando a mudança é impossível, e o motivo
+                          vira o título — um botão que falha em silêncio faz a
+                          pessoa tentar de novo e abrir chamado. */}
+                      <button
+                        type="button"
+                        disabled={!!impedimento || alterando === u.id}
+                        title={impedimento ?? (ativo ? "Tira o acesso, preservando o histórico" : "Devolve o acesso")}
+                        onClick={(e) => { e.stopPropagation(); void alternarAcesso(u); }}
+                        className={cx(
+                          "text-[12px] font-bold rounded px-2 py-1 input-focus",
+                          impedimento ? "text-ink-3 cursor-not-allowed" : ativo ? "text-danger hover:underline" : "text-success hover:underline"
+                        )}
+                      >
+                        {alterando === u.id ? "…" : ativo ? "Inativar" : "Ativar"}
+                      </button>
+                    </Td>
+                  )}
                 </Tr>
-              ))}
+                );
+              })}
             </tbody>
           </Table>
         )}
@@ -753,6 +982,310 @@ function HelpDeskCard() {
         />
       </Field>
       {erro && <p className="mt-1.5 text-[12.5px] font-semibold text-danger">{erro}</p>}
+    </Card>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                  Back-up                                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * O back-up do sistema — e, antes dele, a explicação de por que ele existe.
+ *
+ * O texto didático não é enfeite. A pergunta da Pólobh foi "qual a frequência
+ * do back-up e como teremos acesso a ele", e responder só com um seletor de
+ * frequência deixaria de fora o que importa: o banco de dados JÁ tem back-up
+ * próprio, e ele é curto e fica na mesma conta. Sem essa parte, alguém lê
+ * "Back-up: semanal" e conclui que está protegido contra coisas contra as quais
+ * não está. A tela explica o limite e mostra o que a casa faz para supri-lo.
+ *
+ * Quem TIRA um back-up é Admin e Direção — mais estreito que esta tela, porque
+ * o pacote leva a base inteira, financeiro incluído. O Administrativo entra
+ * aqui, lê a explicação e vê o histórico; os botões ficam desligados para ele.
+ */
+function BackupCard() {
+  const papel = useAuth((s) => s.usuario?.papel);
+  const podeMexer = podeTirarBackup(papel);
+
+  const [config, setConfig] = useState<ConfigBackup>(CONFIG_BACKUP_PADRAO);
+  const [destinatarios, setDestinatarios] = useState("");
+  const [carregado, setCarregado] = useState(false);
+  const [ocupado, setOcupado] = useState<"" | "baixar" | "enviar">("");
+
+  const historico = useAsync(() => repo.backup.historico(20), [], { oQue: "o histórico de back-up" });
+
+  useEffect(() => {
+    let vivo = true;
+    repo.config
+      .ler<Partial<ConfigBackup>>("backup")
+      .then((v) => {
+        if (!vivo) return;
+        const lido = { ...CONFIG_BACKUP_PADRAO, ...(v ?? {}) };
+        setConfig(lido);
+        setDestinatarios(lido.destinatarios.join(", "));
+        setCarregado(true);
+      })
+      .catch(() => setCarregado(true));
+    return () => { vivo = false; };
+  }, []);
+
+  const ultimo = historico.data?.find((b) => b.status !== "erro");
+  const situacao = situacaoDoBackup(config.frequencia, ultimo ? new Date(ultimo.criadoEm) : null);
+
+  async function gravar(patch: Partial<ConfigBackup>) {
+    const novo = { ...config, ...patch };
+    setConfig(novo);
+    try {
+      await repo.config.gravar("backup", novo);
+    } catch (e) {
+      toast((e as Error).message, "danger");
+    }
+  }
+
+  /** Os endereços só gravam quando saem do campo — digitar não pode gravar a cada tecla. */
+  async function gravarDestinatarios() {
+    const { validos, invalidos } = lerDestinatarios(destinatarios);
+    if (invalidos.length) {
+      // Recusar tudo é deliberado: gravar só os válidos faria o endereço com
+      // erro de digitação sumir, e o back-up passaria meses indo para uma
+      // pessoa a menos sem ninguém notar.
+      toast(`Endereço inválido: ${invalidos.join(", ")}. Corrija para gravar.`, "danger");
+      return;
+    }
+    setDestinatarios(validos.join(", "));
+    if (validos.join() === config.destinatarios.join()) return;
+    await gravar({ destinatarios: validos });
+    toast(validos.length ? "Destinatários do back-up atualizados." : "Envio por e-mail desligado.", "success");
+  }
+
+  async function baixarAgora() {
+    setOcupado("baixar");
+    try {
+      const r = await repo.backup.baixar();
+      baixarArquivoBase64(r.nome, r.zipBase64);
+      toast(`Back-up gerado (${formatarTamanho(r.tamanho)}).`, "success");
+      historico.reload();
+    } catch (e) {
+      toast((e as Error).message, "danger");
+    } finally {
+      setOcupado("");
+    }
+  }
+
+  async function enviarAgora() {
+    if (!config.destinatarios.length && !config.dropbox) {
+      toast("Configure ao menos um destino: um e-mail ou o Dropbox.", "danger");
+      return;
+    }
+    setOcupado("enviar");
+    try {
+      const r = await repo.backup.enviarAgora();
+      toast(
+        r.erro
+          ? `Back-up gerado com ressalva: ${r.erro}`
+          : `Back-up enviado (${r.destinos.join(", ")}, ${formatarTamanho(r.tamanho)}).`,
+        r.erro ? "danger" : "success",
+      );
+      historico.reload();
+    } catch (e) {
+      toast((e as Error).message, "danger");
+    } finally {
+      setOcupado("");
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <ComoFuncionaOBackup />
+
+      <Card>
+        <CardTitle hint="Uma cópia dos dados sai do servidor e vai para a mão da Pólobh.">
+          Back-up automático
+        </CardTitle>
+
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <SituacaoDoBackup situacao={situacao} />
+          {ultimo && (
+            <span className="text-[12.5px] text-ink-2">
+              Último: {haQuantoTempo(new Date(ultimo.criadoEm))} · {formatarTamanho(ultimo.tamanhoBytes)}
+              {ultimo.destinos.length ? ` · ${ultimo.destinos.join(", ")}` : ""}
+            </span>
+          )}
+        </div>
+
+        <div className="space-y-4">
+          <Field label="Com que frequência">
+            <Select
+              value={config.frequencia}
+              disabled={!podeMexer || !carregado}
+              onChange={(e) => gravar({ frequencia: e.target.value as Frequencia })}
+            >
+              {OPCOES_FREQUENCIA.map((o) => (
+                <option key={o.valor} value={o.valor}>{o.rotulo}</option>
+              ))}
+            </Select>
+          </Field>
+          <p className="-mt-2 text-[12.5px] text-ink-2">
+            {OPCOES_FREQUENCIA.find((o) => o.valor === config.frequencia)?.ajuda}
+          </p>
+
+          <Field label="Enviar por e-mail para">
+            <Textarea
+              rows={2}
+              value={destinatarios}
+              disabled={!podeMexer || !carregado}
+              onChange={(e) => setDestinatarios(e.target.value)}
+              onBlur={gravarDestinatarios}
+              placeholder="direcao@polobh.com.br, ti@polobh.com.br"
+            />
+          </Field>
+          <p className="-mt-2 text-[12.5px] text-ink-2">
+            Separe por vírgula. Deixe vazio para não mandar e-mail. Pacotes muito grandes não cabem
+            num e-mail — nesse caso a mensagem avisa e o arquivo fica no Dropbox ou no botão abaixo.
+          </p>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-sm text-ink">Salvar também no Dropbox</span>
+              <p className="text-[12.5px] text-ink-2">
+                Guarda cada pacote numa pasta da Pólobh. Precisa de uma configuração única, feita
+                pelo suporte — se estiver ligado e não configurado, o histórico abaixo acusa.
+              </p>
+            </div>
+            <Toggle
+              checked={config.dropbox}
+              onChange={(v) => { if (podeMexer && carregado) void gravar({ dropbox: v }); }}
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-2 border-t border-line pt-4">
+            <Button onClick={baixarAgora} disabled={!podeMexer || !!ocupado}>
+              {ocupado === "baixar" ? "Gerando…" : "Baixar agora"}
+            </Button>
+            <Button variant="secondary" onClick={enviarAgora} disabled={!podeMexer || !!ocupado}>
+              {ocupado === "enviar" ? "Enviando…" : "Enviar agora"}
+            </Button>
+          </div>
+          {!podeMexer && (
+            <p className="text-[12.5px] text-ink-2">
+              Só a Direção e o Administrador tiram um back-up — o pacote leva a base inteira,
+              inclusive o financeiro. Você pode acompanhar o histórico aqui.
+            </p>
+          )}
+          <p className="text-[12.5px] text-ink-2">
+            Gerar um back-up leva alguns instantes e não interrompe quem estiver usando o sistema.
+          </p>
+        </div>
+      </Card>
+
+      <Card>
+        <CardTitle hint="Toda cópia que saiu do servidor fica registrada aqui.">Histórico</CardTitle>
+        {!historico.data?.length ? (
+          <EmptyState title="Nenhum back-up ainda" hint="Assim que o primeiro for gerado, ele aparece aqui." />
+        ) : (
+          <Table>
+            <THead>
+              <Th>Quando</Th>
+              <Th>Origem</Th>
+              <Th>Destino</Th>
+              <Th>Tamanho</Th>
+              <Th>Situação</Th>
+            </THead>
+            <tbody>
+              {historico.data.map((b) => (
+                <Tr key={b.id}>
+                  <Td>
+                    {new Date(b.criadoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+                    <span className="block text-[11.5px] text-ink-2">{b.arquivo}</span>
+                  </Td>
+                  <Td>{b.origem === "manual" ? "Pedido na tela" : "Automático"}</Td>
+                  <Td>{b.destinos.length ? b.destinos.join(", ") : "—"}</Td>
+                  <Td>{formatarTamanho(b.tamanhoBytes)}</Td>
+                  <Td>
+                    <Badge tom={b.status === "concluido" ? "success" : b.status === "parcial" ? "warning" : "danger"}>
+                      {b.status === "concluido" ? "Concluído" : b.status === "parcial" ? "Com ressalva" : "Falhou"}
+                    </Badge>
+                    {b.erro && <span className="block text-[11.5px] text-ink-2">{b.erro}</span>}
+                  </Td>
+                </Tr>
+              ))}
+            </tbody>
+          </Table>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function SituacaoDoBackup({ situacao }: { situacao: ReturnType<typeof situacaoDoBackup> }) {
+  if (situacao === "desligado") return <Badge tom="neutral">Automático desligado</Badge>;
+  if (situacao === "nunca") return <Badge tom="warning">Nenhum back-up gerado ainda</Badge>;
+  if (situacao === "atrasado") return <Badge tom="danger">Back-up atrasado</Badge>;
+  return <Badge tom="success">Em dia</Badge>;
+}
+
+/**
+ * A explicação, em português de gente.
+ *
+ * Fica ACIMA dos controles, e não escondida num "saiba mais", porque é a parte
+ * que muda a decisão: quem entende que a cópia do servidor dura pouco e mora na
+ * mesma conta escolhe uma frequência diferente de quem não entende.
+ */
+function ComoFuncionaOBackup() {
+  return (
+    <Card>
+      <CardTitle hint="Leia uma vez. Explica o que o sistema faz sozinho e o que depende de vocês.">
+        Como funciona a proteção dos dados
+      </CardTitle>
+      <div className="space-y-3 text-[13px] leading-relaxed text-ink">
+        <p>
+          Os dados do sistema ficam num banco de dados na nuvem (o <b>Supabase</b>). Ele faz
+          back-up sozinho, todo dia, sem ninguém pedir — e isso resolve o acidente comum:
+          alguém apagou um projeto sem querer e quer o de ontem de volta.
+        </p>
+        <p>
+          <b>O que esse back-up de fábrica não resolve</b>, no plano que a Pólobh usa hoje:
+        </p>
+        <ul className="ml-4 list-disc space-y-1.5">
+          <li>
+            <b>ele dura pouco.</b> A cópia fica disponível por poucos dias. Um erro descoberto
+            dois meses depois já não tem de onde voltar;
+          </li>
+          <li>
+            <b>ele mora na mesma conta.</b> Se o acesso à conta for perdido ou bloqueado, o
+            back-up vai junto — é como guardar a chave reserva dentro de casa;
+          </li>
+          <li>
+            <b>ninguém da Pólobh o pega sozinho.</b> Restaurar passa pelo painel técnico.
+          </li>
+        </ul>
+        <p>
+          <b>É isso que esta tela supre.</b> O sistema monta, na frequência escolhida, um arquivo
+          único (<code>.zip</code>) com tudo — projetos, estimativas, ordens de serviço,
+          fornecedores, check-lists, anexos — e o entrega <b>para fora do servidor</b>: no e-mail
+          de quem vocês indicarem e/ou numa pasta do Dropbox da Pólobh. Qualquer pessoa da
+          Direção também pode baixar um a qualquer momento, sem depender de ninguém.
+        </p>
+        <p>
+          Dentro do arquivo há um <b>LEIA-ME</b> explicando o que tem, o que não tem e como
+          restaurar. As planilhas vão em <code>.csv</code>, que abre no Excel — dá para conferir
+          os dados sem ajuda técnica.
+        </p>
+        <div className="rounded-lg border border-line bg-surface-2 p-3">
+          <p className="font-semibold">A recomendação, em uma linha</p>
+          <p className="mt-1">
+            Deixe o automático ligado (semanal já atende), aponte para um e-mail que alguém
+            realmente lê, e guarde uma cópia por mês num HD ou pen drive fora da rede. Três
+            cópias, dois lugares, uma fora do escritório.
+          </p>
+        </div>
+        <p className="text-ink-2">
+          Contratar o plano pago do Supabase somaria back-up diário com retenção maior e
+          restauração para um ponto exato no tempo. É uma despesa mensal e uma decisão da
+          Direção — o que esta tela faz não depende disso e continua valendo de qualquer forma.
+        </p>
+      </div>
     </Card>
   );
 }

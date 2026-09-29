@@ -102,6 +102,70 @@ export function destacarCampo(id: string): void {
 const SELETOR_FOCAVEL = "input, textarea, select, [contenteditable=true]";
 
 /**
+ * As DUAS marcas permanentes da pendência (15/09/2026).
+ *
+ * Até aqui, achar uma pendência era um pisca de 2,6 segundos: a pessoa desviava
+ * o olho, ele acabava, e ela perdia o lugar — "hoje a pendência pisca quando
+ * acionada; ela pode ficar vermelha enquanto estiver pendente?", pediu a Pólobh,
+ * quatro vezes no mesmo check-list.
+ *
+ * São duas coisas diferentes, e por isso duas classes:
+ *  · `com-pendencia` — o contorno discreto de TUDO que tem pendência aberta.
+ *    Não pede ação agora; diz "aqui tem algo a resolver", e só some quando a
+ *    pendência some;
+ *  · `pendencia-atual` — o realce forte do item que a pílula está apontando
+ *    NESTE momento. Sai quando a seta leva para o próximo.
+ *
+ * O pisca continua existindo, e agora no papel certo: é o aceno de "a seta fez
+ * alguma coisa" quando a câmera não precisa se mexer, por cima da marca que
+ * fica.
+ */
+export const CLASSE_COM_PENDENCIA = "com-pendencia";
+export const CLASSE_PENDENCIA_ATUAL = "pendencia-atual";
+
+/**
+ * Marca no DOM os elementos que têm pendência aberta, e desmarca o resto.
+ *
+ * Trabalha por varredura em vez de prop a prop de propósito: as âncoras já
+ * existem (`idAncoraPendencia`), estão espalhadas por dez telas, e passar um
+ * booleano por cada linha de cada lista significaria mexer em todas elas —
+ * com o risco de uma esquecer e ficar sem a marca, que é justamente o defeito
+ * que se está corrigindo.
+ */
+export function marcarPendencias(ancoras: string[]): void {
+  if (typeof document === "undefined") return;
+  const querDestaque = new Set(ancoras.map((a) => idAncoraPendencia(a)));
+  for (const el of document.querySelectorAll<HTMLElement>(`.${CLASSE_COM_PENDENCIA}`)) {
+    if (!querDestaque.has(el.id)) el.classList.remove(CLASSE_COM_PENDENCIA);
+  }
+  for (const id of querDestaque) {
+    document.getElementById(id)?.classList.add(CLASSE_COM_PENDENCIA);
+  }
+}
+
+/** Tira a marca de todos — usado quando a tela que as contava sai de cena. */
+export function limparMarcasDePendencia(): void {
+  if (typeof document === "undefined") return;
+  for (const el of document.querySelectorAll<HTMLElement>(`.${CLASSE_COM_PENDENCIA}, .${CLASSE_PENDENCIA_ATUAL}`)) {
+    el.classList.remove(CLASSE_COM_PENDENCIA, CLASSE_PENDENCIA_ATUAL);
+  }
+}
+
+/**
+ * O realce forte da pendência que a pílula aponta agora. Uma por vez: marcar a
+ * nova apaga a anterior, sem que o chamador precise guardar qual era.
+ */
+export function marcarPendenciaAtual(ancora: string | null): void {
+  if (typeof document === "undefined") return;
+  for (const el of document.querySelectorAll<HTMLElement>(`.${CLASSE_PENDENCIA_ATUAL}`)) {
+    el.classList.remove(CLASSE_PENDENCIA_ATUAL);
+  }
+  if (!ancora) return;
+  // Pode ser chamado no mesmo quadro em que a tela ainda está pintando.
+  comElemento(idAncoraPendencia(ancora), (el) => el.classList.add(CLASSE_PENDENCIA_ATUAL));
+}
+
+/**
  * Faz a tela acompanhar um elemento que acabou de se mover, mantendo-o SEMPRE no
  * centro — a pessoa aperta a seta várias vezes seguidas e o item nunca escapa do
  * campo de visão. Diferente de `destacarElemento`, não pisca: aqui o objetivo é
@@ -160,6 +224,12 @@ export const idCampoPendencia = (ancora: string, campo: string) => `pendencia-ca
  * usa para levar a pessoa até lá — ver `destacarCampo`.
  */
 export const idCampoTrava = (campo: string) => `trava-${limpar(campo)}`;
+
+/** Campo "Descrição Completa" do item — onde o resumo da proposta é inserido. */
+export const idCampoDescricaoCompleta = (id: string) => `descricao-completa-${limpar(id)}`;
+
+/** Bloco de um grupo criado dentro da OS (Logística/Infraestrutura à parte). */
+export const idBlocoGrupoExtra = (id: string) => `grupo-os-${limpar(id)}`;
 
 export const idBlocoCronograma = (id: string) => `bloco-cronograma-${limpar(id)}`;
 export const idFaixaCronograma = (id: string) => `faixa-cronograma-${limpar(id)}`;

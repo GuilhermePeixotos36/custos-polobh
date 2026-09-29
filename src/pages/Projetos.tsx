@@ -10,14 +10,14 @@ import { useMinhasPendencias } from "@/store/pendencias";
 import { useAuth } from "@/store/auth";
 import { cx } from "@/lib/format";
 import { statusProjetoAutomatico } from "@/domain/statusProjeto";
+import { periodoDoProjeto } from "@/domain/calendario";
+import { dataBR } from "@/lib/format";
 import { resumirChecklist, type ResumoChecklist } from "@/domain/checklist";
 import type { StatusProjeto } from "@/data/types";
 
 const tomStatusProjeto: Record<StatusProjeto, Tom> = {
   Ativo: "success",
   Arquivado: "neutral",
-  Concluido: "info",
-  Cancelado: "danger",
 };
 
 type FiltroProjeto = "Todos" | "Ativo" | "Arquivado";
@@ -57,7 +57,7 @@ export function Projetos() {
     return (data?.projetos ?? []).map((p) => ({ ...p, status: statusProjetoAutomatico(p, data?.ecs ?? []) }))
       // "Arquivados" agrupa tudo que não está Ativo (Arquivado/Concluído/Cancelado).
       .filter((p) => filtro === "Todos" || (filtro === "Ativo" ? p.status === "Ativo" : p.status !== "Ativo"))
-      .filter((p) => !q || `${p.nome} ${p.cliente?.nome ?? ""}`.toLowerCase().includes(q));
+      .filter((p) => !q || `${p.nome} ${p.cliente?.nome ?? ""} ${p.info?.produtoraResponsavel ?? ""}`.toLowerCase().includes(q));
   }, [data, filtro, busca]);
 
   const { ordem, ordenarPor, ordenados: lista } = useOrdenacao(
@@ -66,6 +66,9 @@ export function Projetos() {
       pendencias: (p) => porProjeto[p.id] ?? 0,
       cliente: (p) => p.cliente?.nome,
       projeto: (p) => p.nome,
+      produtora: (p) => p.info?.produtoraResponsavel ?? "",
+      // Ordena pela data de início do evento; projeto sem data vai para o fim.
+      datas: (p) => periodoDoProjeto(p)?.inicio ?? "9999-99-99",
       // Ordena pelo que falta fazer, não pelo percentual: o projeto com mais
       // tarefas em aberto é o que precisa de atenção primeiro.
       checklist: (p) => resumoPorProjeto.get(p.id)?.abertos ?? -1,
@@ -126,6 +129,10 @@ export function Projetos() {
               <ThPendencias col="pendencias" ordem={ordem} onSort={ordenarPor} />
               <ThOrd col="cliente" ordem={ordem} onSort={ordenarPor}>Cliente</ThOrd>
               <ThOrd col="projeto" ordem={ordem} onSort={ordenarPor}>Projeto</ThOrd>
+              {/* Produtora e datas do evento (15/09/2026): as duas perguntas que
+                  faziam abrir projeto por projeto — "de quem é?" e "quando é?". */}
+              <ThOrd col="produtora" ordem={ordem} onSort={ordenarPor}>Produtora</ThOrd>
+              <ThOrd col="datas" ordem={ordem} onSort={ordenarPor}>Datas do evento</ThOrd>
               {podeVerChecklist && (
                 <ThOrd col="checklist" align="center" ordem={ordem} onSort={ordenarPor}>Check-list</ThOrd>
               )}
@@ -139,6 +146,8 @@ export function Projetos() {
                   {/* Sem thumbnail: as iniciais não informavam nada e saíam quebradas em
                       títulos com travessão ("BM – Convenção…" virava "B–"). */}
                   <Td className="font-bold text-ink">{p.nome || "(sem título)"}</Td>
+                  <Td className="text-[12.5px] text-ink-2">{p.info?.produtoraResponsavel || "—"}</Td>
+                  <Td className="text-[12.5px] text-ink-2 whitespace-nowrap tabular-nums">{datasDoProjeto(p)}</Td>
                   {podeVerChecklist && (
                     <Td align="center">
                       <ProgressoChecklist resumo={resumoPorProjeto.get(p.id)} />
@@ -182,4 +191,19 @@ function ProgressoChecklist({ resumo }: { resumo?: ResumoChecklist }) {
       </div>
     </div>
   );
+}
+
+/**
+ * As datas do EVENTO, escritas curto para caber numa coluna de lista.
+ *
+ * Só a etapa Evento, como pede o check-list de 15/09 ("neste caso só as datas
+ * do evento") — o quadro do ano é que passou a mostrar o período inteiro, com
+ * montagem e desmontagem. Evento de um dia só escreve uma data.
+ */
+function datasDoProjeto(p: { info?: { cronograma?: unknown; evento?: string } }): string {
+  const periodo = periodoDoProjeto(p as Parameters<typeof periodoDoProjeto>[0]);
+  if (!periodo) return "—";
+  return periodo.inicio === periodo.fim
+    ? dataBR(periodo.inicio)
+    : `${dataBR(periodo.inicio)} › ${dataBR(periodo.fim)}`;
 }

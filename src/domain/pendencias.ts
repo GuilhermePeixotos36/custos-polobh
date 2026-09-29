@@ -42,6 +42,9 @@
  * para "OS/Contrato a emitir"). Para adicionar uma nova regra, basta empurrar
  * mais objetos em `calcularPendencias`.
  */
+import { ABAS_COM_CONVERSA } from "@/data/types";
+import { ESPERANDO_FASE, faseDaOs, RECURSO_DA_FASE } from "@/domain/faseOs";
+import type { Recurso } from "@/store/auth";
 import type { Checklist, Ec, Observacao, Os, Projeto, StatusOs } from "@/data/types";
 import { extrairMencoes } from "@/domain/mencoes";
 import { statusProjetoAutomatico } from "@/domain/statusProjeto";
@@ -71,8 +74,24 @@ export interface Pendencia {
   titulo: string;
   /** Pessoas especificamente atribuídas, pelo nome cadastrado no sistema. */
   pessoas?: string[];
-  /** Produtor Responsável do projeto: vê tudo o que acontece dentro do projeto dele. */
+  /**
+   * Produtor Responsável do projeto. Carrega o que NÃO TEM destinatário nominal
+   * — OS em rascunho, cronograma vazio, credenciamento sem resposta, projeto
+   * sem EC, OS/Contrato a emitir. Conversa, desde 15/09/2026, não entra aqui.
+   */
   responsavelProjeto?: string;
+  /**
+   * Destinatário por FUNÇÃO, e não por nome (15/09/2026).
+   *
+   * Só as passagens de bastão da OS usam isto: quando a produção manda a OS
+   * "para o financeiro", ninguém é nomeado — o trabalho é de quem responde pela
+   * etapa. Fora daqui a regra da casa continua valendo, e o papel NÃO abre porta
+   * (era assim que todo Admin recebia "emitir OS" da casa inteira).
+   *
+   * Quando os sete perfis da Pólobh estiverem cadastrados como Áreas, este
+   * endereço fica mais fino sem mexer em mais nada (ver `RECURSO_DA_FASE`).
+   */
+  recursoResponsavel?: Recurso;
   /** Recurso da navegação superior onde ela aparece (hoje sempre "projetos"). */
   recurso: "projetos";
   projetoId?: string;
@@ -99,6 +118,8 @@ export interface Pendencia {
    * vários porque OS e Contrato entram numa pendência só (ver a emissão abaixo).
    */
   campos?: CampoPendencia[];
+  /** Rota própria, para a pendência que não mora num projeto (ex.: feriados). */
+  rota?: string;
 }
 
 /**
@@ -136,6 +157,7 @@ export function telaDaPendencia(p: Pendencia): TelaPendencias {
  * saltem exatamente para o mesmo lugar.
  */
 export function rotaDaPendencia(p: Pendencia): string {
+  if (p.rota) return p.rota;
   const tela = telaDaPendencia(p);
   if ("ecId" in tela) return `/estimativas/${tela.ecId}`;
   if ("osId" in tela) return `/ordens/${tela.osId}`;
@@ -229,7 +251,19 @@ export const ancoraConversaAba = (projetoId: string, aba: string) => `projeto-co
  *   · quem ela @menciona (na raiz, também o responsável escolhido no campo);
  *   · sem menção nenhuma, volta para quem estava esperando — o autor da última
  *     mensagem anterior que não seja da mesma pessoa;
- *   · nunca o autor da própria última mensagem.
+ *   · nunca o autor da própria última mensagem — SALVO quando foi ele mesmo
+ *     quem se endereçou (ver abaixo).
+ *
+ * O LEMBRETE PARA SI MESMO (24/09/2026). Tirar o autor da lista é o que impede
+ * todo comentário de acender uma bolinha para quem acabou de escrevê-lo. Mas a
+ * regra estava comendo um caso legítimo: a pessoa escrever um recado escolhendo
+ * a SI MESMA no "Para" (ou se @mencionando) — que é como se anota "não esquecer
+ * disto". O comentário era gravado, aparecia na conversa, e não virava pendência
+ * para ninguém: um lembrete que não lembra.
+ *
+ * A diferença é INTENÇÃO. Endereçar-se é um ato explícito, e vale. Já a volta
+ * automática da bola ("ok, feito" devolvendo a vez a quem falou antes) é
+ * dedução nossa, e essa continua nunca apontando para o próprio autor.
  *
  * Devolve lista vazia quando a conversa não cobra ninguém (um recado solto que
  * não endereça e não responde a ninguém) — e aí ela não vira pendência.
@@ -247,6 +281,10 @@ export function destinatariosDaVez(observacao: Observacao, usuarios: string[] = 
   // sempre, mesmo já tendo respondido.
   if (ultima.raiz && observacao.responsavelNome?.trim()) alvos.add(observacao.responsavelNome.trim());
 
+  // Quem foi endereçado DE PROPÓSITO, antes de qualquer dedução nossa. É esta
+  // lista que autoriza o autor a permanecer na vez quando se endereçou sozinho.
+  const explicitos = new Set([...alvos].map(normalizarPessoa));
+
   if (!alvos.size) {
     // Resposta sem endereço ("ok, feito"): a bola volta para quem falou antes —
     // pulando as mensagens seguidas da mesma pessoa, que são continuação da fala.
@@ -261,7 +299,11 @@ export function destinatariosDaVez(observacao: Observacao, usuarios: string[] = 
   }
 
   const autorDaVez = normalizarPessoa(ultima.autor);
-  return [...alvos].filter((nome) => nome.trim() && normalizarPessoa(nome) !== autorDaVez);
+  return [...alvos].filter((nome) => {
+    if (!nome.trim()) return false;
+    const pessoa = normalizarPessoa(nome);
+    return pessoa !== autorDaVez || explicitos.has(pessoa);
+  });
 }
 
 /**
@@ -288,21 +330,33 @@ export function podeConcluirPendencia(
 }
 
 /**
- * Uma conversa aberta vira pendência de quem está com a batata — e do Produtor
- * Responsável do projeto, SEMPRE (regra revista em 08/09/2026).
+ * Uma conversa aberta vira pendência de QUEM ESTÁ COM A BATATA — e de mais
+ * ninguém (regra revista em 15/09/2026).
  *
- * Por um tempo ele só entrava quando a vez era dele, para o badge não crescer a
- * cada resposta trocada entre duas colegas. O efeito colateral foi pior do que o
- * ruído: uma cobrança podia ficar semanas parada com outra pessoa sem que quem
- * responde pelo projeto tivesse qualquer sinal disso. Ele volta a ver tudo o que
- * nasce no projeto dele; o "eventualmente" é do destinatário, que entra e sai
- * conforme a vez.
+ * A história deste parâmetro em três atos. Primeiro, o Produtor Responsável só
+ * entrava quando a vez era dele. Depois (08/09/2026) passou a ver toda conversa
+ * do projeto, porque uma cobrança podia ficar semanas parada com outra pessoa
+ * sem que quem responde pelo projeto tivesse qualquer sinal. Agora a Pólobh
+ * desfaz esse pedido com todas as letras: *"que o número e as pendências
+ * apareçam apenas para os seus responsáveis — sempre para os destinatários dos
+ * comentários"*.
+ *
+ * O motivo é o mesmo de sempre, visto do outro lado: quem responde por seis
+ * projetos herdava a bolinha de cada resposta trocada entre duas colegas, e o
+ * número vermelho parou de significar "tenho o que fazer".
+ *
+ * O que NÃO mudou, e é o que impede o pedido de virar buraco: as pendências sem
+ * destinatário nominal — OS em rascunho, cronograma vazio, credenciamento sem
+ * resposta, projeto sem EC, OS/Contrato a emitir — continuam endereçadas ao
+ * Produtor Responsável. Elas não têm a quem mais pertencer, e sem ele
+ * simplesmente sumiriam do sistema. O próprio check-list pede isso ao exigir que
+ * "Emitir OS" seja pendência da produtora: o que ela deixa de herdar é conversa
+ * dos outros, não o trabalho do projeto dela.
  */
 function pendenciaDeConversa(
   observacao: Observacao,
-  usuarios: string[],
-  responsavelProjeto?: string
-): { pessoas: string[]; responsavelProjeto?: string; resumo: string } | null {
+  usuarios: string[]
+): { pessoas: string[]; resumo: string } | null {
   const texto = observacao.texto?.trim() ?? "";
   if (!texto || observacao.resolvida) return null;
   const pessoas = destinatariosDaVez(observacao, usuarios);
@@ -311,7 +365,6 @@ function pendenciaDeConversa(
   const ultima = (observacao.respostas ?? []).at(-1)?.texto?.trim() || texto;
   return {
     pessoas,
-    responsavelProjeto: responsavelProjeto?.trim() || undefined,
     resumo: ultima.length > 80 ? `${ultima.slice(0, 77)}…` : ultima,
   };
 }
@@ -383,6 +436,35 @@ export function calcularPendencias(
 
   const out: Pendencia[] = [];
 
+  /**
+   * A OS ESPERANDO QUEM A RECEBEU (15/09/2026).
+   *
+   * Passar o bastão sem deixar rastro é o mesmo que mandar um e-mail: quem
+   * recebeu só descobre que tem trabalho se abrir a OS por acaso. Aqui a
+   * passagem vira pendência de quem responde pela etapa — e some sozinha quando
+   * ele passa adiante.
+   */
+  for (const os of oss) {
+    const ec = ecPorId.get(os.ecId);
+    if (!ec?.projetoId || encerrado(ec.projetoId)) continue;
+    if (OS_ENCERRADA.includes(os.status)) continue;
+    const fase = faseDaOs(os);
+    const recurso = RECURSO_DA_FASE[fase];
+    if (!recurso) continue;
+    out.push({
+      id: `os.fase:${os.id}:${fase}`,
+      tipo: "os.fase",
+      titulo: `${ESPERANDO_FASE[fase]} (OS ${os.numero})`,
+      recursoResponsavel: recurso,
+      recurso: "projetos",
+      projetoId: ec.projetoId,
+      aba: "os",
+      ecId: ec.id,
+      osId: os.id,
+      ancora: os.id,
+    });
+  }
+
   // OS em rascunho → o financeiro precisa emitir/disparar.
   for (const os of oss) {
     if (os.status !== "Rascunho") continue;
@@ -408,14 +490,13 @@ export function calcularPendencias(
     const ec = ecPorId.get(os.ecId);
     if (!ec?.projetoId || encerrado(ec.projetoId)) continue;
     (os.observacoes ?? []).forEach((observacao, indice) => {
-      const vez = pendenciaDeConversa(observacao, usuarios, respDe(ec.projetoId));
+      const vez = pendenciaDeConversa(observacao, usuarios);
       if (!vez) return;
       out.push({
         id: `os.observacao:${os.id}:${observacao.id || indice}`,
         tipo: "os.observacao",
         titulo: `Observação para ${vez.pessoas.join(", ")} na OS ${os.numero}: ${vez.resumo}`,
         pessoas: vez.pessoas,
-        responsavelProjeto: vez.responsavelProjeto,
         recurso: "projetos",
         projetoId: ec.projetoId,
         aba: "os",
@@ -427,10 +508,13 @@ export function calcularPendencias(
     });
   }
 
-  // Cronograma e credenciamento da OS (pedido da Marisa, 09/08/2026) — ambos cobrados
-  // do Produtor Responsável do projeto, e só depois que a OS foi disparada ao fornecedor.
+  // Cronograma e credenciamento da OS (pedido da Marisa, 09/08/2026) — ambos
+  // cobrados do Produtor Responsável do projeto, e só depois que a OS chegou ao
+  // fornecedor. O gatilho é o CARIMBO DE ENVIO, e não mais o status "Disparada",
+  // que deixou de existir em 15/09/2026: o que importa aqui é que o fornecedor
+  // já tem o documento na mão para responder.
   for (const os of oss) {
-    if (os.status !== "Disparada") continue;
+    if (!os.disparadaEm) continue;
     const ec = ecPorId.get(os.ecId);
     if (!ec?.projetoId || encerrado(ec.projetoId)) continue;
     const responsavel = responsavelPorProjeto.get(ec.projetoId);
@@ -485,14 +569,13 @@ export function calcularPendencias(
 
     // Conversa GERAL da EC — a pauta do evento, antes de virar assunto de item.
     (ec.observacoes ?? []).forEach((observacao, indice) => {
-      const vez = pendenciaDeConversa(observacao, usuarios, respDe(ec.projetoId));
+      const vez = pendenciaDeConversa(observacao, usuarios);
       if (!vez) return;
       out.push({
         id: `ec.observacaoGeral:${ec.id}:${observacao.id || indice}`,
         tipo: "ec.observacaoGeral",
         titulo: `Observação geral para ${vez.pessoas.join(", ")} na ${ec.numero}: ${vez.resumo}`,
         pessoas: vez.pessoas,
-        responsavelProjeto: vez.responsavelProjeto,
         recurso: "projetos",
         projetoId: ec.projetoId,
         aba: "ec",
@@ -510,14 +593,13 @@ export function calcularPendencias(
       if (linha.oculto) continue;
       (linha.observacoes ?? []).forEach((observacao, indice) => {
         // Resolvida, sem texto ou sem ninguém com a vez: não cobra ninguém.
-        const vez = pendenciaDeConversa(observacao, usuarios, respDe(ec.projetoId));
+        const vez = pendenciaDeConversa(observacao, usuarios);
         if (!vez) return;
         out.push({
           id: `ec.observacao:${ec.id}:${linha.id}:${observacao.id || indice}`,
           tipo: "ec.observacao",
           titulo: `Observação para ${vez.pessoas.join(", ")} em ${linha.item || linha.grupo}: ${vez.resumo}`,
           pessoas: vez.pessoas,
-          responsavelProjeto: vez.responsavelProjeto,
           recurso: "projetos",
           projetoId: ec.projetoId,
           aba: "ec",
@@ -577,14 +659,13 @@ export function calcularPendencias(
       // Tarefa criada à mão pode estar sem título até alguém escrever nela.
       const nomeItem = item.titulo.trim() || "(tarefa sem título)";
       for (const observacao of item.observacoes ?? []) {
-        const vez = pendenciaDeConversa(observacao, usuarios, responsavelProjeto);
+        const vez = pendenciaDeConversa(observacao, usuarios);
         if (!vez) continue;
         out.push({
           id: `checklist.observacao:${item.id}:${observacao.id}`,
           tipo: "checklist.observacao",
           titulo: `Observação para ${vez.pessoas.join(", ")} em ${nomeItem}: ${vez.resumo}`,
           pessoas: vez.pessoas,
-          responsavelProjeto: vez.responsavelProjeto,
           recurso: "projetos",
           projetoId: checklist.projetoId,
           aba: "checklist",
@@ -604,8 +685,10 @@ export function calcularPendencias(
         id: `checklist.prazo:${item.id}`,
         tipo: situacao === "atrasado" ? "checklist.atrasado" : "checklist.vencendo",
         titulo: situacao === "atrasado" ? `Tarefa atrasada: ${nomeItem}` : `Tarefa para hoje: ${nomeItem}`,
+        // `dono` já é o responsável da tarefa OU, na falta dele, o produtor:
+        // a tarefa não fica órfã, e o produtor não vira destinatário das que
+        // têm dono (15/09/2026).
         pessoas: [dono],
-        responsavelProjeto: responsavelProjeto || undefined,
         recurso: "projetos",
         projetoId: checklist.projetoId,
         aba: "checklist",
@@ -622,17 +705,23 @@ export function calcularPendencias(
   // dele. A pendência mora na ABA, então ela é contada no badge daquela subguia
   // e o navegador leva até o card no topo dela.
   for (const p of projetos) {
-    if (statusProjetoAutomatico(p, ecs) === "Concluido") continue;
+    // Antes havia aqui um "projeto Concluído não cobra". O selo saiu
+    // (15/09/2026), e quem encerra as pendências é o ARQUIVAMENTO — já aplicado
+    // a todas elas por `encerrado`, logo abaixo.
+    if (encerrado(p.id)) continue;
     for (const [aba, observacoes] of Object.entries(p.conversas ?? {})) {
+      // Só as abas que mostram a conversa cobram por ela (15/09/2026). EC e OS
+      // saíram da listagem, e uma pendência sem tela onde se resolver é
+      // exatamente o número que não se consegue achar.
+      if (!(ABAS_COM_CONVERSA as readonly string[]).includes(aba)) continue;
       for (const [indice, observacao] of (observacoes ?? []).entries()) {
-        const vez = pendenciaDeConversa(observacao, usuarios, p.info.produtoraResponsavel?.trim() || "");
+        const vez = pendenciaDeConversa(observacao, usuarios);
         if (!vez) continue;
         out.push({
           id: `projeto.conversa:${p.id}:${aba}:${observacao.id || indice}`,
           tipo: "projeto.conversa",
           titulo: `Observação para ${vez.pessoas.join(", ")} em ${ROTULO_ABA[aba] ?? aba}: ${vez.resumo}`,
           pessoas: vez.pessoas,
-          responsavelProjeto: vez.responsavelProjeto,
           recurso: "projetos",
           projetoId: p.id,
           aba: aba as AbaProjeto,
@@ -697,19 +786,41 @@ function normalizarPessoa(valor: string): string {
 /**
  * Filtra as pendências que são DESTA pessoa. Duas portas, e só elas:
  *
- *  1. ela é o Produtor(a) Responsável do projeto — e aí conta QUALQUER pendência
- *     nascida ali dentro, mesmo endereçada a outra pessoa;
- *  2. ela foi mencionada/escolhida na observação, ou é dona da tarefa.
+ *  1. ela foi mencionada/escolhida na observação, ou é dona da tarefa;
+ *  2. ela é o Produtor(a) Responsável — e aí conta só o que NÃO TEM outro dono:
+ *     OS em rascunho, cronograma vazio, credenciamento sem resposta, projeto
+ *     sem EC, OS/Contrato a emitir. Quem marca essas é quem as cria, pondo
+ *     `responsavelProjeto` na pendência (ver `respDe`).
  *
- * Nenhuma outra: nem o papel, nem quem escreveu o comentário. O número vermelho
- * é uma lista de tarefas, não um resumo do que anda acontecendo na casa — e todo
- * badge, popup e sininho do sistema sai desta mesma lista, então tudo o que é
- * contado pode ser encontrado na tela.
+ * A porta 2 já foi larga: até 15/09/2026 o produtor recebia TUDO o que nascia
+ * no projeto dele, conversa dos outros inclusive, e o número vermelho de quem
+ * responde por seis projetos parou de significar "tenho o que fazer". A Pólobh
+ * pediu o recorte de volta — "apenas para os seus responsáveis, sempre para os
+ * destinatários dos comentários" — e ele foi feito no lugar certo: as conversas
+ * deixaram de carregar o produtor (`pendenciaDeConversa`), e o que não tem
+ * destinatário nominal continua com ele, porque senão sumiria do sistema.
+ *
+ * Nenhuma outra porta: nem o papel, nem quem escreveu o comentário. O número
+ * vermelho é uma lista de tarefas, não um resumo do que anda acontecendo na
+ * casa — e todo badge, popup e sininho sai desta mesma lista, então tudo o que
+ * é contado pode ser encontrado na tela.
  */
-export function agregarPendencias(itens: Pendencia[], pessoa?: string): PendenciasAgregadas {
+export function agregarPendencias(
+  itens: Pendencia[],
+  pessoa?: string,
+  /**
+   * O que a pessoa pode fazer no sistema — só para as passagens de bastão da OS
+   * (ver `recursoResponsavel`). Sem isto, a pendência "aguardando o financeiro"
+   * não teria a quem ser mostrada: ela não tem destinatário nominal.
+   */
+  pode: (r: Recurso) => boolean = () => false
+): PendenciasAgregadas {
   const nome = pessoa ? normalizarPessoa(pessoa) : "";
   const souEu = (valor?: string) => !!nome && !!valor && normalizarPessoa(valor) === nome;
-  const meus = nome ? itens.filter((p) => souEu(p.responsavelProjeto) || p.pessoas?.some(souEu)) : [];
+  const minhaFuncao = (p: Pendencia) => !!p.recursoResponsavel && pode(p.recursoResponsavel);
+  const meus = nome
+    ? itens.filter((p) => souEu(p.responsavelProjeto) || p.pessoas?.some(souEu) || minhaFuncao(p))
+    : [];
   const inc = (obj: Record<string, number>, k: string) => (obj[k] = (obj[k] ?? 0) + 1);
   const ag: PendenciasAgregadas = {
     total: meus.length,

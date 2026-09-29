@@ -12,6 +12,8 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { repo } from "@/data";
+import { AVISO_REVISAO_PARCIAL, revisarDocumento } from "@/lib/correcaoOrtografica";
+import { aplicarNoChecklist, camposDoChecklist } from "@/domain/revisaoTexto";
 import {
   gerarChecklist,
   modeloDaModalidade,
@@ -132,19 +134,42 @@ export function useChecklistProjeto(
 
   /* -------------------------------- ações --------------------------------- */
 
-  /** Atualiza um item na tela e grava só ele. */
+  /**
+   * Atualiza um item na tela e grava só ele.
+   *
+   * REVISÃO DE TEXTO (25/09/2026). A tarefa do check-list é lida por toda a
+   * equipe e vira cobrança na tela de pendências, então entrou na revisão junto
+   * com a EC e a OS.
+   *
+   * Aqui o cuidado com o custo é maior do que nos outros dois, porque esta
+   * função é chamada a cada gesto — concluir a tarefa, mudar a data, trocar o
+   * responsável. Mandar o título para a IA em todas essas seria pagar a cada
+   * clique. Por isso a comparação é contra o item que está em memória: só um
+   * título ou uma descrição REESCRITOS saem daqui.
+   */
   const salvarItem = useCallback(
     async (item: ItemChecklist) => {
+      const anterior = checklist?.itens.find((i) => i.id === item.id);
       setChecklist((c) => (c ? { ...c, itens: c.itens.map((i) => (i.id === item.id ? item : i)) } : c));
       try {
-        await repo.checklists.salvarItem(item);
+        const { documento, revisaoCompleta } = await revisarDocumento(
+          camposDoChecklist([item]),
+          camposDoChecklist(anterior ? [anterior] : []),
+          (revisados) => aplicarNoChecklist([item], revisados)[0],
+        );
+        if (!revisaoCompleta) toast(AVISO_REVISAO_PARCIAL, "warning");
+        // A tela mostra o texto revisado sem esperar uma recarga.
+        if (documento !== item) {
+          setChecklist((c) => (c ? { ...c, itens: c.itens.map((i) => (i.id === item.id ? documento : i)) } : c));
+        }
+        await repo.checklists.salvarItem(documento);
         void recarregarPendencias(true);
       } catch (erro) {
         toast(`Não foi possível salvar a tarefa: ${(erro as Error).message}`, "danger");
         await carregar(); // volta ao que está no banco em vez de mentir na tela
       }
     },
-    [carregar, recarregarPendencias]
+    [carregar, checklist, recarregarPendencias]
   );
 
   const criarItem = useCallback(async (

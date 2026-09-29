@@ -872,8 +872,10 @@ const MODULOS: Modulo[] = [
         </Secao>
         <Secao titulo="Disparar ao fornecedor">
           <p>
-            <b>Disparar OS</b> muda o status para <Tag tom="success">Disparada</Tag> e manda a OS ao fornecedor por
-            e-mail, com a planilha anexada.
+            <b>Disparar OS</b> manda a OS ao fornecedor por e-mail, com a planilha anexada. O status
+            continua <Tag tom="success">Emitida</Tag>: desde 15/09/2026 o envio é um <b>carimbo</b> ao lado do
+            status, e não um status — uma OS entregue em mãos está tão pronta quanto uma que foi por e-mail.
+            A tela passa a mostrar a data do envio.
           </p>
           <Atencao>
             Enquanto o sistema está em <b>homologação</b>, o botão de disparar fica <b>desabilitado</b> e nenhum

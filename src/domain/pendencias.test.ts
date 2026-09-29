@@ -86,12 +86,14 @@ describe("quem vê a pendência de uma observação", () => {
     expect(de(itens, "Ana").total).toBe(0);
   });
 
-  it("fica TAMBÉM com o Produtor Responsável, mesmo quando a vez é de outra pessoa", () => {
-    // A conversa está com o Bruno, e continua sendo dele a ação. Mas Carla
-    // responde pelo projeto inteiro: sem ela no quadro, uma cobrança podia ficar
-    // semanas parada com outra pessoa sem que ninguém percebesse
-    // (regra revista em 08/09/2026).
-    expect(de(itens, "Carla").total).toBe(1);
+  it("NÃO fica com o Produtor Responsável quando a vez é de outra pessoa", () => {
+    // A conversa está com o Bruno, e é dele a ação. Carla responde pelo projeto,
+    // e por um tempo (08/09/2026) via toda conversa que nascia nele — o preço
+    // foi o número vermelho de quem toca seis projetos deixar de significar
+    // "tenho o que fazer". A Pólobh pediu o recorte de volta em 15/09/2026:
+    // conversa é de quem foi cobrado. O que não tem destinatário nominal
+    // continua com ela (ver os testes de OS em rascunho e projeto sem EC).
+    expect(de(itens, "Carla").total).toBe(0);
   });
 
   it("conta para o Produtor Responsável quando a vez é dele", () => {
@@ -142,12 +144,17 @@ describe("tarefa do check-list vira pendência", () => {
     expect(de(depois, "Carla").total).toBe(0);
   });
 
-  it("cobra o responsável da tarefa quando há um", () => {
+  it("cobra o responsável da tarefa, e só ele", () => {
     const itens = pendenciasCom([tarefa({ responsavel: "Bruno" })]);
     expect(de(itens, "Bruno").total).toBe(1);
-    // ...e o Produtor Responsável continua vendo, porque o projeto é dele.
-    expect(de(itens, "Carla").total).toBe(1);
+    // A tarefa TEM dono: o Produtor Responsável não a herda (15/09/2026).
+    expect(de(itens, "Carla").total).toBe(0);
     expect(de(itens, "Ana").total).toBe(0);
+  });
+
+  it("tarefa sem responsável cai para o Produtor Responsável — ninguém fica órfão", () => {
+    const itens = pendenciasCom([tarefa({ responsavel: "" })]);
+    expect(de(itens, "Carla").total).toBe(1);
   });
 
   it("tarefa concluída não cobra mais nada", () => {
@@ -320,7 +327,7 @@ describe("badge e pílula contam a mesma coisa", () => {
   it("cronograma vazio da OS é cobrado na etapa da OS, com endereço no card", () => {
     const itens = calcularPendencias(
       [projeto("Carla")], [ec([linha([])])],
-      [os({ status: "Disparada", cronograma: [] })],
+      [os({ status: "Emitida", disparadaEm: "2026-08-20T10:00:00Z", cronograma: [] })],
       USUARIOS, [], [], HOJE
     );
     const p = itens.find((x) => x.tipo === "os.cronograma")!;
@@ -332,7 +339,7 @@ describe("badge e pílula contam a mesma coisa", () => {
   it("credenciamento sem resposta é achável na linha do painel do projeto", () => {
     const itens = calcularPendencias(
       [projeto("Carla")], [ec([linha([])])],
-      [os({ status: "Disparada", cronograma: [{ etapa: "Evento" }], credenciamento: { prazoLimite: "2026-09-01" } } as Partial<Os>)],
+      [os({ status: "Emitida", disparadaEm: "2026-08-20T10:00:00Z", cronograma: [{ etapa: "Evento" }], credenciamento: { prazoLimite: "2026-09-01" } } as Partial<Os>)],
       USUARIOS, [], [], HOJE
     );
     const p = itens.find((x) => x.tipo === "os.credenciamento")!;
@@ -475,6 +482,61 @@ describe("de quem é a vez na conversa", () => {
     expect(destinatariosDaVez(observacao({ texto: "anotando aqui", responsavelNome: "" }), USUARIOS)).toEqual([]);
   });
 
+  /**
+   * O lembrete para si mesmo (24/09/2026).
+   *
+   * Escrever um recado escolhendo a si mesma no "Para" é como se anota "não
+   * esquecer disto". A regra de tirar o autor da vez — que existe para um
+   * comentário não acender bolinha para quem acabou de escrevê-lo — estava
+   * comendo esse caso: o recado era gravado, aparecia na conversa, e não virava
+   * pendência para ninguém.
+   */
+  it("quem se endereça a si mesmo fica com a própria pendência", () => {
+    const paraMim = observacao({ autorNome: "Ana", texto: "testeteste", responsavelNome: "Ana" });
+    expect(destinatariosDaVez(paraMim, USUARIOS)).toEqual(["Ana"]);
+  });
+
+  it("o mesmo vale pela menção, e junto com outra pessoa", () => {
+    const o = observacao({ autorNome: "Ana", texto: "@Ana não esquecer, e @Bruno confirma", responsavelNome: "" });
+    expect(destinatariosDaVez(o, USUARIOS).sort()).toEqual(["Ana", "Bruno"]);
+  });
+
+  // A volta automática da bola é DEDUÇÃO nossa, não intenção de ninguém — essa
+  // continua nunca apontando para quem acabou de falar.
+  it("mas a devolução automática continua sem voltar para o próprio autor", () => {
+    const o = observacao({
+      autorNome: "Ana",
+      texto: "@Bruno confere o orçamento",
+      responsavelNome: "",
+      respostas: [resposta("Bruno", "conferido"), resposta("Ana", "obrigada!")],
+    });
+    expect(destinatariosDaVez(o, USUARIOS)).toEqual(["Bruno"]);
+  });
+
+  // Endereçar-se vale na RAIZ, que é onde o campo "Para" existe. Depois que a
+  // conversa anda, quem manda é a última mensagem: o lembrete não fica colado
+  // na thread — ele volta a ser uma conversa normal, e aqui a bola volta para a
+  // Ana porque foi o Bruno quem falou por último.
+  it("virando conversa, o lembrete segue a regra normal da vez", () => {
+    const o = observacao({
+      autorNome: "Ana",
+      texto: "testeteste",
+      responsavelNome: "Ana",
+      respostas: [resposta("Bruno", "já cuidei disso")],
+    });
+    expect(destinatariosDaVez(o, USUARIOS)).toEqual(["Ana"]);
+  });
+
+  it("o lembrete para si mesmo aparece no quadro de quem o escreveu", () => {
+    const itens = calcularPendencias(
+      [projeto("Carla")],
+      [ec([linha([observacao({ autorNome: "Ana", texto: "testeteste", responsavelNome: "Ana" })])])],
+      [], USUARIOS, [], [], HOJE,
+    );
+    expect(de(itens, "Ana").total).toBe(1);
+    expect(de(itens, "Bruno").total).toBe(0);
+  });
+
   it("resolvida some do quadro de qualquer pessoa", () => {
     const itens = calcularPendencias(
       [projeto("Carla")], [ec([linha([observacao({ resolvida: true })])])], [], USUARIOS, [], [], HOJE
@@ -569,23 +631,32 @@ describe("conversa das abas do projeto", () => {
   it("cada aba responde por si — conversas separadas, pendências separadas", () => {
     const itens = daAba(
       {
-        ec: [observacao({ id: "a", responsavelNome: "Bruno" })],
+        cronograma: [observacao({ id: "a", responsavelNome: "Bruno" })],
         fornecedores: [observacao({ id: "b", responsavelNome: "Bruno" })],
       },
       "Bruno"
     );
-    expect(itens.map((p) => p.aba).sort()).toEqual(["ec", "fornecedores"]);
+    expect(itens.map((p) => p.aba).sort()).toEqual(["cronograma", "fornecedores"]);
     // Ids distintos: duas pendências, e não uma contada duas vezes.
     expect(new Set(itens.map((p) => p.id)).size).toBe(2);
   });
 
-  it("observação resolvida não cobra mais ninguém", () => {
-    expect(daAba({ os: [observacao({ resolvida: true, responsavelNome: "Bruno" })] }, "Bruno")).toEqual([]);
+  // A conversa da LISTAGEM de ECs e de OSs saiu das telas (15/09/2026), e o que
+  // ficou gravado lá não pode continuar cobrando: seria um número vermelho sem
+  // nenhuma tela onde resolvê-lo. Dentro da EC e da OS a conversa continua.
+  it("conversa gravada nas abas EC e OS não cobra mais ninguém", () => {
+    expect(daAba({ ec: [observacao({ responsavelNome: "Bruno" })] }, "Bruno")).toEqual([]);
+    expect(daAba({ os: [observacao({ responsavelNome: "Bruno" })] }, "Bruno")).toEqual([]);
   });
 
-  it("o Produtor Responsável enxerga o que se passa no projeto dele", () => {
-    const [p] = daAba({ ec: [observacao({ responsavelNome: "Bruno" })] }, "Bruno");
-    expect(p.responsavelProjeto).toBe("Ana");
+  it("observação resolvida não cobra mais ninguém", () => {
+    expect(daAba({ cronograma: [observacao({ resolvida: true, responsavelNome: "Bruno" })] }, "Bruno")).toEqual([]);
+  });
+
+  it("a conversa da aba não carrega o Produtor Responsável", () => {
+    const [p] = daAba({ cronograma: [observacao({ responsavelNome: "Bruno" })] }, "Bruno");
+    expect(p.responsavelProjeto).toBeUndefined();
+    expect(p.pessoas).toEqual(["Bruno"]);
   });
 
   it("projeto sem conversa nenhuma não gera nada", () => {

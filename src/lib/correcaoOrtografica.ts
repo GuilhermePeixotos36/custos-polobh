@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabaseClient";
+import { apenasMudados, retratoDeTextos, type CampoRevisavel } from "@/domain/revisaoTexto";
 import type { EcLinha } from "@/data/types";
 import type { RoteiroExtraProjeto, RoteirosProjeto } from "@/data/types";
 import { sanitizarHtmlEditor } from "@/lib/sanitizeHtml";
@@ -137,3 +138,105 @@ export async function corrigirLinhaEc(linha: EcLinha): Promise<{ linha: EcLinha;
   const resultado = await corrigirDescricoes([linha]);
   return { linha: resultado.linhas[0], revisaoCompleta: resultado.revisaoCompleta };
 }
+
+
+/* -------------------------------------------------------------------------- */
+/*                        o revisor de qualquer documento                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * O que já foi revisado nesta sessão do navegador.
+ *
+ * Duas coisas, ambas comuns, mandariam o mesmo texto duas vezes: salvar, mexer
+ * noutro campo e salvar de novo; e a mesma frase repetida em itens diferentes
+ * ("Conforme descritivo aprovado pelo cliente."), que numa EC corporativa
+ * aparece dezenas de vezes. A chave é o texto ORIGINAL, não o id — por isso a
+ * repetição entre itens também é aproveitada.
+ *
+ * Fica só na memória da aba: some ao recarregar, e é o que se quer. Um cache
+ * que sobrevive é um cache que um dia devolve o texto errado.
+ */
+const jaRevisado = new Map<string, string>();
+
+/** Teto do cache. Uma EC grande tem centenas de textos; sessão longa, milhares. */
+const TETO_CACHE = 2000;
+
+function lembrar(original: string, revisado: string): void {
+  if (jaRevisado.size >= TETO_CACHE) jaRevisado.clear();
+  jaRevisado.set(original, revisado);
+}
+
+export interface ResultadoRevisao {
+  /** Id do campo -> texto revisado. Só traz o que mudou de fato. */
+  textos: Map<string, string>;
+  /** Falso quando algum lote não voltou: a correção básica foi aplicada. */
+  revisaoCompleta: boolean;
+}
+
+/**
+ * Revisa uma lista de campos de qualquer documento — EC, OS ou check-list.
+ *
+ * Esta é a porta pública. As funções específicas acima continuam existindo
+ * porque a EC e o projeto já as usavam; o que muda é que passa a haver UM
+ * caminho, e não um por tela.
+ *
+ * O fallback determinístico (maiúsculas) é aplicado SEMPRE, inclusive quando a
+ * IA responde — ela pode devolver o texto sem a inicial maiúscula, e a regra da
+ * casa vale de qualquer forma. E se a IA estiver fora do ar, o salvamento não
+ * para: grava com o fallback e a tela avisa.
+ */
+export async function revisarCampos(campos: CampoRevisavel[]): Promise<ResultadoRevisao> {
+  if (!campos.length) return { textos: new Map(), revisaoCompleta: true };
+
+  const doCache = new Map<string, string>();
+  const aPedir: CampoRevisavel[] = [];
+  for (const campo of campos) {
+    const lembrado = jaRevisado.get(campo.texto);
+    if (lembrado !== undefined) doCache.set(campo.id, lembrado);
+    else aPedir.push(campo);
+  }
+
+  const localDe = (campo: CampoRevisavel) => (campo.html ? corrigirMaiusculasHtml : corrigirMaiusculas);
+  const porId = new Map(campos.map((c) => [c.id, c]));
+
+  const resultado = await corrigirTextos(
+    aPedir.map((c) => ({ id: c.id, descricao: c.texto })),
+    (texto, id) => localDe(porId.get(id) ?? { id, texto })(texto),
+  );
+
+  const textos = new Map(doCache);
+  for (const campo of aPedir) {
+    const revisado = resultado.textos.get(campo.id);
+    if (revisado === undefined) continue;
+    lembrar(campo.texto, revisado);
+    textos.set(campo.id, revisado);
+  }
+  return { textos, revisaoCompleta: resultado.revisaoCompleta };
+}
+
+/** Só para os testes: o cache é global e vazaria de um caso para o outro. */
+export const esquecerRevisoes = (): void => jaRevisado.clear();
+
+
+/**
+ * Revisa um documento inteiro, mandando para a IA SÓ o que mudou.
+ *
+ * É a porta que as telas usam. Recebe os campos como estão agora e como estavam
+ * na última gravação, e devolve o documento já com o texto revisado.
+ *
+ * A comparação com o estado gravado é o que mantém a conta proporcional às
+ * EDIÇÕES DE TEXTO, e não aos SALVAMENTOS: corrigir um valor numa OS de
+ * sessenta linhas não remanda sessenta descrições para a IA.
+ */
+export async function revisarDocumento<T>(
+  atual: CampoRevisavel[],
+  anterior: CampoRevisavel[],
+  aplicar: (revisados: Map<string, string>) => T,
+): Promise<{ documento: T; revisaoCompleta: boolean }> {
+  const { textos, revisaoCompleta } = await revisarCampos(apenasMudados(atual, retratoDeTextos(anterior)));
+  return { documento: aplicar(textos), revisaoCompleta };
+}
+
+/** A mensagem que a tela mostra quando o revisor não respondeu. */
+export const AVISO_REVISAO_PARCIAL =
+  "A correção básica foi aplicada; a revisão por IA está indisponível no momento.";

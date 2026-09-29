@@ -111,9 +111,12 @@ describe("credenciados para a portaria", () => {
       fila(),
       new Map([["a", [resposta({ equipe: [{ nome: "Ana", cpf: "111", funcao: "Técnica" }, { nome: "Bruno", cpf: "222", funcao: "Roadie" }] })]]])
     );
+    // Os campos que o credenciamento pode pedir por evento (RG, endereço,
+    // telefone, aniversário) vêm vazios quando não foram pedidos — a linha tem
+    // sempre o mesmo formato, e a planilha é que decide quais viram coluna.
     expect(equipe).toEqual([
-      { fornecedor: "Som & Luz", nome: "Ana", cpf: "111", funcao: "Técnica" },
-      { fornecedor: "Som & Luz", nome: "Bruno", cpf: "222", funcao: "Roadie" },
+      { fornecedor: "Som & Luz", nome: "Ana", cpf: "111", funcao: "Técnica", rg: "", endereco: "", telefone: "", aniversario: "" },
+      { fornecedor: "Som & Luz", nome: "Bruno", cpf: "222", funcao: "Roadie", rg: "", endereco: "", telefone: "", aniversario: "" },
     ]);
   });
 

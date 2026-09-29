@@ -8,8 +8,8 @@ const base: CredenciamentoExcelDados = {
   evento: "10/09/2026",
   local: "Teatro Sesiminas — Av. Afonso Pena, 1000",
   equipe: [
-    { fornecedor: "Som & Luz", nome: "Ana Ribeiro", cpf: "111.222.333-44", funcao: "Técnica de som" },
-    { fornecedor: "Som & Luz", nome: "Bruno Dias", cpf: "555.666.777-88", funcao: "Roadie" },
+    { fornecedor: "Som & Luz", nome: "Ana Ribeiro", cpf: "111.222.333-44", funcao: "Técnica de som", rg: "", endereco: "", telefone: "", aniversario: "" },
+    { fornecedor: "Som & Luz", nome: "Bruno Dias", cpf: "555.666.777-88", funcao: "Roadie", rg: "", endereco: "", telefone: "", aniversario: "" },
   ],
   veiculos: [{ fornecedor: "Som & Luz", modelo: "Sprinter branca", placa: "ABC1D23" }],
   semResposta: ["Buffet Sabor"],

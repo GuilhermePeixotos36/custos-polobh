@@ -15,11 +15,28 @@ import { Button } from "@/components/ui";
 import { IcBack, IcDownload } from "@/components/icons";
 import { EcDocumento } from "@/components/print/EcDocumento";
 import { OsDocumento } from "@/components/print/OsDocumento";
+import { RentabilidadeDocumento } from "@/components/print/RentabilidadeDocumento";
+import { gastoPorLinhaViaOSs } from "@/domain/calc";
 
 export function ImprimirEc() {
   const { id = "" } = useParams();
+  const [params] = useSearchParams();
   const usuario = useAuth((s) => s.usuario);
+  const pode = useAuth((s) => s.pode);
   const { data: ec, loading } = useAsync(() => repo.ecs.obter(id), [id]);
+  /**
+   * `?rentabilidade=1` imprime a RENTABILIDADE em vez da EC (15/09/2026).
+   *
+   * Mesma rota, porque é o mesmo documento visto de outro ângulo — e porque
+   * assim o PDF sai pelo caminho de sempre (a impressão do navegador sobre a
+   * visualização em tela). A permissão é a própria da aba: quem não vê a margem
+   * na tela não a imprime por URL.
+   */
+  const verRentabilidade = params.get("rentabilidade") === "1" && pode("rentabilidade");
+  const { data: oss } = useAsync(
+    () => (verRentabilidade ? repo.oss.listar() : Promise.resolve([])),
+    [verRentabilidade]
+  );
   useEffect(() => {
     if (!ec) return;
     auditar({ categoria: "Exportação", acao: "ec.imprimir", mensagem: `EC ${ec.numero} aberta para impressão/PDF`, alvoId: ec.id });
@@ -31,7 +48,9 @@ export function ImprimirEc() {
   if (!usuario) return <Navigate to="/login" replace />;
   return (
     <Moldura voltarPara={`/estimativas/${id}`} loading={loading} vazio={!ec}>
-      {ec && <EcDocumento ec={ec} />}
+      {ec && (verRentabilidade
+        ? <RentabilidadeDocumento ec={ec} gastoPorLinha={gastoPorLinhaViaOSs(ec.linhas, (oss ?? []).filter((o) => o.ecId === ec.id))} />
+        : <EcDocumento ec={ec} />)}
     </Moldura>
   );
 }

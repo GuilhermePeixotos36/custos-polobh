@@ -54,7 +54,6 @@ export const tomStatusEc: Record<string, Tom> = {
 export const tomStatusOs: Record<string, Tom> = {
   Rascunho: "neutral",
   Emitida: "info",
-  Disparada: "success",
   Cancelada: "danger",
   Arquivada: "neutral",
 };

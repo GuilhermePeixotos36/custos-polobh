@@ -34,9 +34,17 @@ import {
 import { itensDoTemplate } from "@/domain/ecTemplates";
 import { motivoBloqueioEc, situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
 import { projetoInfoVazio } from "@/domain/projeto";
-import { gerarEcExcel } from "@/lib/excel";
+import { gerarEcExcel, gerarRentabilidadeExcel } from "@/lib/excel";
+import { revisarEc, type RevisaoEc } from "@/domain/revisaoEc";
+import { RevisaoEcModal } from "@/components/RevisaoEcModal";
 import { consultarCnpj } from "@/lib/cnpj";
-import { corrigirMaiusculas, corrigirMaiusculasHtml } from "@/lib/correcaoOrtografica";
+import {
+  AVISO_REVISAO_PARCIAL, corrigirMaiusculas, corrigirMaiusculasHtml, revisarDocumento,
+} from "@/lib/correcaoOrtografica";
+import { aplicarNaEc, camposDaEc } from "@/domain/revisaoTexto";
+import { chaveDocumento } from "@/domain/travaEdicao";
+import { useTravaEdicao } from "@/hooks/useTravaEdicao";
+import { AvisoTravaEdicao } from "@/components/AvisoTravaEdicao";
 import { useAuth } from "@/store/auth";
 import { RentabilidadeItens } from "@/components/RentabilidadeItens";
 import { EcGrupos } from "@/components/EcGrupos";
@@ -133,8 +141,12 @@ export function EcForm() {
   const { data: existente } = useAsync(() => (id ? repo.ecs.obter(id) : Promise.resolve(undefined)), [id]);
 
   const verFinanceiro = useAuth((s) => s.pode("financeiro"));
+  /** A margem tem dono próprio desde 15/09/2026 — ver `PERMISSOES_ESPECIAIS`. */
+  const verRentabilidade = useAuth((s) => s.pode("rentabilidade"));
   const [ec, setEc] = useState<Ec | null>(null);
   const [baseline, setBaseline] = useState("");
+  /** O comparativo aberto pelo botão Revisar. `null` = fechado. */
+  const [revisao, setRevisao] = useState<RevisaoEc | null>(null);
   const [cnpjLoading, setCnpjLoading] = useState(false);
   const [cnpjMsg, setCnpjMsg] = useState("");
   const [salvando, setSalvando] = useState(false);
@@ -246,6 +258,13 @@ export function EcForm() {
     return <PageShell title="Carregando…">{null}</PageShell>;
   }
 
+  /**
+   * TRAVA DE PRESENÇA (25/09/2026). A tela da EC é o formulário inteiro: abrir
+   * já é editar. Por isso a posse é tomada na abertura, e quem chegar depois vê
+   * o aviso em vez do formulário.
+   */
+  const trava = useTravaEdicao(id ? chaveDocumento("ec", id) : "", editando);
+
   // Trava de edição: edita-se a EC que está NO AR (ver `domain/ec`). A arquivada
   // fica preservada — para mexer nela, traga-a de volta ou copie para uma versão
   // nova.
@@ -263,6 +282,36 @@ export function EcForm() {
           </p>
           <div className="mt-4 flex gap-2">
             <Button size="sm" onClick={() => navigate(`/estimativas/${ec.id}`)}>Ver EC / gerar nova versão</Button>
+          </div>
+        </Card>
+      </PageShell>
+    );
+  }
+
+  /*
+   * Outra pessoa está com esta EC. A tela inteira é o formulário, então não há
+   * "modo leitura" para onde cair: o que se mostra é o aviso, com o caminho de
+   * volta e — se a posse já caducou — o botão de assumir.
+   */
+  if (editando && trava.travado) {
+    return (
+      <PageShell title="EC em edição por outra pessoa">
+        <AvisoTravaEdicao trava={trava} />
+        <Card>
+          <CardTitle>Espere um instante</CardTitle>
+          <p className="mt-2 text-sm text-ink-2">
+            Duas pessoas editando a mesma EC ao mesmo tempo é como o trabalho de uma some: quem
+            salva por último grava por cima. Por isso o sistema segura a vez.
+          </p>
+          <p className="mt-2 text-sm text-ink-2">
+            Assim que a outra pessoa fechar a EC, ela libera sozinha. Se o computador dela tiver
+            sido desligado no meio, a vez também cai sozinha em pouco mais de um minuto.
+          </p>
+          <div className="mt-4 flex gap-2">
+            <Button size="sm" variant="secondary" onClick={() => navigate(`/estimativas/${ec.id}`)}>
+              Ver a EC (sem editar)
+            </Button>
+            <Button size="sm" onClick={trava.tentarDeNovo}>Tentar de novo</Button>
           </div>
         </Card>
       </PageShell>
@@ -349,22 +398,32 @@ export function EcForm() {
     }
   }
 
-  /** Revisar (sem IA): padroniza formatação dos textos — maiúsculas de início de frase e espaçamento. */
+  /**
+   * Revisar: padroniza a formatação dos textos (sem IA) e ABRE O COMPARATIVO do
+   * que muda ao salvar — pedido de 15/09/2026.
+   *
+   * A ordem importa: a padronização acontece primeiro, e o comparativo já mostra
+   * o texto corrigido. Ao contrário, a pessoa conferiria uma coisa e gravaria
+   * outra — as correções de caixa entrariam depois da conferência, sem passar
+   * por olho nenhum.
+   */
   function revisar() {
-    setEc((e) =>
-      e
-        ? {
-            ...e,
-            linhas: e.linhas.map((linha) => ({
-              ...linha,
-              item: corrigirMaiusculas(linha.item),
-              descricao: corrigirMaiusculas(linha.descricao),
-              descricaoCompleta: corrigirMaiusculasHtml(linha.descricaoCompleta),
-            })),
-          }
-        : e
-    );
-    toast("Textos padronizados (maiúsculas e espaçamento). Confira e salve.", "info");
+    const corrigida = ec
+      ? {
+          ...ec,
+          linhas: ec.linhas.map((linha) => ({
+            ...linha,
+            item: corrigirMaiusculas(linha.item),
+            descricao: corrigirMaiusculas(linha.descricao),
+            descricaoCompleta: corrigirMaiusculasHtml(linha.descricaoCompleta),
+          })),
+        }
+      : ec;
+    setEc(corrigida);
+    // O comparativo é contra a última versão GRAVADA, que é o que a baseline
+    // guarda desde o carregamento da tela.
+    const gravada = baseline ? (JSON.parse(baseline) as typeof ec) : null;
+    setRevisao(corrigida ? revisarEc(gravada, corrigida) : null);
   }
 
   /**
@@ -375,11 +434,30 @@ export function EcForm() {
   async function salvar(): Promise<boolean> {
     setSalvando(true);
     try {
+      /*
+       * REVISÃO DE TEXTO (25/09/2026). Até aqui a EC só passava pela correção
+       * de maiúsculas, e apenas quando alguém clicava em "Revisar" — o revisor
+       * por IA estava programado (`corrigirDescricoes`) e não era chamado por
+       * tela nenhuma. De fora parecia que a revisão acontecia.
+       *
+       * Agora ela é obrigatória no salvamento, como a Pólobh pediu, e vai só o
+       * que MUDOU desde a última gravação: é o que mantém o custo preso ao
+       * número de edições de texto, e não ao de salvamentos.
+       */
+      const gravada = baseline ? (JSON.parse(baseline) as Ec) : null;
+      const { documento: linhas, revisaoCompleta } = await revisarDocumento(
+        camposDaEc(ec!.linhas),
+        camposDaEc(gravada?.linhas ?? []),
+        (revisados) => aplicarNaEc(ec!.linhas, revisados),
+      );
+
       const salvo = await repo.ecs.salvar({
         ...ec!,
+        linhas,
         numero,
         responsavel: ec!.responsavel || ec!.projeto.produtoraResponsavel,
       });
+      if (!revisaoCompleta) toast(AVISO_REVISAO_PARCIAL, "warning");
       setEc(salvo);
       // Registra/atualiza os fornecedores citados e acumula seus contatos.
       await acumularFornecedores(ec!.linhas).catch(() => {});
@@ -398,7 +476,13 @@ export function EcForm() {
   const rentabilidadeCard = verFinanceiro ? (
     <Card padded={false}>
       <div className="p-5"><CardTitle>Rentabilidade por item</CardTitle></div>
-      <RentabilidadeItens linhas={ec.linhas} gastoPorLinha={gastoPorLinha} />
+      <RentabilidadeItens
+        ec={ec}
+        gastoPorLinha={gastoPorLinha}
+        podeEditar
+        onCustosInternos={(custosInternos) => setEc((e) => (e ? { ...e, custosInternos } : e))}
+        onExportar={() => void gerarRentabilidadeExcel(ec, gastoPorLinha)}
+      />
     </Card>
   ) : null;
 
@@ -436,22 +520,30 @@ export function EcForm() {
           <button onClick={() => navigate(voltarUrl)} className="inline-flex items-center gap-1.5 text-sm text-ink-2 hover:text-ink font-semibold shrink-0">
             <IcBack width={16} height={16} /> Voltar ao projeto
           </button>
+          {/* A BARRA DA EDIÇÃO é a mesma do modo leitura (15/09/2026), com
+              "Editar EC" trocado pelo par Revisar + Salvar.
+              Saíram três botões:
+              · "Cancelar" — a saída é "Sair da edição", e o guarda de alterações
+                não salvas já pergunta antes de deixar a página;
+              · "Arquivar EC" — não se arquiva o que se está editando;
+              · "Emitir OS" — emitir a partir de uma EC com alteração não gravada
+                produz OS com um valor que não está em lugar nenhum. */}
           <div className="flex gap-2 flex-wrap">
+            <Button
+              variant="text"
+              size="sm"
+              onClick={() => navigate(editando ? `/estimativas/${ec.id}` : voltarUrl)}
+            >
+              Sair da edição
+            </Button>
             <Button variant="secondary" size="sm" icon={<IcDownload width={16} height={16} />} onClick={() => gerarEcExcel({ ...ec, numero }, { modelo: "financeiro" })}>
               Excel Financeiro
             </Button>
             <Button variant="secondary" size="sm" icon={<IcDownload width={16} height={16} />} onClick={() => gerarEcExcel({ ...ec, numero }, { modelo: "completa" })}>
               Excel Completa
             </Button>
-            <Button variant="secondary" size="sm" onClick={revisar} disabled={salvando} title="Padroniza a formatação dos textos (sem IA)">
+            <Button variant="secondary" size="sm" onClick={revisar} disabled={salvando} title="Padroniza a formatação dos textos e mostra o que muda ao salvar">
               Revisar
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => navigate(editando ? `/estimativas/${ec.id}` : voltarUrl)}
-            >
-              Cancelar
             </Button>
             <Button size="sm" onClick={() => void salvar()} disabled={salvando || mostrarSalvo}>
               {salvando ? "Salvando…" : mostrarSalvo ? "Salvo" : "Salvar"}
@@ -465,7 +557,7 @@ export function EcForm() {
       subabas={
         <>
           {ec.projetoId && <BarraProjeto projetoId={ec.projetoId} atual="ec" />}
-          <EcSubGuias atual={subaba} onChange={setSubaba} temResumo={verFinanceiro} temRentabilidade={verFinanceiro} />
+          <EcSubGuias atual={subaba} onChange={setSubaba} temResumo={verFinanceiro} temRentabilidade={verRentabilidade} />
         </>
       }
     >
@@ -473,7 +565,7 @@ export function EcForm() {
       {subaba === "ec" && <NavegadorPendencias pendencias={pendenciasDaEc} />}
 
       {verFinanceiro && subaba === "resumo" && <div className="space-y-4">{resumoCard}</div>}
-      {verFinanceiro && subaba === "rentabilidade" && <div className="space-y-4">{rentabilidadeCard}</div>}
+      {verRentabilidade && subaba === "rentabilidade" && <div className="space-y-4">{rentabilidadeCard}</div>}
 
       {subaba === "ec" && (
       <div className="space-y-4">
@@ -554,6 +646,19 @@ export function EcForm() {
         {/* Totais (Resumo dos Custos) permanece como último bloco da guia geral da EC — só financeiro */}
         {verFinanceiro && resumoCard}
       </div>
+      )}
+
+      {/* O comparativo do Revisar: confere e salva daqui mesmo. */}
+      {revisao && (
+        <RevisaoEcModal
+          revisao={revisao}
+          salvando={salvando}
+          onVoltar={() => setRevisao(null)}
+          onSalvar={async () => {
+            const ok = await salvar();
+            if (ok) setRevisao(null);
+          }}
+        />
       )}
     </PageShell>
   );

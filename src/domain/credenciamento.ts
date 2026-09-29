@@ -80,6 +80,11 @@ export interface PessoaCredenciada {
   nome: string;
   cpf: string;
   funcao: string;
+  /** Campos que o credenciamento pode pedir por evento (15/09/2026). */
+  rg: string;
+  endereco: string;
+  telefone: string;
+  aniversario: string;
 }
 
 export interface VeiculoCredenciado {
@@ -115,7 +120,16 @@ export function credenciadosDaFila(
     for (const r of respostas) {
       for (const p of r.equipe) {
         if (!p.nome?.trim()) continue;
-        equipe.push({ fornecedor: f.fornecedor, nome: p.nome, cpf: p.cpf ?? "", funcao: p.funcao ?? "" });
+        equipe.push({
+          fornecedor: f.fornecedor,
+          nome: p.nome,
+          cpf: p.cpf ?? "",
+          funcao: p.funcao ?? "",
+          rg: p.rg ?? "",
+          endereco: p.endereco ?? "",
+          telefone: p.telefone ?? "",
+          aniversario: p.aniversario ?? "",
+        });
       }
       for (const v of r.veiculos) {
         if (!v.modelo?.trim() && !v.placa?.trim()) continue;

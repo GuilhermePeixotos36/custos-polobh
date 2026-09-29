@@ -26,6 +26,7 @@ import {
 } from "@/components/ui";
 import { IcSend, IcLink, IcCheck, IcDownload } from "@/components/icons";
 import { repo } from "@/data";
+import { CAMPOS_CREDENCIAMENTO, camposDoCredenciamento, type CampoCredenciamento } from "@/domain/credenciamentoCampos";
 import { useAsync } from "@/hooks/useAsync";
 import { enviarCredenciamento, resumoDoEnvio } from "@/lib/email";
 import { gerarCredenciamentoExcel } from "@/lib/excel";
@@ -299,6 +300,26 @@ export function CredenciamentoProjeto({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
         </Table>
       </Card>
 
+      {/* O QUE PEDIR neste credenciamento (15/09/2026) — a escolha vale para o
+          projeto inteiro, como o prazo: o formulário é o mesmo para todos os
+          fornecedores do evento. */}
+      <CamposDoFormulario
+        campos={camposDoCredenciamento(fila[0]?.os.credenciamento?.campos)}
+        quantas={fila.length}
+        onAplicar={async (campos) => {
+          try {
+            await Promise.all(
+              fila.map((f) =>
+                repo.oss.salvar({ ...f.os, credenciamento: { ...f.os.credenciamento, campos } })
+              )
+            );
+            toast("Formulário atualizado para todas as OSs.", "success");
+          } catch (e) {
+            toast(`Não foi possível aplicar: ${(e as Error).message}`, "danger");
+          }
+        }}
+      />
+
       <PrazoEmLote
         prazo={prazoLote}
         onPrazo={setPrazoLote}
@@ -325,6 +346,59 @@ export function CredenciamentoProjeto({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
 
       <RespostasRecebidas fila={fila} respostas={respostas} />
     </div>
+  );
+}
+
+/**
+ * Quais dados o fornecedor preenche — escolhidos a cada credenciamento.
+ *
+ * O formulário público era fixo (nome, CPF, função, veículo e placa) e a lista
+ * da Pólobh é maior: RG, endereço, telefone, aniversário. Mas pedir tudo sempre
+ * é atrito para quem preenche pelo celular e dado sensível guardado à toa — daí
+ * a escolha ser por evento, e não uma configuração da casa.
+ *
+ * O NOME não entra na lista: é sempre pedido, porque sem ele a linha da planilha
+ * não identifica ninguém.
+ */
+function CamposDoFormulario({
+  campos,
+  quantas,
+  onAplicar,
+}: {
+  campos: CampoCredenciamento[];
+  quantas: number;
+  onAplicar: (campos: CampoCredenciamento[]) => Promise<void>;
+}) {
+  const [escolhidos, setEscolhidos] = useState<CampoCredenciamento[]>(campos);
+  const alternar = (campo: CampoCredenciamento) =>
+    setEscolhidos((atual) => (atual.includes(campo) ? atual.filter((c) => c !== campo) : [...atual, campo]));
+  const mudou = escolhidos.join("|") !== campos.join("|");
+
+  return (
+    <Card>
+      <CardTitle hint="O que o fornecedor preenche neste evento — o nome é sempre pedido">
+        Formulário de credenciamento
+      </CardTitle>
+      <div className="flex flex-wrap gap-x-4 gap-y-2">
+        {CAMPOS_CREDENCIAMENTO.map(({ campo, rotulo, dica }) => (
+          <label key={campo} className="flex items-center gap-2 text-[13px] text-ink">
+            <input
+              type="checkbox"
+              checked={escolhidos.includes(campo)}
+              onChange={() => alternar(campo)}
+              className="h-4 w-4 accent-[color:var(--cor-primaria,#F2820D)]"
+            />
+            {rotulo}
+            {dica && <span className="text-[11.5px] text-ink-3">({dica})</span>}
+          </label>
+        ))}
+      </div>
+      <div className="mt-3">
+        <Button variant="secondary" size="sm" disabled={!mudou} onClick={() => void onAplicar(escolhidos)}>
+          Aplicar às {quantas} OS(s)
+        </Button>
+      </div>
+    </Card>
   );
 }
 

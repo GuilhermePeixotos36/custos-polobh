@@ -1,11 +1,13 @@
 /** OS como documento A4 — visualização em tela + PDF. Espelha o modelo em Excel. */
-import { itensVisiveis, temContrato, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA } from "@/domain/os";
+import { itensParaDocumento, temContrato, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA } from "@/domain/os";
 import type { Cliente, Ec, Os } from "@/data/types";
 import { brl, dataBR } from "@/lib/format";
 import { textoObjetoContrato, FORMA_PAGAMENTO_PADRAO, OBS_CONTRATO_PADRAO } from "@/domain/calc";
-import { COLUNAS_CONTRATACAO, resumoContratacao, sincronizarContratacao } from "@/domain/contratacaoOs";
+import { bvDaContratacao, COLUNAS_CONTRATACAO, resumoContratacao, sincronizarContratacao } from "@/domain/contratacaoOs";
+import { calcularAcerto } from "@/domain/acertoFinanceiro";
 import { datasDoEvento, horariosDoEvento, resumoCronogramaProjeto } from "@/domain/projeto";
-import { empresaPadrao } from "@/store/empresas";
+import { useEmpresas } from "@/store/empresas";
+import { dadosDoTomador, RETENCOES_PADRAO } from "@/domain/tomadorOs";
 
 /** Faixa de seção — cinza das barras do modelo original Pólobh (COR.sectionGray). */
 function Secao({ titulo }: { titulo: string }) {
@@ -28,27 +30,24 @@ function SubSecao({ titulo }: { titulo: string }) {
 function LV({ label, valor, full }: { label: string; valor?: string | number | null; full?: boolean }) {
   return (
     <div className={`grid grid-cols-[170px_1fr] border-b border-border-soft text-[12px] ${full ? "col-span-2" : ""}`}>
-      <div className="bg-[#F2F2F2] font-bold px-3 py-1.5">{label}</div>
-      <div className="px-3 py-1.5 whitespace-pre-line">{valor ?? ""}</div>
+      <div className="bg-[#F2F2F2] font-bold px-3 py-1">{label}</div>
+      <div className="px-3 py-1 whitespace-pre-line">{valor ?? ""}</div>
     </div>
   );
 }
 
-/** Dados fiscais do tomador/contratante — cliente (do snapshot da OS) ou empresa do grupo Pólobh. */
-function fiscaisDe(quem: "Polobh" | "Cliente" | "", cliente: Cliente) {
-  const emp = empresaPadrao();
-  if (quem === "Cliente") {
-    const c = cliente;
-    return { rotulo: "Cliente", razao: c.razaoSocial, end: c.endereco, doc: c.cnpjCpf, ie: c.inscricaoEstadual, im: c.inscricaoMunicipal };
-  }
-  if (quem === "Polobh") {
-    return {
-      rotulo: emp?.nome ? `Pólobh — ${emp.nome}` : "Pólobh",
-      razao: emp?.razaoSocial ?? "", end: emp?.endereco ?? "", doc: emp?.cnpj ?? "",
-      ie: emp?.inscricaoEstadual ?? "", im: emp?.inscricaoMunicipal ?? "",
-    };
-  }
-  return null;
+/**
+ * Dados fiscais do tomador/contratante — do domínio, não daqui.
+ *
+ * Esta função já teve a regra inteira dentro dela, e era uma de três cópias
+ * (tela, documento, contrato). Com o tomador ganhando MF e "Outro" em
+ * 15/09/2026, a regra foi para `domain/tomadorOs` e aqui ficou só o formato que
+ * este documento usa.
+ */
+function fiscaisDe(quem: string, cliente: Cliente, avulso?: Os["financeiro"]["tomadorAvulso"]) {
+  const d = dadosDoTomador(quem, { cliente, empresas: useEmpresas.getState().empresas, avulso });
+  if (!d) return null;
+  return { rotulo: d.rotulo, razao: d.razaoSocial, end: d.endereco, doc: d.cnpjCpf, ie: d.inscricaoEstadual, im: d.inscricaoMunicipal };
 }
 
 export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; restrito?: boolean }) {
@@ -61,15 +60,19 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
   const b = f.dadosBancarios;
   const consolidadas = ec.linhas.filter((l) => os.ecLinhaIds.includes(l.id));
   /** Só o que se aplica a esta OS — o resto não vira linha para o fornecedor ler. */
-  const logistica = itensVisiveis(os.logistica, CAMPOS_LOGISTICA);
+  // `itensParaDocumento` traz os itens fixos E os criados nesta OS, na ordem da
+  // tela (15/09/2026): o item que alguém acrescentou é dado do fornecedor como
+  // qualquer outro, e ficar de fora do papel seria pior do que não existir.
+  const logistica = itensParaDocumento(os.logistica, CAMPOS_LOGISTICA);
   // O que a OS DEFINIU item a item (ver `domain/contratacaoOs`).
   // OS gravada antes desta revisão não tem contratação nenhuma: `sincronizar`
   // parte do que a EC levantou, para o documento nunca sair com a tabela vazia.
   const resumo = resumoContratacao(sincronizarContratacao(os.itens ?? [], consolidadas), consolidadas);
   /** Só as colunas com algum valor vão ao fornecedor — ver `resumoContratacao`. */
   const colunas = COLUNAS_CONTRATACAO.filter((c) => resumo.colunas[c.chave]);
-  const infraestrutura = itensVisiveis(os.infraestrutura, CAMPOS_INFRAESTRUTURA);
-  const tom = fiscaisDe(os.financeiro.tomador, cli);
+  const infraestrutura = itensParaDocumento(os.infraestrutura, CAMPOS_INFRAESTRUTURA);
+  const tom = fiscaisDe(os.financeiro.tomador, cli, os.financeiro.tomadorAvulso);
+  const acerto = calcularAcerto(os.financeiro, os.orcamento, bvDaContratacao(os.itens ?? []).valor);
   const contr = fiscaisDe(os.contrato.contratante, cli);
 
   return (
@@ -159,8 +162,7 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
       <Secao titulo="Detalhamento da Contratação" />
       <LV label="Modalidade" valor={os.modalidade} />
       <LV label="Descritivo" valor={os.descritivo} />
-      <LV label="Entrega" valor={os.entrega} />
-      {/* Item marcado como "não se aplica" nem aparece — ver `itensVisiveis`.
+      {/* Item marcado como "não se aplica" nem aparece — ver `itensParaDocumento`.
           Bloco inteiro fora do documento quando nada se aplica. */}
       {logistica.length > 0 && (
         <LV
@@ -174,10 +176,28 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
           valor={infraestrutura.map(({ rotulo, valor }) => `${rotulo}: ${valor || "____"}`).join("\n")}
         />
       )}
+      {/* GRUPOS criados nesta OS, depois dos dois fixos (15/09/2026). */}
+      {(os.gruposExtras ?? [])
+        .filter((g) => !g.naoSeAplica && g.itens.some((i) => !i.naoSeAplica))
+        .map((g) => (
+          <LV
+            key={g.id}
+            label={g.nome || "Outros"}
+            valor={g.itens
+              .filter((i) => !i.naoSeAplica)
+              .map(({ rotulo, valor }) => `${rotulo}: ${valor || "____"}`)
+              .join("\n")}
+          />
+        ))}
       {/* Só o campo LIVRE. A thread de `os.observacoes` é conversa interna da
-          equipe e saía impressa aqui, no documento que o fornecedor recebe. */}
-      <LV label="Observações Gerais" valor={os.observacoesGerais} />
+          equipe e saía impressa aqui, no documento que o fornecedor recebe.
+          Marcado "não se aplica", o bloco não sai — como qualquer outro. */}
+      {!os.observacoesGeraisNaoSeAplica && <LV label="Observações Gerais" valor={os.observacoesGerais} />}
 
+      {/* Cronograma marcado como "não se aplica" não vira uma tabela vazia para
+          o fornecedor preencher: o bloco inteiro fica fora (15/09/2026). */}
+      {!os.cronogramaNaoSeAplica && (
+      <>
       <Secao titulo="Cronograma Específico do Fornecedor" />
       <table className="w-full text-[11px] border-collapse">
         <thead>
@@ -205,6 +225,8 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
           )}
         </tbody>
       </table>
+      </>
+      )}
 
       {/* O CREDENCIAMENTO saiu da OS (29/08/2026): virou subaba do Projeto, e o
           link chega ao fornecedor por e-mail. */}
@@ -277,8 +299,7 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
 
       {restrito && (
         <>
-          <Secao titulo="Informações a serem preenchidas pelo Financeiro da Pólobh" />
-          <SubSecao titulo="Dados Emissão — Recibo Simples | Fatura | Nota Fiscal | Fatura e Nota Fiscal" />
+          <Secao titulo="Dados Emissão Faturamento" />
           <LV label="Tomador dos Serviços" valor={tom?.rotulo ?? ""} />
           <LV label="Razão Social" valor={tom?.razao ?? ""} />
           <LV label="Endereço" valor={tom?.end ?? ""} />
@@ -290,12 +311,26 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
           {/* A lei já traz o número do projeto na mesma linha ("… — PRONAC 26 1234"). */}
           <LV label="Lei de Incentivo à Cultura" valor={os.financeiro.leiIncentivo || p.incentivosFiscais} />
           <LV label="CNAE" valor={os.financeiro.cnae} />
-          <LV label="Código de Serviço" valor={os.financeiro.codigoServico} />
+          {/* Os VALORES sobem e os dois códigos descem (15/09/2026): é pelos
+              valores que se confere a nota. */}
           <LV label="Valor unitário" valor={brl(os.financeiro.valorUnitario)} />
           <LV label="Valor total" valor={brl(os.financeiro.valorTotal)} />
           <LV label="Desconto Especial Negociado" valor={brl(os.financeiro.descontoNegociado)} />
           {/* O bloco de emissão termina no valor a pagar — BV e acerto vão no fim. */}
           <LV label="Valor total a pagar" valor={brl(os.financeiro.valorAPagar)} />
+          <LV label="Forma de Pagamento" valor={os.financeiro.formaPagamento ?? ""} />
+          <LV label="Código de Serviço" valor={os.financeiro.codigoServico} />
+          <LV label="Ordem de Compra" valor={os.financeiro.ordemCompra ?? ""} />
+
+          {/* RETENÇÕES FISCAIS em destaque: é o aviso que evita o retrabalho
+              mais caro da OS (ver `RETENCOES_PADRAO`). Em box âmbar, e não como
+              mais uma linha cinza — a linha cinza é justamente o que ninguém lê. */}
+          <div className="mt-2 border-2 border-[#FFC000] bg-[#FFF8E6] px-3 py-2 text-[11px] doc-avoid-break">
+            <div className="font-bold uppercase tracking-wide text-[10.5px] mb-0.5">Retenções Fiscais</div>
+            <div className="whitespace-pre-line">
+              {os.financeiro.retencoesNaoSeAplica ? "Não se aplica" : os.financeiro.retencoes || RETENCOES_PADRAO}
+            </div>
+          </div>
 
           {/* Contrato só sai quando a EC pediu contrato para algum item desta
               OS — ver `temContrato`. */}
@@ -325,19 +360,28 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
           </>
           )}
 
+          {/* ACERTOS FINANCEIROS (15/09/2026): saíram os dois campos de BV —
+              ele é combinado item a item, no Detalhamento — e entrou a conta de
+              quanto o fornecedor devolve à Pólobh. "Não se aplica" é o padrão. */}
           <Secao titulo="Acertos Financeiros" />
-          <LV label="BV Pólobh — Percentual" valor={`${os.financeiro.bvPercentual || 0}%`} />
-          {/* Recalculado, como no Excel — não depende do valor gravado. */}
-          <LV
-            label="BV Pólobh — Valor"
-            valor={brl(((os.financeiro.valorTotal || 0) * (os.financeiro.bvPercentual || 0)) / 100)}
-          />
+          {os.financeiro.acertoNaoSeAplica ?? true ? (
+            <LV label="Acerto Financeiro" valor="Não se aplica" />
+          ) : (
+            <>
+              <LV label="Valor original dos serviços" valor={brl(acerto.valorOriginal)} />
+              <LV label="BV sobre o valor original" valor={brl(acerto.bvSobreOriginal)} />
+              <LV label="Valor da NF" valor={brl(acerto.valorNf)} />
+              <LV label="Valor do acréscimo" valor={brl(acerto.acrescimo)} />
+              <LV label={`Encargos sobre o acréscimo (${acerto.encargosPercentual}%)`} valor={brl(acerto.encargosSobreAcrescimo)} />
+              <LV label="Valor devolução Pólobh" valor={brl(acerto.devolucaoPolobh)} />
+            </>
+          )}
           <LV label="Observações" valor={os.financeiro.acertoFinanceiro} />
         </>
       )}
 
       <div className="grid grid-cols-2 gap-8 mt-10 text-[11px] doc-avoid-break">
-        <div><div className="border-t border-ink pt-1">Pólobh Eventos</div></div>
+        <div><div className="border-t border-ink pt-1">Pólobh Promoções</div></div>
         <div><div className="border-t border-ink pt-1">{f.razaoSocial || "Fornecedor"} — Data: ____ ____ ______</div></div>
       </div>
     </div>

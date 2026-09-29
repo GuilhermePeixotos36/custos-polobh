@@ -1,10 +1,9 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { PageShell } from "@/components/layout/AppLayout";
 import { BarraProjeto } from "@/components/layout/BarraSecao";
 import {
   Button,
-  Field,
   Input,
   TelefoneInput,
   Textarea,
@@ -18,7 +17,7 @@ import {
   AvisoHomologacaoEmail,
   MOTIVO_DISPARO_DESLIGADO,
 } from "@/components/ui";
-import { IcDownload, IcSearch, IcSend, IcSpark } from "@/components/icons";
+import { IcCheck, IcDoc, IcEye, IcPencil, IcSearch, IcSend, IcSpark } from "@/components/icons";
 import { CardConversa } from "@/components/CardConversa";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
@@ -50,12 +49,17 @@ import { confirmar } from "@/store/confirm";
 import { usePendencias, useMinhasPendencias } from "@/store/pendencias";
 import { useSugestoes } from "@/hooks/useSugestoes";
 import { urlCredenciamento } from "@/lib/links";
+import { calcularAcerto } from "@/domain/acertoFinanceiro";
+import { clausulasPadrao, modeloDoContrato, type ChaveClausula, type ModeloContrato } from "@/domain/contratoModelo";
+import { baixarContrato } from "@/lib/docx";
+import { dadosDoTomador, opcoesDeTomador, RETENCOES_PADRAO, TOMADOR_OUTRO } from "@/domain/tomadorOs";
+import { editaFinanceiro, editaProducao, ESPERANDO_FASE, faseAnterior, faseDaOs, osEmitida, ROTULO_FASE, type FaseOs } from "@/domain/faseOs";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
 import { ListaArrastavel, ItemArrastavel } from "@/components/ListaArrastavel";
 import { MoverSetas, moverNaLista } from "@/components/MoverSetas";
 import { InscricaoMunicipalInput } from "@/components/InscricaoMunicipalInput";
 import { TextosJaUsados } from "@/components/TextosJaUsados";
-import { idAncoraPendencia } from "@/lib/destaque";
+import { destacarElemento, idAncoraPendencia, idBlocoGrupoExtra } from "@/lib/destaque";
 import { Chevron, idSecao, useSecaoRecolhivel } from "@/components/layout/Recolher";
 import { ancoraCronogramaOs, pendenciasDaTela } from "@/domain/pendencias";
 import {
@@ -68,22 +72,29 @@ import {
   sincronizarContratacao,
 } from "@/domain/contratacaoOs";
 import {
-  CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, alternarNaoSeAplica, exigeNovaVersaoPorFornecedor,
-  naoSeAplica, temContrato,
+  CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, exigeNovaVersaoPorFornecedor,
+  itensDoBloco, temContrato,
 } from "@/domain/os";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import type { ResumoContratacao } from "@/domain/contratacaoOs";
 import type {
+  GrupoExtraOs,
+  TomadorAvulso,
+  ItemExtraOs,
   ItemContratacaoOs,
   DocumentoFiscal,
   Ec,
   EcLinha,
-  EmpresaGrupo,
   Fornecedor,
   Modalidade,
   Os,
   ProjetoInfo,
 } from "@/data/types";
+import { AVISO_REVISAO_PARCIAL, revisarDocumento } from "@/lib/correcaoOrtografica";
+import { aplicarNaOs, camposDaOs } from "@/domain/revisaoTexto";
+import { chaveDocumento } from "@/domain/travaEdicao";
+import { useTravaEdicao } from "@/hooks/useTravaEdicao";
+import { AvisoTravaEdicao } from "@/components/AvisoTravaEdicao";
 
 const MODALIDADES: Modalidade[] = ["Produto", "Serviço", "Locação", "Produto + Serviço", "Locação + Serviço"];
 const DOCS: DocumentoFiscal[] = ["Recibo Simples", "Fatura", "Nota Fiscal", "Fatura e Nota Fiscal"];
@@ -173,8 +184,12 @@ function aplicarAutoPreenchimento(os: Os, ec: Ec): Os {
   const docEc = primeiroPreenchido(linhas.map((l) => l.faturaNf));
   const docFiscalEc = (DOCS as string[]).includes(docEc) ? (docEc as DocumentoFiscal) : "";
 
-  // Código de serviço: idem, o que estiver nos itens consolidados.
+  // Código de serviço e ordem de compra: o que já estiver nos itens
+  // consolidados. Desde 15/09/2026 os dois são decididos AQUI e devolvidos à
+  // EC — este auto-preenchimento é o que faz a OS reaberta (e a EC que já
+  // recebeu a devolução) continuarem dizendo a mesma coisa.
   const codigoServico = primeiroPreenchido(linhas.map((l) => l.codigoServico));
+  const ordemCompra = primeiroPreenchido(linhas.map((l) => l.pedidoCompra));
   // CNAE: só quando o cadastro do fornecedor tem um único — vários exigem escolha.
   const cnaeUnico = os.fornecedor.cnaes?.length === 1 ? os.fornecedor.cnaes[0] : "";
 
@@ -232,6 +247,7 @@ function aplicarAutoPreenchimento(os: Os, ec: Ec): Os {
     },
     financeiro: {
       ...os.financeiro,
+      ordemCompra: os.financeiro.ordemCompra || ordemCompra,
       descritivoNf,
       // Tomador: quem contrata o fornecedor é a Pólobh — é ela que emite a OS e
       // recebe a nota. Deixar em branco só obrigava a escolher a única resposta
@@ -261,8 +277,11 @@ function aplicarAutoPreenchimento(os: Os, ec: Ec): Os {
     contrato: temContrato(os, linhas)
       ? {
           ...os.contrato,
-          // Quem contrata o fornecedor é a Pólobh, mesma resposta do tomador.
-          contratante: os.contrato.contratante || "Polobh",
+          // O CONTRATANTE fica em branco de propósito: em branco ele SEGUE o
+          // tomador do faturamento, que é o que os dois modelos de contrato
+          // mandam fazer ("CONTRATANTE – Razão Social do Tomador"). Antes ele
+          // nascia "Polobh", e a OS faturada pela MF ou pelo cliente saía com
+          // um contratante que ninguém tinha escolhido — e que estava errado.
           descritivoServicos: os.contrato.descritivoServicos || descritivoNf,
           formaPagamento: os.contrato.formaPagamento || FORMA_PAGAMENTO_PADRAO,
           observacoesGerais: os.contrato.observacoesGerais || OBS_CONTRATO_PADRAO,
@@ -281,6 +300,42 @@ export function OsForm() {
   const pode = useAuth((s) => s.pode);
   const verFinanceiro = pode("financeiro");
   const podeEditar = pode("oss.editar");
+  const podeEmitir = pode("oss.emitir");
+  /**
+   * MODO LEITURA (15/09/2026). A OS abria sempre em edição, e qualquer pessoa
+   * que a abrisse para conferir estava, tecnicamente, editando um documento que
+   * já foi para o fornecedor. Agora ela abre travada e o botão "Editar OS"
+   * libera — como nos Dados Gerais do projeto e na EC.
+   *
+   * OS nova nasce em edição: não há o que conferir num documento em branco.
+   */
+  const [editando, setEditando] = useState(!id);
+
+  /**
+   * TRAVA DE PRESENÇA (25/09/2026). Quem entra em edição toma o documento; quem
+   * chegar depois fica em leitura até o primeiro sair, ou até a posse caducar
+   * por falta de sinal.
+   *
+   * É a leitura literal do pedido da Pólobh — "não pode PERMITIR que seja
+   * editado, substituído, arquivado, cancelado ou emitido se outro usuário
+   * estiver com ele aberto em modo de edição". A trava otimista do salvamento
+   * continua embaixo desta e faz outro trabalho: ela pega o que escapa (a posse
+   * que caducou por engano, a edição por outro caminho), mas só avisa DEPOIS do
+   * trabalho feito. Esta avisa antes da primeira letra.
+   */
+  const trava = useTravaEdicao(id ? chaveDocumento("os", id) : "", editando);
+
+  /*
+   * Perdeu a disputa: a tela volta para leitura sozinha. Sem isto, a pessoa
+   * seguiria digitando num formulário cujo salvamento seria recusado — que é
+   * exatamente o trabalho perdido que a trava existe para evitar.
+   */
+  useEffect(() => {
+    if (trava.travado && editando) {
+      setEditando(false);
+      toast(trava.aviso, "warning");
+    }
+  }, [trava.travado, trava.aviso, editando]);
   // Empresas do grupo (carregadas no boot) — dados fiscais quando o tomador/contratante é a Pólobh.
   const empresas = useEmpresas((s) => s.empresas);
   const empresaPolobh = empresas.find((e) => e.padrao) ?? empresas[0];
@@ -393,8 +448,28 @@ export function OsForm() {
 
   const sujo = !!os && baseline !== "" && JSON.stringify(os) !== baseline;
   const guard = useUnsavedGuard(sujo);
+
+  /**
+   * O que está ABERTO agora — o cruzamento da permissão da pessoa com a fase do
+   * documento (ver `domain/faseOs`).
+   *
+   * A permissão diz o que a pessoa pode fazer; a fase diz o que a OS aceita
+   * neste momento. É assim que "a partir desta etapa a Produção não edita mais"
+   * se cumpre sem depender de os sete perfis da Pólobh já estarem cadastrados:
+   * os blocos da produção fecham quando a OS passa para o financeiro, e os do
+   * financeiro só abrem quando ela chega lá.
+   */
+  const fase = os ? faseDaOs(os) : "producao";
+  const mexeProducao = editando && podeEditar && os != null && editaProducao(os);
+  const mexeFinanceiro = editando && verFinanceiro && os != null && editaFinanceiro(os);
+  const emitida = os != null && osEmitida(os);
   // Pendências desta OS — mesma lista que alimenta o badge vermelho dela.
   const { itens: pendenciasDoUsuario } = useMinhasPendencias();
+  /** O que se resolve DENTRO desta OS — a mesma lista da pílula do canto. */
+  const pendenciasDaOs = useMemo(
+    () => (os ? pendenciasDaTela(pendenciasDoUsuario, { osId: os.id }) : []),
+    [pendenciasDoUsuario, os]
+  );
   // Valores já usados nestes campos em outras OSs (ver `domain/sugestoes`).
   const sugestoes = useSugestoes();
 
@@ -402,11 +477,6 @@ export function OsForm() {
 
   // Linhas da EC que esta OS consolida (mesmo fornecedor).
   const linhasConsolidadas = ecCtx.linhas.filter((l) => os.ecLinhaIds.includes(l.id));
-  /** Quantos itens de cada bloco ficam fora do documento — some no rótulo dele. */
-  const foraDoDocumento = (n: number) => (n ? `(${n} fora do documento)` : undefined);
-  const naoAplicaveisLogistica = os.logistica.naoAplicaveis?.length ?? 0;
-  const naoAplicaveisInfra = os.infraestrutura.naoAplicaveis?.length ?? 0;
-
   /** Ordem atual do cronograma, pelas chaves que o arraste manipula. */
   const idsCronograma = os.cronograma.map(idDaEtapa);
 
@@ -419,7 +489,7 @@ export function OsForm() {
   /**
    * Muda uma forma de cobrança de um item — e leva o total junto.
    *
-   * Os três totais do Pagamento ao Fornecedor são a soma do que se definiu item
+   * Os três totais do Resumo dos Custos são a soma do que se definiu item
    * a item, e é do "com BV e NF" que vivem o Faturamento e o Contrato. Eles
    * acompanham enquanto estiverem espelhados, isto é, enquanto ninguém os tiver
    * ajustado à mão — quem ajustou tinha um motivo, e não se desfaz isso por
@@ -451,13 +521,6 @@ export function OsForm() {
           : o.contrato,
       };
     });
-  /**
-   * O BV daqui nasce do Resumo dos Custos e segue editável. Quando alguém o
-   * altera, ou quando os itens da EC mudam depois, os dois divergem — e sem
-   * dizer isso o campo passaria a mentir sobre o que foi combinado.
-   */
-  const bvDiverge = bvContratado.percentual > 0 && Math.abs(os.financeiro.bvPercentual - bvContratado.percentual) >= 0.01;
-
   /** Esta OS tem contrato? Quem decide é a coluna Contrato dos itens, na EC. */
   const haContrato = temContrato(os, linhasConsolidadas);
 
@@ -505,8 +568,55 @@ export function OsForm() {
     }))
     .filter((e) => e.faixas.length > 0);
 
-  const dadosTomador = dadosFiscais(os.financeiro.tomador, ecCtx, empresaPolobh);
-  const dadosContratante = dadosFiscais(os.contrato.contratante, ecCtx, empresaPolobh);
+  // A regra de "quem é o tomador" mora no domínio desde 15/09/2026, quando ele
+  // ganhou MF e "Outro" (ver `domain/tomadorOs`): eram três cópias da mesma
+  // resposta — aqui, na OS impressa e no contrato.
+  const dadosTomador = dadosDoTomador(os.financeiro.tomador, {
+    cliente: ecCtx.cliente,
+    empresas,
+    avulso: os.financeiro.tomadorAvulso,
+  });
+  /*
+   * O CONTRATANTE do contrato é o TOMADOR do serviço — é o que o bloco de
+   * assinaturas dos dois modelos diz ("CONTRATANTE – Razão Social do Tomador").
+   * Por isso, em branco, ele segue o tomador do faturamento em vez de exigir
+   * que a mesma pergunta seja respondida duas vezes na mesma OS. Escolher aqui
+   * continua possível, para o caso raro em que quem paga o fornecedor não é
+   * quem recebe a nota.
+   */
+  const quemContrata = os.contrato.contratante || os.financeiro.tomador;
+  const dadosContratante = dadosDoTomador(quemContrata, {
+    cliente: ecCtx.cliente,
+    empresas,
+    avulso: os.financeiro.tomadorAvulso,
+  });
+
+  /**
+   * O código do projeto sugerido a partir da lei — o que vem depois do travessão
+   * em "Lei Federal de Incentivo à Cultura (Rouanet) — PRONAC 26 1234". É
+   * sugestão, com um clique para aceitar, e não preenchimento automático: um
+   * texto sem travessão daria um código errado, e código de incentivo errado
+   * num contrato é prestação de contas rejeitada.
+   */
+  const codigoSugerido = (os.financeiro.leiIncentivo ?? "").split(/\s[—–-]\s/).slice(1).join(" - ").trim();
+
+  /** Qual dos dois modelos vale aqui: o escolhido, ou o da modalidade do projeto. */
+  const modeloContrato: ModeloContrato = os.contrato.modelo || modeloDoContrato(os.projeto.modalidade);
+  const clausulas = clausulasPadrao(modeloContrato);
+  const updClausula = (chave: ChaveClausula, texto: string) =>
+    updCt({ clausulas: { ...(os.contrato.clausulas ?? {}), [chave]: texto } });
+
+  const clienteDoProjeto = ecCtx.cliente;
+  async function baixarOContrato() {
+    try {
+      await baixarContrato(
+        { ...os!, contrato: { ...os!.contrato, contratante: quemContrata } },
+        { cliente: clienteDoProjeto, empresas }
+      );
+    } catch (e) {
+      toast(`Não foi possível gerar o contrato: ${(e as Error).message}`, "danger");
+    }
+  }
 
   /** Valor total do Faturamento — replica no Contrato enquanto estiver espelhado. */
   function setValorTotalFinanceiro(v: number) {
@@ -530,38 +640,13 @@ export function OsForm() {
   // continuar acessível a todos os perfis (o salvamento exige a justificativa).
   // Vai dentro de "Dados de Faturamento" para o financeiro e em card próprio para os demais.
   //
-  // Os três campos já nascem preenchidos pelo BV combinado ITEM A ITEM no
-  // Detalhamento da Contratação (ver `bvDaContratacao`): aqui é o lugar de
-  // conferir e ajustar, não de lembrar de cabeça o que se negociou semanas atrás.
-  const bvBloco = (
-    <>
-      <LinhaOs
-        label="BV Pólobh"
-        hint={bvContratado.valor > 0 ? `(do Detalhamento da Contratação: ${bvContratado.percentual}% · ${brl(bvContratado.valor)})` : "(do Detalhamento da Contratação)"}
-      >
-        <NumberInput value={os.financeiro.bvPercentual} onValue={(v) => updFin({ bvPercentual: v, bvValor: (os.financeiro.valorTotal * v) / 100 })} />
-        {bvDiverge && (
-          <div className="mt-1.5 flex items-center gap-2 flex-wrap text-[12px] text-warning">
-            <span className="font-semibold">Diferente do combinado nos itens ({bvContratado.percentual}%).</span>
-            <button
-              type="button"
-              onClick={() => updFin({ bvPercentual: bvContratado.percentual, bvValor: (os.financeiro.valorTotal * bvContratado.percentual) / 100 })}
-              className="font-bold text-primary-dark hover:underline"
-            >
-              Usar o BV da Contratação
-            </button>
-          </div>
-        )}
-      </LinhaOs>
-      <LinhaOs label="BV Pólobh — Valor">
-        <Auto v={brl((os.financeiro.valorTotal * os.financeiro.bvPercentual) / 100)} />
-      </LinhaOs>
-      {/* A JUSTIFICATIVA do BV saiu daqui (09/09/2026): ela é uma por FORMA, em
-          cada item do Detalhamento da Contratação, que é onde o BV é combinado.
-          Uma justificativa só, da OS inteira, não sabia dizer de qual item
-          falava. E não cobra mais nada: ver o comentário em `salvar`. */}
-    </>
-  );
+  /* O BLOCO DE BV saiu dos Acertos Financeiros (15/09/2026): ele é combinado
+     item a item, no Detalhamento da Contratação, e aqui era a mesma soma
+     repetida num lugar onde ninguém a ajustava. O acerto que ficou é outro —
+     quanto o fornecedor devolve à Pólobh (ver `domain/acertoFinanceiro`). */
+
+  /** A conta do acerto — tudo calculado, menos o percentual de encargos. */
+  const acerto = calcularAcerto(os.financeiro, os.orcamento, bvContratado.valor);
 
   const updF = (patch: Partial<Fornecedor>) => setOs((o) => (o ? { ...o, fornecedor: { ...o.fornecedor, ...patch } } : o));
   const updB = (patch: Partial<Fornecedor["dadosBancarios"]>) =>
@@ -704,7 +789,7 @@ export function OsForm() {
    * troca de fornecedor de uma OS já emitida, que não bloqueia — desvia para
    * uma nova versão.
    */
-  async function salvar(status?: Os["status"]) {
+  async function salvar(status?: Os["status"], patch?: Partial<Os>, opcoes?: { disparar?: boolean }) {
     /**
      * TROCA DE FORNECEDOR numa OS que já saiu da casa: não é edição, é outro
      * contrato. A OS anterior existe do lado do primeiro fornecedor — deixar
@@ -717,12 +802,12 @@ export function OsForm() {
       await trocarFornecedorComNovaVersao();
       return;
     }
-    if (status === "Disparada") {
+    if (opcoes?.disparar) {
       const destino = os!.fornecedor.email || "o fornecedor (sem e-mail cadastrado)";
       if (!(await confirmar({
-        titulo: "Disparar esta OS ao fornecedor?",
-        mensagem: `A OS ${os!.numero} passará para "Disparada" e será enviado um e-mail para ${destino}.`,
-        confirmarTexto: "Disparar OS",
+        titulo: "Enviar esta OS ao fornecedor?",
+        mensagem: `A OS ${os!.numero} será enviada por e-mail para ${destino}. O envio fica registrado na OS.`,
+        confirmarTexto: "Enviar OS",
       }))) return;
     }
     setBusy(true);
@@ -736,21 +821,49 @@ export function OsForm() {
         : os!.financeiro.bvValor;
       // mantém o link de credenciamento coerente com o token da OS (p/ e-mail/impressão)
       const linkCred = urlCredenciamento(os!);
+
+      /*
+       * REVISÃO DE TEXTO (25/09/2026). A OS é o documento que SAI DA CASA — vai
+       * por e-mail para o fornecedor, impressa e em planilha. Era justamente a
+       * que não passava por revisão nenhuma.
+       *
+       * Vai só o que mudou desde a última gravação: numa OS de sessenta linhas,
+       * corrigir um valor não remanda sessenta descrições para a IA. O que está
+       * marcado como "não se aplica" também fica de fora — não sai no documento,
+       * e revisar o que ninguém vai ler é gastar por nada.
+       */
+      const gravada = baseline ? (JSON.parse(baseline) as Os) : null;
+      const comPatch = { ...os!, ...patch };
+      const { documento: revisada, revisaoCompleta } = await revisarDocumento(
+        camposDaOs(comPatch),
+        camposDaOs(gravada ?? comPatch),
+        (revisados) => aplicarNaOs(comPatch, revisados),
+      );
+      if (!revisaoCompleta) toast(AVISO_REVISAO_PARCIAL, "warning");
+
       let salvo = await repo.oss.salvar({
-        ...os!,
-        status: status === "Disparada" ? os!.status : (status ?? os!.status),
+        ...revisada,
+        // A fase muda junto com o carimbo de quando ela mudou — é o que a tela
+        // mostra em "com o financeiro desde…".
+        faseEm: patch?.fase && patch.fase !== os!.fase ? new Date().toISOString() : os!.faseEm,
+        status: status ?? os!.status,
         credenciamento: { ...os!.credenciamento, linkFormulario: linkCred },
         financeiro: { ...os!.financeiro, bvValor },
       });
       iniciar(ecCtx ? aplicarAutoPreenchimento(salvo, ecCtx) : salvo);
-      if (status === "Disparada") {
+      if (opcoes?.disparar) {
         const r = await dispararOsPorEmail(salvo, ecCtx!);
-        if (!r.ok) toast(`OS salva no status anterior; o e-mail não saiu: ${r.motivo}`, "warning");
-        else if (r.simulado) toast(`E-mail simulado para ${r.destinatarios.join(", ") || "—"}; a OS não foi marcada como disparada.`, "info");
+        if (!r.ok) toast(`OS salva; o e-mail não saiu: ${r.motivo}`, "warning");
+        else if (r.simulado) toast(`E-mail simulado para ${r.destinatarios.join(", ") || "—"}; o envio não foi registrado.`, "info");
         else {
-          salvo = await repo.oss.salvar({ ...salvo, status: "Disparada" });
+          // O CARIMBO só é gravado quando o e-mail saiu de verdade
+          // (15/09/2026): é ele que destrava as cobranças de cronograma e
+          // credenciamento, que só fazem sentido com o fornecedor de posse do
+          // documento. Registrar um envio que falhou cobraria resposta de quem
+          // não recebeu nada.
+          salvo = await repo.oss.salvar({ ...salvo, disparadaEm: new Date().toISOString() });
           iniciar(ecCtx ? aplicarAutoPreenchimento(salvo, ecCtx) : salvo);
-          toast(`OS disparada e e-mail enviado para ${r.destinatarios.join(", ")}.`, "success");
+          toast(`OS enviada por e-mail para ${r.destinatarios.join(", ")}.`, "success");
         }
       } else {
         toast("OS salva.", "success");
@@ -763,6 +876,93 @@ export function OsForm() {
     } finally {
       setBusy(false);
     }
+  }
+
+  /* ---------------- Grupos criados nesta OS (além de Logística e Infra) ------ */
+
+  const adicionarGrupoExtra = () => {
+    const novo = { id: novoId(), nome: "Novo grupo", itens: [] as ItemExtraOs[] };
+    setOs((o) => (o ? { ...o, gruposExtras: [...(o.gruposExtras ?? []), novo] } : o));
+    // O grupo nasce fora do campo de visão numa OS longa — a mesma régua dos
+    // itens da EC e dos blocos do cronograma.
+    destacarElemento(idBlocoGrupoExtra(novo.id), "novo");
+  };
+
+  const atualizarGrupoExtra = (id: string, patch: Partial<GrupoExtraOs>) =>
+    setOs((o) =>
+      o ? { ...o, gruposExtras: (o.gruposExtras ?? []).map((g) => (g.id === id ? { ...g, ...patch } : g)) } : o
+    );
+
+  const removerGrupoExtra = async (id: string) => {
+    const grupo = (os?.gruposExtras ?? []).find((g) => g.id === id);
+    if (grupo?.itens.length && !(await confirmar({
+      titulo: `Excluir o grupo "${grupo.nome}"?`,
+      mensagem: `Os ${grupo.itens.length} item(ns) dele saem da OS.`,
+      confirmarTexto: "Excluir grupo",
+    }))) return;
+    setOs((o) => (o ? { ...o, gruposExtras: (o.gruposExtras ?? []).filter((g) => g.id !== id) } : o));
+  };
+
+  /**
+   * Passa o bastão: grava a OS e a manda para a fase seguinte.
+   *
+   * A pendência de quem recebe nasce da própria fase (ver `os.fase`, em
+   * `domain/pendencias`) — não há um "avisar fulano" à parte que possa ficar
+   * para trás quando alguém devolve a OS.
+   */
+  async function avancarFase(destino: FaseOs, pergunta: { titulo: string; mensagem: string; confirmar: string }) {
+    if (!(await confirmar({ titulo: pergunta.titulo, mensagem: pergunta.mensagem, confirmarTexto: pergunta.confirmar }))) return;
+    await salvar(undefined, { fase: destino });
+    setEditando(false);
+  }
+
+  /** Devolve a OS para a etapa anterior — acontece, e precisa ser explícito. */
+  async function devolverFase() {
+    const anterior = faseAnterior(fase);
+    if (!anterior) return;
+    if (!(await confirmar({
+      titulo: "Devolver esta OS para a etapa anterior?",
+      mensagem: `A OS volta para "${ROTULO_FASE[anterior]}" e a pendência passa para quem responde por aquela etapa.`,
+      confirmarTexto: "Devolver",
+    }))) return;
+    await salvar(undefined, { fase: anterior });
+  }
+
+  /**
+   * EMITIR a OS — o fim do ciclo EC → OS → EC.
+   *
+   * Duas coisas acontecem juntas, e é isso que fecha o circuito: a OS vira
+   * "Emitida" e os itens da EC que ela consolida passam de "Emitir" para "OK"
+   * (RPC `marcar_itens_da_os_como_emitidos`; pela tela não daria, porque quem
+   * emite não tem escrita em `ec_linhas`).
+   *
+   * Antes disso, a trava do check-list: *"o sistema não pode permitir que uma OS
+   * seja emitida se existir alguma pendência a ela relacionada"*. Note que ela é
+   * de EMISSÃO, e não de salvamento — salvar segue livre, como ficou combinado
+   * em 10/09: quem monta o documento raramente tem todas as respostas na mesma
+   * sessão.
+   */
+  async function emitirOs() {
+    const abertas = pendenciasDaOs.filter((p) => p.tipo !== "os.fase");
+    if (abertas.length) {
+      toast(
+        `Esta OS tem ${abertas.length} pendência(s) em aberto. Resolva-as antes de emitir — use a pílula no canto da tela.`,
+        "danger"
+      );
+      return;
+    }
+    if (!(await confirmar({
+      titulo: `Emitir a OS ${os!.numero}?`,
+      mensagem: "A OS passa a Emitida e os itens da EC que ela consolida ficam com a OS em OK. Depois disso, o que mudar exige uma nova versão.",
+      confirmarTexto: "Emitir OS",
+    }))) return;
+    await salvar("Emitida", { fase: "emitida" });
+    try {
+      await repo.oss.fecharItensNaEc(os!.id);
+    } catch (e) {
+      toast(`A OS foi emitida, mas os itens da EC não foram fechados: ${(e as Error).message}`, "warning");
+    }
+    setEditando(false);
   }
 
   return (
@@ -780,31 +980,131 @@ export function OsForm() {
       // esta barra quem entrava aqui perdia toda a referência de onde estava.
       subabas={ecCtx.projetoId ? <BarraProjeto projetoId={ecCtx.projetoId} atual="os" /> : undefined}
       topAction={
-        <div className="flex gap-2">
-          {/* Uma ação só para o documento: antes eram duas (Excel e "Ver / PDF"),
-              e a do PDF ainda pedia um segundo clique depois de abrir a tela.
-              O Excel da OS saiu — o documento do fornecedor é o PDF. */}
+        /*
+         * O MENU DA OS, como o da EC (15/09/2026).
+         *
+         * Eram quatro comandos soltos — Recolher, Baixar PDF, Salvar, Disparar —
+         * numa tela que estava sempre em edição. Agora ele acompanha o estado do
+         * documento: em leitura, oferece abrir a edição e o PDF; em edição,
+         * Revisar e Salvar; e, quando a fase muda de mãos, o botão que passa o
+         * bastão, que é o comando principal daquele momento.
+         *
+         * "Disparar OS" continua existindo, e só depois de emitida: mandar ao
+         * fornecedor um documento que ainda está sendo montado é o que a fase
+         * veio impedir.
+         */
+        <div className="flex gap-2 flex-wrap">
           <Button
             data-tour="baixar-pdf"
             variant="secondary"
             size="sm"
-            icon={<IcDownload width={16} height={16} />}
+            icon={<IcEye width={16} height={16} />}
             onClick={() => {
               if (!os.id) return toast("Salve a OS antes de baixar o PDF.", "info");
               void arquivarOsNoProjeto(os, ecCtx);
               navigate(`/ordens/${os.id}/imprimir?auto=1`);
             }}
           >
-            Baixar PDF
+            OS PDF
           </Button>
-          {podeEditar && <Button variant="secondary" size="sm" onClick={() => salvar()} disabled={busy}>Salvar</Button>}
-          {podeEditar && (
+
+          {/* CONTRATO EM WORD (16/09/2026) — o documento que o fornecedor
+              assina, nos modelos Corporativo e Cultural da casa. Sai em .docx,
+              e não em PDF, porque é ele que vai para o jurídico do fornecedor,
+              que devolve com alteração: um PDF obrigaria a refazer tudo aqui.
+              Só aparece quando a EC pediu contrato — sem isso, não há o que
+              gerar, e o botão só ofereceria um documento vazio. */}
+          {haContrato && (
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<IcDoc width={15} height={15} />}
+              onClick={() => void baixarOContrato()}
+            >
+              Contrato Word
+            </Button>
+          )}
+
+          {/* LEITURA: o botão que abre a edição, para quem pode mexer no que a
+              fase atual tem aberto. */}
+          {!editando && (podeEditar || verFinanceiro) && !emitida && (
+            <Button
+              size="sm"
+              icon={<IcPencil width={15} height={15} />}
+              // Travado por outra pessoa: o botão fica desligado com o motivo à
+              // mão, em vez de abrir a edição e recusar o salvamento no fim.
+              disabled={trava.travado}
+              title={trava.travado ? trava.aviso : undefined}
+              onClick={() => setEditando(true)}
+            >
+              Editar OS
+            </Button>
+          )}
+
+          {/* EDIÇÃO: salvar, e sair sem salvar. */}
+          {editando && (
+            <>
+              <Button variant="text" size="sm" onClick={() => { setEditando(false); if (os.id) iniciar(osExistente ?? os); }}>
+                Sair da edição
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => void salvar()} disabled={busy}>
+                {busy ? "Salvando…" : "Salvar"}
+              </Button>
+            </>
+          )}
+
+          {/* A PASSAGEM DE BASTÃO — o comando principal de cada fase. */}
+          {podeEditar && fase === "producao" && os.id && (
             <Button
               size="sm"
               icon={<IcSend width={15} height={15} />}
-              onClick={() => salvar("Disparada")}
+              disabled={busy}
+              onClick={() => void avancarFase("financeiro", {
+                titulo: "Enviar esta OS para a conclusão do Financeiro?",
+                mensagem: "Os blocos da produção passam a leitura e a OS vira pendência da Coordenação Administrativo-Financeira. Você pode receber a OS de volta, se precisar.",
+                confirmar: "Enviar ao Financeiro",
+              })}
+            >
+              Enviar OS para Conclusão Financeiro
+            </Button>
+          )}
+          {verFinanceiro && fase === "financeiro" && (
+            <Button
+              size="sm"
+              icon={<IcSend width={15} height={15} />}
+              disabled={busy}
+              onClick={() => void avancarFase("backoffice", {
+                titulo: "Enviar esta OS para emissão pelo Back-office?",
+                mensagem: "A OS vira pendência do Back-office, que a emite. Emissão e faturamento continuam editáveis até a emissão.",
+                confirmar: "Enviar ao Back-office",
+              })}
+            >
+              Enviar OS para Emissão Back-Office
+            </Button>
+          )}
+          {/* A emissão é do BACK-OFFICE, e pede a chave dela (`oss.emitir`).
+              Com `oss.editar`, quem monta a OS — a Produção — emitiria o
+              documento que a fase acabou de tirar das mãos dela. */}
+          {podeEmitir && fase === "backoffice" && (
+            <Button size="sm" icon={<IcCheck width={15} height={15} />} disabled={busy} onClick={() => void emitirOs()}>
+              Emitir OS
+            </Button>
+          )}
+          {fase !== "producao" && !emitida && (podeEditar || verFinanceiro) && (
+            <Button variant="text" size="sm" disabled={busy} onClick={() => void devolverFase()}>
+              Devolver à etapa anterior
+            </Button>
+          )}
+
+          {/* O e-mail ao fornecedor é o último passo, e só do que já saiu. */}
+          {emitida && podeEditar && (
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<IcSend width={15} height={15} />}
+              onClick={() => void salvar(undefined, undefined, { disparar: true })}
               disabled={busy || !flags.disparoFornecedor}
-              title={flags.disparoFornecedor ? "Salva a OS e envia ao fornecedor" : MOTIVO_DISPARO_DESLIGADO}
+              title={flags.disparoFornecedor ? "Envia a OS emitida ao fornecedor" : MOTIVO_DISPARO_DESLIGADO}
             >
               Disparar OS
             </Button>
@@ -812,8 +1112,24 @@ export function OsForm() {
         </div>
       }
     >
+      <AvisoTravaEdicao trava={trava} />
       <AvisoEmailPendente className="mb-4" />
       <AvisoHomologacaoEmail className="mb-4" />
+
+      {/* ONDE A OS ESTÁ, e o que isso trava (15/09/2026). Sem esta linha, os
+          campos em cinza pareceriam defeito: quem abre a OS na fase do
+          financeiro precisa saber por que o descritivo não aceita digitação. */}
+      <div className={cx(
+        "mb-4 flex items-center gap-3 flex-wrap rounded-card border px-4 py-2.5 text-[12.5px]",
+        emitida ? "border-success/40 bg-success-soft text-ink" : "border-border-soft bg-[#FBFBFC] text-ink-2"
+      )}>
+        <span className="font-extrabold uppercase tracking-[0.05em] text-[10.5px] text-ink-3">{ROTULO_FASE[fase]}</span>
+        <span>{ESPERANDO_FASE[fase]}</span>
+        {os.faseEm && <span className="text-ink-3">desde {dataBR(os.faseEm)}</span>}
+        {!editando && !emitida && (podeEditar || verFinanceiro) && (
+          <span className="ml-auto text-ink-3">Modo leitura</span>
+        )}
+      </div>
 
       <div className="space-y-4">
         {/* A CONVERSA vem primeiro (pedido de 09/09/2026), e com o mesmo rótulo
@@ -824,24 +1140,29 @@ export function OsForm() {
         <CardConversa
           ancora={os.id}
           ancoraDom={idAncoraPendencia(os.id)}
-          hint="Só a equipe vê. Combine aqui o que esta OS tem de pendente — quem é @mencionado fica com a pendência."
           observacoes={os.observacoes}
           usuarios={usuarios}
           minhas={pendenciasDoUsuario.filter((x) => x.tipo === "os.observacao" && x.osId === os.id).length}
           onChange={(observacoes) => setOs((o) => (o ? { ...o, observacoes } : o))}
         />
 
+        {/* OS BLOCOS DA PRODUÇÃO ficam em leitura assim que a OS passa adiante.
+            `fieldset disabled` trava input, select, textarea e botão de uma vez,
+            sem cada campo precisar saber da fase — o mesmo recurso da aba Dados
+            Gerais do projeto. Não é aviso: é o valor não mudando embaixo de quem
+            já o usou para emitir a nota. */}
+        <fieldset disabled={!mexeProducao} className="space-y-4 min-w-0 disabled:opacity-100">
+
         {/* Cabeçalho do modelo em Excel */}
         <CardOs secao="Ordem de Serviço">
           <LinhaOs label="Número da OS"><Auto v={os.numero} /></LinhaOs>
           <LinhaOs label="Projeto"><Auto v={os.projeto.titulo} /></LinhaOs>
           <LinhaOs label="Data de emissão"><Auto v={dataBR(os.criadoEm)} /></LinhaOs>
-          <LinhaOs label="Status da OS">
-            <div className="py-2 flex items-center gap-2 flex-wrap">
-              <Badge tom={tomStatusOs[os.status]}>{os.status}</Badge>
-              <span className="text-[12.5px] text-ink-3">Consolida {os.ecLinhaIds.length} linha(s) da EC</span>
-            </div>
-          </LinhaOs>
+          {/* A linha "Status da OS" saiu daqui (15/09/2026): o selo já está no
+              cabeçalho da página, ao lado do número, e na listagem. Dentro do
+              documento ele gastava uma linha para repetir o que a tela inteira
+              diz — e status não é conteúdo de ordem de serviço. */}
+          <LinhaOs label="Itens consolidados"><Auto v={`${os.ecLinhaIds.length} linha(s) da EC`} /></LinhaOs>
         </CardOs>
 
         {/* DADOS DO CLIENTE — automático da EC */}
@@ -1048,139 +1369,22 @@ export function OsForm() {
           {/* Sem memória de preenchimento, por decisão: a entrega é específica de
               cada contratação, e oferecer a de outra OS convidava a repetir o
               que não vale para esta. */}
-        </CardOs>
 
-        {/* RESUMO DA CONTRATAÇÃO — o que o fornecedor precisa fazer e receber:
-            entrega, cronograma, logística, infraestrutura, recados e, no fim, a
-            tabela do que foi definido no bloco de cima. Estava tudo num card só
-            com o Detalhamento, e o formulário virava uma coluna sem fim em que
-            "o que se contrata" e "como se executa" se misturavam. */}
-        <CardOs secao="Resumo da Contratação">
-          <LinhaOs label="Entrega"><Input value={os.entrega} onChange={(e) => setOs((o) => (o ? { ...o, entrega: e.target.value } : o))} placeholder="Instalação, operação, acompanhamento…" /></LinhaOs>
-          {/* Cronograma específico do fornecedor — já vem do cronograma do projeto.
-              O `id` é o endereço da pendência "cronograma não preenchido": ela é
-              cobrada na etapa da OS e se resolve aqui, então a pílula pisca este
-              bloco (antes ela contava no badge e não tinha o que achar). */}
-          <LinhaOs
-            id={idAncoraPendencia(ancoraCronogramaOs(os.id))}
-            label="Cronograma do Fornecedor"
-            acao={
-              <Button variant="secondary" size="sm" onClick={() => setOs((o) => (o ? { ...o, cronograma: [...o.cronograma, { id: novoId(), etapa: "", data: "", horario: "", atividades: "" }] } : o))}>+ Etapa</Button>
-            }
-          >
-            {/* No celular a tabela rola na horizontal em vez de espremer sete
-                colunas; `overflow-x-auto` só abaixo de md, para não criar
-                container de rolagem onde não precisa (ver ui/Table). */}
-            <div className="py-1.5 overflow-x-auto md:overflow-visible">
-              {/* Duas colunas vazias na frente: a alça de arraste e as setas. */}
-              <div className={cx(GRADE_CRONOGRAMA, "mb-2 text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3 px-1")}>
-                <span /><span />
-                <span>Data</span><span>Horário</span><span>Etapa</span><span>Descritivo da contratação</span><span />
-              </div>
-              {/* Arraste para saltos grandes, setas para uma posição por vez — o
-                  mesmo par do cronograma do projeto e dos itens da EC. */}
-              <ListaArrastavel ids={idsCronograma} onReordenar={reordenarCronograma} className="space-y-2">
-                {os.cronograma.map((c, i) => {
-                  const rotulo = `a etapa ${c.etapa?.trim() || i + 1}`;
-                  return (
-                    <ItemArrastavel key={idDaEtapa(c, i)} id={idDaEtapa(c, i)} className={cx(GRADE_CRONOGRAMA, "items-center")}>
-                      {(alca) => (
-                        <>
-                          <span className="flex items-center justify-center">{alca}</span>
-                          <MoverSetas
-                            rotulo={rotulo}
-                            podeSubir={i > 0}
-                            podeDescer={i < os.cronograma.length - 1}
-                            onSubir={() => moverCronograma(i, -1)}
-                            onDescer={() => moverCronograma(i, 1)}
-                          />
-                          <Input className="!h-9" type="date" value={c.data} onChange={(e) => setCron(i, { data: e.target.value })} />
-                          <Input className="!h-9" placeholder="08h às 18h" sugestoes={sugestoes.valores.horario} value={c.horario} onChange={(e) => setCron(i, { horario: e.target.value })} />
-                          <Input className="!h-9" placeholder="Montagem, Ensaio…" sugestoes={sugestoes.valores.etapaCronograma} value={c.etapa} onChange={(e) => setCron(i, { etapa: e.target.value })} />
-                          <Input className="!h-9" placeholder="Descritivo da contratação" sugestoes={sugestoes.valores.atividadesCronograma} value={c.atividades} onChange={(e) => setCron(i, { atividades: e.target.value })} />
-                          <button
-                            type="button"
-                            className="text-ink-3 hover:text-danger px-2"
-                            aria-label={`Excluir ${rotulo}`}
-                            title="Excluir etapa"
-                            onClick={() => removerEtapaCronograma(i)}
-                          >
-                            ✕
-                          </button>
-                        </>
-                      )}
-                    </ItemArrastavel>
-                  );
-                })}
-              </ListaArrastavel>
-              {os.cronograma.length === 0 && <p className="text-[12.5px] text-ink-3 px-1">Nenhuma etapa. Use “+ Etapa” para adicionar.</p>}
-            </div>
-          </LinhaOs>
+          {/* RESUMO DOS CUSTOS — o fim do Detalhamento (16/09/2026).
+              Ele era um módulo à parte, "Pagamento ao Fornecedor", e o pedido do
+              check-list é explícito nos dois sentidos: "no final de todos os
+              itens, o sistema deverá consolidar o valor total contratado, o
+              valor total do BV e o valor líquido, prazo de pagamento, documento
+              fiscal … sob o título Resumo dos Custos", e "Módulo Pagamento ao
+              Fornecedor — excluir". O motivo é de leitura: os totais só querem
+              dizer alguma coisa ao lado dos itens que os produziram, e dois
+              cards distantes convidavam a conferir um sem o outro.
+              Quem vê o quê não mudou junto: o bloco era aberto a quem abre a
+              OS, e continua — mover um módulo de lugar não é hora de mexer em
+              permissão. Só a tabela final segue restrita ao financeiro, como já
+              estava. */}
+          <SubSecao>Resumo dos Custos</SubSecao>
 
-          <LinhaOs label="Logística do Fornecedor" hint={foraDoDocumento(naoAplicaveisLogistica)}>
-            <div className="py-1.5 grid sm:grid-cols-2 gap-2">
-              {CAMPOS_LOGISTICA.map(({ campo, rotulo }) => (
-                <CampoOpcionalOs
-                  key={campo}
-                  rotulo={rotulo}
-                  valor={os.logistica[campo]}
-                  sugestoes={sugestoes.valores[campo]}
-                  naoSeAplica={naoSeAplica(os.logistica, campo)}
-                  className={campo === "uniformizacao" ? "sm:col-span-2" : undefined}
-                  onValor={(v) => updLog({ [campo]: v } as Partial<Os["logistica"]>)}
-                  onAlternar={() => setOs((o) => (o ? { ...o, logistica: alternarNaoSeAplica(o.logistica, campo) } : o))}
-                />
-              ))}
-            </div>
-          </LinhaOs>
-
-          <LinhaOs label="Infraestrutura" hint={foraDoDocumento(naoAplicaveisInfra)}>
-            <div className="py-1.5 grid sm:grid-cols-2 gap-2">
-              {CAMPOS_INFRAESTRUTURA.map(({ campo, rotulo }) => (
-                <CampoOpcionalOs
-                  key={campo}
-                  rotulo={rotulo}
-                  valor={os.infraestrutura[campo]}
-                  sugestoes={sugestoes.valores[campo]}
-                  naoSeAplica={naoSeAplica(os.infraestrutura, campo)}
-                  onValor={(v) => updInfra({ [campo]: v } as Partial<Os["infraestrutura"]>)}
-                  onAlternar={() => setOs((o) => (o ? { ...o, infraestrutura: alternarNaoSeAplica(o.infraestrutura, campo) } : o))}
-                />
-              ))}
-            </div>
-          </LinhaOs>
-
-          {/* Texto livre, escrito PARA O FORNECEDOR: sai no documento, no e-mail
-              e na planilha. A conversa interna da equipe fica no card próprio,
-              logo abaixo — eram a mesma coisa, e a thread interna acabava
-              impressa no documento que o fornecedor recebe. */}
-          <LinhaOs label="Observações Gerais" hint="(sai no documento e na planilha)">
-            <Textarea
-              className="min-h-[90px]"
-              value={os.observacoesGerais}
-              onChange={(e) => setOs((o) => (o ? { ...o, observacoesGerais: e.target.value } : o))}
-              placeholder="O que o fornecedor precisa saber e não coube nos outros campos."
-            />
-          </LinhaOs>
-
-          {/* A tabela do que foi definido lá em cima, item a item. Fecha o bloco
-              porque é o que o fornecedor confere por último — e é ela que sai no
-              PDF e na planilha, com as colunas vazias omitidas. */}
-          {verFinanceiro && (
-            <LinhaOs label="Resumo dos Custos" hint="(o que foi definido no Detalhamento)">
-              <TabelaResumoCustos resumo={resumo} />
-            </LinhaOs>
-          )}
-        </CardOs>
-
-        {/* O CREDENCIAMENTO saiu daqui (29/08/2026): virou subaba do Projeto, onde
-            se vê a fila inteira e se dispara para todos os fornecedores de uma
-            vez. O link continua sendo o desta OS — o que mudou foi o comando. */}
-        <div className="space-y-4">
-          {/* PAGAMENTO — parcelas e documento fiscal, sobre o que a contratação
-              definiu. A tabela em si fica no Resumo da Contratação, junto do
-              resto do que o fornecedor recebe. */}
-          <CardOs secao="Pagamento ao Fornecedor">
             <LinhaOs label="Valor do Item na EC do Projeto" hint="(soma dos itens consolidados)"><Auto v={brl(os.orcamento.valorEc)} /></LinhaOs>
             {/* Os três totais são o que foi definido item a item, em Detalhamento
                 da Contratação — não são digitáveis aqui. Eram, e havia duas
@@ -1239,23 +1443,235 @@ export function OsForm() {
                 {DOCS.map((d) => <option key={d}>{d}</option>)}
               </Select>
             </LinhaOs>
-          </CardOs>
-        </div>
+                    {verFinanceiro && (
+            <LinhaOs label="Definido item a item" hint="(o que sai no PDF e na planilha)">
+              <TabelaResumoCustos resumo={resumo} />
+            </LinhaOs>
+          )}
+        </CardOs>
+
+        {/* RESUMO DA CONTRATAÇÃO — o que o fornecedor precisa fazer e receber:
+            entrega, cronograma, logística, infraestrutura, recados e, no fim, a
+            tabela do que foi definido no bloco de cima. Estava tudo num card só
+            com o Detalhamento, e o formulário virava uma coluna sem fim em que
+            "o que se contrata" e "como se executa" se misturavam. */}
+        {/* O NOME diz o que o bloco tem dentro (15/09/2026). "Resumo da
+            Contratação" prometia um resumo dos valores — que fica no
+            Detalhamento — e entregava cronograma, logística e infraestrutura.
+            A "Entrega" saiu junto: era um campo de texto livre que repetia o
+            que o cronograma já diz, linha a linha e com data. */}
+        <CardOs secao="Cronograma | Logística | Infraestrutura">
+          {/* Cronograma específico do fornecedor — já vem do cronograma do projeto.
+              O `id` é o endereço da pendência "cronograma não preenchido": ela é
+              cobrada na etapa da OS e se resolve aqui, então a pílula pisca este
+              bloco (antes ela contava no badge e não tinha o que achar). */}
+          <LinhaOs
+            id={idAncoraPendencia(ancoraCronogramaOs(os.id))}
+            label="Cronograma do Fornecedor"
+            acao={
+              <div className="flex items-center gap-2">
+                {/* O cronograma inteiro pode não se aplicar (15/09/2026): numa OS
+                    de locação sem montagem no local, a tabela vazia fazia o
+                    fornecedor procurar o que preencher. É resposta, não ausência. */}
+                <button
+                  type="button"
+                  onClick={() => setOs((o) => (o ? { ...o, cronogramaNaoSeAplica: !o.cronogramaNaoSeAplica } : o))}
+                  className="text-[10.5px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded px-1"
+                  title={os.cronogramaNaoSeAplica ? "Voltar a preencher o cronograma" : "Esta OS não tem cronograma — o bloco some do documento"}
+                >
+                  {os.cronogramaNaoSeAplica ? "Informar cronograma" : "Não se aplica"}
+                </button>
+                {!os.cronogramaNaoSeAplica && (
+                  <Button variant="secondary" size="sm" onClick={() => setOs((o) => (o ? { ...o, cronograma: [...o.cronograma, { id: novoId(), etapa: "", data: "", horario: "", atividades: "" }] } : o))}>+ Etapa</Button>
+                )}
+              </div>
+            }
+          >
+            {/* No celular a tabela rola na horizontal em vez de espremer sete
+                colunas; `overflow-x-auto` só abaixo de md, para não criar
+                container de rolagem onde não precisa (ver ui/Table). */}
+            {os.cronogramaNaoSeAplica ? (
+              <div className="py-2 text-[12.5px] font-bold text-ink-3">Não se aplica — o cronograma não sai nesta OS.</div>
+            ) : (
+            <div className="py-1.5 overflow-x-auto md:overflow-visible">
+              {/* Duas colunas vazias na frente: a alça de arraste e as setas. */}
+              <div className={cx(GRADE_CRONOGRAMA, "mb-2 text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3 px-1")}>
+                <span /><span />
+                <span>Data</span><span>Horário</span><span>Etapa</span><span>Descritivo da contratação</span><span />
+              </div>
+              {/* Arraste para saltos grandes, setas para uma posição por vez — o
+                  mesmo par do cronograma do projeto e dos itens da EC. */}
+              <ListaArrastavel ids={idsCronograma} onReordenar={reordenarCronograma} className="space-y-2">
+                {os.cronograma.map((c, i) => {
+                  const rotulo = `a etapa ${c.etapa?.trim() || i + 1}`;
+                  return (
+                    <ItemArrastavel key={idDaEtapa(c, i)} id={idDaEtapa(c, i)} className={cx(GRADE_CRONOGRAMA, "items-center")}>
+                      {(alca) => (
+                        <>
+                          <span className="flex items-center justify-center">{alca}</span>
+                          <MoverSetas
+                            rotulo={rotulo}
+                            podeSubir={i > 0}
+                            podeDescer={i < os.cronograma.length - 1}
+                            onSubir={() => moverCronograma(i, -1)}
+                            onDescer={() => moverCronograma(i, 1)}
+                          />
+                          <Input className="!h-9" type="date" value={c.data} onChange={(e) => setCron(i, { data: e.target.value })} />
+                          <Input className="!h-9" placeholder="08h às 18h" sugestoes={sugestoes.valores.horario} value={c.horario} onChange={(e) => setCron(i, { horario: e.target.value })} />
+                          <Input className="!h-9" placeholder="Montagem, Ensaio…" sugestoes={sugestoes.valores.etapaCronograma} value={c.etapa} onChange={(e) => setCron(i, { etapa: e.target.value })} />
+                          <Input className="!h-9" placeholder="Descritivo da contratação" sugestoes={sugestoes.valores.atividadesCronograma} value={c.atividades} onChange={(e) => setCron(i, { atividades: e.target.value })} />
+                          <button
+                            type="button"
+                            className="text-ink-3 hover:text-danger px-2"
+                            aria-label={`Excluir ${rotulo}`}
+                            title="Excluir etapa"
+                            onClick={() => removerEtapaCronograma(i)}
+                          >
+                            ✕
+                          </button>
+                        </>
+                      )}
+                    </ItemArrastavel>
+                  );
+                })}
+              </ListaArrastavel>
+              {os.cronograma.length === 0 && <p className="text-[12.5px] text-ink-3 px-1">Nenhuma etapa. Use “+ Etapa” para adicionar.</p>}
+            </div>
+            )}
+          </LinhaOs>
+
+          {/* LOGÍSTICA e INFRAESTRUTURA, um item por linha (15/09/2026).
+              Lado a lado, o rótulo e o campo disputavam a mesma largura e os
+              itens de nome longo quebravam em duas linhas, desalinhando a
+              coluna vizinha. Cada um na sua linha também é o que dá lugar às
+              setas e ao "não se aplica" sem espremer nada.
+              Os dois blocos aceitam ITEM NOVO, criado nesta OS: a lista fixa
+              cobre o que se repete em toda OS, e o que é daquele evento
+              ("gerador de 180 kVA") não tinha onde ser escrito. */}
+          <BlocoDeItens
+            titulo="Logística do Fornecedor"
+            campos={CAMPOS_LOGISTICA}
+            bloco={os.logistica}
+            valorDe={(campo) => os.logistica[campo] ?? ""}
+            sugestoes={sugestoes.valores}
+            onBloco={(patch) => setOs((o) => (o ? { ...o, logistica: { ...o.logistica, ...patch } } : o))}
+            onCampo={(campo, valor) => updLog({ [campo]: valor } as Partial<Os["logistica"]>)}
+          />
+
+          <BlocoDeItens
+            titulo="Infraestrutura"
+            campos={CAMPOS_INFRAESTRUTURA}
+            bloco={os.infraestrutura}
+            valorDe={(campo) => os.infraestrutura[campo] ?? ""}
+            sugestoes={sugestoes.valores}
+            onBloco={(patch) => setOs((o) => (o ? { ...o, infraestrutura: { ...o.infraestrutura, ...patch } } : o))}
+            onCampo={(campo, valor) => updInfra({ [campo]: valor } as Partial<Os["infraestrutura"]>)}
+          />
+
+          {/* GRUPOS CRIADOS NESTA OS — "Segurança", "Limpeza". Entram depois dos
+              dois fixos, na ordem em que foram criados. */}
+          {(os.gruposExtras ?? []).map((grupo) => (
+            <BlocoDeItens
+              key={grupo.id}
+              titulo={grupo.nome}
+              tituloEditavel
+              campos={[] as readonly { campo: string; rotulo: string }[]}
+              ancoraDom={idBlocoGrupoExtra(grupo.id)}
+              bloco={{ extras: grupo.itens, ordem: grupo.ordem }}
+              valorDe={() => ""}
+              sugestoes={sugestoes.valores}
+              onTitulo={(nome) => atualizarGrupoExtra(grupo.id, { nome })}
+              onExcluir={() => void removerGrupoExtra(grupo.id)}
+              onBloco={(patch) => atualizarGrupoExtra(grupo.id, {
+                ...(patch.extras ? { itens: patch.extras } : {}),
+                ...(patch.ordem ? { ordem: patch.ordem } : {}),
+              })}
+              onCampo={() => {}}
+            />
+          ))}
+
+          <LinhaOs label="">
+            <button
+              type="button"
+              onClick={adicionarGrupoExtra}
+              className="py-1.5 text-[12.5px] font-bold text-primary-dark hover:underline input-focus rounded"
+            >
+              + Novo grupo (além de Logística e Infraestrutura)
+            </button>
+          </LinhaOs>
+
+        </CardOs>
+
+        {/* OBSERVAÇÕES GERAIS em módulo PRÓPRIO (15/09/2026).
+            Elas moravam dentro do bloco de cronograma e logística, e ali pareciam
+            observação daquelas listas — quando são o recado da OS inteira, o
+            último parágrafo que o fornecedor lê. Texto livre, escrito PARA ELE:
+            sai no documento, no e-mail e na planilha. A conversa interna da
+            equipe continua no card do topo. */}
+        <CardOs
+          secao="Observações Gerais"
+          acaoSecao={
+            <button
+              type="button"
+              onClick={() => setOs((o) => (o ? { ...o, observacoesGeraisNaoSeAplica: !o.observacoesGeraisNaoSeAplica } : o))}
+              className="text-[10.5px] font-bold text-ink-2 hover:text-primary-dark input-focus rounded px-1"
+              title={os.observacoesGeraisNaoSeAplica ? "Voltar a escrever observações" : "Esta OS não tem observações — o bloco some do documento"}
+            >
+              {os.observacoesGeraisNaoSeAplica ? "Informar" : "Não se aplica"}
+            </button>
+          }
+        >
+          <LinhaOs label="Observações Gerais" hint="(sai no documento e na planilha)">
+            {os.observacoesGeraisNaoSeAplica ? (
+              <div className="py-2 text-[12.5px] font-bold text-ink-3">Não se aplica — não saem nesta OS.</div>
+            ) : (
+              <Textarea
+                className="min-h-[90px]"
+                value={os.observacoesGerais}
+                onChange={(e) => setOs((o) => (o ? { ...o, observacoesGerais: e.target.value } : o))}
+                placeholder="O que o fornecedor precisa saber e não coube nos outros campos."
+              />
+            )}
+          </LinhaOs>
+        </CardOs>
+
+        {/* O CREDENCIAMENTO saiu daqui (29/08/2026): virou subaba do Projeto, onde
+            se vê a fila inteira e se dispara para todos os fornecedores de uma
+            vez. O link continua sendo o desta OS — o que mudou foi o comando.
+            O "Pagamento ao Fornecedor" saiu daqui em 16/09/2026: virou o
+            "Resumo dos Custos", no fim do Detalhamento da Contratação. */}
+        </fieldset>
+
+        {/* OS BLOCOS DO FINANCEIRO só abrem na fase dele (e seguem abertos no
+            back-office, que ainda corrige um código de serviço na hora de
+            emitir). Emitida, nada mais se edita: o que muda vira nova versão. */}
+        <fieldset disabled={!mexeFinanceiro} className="space-y-4 min-w-0 disabled:opacity-100">
 
         {/* INFORMAÇÕES A SEREM PREENCHIDAS PELO FINANCEIRO DA PÓLOBH */}
         {verFinanceiro ? (
           <>
-          <CardOs className="border-active-border" secao="Dados Nota Fiscal, Fatura, etc...">
-            <SubSecao>Dados Emissão — Recibo Simples | Fatura | Nota Fiscal | Fatura e Nota Fiscal</SubSecao>
-
+          {/* O nome do módulo é o que ele faz (15/09/2026), e o subtítulo saiu:
+              ele listava os quatro documentos possíveis — que é a pergunta do
+              campo "Documento PG", não um título. */}
+          <CardOs className="border-active-border" secao="Dados Emissão Faturamento">
             <LinhaOs label="Tomador dos Serviços">
-              <Select value={os.financeiro.tomador} onChange={(e) => updFin({ tomador: e.target.value as Os["financeiro"]["tomador"] })}>
+              {/* Pólobh, MF, Cliente ou Outro. As empresas do grupo vêm do
+                  cadastro (Configurações › Empresas do Grupo): a MF já existia
+                  lá e não tinha como ser escolhida aqui — quem faturava por ela
+                  corrigia a razão social à mão, dentro do documento, toda vez. */}
+              <Select value={os.financeiro.tomador} onChange={(e) => updFin({ tomador: e.target.value })}>
                 <option value="">Selecione…</option>
-                <option value="Polobh">Pólobh</option>
-                <option value="Cliente">Cliente</option>
+                {opcoesDeTomador(empresas).map((o) => (
+                  <option key={o.valor} value={o.valor}>{o.rotulo}</option>
+                ))}
               </Select>
             </LinhaOs>
-            {dadosTomador ? (
+            {os.financeiro.tomador === TOMADOR_OUTRO ? (
+              <TomadorAvulsoCampos
+                dados={os.financeiro.tomadorAvulso}
+                onDados={(tomadorAvulso) => updFin({ tomadorAvulso })}
+              />
+            ) : dadosTomador ? (
               <>
                 <LinhaOs label="Razão Social"><Auto v={dadosTomador.razaoSocial} /></LinhaOs>
                 <LinhaOs label="Endereço"><Auto v={dadosTomador.endereco} /></LinhaOs>
@@ -1302,6 +1718,33 @@ export function OsForm() {
                 </button>
               )}
             </LinhaOs>
+            {/* CÓDIGO DO PROJETO INCENTIVADO, sozinho (16/09/2026).
+                O campo acima guarda a lei E o número juntos, porque é assim que
+                eles aparecem na nota e é assim que o Projeto os guarda. Mas o
+                contrato Cultural cita os dois em lugares diferentes da Cláusula
+                Primeira — "no âmbito da LEI, sob o CÓDIGO" —, e partir a string
+                na hora de gerar o Word seria adivinhar onde a lei acaba. Então
+                o código também existe à parte, e nasce sugerido do que vier
+                depois do travessão. Só o contrato Cultural o usa. */}
+            {modeloContrato === "Cultural" && (
+              <LinhaOs label="Código do Projeto Incentivado" hint="(vai para a Cláusula Primeira do contrato)">
+                <Input
+                  value={os.financeiro.codigoProjetoIncentivado ?? ""}
+                  sugestoes={sugestoes.valores.codigoProjetoIncentivado}
+                  onChange={(e) => updFin({ codigoProjetoIncentivado: e.target.value })}
+                  placeholder="Ex.: PRONAC 26 1234"
+                />
+                {!os.financeiro.codigoProjetoIncentivado && codigoSugerido && (
+                  <button
+                    type="button"
+                    onClick={() => updFin({ codigoProjetoIncentivado: codigoSugerido })}
+                    className="mt-1.5 text-[12px] font-bold text-primary-dark hover:underline"
+                  >
+                    Usar “{codigoSugerido}”, da lei acima
+                  </button>
+                )}
+              </LinhaOs>
+            )}
             <LinhaOs
               label="CNAE"
               hint={os.fornecedor.cnaes?.length ? `(${os.fornecedor.cnaes.length} do cartão CNPJ)` : "(consulte o CNPJ do fornecedor)"}
@@ -1312,9 +1755,6 @@ export function OsForm() {
                 jaUsados={sugestoes.valores.cnae}
                 onValor={(cnae) => updFin({ cnae })}
               />
-            </LinhaOs>
-            <LinhaOs label="Código de Serviço" hint="(auto dos itens da EC)">
-              <Input value={os.financeiro.codigoServico} sugestoes={sugestoes.valores.codigoServico} onChange={(e) => updFin({ codigoServico: e.target.value })} />
             </LinhaOs>
             <LinhaOs label="Valor unitário"><NumberInput value={os.financeiro.valorUnitario} onValue={(v) => updFin({ valorUnitario: v })} /></LinhaOs>
             <LinhaOs label="Valor total" hint={finDessincronizado ? undefined : "(espelha o valor negociado no Orçamento)"}>
@@ -1351,6 +1791,59 @@ export function OsForm() {
               />
             </LinhaOs>
 
+            {/* CÓDIGO DE SERVIÇO e ORDEM DE COMPRA fecham o bloco (15/09/2026):
+                os valores subiram, porque é por eles que se confere a nota, e
+                estes dois desceram porque são o último dado a se saber.
+                Eles NASCEM AQUI e voltam preenchidos para os itens da EC válida
+                (ver a RPC `devolver_dados_fiscais_para_ec`): na EC os dois são
+                leitura. Antes o "Pedido de Compra" era digitado lá, a OS nem o
+                conhecia, e a EC ainda esperava por ele para deixar a OS nascer. */}
+            <LinhaOs label="Código de Serviço" hint="(vai para os itens da EC)">
+              <Input value={os.financeiro.codigoServico} sugestoes={sugestoes.valores.codigoServico} onChange={(e) => updFin({ codigoServico: e.target.value })} />
+            </LinhaOs>
+            <LinhaOs label="Ordem de Compra" hint="(vai para os itens da EC)">
+              <Input value={os.financeiro.ordemCompra ?? ""} sugestoes={sugestoes.valores.pedidoCompra} onChange={(e) => updFin({ ordemCompra: e.target.value })} placeholder="Ex.: PC-2026-119" />
+            </LinhaOs>
+
+            {/* RETENÇÕES FISCAIS (15/09/2026) — texto padrão da casa, em box de
+                cor própria, porque é o aviso que evita o retrabalho mais caro
+                da OS: o fornecedor que emite a nota sem reter o ISSQN devolve
+                dinheiro depois, e cobrar essa correção é sempre pior do que o
+                aviso. "Não se aplica" é resposta; o campo em branco não. */}
+            <LinhaOs
+              label="Retenções Fiscais"
+              acao={
+                <button
+                  type="button"
+                  onClick={() => updFin({ retencoesNaoSeAplica: !os.financeiro.retencoesNaoSeAplica })}
+                  className="text-[10.5px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded px-1"
+                >
+                  {os.financeiro.retencoesNaoSeAplica ? "Usar o texto padrão" : "Não se aplica"}
+                </button>
+              }
+            >
+              {os.financeiro.retencoesNaoSeAplica ? (
+                <div className="py-2 text-[12.5px] font-bold text-ink-3">Não se aplica</div>
+              ) : (
+                <>
+                  <Textarea
+                    className="min-h-[86px] !bg-warning-soft !border-warning/50"
+                    value={os.financeiro.retencoes ?? RETENCOES_PADRAO}
+                    onChange={(e) => updFin({ retencoes: e.target.value })}
+                  />
+                  {(os.financeiro.retencoes ?? RETENCOES_PADRAO) !== RETENCOES_PADRAO && (
+                    <button
+                      type="button"
+                      onClick={() => updFin({ retencoes: RETENCOES_PADRAO })}
+                      className="mt-1 text-[12px] font-bold text-primary-dark hover:underline"
+                    >
+                      Voltar ao texto padrão
+                    </button>
+                  )}
+                </>
+              )}
+            </LinhaOs>
+
             {/* DADOS PARA CONTRATO — só existe quando a EC pediu "Emitir" ou
                 "Emitir Nova Versão" na coluna Contrato de algum item.
                 "Não se aplica" lá significa que não há contrato, e um grupo
@@ -1361,11 +1854,41 @@ export function OsForm() {
             {haContrato && (
             <>
             <SubSecao>Dados para Contrato</SubSecao>
-            <LinhaOs label="Contratante" hint="(auto — quem contrata o fornecedor)">
-              <Select value={os.contrato.contratante} onChange={(e) => updCt({ contratante: e.target.value as Os["contrato"]["contratante"] })}>
-                <option value="">Selecione…</option>
-                <option value="Polobh">Pólobh</option>
-                <option value="Cliente">Cliente</option>
+
+            {/* MODELO — Corporativo ou Cultural, os dois .docx que a Pólobh
+                mandou em 16/09/2026. A modalidade do projeto já responde isso
+                na quase totalidade dos casos, e é ela que vale enquanto
+                ninguém escolher: o seletor existe para o projeto corporativo
+                com um item incentivado, que é raro e existe. */}
+            <LinhaOs label="Modelo do Contrato" hint={`(o projeto é ${os.projeto.modalidade || "sem modalidade"})`}>
+              <Select
+                value={os.contrato.modelo ?? ""}
+                onChange={(e) => updCt({ modelo: (e.target.value || undefined) as ModeloContrato | undefined })}
+              >
+                <option value="">Pela modalidade do projeto — {modeloContrato}</option>
+                <option value="Corporativo">Corporativo</option>
+                <option value="Cultural">Cultural</option>
+              </Select>
+              {modeloContrato === "Cultural" && (
+                <p className="mt-1.5 text-[12px] text-ink-2">
+                  O modelo Cultural nomeia o projeto incentivado, a lei e o código na Cláusula Primeira —
+                  os três vêm do bloco de faturamento, acima.
+                </p>
+              )}
+            </LinhaOs>
+
+            {/* CONTRATANTE = TOMADOR. O modelo é explícito no bloco de
+                assinaturas ("CONTRATANTE – Razão Social do Tomador"), então o
+                padrão é seguir o que já foi respondido no faturamento, e não
+                perguntar de novo. */}
+            <LinhaOs label="Contratante" hint="(quem contrata o fornecedor — por padrão, o tomador da nota)">
+              <Select value={os.contrato.contratante} onChange={(e) => updCt({ contratante: e.target.value })}>
+                <option value="">
+                  Mesmo do faturamento{dadosTomador ? ` — ${dadosTomador.rotulo}` : ""}
+                </option>
+                {opcoesDeTomador(empresas).map((o) => (
+                  <option key={o.valor} value={o.valor}>{o.rotulo}</option>
+                ))}
               </Select>
             </LinhaOs>
             {dadosContratante ? (
@@ -1424,6 +1947,81 @@ export function OsForm() {
             </LinhaOs>
             <LinhaOs label="Data do Contrato" hint="(auto — data da emissão da OS)"><Input type="date" value={os.contrato.dataContrato} onChange={(e) => updCt({ dataContrato: e.target.value })} /></LinhaOs>
             <LinhaOs label="Rubrica" hint="(preencher)"><Input value={os.contrato.rubrica} sugestoes={sugestoes.valores.rubrica} onChange={(e) => updCt({ rubrica: e.target.value })} placeholder="Iniciais de quem responde pelo contrato" /></LinhaOs>
+
+            {/* AS SETE CLÁUSULAS. Nos dois modelos, cada uma traz à margem a
+                anotação "Manter este campo editável" — é o texto da casa, e ele
+                sai do padrão quando o negócio pede. Cada campo nasce com o texto
+                do modelo e só é gravado quando muda: assim, corrigir o padrão
+                mais tarde vale para os contratos que ainda não foram assinados.
+                A Cláusula Primeira é a exceção — o que se escreve aqui é a
+                abertura; o descritivo e os valores logo abaixo dela são montados
+                com os dados da OS, e é por isso que o rótulo diz isso. */}
+            <SubSecao>Cláusulas do Contrato — modelo {modeloContrato}</SubSecao>
+            {clausulas.map((c) => {
+              const escrito = os.contrato.clausulas?.[c.chave];
+              const mudou = !!escrito && escrito.trim() !== c.padrao;
+              return (
+                <LinhaOs
+                  key={c.chave}
+                  label={c.titulo}
+                  hint={c.chave === "objeto" ? "(a abertura — o objeto e os valores entram abaixo dela, da OS)" : "(texto do modelo — editável)"}
+                  acao={
+                    mudou ? (
+                      <button
+                        type="button"
+                        onClick={() => updClausula(c.chave, c.padrao)}
+                        className="text-[10.5px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded px-1"
+                      >
+                        Voltar ao texto do modelo
+                      </button>
+                    ) : undefined
+                  }
+                >
+                  <Textarea
+                    className="min-h-[92px]"
+                    value={escrito ?? c.padrao}
+                    onChange={(e) => updClausula(c.chave, e.target.value)}
+                  />
+                </LinhaOs>
+              );
+            })}
+
+            <SubSecao>Assinatura</SubSecao>
+            <LinhaOs label="Cidade" hint="(onde se assina)">
+              <Input
+                formato="titulo"
+                value={os.contrato.cidade ?? ""}
+                onChange={(e) => updCt({ cidade: e.target.value })}
+                placeholder="Belo Horizonte"
+              />
+            </LinhaOs>
+            {/* As duas testemunhas do modelo. Ficam em branco no documento
+                quando ninguém as informa — é assim que o contrato sai hoje, para
+                ser assinado à mão, e é assim que ele continua saindo. */}
+            {([1, 2] as const).map((n) => {
+              const campo = n === 1 ? "testemunha1" : "testemunha2";
+              const t = os.contrato[campo] ?? { nome: "", cpf: "" };
+              return (
+                <LinhaOs key={campo} label={`Testemunha ${n}`} hint="(nome e CPF — em branco, assina à mão)">
+                  <div className="flex gap-2 flex-wrap">
+                    <Input
+                      className="flex-1 min-w-[180px]"
+                      formato="titulo"
+                      value={t.nome}
+                      onChange={(e) => updCt({ [campo]: { ...t, nome: e.target.value } })}
+                      placeholder="Nome"
+                    />
+                    <Input
+                      className="w-[170px]"
+                      value={t.cpf}
+                      onChange={(e) => updCt({ [campo]: { ...t, cpf: maskCpfCnpjInput(e.target.value) } })}
+                      placeholder="CPF"
+                      inputMode="numeric"
+                    />
+                  </div>
+                </LinhaOs>
+              );
+            })}
             </>
             )}
           </CardOs>
@@ -1439,8 +2037,62 @@ export function OsForm() {
             fornecedor é a Produção, então este grupo aparece para todo perfil.
             O salvamento continua exigindo a justificativa quando o BV foge do
             padrão, para qualquer um. */}
-        <CardOs secao={SECAO_ACERTOS}>
-          {bvBloco}
+        {/* ACERTOS FINANCEIROS, redesenhado em 15/09/2026.
+            Saíram os dois campos de BV — ele é combinado item a item, no
+            Detalhamento, e aqui era só a soma repetida — e entrou a conta que
+            se fazia na calculadora, por OS, sem ficar registrada em lugar
+            nenhum: quanto o fornecedor devolve à Pólobh. Ver
+            `domain/acertoFinanceiro`; "Não se aplica" é o padrão, e é resposta. */}
+        <CardOs
+          secao={SECAO_ACERTOS}
+          acaoSecao={
+            <button
+              type="button"
+              onClick={() => updFin({ acertoNaoSeAplica: !(os.financeiro.acertoNaoSeAplica ?? true) })}
+              className="text-[10.5px] font-bold text-ink-2 hover:text-primary-dark input-focus rounded px-1"
+            >
+              {(os.financeiro.acertoNaoSeAplica ?? true) ? "Lançar acerto" : "Não se aplica"}
+            </button>
+          }
+        >
+          {(os.financeiro.acertoNaoSeAplica ?? true) ? (
+            <LinhaOs label="Acerto Financeiro">
+              <div className="py-2 text-[12.5px] font-bold text-ink-3">Não se aplica</div>
+            </LinhaOs>
+          ) : (
+            <>
+              <LinhaOs label="Valor original dos serviços" hint="(do Detalhamento da Contratação)">
+                <Auto v={brl(acerto.valorOriginal)} />
+              </LinhaOs>
+              <LinhaOs label="BV sobre o valor original" hint="(combinado item a item)">
+                <Auto v={brl(acerto.bvSobreOriginal)} />
+              </LinhaOs>
+              <LinhaOs label="Valor da NF" hint="(do bloco de emissão)">
+                <Auto v={brl(acerto.valorNf)} />
+              </LinhaOs>
+              <LinhaOs label="Valor do acréscimo" hint="(valor da NF menos o valor original)">
+                <Auto v={brl(acerto.acrescimo)} />
+              </LinhaOs>
+              <LinhaOs label="Encargos sobre o acréscimo" hint="(percentual editável)">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <NumberInput
+                    className="!w-24"
+                    value={acerto.encargosPercentual}
+                    onValue={(v) => updFin({ encargosAcrescimoPercentual: v })}
+                    aria-label="Percentual de encargos sobre o acréscimo"
+                  />
+                  <span className="text-[12.5px] text-ink-3">% ·</span>
+                  <span className="font-display font-bold text-ink">{brl(acerto.encargosSobreAcrescimo)}</span>
+                </div>
+              </LinhaOs>
+              <LinhaOs
+                label="Valor devolução Pólobh"
+                hint="(BV + acréscimo − encargos sobre o acréscimo)"
+              >
+                <div className="py-1 font-display font-bold text-[15px] text-ink">{brl(acerto.devolucaoPolobh)}</div>
+              </LinhaOs>
+            </>
+          )}
           <LinhaOs label="Observações">
             <Textarea
               value={os.financeiro.acertoFinanceiro}
@@ -1450,12 +2102,13 @@ export function OsForm() {
             <TextosJaUsados valor={os.financeiro.acertoFinanceiro} opcoes={sugestoes.valores.acertoFinanceiro} onEscolher={(acertoFinanceiro) => updFin({ acertoFinanceiro })} />
           </LinhaOs>
         </CardOs>
+        </fieldset>
       </div>
 
       {/* Mesma pílula da EC, e o mesmo número do badge da linha desta OS na
           listagem: tudo o que se resolve aqui dentro — comentários, "emitir OS"
           e o cronograma vazio, que agora tem endereço no próprio bloco. */}
-      <NavegadorPendencias pendencias={pendenciasDaTela(pendenciasDoUsuario, { osId: os.id })} />
+      <NavegadorPendencias pendencias={pendenciasDaOs} />
     </PageShell>
   );
 
@@ -1585,17 +2238,17 @@ function LinhaOs({
   children: ReactNode;
 }) {
   return (
-    <div id={id} className="grid md:grid-cols-[240px_minmax(0,1fr)] gap-x-4 items-start px-4 py-2 border-b border-border-soft last:border-b-0">
-      <div className="md:py-3 flex items-start justify-between gap-2">
+    <div id={id} className="grid md:grid-cols-[240px_minmax(0,1fr)] gap-x-4 items-start px-4 py-1 border-b border-border-soft last:border-b-0">
+      <div className="md:py-1.5 flex items-start justify-between gap-2">
         <div className="min-w-0">
           <span className="block text-[11.5px] font-extrabold uppercase tracking-[0.03em] text-ink-2">{label}</span>
           {hint && <span className="block text-[10.5px] font-semibold text-ink-3">{hint}</span>}
         </div>
         {acao && <div className="shrink-0 md:hidden">{acao}</div>}
       </div>
-      <div className="min-w-0 py-1 flex items-start gap-2">
+      <div className="min-w-0 py-0.5 flex items-start gap-2">
         <div className="min-w-0 flex-1">{children}</div>
-        {acao && <div className="shrink-0 hidden md:block pt-1">{acao}</div>}
+        {acao && <div className="shrink-0 hidden md:block pt-0.5">{acao}</div>}
       </div>
     </div>
   );
@@ -1612,46 +2265,274 @@ function LinhaOs({
  * O texto digitado NÃO é apagado ao marcar: quem marcou por engano volta atrás
  * sem perder o que escreveu.
  */
-function CampoOpcionalOs({
-  rotulo,
-  valor,
-  sugestoes,
-  naoSeAplica,
-  className,
-  onValor,
-  onAlternar,
+/**
+ * Os dados de um tomador que não está em cadastro nenhum (15/09/2026).
+ *
+ * "Acrescentar aqui as API's para preenchimento automático dos dados a partir
+ * do Número do CNPJ e Lupa para pesquisa da Inscrição Municipal no Site da PBH"
+ * — check-list da Pólobh. As duas coisas já existiam no sistema (a consulta de
+ * CNPJ do cliente e do fornecedor, e a lupa da Inscrição Municipal); o que
+ * faltava era o lugar onde usá-las.
+ *
+ * A consulta preenche o que a Receita devolve e NÃO apaga o que já estava
+ * escrito: quem corrigiu um endereço à mão não o perde por clicar na lupa
+ * depois.
+ */
+function TomadorAvulsoCampos({
+  dados,
+  onDados,
 }: {
-  rotulo: string;
-  valor: string;
-  sugestoes: string[];
-  naoSeAplica: boolean;
-  className?: string;
-  onValor: (v: string) => void;
-  onAlternar: () => void;
+  dados: TomadorAvulso | undefined;
+  onDados: (d: TomadorAvulso) => void;
 }) {
+  const [buscando, setBuscando] = useState(false);
+  const [aviso, setAviso] = useState("");
+  const atual: TomadorAvulso = dados ?? {
+    razaoSocial: "", endereco: "", cnpjCpf: "", inscricaoEstadual: "", inscricaoMunicipal: "",
+  };
+  const mudar = (patch: Partial<TomadorAvulso>) => onDados({ ...atual, ...patch });
+
+  async function consultar() {
+    const cnpj = atual.cnpjCpf.replace(/\D/g, "");
+    if (cnpj.length !== 14) {
+      setAviso("Informe o CNPJ completo para consultar.");
+      return;
+    }
+    setBuscando(true);
+    setAviso("");
+    try {
+      const d = await consultarCnpj(cnpj);
+      mudar({
+        razaoSocial: atual.razaoSocial || d.razaoSocial,
+        endereco: atual.endereco || d.endereco,
+        inscricaoEstadual: atual.inscricaoEstadual || d.inscricaoEstadual,
+        inscricaoMunicipal: atual.inscricaoMunicipal || d.inscricaoMunicipal,
+      });
+      setAviso("Dados preenchidos pelas fontes cadastrais e fiscais integradas.");
+    } catch (e) {
+      setAviso((e as Error).message);
+    } finally {
+      setBuscando(false);
+    }
+  }
+
   return (
-    // Sem dica no rótulo: "não entra no documento" quebrava o nome em duas
-    // linhas e desalinhava as colunas do bloco. Quem diz isso é a caixa cinza,
-    // o contador no cabeçalho e a dica do botão.
-    <Field label={rotulo} className={className}>
-      {naoSeAplica ? (
-        <div className="h-9 flex items-center rounded-btn border border-border-soft bg-[#F1F2F5] px-2.5 text-[12.5px] font-bold text-ink-3">
-          Não se aplica
-        </div>
-      ) : (
-        <Input className="!h-9" sugestoes={sugestoes} value={valor} onChange={(e) => onValor(e.target.value)} />
-      )}
-      <button
-        type="button"
-        onClick={onAlternar}
-        className="mt-1 text-[10.5px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded"
-        title={naoSeAplica ? "Voltar a informar este item" : "Este item não se aplica — some do documento e da planilha"}
+    <>
+      <LinhaOs
+        label="CNPJ/CPF"
+        acao={
+          <Button variant="soft" size="sm" icon={<IcSearch width={15} height={15} />} onClick={() => void consultar()} disabled={buscando || !flags.consultaCnpj}>
+            {buscando ? "Consultando…" : "Consultar CNPJ"}
+          </Button>
+        }
       >
-        {naoSeAplica ? "Informar" : "Não se aplica"}
-      </button>
-    </Field>
+        <Input value={atual.cnpjCpf} inputMode="numeric" placeholder="00.000.000/0000-00" onChange={(e) => mudar({ cnpjCpf: maskCpfCnpjInput(e.target.value) })} />
+        {aviso && <p className="mt-1 text-[12px] text-info">{aviso}</p>}
+      </LinhaOs>
+      <LinhaOs label="Razão Social">
+        <Input formato="titulo-empresa" value={atual.razaoSocial} onChange={(e) => mudar({ razaoSocial: e.target.value })} />
+      </LinhaOs>
+      <LinhaOs label="Endereço">
+        <Input formato="titulo" value={atual.endereco} onChange={(e) => mudar({ endereco: e.target.value })} />
+      </LinhaOs>
+      <LinhaOs label="Inscrição Estadual">
+        <Input value={atual.inscricaoEstadual} onChange={(e) => mudar({ inscricaoEstadual: e.target.value })} />
+      </LinhaOs>
+      <LinhaOs label="Inscrição Municipal">
+        <InscricaoMunicipalInput value={atual.inscricaoMunicipal} onChange={(inscricaoMunicipal) => mudar({ inscricaoMunicipal })} />
+      </LinhaOs>
+    </>
   );
 }
+
+/**
+ * Um bloco de itens da OS — Logística, Infraestrutura ou um grupo criado aqui.
+ *
+ * Três coisas mudaram em 15/09/2026, e as três vêm do mesmo pedido:
+ *
+ *  · UM ITEM POR LINHA. Lado a lado, o rótulo e o campo disputavam a mesma
+ *    largura, e os de nome longo ("Estacionamento Equipe") quebravam em duas
+ *    linhas desalinhando a coluna vizinha. Em linha própria também sobra lugar
+ *    para as setas e para o "não se aplica" sem espremer nada.
+ *  · ITEM NOVO, criado nesta OS. A lista fixa cobre o que se repete em toda OS;
+ *    o que é daquele evento ("gerador de 180 kVA", "balsa para a ilha") não
+ *    tinha onde ser escrito senão nas Observações Gerais, onde o fornecedor não
+ *    procura.
+ *  · ORDEM. Fixos e criados convivem na mesma lista e se movem com as setas —
+ *    o mesmo par arraste/setas do cronograma e dos itens da EC, aqui só com as
+ *    setas: a lista é curta e o arraste pediria uma alça em cada linha.
+ *
+ * O bloco INTEIRO pode não se aplicar (é o caso de um grupo criado e depois
+ * dispensado), e aí some do documento como qualquer item marcado.
+ */
+function BlocoDeItens<C extends string>({
+  titulo,
+  tituloEditavel,
+  campos,
+  bloco,
+  valorDe,
+  sugestoes,
+  onBloco,
+  onCampo,
+  onTitulo,
+  onExcluir,
+  ancoraDom,
+}: {
+  titulo: string;
+  tituloEditavel?: boolean;
+  campos: readonly { campo: C; rotulo: string }[];
+  bloco: { naoAplicaveis?: readonly C[]; extras?: ItemExtraOs[]; ordem?: string[] } | undefined;
+  /** O valor de cada campo fixo do bloco. */
+  valorDe: (campo: C) => string;
+  sugestoes: Record<string, string[]>;
+  /** Metadados do bloco: o que não se aplica, os itens criados aqui e a ordem. */
+  onBloco: (patch: { naoAplicaveis?: C[]; extras?: ItemExtraOs[]; ordem?: string[] }) => void;
+  /** O valor de um item FIXO — o único patch que depende do tipo do bloco. */
+  onCampo: (campo: C, valor: string) => void;
+  onTitulo?: (nome: string) => void;
+  onExcluir?: () => void;
+  ancoraDom?: string;
+}) {
+  const itens = itensDoBloco(bloco, campos, valorDe);
+  const fora: readonly C[] = bloco?.naoAplicaveis ?? [];
+  const extras = bloco?.extras ?? [];
+
+  /** A ordem atual, escrita por extenso — é o que as setas reescrevem. */
+  const ordemAtual = itens.map((i) => i.chave);
+
+  const mover = (indice: number, direcao: -1 | 1) => {
+    const destino = indice + direcao;
+    if (destino < 0 || destino >= ordemAtual.length) return;
+    const nova = [...ordemAtual];
+    [nova[indice], nova[destino]] = [nova[destino], nova[indice]];
+    onBloco({ ordem: nova });
+  };
+
+  const alternar = (chave: C, extra: boolean) => {
+    if (extra) {
+      onBloco({ extras: extras.map((e) => (e.id === chave ? { ...e, naoSeAplica: !e.naoSeAplica } : e)) });
+      return;
+    }
+    onBloco({
+      naoAplicaveis: fora.includes(chave) ? fora.filter((c) => c !== chave) : [...fora, chave],
+    });
+  };
+
+  const escrever = (chave: C, extra: boolean, valor: string) => {
+    if (extra) onBloco({ extras: extras.map((e) => (e.id === chave ? { ...e, valor } : e)) });
+    else onCampo(chave, valor);
+  };
+
+  const adicionarItem = () => {
+    const novo: ItemExtraOs = { id: novoId(), rotulo: "", valor: "" };
+    onBloco({ extras: [...extras, novo], ordem: [...ordemAtual, novo.id] });
+  };
+
+  const naoAplicaveisVisiveis = itens.filter((i) => i.naoSeAplica).length;
+
+  return (
+    <LinhaOs
+      id={ancoraDom}
+      label={titulo}
+      hint={naoAplicaveisVisiveis ? `(${naoAplicaveisVisiveis} fora do documento)` : undefined}
+      acao={
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" size="sm" onClick={adicionarItem}>+ Item</Button>
+          {onExcluir && (
+            <button
+              type="button"
+              onClick={onExcluir}
+              className="text-ink-3 hover:text-danger px-1.5"
+              title={`Excluir o grupo ${titulo}`}
+              aria-label={`Excluir o grupo ${titulo}`}
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      }
+    >
+      {tituloEditavel && onTitulo && (
+        <Input
+          className="!h-9 mb-2 font-bold"
+          value={titulo}
+          onChange={(e) => onTitulo(e.target.value)}
+          placeholder="Nome do grupo (ex.: Segurança)"
+          aria-label="Nome do grupo"
+        />
+      )}
+      <div className="py-1 space-y-1.5">
+        {itens.map((item, i) => {
+          const extraDoItem = extras.find((e) => e.id === item.chave);
+          return (
+            <div key={item.chave} className="grid grid-cols-[auto_minmax(0,13rem)_minmax(0,1fr)_auto] items-center gap-2">
+              <MoverSetas
+                rotulo={item.rotulo || "o item"}
+                podeSubir={i > 0}
+                podeDescer={i < itens.length - 1}
+                onSubir={() => mover(i, -1)}
+                onDescer={() => mover(i, 1)}
+              />
+              {/* O rótulo do item fixo é da casa e não se edita; o do item
+                  criado aqui é justamente o que quem cria precisa escrever. */}
+              {item.extra ? (
+                <Input
+                  className="!h-9 !text-[12.5px]"
+                  value={extraDoItem?.rotulo ?? ""}
+                  onChange={(e) => onBloco({ extras: extras.map((x) => (x.id === item.chave ? { ...x, rotulo: e.target.value } : x)) })}
+                  placeholder="Nome do item"
+                  aria-label="Nome do item"
+                />
+              ) : (
+                <span className="text-[11.5px] font-extrabold uppercase tracking-[0.03em] text-ink-2 truncate" title={item.rotulo}>
+                  {item.rotulo}
+                </span>
+              )}
+              {item.naoSeAplica ? (
+                <div className="h-9 flex items-center rounded-btn border border-border-soft bg-[#F1F2F5] px-2.5 text-[12.5px] font-bold text-ink-3">
+                  Não se aplica
+                </div>
+              ) : (
+                <Input
+                  className="!h-9"
+                  sugestoes={sugestoes[item.chave] ?? []}
+                  value={item.valor}
+                  onChange={(e) => escrever(item.chave as C, item.extra, e.target.value)}
+                  aria-label={item.rotulo || "Valor do item"}
+                />
+              )}
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => alternar(item.chave as C, item.extra)}
+                  className="text-[10.5px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded px-1"
+                  title={item.naoSeAplica ? "Voltar a informar este item" : "Este item não se aplica — some do documento e da planilha"}
+                >
+                  {item.naoSeAplica ? "Informar" : "Não se aplica"}
+                </button>
+                {item.extra && (
+                  <button
+                    type="button"
+                    onClick={() => onBloco({ extras: extras.filter((e) => e.id !== item.chave) })}
+                    className="text-ink-3 hover:text-danger px-1"
+                    title="Excluir este item"
+                    aria-label={`Excluir ${item.rotulo || "o item"}`}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+        {itens.length === 0 && (
+          <p className="text-[12.5px] text-ink-3 px-1">Nenhum item. Use “+ Item” para acrescentar.</p>
+        )}
+      </div>
+    </LinhaOs>
+  );
+}
+
 
 /**
  * Tabela do Resumo dos Custos: o item e as três formas de cobrá-lo.
@@ -1946,36 +2827,7 @@ function CnaeDoFornecedor({
 /** Valor automático (vem do Projeto/EC) — somente leitura. */
 function Auto({ v }: { v: string | number | null | undefined }) {
   const txt = v === null || v === undefined || v === "" ? "—" : String(v);
-  return <div className="text-sm text-ink font-semibold py-2 whitespace-pre-wrap">{txt}</div>;
+  return <div className="text-sm text-ink font-semibold py-1 whitespace-pre-wrap">{txt}</div>;
 }
 
-/**
- * Dados fiscais de quem figura como tomador (faturamento) ou contratante (contrato).
- * "Cliente" vem do cadastro da EC; "Polobh" vem da empresa padrão do grupo (Configurações).
- */
-function dadosFiscais(
-  quem: "Polobh" | "Cliente" | "",
-  ec: Ec,
-  empresa: EmpresaGrupo | undefined
-): { razaoSocial: string; endereco: string; cnpjCpf: string; inscricaoEstadual: string; inscricaoMunicipal: string } | null {
-  if (quem === "Cliente") {
-    return {
-      razaoSocial: ec.cliente.razaoSocial || ec.cliente.nome,
-      endereco: ec.cliente.endereco,
-      cnpjCpf: ec.cliente.cnpjCpf,
-      inscricaoEstadual: ec.cliente.inscricaoEstadual,
-      inscricaoMunicipal: ec.cliente.inscricaoMunicipal,
-    };
-  }
-  if (quem === "Polobh") {
-    return {
-      razaoSocial: empresa?.razaoSocial ?? "",
-      endereco: empresa?.endereco ?? "",
-      cnpjCpf: empresa?.cnpj ?? "",
-      inscricaoEstadual: empresa?.inscricaoEstadual ?? "",
-      inscricaoMunicipal: empresa?.inscricaoMunicipal ?? "",
-    };
-  }
-  return null;
-}
 

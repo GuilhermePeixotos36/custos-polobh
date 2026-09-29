@@ -38,7 +38,10 @@ import { useChecklistProjeto } from "@/hooks/useChecklistProjeto";
 import { janelaDoProjeto } from "@/domain/checklist";
 import { confirmar } from "@/store/confirm";
 import { corrigirRoteirosProjeto } from "@/lib/correcaoOrtografica";
-import { statusProjetoAutomatico } from "@/domain/statusProjeto";
+import { chaveDocumento } from "@/domain/travaEdicao";
+import { useTravaEdicao } from "@/hooks/useTravaEdicao";
+import { AvisoTravaEdicao } from "@/components/AvisoTravaEdicao";
+import { eventoEncerradoHaDias, statusProjetoAutomatico } from "@/domain/statusProjeto";
 import { RepercutirMudancasModal } from "@/components/RepercutirMudancasModal";
 import {
   ecsAtualizaveis,
@@ -48,7 +51,8 @@ import {
   type SnapshotEvento,
 } from "@/domain/mudancasEvento";
 import { ABAS_COM_CONVERSA } from "@/data/types";
-import type { AbaComConversa, Cliente, Ec, Observacao, Projeto, ProjetoInfo, StatusProjeto } from "@/data/types";
+import { nomeCurtoFornecedor } from "@/domain/fornecedor";
+import type { AbaComConversa, Cliente, Ec, Observacao, Projeto, ProjetoInfo, StatusOsDoc, StatusProjeto } from "@/data/types";
 import { ancoraConversaAba, ancoraProjetoSemEc, pendenciasDaTela, type Pendencia } from "@/domain/pendencias";
 import { CardConversa } from "@/components/CardConversa";
 import { situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
@@ -59,7 +63,7 @@ import { dadosUteisDosFornecedores } from "@/domain/dadosUteis";
 import { EnvioCronograma } from "@/components/EnvioCronograma";
 
 const tomStatusProjeto: Record<StatusProjeto, Tom> = {
-  Ativo: "success", Arquivado: "neutral", Concluido: "info", Cancelado: "danger",
+  Ativo: "success", Arquivado: "neutral",
 };
 
 const clienteVazio = (): Cliente => ({
@@ -161,9 +165,28 @@ export function ProjetoDetail() {
    * ali o ato é criar.
    */
   const [editando, setEditando] = useState(novo);
+
+  /**
+   * TRAVA DE PRESENÇA (25/09/2026). Os Dados Gerais alimentam a EC e a OS —
+   * mexer neles com outra pessoa mexendo junto é o caso em que o estrago não
+   * fica num documento só. Quem entra em edição toma a vez; quem chega depois
+   * fica em leitura até o primeiro sair ou a posse caducar.
+   */
+  const trava = useTravaEdicao(novo ? "" : chaveDocumento("projeto", id), editando);
+
+  // Perdeu a disputa: volta para leitura sozinho, em vez de deixar a pessoa
+  // digitar num formulário cujo salvamento seria recusado.
+  useEffect(() => {
+    if (trava.travado && editando && !novo) {
+      setEditando(false);
+      toast(trava.aviso, "warning");
+    }
+  }, [trava.travado, trava.aviso, editando, novo]);
   /** Diferenças a repercutir em EC/OS depois de salvar (ver RepercutirMudancasModal). */
   const [repercussao, setRepercussao] = useState<{ mudancas: MudancaEvento[]; atual: SnapshotEvento } | null>(null);
   const [filtroEc, setFiltroEc] = useState<"todas" | "ativas" | "arquivadas">("todas");
+  /** Mesmo filtro da EC, agora também na lista de OSs do projeto (15/09/2026). */
+  const [filtroOs, setFiltroOs] = useState<"todas" | StatusOsDoc>("todas");
   const [cnpjLoading, setCnpjLoading] = useState(false);
   const [cnpjMsg, setCnpjMsg] = useState("");
   const [cnpjFoco, setCnpjFoco] = useState(false);
@@ -207,8 +230,13 @@ export function ProjetoDetail() {
     () => ecsDoProjeto.filter((ec) => filtroEc === "todas" || (filtroEc === "ativas" ? ec.ativa : !ec.ativa)),
     [ecsDoProjeto, filtroEc]
   );
+
   const ecIds = useMemo(() => new Set(ecsDoProjeto.map((e) => e.id)), [ecsDoProjeto]);
   const ossDoProjeto = useMemo(() => (ossAll ?? []).filter((o) => ecIds.has(o.ecId)), [ossAll, ecIds]);
+  const ossFiltradas = useMemo(
+    () => ossDoProjeto.filter((os) => filtroOs === "todas" || os.status === filtroOs),
+    [ossDoProjeto, filtroOs]
+  );
   /**
    * Itens da EC que cada OS consolida — o conteúdo da caixinha do "olhinho" na
    * lista de OSs. Calculado uma vez para todas, e não por linha: a busca é na
@@ -220,6 +248,8 @@ export function ProjetoDetail() {
     return mapa;
   }, [ossDoProjeto, ecsAll]);
   const statusExibido = useMemo(() => statusProjetoAutomatico(p, ecsDoProjeto), [p, ecsDoProjeto]);
+  /** Dias desde o fim do evento — alimenta o lembrete de arquivar (ver abaixo). */
+  const diasDesdeOEvento = useMemo(() => eventoEncerradoHaDias(p), [p]);
   /**
    * Projetos de origem da importação, derivados das ECs existentes.
    *
@@ -250,7 +280,10 @@ export function ProjetoDetail() {
   );
 
   const etapas = useMemo<ItemConsolidado[]>(
-    () => ossDoProjeto.flatMap((o) => o.cronograma.map((c) => ({ ...c, fornecedor: o.fornecedor.razaoSocial || "Fornecedor" }))),
+    // NOME FANTASIA, não razão social (15/09/2026): o cronograma é lido no dia
+    // da montagem, e "Sonora" identifica o fornecedor melhor do que
+    // "Sonora Áudio e Iluminação Ltda" — que ainda estoura a coluna.
+    () => ossDoProjeto.flatMap((o) => o.cronograma.map((c) => ({ ...c, fornecedor: nomeCurtoFornecedor(o.fornecedor) || "Fornecedor" }))),
     [ossDoProjeto]
   );
   /**
@@ -279,11 +312,11 @@ export function ProjetoDetail() {
     { col: "status", dir: "asc" }
   );
   const ossOrdenadas = useOrdenacao(
-    ossDoProjeto,
+    ossFiltradas,
     {
       pendencias: (o) => porOs[o.id] ?? 0,
       numero: (o) => o.numero,
-      fornecedor: (o) => o.fornecedor.razaoSocial,
+      fornecedor: (o) => nomeCurtoFornecedor(o.fornecedor),
       status: (o) => o.status,
     },
     { col: "numero", dir: "asc" }
@@ -766,7 +799,13 @@ export function ProjetoDetail() {
                 <Button variant="secondary" size="sm" onClick={arquivarProjeto}>Arquivar projeto</Button>
               )}
               {!editando ? (
-                <Button size="sm" icon={<IcPencil width={15} height={15} />} onClick={() => setEditando(true)}>
+                <Button
+                  size="sm"
+                  icon={<IcPencil width={15} height={15} />}
+                  disabled={trava.travado}
+                  title={trava.travado ? trava.aviso : undefined}
+                  onClick={() => setEditando(true)}
+                >
                   Editar dados gerais
                 </Button>
               ) : (
@@ -806,6 +845,44 @@ export function ProjetoDetail() {
         />
       }
     >
+      {/* A CONVERSA DA ABA — o corredor da etapa, no topo dela.
+          Quais abas têm uma está em `ABAS_COM_CONVERSA`, e a lista mudou em
+          15/09/2026: Dados Gerais e Check-list entraram (o recado da etapa ia
+          parar no campo de texto mais próximo), EC e OS saíram (ali a conversa
+          mora DENTRO do documento — no corredor da listagem era uma terceira
+          caixa de texto para o mesmo assunto). */}
+      {!novo && (ABAS_COM_CONVERSA as readonly string[]).includes(aba) && (
+        <div className="mb-4">
+          <CardConversa
+            ancora={ancoraConversaAba(id, aba)}
+            ancoraDom={idAncoraPendencia(ancoraConversaAba(id, aba))}
+            observacoes={p.conversas?.[aba as AbaComConversa] ?? []}
+            usuarios={nomesUsuarios}
+            minhas={minhasPendencias.filter((x) => x.tipo === "projeto.conversa" && x.projetoId === id && x.aba === aba).length}
+            onChange={(observacoes) => gravarConversa(aba as AbaComConversa, observacoes)}
+          />
+        </div>
+      )}
+
+      {/* O LEMBRETE QUE SUBSTITUI O "CONCLUÍDO" (15/09/2026).
+          O selo saiu porque encerrava as pendências sozinho na virada da data
+          do evento — e é justamente aí que sobram nota, acerto e pagamento. Só
+          que sem ele o projeto ficaria ativo para sempre. Então o sistema
+          lembra, e quem decide é quem sabe se ainda falta alguma coisa. */}
+      {!novo && aba === "dados" && diasDesdeOEvento !== null && diasDesdeOEvento >= 7 && statusExibido === "Ativo" && podeEditarProjeto && (
+        <div className="mb-4 flex items-center gap-3 flex-wrap rounded-card border border-warning/40 bg-warning-soft px-4 py-3 text-[13px] text-ink">
+          <span>
+            O evento terminou há <b>{diasDesdeOEvento} dias</b> e o projeto continua ativo — ele segue cobrando
+            pendências da equipe. Se não há mais nota, acerto ou pagamento em aberto, arquive-o.
+          </span>
+          <Button size="sm" variant="secondary" className="ml-auto" onClick={arquivarProjeto}>
+            Arquivar projeto
+          </Button>
+        </div>
+      )}
+
+      {aba === "dados" && <AvisoTravaEdicao trava={trava} />}
+
       {aba === "dados" && (
         /*
          * `fieldset disabled` trava de uma vez todos os campos da aba — input,
@@ -820,11 +897,11 @@ export function ProjetoDetail() {
           {!editando && podeEditarProjeto && (
             <div className="flex items-center gap-2 rounded-card border border-border-soft bg-[#FBFBFC] px-4 py-2.5 text-[12.5px] text-ink-2">
               <IcEye width={15} height={15} className="shrink-0 text-ink-3" />
-              <span>
-                Modo leitura. O evento muda — local, participantes, datas: use{" "}
-                <b className="text-ink">Editar dados gerais</b> para alterar. O que já foi emitido em
-                EC e OS não muda por conta disso.
-              </span>
+              {/* Só "Modo leitura" (15/09/2026): a explicação de três linhas
+                  dizia, toda vez, o que o botão ao lado já diz — e o que
+                  acontece com EC e OS emitidas agora é dito na hora certa, no
+                  alerta que aparece ao salvar. */}
+              <span>Modo leitura</span>
             </div>
           )}
           <Card data-tour="projeto-cliente">
@@ -1077,27 +1154,6 @@ export function ProjetoDetail() {
         </fieldset>
       )}
 
-      {/* A CONVERSA DA ABA — o corredor da etapa, no topo dela.
-          Cinco abas têm uma (ver `ABAS_COM_CONVERSA`): recado de etapa não
-          tinha onde morar, e acabava escrito numa observação de item que nada
-          tinha a ver com o assunto, só porque era o campo de texto mais perto.
-          Dados Gerais e Check-list ficam de fora: uma é cadastro, a outra já é
-          feita de tarefas com dono e prazo. */}
-      {!novo && (ABAS_COM_CONVERSA as readonly string[]).includes(aba) && (
-        <div className="mb-4">
-          <CardConversa
-            titulo={`Observações — ${ABAS.find((a) => a.key === aba)?.label ?? ""}`}
-            hint="Conversa da equipe sobre esta etapa. Não sai em documento, e-mail nem planilha — quem é @mencionado fica com a pendência."
-            ancora={ancoraConversaAba(id, aba)}
-            ancoraDom={idAncoraPendencia(ancoraConversaAba(id, aba))}
-            observacoes={p.conversas?.[aba as AbaComConversa] ?? []}
-            usuarios={nomesUsuarios}
-            minhas={minhasPendencias.filter((x) => x.tipo === "projeto.conversa" && x.projetoId === id && x.aba === aba).length}
-            onChange={(observacoes) => gravarConversa(aba as AbaComConversa, observacoes)}
-          />
-        </div>
-      )}
-
       {aba === "ec" && (
         <Card padded={false}>
           <div
@@ -1241,8 +1297,35 @@ export function ProjetoDetail() {
       {aba === "os" && (
         <Card padded={false}>
           <div className="p-5"><CardTitle hint="Ordens de serviço geradas a partir das ECs deste projeto">Ordens de Serviço</CardTitle></div>
+          {/* Os mesmos filtros da lista de ECs (15/09/2026): a lista de OSs de um
+              projeto cresce a cada versão reemitida, e o que se procura quase
+              sempre é "as que ainda não saíram" ou "a que foi cancelada". */}
+          <div className="px-5 pb-4 flex items-center gap-1 flex-wrap border-b border-border-soft" role="group" aria-label="Filtrar ordens de serviço">
+            {([
+              ["todas", "Todas"],
+              ["Rascunho", "Rascunho"],
+              ["Emitida", "Emitida"],
+              ["Cancelada", "Cancelada"],
+              ["Arquivada", "Arquivada"],
+            ] as const).map(([valor, rotulo]) => (
+              <button
+                key={valor}
+                type="button"
+                aria-pressed={filtroOs === valor}
+                onClick={() => setFiltroOs(valor)}
+                className={cx(
+                  "h-8 rounded-pill px-3 text-[12.5px] font-bold transition-colors",
+                  filtroOs === valor ? "bg-primary-soft text-primary-dark" : "text-ink-2 hover:bg-[#F1F2F5] hover:text-ink"
+                )}
+              >
+                {rotulo}
+              </button>
+            ))}
+          </div>
           {ossDoProjeto.length === 0 ? (
             <div className="p-6"><EmptyState title="Nenhuma OS" hint="Gere OSs a partir das ECs do projeto." /></div>
+          ) : ossFiltradas.length === 0 ? (
+            <div className="p-6"><EmptyState title="Nenhuma OS neste filtro" hint="Selecione outro filtro para ver as demais ordens de serviço." /></div>
           ) : (
             <Table>
               <THead>
@@ -1259,7 +1342,7 @@ export function ProjetoDetail() {
                     <TdPendencias n={porOs[o.id] ?? 0} title="Ações pendentes suas nesta OS" />
                     <Td className="font-bold">{o.numero}</Td>
                     <TdItensOs itens={itensPorOs[o.id] ?? []} />
-                    <Td>{o.fornecedor.razaoSocial || "—"}</Td>
+                    <Td>{nomeCurtoFornecedor(o.fornecedor) || "—"}</Td>
                     <Td align="center"><Badge tom={tomStatusOs[o.status]}>{o.status}</Badge></Td>
                   </Tr>
                 ))}
@@ -1301,8 +1384,12 @@ export function ProjetoDetail() {
         </div>
       )}
 
-      {/* Pílula flutuante: o que se resolve NESTA aba, uma de cada vez. */}
-      {!novo && <NavegadorPendencias pendencias={pendenciasDaTelaAtual} />}
+      {/* Pílula flutuante: o que se resolve NESTA aba, uma de cada vez.
+          Fora das LISTAGENS de EC e de OS (15/09/2026): ali ela não resolvia
+          nada — as pendências daquelas linhas se resolvem dentro do documento,
+          e a pílula só sabia fazer a linha piscar. O badge vermelho de cada
+          linha continua, e é ele que leva à EC/OS certa. */}
+      {!novo && aba !== "ec" && aba !== "os" && <NavegadorPendencias pendencias={pendenciasDaTelaAtual} />}
 
       {/* O projeto já foi salvo; aqui se decide o que fazer com o que já saiu. */}
       {repercussao && (

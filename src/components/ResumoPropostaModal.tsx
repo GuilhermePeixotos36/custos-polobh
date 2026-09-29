@@ -47,7 +47,24 @@ export function ResumoPropostaModal({ onInserir, onClose }: Props) {
         setErro(r.erro || "Falha ao gerar o resumo.");
         return;
       }
-      onInserir(bulletsParaHtml(r.resumo || ""));
+      /*
+       * RESUMO VAZIO ERA UM SUCESSO SILENCIOSO (corrigido em 15/09/2026).
+       *
+       * Quando a IA devolvia `ok` sem texto — acontece com um PDF que é só
+       * imagem escaneada, ou com um link que não abriu —, `bulletsParaHtml`
+       * produzia string vazia, quem recebia a inserção devolvia sem fazer nada
+       * ("if (!html) return") e este modal FECHAVA como se tivesse dado certo.
+       * A pessoa voltava para a EC, não encontrava nada na Descrição Completa e
+       * concluía, com razão, que o recurso não funciona.
+       */
+      const html = bulletsParaHtml(r.resumo || "");
+      if (!html) {
+        setErro(
+          "A IA não conseguiu extrair texto deste material. Se for um PDF escaneado, tente uma imagem mais nítida ou digite o descritivo à mão."
+        );
+        return;
+      }
+      onInserir(html);
       onClose();
     } finally {
       setLoading(false);

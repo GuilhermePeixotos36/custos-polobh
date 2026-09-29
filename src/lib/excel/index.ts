@@ -1,7 +1,7 @@
 import type { Ec, Os } from "@/data/types";
 import type { CronogramaExcelDados } from "./cronograma";
 import { auditar } from "@/store/logs";
-import { empresaPadrao } from "@/store/empresas";
+import { empresaPadrao, useEmpresas } from "@/store/empresas";
 import { nomeEcExcel } from "./nomeEc";
 
 export type ModeloEcExcel = "financeiro" | "completa";
@@ -68,6 +68,21 @@ export async function gerarEcExcel(
   return r;
 }
 
+/**
+ * A rentabilidade em Excel (15/09/2026) — planilha INTERNA, com a margem da
+ * casa. ExcelJS sob demanda, como as outras.
+ */
+export async function gerarRentabilidadeExcel(ec: Ec, gastoPorLinha: Record<string, number>): Promise<void> {
+  const { gerarRentabilidadeExcel: fn } = await import("./rentabilidade");
+  await fn(ec, gastoPorLinha);
+  auditar({
+    categoria: "Exportação",
+    acao: "ec.rentabilidade.excel",
+    mensagem: `Rentabilidade da EC ${ec.numero} exportada para Excel`,
+    alvoId: ec.id,
+  });
+}
+
 /** Geração da OS em Excel remontada com a marca (ExcelJS sob demanda). */
 export async function gerarOsExcel(
   os: Os,
@@ -87,7 +102,9 @@ export async function gerarOsExcel(
         inscricaoMunicipal: emp.inscricaoMunicipal,
       }
     : undefined;
-  const r = await fn(os, ec, { ...opts, empresaPolobh });
+  // A lista INTEIRA das empresas do grupo vai junto (15/09/2026): o tomador
+  // pode ser a MF, e não só a emissora padrão (ver `domain/tomadorOs`).
+  const r = await fn(os, ec, { ...opts, empresaPolobh, empresas: useEmpresas.getState().empresas });
   auditar({
     categoria: "Exportação",
     acao: "os.excel",
