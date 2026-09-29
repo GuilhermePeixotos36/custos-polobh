@@ -10,6 +10,7 @@ import {
   opcaoNaoSeAplica,
   valorDaOpcao,
   descritivoConsolidado,
+  descritivoFinanceiro,
   textoObjetoContrato,
   honorariosPadrao,
   encargosPadrao,
@@ -604,5 +605,15 @@ describe("normalizarTaxa — EC gravada no formato antigo", () => {
     expect(normalizarTaxa({ modo: "percentual", valor: 0.15, minimo: 5999 }, honorariosPadrao())).toEqual({ modo: "percentual", valor: 0.15, minimo: 5999 });
     expect(normalizarTaxa({ modo: "fixo", valor: 1200 }, honorariosPadrao())).toEqual({ modo: "fixo", valor: 1200 });
     expect(normalizarTaxa(undefined, encargosPadrao())).toEqual(encargosPadrao());
+  });
+});
+
+describe("descritivoFinanceiro", () => {
+  it("leva só a descrição financeira, sem a completa", () => {
+    const txt = descritivoFinanceiro([
+      { item: "A", descricao: "Locação de som", descricaoCompleta: "<p>Detalhe longo</p>" },
+      { item: "B", descricao: "", descricaoCompleta: "" },
+    ] as never);
+    expect(txt).toBe("• Locação de som");
   });
 });
