@@ -496,6 +496,15 @@ export function EcDetail() {
         </>
       }
     >
+      {/* A conversa da equipe fica no ALTO de todas as vistas da EC — custos,
+          resumo e rentabilidade (29/09/2026): é a pauta de onde cada um tira o
+          que é seu, e é uma conversa só, então as pendências dela contam uma vez.
+          Fora dos blocos de cada aba de propósito: ao trocar de aba o card não é
+          recriado, e o que acabou de ser dito não some. */}
+      <div className="mb-4">
+        <ObservacoesGeraisEc ecId={ec.id} observacoes={ec.observacoes ?? []} usuarios={usuarios} />
+      </div>
+
       {verFinanceiro && subaba === "resumo" && (
         <div className="space-y-4">{totaisCard}</div>
       )}
@@ -509,9 +518,6 @@ export function EcDetail() {
               contabiliza mas mora na OS (observação, cronograma) fica de fora:
               lá é outra tela, e o salto não teria volta. */}
           <NavegadorPendencias pendencias={pendenciasDaTela(minhasPendencias, { ecId: ec.id })} />
-          {/* A conversa da equipe vem antes da lista de custos: é a pauta de onde
-              cada um tira o que é seu e vai tratar dentro do item. */}
-          <ObservacoesGeraisEc ecId={ec.id} observacoes={ec.observacoes ?? []} usuarios={usuarios} />
           {estimativaCard}
           {ossCard}
 

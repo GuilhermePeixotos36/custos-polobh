@@ -569,15 +569,20 @@ export function EcForm() {
       {/* Pílula flutuante que salta entre as pendências desta EC. */}
       {subaba === "ec" && <NavegadorPendencias pendencias={pendenciasDaEc} />}
 
+      {/* A conversa geral grava sozinha, fora do formulário — por isso só
+          aparece depois que a EC existe, quando já há onde gravar. Fica no alto
+          de todas as vistas (custos, resumo, rentabilidade), como conversa única. */}
+      {!!ec.id && (
+        <div className="mb-4">
+          <ObservacoesGeraisEc ecId={ec.id} observacoes={ec.observacoes ?? []} usuarios={usuarios} />
+        </div>
+      )}
+
       {verFinanceiro && subaba === "resumo" && <div className="space-y-4">{resumoCard}</div>}
       {verRentabilidade && subaba === "rentabilidade" && <div className="space-y-4">{rentabilidadeCard}</div>}
 
       {subaba === "ec" && (
       <div className="space-y-4">
-        {/* A conversa geral grava sozinha, fora do formulário — por isso só
-            aparece depois que a EC existe, quando já há onde gravar. */}
-        {!!ec.id && <ObservacoesGeraisEc ecId={ec.id} observacoes={ec.observacoes ?? []} usuarios={usuarios} />}
-
         {/* Cliente e Projeto só aparecem em EC avulsa; dentro de um Projeto os dados
             ficam na aba "Dados Gerais" e não são reeditados aqui. */}
         {!temProjeto && (

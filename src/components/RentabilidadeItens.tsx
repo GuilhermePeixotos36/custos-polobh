@@ -86,7 +86,7 @@ export function RentabilidadeItens({
               <th className="px-3 py-2 text-right text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Valor na EC</th>
               <th className="px-3 py-2 text-right text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Valor Líquido OS</th>
               <th className="px-3 py-2 text-right text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Rentabilidade</th>
-              <th className="px-3 py-2 text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Justificativa</th>
+              <th className="px-3 py-2 text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Justificativa Rentabilidade</th>
             </tr>
           </thead>
           <tbody>
