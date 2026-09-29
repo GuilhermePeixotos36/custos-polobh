@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { LegendaProjeto } from "@/components/layout/LegendaProjeto";
 import { PageShell } from "@/components/layout/AppLayout";
 import { BarraProjeto } from "@/components/layout/BarraSecao";
 import {
@@ -513,6 +514,7 @@ export function EcForm() {
     <PageShell
       title={tituloEc({ ...ec, numero })}
       titleAdornment={statusBadge}
+      legenda={<LegendaProjeto info={ec.projeto} />}
       // As ações grudam junto com o título (ver PageShell): em EC longa, elas
       // continuam à mão enquanto se rola a lista de itens.
       acoes={

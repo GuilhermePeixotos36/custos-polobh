@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { LegendaProjeto } from "@/components/layout/LegendaProjeto";
 import { PageShell } from "@/components/layout/AppLayout";
 import { BarraProjeto } from "@/components/layout/BarraSecao";
 import {
@@ -976,6 +977,7 @@ export function OsForm() {
       // documento é este, a barra do projeto já diz: a aba OS está acesa.
       title={os.numero}
       titleAdornment={<Badge tom={tomStatusOs[os.status]}>{os.status}</Badge>}
+      legenda={<LegendaProjeto info={os.projeto ?? ecCtx.projeto} />}
       // O segundo cabeçalho do projeto: a OS é uma página interna dele, e sem
       // esta barra quem entrava aqui perdia toda a referência de onde estava.
       subabas={ecCtx.projetoId ? <BarraProjeto projetoId={ecCtx.projetoId} atual="os" /> : undefined}

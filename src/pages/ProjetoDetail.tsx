@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { LegendaProjeto } from "@/components/layout/LegendaProjeto";
 import { PageShell } from "@/components/layout/AppLayout";
 import { BarraProjeto } from "@/components/layout/BarraSecao";
 import { NAV_PROJETO } from "@/components/layout/nav";
@@ -786,6 +787,7 @@ export function ProjetoDetail() {
     <PageShell
       title={novo ? "Novo projeto" : p.nome || "Projeto"}
       titleAdornment={!novo ? <Badge tom={tomStatusProjeto[statusExibido]}>{statusExibido}</Badge> : undefined}
+      legenda={!novo ? <LegendaProjeto info={p.info} /> : undefined}
       // Grudam junto com o título (ver PageShell): o projeto é uma tela longa, e
       // era preciso voltar ao topo só para salvar.
       acoes={
