@@ -26,30 +26,35 @@ no computador da Marisa sincroniza sozinho, e o arquivo aparece em
 Cada execução também registra `backup.diario` na trilha de auditoria. Os arquivos
 não são apagados (um por dia; retenção é decisão da Pólobh).
 
-## 2. Arquivo automático dos documentos — avaliação
+## 2. Arquivo automático dos documentos — pesquisa e decisões
 
-**É viável.** Cada projeto passa a ter o link da sua pasta no Dropbox (campo
-*Pasta do projeto no Dropbox*, em Dados Gerais — já implementado, grava em
-`projetos.docs_url`). O que falta é o envio automático, que exige um passo de
-servidor porque o navegador não escreve no Dropbox.
+**Pesquisa (documentação e fórum do Dropbox):**
+- `files/upload` recebe um **caminho** (`/pasta/arquivo`), não um link. Não existe
+  upload "para um link compartilhado". ([Sharing guide](https://developers.dropbox.com/dbx-sharing-guide))
+- `sharing/get_shared_link_metadata` traduz o link em pasta e devolve `path_lower`
+  **somente se a pasta está no Dropbox da conta autenticada**; para pasta de
+  outra conta o campo vem vazio (spec: [shared_links.stone](https://github.com/dropbox/dropbox-api-spec/blob/main/shared_links.stone)).
+- Há relatos de problemas com os links novos `/scl/fo/…` em
+  `get_shared_link_metadata` ([fórum](https://community.dropbox.com/en/discussion/731378/get-shared-link-metadata-api-problem-with-the-new-scl-folder-links));
+  não consegui abrir a discussão daqui, então **este ponto precisa de teste real**.
+- Em conta Business, tokens de time não fazem upload; o app deve autorizar como
+  **membro** que enxerga as pastas, e pastas de outro namespace exigem o cabeçalho
+  `Dropbox-API-Path-Root` ([Team Files](https://developers.dropbox.com/dbx-team-files-guide)).
 
-**Desenho proposto:**
-- Edge Function `arquivar-documento` (autenticada pelo usuário logado) recebe o
-  arquivo gerado (PDF/XLSX da EC, OS, cronograma) e o `projetoId`.
-- Resolve a pasta do projeto: `sharing/get_shared_link_metadata` com o link
-  guardado devolve o `path_lower`/`id` da pasta; o arquivo vai por `files/upload`.
-- O app chama a função logo após gerar o documento (fluxo "gerar → baixar" ganha
-  o "→ arquivar"), com aviso na tela se falhar, sem travar a geração.
-- Reaproveita as credenciais do app Dropbox do item 1.
+**Conclusão:** viável, com a tradução link → caminho feita no servidor. Implementado:
+- campo *Pasta do projeto no Dropbox* (Dados Gerais → `projetos.docs_url`);
+- Edge Function `arquivar-documento`: resolve o link, exige que seja pasta e que
+  tenha `path_lower`; se não, devolve erro claro (nada é gravado no lugar errado);
+- `src/lib/arquivarDocumento.ts`: helper do app, que nunca lança.
 
-**Pontos a decidir/validar antes de construir:**
-1. **Link de pasta compartilhada:** o link precisa ser de pasta do próprio time
-   Pólobh; links "somente leitura" não aceitam upload. Validar com uma pasta real
-   se o app consegue resolver o caminho pelo link (senão, guardar o caminho da
-   pasta em vez do link).
-2. **Permissão:** o app do Dropbox precisa acessar as pastas de projeto (Full
-   Dropbox / namespace do time).
-3. **Nomes e versões:** definir se cada versão vira arquivo novo (sugestão: sim,
-   com número da versão no nome) ou substitui.
-4. **Quais documentos:** EC, OS, cronograma, resumo de proposta?
-Estimativa: pequena/média — uma função, um ponto de chamada por tipo de documento.
+**Decisões:**
+- **Versões:** cada versão é um arquivo novo (número da versão no nome do
+  arquivo); nada é sobrescrito (`mode: add` + `autorename`).
+- **Documentos:** EC, OS e cronograma (os arquivos que o app já gera em Excel/PDF).
+  Resumo de proposta e e-mails ficam de fora.
+- **Falha:** o aviso aparece na tela e a geração do documento segue normalmente.
+
+**Pendente (depende do acesso ao Dropbox):** validar com uma pasta real da Pólobh
+(link `/scl/fo/…` resolve? conta é Business?), e só então ligar o helper aos botões
+de gerar EC/OS/cronograma. Se o link não resolver, plano B: guardar o **caminho**
+da pasta (ex.: `/Pólobh (HGM)/Projetos/ACME`) em vez do link.
