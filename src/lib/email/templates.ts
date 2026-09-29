@@ -4,7 +4,7 @@
  */
 import type { Ec, Os } from "@/data/types";
 import { urlCredenciamento } from "@/lib/links";
-import { corpoCronogramaFornecedor, textoCronogramaFornecedor, type EtapaProjetoTexto } from "../../../supabase/functions/_shared/cronogramaEmail";
+import { corpoCronogramaFornecedor, linhasDadosDoProjeto, textoCronogramaFornecedor, type EtapaProjetoTexto } from "../../../supabase/functions/_shared/cronogramaEmail";
 import { dataBR } from "@/lib/format";
 // Todas as faixas do evento: o e-mail que leva a OS ao fornecedor dizia só o
 // primeiro dia (ver `datasDoEvento`).
@@ -92,21 +92,57 @@ export function emailDispararOs(os: Os, ec: Ec): MensagemEmail {
   };
 }
 
-/** Link de credenciamento ao fornecedor. */
+const ABERTURA_CREDENCIAMENTO = [
+  "Esta é uma mensagem automática do sistema de gestão da Pólobh.",
+  "Preencha o formulário abaixo com os dados completos da sua equipe até o prazo informado. Essas informações são necessárias para garantir o acesso dos integrantes ao evento.",
+];
+
+/** O prazo que o sistema lança sozinho, do que foi definido no credenciamento. */
+const prazoDoCredenciamento = (os: Os) =>
+  os.credenciamento.prazoLimite ? dataBR(os.credenciamento.prazoLimite) : "a combinar com a produção";
+
+/**
+ * Link de credenciamento ao fornecedor (texto padrão de 29/09/2026): "Alerta:
+ * Credenciamento da Equipe", Dados do Projeto completos como na OS, o link e o
+ * prazo lançado a partir do que foi definido na aba Credenciamento.
+ */
 export function emailCredenciamento(os: Os, ec: Ec): MensagemEmail {
+  const projeto = os.projeto ?? ec.projeto;
+  const dados = linhasDadosDoProjeto(projeto, etapasDoProjetoEmTexto(projeto))
+    .map(([k, v]) => `<tr><td style="padding:2px 12px 2px 0;color:#6A6E78;font-size:13px;vertical-align:top">${h(k)}</td>
+      <td style="padding:2px 0;font-size:13px">${h(v)}</td></tr>`)
+    .join("");
   const corpo = `
-    <p>Olá, ${h(os.fornecedor.razaoSocial || "fornecedor")}.</p>
-    <p>Para o projeto <b>${h(ec.projeto.titulo)}</b>, acesse o formulário de credenciamento
-       e cadastre os dados de profissionais e veículos da sua equipe:</p>
+    ${ABERTURA_CREDENCIAMENTO.map((t) => `<p>${h(t)}</p>`).join("")}
+    <p style="font-size:13px;font-weight:bold;margin-bottom:4px">Dados do projeto</p>
+    <table style="border-collapse:collapse;margin:4px 0 16px">${dados}</table>
+    <p style="font-size:13px;font-weight:bold;margin-bottom:4px">Formulário de credenciamento</p>
     <p><a href="${urlHttp(urlCredenciamento(os))}"
         style="display:inline-block;background:#F2820D;color:#2A1602;font-weight:700;
-        padding:10px 18px;border-radius:10px;text-decoration:none">Abrir credenciamento</a></p>
-    ${os.credenciamento.prazoLimite ? `<p style="font-size:14px"><b>Prazo limite:</b> ${dataBR(os.credenciamento.prazoLimite)}</p>` : ""}`;
+        padding:10px 18px;border-radius:10px;text-decoration:none">Abrir formulário</a><br>
+       <span style="font-size:12px;color:#6A6E78">${h(urlCredenciamento(os))}</span></p>
+    <p style="font-size:14px"><b>Prazo para envio:</b> ${h(prazoDoCredenciamento(os))}</p>`;
   return {
     para: os.fornecedor.email ? [{ email: os.fornecedor.email, nome: os.fornecedor.razaoSocial }] : [],
-    assunto: `Credenciamento — ${ec.projeto.titulo} (${os.numero})`,
-    html: wrap("Credenciamento da equipe", corpo),
+    assunto: `Alerta: Credenciamento da Equipe — ${projeto.titulo} (${os.numero})`,
+    html: wrap("Alerta: Credenciamento da Equipe", corpo),
   };
+}
+
+/** O MESMO texto em mensagem simples, para o WhatsApp. */
+export function textoWhatsAppCredenciamento(os: Os, ec: Ec): string {
+  const projeto = os.projeto ?? ec.projeto;
+  return [
+    "*Alerta: Credenciamento da Equipe*",
+    "",
+    ...ABERTURA_CREDENCIAMENTO,
+    "",
+    "*Dados do projeto*",
+    ...linhasDadosDoProjeto(projeto, etapasDoProjetoEmTexto(projeto)).map(([k, v]) => `${k}: ${v}`),
+    "",
+    `*Formulário de credenciamento:* ${urlCredenciamento(os)}`,
+    `*Prazo para envio:* ${prazoDoCredenciamento(os)}`,
+  ].join("\n");
 }
 
 /**

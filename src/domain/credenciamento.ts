@@ -11,6 +11,7 @@
  * de lugar é o comando, não o dado.
  */
 import { urlCredenciamento } from "@/lib/links";
+import { telefoneWhatsApp } from "@/domain/envioCronograma";
 import type { CredenciamentoResposta, Ec, Os } from "@/data/types";
 
 /** Uma OS na fila, já com o que a tela mostra e o que o disparo precisa decidir. */
@@ -20,6 +21,8 @@ export interface NaFila {
   ec: Ec | undefined;
   fornecedor: string;
   email: string;
+  /** Telefone do cadastro, pronto para o wa.me (só dígitos, com DDI). Vazio sem telefone. */
+  whatsapp: string;
   /** Vazio enquanto a OS não foi salva: o token do link nasce no banco. */
   link: string;
   respondeu: boolean;
@@ -42,6 +45,7 @@ export function filaDeCredenciamento(oss: Os[], ecs: Ec[], responderam: string[]
       fornecedor:
         os.fornecedor.apelido || os.fornecedor.nomeFantasia || os.fornecedor.razaoSocial || "Fornecedor",
       email: os.fornecedor.email?.trim() ?? "",
+      whatsapp: telefoneWhatsApp(os.fornecedor.telefone),
       link: urlCredenciamento(os),
       respondeu: respondidas.has(os.id),
     }))
