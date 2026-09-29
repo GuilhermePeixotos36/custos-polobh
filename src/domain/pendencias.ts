@@ -622,6 +622,26 @@ export function calcularPendencias(
     // ECs encerradas já foram descartadas na entrada do laço.
     for (const linha of ec.linhas) {
       if (linha.oculto) continue; // guardado: não entra em total nenhum, nem neste
+      // DADOS DO FORNECEDOR (29/09/2026): item com Aprovação OK e sem CNPJ ou
+      // razão social é da produtora. A EC aprovada pode existir sem esses dados
+      // — eles só são exigidos para gerar OS e contrato —, mas alguém precisa ser
+      // cobrado por eles, e é quem responde pelo projeto.
+      if (
+        linha.statusAprovacao === "OK" &&
+        (!linha.fornecedorRazao?.trim() || (linha.fornecedorCnpj ?? "").replace(/\D/g, "").length !== 14)
+      ) {
+        out.push({
+          id: `ec.fornecedor:${ec.id}:${linha.id}`,
+          tipo: "ec.fornecedor",
+          titulo: `Preencher CNPJ e razão social do fornecedor: ${linha.item || linha.grupo || "item sem nome"}`,
+          responsavelProjeto: respDe(ec.projetoId),
+          recurso: "projetos",
+          projetoId: ec.projetoId,
+          aba: "ec",
+          ecId: ec.id,
+          ancora: linha.id,
+        });
+      }
       const faltando = [
         { campo: "os" as const, status: linha.statusOs, rotulo: "OS" },
         { campo: "contrato" as const, status: linha.contratoStatus, rotulo: "Contrato" },

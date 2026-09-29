@@ -5,6 +5,7 @@
  * A chave da IA fica só no servidor — aqui nunca.
  */
 import { supabase } from "@/lib/supabaseClient";
+import { textoDoPdf } from "@/lib/pdfTexto";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
 export interface ResumoResultado {
@@ -27,23 +28,17 @@ function fileParaDataUrl(file: File): Promise<string> {
   });
 }
 
-/**
- * Converte as páginas do PDF em imagens PNG no navegador (até `maxPaginas`).
- * O OpenRouter exige saldo mínimo na conta para requisições que mandam o
- * arquivo em si — como imagem, a leitura usa a visão do modelo normalmente,
- * sem essa exigência (e sem custo de OCR).
- */
-async function pdfParaImagens(file: File, maxPaginas = 4): Promise<{ mime: string; dataUrl: string }[]> {
-  const pdfjsLib = await import("pdfjs-dist");
-  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+/** PDF com menos texto do que isto é tratado como escaneado: vai como imagem. */
+const TEXTO_MINIMO_PDF = 80;
 
-  const buf = await file.arrayBuffer();
-  // disableWorker: evita depender do Web Worker (observamos instabilidade de
-  // comunicação com ele neste bundler); PDFs de orçamento são pequenos
-  // (1-4 páginas), então rodar no thread principal não pesa perceptivelmente.
-  // Não está no .d.ts desta versão, mas é lido em runtime pela lib.
-  const opts = { data: buf, disableWorker: true } as Parameters<typeof pdfjsLib.getDocument>[0];
-  const pdf = await pdfjsLib.getDocument(opts).promise;
+/**
+ * Converte as páginas do PDF em imagens PNG no navegador (até `maxPaginas`) —
+ * o caminho do PDF escaneado. O OpenRouter exige saldo mínimo na conta para
+ * requisições que mandam o arquivo em si; como imagem, a leitura usa a visão do
+ * modelo normalmente.
+ */
+async function pdfParaImagens(pdfjsLib: typeof import("pdfjs-dist"), dados: ArrayBuffer, maxPaginas = 4) {
+  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(dados) }).promise;
   const imagens: { mime: string; dataUrl: string }[] = [];
   const n = Math.min(pdf.numPages, maxPaginas);
   for (let i = 1; i <= n; i++) {
@@ -58,6 +53,16 @@ async function pdfParaImagens(file: File, maxPaginas = 4): Promise<{ mime: strin
     imagens.push({ mime: "image/png", dataUrl: canvas.toDataURL("image/png") });
   }
   return imagens;
+}
+
+/** Lê um PDF: texto quando ele tem, imagens quando é escaneado. Falha com o motivo. */
+async function lerPdf(file: File): Promise<{ texto: string; imagens: { mime: string; dataUrl: string }[] }> {
+  const pdfjsLib = await import("pdfjs-dist");
+  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+  const dados = await file.arrayBuffer();
+  const texto = await textoDoPdf(pdfjsLib, dados).catch(() => "");
+  if (texto.length >= TEXTO_MINIMO_PDF) return { texto, imagens: [] };
+  return { texto: "", imagens: await pdfParaImagens(pdfjsLib, dados) };
 }
 
 /** Extrai o texto de uma planilha (Excel/CSV) usando ExcelJS (já é dependência). */
@@ -89,15 +94,22 @@ export async function resumirProposta(entrada: { files: File[]; link?: string })
   try {
     const imagens: { mime: string; dataUrl: string }[] = [];
     const textos: string[] = [];
+    const erros: string[] = [];
 
     for (const f of entrada.files) {
       if (IMG_RE.test(f.type)) {
         imagens.push({ mime: f.type, dataUrl: await fileParaDataUrl(f) });
       } else if (isPdf(f)) {
-        // PDF vira imagem (uma por página) no navegador — evita a exigência de
-        // saldo mínimo do OpenRouter para requisições que mandam o arquivo.
-        const paginas = await pdfParaImagens(f).catch(() => []);
-        imagens.push(...paginas);
+        try {
+          const pdf = await lerPdf(f);
+          if (pdf.texto) textos.push(`PDF ${f.name}:\n${pdf.texto}`);
+          imagens.push(...pdf.imagens);
+          if (!pdf.texto && !pdf.imagens.length) erros.push(`O PDF "${f.name}" não tem páginas legíveis.`);
+        } catch (e) {
+          // Antes o erro era engolido e a IA recebia nada — a pessoa via só
+          // "Nenhum orçamento foi enviado", sem saber qual arquivo falhou.
+          erros.push(`Não consegui ler o PDF "${f.name}" (${(e as Error).message}).`);
+        }
       } else if (isExcel(f)) {
         const t = await excelParaTexto(f).catch(() => "");
         if (t) textos.push(`Planilha ${f.name}:\n${t}`);
@@ -106,6 +118,12 @@ export async function resumirProposta(entrada: { files: File[]; link?: string })
         const t = await f.text().catch(() => "");
         if (t) textos.push(`${f.name}:\n${t}`);
       }
+    }
+
+    // Nada utilizável saiu dos arquivos e não há link: diz por quê, em vez de
+    // mandar uma requisição vazia para a IA.
+    if (!imagens.length && !textos.length && !entrada.link?.trim()) {
+      return { ok: false, erro: erros.join(" ") || "Não consegui ler nenhum dos arquivos enviados." };
     }
 
     const { data, error } = await supabase.functions.invoke("resumo-proposta", {

@@ -682,3 +682,24 @@ describe("podeConcluirPendencia", () => {
     expect(podeConcluirPendencia({ ...obs, resolvida: true }, { id: "u1", papel: "Direcao" })).toBe(false);
   });
 });
+
+describe("item aprovado sem os dados do fornecedor", () => {
+  const com = (extra: Partial<EcLinha>) =>
+    calcularPendencias([projeto("Carla")], [ec([{ ...linha([]), ...extra }])], [], USUARIOS, [], [], HOJE)
+      .filter((p) => p.tipo === "ec.fornecedor");
+
+  it("cobra da produtora o CNPJ e a razão social quando a Aprovação está OK", () => {
+    const [p] = com({ statusAprovacao: "OK" });
+    expect(p.responsavelProjeto).toBe("Carla");
+    expect(p.ancora).toBe("l1");
+  });
+
+  it("não cobra enquanto o item está pendente, nem quando o fornecedor está completo", () => {
+    expect(com({ statusAprovacao: "Pendente" })).toHaveLength(0);
+    expect(com({ statusAprovacao: "OK", fornecedorRazao: "Buffet Ltda", fornecedorCnpj: "12.345.678/0001-90" })).toHaveLength(0);
+  });
+
+  it("CNPJ incompleto conta como faltando", () => {
+    expect(com({ statusAprovacao: "OK", fornecedorRazao: "Buffet Ltda", fornecedorCnpj: "12.345" })).toHaveLength(1);
+  });
+});

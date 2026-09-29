@@ -27,6 +27,7 @@ const ETIQUETA: Record<string, string> = {
   "checklist.atrasado": "Atrasada",
   "checklist.vencendo": "Para hoje",
   "ec.emitir": "A emitir",
+  "ec.fornecedor": "Fornecedor",
   "os.emitir": "Emitir OS",
   "os.cronograma": "Cronograma",
   "os.credenciamento": "Credenciamento",
