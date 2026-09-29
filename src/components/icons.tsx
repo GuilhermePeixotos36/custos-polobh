@@ -34,6 +34,15 @@ export const IcFolder = (p: P) => (
     <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z" />
   </I>
 );
+/** Três caixas ligadas — o Fluxograma do processo. */
+export const IcFluxo = (p: P) => (
+  <I {...p}>
+    <rect x="3" y="3" width="7" height="6" rx="1" />
+    <rect x="14" y="3" width="7" height="6" rx="1" />
+    <rect x="8.5" y="15" width="7" height="6" rx="1" />
+    <path d="M10 6h4M6.5 9v3h11V9M12 12v3" />
+  </I>
+);
 export const IcHelp = (p: P) => (
   <I {...p}>
     <circle cx="12" cy="12" r="10" />
