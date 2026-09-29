@@ -13,7 +13,7 @@ import {
   motivoRecusaAnexo,
   tamanhoLegivel,
 } from "@/domain/anexos";
-import { destinatariosDaVez } from "@/domain/pendencias";
+import { destinatariosDaVez, podeConcluirPendencia } from "@/domain/pendencias";
 import { useAuth } from "@/store/auth";
 import type { AnexoObservacao, Observacao, RespostaObservacao } from "@/data/types";
 
@@ -168,6 +168,8 @@ export function ObservacoesThread({ observacoes, usuarios, onChange, className, 
 
   /** Marca como resolvida — sem opção de reabrir (decisão do fluxo). O texto pode ser editado pelo autor. */
   const resolver = (id: string) => {
+    const alvo = observacoes.find((o) => o.id === id);
+    if (!alvo || !podeConcluirPendencia(alvo, usuarioAtual)) return;
     onChange(
       observacoes.map((o) =>
         o.id === id
@@ -253,13 +255,9 @@ export function ObservacoesThread({ observacoes, usuarios, onChange, className, 
               anexos={anexos}
               onRemoverAnexo={(a) => removerAnexo(o.id, a)}
               souAutor={!!usuarioAtual && o.autorId === usuarioAtual.id}
-              // Resolve quem está com a batata — é ela que encerra a conversa —,
-              // mais o autor, que pode desistir do que pediu.
-              podeResolver={
-                !!usuarioAtual &&
-                !o.resolvida &&
-                (o.autorId === usuarioAtual.id || destinatariosDaVez(o, usuarios).some((n) => mesmaPessoa(n, nomeAtual)))
-              }
+              // Só quem abriu a observação conclui — e, além dela, a Coordenação
+              // e a Direção (ver `podeConcluirPendencia`).
+              podeResolver={podeConcluirPendencia(o, usuarioAtual)}
               respondendo={compor?.modo === "responder" && compor.id === o.id}
               onResponder={() => setCompor({ modo: "responder", id: o.id })}
               onEditar={() => setCompor({ modo: "editar", id: o.id })}
@@ -367,7 +365,7 @@ function ComentarioLinha({
             Responder
           </button>
           {podeResolver && (
-            <button type="button" onClick={onResolver} className="text-[11px] font-bold text-ink-3 hover:text-success px-1.5 py-1" title="Marcar como resolvida (não pode ser reaberta)">
+            <button type="button" onClick={onResolver} className="text-[11px] font-bold text-ink-3 hover:text-success px-1.5 py-1" title="Concluir a pendência (não pode ser reaberta). Só quem abriu a observação, a Coordenação e a Direção concluem.">
               Resolver
             </button>
           )}

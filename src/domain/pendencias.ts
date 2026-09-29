@@ -265,6 +265,29 @@ export function destinatariosDaVez(observacao: Observacao, usuarios: string[] = 
 }
 
 /**
+ * Quem pode CONCLUIR uma pendência (regra de 29/09/2026).
+ *
+ * Só quem abriu a observação — a primeira pessoa a escrever — encerra a
+ * conversa. Ser @mencionado dá o direito de responder, não de dar o assunto por
+ * resolvido. Além do autor, a Coordenação e a Direção sempre podem: são elas
+ * que destravam uma pendência esquecida por quem a abriu.
+ *
+ * "Coordenação" não é um papel do banco, e sim uma ÁREA cadastrável em
+ * Configurações; por isso é reconhecida pelo nome da área. Direção e
+ * Administrador valem pelo papel.
+ */
+export function podeConcluirPendencia(
+  observacao: Observacao,
+  usuario: { id?: string; papel?: string; areaNome?: string } | null | undefined
+): boolean {
+  if (!usuario || observacao.resolvida) return false;
+  if (usuario.id && observacao.autorId === usuario.id) return true;
+  if (usuario.papel === "Direcao" || usuario.papel === "Admin") return true;
+  const area = normalizarPessoa(usuario.areaNome ?? "");
+  return area.includes("coordena") || area.includes("direcao");
+}
+
+/**
  * Uma conversa aberta vira pendência de quem está com a batata — e do Produtor
  * Responsável do projeto, SEMPRE (regra revista em 08/09/2026).
  *
