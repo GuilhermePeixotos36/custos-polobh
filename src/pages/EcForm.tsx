@@ -54,7 +54,7 @@ import { EcGrupos } from "@/components/EcGrupos";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
 import { ObservacoesGeraisEc } from "@/components/ObservacoesGeraisEc";
 import { pendenciasDaTela } from "@/domain/pendencias";
-import { analisarEmissaoOs, bvVazio } from "@/domain/calc";
+import { bvVazio } from "@/domain/calc";
 import { contatoDeTexto, mesclarContatos } from "@/domain/fornecedor";
 import { useMinhasPendencias } from "@/store/pendencias";
 import { useSugestoes } from "@/hooks/useSugestoes";
@@ -512,8 +512,6 @@ export function EcForm() {
   // Mesma leitura do EcDetail e da lista do projeto (ver `domain/ec`): ou a EC
   // está no ar ("Ativa"), ou está no arquivo ("Arquivada").
   const situacao = situacaoEc(ec);
-  // Quem entra na emissão de OS — o mesmo cálculo do modo leitura.
-  const emissao = analisarEmissaoOs(ec.linhas);
   const statusBadge = <Badge tom={TOM_SITUACAO_EC[situacao]}>{ROTULO_SITUACAO_EC[situacao]}</Badge>;
 
   return (
@@ -531,8 +529,8 @@ export function EcForm() {
           {/* A BARRA DA EDIÇÃO é a mesma do modo leitura (ver EcDetail), com
               "Editar EC" trocado pelo par Revisar + Salvar — um botão para cada
               função. "Revisar" mostra o que mudou antes de gravar. As ações que
-              partem da EC GRAVADA (nova versão, PDF, emitir OS) ficam à mão, e
-              as que só fazem sentido com tudo salvo avisam. */}
+              partem da EC GRAVADA (nova versão, PDF) ficam à mão. Emitir OS NÃO
+              está aqui: a emissão é só da EC já salva (29/09/2026). */}
           <div className="flex gap-2 flex-wrap">
             <Button variant="secondary" size="sm" onClick={revisar} disabled={salvando} title="Padroniza a formatação dos textos e mostra o que muda ao salvar">
               Revisar
@@ -553,17 +551,6 @@ export function EcForm() {
             {!!ec.id && (
               <Button variant="secondary" size="sm" icon={<IcEye width={16} height={16} />} onClick={() => navigate(`/estimativas/${ec.id}/imprimir`)}>
                 EC PDF
-              </Button>
-            )}
-            {!!ec.id && ec.ativa && pode("oss.editar") && (emissao.prontos.length > 0 || emissao.bloqueados.length > 0) && (
-              <Button
-                variant="primary"
-                size="sm"
-                disabled={sujo}
-                title={sujo ? "Salve a EC antes de emitir OS" : undefined}
-                onClick={() => navigate(`/estimativas/${ec.id}?emitir=1`)}
-              >
-                Emitir OS(s){emissao.prontos.length ? ` (${emissao.prontos.length})` : ""}
               </Button>
             )}
           </div>

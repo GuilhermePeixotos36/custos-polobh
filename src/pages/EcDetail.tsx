@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { comDadosAtuaisDoProjeto } from "@/lib/projetoAoVivo";
 import { ExcelEcMenu } from "@/components/ExcelEcMenu";
 import { gerarNovaVersaoEc } from "@/lib/novaVersaoEc";
@@ -72,17 +72,6 @@ export function EcDetail() {
   const [bloqueados, setBloqueados] = useState<ItemEmissaoOs[]>([]);
   const [subaba, setSubaba] = useState<SubGuiaEc>("ec");
   const [emitindo, setEmitindo] = useState(false);
-  // "Emitir OS" também existe na barra da edição (EcForm): lá o clique traz para
-  // esta tela, que já sabe emitir, com `?emitir=1` — uma vez só.
-  const [params, setParams] = useSearchParams();
-  const emitirPedido = useRef(params.get("emitir") === "1");
-  useEffect(() => {
-    if (!emitirPedido.current || !ec) return;
-    emitirPedido.current = false;
-    setParams({}, { replace: true });
-    void emitirOs();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ec]);
 
   const t = useMemo(
     () => (ec ? calcularTotais(ec.linhas, ec.producao, ec.honorarios, ec.encargos) : null),
