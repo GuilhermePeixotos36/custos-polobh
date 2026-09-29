@@ -7,6 +7,7 @@ import {
   ancoraProjetoSemEc,
   calcularPendencias,
   destinatariosDaVez,
+  podeConcluirPendencia,
   pendenciasDaTela,
   rotaDaPendencia,
   type Pendencia,
@@ -590,5 +591,23 @@ describe("conversa das abas do projeto", () => {
   it("projeto sem conversa nenhuma não gera nada", () => {
     expect(daAba({}, "Bruno")).toEqual([]);
     expect(daAba(undefined, "Bruno")).toEqual([]);
+  });
+});
+
+describe("podeConcluirPendencia", () => {
+  const obs = { id: "o1", texto: "x", autorId: "u1", autorNome: "Ana", criadoEm: "2026-09-29T10:00:00Z" } as Observacao;
+  it("o autor da observação conclui", () => {
+    expect(podeConcluirPendencia(obs, { id: "u1", papel: "Producao" })).toBe(true);
+  });
+  it("quem só foi mencionado não conclui", () => {
+    expect(podeConcluirPendencia(obs, { id: "u2", papel: "Producao" })).toBe(false);
+  });
+  it("Direção, Administrador e a área Coordenação sempre concluem", () => {
+    expect(podeConcluirPendencia(obs, { id: "u2", papel: "Direcao" })).toBe(true);
+    expect(podeConcluirPendencia(obs, { id: "u2", papel: "Admin" })).toBe(true);
+    expect(podeConcluirPendencia(obs, { id: "u2", papel: "Producao", areaNome: "Coordenação" })).toBe(true);
+  });
+  it("já resolvida, ninguém conclui de novo", () => {
+    expect(podeConcluirPendencia({ ...obs, resolvida: true }, { id: "u1", papel: "Direcao" })).toBe(false);
   });
 });

@@ -537,7 +537,7 @@ const MODULOS: Modulo[] = [
           <Passos>
             <span>A vez sai da <b>última mensagem</b>: quem ela <b>@menciona</b> fica com a bola.</span>
             <span>Respondeu sem mencionar ninguém? A bola <b>volta para quem estava esperando</b> — quem falou antes de você.</span>
-            <span>Isso vai e volta até alguém apertar <b>Resolver</b>, que encerra a thread para todo mundo. Quem está com a bola pode resolver.</span>
+            <span>Isso vai e volta até alguém apertar <b>Resolver</b>, que encerra a thread para todo mundo. Só <b>quem abriu a observação</b> resolve — e, além dessa pessoa, a <b>Coordenação</b> e a <b>Direção</b>.</span>
           </Passos>
           <Dica>
             O(a) <b>Produtor(a) Responsável</b> vê a conversa <b>sempre</b>, inclusive quando a vez é de
@@ -714,7 +714,7 @@ const MODULOS: Modulo[] = [
           <Passos>
             <span>Escreva e <b>@mencione</b> quem precisa agir. A pessoa mencionada fica com a pendência (bolinha vermelha).</span>
             <span>Cada resposta <b>passa a bola</b> adiante — ver "Conversa: a batata quente", em Pendências.</span>
-            <span>Quando o assunto se resolve, <b>Resolver</b> encerra a thread.</span>
+            <span>Quando o assunto se resolve, <b>Resolver</b> encerra a thread — botão de quem abriu a observação, da Coordenação e da Direção.</span>
           </Passos>
           <Dica>
             A conversa <b>grava sozinha</b>, na hora: comentar não é editar a estimativa. Você pode

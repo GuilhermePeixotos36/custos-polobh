@@ -952,6 +952,22 @@ export function ProjetoDetail() {
               </Field>
               <Field label="Telefone do(a) Produtor(a) Responsável"><TelefoneInput value={p.info.telefoneProdutora} onChange={(v) => updInfo({ telefoneProdutora: v })} /></Field>
               <Field label="E-mail do(a) Produtor(a) Responsável"><Input type="email" sugestoes={sugestoes.valores.emailProdutora} value={p.info.emailProdutora} onChange={(e) => updInfo({ emailProdutora: e.target.value })} /></Field>
+              <Field label="Pasta do projeto no Dropbox" className="sm:col-span-2 lg:col-span-3">
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="url"
+                    value={p.docsUrl}
+                    onChange={(e) => setP((x) => ({ ...x, docsUrl: e.target.value.trim() }))}
+                    placeholder="https://www.dropbox.com/scl/fo/…"
+                  />
+                  {/^https?:\/\//i.test(p.docsUrl) && (
+                    <a href={p.docsUrl} target="_blank" rel="noopener noreferrer" className="text-[12px] font-bold text-primary whitespace-nowrap hover:underline">
+                      Abrir pasta
+                    </a>
+                  )}
+                </div>
+                <p className="mt-1 text-[11.5px] text-ink-3">Os documentos gerados por este projeto (EC, OS, cronograma) serão salvos nesta pasta.</p>
+              </Field>
               {p.info.modalidade === "Cultural" && (
                 <Field label="Incentivos Fiscais" className="sm:col-span-2 lg:col-span-3">
                   <Textarea value={p.info.incentivosFiscais} onChange={(e) => updInfo({ incentivosFiscais: e.target.value })} />
