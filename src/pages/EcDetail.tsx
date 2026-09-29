@@ -1,6 +1,8 @@
-import { useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { comDadosAtuaisDoProjeto } from "@/lib/projetoAoVivo";
+import { ExcelEcMenu } from "@/components/ExcelEcMenu";
+import { gerarNovaVersaoEc } from "@/lib/novaVersaoEc";
 import { LegendaProjeto } from "@/components/layout/LegendaProjeto";
 import { PageShell } from "@/components/layout/AppLayout";
 import { BarraProjeto } from "@/components/layout/BarraSecao";
@@ -19,7 +21,7 @@ import {
   useOrdenacao,
   tomStatusOs,
 } from "@/components/ui";
-import { IcBack, IcDownload, IcChevron, IcCopy, IcPencil, IcEye } from "@/components/icons";
+import { IcBack, IcChevron, IcCopy, IcPencil, IcEye } from "@/components/icons";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import type { ItemEmissaoOs } from "@/domain/calc";
@@ -35,7 +37,7 @@ import { ecEditavel, situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/d
 import { useMinhasPendencias } from "@/store/pendencias";
 import { EcItemLeitura } from "@/components/EcItemLeitura";
 import { brl, dataBR } from "@/lib/format";
-import { gerarEcExcel, gerarRentabilidadeExcel } from "@/lib/excel";
+import { gerarRentabilidadeExcel } from "@/lib/excel";
 import { useAuth } from "@/store/auth";
 import { toast } from "@/store/toast";
 import { confirmar } from "@/store/confirm";
@@ -70,6 +72,17 @@ export function EcDetail() {
   const [bloqueados, setBloqueados] = useState<ItemEmissaoOs[]>([]);
   const [subaba, setSubaba] = useState<SubGuiaEc>("ec");
   const [emitindo, setEmitindo] = useState(false);
+  // "Emitir OS" também existe na barra da edição (EcForm): lá o clique traz para
+  // esta tela, que já sabe emitir, com `?emitir=1` — uma vez só.
+  const [params, setParams] = useSearchParams();
+  const emitirPedido = useRef(params.get("emitir") === "1");
+  useEffect(() => {
+    if (!emitirPedido.current || !ec) return;
+    emitirPedido.current = false;
+    setParams({}, { replace: true });
+    void emitirOs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ec]);
 
   const t = useMemo(
     () => (ec ? calcularTotais(ec.linhas, ec.producao, ec.honorarios, ec.encargos) : null),
@@ -98,8 +111,6 @@ export function EcDetail() {
   /** A margem tem dono próprio desde 15/09/2026 — ver `PERMISSOES_ESPECIAIS`. */
   const verRentabilidade = pode("rentabilidade");
   const podeEditar = pode("ecs.editar");
-  /** Arquivar uma EC sem pôr outra no lugar deixa o projeto sem estimativa: é da Direção. */
-  const podeArquivarEc = podeEditar && (papel === "Admin" || papel === "Direcao");
   // Administrativo (financeiro) só precisa da Descrição Financeira; os demais papéis
   // (Admin, Direção, Produção) veem a Descrição Completa também.
   const veDescricaoCompleta = papel !== "Administrativo";
@@ -439,7 +450,7 @@ export function EcDetail() {
           </button>
           <div className="flex gap-2 flex-wrap">
           {/* A ORDEM é a do check-list de 15/09: Editar · Gerar nova versão ·
-              Arquivar · Excel · PDF · Emitir OS. Ela segue o dia de trabalho —
+              Excel · PDF · Emitir OS. Ela segue o dia de trabalho —
               primeiro o que se faz com a estimativa, depois o que se tira dela,
               por último o que ela gera. */}
           {podeEditar && ecEditavel(ec) && (
@@ -450,42 +461,13 @@ export function EcDetail() {
           {podeEditar && (
             <Button variant="secondary" size="sm" icon={<IcCopy width={16} height={16} />}
               onClick={async () => {
-                if (!(await confirmar({
-                  titulo: "Gerar a próxima versão desta EC?",
-                  mensagem: "Alerta: ao gerar uma nova versão da EC, a versão atual será arquivada automaticamente.",
-                  confirmarTexto: "Gerar nova versão",
-                }))) return;
-                const n = await repo.ecs.novaVersao(ec.id);
-                toast(`Nova versão V${String(n.versao).padStart(2, "0")} criada (cancela e substitui).`, "success");
-                navigate(`/estimativas/${n.id}/editar`);
+                const nova = await gerarNovaVersaoEc(ec);
+                if (nova) navigate(`/estimativas/${nova.id}/editar`);
               }}>
               Gerar Nova Versão EC
             </Button>
           )}
-          {/* ARQUIVAR EC continua existindo, e agora só para a Direção
-              (15/09/2026). A Pólobh perguntou para que ele serve, já que uma EC
-              em projeto ativo não sai do ar sem substituta e projeto arquivado
-              arquiva tudo sozinho. Serve para o caso que sobra: o evento que o
-              cliente cancelou, em que a estimativa sai do ar e NÃO há outra para
-              pôr no lugar. É raro e é grave — o projeto fica sem estimativa
-              valendo —, então deixou de ser um botão ao alcance de todo mundo. */}
-          {podeArquivarEc && ec.ativa && (
-            <Button variant="secondary" size="sm"
-              onClick={async () => {
-                if (!(await confirmar({
-                  titulo: "Arquivar esta EC?",
-                  mensagem: `A EC ${ec.numero} sai do ar e vai para o arquivo do projeto. Ela continua consultável, pode ser importada e volta ao ar por "Tornar EC ativa". O projeto fica sem estimativa valendo até você ativar outra.`,
-                  confirmarTexto: "Arquivar EC",
-                  cancelarTexto: "Voltar",
-                }))) return;
-                await repo.ecs.salvar({ ...ec, status: "Arquivada", ativa: false });
-                toast("EC arquivada.", "success");
-                navigate(voltarUrl);
-              }}>
-              Arquivar EC
-            </Button>
-          )}
-          <ExcelMenu ec={ec} />
+          <ExcelEcMenu ec={ec} />
           <Button variant="secondary" size="sm" icon={<IcEye width={16} height={16} />} onClick={() => navigate(`/estimativas/${ec.id}/imprimir`)}>
             EC PDF
           </Button>
@@ -658,38 +640,5 @@ function LinhaResumo({
         </>
       )}
     </tr>
-  );
-}
-
-/** Botão "Excel" único com um menu para escolher o modelo (Financeiro ou Completa). */
-function ExcelMenu({ ec }: { ec: Ec }) {
-  const [aberto, setAberto] = useState(false);
-  return (
-    <div className="relative">
-      <Button variant="secondary" size="sm" icon={<IcDownload width={16} height={16} />} onClick={() => setAberto((v) => !v)}>
-        <span className="inline-flex items-center gap-1">
-          EC Excel <IcChevron width={13} height={13} className={cx("transition-transform", aberto && "rotate-90")} />
-        </span>
-      </Button>
-      {aberto && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setAberto(false)} />
-          <div className="absolute left-0 mt-1 z-50 w-44 rounded-btn border border-border bg-white shadow-2xl py-1">
-            <button
-              className="w-full text-left px-3 py-2 text-[13px] font-semibold text-ink hover:bg-[#FAFAFB]"
-              onClick={() => { gerarEcExcel(ec, { modelo: "financeiro" }); setAberto(false); }}
-            >
-              Financeiro
-            </button>
-            <button
-              className="w-full text-left px-3 py-2 text-[13px] font-semibold text-ink hover:bg-[#FAFAFB]"
-              onClick={() => { gerarEcExcel(ec, { modelo: "completa" }); setAberto(false); }}
-            >
-              Completa
-            </button>
-          </div>
-        </>
-      )}
-    </div>
   );
 }
