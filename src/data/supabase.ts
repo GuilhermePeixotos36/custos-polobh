@@ -5,7 +5,7 @@
  * coluna→objeto é direto. Snapshots embutidos: `ecs.cliente` e `oss.fornecedor`.
  */
 import { supabase } from "@/lib/supabaseClient";
-import { producaoPadrao, producaoZerada, linhasProducaoLegado, honorariosPadrao, encargosPadrao, bvVazio } from "@/domain/calc";
+import { producaoPadrao, producaoZerada, linhasProducaoLegado, honorariosPadrao, encargosPadrao, normalizarTaxa, bvVazio } from "@/domain/calc";
 import { normalizarProjetoInfo, sincronizarCamposLegados } from "@/domain/projeto";
 // A padronização de caixa alta/baixa mora AQUI, no caminho da gravação, e não
 // só no blur do <Input>: assim ela alcança também o que entra por código —
@@ -471,8 +471,8 @@ function mapEc(r: any): Ec {
     linhas,
     // Produção fixa descontinuada → sempre zerada (os custos vivem em linhas do grupo).
     producao: producaoZerada(),
-    honorarios: r.producao?.honorarios ?? honorariosPadrao(),
-    encargos: r.producao?.encargos ?? encargosPadrao(),
+    honorarios: normalizarTaxa(r.producao?.honorarios, honorariosPadrao()),
+    encargos: normalizarTaxa(r.producao?.encargos, encargosPadrao()),
     honorariosRotulo: r.producao?.honorariosRotulo || undefined,
     custosInternos: Array.isArray(r.producao?.custosInternos) ? r.producao.custosInternos : [],
     encargosRotulo: r.producao?.encargosRotulo || undefined,
