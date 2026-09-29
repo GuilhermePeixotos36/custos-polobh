@@ -276,7 +276,7 @@ export function CredenciamentoProjeto({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
                   )}
                 </Td>
                 <Td align="right">
-                  <div className="inline-flex gap-1.5">
+                  <div className="inline-flex gap-1.5 whitespace-nowrap">
                     <Button
                       variant="text"
                       size="sm"
