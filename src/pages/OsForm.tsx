@@ -52,7 +52,7 @@ import { calcularAcerto } from "@/domain/acertoFinanceiro";
 import { clausulasPadrao, modeloDoContrato, type ChaveClausula, type ModeloContrato } from "@/domain/contratoModelo";
 import { baixarContrato } from "@/lib/docx";
 import { dadosDoTomador, opcoesDeTomador, RETENCOES_PADRAO, TOMADOR_OUTRO } from "@/domain/tomadorOs";
-import { editaFinanceiro, editaProducao, ESPERANDO_FASE, faseAnterior, faseDaOs, osEmitida, ROTULO_FASE, type FaseOs } from "@/domain/faseOs";
+import { editaFinanceiro, FASES_OS, editaProducao, ESPERANDO_FASE, faseAnterior, faseDaOs, osEmitida, ROTULO_FASE, type FaseOs } from "@/domain/faseOs";
 import { RevisaoEcModal } from "@/components/RevisaoEcModal";
 import { revisarOs } from "@/domain/revisaoOs";
 import type { RevisaoEc } from "@/domain/revisaoEc";
@@ -297,6 +297,8 @@ function aplicarAutoPreenchimento(os: Os, ec: Ec): Os {
   };
 }
 
+const ID_FORMAS_PAGAMENTO = "os-formas-pagamento";
+
 export function OsForm() {
   const { id, ecId } = useParams();
   const [params] = useSearchParams();
@@ -492,6 +494,11 @@ export function OsForm() {
   /** Resumo dos Custos: o que a contratação decidiu, item a item, com os totais. */
   const resumo = resumoContratacao(os.itens, linhasConsolidadas);
   /** O que trava a emissão na contratação: forma sem escolher, sem valor, ou misturada. */
+  const pendenciasAbertasDaOs = pendenciasDaOs.filter((p) => p.tipo !== "os.fase");
+  /** Rola até o campo da pendência e o faz latejar. */
+  const irParaPendencia = (p: (typeof pendenciasDaOs)[number]) => {
+    if (p.ancora) destacarElemento(idAncoraPendencia(p.ancora), "pendencia");
+  };
   const problemasContratacao = problemasDaContratacao(os.itens, (id) => {
     const l = linhasConsolidadas.find((x) => x.id === id);
     return l?.item?.trim() || l?.descricao?.trim() || "(item sem nome)";
@@ -1041,8 +1048,9 @@ export function OsForm() {
    * sessão.
    */
   async function emitirOs() {
-    const abertas = pendenciasDaOs.filter((p) => p.tipo !== "os.fase");
+    const abertas = pendenciasAbertasDaOs;
     if (abertas.length) {
+      irParaPendencia(abertas[0]);
       toast(
         `Esta OS tem ${abertas.length} pendência(s) em aberto (${abertas.slice(0, 2).map((p) => p.titulo).join("; ")}${abertas.length > 2 ? "…" : ""}). Resolva-as antes de emitir.`,
         "danger"
@@ -1052,6 +1060,7 @@ export function OsForm() {
     // A contratação precisa estar fechada: forma escolhida em todo item, com
     // valor, e a mesma forma na OS inteira.
     if (problemasContratacao.length) {
+      destacarElemento(ID_FORMAS_PAGAMENTO, "pendencia");
       toast(`Falta fechar a contratação: ${problemasContratacao[0]}${problemasContratacao.length > 1 ? ` (+${problemasContratacao.length - 1})` : ""}`, "danger");
       return;
     }
@@ -1462,7 +1471,7 @@ export function OsForm() {
               label="Formas de pagamento"
               hint="(valores e BV vêm da EC — o Financeiro escolhe UMA forma por item)"
             >
-              <div className="py-1.5 space-y-2">
+              <div id={ID_FORMAS_PAGAMENTO} className="py-1.5 space-y-2">
                 {problemasContratacao.length > 0 && (
                   <div className="rounded-btn bg-warning-soft px-3 py-2 text-[12.5px] text-ink">
                     <p className="font-bold text-warning">Falta resolver antes de emitir:</p>
@@ -2195,6 +2204,28 @@ export function OsForm() {
             <p className="p-4 text-sm text-ink-2">Os blocos de faturamento e contrato são restritos ao seu perfil.</p>
           </CardOs>
         )}
+        </fieldset>
+
+        {/* O BOTÃO DO BACK-OFFICE, logo depois do módulo Contrato (29/09/2026):
+            fora do fieldset, que trava tudo em leitura. Gera a pendência do
+            Back-office, como o do cabeçalho. */}
+        {verFinanceiro && fase === "financeiro" && (
+          <div className="flex justify-end">
+            <Button
+              icon={<IcSend width={15} height={15} />}
+              disabled={busy}
+              onClick={() => void avancarFase("backoffice", {
+                titulo: "Enviar esta OS para emissão pelo Back-office?",
+                mensagem: "A OS vira pendência do Back-office, que a emite. Emissão e faturamento continuam editáveis até a emissão.",
+                confirmar: "Enviar ao Back-office",
+              })}
+            >
+              Enviar OS para Emissão Back-Office
+            </Button>
+          </div>
+        )}
+
+        <fieldset disabled={!mexeFinanceiro} className="space-y-4 min-w-0 disabled:opacity-100">
 
         {/* ACERTOS FINANCEIROS — o que a Pólobh acerta por dentro.
             Fica FORA do bloco restrito de propósito: quem negocia o BV com o
@@ -2267,6 +2298,51 @@ export function OsForm() {
           </LinhaOs>
         </CardOs>
         </fieldset>
+
+        {/* STATUS DA OS (29/09/2026): onde a OS está até ficar "Emitida" — e,
+            emitida, o que muda na EC (a coluna OS dos itens passa de Pendente
+            para OK). As pendências abertas moram aqui e levam ao campo. */}
+        <CardOs secao="Status OS">
+          <LinhaOs label="Etapa">
+            <div className="flex items-center gap-1.5 flex-wrap py-1">
+              {FASES_OS.map((f, i) => (
+                <span key={f} className="flex items-center gap-1.5">
+                  {i > 0 && <span className="text-ink-3">→</span>}
+                  <span className={cx(
+                    "rounded-full px-2.5 py-0.5 text-[11.5px] font-bold",
+                    f === fase ? "bg-primary text-white" : FASES_OS.indexOf(f) < FASES_OS.indexOf(fase) ? "bg-success-soft text-ink" : "bg-[#F1F2F4] text-ink-3"
+                  )}>{ROTULO_FASE[f]}</span>
+                </span>
+              ))}
+            </div>
+          </LinhaOs>
+          <LinhaOs label="Status da OS"><Badge tom={tomStatusOs[os.status]}>{os.status}</Badge></LinhaOs>
+          <LinhaOs label="Na EC" hint="(coluna OS dos itens)">
+            <div className="py-1.5 text-[12.5px] text-ink-2">
+              {emitida
+                ? `${linhasConsolidadas.length} item(ns) com a OS em OK.`
+                : `${linhasConsolidadas.length} item(ns) aguardando a emissão; passam de Pendente para OK quando a OS for emitida.`}
+            </div>
+          </LinhaOs>
+          <LinhaOs label="Pendências" hint="(clique para ir ao campo)">
+            {pendenciasAbertasDaOs.length === 0 && problemasContratacao.length === 0 ? (
+              <div className="py-1.5 text-[12.5px] font-bold text-success">Nenhuma pendência em aberto.</div>
+            ) : (
+              <ul className="py-1.5 space-y-1 text-[12.5px]">
+                {problemasContratacao.map((m) => (
+                  <li key={m}>
+                    <button type="button" className="text-left text-danger font-bold hover:underline" onClick={() => destacarElemento(ID_FORMAS_PAGAMENTO, "pendencia")}>{m}</button>
+                  </li>
+                ))}
+                {pendenciasAbertasDaOs.map((p) => (
+                  <li key={p.id}>
+                    <button type="button" className="text-left text-danger font-bold hover:underline" onClick={() => irParaPendencia(p)}>{p.titulo}</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </LinhaOs>
+        </CardOs>
       </div>
 
       {/* Sem a pílula flutuante de pendências nesta tela (29/09/2026): as
