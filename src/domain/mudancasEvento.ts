@@ -76,7 +76,10 @@ const CAMPOS_PROJETO: CampoObservado<ProjetoInfo>[] = [
   { chave: "produtoraResponsavel", label: "Produtor(a) responsável", campos: ["produtoraResponsavel"], descrever: (p) => texto(p.produtoraResponsavel) },
   { chave: "telefoneProdutora", label: "Telefone da produtora", campos: ["telefoneProdutora"], descrever: (p) => texto(p.telefoneProdutora) },
   { chave: "emailProdutora", label: "E-mail da produtora", campos: ["emailProdutora"], descrever: (p) => texto(p.emailProdutora) },
-  { chave: "incentivosFiscais", label: "Incentivos fiscais", campos: ["incentivosFiscais"], descrever: (p) => texto(p.incentivosFiscais) },
+  // Os três campos que saem na NF (29/09/2026); o texto composto viaja junto.
+  { chave: "projetoIncentivado", label: "Nome do projeto incentivado", campos: ["projetoIncentivado"], descrever: (p) => texto(p.projetoIncentivado) },
+  { chave: "leiIncentivo", label: "Lei de incentivo à cultura", campos: ["leiIncentivo", "incentivosFiscais"], descrever: (p) => texto(p.leiIncentivo) },
+  { chave: "codigoProjetoIncentivado", label: "Código do projeto incentivado", campos: ["codigoProjetoIncentivado", "incentivosFiscais"], descrever: (p) => texto(p.codigoProjetoIncentivado) },
   {
     chave: "cronograma",
     label: "Datas e cronograma",

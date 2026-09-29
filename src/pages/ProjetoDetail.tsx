@@ -5,7 +5,7 @@ import { PageShell } from "@/components/layout/AppLayout";
 import { BarraProjeto } from "@/components/layout/BarraSecao";
 import { NAV_PROJETO } from "@/components/layout/nav";
 import {
-  Card, CardTitle, Button, Field, Input, Label, TelefoneInput, Textarea, Select, Badge,
+  Card, CardTitle, Button, Field, Input, Label, TelefoneInput, Select, Badge,
   Table, THead, Tr, Td, EmptyState, ThOrd, useOrdenacao, tomStatusOs, type Tom,
 } from "@/components/ui";
 import { IcPlus, IcBack, IcDownload, IcSearch, IcTrash, IcEye, IcEyeOff, IcDoc, IcCopy, IcCalendar, IcPencil } from "@/components/icons";
@@ -45,9 +45,7 @@ import { AvisoTravaEdicao } from "@/components/AvisoTravaEdicao";
 import { eventoEncerradoHaDias, statusProjetoAutomatico } from "@/domain/statusProjeto";
 import { RepercutirMudancasModal } from "@/components/RepercutirMudancasModal";
 import {
-  ecsAtualizaveis,
   mudancasDoEvento,
-  ossReemitiveis,
   type MudancaEvento,
   type SnapshotEvento,
 } from "@/domain/mudancasEvento";
@@ -581,15 +579,16 @@ export function ProjetoDetail() {
             nome: atual.cliente.nome || d.nomeFantasia || d.razaoSocial,
             razaoSocial: d.razaoSocial,
             endereco: d.endereco,
-            inscricaoEstadual: d.inscricaoEstadual || atual.cliente.inscricaoEstadual,
+            // A pesquisa não achou IE: lança "Isenta" (29/09/2026). Valor já digitado à mão vence.
+            inscricaoEstadual: d.inscricaoEstadual || atual.cliente.inscricaoEstadual || "Isenta",
             inscricaoMunicipal: d.inscricaoMunicipal || atual.cliente.inscricaoMunicipal,
           },
         };
       });
       const preenchidas = [d.inscricaoEstadual && "IE", d.inscricaoMunicipal && "IM"].filter(Boolean).join(" e ");
       setCnpjMsg(preenchidas
-        ? `Dados cadastrais e ${preenchidas} preenchidos automaticamente.`
-        : "Dados cadastrais preenchidos. IE/IM não foram encontradas nas fontes integradas e permanecem editáveis.");
+        ? `Dados cadastrais e ${preenchidas} preenchidos automaticamente.${d.inscricaoEstadual ? "" : " IE não encontrada: lançada como Isenta."}`
+        : "Dados cadastrais preenchidos. IE não encontrada nas fontes integradas: lançada como Isenta. IM permanece editável.");
     } catch (e) {
       setCnpjMsg((e as Error).message);
     } finally {
@@ -684,8 +683,9 @@ export function ProjetoDetail() {
        */
       const atual: SnapshotEvento = { info: salvo.info, cliente: salvo.cliente };
       const mudancas = anterior ? mudancasDoEvento({ info: anterior.info, cliente: anterior.cliente }, atual) : [];
-      const temDocumento = ecsAtualizaveis(ecsDoProjeto).length > 0 || ossReemitiveis(ossDoProjeto).length > 0;
-      if (mudancas.length && temDocumento) setRepercussao({ mudancas, atual });
+      // O alerta aparece sempre que algo mudou (29/09/2026), mesmo sem documento
+      // emitido: os próximos documentos já nascem com os dados novos.
+      if (mudancas.length) setRepercussao({ mudancas, atual });
 
       navigate(`/projetos/${salvo.id}`);
     } catch (e) {
@@ -1049,10 +1049,20 @@ export function ProjetoDetail() {
                 <p className="mt-1 text-[11.5px] text-ink-3">Os documentos gerados por este projeto (EC, OS, cronograma) serão salvos nesta pasta.</p>
               </Field>
               {p.info.modalidade === "Cultural" && (
-                <Field label="Incentivos Fiscais" className="sm:col-span-2 lg:col-span-3">
-                  <Textarea value={p.info.incentivosFiscais} onChange={(e) => updInfo({ incentivosFiscais: e.target.value })} />
-                  <TextosJaUsados valor={p.info.incentivosFiscais} opcoes={sugestoes.valores.incentivosFiscais} onEscolher={(incentivosFiscais) => updInfo({ incentivosFiscais })} />
-                </Field>
+                <>
+                  {/* Os três campos que saem na NF (29/09/2026), no lugar do
+                      antigo campo único "Incentivos Fiscais". */}
+                  <Field label="Nome do Projeto Incentivado" className="sm:col-span-2">
+                    <Input formato="titulo" value={p.info.projetoIncentivado} onChange={(e) => updInfo({ projetoIncentivado: e.target.value })} />
+                  </Field>
+                  <Field label="Código do Projeto Incentivado">
+                    <Input value={p.info.codigoProjetoIncentivado} onChange={(e) => updInfo({ codigoProjetoIncentivado: e.target.value })} placeholder="Ex.: PRONAC 26 1234" />
+                  </Field>
+                  <Field label="Lei de Incentivo à Cultura" className="sm:col-span-2 lg:col-span-3">
+                    <Input value={p.info.leiIncentivo} onChange={(e) => updInfo({ leiIncentivo: e.target.value })} placeholder="Ex.: Lei Federal de Incentivo à Cultura (Rouanet)" />
+                    <TextosJaUsados valor={p.info.leiIncentivo} opcoes={sugestoes.valores.incentivosFiscais} onEscolher={(leiIncentivo) => updInfo({ leiIncentivo })} />
+                  </Field>
+                </>
               )}
             </div>
           </Card>

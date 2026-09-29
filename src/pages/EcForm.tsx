@@ -514,7 +514,7 @@ export function EcForm() {
     <PageShell
       title={tituloEc({ ...ec, numero })}
       titleAdornment={statusBadge}
-      legenda={<LegendaProjeto info={ec.projeto} />}
+      legenda={<LegendaProjeto info={ec.projeto} projetoId={ec.projetoId} />}
       // As ações grudam junto com o título (ver PageShell): em EC longa, elas
       // continuam à mão enquanto se rola a lista de itens.
       acoes={
