@@ -146,8 +146,8 @@ export function Projetos() {
                   {/* Sem thumbnail: as iniciais não informavam nada e saíam quebradas em
                       títulos com travessão ("BM – Convenção…" virava "B–"). */}
                   <Td className="font-bold text-ink">{p.nome || "(sem título)"}</Td>
-                  <Td className="text-[12.5px] text-ink-2">{p.info?.produtoraResponsavel || "—"}</Td>
-                  <Td className="text-[12.5px] text-ink-2 whitespace-nowrap tabular-nums">{datasDoProjeto(p)}</Td>
+                  <Td className="text-ink font-medium">{p.info?.produtoraResponsavel || "—"}</Td>
+                  <Td className="text-ink font-medium whitespace-nowrap tabular-nums">{datasDoProjeto(p)}</Td>
                   {podeVerChecklist && (
                     <Td align="center">
                       <ProgressoChecklist resumo={resumoPorProjeto.get(p.id)} />

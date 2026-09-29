@@ -91,6 +91,7 @@ export function PageShell({
   title,
   titleAdornment,
   subtitle,
+  legenda,
   topAction,
   acoes,
   subabas,
@@ -100,6 +101,8 @@ export function PageShell({
   title: string;
   titleAdornment?: ReactNode;
   subtitle?: string;
+  /** Linha pequena logo abaixo do título (ver `LegendaProjeto`). */
+  legenda?: ReactNode;
   topAction?: ReactNode;
   /** Fileira de ações da página — gruda junto com o título. */
   acoes?: ReactNode;
@@ -154,6 +157,7 @@ export function PageShell({
               </h1>
               {titleAdornment}
             </div>
+            {legenda}
             {subtitle && <p className="text-ink-2 text-[15px] mt-2">{subtitle}</p>}
           </div>
           {/* O comando de recolher/expandir nasce aqui e some sozinho na tela

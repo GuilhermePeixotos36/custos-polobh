@@ -3,6 +3,7 @@ import {
   anosComProjetos,
   contagemPorMes,
   blocosDoPeriodoNoMes,
+  legendaDoProjeto,
   corDoProjeto,
   diasNoMes,
   duracaoEmDias,
@@ -261,5 +262,22 @@ describe("blocos do período no mês", () => {
 
   it("mês fora do período não tem bloco", () => {
     expect(blocosDoPeriodoNoMes(com(projeto("a", ["2026-03-05"])), 2026, 5)).toEqual([]);
+  });
+});
+
+describe("legenda do cabeçalho", () => {
+  it("traz só as datas do EVENTO, o local e o(a) produtor(a)", () => {
+    const p = projeto("a", ["2026-03-05", "2026-03-07"]);
+    p.info.local = "Expominas";
+    p.info.produtoraResponsavel = "Marisa";
+    expect(legendaDoProjeto(p.info)).toEqual({
+      evento: { inicio: "2026-03-05", fim: "2026-03-07" },
+      local: "Expominas",
+      produtora: "Marisa",
+    });
+  });
+
+  it("sem dados, devolve vazio — a legenda some", () => {
+    expect(legendaDoProjeto(undefined)).toEqual({ evento: null, local: "", produtora: "" });
   });
 });

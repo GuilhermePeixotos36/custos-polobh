@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { LegendaProjeto } from "@/components/layout/LegendaProjeto";
 import { PageShell } from "@/components/layout/AppLayout";
 import { BarraProjeto } from "@/components/layout/BarraSecao";
 import {
@@ -425,6 +426,7 @@ export function EcDetail() {
     <PageShell
       title={tituloEc(ec)}
       titleAdornment={statusBadge}
+      legenda={<LegendaProjeto info={ec.projeto} />}
       // Grudam junto com o título (ver PageShell): a EC é longa, e as ações
       // sumiam de vista assim que se rolava a lista de itens.
       acoes={

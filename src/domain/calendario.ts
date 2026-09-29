@@ -417,3 +417,24 @@ export function rotuloPeriodo(item: ProjetoNoCalendario): string {
   const ini = `${doisDigitos(dI)} de ${MESES_CURTOS[mI]}${aI === aF ? "" : ` de ${aI}`}`;
   return `${ini} a ${doisDigitos(dF)} de ${MESES_CURTOS[mF]} de ${aF}`;
 }
+
+/**
+ * O que a legenda do cabeçalho de um projeto diz: quando e onde é o EVENTO, e
+ * quem responde por ele (29/09/2026). Só a etapa Evento — montagem e
+ * desmontagem são do quadro do ano, não do "quando é" que se lê no título.
+ */
+export function legendaDoProjeto(info: Projeto["info"] | undefined): {
+  evento: PeriodoProjeto | null;
+  local: string;
+  produtora: string;
+} {
+  if (!info) return { evento: null, local: "", produtora: "" };
+  const datas = datasDaEtapa({ info } as Projeto, "evento");
+  const legado = (info.evento ?? "").trim();
+  const evento = datas.length
+    ? { inicio: datas[0], fim: datas[datas.length - 1] }
+    : RE_DATA.test(legado)
+      ? { inicio: legado, fim: legado }
+      : null;
+  return { evento, local: (info.local ?? "").trim(), produtora: (info.produtoraResponsavel ?? "").trim() };
+}
