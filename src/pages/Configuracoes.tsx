@@ -10,8 +10,9 @@ import { useEmpresas } from "@/store/empresas";
 import { useConfigApp } from "@/store/configApp";
 import { useAsync } from "@/hooks/useAsync";
 import { repo } from "@/data";
-import { lerFeriados, salvarFeriadosMunicipais } from "@/lib/feriados";
-import { feriadosVazios, type Feriado } from "@/domain/feriados";
+import { gravarResponsavelFeriados, lerFeriados, lerResponsavelFeriados, salvarFeriadosMunicipais } from "@/lib/feriados";
+import { idAncoraPendencia } from "@/lib/destaque";
+import { feriadosVazios, responsavelPadraoDosFeriados, type Feriado } from "@/domain/feriados";
 import { toast } from "@/store/toast";
 import { confirmar } from "@/store/confirm";
 import { cx } from "@/lib/format";
@@ -276,6 +277,21 @@ function FeriadosCard() {
   const [ano, setAno] = useState(anoAtual);
   const { data, loading, reload } = useAsync(() => lerFeriados(), []);
   const [rascunho, setRascunho] = useState<Feriado[] | null>(null);
+  const { data: usuarios } = useAsync(() => repo.auth.usuarios().catch(() => [] as Usuario[]), []);
+  const { data: escolhido, reload: recarregarResponsavel } = useAsync(() => lerResponsavelFeriados(), []);
+  const ativos = (usuarios ?? []).filter((u) => u.ativo !== false);
+  // Sem escolha, o padrão é o Tiago (financeiro) — a tela mostra quem é.
+  const responsavel = escolhido || responsavelPadraoDosFeriados(ativos);
+
+  async function trocarResponsavel(nome: string) {
+    try {
+      await gravarResponsavelFeriados(nome);
+      recarregarResponsavel();
+      toast("Responsável pelo lembrete de janeiro atualizado.", "success");
+    } catch (e) {
+      toast(`Não foi possível salvar: ${(e as Error).message}`, "danger");
+    }
+  }
 
   const guardados = data ?? feriadosVazios();
   const municipais = rascunho ?? guardados.municipais[String(ano)] ?? [];
@@ -297,9 +313,23 @@ function FeriadosCard() {
 
   return (
     <Card>
+      <div id={idAncoraPendencia("feriados-do-calendario")}>
       <CardTitle hint="Os nacionais vêm sozinhos da BrasilAPI; os municipais de BH não têm fonte oficial em dados e são lançados aqui">
         Feriados do calendário
       </CardTitle>
+
+      {/* Todo mês de janeiro o sistema cria uma pendência para esta pessoa
+          lançar os feriados municipais do ano que começa; ela some quando o ano
+          tem feriado lançado. Quem administra (Admin, Direção, Coordenação,
+          Financeiro) escolhe quem recebe. */}
+      <Field label="Quem recebe o lembrete de janeiro" className="max-w-[22rem] mb-3">
+        <Select value={responsavel} onChange={(e) => void trocarResponsavel(e.target.value)}>
+          <option value="">Ninguém</option>
+          {ativos.map((u) => (
+            <option key={u.id} value={u.nome}>{u.nome}</option>
+          ))}
+        </Select>
+      </Field>
 
       <div className="flex items-center gap-2 mb-3 flex-wrap">
         <Field label="Ano" className="max-w-[8rem]">
@@ -358,6 +388,7 @@ function FeriadosCard() {
         <Button size="sm" disabled={!rascunho} onClick={() => void salvar()}>
           Salvar feriados
         </Button>
+      </div>
       </div>
     </Card>
   );

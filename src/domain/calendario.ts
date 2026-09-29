@@ -169,33 +169,16 @@ export interface CorProjeto {
 }
 
 /**
- * Paleta do quadro. Todas as cores têm contraste suficiente para texto branco
- * na barra, e caminham com a marca (o laranja da casa abre a lista).
+ * A cor do quadro é UMA só: o Laranja Pólobh, para todos os projetos (pedido de
+ * 29/09/2026). Cor por projeto competia com a leitura que importa — que dias
+ * estão ocupados — e num mês cheio virava mosaico. `CorProjeto` continua no
+ * formato de antes para os componentes não mudarem de assinatura.
  */
-export const PALETA_CALENDARIO: CorProjeto[] = [
-  { forte: "#E36F0A", suave: "#FDF1E3", texto: "#9A4A05" },
-  { forte: "#1B4FD1", suave: "#EAF1FE", texto: "#16409F" },
-  { forte: "#0E7C50", suave: "#E4F6EE", texto: "#0B5F3D" },
-  { forte: "#6D4AE0", suave: "#EFEBFD", texto: "#4F32B8" },
-  { forte: "#0E7C8F", suave: "#E3F4F7", texto: "#0A5E6D" },
-  { forte: "#C43D6E", suave: "#FBE9F0", texto: "#98284F" },
-  { forte: "#5F7C0E", suave: "#F0F5E1", texto: "#47600A" },
-  { forte: "#B24B24", suave: "#FBEDE7", texto: "#8A3717" },
-  { forte: "#3B4EA0", suave: "#EBEEF9", texto: "#2C3B7C" },
-  { forte: "#3A3C44", suave: "#EEEFF2", texto: "#2B2D33" },
-];
+export const COR_POLOBH: CorProjeto = { forte: "#F2820D", suave: "#FDF1E3", texto: "#9A4A05" };
 
-/**
- * Cor fixa por projeto (hash do id).
- *
- * Precisa ser estável: a mesma cor no card do mês, na barra do detalhamento e
- * na lista é o que deixa a pessoa reconhecer o projeto de longe — se a cor
- * saísse da posição na lista, mudaria a cada filtro aplicado.
- */
-export function corDoProjeto(id: string): CorProjeto {
-  let h = 5381;
-  for (let i = 0; i < id.length; i++) h = (h * 33 + id.charCodeAt(i)) >>> 0;
-  return PALETA_CALENDARIO[h % PALETA_CALENDARIO.length];
+/** Todo projeto usa a cor da casa; o `id` fica na assinatura por compatibilidade. */
+export function corDoProjeto(_id: string): CorProjeto {
+  return COR_POLOBH;
 }
 
 /* ------------------------------ montagem --------------------------------- */
@@ -326,33 +309,56 @@ export interface TrechoEtapaMes {
 }
 
 /**
- * Os trechos de montagem, evento e desmontagem dentro de um mês (15/09/2026).
+ * O período do projeto no mês, LADRILHADO pelas etapas (29/09/2026).
  *
- * A barra do projeto passou a cobrir o período inteiro, e uma barra de cor só
- * não diz onde a equipe monta e onde o evento acontece — que é a diferença que
- * a produção lê no quadro. Cada etapa vira um pedaço com o seu tom.
- *
- * Etapas vazias somem, e a lista sai ordenada pelo dia: é nessa ordem que os
- * pedaços são desenhados.
+ * O quadro precisa preencher o período completo, sem furo, e ainda mostrar onde
+ * uma etapa acaba e a outra começa (a divisória). Então cada bloco vai do
+ * começo da sua etapa até o dia anterior ao começo da próxima: se há um dia
+ * vazio entre a montagem e o evento, ele pertence à montagem — o quadro não
+ * deixa buraco no meio da ocupação. O primeiro bloco abre no primeiro dia do
+ * período dentro do mês e o último fecha no último.
  */
-export function trechosDeEtapaNoMes(
+export function blocosDoPeriodoNoMes(
   item: ProjetoNoCalendario,
   anoAlvo: number,
   mesAlvo: number
 ): TrechoEtapaMes[] {
+  const seg = segmentoNoMes(item, anoAlvo, mesAlvo);
+  if (!seg) return [];
+  // O ladrilhamento é feito no período INTEIRO e só depois recortado no mês:
+  // num mês que só tem o "vão" entre a montagem e o evento, o bloco certo é o da
+  // montagem, e isso só se sabe olhando para fora do mês.
+  const etapas = [...(item.etapas ?? [])].sort((a, b) => a.inicio.localeCompare(b.inicio));
+  const inteiros: { etapa: EtapaDoQuadro; inicio: string; fim: string }[] = [];
+  etapas.forEach((e, i) => {
+    const inicio = i === 0 ? item.inicio : e.inicio;
+    const proxima = etapas[i + 1];
+    const fim = proxima ? (e.fim >= proxima.inicio ? e.fim : diaAntes(proxima.inicio)) : item.fim;
+    const ultimo = inteiros[inteiros.length - 1];
+    if (fim >= inicio && (!ultimo || inicio > ultimo.fim)) inteiros.push({ etapa: e.etapa, inicio, fim });
+  });
+  if (!inteiros.length) inteiros.push({ etapa: "evento", inicio: item.inicio, fim: item.fim });
+
   const primeiro = isoDoDia(anoAlvo, mesAlvo, 1);
   const ultimoDia = diasNoMes(anoAlvo, mesAlvo);
-  const ultimo = isoDoDia(anoAlvo, mesAlvo, ultimoDia);
+  const ultimoIso = isoDoDia(anoAlvo, mesAlvo, ultimoDia);
   const out: TrechoEtapaMes[] = [];
-  for (const e of item.etapas ?? []) {
-    if (e.fim < primeiro || e.inicio > ultimo) continue;
+  for (const b of inteiros) {
+    if (b.fim < primeiro || b.inicio > ultimoIso) continue;
     out.push({
-      etapa: e.etapa,
-      diaInicio: e.inicio < primeiro ? 1 : dia(e.inicio),
-      diaFim: e.fim > ultimo ? ultimoDia : dia(e.fim),
+      etapa: b.etapa,
+      diaInicio: b.inicio < primeiro ? 1 : dia(b.inicio),
+      diaFim: b.fim > ultimoIso ? ultimoDia : dia(b.fim),
     });
   }
-  return out.sort((a, b) => a.diaInicio - b.diaInicio);
+  return out;
+}
+
+/** O dia anterior a uma data ISO. */
+function diaAntes(iso: string): string {
+  const d = new Date(`${iso}T00:00:00`);
+  d.setDate(d.getDate() - 1);
+  return isoDoDia(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
 /** Todos os segmentos do mês, na ordem em que começam (mais longo primeiro no empate). */

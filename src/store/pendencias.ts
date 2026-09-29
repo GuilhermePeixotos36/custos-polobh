@@ -14,6 +14,9 @@ import { create } from "zustand";
 import { repo } from "@/data";
 import { useAuth } from "@/store/auth";
 import { calcularPendencias, agregarPendencias, type Pendencia } from "@/domain/pendencias";
+import { hojeIso } from "@/domain/calendario";
+import { pendenciaDeFeriados, responsavelPadraoDosFeriados } from "@/domain/feriados";
+import { lerFeriados, lerResponsavelFeriados } from "@/lib/feriados";
 import type { Checklist, Ec, Os, Projeto } from "@/data/types";
 
 interface State {
@@ -63,8 +66,32 @@ export const usePendencias = create<State>((set, get) => ({
         repo.checklists.listar(),
       ]);
       const nomes = usuarios.map((u) => u.nome).filter(Boolean);
+      const itens = calcularPendencias(projetos, ecs, oss, nomes, credenciados, checklists);
+      // Lembrete de janeiro: os feriados municipais do ano. Falha de leitura
+      // aqui não derruba as demais pendências.
+      try {
+        const [guardados, escolhido] = await Promise.all([lerFeriados(), lerResponsavelFeriados()]);
+        const f = pendenciaDeFeriados({
+          hoje: hojeIso(),
+          guardados,
+          responsavel: escolhido || responsavelPadraoDosFeriados(usuarios),
+        });
+        if (f) {
+          itens.push({
+            id: f.id,
+            tipo: "feriados",
+            titulo: f.titulo,
+            pessoas: f.pessoas,
+            recurso: "projetos",
+            rota: "/configuracoes",
+            ancora: "feriados-do-calendario",
+          });
+        }
+      } catch (e) {
+        console.error("[pendencias] lembrete de feriados indisponível:", e);
+      }
       set({
-        itens: calcularPendencias(projetos, ecs, oss, nomes, credenciados, checklists),
+        itens,
         projetos,
         ecsPainel: ecs,
         oss,

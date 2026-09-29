@@ -80,3 +80,46 @@ export function feriadosDaApi(dados: unknown): Feriado[] {
       origem: "nacional" as const,
     }));
 }
+
+/* --------------------- lembrete anual de janeiro ------------------------- */
+
+/** Mês (0-11) em que o sistema cobra o lançamento dos feriados municipais. */
+export const MES_DO_LEMBRETE_DE_FERIADOS = 0;
+
+/** Chave em `config_app`: quem recebe o lembrete (`{ nome }`). */
+export const CHAVE_RESPONSAVEL_FERIADOS = "feriados_responsavel";
+
+/**
+ * Quem recebe o lembrete quando ninguém foi escolhido em Configurações: o
+ * Tiago, do financeiro (pedido de 29/09/2026). É só o ponto de partida — a
+ * escolha em Configurações sempre vence.
+ */
+export function responsavelPadraoDosFeriados(usuarios: { nome: string; ativo?: boolean }[]): string {
+  const tiago = usuarios.find((u) => u.ativo !== false && /^tiago\b/i.test(u.nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim()));
+  return tiago?.nome ?? "";
+}
+
+/**
+ * A pendência automática de janeiro: lançar os feriados MUNICIPAIS do ano que
+ * começa. Existe de 1º a 31 de janeiro e some sozinha assim que o ano tem ao
+ * menos um feriado municipal lançado. Sem responsável (nem escolhido nem o
+ * padrão), não há a quem cobrar e nada é gerado.
+ */
+export function pendenciaDeFeriados(opts: {
+  /** "Hoje" em ISO. */
+  hoje: string;
+  guardados?: FeriadosGuardados;
+  /** Nome de quem recebe (já resolvido: escolhido ou padrão). */
+  responsavel: string;
+}): { id: string; ano: number; pessoas: string[]; titulo: string } | null {
+  const ano = Number(opts.hoje.slice(0, 4));
+  const mes = Number(opts.hoje.slice(5, 7)) - 1;
+  if (mes !== MES_DO_LEMBRETE_DE_FERIADOS || !opts.responsavel.trim()) return null;
+  if ((opts.guardados?.municipais?.[String(ano)] ?? []).length) return null;
+  return {
+    id: `feriados:${ano}`,
+    ano,
+    pessoas: [opts.responsavel.trim()],
+    titulo: `Lançar os feriados municipais de ${ano} em Configurações › Feriados do calendário`,
+  };
+}

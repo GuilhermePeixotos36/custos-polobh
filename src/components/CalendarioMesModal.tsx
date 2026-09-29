@@ -27,6 +27,7 @@ import {
   INICIAIS_SEMANA,
   MESES,
   diaDaSemana,
+  blocosDoPeriodoNoMes,
   diasNoMes,
   fimDeSemana,
   hojeIso,
@@ -170,6 +171,10 @@ export function CalendarioMesModal({
               {segmentos.map((seg) => {
                 const { item } = seg;
                 const encerrado = item.status === "Arquivado";
+                // Bloco (etapa) de cada dia: a divisória entre etapas é mais
+                // grossa que a divisória entre dias.
+                const blocos = blocosDoPeriodoNoMes(item, ano, mes);
+                const blocoDoDia = (d: number) => blocos.findIndex((b) => d >= b.diaInicio && d <= b.diaFim);
                 return (
                   <div
                     key={item.id}
@@ -224,8 +229,7 @@ export function CalendarioMesModal({
                         );
                       }
 
-                      const primeiro = d === seg.diaInicio;
-                      const ultimo = d === seg.diaFim;
+                      const viraEtapa = d > seg.diaInicio && blocoDoDia(d) !== blocoDoDia(d - 1);
                       return (
                         <button
                           key={d}
@@ -233,7 +237,8 @@ export function CalendarioMesModal({
                           title={`${item.titulo}${item.local ? ` · ${item.local}` : ""}`}
                           style={{ gridRow: 1, gridColumn: d + 1 }}
                           className={cx(
-                            "h-[46px] border-l border-white/25 bg-primary flex items-center justify-center",
+                            "h-[46px] bg-primary",
+                            viraEtapa ? "border-l-[3px] border-white" : "border-l border-white/25",
                             "hover:brightness-105 transition-all",
                             // O dia de hoje precisa continuar localizável mesmo
                             // dentro de uma sequência pintada — sem isto, a
@@ -241,14 +246,7 @@ export function CalendarioMesModal({
                             ehHoje && "ring-2 ring-inset ring-white/80",
                             encerrado && "opacity-45"
                           )}
-                        >
-                          {primeiro && seg.continuaAntes && (
-                            <span className="text-[11px] font-bold leading-none text-white">◄</span>
-                          )}
-                          {ultimo && seg.continuaDepois && (
-                            <span className="text-[11px] font-bold leading-none text-white">►</span>
-                          )}
-                        </button>
+                        />
                       );
                     })}
                   </div>
@@ -261,8 +259,8 @@ export function CalendarioMesModal({
         {/* -------------------------------- rodapé --------------------------------- */}
         <div className="px-5 py-3 border-t border-border-soft bg-[#FCFCFD] flex items-center gap-3 flex-wrap">
           <span className="text-[11.5px] text-ink-3">
-            O dia pintado é dia ocupado — a marcação cobre todas as etapas do projeto
-            (montagem, evento e desmontagem).
+            O dia pintado é dia ocupado — a marcação cobre o período completo do projeto; a
+            divisória mais grossa separa montagem, evento e desmontagem.
           </span>
           <span className="ml-auto flex items-center gap-3 text-[11px] text-ink-3 flex-wrap">
             <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-[4px] bg-primary" /> projeto</span>

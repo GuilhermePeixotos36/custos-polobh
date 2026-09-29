@@ -11,7 +11,7 @@
  * seguem, em vez de propagar exceção para a tela do calendário.
  */
 import { repo } from "@/data";
-import { feriadosDaApi, feriadosVazios, type Feriado, type FeriadosGuardados } from "@/domain/feriados";
+import { CHAVE_RESPONSAVEL_FERIADOS, feriadosDaApi, feriadosVazios, type Feriado, type FeriadosGuardados } from "@/domain/feriados";
 
 const CHAVE = "feriados";
 const ENDPOINT = (ano: number) => `https://brasilapi.com.br/api/feriados/v1/${ano}`;
@@ -63,4 +63,14 @@ export async function salvarFeriadosMunicipais(ano: number, lista: Feriado[]): P
     ...atual,
     municipais: { ...atual.municipais, [String(ano)]: lista },
   });
+}
+
+/** Quem foi escolhido em Configurações para receber o lembrete de janeiro ("" = ninguém). */
+export async function lerResponsavelFeriados(): Promise<string> {
+  const v = await repo.config.ler<{ nome?: string }>(CHAVE_RESPONSAVEL_FERIADOS).catch(() => undefined);
+  return v?.nome?.trim() ?? "";
+}
+
+export async function gravarResponsavelFeriados(nome: string): Promise<void> {
+  await repo.config.gravar(CHAVE_RESPONSAVEL_FERIADOS, { nome });
 }

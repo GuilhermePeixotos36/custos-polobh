@@ -118,6 +118,8 @@ export interface Pendencia {
    * vários porque OS e Contrato entram numa pendência só (ver a emissão abaixo).
    */
   campos?: CampoPendencia[];
+  /** Rota própria, para a pendência que não mora num projeto (ex.: feriados). */
+  rota?: string;
 }
 
 /**
@@ -155,6 +157,7 @@ export function telaDaPendencia(p: Pendencia): TelaPendencias {
  * saltem exatamente para o mesmo lugar.
  */
 export function rotaDaPendencia(p: Pendencia): string {
+  if (p.rota) return p.rota;
   const tela = telaDaPendencia(p);
   if ("ecId" in tela) return `/estimativas/${tela.ecId}`;
   if ("osId" in tela) return `/ordens/${tela.osId}`;

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   anosComProjetos,
   contagemPorMes,
+  blocosDoPeriodoNoMes,
   corDoProjeto,
   diasNoMes,
   duracaoEmDias,
@@ -150,10 +151,9 @@ describe("montagem do quadro", () => {
     expect(semData.map((s) => s.id)).toEqual(["z"]);
   });
 
-  it("dá a mesma cor ao mesmo projeto, sempre", () => {
-    const um = montarCalendario(projetos, []).itens.find((i) => i.id === "a");
-    const outro = montarCalendario([...projetos].reverse(), []).itens.find((i) => i.id === "a");
-    expect(um?.cor.forte).toBe(outro?.cor.forte);
+  it("todos os projetos usam a mesma cor: o Laranja Pólobh", () => {
+    const cores = new Set(montarCalendario(projetos, []).itens.map((i) => i.cor.forte));
+    expect(cores).toEqual(new Set(["#F2820D"]));
   });
 });
 
@@ -238,5 +238,28 @@ describe("rótulos", () => {
 
   it("iso do dia usa dois dígitos", () => {
     expect(isoDoDia(2026, 0, 5)).toBe("2026-01-05");
+  });
+});
+
+describe("blocos do período no mês", () => {
+  const com = (p: Projeto) => montarCalendario([p], []).itens[0];
+
+  it("ladrilha o período inteiro, sem furo, uma etapa depois da outra", () => {
+    const it = com(projeto("a", ["2026-03-05", "2026-03-07"]));
+    // montagem 25/02, evento 05-07/03, desmontagem 30/03 — em março:
+    expect(blocosDoPeriodoNoMes(it, 2026, 2)).toEqual([
+      { etapa: "montagem", diaInicio: 1, diaFim: 4 },
+      { etapa: "evento", diaInicio: 5, diaFim: 29 },
+      { etapa: "desmontagem", diaInicio: 30, diaFim: 30 },
+    ]);
+  });
+
+  it("no mês da montagem o primeiro bloco abre no primeiro dia do período", () => {
+    const it = com(projeto("a", ["2026-03-05"]));
+    expect(blocosDoPeriodoNoMes(it, 2026, 1)).toEqual([{ etapa: "montagem", diaInicio: 25, diaFim: 28 }]);
+  });
+
+  it("mês fora do período não tem bloco", () => {
+    expect(blocosDoPeriodoNoMes(com(projeto("a", ["2026-03-05"])), 2026, 5)).toEqual([]);
   });
 });

@@ -14,7 +14,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { PageShell } from "@/components/layout/AppLayout";
-import { Card, Badge, Button, EmptyState, AvisoErro, Select, type Tom } from "@/components/ui";
+import { Card, Badge, Button, EmptyState, AvisoErro, Select } from "@/components/ui";
 import { IcChevron, IcSearch, IcCalendar, IcGrid, IcList } from "@/components/icons";
 import { CalendarioMesModal } from "@/components/CalendarioMesModal";
 import { repo } from "@/data";
@@ -25,6 +25,7 @@ import { cx, dataBR } from "@/lib/format";
 import {
   MESES,
   anosComProjetos,
+  blocosDoPeriodoNoMes,
   diasNoMes,
   hojeIso,
   montarCalendario,
@@ -36,12 +37,6 @@ import {
   type ProjetoNoCalendario,
   type SegmentoMes,
 } from "@/domain/calendario";
-import type { StatusProjeto } from "@/data/types";
-
-const tomStatus: Record<StatusProjeto, Tom> = {
-  Ativo: "success",
-  Arquivado: "neutral",
-};
 
 type FiltroStatus = "Todos" | "Ativos" | "Arquivados";
 const FILTROS: { key: FiltroStatus; label: string }[] = [
@@ -196,15 +191,15 @@ export function Calendario() {
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <Select className="!h-9 !w-auto min-w-[150px]" value={modalidade} onChange={(e) => setModalidade(e.target.value)}>
-              <option value="">Todos</option>
+              <option value="">Modalidade</option>
               <option value="Corporativo">Corporativo</option>
               <option value="Cultural">Cultural</option>
             </Select>
             {/* Os três filtros agem JUNTOS (pergunta do check-list de 15/09):
                 Ativos + Culturais + "Marisa" devolve os culturais ativos dela. */}
             {produtoras.length > 0 && (
-              <Select className="!h-9 !w-auto min-w-[170px]" value={produtora} onChange={(e) => setProdutora(e.target.value)}>
-                <option value="">Toda produtora</option>
+              <Select className="!h-9 !w-auto min-w-[210px]" value={produtora} onChange={(e) => setProdutora(e.target.value)}>
+                <option value="">Produtor(a) Responsável</option>
                 {produtoras.map((nome) => (
                   <option key={nome} value={nome}>{nome}</option>
                 ))}
@@ -345,18 +340,22 @@ function CardMes({
         <div className="flex flex-col gap-[3px]">
           {Array.from({ length: TRILHAS_NO_CARD }, (_, t) => (
             <div key={t} className="relative h-[7px] rounded-pill bg-[#EFF1F4] overflow-hidden">
-              {(trilhas[t] ?? []).map((seg) => (
-                <span
-                  key={seg.item.id}
-                  className="absolute inset-y-0 rounded-pill"
-                  style={{
-                    left: `${((seg.diaInicio - 1) / dias) * 100}%`,
-                    width: `${((seg.diaFim - seg.diaInicio + 1) / dias) * 100}%`,
-                    background: seg.item.cor.forte,
-                    opacity: seg.item.status === "Arquivado" ? 0.4 : 1,
-                  }}
-                />
-              ))}
+              {/* Um bloco por etapa, todos no laranja da casa, com a divisória
+                  branca entre uma etapa e a seguinte (29/09/2026). */}
+              {(trilhas[t] ?? []).flatMap((seg) =>
+                blocosDoPeriodoNoMes(seg.item, ano, mes).map((b, i) => (
+                  <span
+                    key={`${seg.item.id}-${i}`}
+                    className="absolute inset-y-0 bg-primary"
+                    style={{
+                      left: `${((b.diaInicio - 1) / dias) * 100}%`,
+                      width: `${((b.diaFim - b.diaInicio + 1) / dias) * 100}%`,
+                      borderLeft: i > 0 ? "2px solid #fff" : undefined,
+                      opacity: seg.item.status === "Arquivado" ? 0.4 : 1,
+                    }}
+                  />
+                ))
+              )}
             </div>
           ))}
         </div>
@@ -395,12 +394,12 @@ function LinhaProjetoCard({ seg }: { seg: SegmentoMes }) {
   const { item } = seg;
   return (
     <span className="flex items-center gap-2 min-w-0" title={`${item.titulo} — ${rotuloPeriodo(item)}`}>
-      <span className="h-2 w-2 rounded-full shrink-0" style={{ background: item.cor.forte }} />
+      <span className="h-2 w-2 rounded-full shrink-0 bg-primary" />
       <span className={cx("text-[12.5px] font-semibold text-ink truncate flex-1 min-w-0", item.status === "Arquivado" && "line-through text-ink-3")}>
         {item.titulo}
       </span>
       <span className="text-[11px] font-bold text-ink-3 tabular-nums shrink-0">
-        {seg.continuaAntes ? "◄ " : ""}{rotuloDias(seg)}{seg.continuaDepois ? " ►" : ""}
+        {rotuloDias(seg)}
       </span>
     </span>
   );
@@ -452,47 +451,33 @@ function VistaLista({
                 <IcCalendar width={14} height={14} /> {MESES[mes]} dia a dia
               </button>
             </div>
+            {/* QUATRO COLUNAS, por mês (29/09/2026): nome completo, datas, local e
+                produtor(a) responsável — o que a equipe procura na lista. Sem
+                selo de status, dias ou modalidade: o projeto arquivado sai
+                riscado, e o resto se vê no projeto. */}
+            <div className="hidden md:grid grid-cols-[minmax(0,2.2fr)_minmax(0,1.1fr)_minmax(0,1.5fr)_minmax(0,1.3fr)] gap-4 px-5 py-2 border-b border-border-soft text-[10.5px] font-extrabold uppercase tracking-[0.12em] text-ink-3">
+              <span>Projeto</span>
+              <span>Datas</span>
+              <span>Local</span>
+              <span>Produtor(a) Responsável</span>
+            </div>
             <div className="divide-y divide-border-soft">
               {segmentos.map((seg) => {
                 const { item } = seg;
-                const acontecendo = item.inicio <= hoje && item.fim >= hoje;
                 return (
                   <button
                     key={item.id}
                     onClick={() => navigate(`/projetos/${item.id}`)}
-                    className="w-full text-left px-5 py-3 flex items-center gap-3 hover:bg-[#FAFAFB] transition-colors"
+                    className="w-full text-left px-5 py-3 grid gap-x-4 gap-y-0.5 md:grid-cols-[minmax(0,2.2fr)_minmax(0,1.1fr)_minmax(0,1.5fr)_minmax(0,1.3fr)] items-center hover:bg-[#FAFAFB] transition-colors border-l-[6px] border-l-primary"
                   >
-                    <span className="h-9 w-1.5 rounded-full shrink-0" style={{ background: item.cor.forte }} />
-                    <span className="min-w-0 flex-1">
-                      <span className="flex items-center gap-2 flex-wrap">
-                        <span className={cx("text-[14px] font-bold text-ink truncate", item.status === "Arquivado" && "line-through text-ink-3")}>
-                          {item.titulo}
-                        </span>
-                        {acontecendo && <Badge tom="success">acontecendo</Badge>}
-                      </span>
-                      {/* A PRODUTORA RESPONSÁVEL entra aqui (15/09/2026): é por
-                          ela que se procura um projeto na lista, e até então o
-                          nome de quem responde não aparecia em lugar nenhum do
-                          quadro do ano. */}
-                      <span className="block text-[12px] text-ink-2 truncate">
-                        {[item.cliente, item.local].filter(Boolean).join(" · ") || "—"}
-                      </span>
-                      {item.produtora && (
-                        <span className="block text-[12px] text-ink-3 truncate">
-                          Produtora: <span className="font-semibold text-ink-2">{item.produtora}</span>
-                        </span>
-                      )}
+                    <span className={cx("text-[14px] font-bold text-ink", item.status === "Arquivado" && "line-through text-ink-3")}>
+                      {item.titulo}
                     </span>
-                    <span className="hidden md:block text-right shrink-0">
-                      <span className="block text-[12.5px] font-bold text-ink tabular-nums">
-                        {dataBR(item.inicio)}{item.inicio !== item.fim ? ` › ${dataBR(item.fim)}` : ""}
-                      </span>
-                      <span className="block text-[11px] text-ink-3">
-                        {item.dias} dia{item.dias > 1 ? "s" : ""} (com montagem e desmontagem)
-                        {item.modalidade ? ` · ${item.modalidade}` : ""}
-                      </span>
+                    <span className="text-[12.5px] font-semibold text-ink tabular-nums">
+                      {dataBR(item.inicio)}{item.inicio !== item.fim ? ` a ${dataBR(item.fim)}` : ""}
                     </span>
-                    <span className="shrink-0"><Badge tom={tomStatus[item.status]}>{item.status}</Badge></span>
+                    <span className="text-[12.5px] text-ink-2">{item.local || "—"}</span>
+                    <span className="text-[12.5px] text-ink-2">{item.produtora || "—"}</span>
                   </button>
                 );
               })}

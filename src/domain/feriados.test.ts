@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { feriadosDaApi, feriadosDoAno, indiceDeFeriados, type FeriadosGuardados } from "./feriados";
+import {
+  feriadosDaApi, feriadosDoAno, indiceDeFeriados, pendenciaDeFeriados, responsavelPadraoDosFeriados,
+  type Feriado, type FeriadosGuardados,
+} from "./feriados";
 
 const guardados = (p: Partial<FeriadosGuardados> = {}): FeriadosGuardados => ({
   municipais: {},
@@ -62,5 +65,30 @@ describe("resposta da BrasilAPI", () => {
 
   it("feriado sem nome não fica sem rótulo na tela", () => {
     expect(feriadosDaApi([{ date: "2026-09-07", name: "  " }])[0].nome).toBe("Feriado");
+  });
+});
+
+describe("lembrete de janeiro", () => {
+  const g0 = (municipais: Record<string, Feriado[]> = {}) => ({ municipais, nacionais: {} });
+
+  it("em janeiro, sem municipais lançados, cobra o responsável", () => {
+    const p = pendenciaDeFeriados({ hoje: "2027-01-10", guardados: g0(), responsavel: "Tiago" });
+    expect(p?.pessoas).toEqual(["Tiago"]);
+    expect(p?.ano).toBe(2027);
+  });
+
+  it("some quando o ano já tem feriado municipal lançado", () => {
+    const g = g0({ "2027": [{ data: "2027-08-15", nome: "Assunção", origem: "municipal" }] });
+    expect(pendenciaDeFeriados({ hoje: "2027-01-10", guardados: g, responsavel: "Tiago" })).toBeNull();
+  });
+
+  it("só existe em janeiro e só com alguém a quem cobrar", () => {
+    expect(pendenciaDeFeriados({ hoje: "2027-02-01", guardados: g0(), responsavel: "Tiago" })).toBeNull();
+    expect(pendenciaDeFeriados({ hoje: "2027-01-10", guardados: g0(), responsavel: "" })).toBeNull();
+  });
+
+  it("o padrão é o Tiago, entre os usuários ativos", () => {
+    expect(responsavelPadraoDosFeriados([{ nome: "Marisa" }, { nome: "Tiago Alves" }])).toBe("Tiago Alves");
+    expect(responsavelPadraoDosFeriados([{ nome: "Tiago", ativo: false }])).toBe("");
   });
 });
