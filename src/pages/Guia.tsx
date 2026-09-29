@@ -662,12 +662,12 @@ const MODULOS: Modulo[] = [
           <Tela titulo="O evento mudou. E os documentos já emitidos?">
             <div className="space-y-2 text-[12px]">
               <div className="flex items-center gap-2"><span className="text-ink-3 line-through">Expominas</span><span className="text-ink-3">→</span><b className="text-ink">Minascentro</b></div>
-              <div className="flex items-center gap-2"><Tag>☐</Tag><span className="text-ink">EC – ACME – V02</span><span className="text-ink-3">atualizar os dados do evento</span></div>
-              <div className="flex items-center gap-2"><Tag>☐</Tag><span className="text-ink">OS – Som &amp; Luz – (01)</span><span className="text-ink-3">gerar nova versão</span></div>
+              <div className="flex items-center gap-2"><span className="text-ink">EC – ACME – V02</span><span className="text-ink-3">nova versão</span></div>
+              <div className="flex items-center gap-2"><span className="text-ink">OS – Som &amp; Luz – (01)</span><span className="text-ink-3">nova versão</span></div>
             </div>
           </Tela>
           <Passos>
-            <span><b>Atualizar a EC</b> — a EC em aberto passa a mostrar os dados novos. As OSs já emitidas a partir dela <b>não</b> mudam.</span>
+            <span><b>Gerar novas versões</b> — sem escolher documento por documento: o sistema gera a nova versão da EC ativa e das OSs em andamento, com os dados novos, e <b>arquiva as versões anteriores</b> automaticamente.</span>
             <span><b>Forma de pagamento por item:</b> a tabela de valores e BV vem da EC e <b>não se edita na OS</b>. O Financeiro escolhe, item a item, <b>uma</b> das três formas (com BV e NF · sem BV e com NF · sem BV e sem NF); quando só uma tem valor, ela já vem escolhida. O Resumo dos Custos acompanha. A OS <b>não mistura formas</b>: item sem escolha, forma sem valor ou formas diferentes na mesma OS <b>travam a emissão</b>.</span>
             <span><b>Os quatro status da OS:</b> <b>Rascunho</b> (sendo montada) · <b>Emitida</b> (saiu para o fornecedor) · <b>Cancelada</b> (o negócio caiu — só por decisão de uma pessoa, no botão <b>Cancelar OS</b>) · <b>Arquivada</b> (saiu de cena sem o negócio cair). A OS vira <b>Emitida</b> em <b>Emitir OS</b>; vira <b>Arquivada</b> sozinha quando é substituída por uma nova versão ou quando o projeto é arquivado.</span>
             <span><b>Gerar nova versão da OS</b> — nasce uma OS rascunho com os dados novos; a atual é <b>arquivada automaticamente</b> e fica no histórico, com tudo que tinha dentro (itens, financeiro, contrato).</span>
