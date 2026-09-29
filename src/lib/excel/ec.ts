@@ -725,7 +725,7 @@ export async function gerarEcExcel(
   opts?: { picker?: boolean; modelo?: ModeloEcExcel }
 ): Promise<"salvo" | "cancelado" | "baixado"> {
   const { buffer, nome } = await criarEcExcelBuffer(ec, opts?.modelo);
-  if (opts?.picker) return salvarComPicker(buffer as ArrayBuffer, nome);
-  baixar(buffer, nome);
+  if (opts?.picker) return salvarComPicker(buffer as ArrayBuffer, nome, ec.projetoId);
+  baixar(buffer, nome, ec.projetoId);
   return "baixado";
 }

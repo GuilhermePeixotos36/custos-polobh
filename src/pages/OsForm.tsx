@@ -41,6 +41,7 @@ import { useEmpresas } from "@/store/empresas";
 import { consultarCnpj } from "@/lib/cnpj";
 import { gerarDescritivo } from "@/lib/ai";
 import { dispararOsPorEmail } from "@/lib/email";
+import { arquivarOsNoProjeto } from "@/lib/excel";
 import { flags } from "@/lib/flags";
 import { brl, cx, dataBR, maskCpfCnpjInput } from "@/lib/format";
 import { useAuth } from "@/store/auth";
@@ -788,7 +789,11 @@ export function OsForm() {
             variant="secondary"
             size="sm"
             icon={<IcDownload width={16} height={16} />}
-            onClick={() => os.id ? navigate(`/ordens/${os.id}/imprimir?auto=1`) : toast("Salve a OS antes de baixar o PDF.", "info")}
+            onClick={() => {
+              if (!os.id) return toast("Salve a OS antes de baixar o PDF.", "info");
+              void arquivarOsNoProjeto(os, ecCtx);
+              navigate(`/ordens/${os.id}/imprimir?auto=1`);
+            }}
           >
             Baixar PDF
           </Button>

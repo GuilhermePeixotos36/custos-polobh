@@ -122,9 +122,16 @@ export const gradeAuto: Partial<ExcelJS.Borders> = {
   right: { style: "thin" },
 };
 
+/** Cópia para o Dropbox do projeto. Import sob demanda: só carrega o cliente do banco quando há projeto. */
+function arquivarCopia(projetoId: string | undefined, nome: string, buffer: ArrayBuffer) {
+  if (!projetoId) return;
+  void import("@/lib/arquivarDocumento").then((m) => m.arquivarCopia(projetoId, nome, buffer)).catch(() => {});
+}
+
 const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-export function baixar(buffer: ArrayBuffer, nome: string) {
+export function baixar(buffer: ArrayBuffer, nome: string, projetoId?: string) {
+  arquivarCopia(projetoId, nome, buffer);
   const blob = new Blob([buffer], { type: XLSX_MIME });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -142,7 +149,7 @@ export function baixar(buffer: ArrayBuffer, nome: string) {
  * navegador não suporta (ex.: Firefox), cai no download normal.
  * Retorna "salvo" | "cancelado" | "baixado".
  */
-export async function salvarComPicker(buffer: ArrayBuffer, nome: string): Promise<"salvo" | "cancelado" | "baixado"> {
+export async function salvarComPicker(buffer: ArrayBuffer, nome: string, projetoId?: string): Promise<"salvo" | "cancelado" | "baixado"> {
   const nomeArq = nome.endsWith(".xlsx") ? nome : `${nome}.xlsx`;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const w = window as any;
@@ -155,16 +162,17 @@ export async function salvarComPicker(buffer: ArrayBuffer, nome: string): Promis
       const writable = await handle.createWritable();
       await writable.write(new Blob([buffer], { type: XLSX_MIME }));
       await writable.close();
+      arquivarCopia(projetoId, nomeArq, buffer);
       return "salvo";
     } catch (e) {
       // Usuário cancelou o diálogo
       if ((e as Error)?.name === "AbortError") return "cancelado";
       // Qualquer outra falha → download normal
-      baixar(buffer, nomeArq);
+      baixar(buffer, nomeArq, projetoId);
       return "baixado";
     }
   }
-  baixar(buffer, nomeArq);
+  baixar(buffer, nomeArq, projetoId);
   return "baixado";
 }
 

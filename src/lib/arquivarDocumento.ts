@@ -5,6 +5,7 @@
  * Servidor: supabase/functions/arquivar-documento.
  */
 import { supabase } from "@/lib/supabaseClient";
+import { toast } from "@/store/toast";
 
 export async function arquivarDocumento(
   projetoId: string,
@@ -23,4 +24,27 @@ export async function arquivarDocumento(
   } catch (e) {
     return { ok: false, erro: (e as Error).message };
   }
+}
+
+const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+/**
+ * Cópia automática de um documento recém-gerado para a pasta Dropbox do projeto.
+ * Não espera nem trava: roda em segundo plano depois do download. Projeto sem
+ * link de pasta (ou sem projeto) simplesmente não arquiva, sem aviso — o link é
+ * opcional. Falha real de envio vira um aviso na tela.
+ */
+export function arquivarCopia(projetoId: string | undefined, nome: string, buffer: ArrayBuffer): void {
+  if (!projetoId || !/^[0-9a-f-]{36}$/i.test(projetoId)) return;
+  void (async () => {
+    try {
+      const { data } = await supabase.from("projetos").select("docs_url").eq("id", projetoId).maybeSingle();
+      if (!/^https?:\/\//i.test((data?.docs_url ?? "").trim())) return;
+      const r = await arquivarDocumento(projetoId, nome.endsWith(".xlsx") ? nome : `${nome}.xlsx`, new Blob([buffer], { type: XLSX_MIME }));
+      if (r.ok) toast("Cópia salva na pasta Dropbox do projeto.", "success");
+      else toast(`Não foi possível salvar no Dropbox do projeto: ${r.erro}`, "info");
+    } catch {
+      /* arquivar nunca atrapalha quem gerou o documento */
+    }
+  })();
 }

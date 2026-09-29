@@ -348,6 +348,7 @@ export function ProjetoDetail() {
         enderecoLocal: info.enderecoLocal,
         itens: linhasCronograma,
         nomeArquivo: `Cronograma - ${p.nome || info.titulo || "Projeto"}`,
+        projetoId: p.id,
       });
       toast("Cronograma exportado para Excel.", "success");
     } catch (e) {

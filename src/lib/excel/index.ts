@@ -140,3 +140,18 @@ export async function gerarCredenciamentoExcel(
 export function baixarPdfViaImpressao() {
   window.print();
 }
+
+/**
+ * A OS "oficial" é o PDF, que sai pela impressão do navegador — e a impressão
+ * não entrega um arquivo que o app possa copiar. Então, ao baixar o PDF, a
+ * pasta Dropbox do projeto recebe a OS em Excel (sem financeiro) como cópia.
+ */
+export async function arquivarOsNoProjeto(os: Os, ec: Ec): Promise<void> {
+  try {
+    const [{ criarOsExcelBuffer }, { arquivarCopia }] = await Promise.all([import("./os"), import("@/lib/arquivarDocumento")]);
+    const { buffer, nome } = await criarOsExcelBuffer(os, ec, { incluirFinanceiro: false });
+    arquivarCopia(ec.projetoId, nome, buffer);
+  } catch {
+    /* arquivar nunca atrapalha o download */
+  }
+}
