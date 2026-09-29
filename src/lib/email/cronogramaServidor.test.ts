@@ -16,6 +16,7 @@
 import { describe, expect, it } from "vitest";
 import {
   corpoCronogramaFornecedor,
+  textoCronogramaFornecedor,
   datasDoEvento,
   horariosDoEvento,
   type ProjetoJson,
@@ -135,5 +136,20 @@ describe("o corpo da mensagem", () => {
     expect(html).not.toContain("<script>");
     expect(html).toContain("&lt;script&gt;");
     expect(html).toContain("A &amp; B");
+  });
+});
+
+describe("texto padrão do cronograma (Alerta: Cronograma)", () => {
+  it("traz o título, a abertura padrão, os dados do projeto e o cronograma do fornecedor", () => {
+    const txt = textoCronogramaFornecedor({
+      projeto: { titulo: "Festival X", local: "Expominas" },
+      etapas: [{ etapa: "Montagem", data: "2026-10-15", horario: "08:00", atividades: "Palco" }],
+      numeroOs: "OS-1",
+    });
+    expect(txt).toContain("Alerta: Cronograma");
+    expect(txt).toContain("Esta é uma mensagem automática gerada pelo sistema de gestão da Pólobh.");
+    expect(txt).toContain("confirmação do cronograma das ações que foram confirmadas para a sua empresa");
+    expect(txt).toContain("Título: Festival X");
+    expect(txt).toContain("Montagem · 15/10/2026 · 08:00 — Palco");
   });
 });

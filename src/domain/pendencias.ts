@@ -529,11 +529,11 @@ export function calcularPendencias(
         responsavelProjeto: responsavel,
         recurso: "projetos",
         projetoId: ec.projetoId,
-        // Cobrada na etapa da OS, e não na do Cronograma do projeto: as etapas
-        // do fornecedor se preenchem DENTRO da OS, e a subguia Cronograma só
-        // consolida o que já existe. Contar lá era pôr o número numa tela onde
-        // não há o que fazer — e a pílula de lá não tinha o que achar.
-        aba: "os",
+        // Cobrada na subguia CRONOGRAMA (29/09/2026), na linha do fornecedor
+        // do painel de envio: é de lá que se vê quem ainda não tem etapas e
+        // que se abre a OS para preenchê-las. A âncora é a mesma do bloco na
+        // OS, então a OS continua sabendo achá-la (e travando a emissão).
+        aba: "cronograma",
         ecId: os.ecId,
         osId: os.id,
         ancora: ancoraCronogramaOs(os.id),

@@ -17,6 +17,10 @@ import {
 import { flags } from "@/lib/flags";
 import { IcSend } from "@/components/icons";
 import { enviarCronogramaAoFornecedor, resumoDoEnvio } from "@/lib/email";
+import { textoWhatsAppCronograma } from "@/lib/email/templates";
+import { idAncoraPendencia } from "@/lib/destaque";
+import { ancoraCronogramaOs } from "@/domain/pendencias";
+import { useNavigate } from "react-router-dom";
 import { toast } from "@/store/toast";
 import { confirmar } from "@/store/confirm";
 import { cx } from "@/lib/format";
@@ -29,6 +33,7 @@ import {
 import type { Ec, Os } from "@/data/types";
 
 export function EnvioCronograma({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
+  const navigate = useNavigate();
   const [enviando, setEnviando] = useState("");
   const [marcados, setMarcados] = useState<ReadonlySet<string>>(new Set());
 
@@ -43,6 +48,17 @@ export function EnvioCronograma({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
   async function enviar(f: NaFilaCronograma) {
     if (!f.ec || !f.email) return { ok: false, simulado: true, destinatarios: [] };
     return enviarCronogramaAoFornecedor(f.os, f.ec);
+  }
+
+  /**
+   * WhatsApp (29/09/2026): abre a conversa com o texto padrão já escrito — o
+   * envio é de quem aperta "enviar" no aplicativo. Não há disparo automático:
+   * isso exigiria a API oficial do WhatsApp Business, contratada à parte.
+   */
+  function abrirWhatsApp(f: NaFilaCronograma) {
+    if (!f.ec || !f.whatsapp) return;
+    const url = `https://wa.me/${f.whatsapp}?text=${encodeURIComponent(textoWhatsAppCronograma(f.os, f.ec))}`;
+    window.open(url, "_blank", "noopener,noreferrer");
   }
 
   async function enviarUm(f: NaFilaCronograma) {
@@ -159,7 +175,7 @@ export function EnvioCronograma({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
         </THead>
         <tbody>
           {fila.map((f) => (
-            <Tr key={f.os.id} className={cx(marcados.has(f.os.id) && "bg-primary-soft")}>
+            <Tr key={f.os.id} id={idAncoraPendencia(ancoraCronogramaOs(f.os.id))} className={cx(marcados.has(f.os.id) && "bg-primary-soft")}>
               <Td>
                 <input
                   type="checkbox"
@@ -190,6 +206,19 @@ export function EnvioCronograma({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
                 )}
               </Td>
               <Td align="right">
+                <div className="flex justify-end gap-1.5 flex-wrap">
+                <Button variant="text" size="sm" onClick={() => navigate(`/ordens/${f.os.id}`)} title="Abrir a OS para preencher as etapas">
+                  Abrir OS
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={!f.ec || !f.whatsapp}
+                  title={f.whatsapp ? "Abre o WhatsApp com o texto padrão pronto" : "Fornecedor sem telefone cadastrado"}
+                  onClick={() => abrirWhatsApp(f)}
+                >
+                  WhatsApp
+                </Button>
                 <Button
                   variant="secondary"
                   size="sm"
@@ -203,8 +232,9 @@ export function EnvioCronograma({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
                   }
                   onClick={() => enviarUm(f)}
                 >
-                  {enviando === f.os.id ? "Enviando…" : "Enviar"}
+                  {enviando === f.os.id ? "Enviando…" : "E-mail"}
                 </Button>
+                </div>
               </Td>
             </Tr>
           ))}
