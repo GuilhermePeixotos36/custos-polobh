@@ -12,9 +12,8 @@ import { itensDaOs } from "@/domain/os";
 import { useMinhasPendencias } from "@/store/pendencias";
 import { useAuth } from "@/store/auth";
 
-type Filtro = "ativas" | "encerradas" | "todas";
-/** OS encerrada sai da lista de trabalho — continua consultável pelos filtros. */
-const ENCERRADAS = ["Cancelada", "Arquivada"];
+/** Os mesmos filtros da lista de ECs e da aba OS do projeto (29/09/2026). */
+type Filtro = "todas" | "Rascunho" | "Emitida" | "Cancelada" | "Arquivada";
 
 export function OsList() {
   const navigate = useNavigate();
@@ -24,15 +23,13 @@ export function OsList() {
   // lista). Falha em silêncio: sem elas o atalho some, a lista continua.
   const { data: ecs } = useAsync(() => repo.ecs.listar().catch(() => []), []);
   const [busca, setBusca] = useState("");
-  const [filtro, setFiltro] = useState<Filtro>("ativas");
+  const [filtro, setFiltro] = useState<Filtro>("todas");
   const { porOs } = useMinhasPendencias();
 
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
     return (data ?? [])
-      // Arquivada e cancelada continuam consultáveis, mas não no meio das ativas:
-      // a lista abria com tudo junto e as OSs em andamento se perdiam.
-      .filter((o) => (filtro === "todas" ? true : filtro === "ativas" ? !ENCERRADAS.includes(o.status) : ENCERRADAS.includes(o.status)))
+      .filter((o) => filtro === "todas" || o.status === filtro)
       .filter((o) =>
         !q
           ? true
@@ -78,7 +75,7 @@ export function OsList() {
             />
           </div>
           <div className="flex items-center gap-1" role="group" aria-label="Filtrar OSs">
-            {([["ativas", "Ativas"], ["encerradas", "Arquivadas/Canceladas"], ["todas", "Todas"]] as const).map(([valor, rotulo]) => (
+            {([["todas", "Todas"], ["Rascunho", "Rascunho"], ["Emitida", "Emitida"], ["Cancelada", "Cancelada"], ["Arquivada", "Arquivada"]] as const).map(([valor, rotulo]) => (
               <button
                 key={valor}
                 type="button"

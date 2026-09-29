@@ -225,9 +225,11 @@ export function EcDetail() {
         // "Emitir Nova Versão": arquiva as OSs anteriores que cobrem estes itens.
         if (temReversao) {
           for (const o of oss ?? []) {
-            if (o.status === "Cancelada") continue;
+            if (o.status === "Cancelada" || o.status === "Arquivada") continue;
             if (o.ecLinhaIds.some((lid) => idsG.has(lid))) {
-              await repo.oss.salvar({ ...o, status: "Cancelada" });
+              // Substituída por uma nova versão: ARQUIVADA (Cancelada é decisão
+              // de gente — o negócio caiu).
+              await repo.oss.salvar({ ...o, status: "Arquivada" });
             }
           }
         }

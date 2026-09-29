@@ -336,7 +336,7 @@ export function EcForm() {
   async function validarFornecedor(cnpj: string): Promise<string | null> {
     try {
       const d = await consultarCnpj(cnpj);
-      await repo.fornecedores.salvar(fornecedorNovo({ cnpj: d.cnpj, razaoSocial: d.razaoSocial, nomeFantasia: d.nomeFantasia, endereco: d.endereco, perfilTributario: d.perfilTributario, telefone: d.telefone, email: d.email, inscricaoEstadual: d.inscricaoEstadual, inscricaoMunicipal: d.inscricaoMunicipal, cnaes: d.cnaes }));
+      await repo.fornecedores.salvar(fornecedorNovo({ cnpj: d.cnpj, razaoSocial: d.razaoSocial, nomeFantasia: d.nomeFantasia, endereco: d.endereco, perfilTributario: d.perfilTributario, telefone: d.telefone, email: d.email, inscricaoEstadual: d.inscricaoEstadual || "Isenta", inscricaoMunicipal: d.inscricaoMunicipal, cnaes: d.cnaes }));
       await reloadForn();
       const nome = d.nomeFantasia || d.razaoSocial;
       toast(`Fornecedor ${nome} registrado no sistema.`, "success");

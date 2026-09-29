@@ -19,7 +19,7 @@ import {
   AvisoHomologacaoEmail,
   MOTIVO_DISPARO_DESLIGADO,
 } from "@/components/ui";
-import { IcCheck, IcDoc, IcEye, IcPencil, IcSearch, IcSend, IcSpark } from "@/components/icons";
+import { IcCheck, IcCopy, IcDoc, IcEye, IcPencil, IcSearch, IcSend, IcSpark } from "@/components/icons";
 import { CardConversa } from "@/components/CardConversa";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
@@ -56,7 +56,9 @@ import { clausulasPadrao, modeloDoContrato, type ChaveClausula, type ModeloContr
 import { baixarContrato } from "@/lib/docx";
 import { dadosDoTomador, opcoesDeTomador, RETENCOES_PADRAO, TOMADOR_OUTRO } from "@/domain/tomadorOs";
 import { editaFinanceiro, editaProducao, ESPERANDO_FASE, faseAnterior, faseDaOs, osEmitida, ROTULO_FASE, type FaseOs } from "@/domain/faseOs";
-import { NavegadorPendencias } from "@/components/NavegadorPendencias";
+import { RevisaoEcModal } from "@/components/RevisaoEcModal";
+import { revisarOs } from "@/domain/revisaoOs";
+import type { RevisaoEc } from "@/domain/revisaoEc";
 import { ListaArrastavel, ItemArrastavel } from "@/components/ListaArrastavel";
 import { MoverSetas, moverNaLista } from "@/components/MoverSetas";
 import { InscricaoMunicipalInput } from "@/components/InscricaoMunicipalInput";
@@ -314,6 +316,8 @@ export function OsForm() {
    * OS nova nasce em edição: não há o que conferir num documento em branco.
    */
   const [editando, setEditando] = useState(!id);
+  /** O comparativo do "Revisar" (aberto no modal). */
+  const [revisao, setRevisao] = useState<RevisaoEc | null>(null);
 
   /**
    * TRAVA DE PRESENÇA (25/09/2026). Quem entra em edição toma o documento; quem
@@ -704,6 +708,8 @@ export function OsForm() {
       updF(semVazios({
         razaoSocial: d.razaoSocial, nomeFantasia: d.nomeFantasia, endereco: d.endereco,
         perfilTributario: d.perfilTributario, email: d.email, telefone: d.telefone,
+        // A pesquisa não achou IE: "Isenta" (29/09/2026); o que já estava escrito vence.
+        inscricaoEstadual: d.inscricaoEstadual || os!.fornecedor.inscricaoEstadual || "Isenta",
       }));
       if (d.cnaes?.length) {
         updF({ cnaes: d.cnaes });
@@ -885,6 +891,88 @@ export function OsForm() {
     }
   }
 
+  /* ------------------- Revisar, nova versão, cancelar, arquivar -------------------- */
+
+  /** OS que já saiu de cena (cancelada ou arquivada): não se mexe mais nela. */
+  const encerradaDoc = os != null && (os.status === "Cancelada" || os.status === "Arquivada");
+
+  /** O nome do item da EC, para a conferência falar de "Buffet" e não de um id. */
+  const nomeDoItemEc = (ecLinhaId: string) => {
+    const l = linhasConsolidadas.find((x) => x.id === ecLinhaId);
+    return l?.item?.trim() || l?.descricao?.trim() || "(item sem nome)";
+  };
+
+  function revisar() {
+    const gravada = baseline ? (JSON.parse(baseline) as Os) : null;
+    setRevisao(revisarOs(gravada, os!, nomeDoItemEc));
+  }
+
+  /**
+   * GERAR NOVA VERSÃO da OS. A versão atual é ARQUIVADA automaticamente (é o
+   * servidor que faz — `gerar_nova_versao_os`) e a nova nasce rascunho, já com
+   * os dados gerais de HOJE do projeto. O que ainda não foi salvo aqui não entra.
+   */
+  async function gerarNovaVersaoOs() {
+    if (!(await confirmar({
+      titulo: "Gerar nova versão desta OS?",
+      mensagem:
+        "Ao gerar uma nova versão da OS, a versão atual será arquivada automaticamente." +
+        (sujo ? " As alterações que você ainda não salvou não entram na nova versão." : ""),
+      confirmarTexto: "Gerar nova versão",
+    }))) return;
+    setBusy(true);
+    try {
+      const viva = await comDadosAtuaisDoProjeto(ecCtx!);
+      const todas = await repo.oss.porEc(ecCtx!.id);
+      const versao = versaoOs(todas, ecCtx!.id, os!.fornecedor.cnpj, os!.fornecedor.razaoSocial);
+      const numero = numeroOs(viva, os!.fornecedor, versao);
+      const nova = await repo.oss.gerarNovaVersao(os!, { numero, projeto: viva.projeto, cliente: viva.cliente });
+      toast(`Nova versão ${nova.numero} criada em rascunho. A anterior foi arquivada.`, "success");
+      usePendencias.getState().carregar(true);
+      guard.liberar();
+      navigate(`/ordens/${nova.id}`);
+    } catch (e) {
+      toast(`Não foi possível gerar a nova versão: ${(e as Error).message}`, "danger");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
+   * CANCELAR ou ARQUIVAR a OS — gestos de gente, com confirmação.
+   *
+   * Cancelada = o negócio caiu. Arquivada = saiu de cena sem o negócio ter
+   * caído (o sistema também arquiva sozinho: nova versão, projeto arquivado).
+   * Grava a OS COMO ESTÁ NO BANCO, só com o status trocado: edição pendente não
+   * vai junto por acidente.
+   */
+  async function encerrarOs(novo: "Cancelada" | "Arquivada") {
+    const cancelando = novo === "Cancelada";
+    if (!(await confirmar({
+      titulo: cancelando ? "Cancelar esta OS?" : "Arquivar esta OS?",
+      mensagem: cancelando
+        ? `A ${os!.numero} fica Cancelada — o negócio com o fornecedor não segue. Ela continua consultável, mas não pode mais ser editada nem gerar nova versão.`
+        : `A ${os!.numero} vai para o arquivo do projeto. Ela continua consultável, mas não pode mais ser editada nem gerar nova versão.`,
+      confirmarTexto: cancelando ? "Cancelar OS" : "Arquivar OS",
+      cancelarTexto: "Voltar",
+      tom: "danger",
+    }))) return;
+    setBusy(true);
+    try {
+      const gravada = baseline ? (JSON.parse(baseline) as Os) : os!;
+      await repo.oss.salvar({ ...gravada, status: novo });
+      toast(cancelando ? "OS cancelada." : "OS arquivada.", "success");
+      usePendencias.getState().carregar(true);
+      guard.liberar();
+      navigate(`/ordens/${os!.id}`, { replace: true });
+      navigate(0);
+    } catch (e) {
+      toast(`Não foi possível ${cancelando ? "cancelar" : "arquivar"} a OS: ${(e as Error).message}`, "danger");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   /* ---------------- Grupos criados nesta OS (além de Logística e Infra) ------ */
 
   const adicionarGrupoExtra = () => {
@@ -953,7 +1041,7 @@ export function OsForm() {
     const abertas = pendenciasDaOs.filter((p) => p.tipo !== "os.fase");
     if (abertas.length) {
       toast(
-        `Esta OS tem ${abertas.length} pendência(s) em aberto. Resolva-as antes de emitir — use a pílula no canto da tela.`,
+        `Esta OS tem ${abertas.length} pendência(s) em aberto (${abertas.slice(0, 2).map((p) => p.titulo).join("; ")}${abertas.length > 2 ? "…" : ""}). Resolva-as antes de emitir.`,
         "danger"
       );
       return;
@@ -1002,6 +1090,52 @@ export function OsForm() {
          * veio impedir.
          */
         <div className="flex gap-2 flex-wrap">
+          {/* A ORDEM é a do menu da EC (29/09/2026): Editar OS (ou, em edição,
+              Revisar + Salvar) · Gerar Nova Versão · Cancelar · Arquivar · PDF.
+              "Recolher/Expandir os itens" nasce sozinho ao lado, no cabeçalho. */}
+          {!editando && (podeEditar || verFinanceiro) && !emitida && (
+            <Button
+              size="sm"
+              icon={<IcPencil width={15} height={15} />}
+              // Travado por outra pessoa: o botão fica desligado com o motivo à
+              // mão, em vez de abrir a edição e recusar o salvamento no fim.
+              disabled={trava.travado}
+              title={trava.travado ? trava.aviso : undefined}
+              onClick={() => setEditando(true)}
+            >
+              Editar OS
+            </Button>
+          )}
+
+          {/* EDIÇÃO: um botão para cada função. Revisar mostra o que mudou antes
+              de gravar; Salvar grava. */}
+          {editando && (
+            <>
+              <Button variant="secondary" size="sm" onClick={revisar} disabled={busy} title="Mostra o que mudou desde o último salvamento, para conferir antes de gravar">
+                Revisar
+              </Button>
+              <Button size="sm" onClick={() => void salvar()} disabled={busy}>
+                {busy ? "Salvando…" : "Salvar"}
+              </Button>
+            </>
+          )}
+
+          {os.id && podeEditar && !encerradaDoc && (
+            <Button variant="secondary" size="sm" icon={<IcCopy width={15} height={15} />} disabled={busy} onClick={() => void gerarNovaVersaoOs()}>
+              Gerar Nova Versão OS
+            </Button>
+          )}
+          {os.id && (podeEditar || verFinanceiro) && !encerradaDoc && (
+            <Button variant="secondary" size="sm" disabled={busy} onClick={() => void encerrarOs("Cancelada")}>
+              Cancelar OS
+            </Button>
+          )}
+          {os.id && (podeEditar || verFinanceiro) && os.status !== "Arquivada" && (
+            <Button variant="secondary" size="sm" disabled={busy} onClick={() => void encerrarOs("Arquivada")}>
+              Arquivar OS
+            </Button>
+          )}
+
           <Button
             data-tour="baixar-pdf"
             variant="secondary"
@@ -1017,11 +1151,8 @@ export function OsForm() {
           </Button>
 
           {/* CONTRATO EM WORD (16/09/2026) — o documento que o fornecedor
-              assina, nos modelos Corporativo e Cultural da casa. Sai em .docx,
-              e não em PDF, porque é ele que vai para o jurídico do fornecedor,
-              que devolve com alteração: um PDF obrigaria a refazer tudo aqui.
-              Só aparece quando a EC pediu contrato — sem isso, não há o que
-              gerar, e o botão só ofereceria um documento vazio. */}
+              assina, nos modelos Corporativo e Cultural da casa. Só aparece
+              quando a EC pediu contrato. */}
           {haContrato && (
             <Button
               variant="secondary"
@@ -1031,34 +1162,6 @@ export function OsForm() {
             >
               Contrato Word
             </Button>
-          )}
-
-          {/* LEITURA: o botão que abre a edição, para quem pode mexer no que a
-              fase atual tem aberto. */}
-          {!editando && (podeEditar || verFinanceiro) && !emitida && (
-            <Button
-              size="sm"
-              icon={<IcPencil width={15} height={15} />}
-              // Travado por outra pessoa: o botão fica desligado com o motivo à
-              // mão, em vez de abrir a edição e recusar o salvamento no fim.
-              disabled={trava.travado}
-              title={trava.travado ? trava.aviso : undefined}
-              onClick={() => setEditando(true)}
-            >
-              Editar OS
-            </Button>
-          )}
-
-          {/* EDIÇÃO: salvar, e sair sem salvar. */}
-          {editando && (
-            <>
-              <Button variant="text" size="sm" onClick={() => { setEditando(false); if (os.id) iniciar(osExistente ?? os); }}>
-                Sair da edição
-              </Button>
-              <Button variant="secondary" size="sm" onClick={() => void salvar()} disabled={busy}>
-                {busy ? "Salvando…" : "Salvar"}
-              </Button>
-            </>
           )}
 
           {/* A PASSAGEM DE BASTÃO — o comando principal de cada fase. */}
@@ -1187,7 +1290,12 @@ export function OsForm() {
         <CardOs secao="Dados do Projeto">
           <LinhaOs label="Título"><Auto v={os.projeto.titulo} /></LinhaOs>
           <LinhaOs label="Modalidade"><Auto v={os.projeto.modalidade} /></LinhaOs>
-          <LinhaOs label="Incentivos Fiscais"><Auto v={os.projeto.incentivosFiscais} /></LinhaOs>
+          {/* Os campos que aparecem na NF, no lugar do antigo "Incentivos Fiscais"
+              (29/09/2026) — automáticos dos Dados Gerais do projeto. Projeto
+              anterior a eles cai no texto único de antes. */}
+          <LinhaOs label="Nome do Projeto Incentivado"><Auto v={os.projeto.projetoIncentivado} /></LinhaOs>
+          <LinhaOs label="Lei de Incentivo à Cultura"><Auto v={os.projeto.leiIncentivo || os.projeto.incentivosFiscais} /></LinhaOs>
+          <LinhaOs label="Código do Projeto Incentivado"><Auto v={os.projeto.codigoProjetoIncentivado} /></LinhaOs>
           {/* Plural no rótulo porque o evento de vários dias é o caso comum, e
               porque aqui saem TODAS as faixas do cronograma — não só a primeira,
               que é o que os campos legados `evento`/`horario` guardam. */}
@@ -2113,10 +2221,20 @@ export function OsForm() {
         </fieldset>
       </div>
 
-      {/* Mesma pílula da EC, e o mesmo número do badge da linha desta OS na
-          listagem: tudo o que se resolve aqui dentro — comentários, "emitir OS"
-          e o cronograma vazio, que agora tem endereço no próprio bloco. */}
-      <NavegadorPendencias pendencias={pendenciasDaOs} />
+      {/* Sem a pílula flutuante de pendências nesta tela (29/09/2026): as
+          pendências da OS se resolvem nos próprios blocos e na conversa do alto. */}
+      {revisao && (
+        <RevisaoEcModal
+          documento="OS"
+          revisao={revisao}
+          salvando={busy}
+          onVoltar={() => setRevisao(null)}
+          onSalvar={() => {
+            setRevisao(null);
+            void salvar();
+          }}
+        />
+      )}
     </PageShell>
   );
 
@@ -2203,8 +2321,8 @@ function CardOs({
 }) {
   const { recolhida, alternar } = useSecaoRecolhivel(idSecao(secao));
   return (
-    <div className={cx("bg-surface border border-border rounded-card shadow-card overflow-hidden", className)}>
-      <div className="bg-[#C0C0C0] px-4 py-2 flex items-center justify-between gap-3">
+    <div className={cx("bg-surface border border-border rounded-card shadow-card overflow-hidden [&_input:not([type=checkbox]):not([type=radio])]:!h-8 [&_select]:!h-8 [&_input]:!py-0 [&_select]:!py-0", className)}>
+      <div className="bg-[#C0C0C0] px-4 py-1.5 flex items-center justify-between gap-3">
         <button
           type="button"
           onClick={alternar}
@@ -2246,15 +2364,15 @@ function LinhaOs({
   children: ReactNode;
 }) {
   return (
-    <div id={id} className="grid md:grid-cols-[240px_minmax(0,1fr)] gap-x-4 items-start px-4 py-1 border-b border-border-soft last:border-b-0">
-      <div className="md:py-1.5 flex items-start justify-between gap-2">
+    <div id={id} className="grid md:grid-cols-[240px_minmax(0,1fr)] gap-x-4 items-start px-4 py-0 border-b border-border-soft last:border-b-0">
+      <div className="md:py-1 flex items-start justify-between gap-2">
         <div className="min-w-0">
           <span className="block text-[11.5px] font-extrabold uppercase tracking-[0.03em] text-ink-2">{label}</span>
           {hint && <span className="block text-[10.5px] font-semibold text-ink-3">{hint}</span>}
         </div>
         {acao && <div className="shrink-0 md:hidden">{acao}</div>}
       </div>
-      <div className="min-w-0 py-0.5 flex items-start gap-2">
+      <div className="min-w-0 py-px flex items-start gap-2">
         <div className="min-w-0 flex-1">{children}</div>
         {acao && <div className="shrink-0 hidden md:block pt-0.5">{acao}</div>}
       </div>
@@ -2313,7 +2431,7 @@ function TomadorAvulsoCampos({
       mudar({
         razaoSocial: atual.razaoSocial || d.razaoSocial,
         endereco: atual.endereco || d.endereco,
-        inscricaoEstadual: atual.inscricaoEstadual || d.inscricaoEstadual,
+        inscricaoEstadual: atual.inscricaoEstadual || d.inscricaoEstadual || "Isenta",
         inscricaoMunicipal: atual.inscricaoMunicipal || d.inscricaoMunicipal,
       });
       setAviso("Dados preenchidos pelas fontes cadastrais e fiscais integradas.");
@@ -2835,7 +2953,7 @@ function CnaeDoFornecedor({
 /** Valor automático (vem do Projeto/EC) — somente leitura. */
 function Auto({ v }: { v: string | number | null | undefined }) {
   const txt = v === null || v === undefined || v === "" ? "—" : String(v);
-  return <div className="text-sm text-ink font-semibold py-1 whitespace-pre-wrap">{txt}</div>;
+  return <div className="text-[13px] text-ink font-semibold py-0.5 whitespace-pre-wrap leading-snug">{txt}</div>;
 }
 
 

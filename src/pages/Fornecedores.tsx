@@ -99,7 +99,7 @@ export function Fornecedores() {
     setMsg("");
     try {
       const d = await consultarCnpj(edit.cnpj);
-      setEdit({ ...edit, razaoSocial: d.razaoSocial, nomeFantasia: d.nomeFantasia, endereco: d.endereco, perfilTributario: d.perfilTributario, email: d.email, telefone: d.telefone, cnaes: d.cnaes });
+      setEdit({ ...edit, razaoSocial: d.razaoSocial, nomeFantasia: d.nomeFantasia, endereco: d.endereco, perfilTributario: d.perfilTributario, email: d.email, telefone: d.telefone, cnaes: d.cnaes, inscricaoEstadual: d.inscricaoEstadual || edit.inscricaoEstadual || "Isenta" });
       setMsg("Dados preenchidos pela BrasilAPI.");
     } catch (e) {
       setMsg((e as Error).message);

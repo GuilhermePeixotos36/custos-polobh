@@ -196,7 +196,7 @@ export function RepercutirMudancasModal({
 
           <Bloco
             titulo="Ordens de Serviço"
-            hint="Gera uma nova versão com os dados novos (rascunho). A versão atual é cancelada e fica no histórico."
+            hint="Gera uma nova versão com os dados novos (rascunho). A versão atual é arquivada automaticamente e fica no histórico."
           >
             {!podeEditarOs ? (
               <Aviso>Seu perfil consulta OSs, mas não edita.</Aviso>
