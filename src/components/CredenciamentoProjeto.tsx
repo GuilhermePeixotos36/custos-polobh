@@ -29,6 +29,7 @@ import { repo } from "@/data";
 import { CAMPOS_CREDENCIAMENTO, camposDoCredenciamento, type CampoCredenciamento } from "@/domain/credenciamentoCampos";
 import { useAsync } from "@/hooks/useAsync";
 import { enviarCredenciamento, resumoDoEnvio } from "@/lib/email";
+import { textoWhatsAppCredenciamento } from "@/lib/email/templates";
 import { gerarCredenciamentoExcel } from "@/lib/excel";
 import { toast } from "@/store/toast";
 import { confirmar } from "@/store/confirm";
@@ -82,6 +83,12 @@ export function CredenciamentoProjeto({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
   async function enviar(f: NaFila) {
     if (!f.ec || !f.link || !f.email) return { ok: false, simulado: true, destinatarios: [] };
     return enviarCredenciamento(f.os, f.ec);
+  }
+
+  /** WhatsApp: abre a conversa com o texto padrão e o link já escritos (envio manual). */
+  function abrirWhatsApp(f: NaFila) {
+    if (!f.ec || !f.link || !f.whatsapp) return;
+    window.open(`https://wa.me/${f.whatsapp}?text=${encodeURIComponent(textoWhatsAppCredenciamento(f.os, f.ec))}`, "_blank", "noopener,noreferrer");
   }
 
   async function enviarUm(f: NaFila) {
@@ -290,7 +297,16 @@ export function CredenciamentoProjeto({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
                       title={!f.email ? "Fornecedor sem e-mail cadastrado" : "Enviar só para este fornecedor"}
                       onClick={() => enviarUm(f)}
                     >
-                      {enviando === f.os.id ? "Enviando…" : "Enviar"}
+                      {enviando === f.os.id ? "Enviando…" : "E-mail"}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={!f.link || !f.whatsapp}
+                      title={f.whatsapp ? "Abre o WhatsApp com o texto padrão e o link" : "Fornecedor sem telefone cadastrado"}
+                      onClick={() => abrirWhatsApp(f)}
+                    >
+                      WhatsApp
                     </Button>
                   </div>
                 </Td>
@@ -321,7 +337,7 @@ export function CredenciamentoProjeto({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
       />
 
       <PrazoEmLote
-        prazo={prazoLote}
+        prazo={prazoLote || fila[0]?.os.credenciamento?.prazoLimite || ""}
         onPrazo={setPrazoLote}
         quantas={fila.length}
         onAplicar={async () => {
@@ -419,7 +435,7 @@ function PrazoEmLote({
 }) {
   return (
     <Card>
-      <CardTitle hint="O prazo costuma ser o mesmo para o evento inteiro">Prazo-limite de todas as OSs</CardTitle>
+      <CardTitle hint="Vai como Prazo para envio na mensagem ao fornecedor — costuma ser o mesmo para o evento inteiro">Prazo limite do credenciamento</CardTitle>
       <div className="flex items-end gap-2 flex-wrap">
         <Input type="date" className="max-w-[12rem]" value={prazo} onChange={(e) => onPrazo(e.target.value)} />
         <Button variant="secondary" size="sm" disabled={!prazo} onClick={onAplicar}>
