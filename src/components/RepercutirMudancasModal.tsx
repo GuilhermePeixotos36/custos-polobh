@@ -4,16 +4,13 @@
  * Aparece depois de salvar os Dados Gerais quando a mudança alcança algo que a
  * EC ou a OS imprimem — e o projeto já tem documento emitido.
  *
- * A resposta padrão é NÃO MEXER EM NADA: EC e OS emitidas são o que o cliente e
- * o fornecedor receberam, e a alteração vale para o que nascer daqui em diante.
- * Esta janela é a exceção consentida, item a item:
+ * EC e OS emitidas são o que o cliente e o fornecedor receberam, e a alteração
+ * vale para o que nascer daqui em diante. Esta janela é a exceção consentida, e
+ * SEM ESCOLHA por documento (29/09/2026): um botão gera a nova versão de tudo o
+ * que está ativo — a EC no ar e as OSs em andamento — e a versão anterior de
+ * cada um é arquivada automaticamente.
  *
- *   · atualizar os dados do evento numa EC ainda em aberto — as OSs já emitidas
- *     a partir dela continuam iguais, porque cada uma guarda a própria foto;
- *   · gerar uma NOVA VERSÃO de uma OS, que nasce rascunho com os dados novos
- *     enquanto a anterior é cancelada e fica no histórico.
- *
- * Fechar sem escolher nada é uma resposta legítima: o projeto já está salvo.
+ * Fechar em "Agora não" é uma resposta legítima: o projeto já está salvo.
  */
 import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
@@ -56,32 +53,24 @@ export function RepercutirMudancasModal({
   const podeEditarEc = useAuth((s) => s.pode("ecs.editar"));
   const podeEditarOs = useAuth((s) => s.pode("oss.editar"));
 
-  const ecsAlvo = useMemo(() => (podeEditarEc ? ecsAtualizaveis(ecs) : []), [ecs, podeEditarEc]);
+  const ecsAlvo = useMemo(() => (podeEditarEc ? ecsAtualizaveis(ecs).filter((e) => e.ativa) : []), [ecs, podeEditarEc]);
   const ossAlvo = useMemo(() => (podeEditarOs ? ossReemitiveis(oss) : []), [oss, podeEditarOs]);
 
-  const [ecsMarcadas, setEcsMarcadas] = useState<Set<string>>(new Set());
-  const [ossMarcadas, setOssMarcadas] = useState<Set<string>>(new Set());
   const [aplicando, setAplicando] = useState(false);
 
-  const alterna = (set: Set<string>, id: string) => {
-    const proximo = new Set(set);
-    if (proximo.has(id)) proximo.delete(id);
-    else proximo.add(id);
-    return proximo;
-  };
-
-  const total = ecsMarcadas.size + ossMarcadas.size;
+  const total = ecsAlvo.length + ossAlvo.length;
   /** Sem EC nem OS em aberto, o alerta é só informativo: não há o que substituir. */
   const haAlvos = ecsAlvo.length > 0 || ossAlvo.length > 0 || !podeEditarEc || !podeEditarOs;
 
   async function aplicar() {
     setAplicando(true);
     try {
+      // EC: nova versão (a atual é arquivada pelo banco) e, nela, os dados novos.
       let ecsSalvas = 0;
       for (const ec of ecsAlvo) {
-        if (!ecsMarcadas.has(ec.id)) continue;
         const novo = aplicarMudancasEvento({ info: ec.projeto, cliente: ec.cliente }, atual, mudancas);
-        await repo.ecs.salvar({ ...ec, projeto: novo.info, cliente: novo.cliente });
+        const nova = await repo.ecs.novaVersao(ec.id);
+        await repo.ecs.salvar({ ...nova, projeto: novo.info, cliente: novo.cliente });
         ecsSalvas += 1;
       }
 
@@ -92,7 +81,6 @@ export function RepercutirMudancasModal({
       const conhecidas = [...oss];
       let ossReemitidas = 0;
       for (const os of ossAlvo) {
-        if (!ossMarcadas.has(os.id)) continue;
         const novo = aplicarMudancasEvento({ info: os.projeto, cliente: os.cliente }, atual, mudancas);
         const ec = ecs.find((e) => e.id === os.ecId);
         const versao = versaoOs(conhecidas, os.ecId, os.fornecedor?.cnpj ?? "", os.fornecedor?.razaoSocial ?? "");
@@ -107,7 +95,7 @@ export function RepercutirMudancasModal({
       }
 
       const partes = [
-        ecsSalvas ? `${ecsSalvas} EC atualizada${ecsSalvas > 1 ? "s" : ""}` : "",
+        ecsSalvas ? `${ecsSalvas} EC em nova versão` : "",
         ossReemitidas ? `${ossReemitidas} OS reemitida${ossReemitidas > 1 ? "s" : ""} em nova versão` : "",
       ].filter(Boolean);
       toast(partes.length ? `${partes.join(" e ")}.` : "Nada a aplicar.", "success");
@@ -170,18 +158,16 @@ export function RepercutirMudancasModal({
             <>
           <Bloco
             titulo="Estimativas de Custo"
-            hint="Atualiza os dados do evento na EC. As OSs já emitidas a partir dela não mudam."
+            hint="Gera uma nova versão com os dados novos. A versão atual é arquivada automaticamente."
           >
             {!podeEditarEc ? (
               <Aviso>Seu perfil consulta ECs, mas não edita — peça a alguém da Direção ou da Produção.</Aviso>
             ) : ecsAlvo.length === 0 ? (
-              <Aviso>Nenhuma EC em aberto neste projeto.</Aviso>
+              <Aviso>Nenhuma EC ativa neste projeto.</Aviso>
             ) : (
               ecsAlvo.map((ec) => (
-                <LinhaEscolha
+                <LinhaDocumento
                   key={ec.id}
-                  marcada={ecsMarcadas.has(ec.id)}
-                  onToggle={() => setEcsMarcadas((s) => alterna(s, ec.id))}
                   titulo={ec.numero}
                   detalhe={`V${String(ec.versao).padStart(2, "0")}`}
                   // Selo pela situação, não pela coluna `status` (ver `domain/ec`).
@@ -204,10 +190,8 @@ export function RepercutirMudancasModal({
               <Aviso>Nenhuma OS em aberto neste projeto.</Aviso>
             ) : (
               ossAlvo.map((os) => (
-                <LinhaEscolha
+                <LinhaDocumento
                   key={os.id}
-                  marcada={ossMarcadas.has(os.id)}
-                  onToggle={() => setOssMarcadas((s) => alterna(s, os.id))}
                   titulo={os.numero}
                   detalhe={os.fornecedor?.nomeFantasia || os.fornecedor?.razaoSocial || "Fornecedor"}
                   badge={<Badge tom={tomStatusOs[os.status]}>{os.status}</Badge>}
@@ -221,7 +205,7 @@ export function RepercutirMudancasModal({
 
         <div className="px-5 py-3.5 border-t border-border-soft bg-[#FCFCFD] flex items-center justify-between gap-3 flex-wrap">
           <span className="text-[12px] text-ink-3">
-            {!haAlvos ? "" : total === 0 ? "Nenhum documento marcado." : `${total} documento(s) marcado(s).`}
+            {!haAlvos ? "" : total === 0 ? "Nenhum documento ativo para substituir." : `${total} documento(s) ativo(s) ganham nova versão.`}
           </span>
           <div className="flex items-center gap-2">
             <Button variant={haAlvos ? "secondary" : "primary"} size="sm" onClick={onFechar} disabled={aplicando}>
@@ -229,7 +213,7 @@ export function RepercutirMudancasModal({
             </Button>
             {haAlvos && (
               <Button size="sm" onClick={aplicar} disabled={aplicando || total === 0}>
-                {aplicando ? "Aplicando…" : `Aplicar${total ? ` (${total})` : ""}`}
+                {aplicando ? "Gerando…" : "Gerar novas versões"}
               </Button>
             )}
           </div>
@@ -256,32 +240,22 @@ function Aviso({ children }: { children: React.ReactNode }) {
   return <p className="text-[12.5px] text-ink-3 italic px-1">{children}</p>;
 }
 
-function LinhaEscolha({
-  marcada,
-  onToggle,
+function LinhaDocumento({
   titulo,
   detalhe,
   badge,
 }: {
-  marcada: boolean;
-  onToggle: () => void;
   titulo: string;
   detalhe: string;
   badge: React.ReactNode;
 }) {
   return (
-    <label
-      className={cx(
-        "flex items-center gap-3 rounded-btn border-[1.5px] px-3.5 py-2.5 cursor-pointer transition-colors",
-        marcada ? "border-active-border bg-primary-soft" : "border-border hover:border-ink-3 bg-surface"
-      )}
-    >
-      <input type="checkbox" checked={marcada} onChange={onToggle} className="h-4 w-4 accent-[#F2820D] shrink-0" />
+    <div className="flex items-center gap-3 rounded-btn border border-border-soft bg-surface px-3.5 py-2.5">
       <span className="min-w-0 flex-1">
         <span className="block text-[13px] font-bold text-ink truncate">{titulo}</span>
         <span className="block text-[11.5px] text-ink-3 truncate">{detalhe}</span>
       </span>
       <span className="shrink-0">{badge}</span>
-    </label>
+    </div>
   );
 }
