@@ -24,6 +24,7 @@ import { useAsync } from "@/hooks/useAsync";
 import {
   agruparPorFornecedor,
   descritivoConsolidado,
+  descritivoFinanceiro,
   bvConsolidado,
   numeroOs,
   versaoOs,
@@ -194,7 +195,7 @@ function aplicarAutoPreenchimento(os: Os, ec: Ec): Os {
   // CNAE: só quando o cadastro do fornecedor tem um único — vários exigem escolha.
   const cnaeUnico = os.fornecedor.cnaes?.length === 1 ? os.fornecedor.cnaes[0] : "";
 
-  const descritivoNf = os.financeiro.descritivoNf || descritivo;
+  const descritivoNf = os.financeiro.descritivoNf || descritivoFinanceiro(linhas) || descritivo;
 
   /**
    * BV: vem pronto do que foi combinado item a item na EC.
@@ -263,7 +264,7 @@ function aplicarAutoPreenchimento(os: Os, ec: Ec): Os {
       codigoProjetoIncentivado: os.financeiro.codigoProjetoIncentivado || os.projeto.codigoProjetoIncentivado || "",
       // Lei COM o número do projeto: é assim que o Projeto já guarda
       // ("Lei Federal de Incentivo à Cultura (Rouanet) — PRONAC 26 1234").
-      leiIncentivo: os.financeiro.leiIncentivo || os.projeto.incentivosFiscais || LEI_INCENTIVO_PADRAO,
+      leiIncentivo: os.financeiro.leiIncentivo || os.projeto.leiIncentivo || os.projeto.incentivosFiscais || LEI_INCENTIVO_PADRAO,
       // Como o fornecedor recebe: o mesmo padrão do modelo que o contrato usa.
       // O bloco de emissão fecha neste par (valor a pagar + forma), e nascer
       // vazio obrigava a redigitar em toda OS a resposta de sempre.
@@ -543,8 +544,8 @@ export function OsForm() {
   /** Empresa emissora não cadastrada: os dados da nota sairiam em branco calados. */
   const faltaCadastroTomador = os.financeiro.tomador === "Polobh" && !empresaPolobh;
   /** A lei de incentivo da OS ficou diferente do que o Projeto guarda. */
-  const leiDivergeDaEc =
-    !!os.projeto.incentivosFiscais && (os.financeiro.leiIncentivo ?? "") !== os.projeto.incentivosFiscais;
+  const leiDoProjeto = os.projeto.leiIncentivo || os.projeto.incentivosFiscais || "";
+  const leiDivergeDaEc = !!leiDoProjeto && (os.financeiro.leiIncentivo ?? "") !== leiDoProjeto;
 
   // Parcelas: a soma tem que fechar com o valor negociado, senão a OS sai errada.
   const somaParcelas = os.orcamento.parcelas.reduce((s, p) => s + (p.valor || 0), 0);
@@ -1868,13 +1869,13 @@ export function OsForm() {
                 Separado em dois, obrigava a redigitar aqui o que a EC sabia. */}
             <LinhaOs
               label="Lei de Incentivo à Cultura"
-              hint={leiDivergeDaEc ? `Projeto: ${os.projeto.incentivosFiscais}` : "(lei e nº do projeto)"}
+              hint={leiDivergeDaEc ? `Projeto: ${leiDoProjeto}` : "(lei e nº do projeto)"}
             >
               <Input value={os.financeiro.leiIncentivo ?? ""} sugestoes={sugestoes.valores.leiIncentivo} onChange={(e) => updFin({ leiIncentivo: e.target.value })} placeholder="Ex.: Lei Federal de Incentivo à Cultura (Rouanet) — PRONAC 26 1234" />
               {leiDivergeDaEc && (
                 <button
                   type="button"
-                  onClick={() => updFin({ leiIncentivo: os.projeto.incentivosFiscais })}
+                  onClick={() => updFin({ leiIncentivo: leiDoProjeto })}
                   className="mt-1.5 text-[12px] font-bold text-primary-dark hover:underline"
                 >
                   Usar o que está no Projeto
@@ -1889,7 +1890,7 @@ export function OsForm() {
                 na hora de gerar o Word seria adivinhar onde a lei acaba. Então
                 o código também existe à parte, e nasce sugerido do que vier
                 depois do travessão. Só o contrato Cultural o usa. */}
-            {modeloContrato === "Cultural" && (
+            {(modeloContrato === "Cultural" || !!os.financeiro.codigoProjetoIncentivado) && (
               <LinhaOs label="Código do Projeto Incentivado" hint="(vai para a Cláusula Primeira do contrato)">
                 <Input
                   value={os.financeiro.codigoProjetoIncentivado ?? ""}

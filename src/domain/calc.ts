@@ -664,6 +664,18 @@ export function descritivoConsolidado(linhas: EcLinha[]): string {
     .join("\n");
 }
 
+/**
+ * Descritivo para a nota fiscal: só a "Descrição Financeiro" de cada item da EC
+ * (o Descritivo Geral do financeiro), sem a descrição completa da produção.
+ */
+export function descritivoFinanceiro(linhas: EcLinha[]): string {
+  return linhas
+    .map((l) => (l.descricao ?? "").trim())
+    .filter(Boolean)
+    .map((t) => `• ${t}`)
+    .join("\n");
+}
+
 /** Lista de fornecedores únicos presentes nas linhas (para fábrica de OS). */
 export function fornecedorBaseDaLinha(l: EcLinha): Partial<Fornecedor> {
   return { razaoSocial: l.fornecedorRazao, cnpj: l.fornecedorCnpj };
