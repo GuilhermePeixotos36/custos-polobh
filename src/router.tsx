@@ -22,6 +22,7 @@ const ImprimirEc = lazyComRecuperacao(() => import("@/pages/Imprimir").then((m) 
 const ImprimirOs = lazyComRecuperacao(() => import("@/pages/Imprimir").then((m) => ({ default: m.ImprimirOs })));
 const Fornecedores = lazyComRecuperacao(() => import("@/pages/Fornecedores").then((m) => ({ default: m.Fornecedores })));
 const Configuracoes = lazyComRecuperacao(() => import("@/pages/Configuracoes").then((m) => ({ default: m.Configuracoes })));
+const Fluxograma = lazyComRecuperacao(() => import("@/pages/Fluxograma").then((m) => ({ default: m.Fluxograma })));
 const Logs = lazyComRecuperacao(() => import("@/pages/Logs").then((m) => ({ default: m.Logs })));
 const Guia = lazyComRecuperacao(() => import("@/pages/Guia").then((m) => ({ default: m.Guia })));
 const Suporte = lazyComRecuperacao(() => import("@/pages/Suporte").then((m) => ({ default: m.Suporte })));
@@ -64,6 +65,9 @@ export const router = createBrowserRouter([
       { path: "calendario", element: <RequireRecurso r="projetos"><Calendario /></RequireRecurso> },
       { path: "cronogramas", element: <RequireRecurso r="cronogramas"><Cronogramas /></RequireRecurso> },
       { path: "fornecedores", element: <RequireRecurso r="fornecedores"><Fornecedores /></RequireRecurso> },
+      // O fluxo do processo da Pólobh (29/09/2026) — leitura para todo perfil,
+      // como o Guia; a troca da imagem exige `configuracoes` dentro da tela.
+      { path: "fluxograma", element: <RequireRecurso r="guia"><Fluxograma /></RequireRecurso> },
       { path: "configuracoes", element: <RequireRecurso r="configuracoes"><Configuracoes /></RequireRecurso> },
       { path: "logs", element: <RequireRecurso r="logs"><Logs /></RequireRecurso> },
       { path: "guia", element: <RequireRecurso r="guia"><Guia /></RequireRecurso> },

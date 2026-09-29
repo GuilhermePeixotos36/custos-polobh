@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { Recurso } from "@/store/auth";
-import { IcCalendar, IcFolder, IcGear, IcHelp, IcSuporte } from "@/components/icons";
+import { IcCalendar, IcFluxo, IcFolder, IcGear, IcHelp, IcSuporte } from "@/components/icons";
 
 export interface NavItem {
   to: string;
@@ -47,6 +47,8 @@ export interface NavItem {
 export const NAV: NavItem[] = [
   { to: "/calendario", label: "Calendário Pólobh", icon: <IcCalendar />, recurso: "projetos" },
   { to: "/projetos", label: "Projetos", icon: <IcFolder />, recurso: "projetos", pendencias: true },
+  // O FLUXOGRAMA fica entre Projetos e Configurações (pedido de 29/09/2026).
+  { to: "/fluxograma", label: "Fluxograma", icon: <IcFluxo />, recurso: "guia" },
   { to: "/configuracoes", label: "Configurações", icon: <IcGear />, recurso: "configuracoes" },
   { to: "/guia", label: "Guia do Aplicativo", icon: <IcHelp />, recurso: "guia" },
   { to: "/suporte", label: "Help Desk", icon: <IcSuporte />, recurso: "guia", painel: "suporte" },
