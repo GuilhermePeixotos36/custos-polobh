@@ -14,3 +14,6 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+/** Versão da publicação (ver vite.config.ts). */
+declare const __APP_VERSION__: string;

@@ -10,6 +10,7 @@ export default defineConfig({
   resolve: {
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },
+  define: { __APP_VERSION__: JSON.stringify("teste") },
   test: {
     // jsdom por causa do sanitizador de HTML, que depende de DOMParser.
     environment: "jsdom",

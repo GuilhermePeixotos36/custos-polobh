@@ -90,6 +90,11 @@ interface Props {
   /** Nomes dos usuários — alimentam @menções e a escolha de responsável. */
   usuarios: string[];
   podeEditar: boolean;
+  /**
+   * Apagar tarefa — só Coordenação e Direção (recurso `checklists.excluir`,
+   * 01/10/2026). Incluir e editar é de todos; excluir não tem volta.
+   */
+  podeExcluir: boolean;
   /** Persiste UM item. A tela chama a cada alteração. */
   onSalvarItem: (item: ItemChecklist) => void;
   /**
@@ -121,6 +126,7 @@ export function ChecklistProjeto({
   checklist,
   usuarios,
   podeEditar,
+  podeExcluir,
   onSalvarItem,
   onCriarItem,
   onRemoverItem,
@@ -518,16 +524,20 @@ export function ChecklistProjeto({
           <span className="text-[12.5px] font-bold text-ink-3">
             {marcadas.length
               ? `${marcadas.length} ${marcadas.length === 1 ? "selecionada" : "selecionadas"}`
-              : "Marque tarefas para concluir ou excluir em lote"}
+              : podeExcluir
+              ? "Marque tarefas para concluir ou excluir em lote"
+              : "Marque tarefas para concluir em lote"}
           </span>
           {marcadas.length > 0 && (
             <div className="ml-auto flex items-center gap-2 flex-wrap">
               <Button size="sm" variant="secondary" icon={<IcCheck width={15} height={15} />} onClick={concluirMarcadas}>
                 Concluir selecionadas
               </Button>
-              <Button size="sm" variant="danger" icon={<IcTrash width={15} height={15} />} onClick={() => void excluirMarcadas()}>
-                Excluir selecionadas
-              </Button>
+              {podeExcluir && (
+                <Button size="sm" variant="danger" icon={<IcTrash width={15} height={15} />} onClick={() => void excluirMarcadas()}>
+                  Excluir selecionadas
+                </Button>
+              )}
               <Button size="sm" variant="text" onClick={() => setSelecionadas(new Set())}>
                 Limpar seleção
               </Button>
@@ -626,6 +636,7 @@ export function ChecklistProjeto({
                             hoje={hoje}
                             usuarios={usuarios}
                             podeEditar={podeEditar}
+                            podeExcluir={podeExcluir}
                             ordenavel={podeEditar && agrupamento === "etapa"}
                             selecionada={selecionadas.has(item.id)}
                             onSelecionar={(marcar) => alternarMarca([item.id], marcar)}
@@ -722,6 +733,7 @@ function ItemCard({
   hoje,
   usuarios,
   podeEditar,
+  podeExcluir,
   ordenavel,
   selecionada,
   onSelecionar,
@@ -741,6 +753,7 @@ function ItemCard({
   hoje: string;
   usuarios: string[];
   podeEditar: boolean;
+  podeExcluir: boolean;
   /** Arraste e setas ligados (só no agrupamento por etapa). */
   ordenavel: boolean;
   /** Marcada para concluir/excluir em lote. */
@@ -1051,6 +1064,13 @@ function ItemCard({
                 ))}
               </Select>
             </CampoDiscreto>
+            {/* A função da lista padrão ("Back-Office", "Direção de Produção"…):
+                quem é a pessoa pode variar, a função da tarefa não. */}
+            {!!item.funcoes?.length && (
+              <div className="text-[11px] font-bold text-ink-3 leading-tight mt-0.5" title="Função responsável, pela lista padrão">
+                {item.funcoes.join(" + ")}
+              </div>
+            )}
           </div>
 
           <div className="md:pt-1">
@@ -1117,7 +1137,7 @@ function ItemCard({
             {/* Só o item criado à mão pode ser apagado um a um; o que veio do
                 modelo se recolhe ou vira "Não se aplica". (A exclusão em lote
                 trata os dois casos — ver `excluirMarcadas`.) */}
-            {!item.origemModeloItemId && (
+            {podeExcluir && !item.origemModeloItemId && (
               <button
                 type="button"
                 onClick={onRemover}

@@ -21,12 +21,13 @@ const checklist = (itens: ItemChecklist[]): Checklist => ({
   id: "c", projetoId: "p", modalidade: "Cultural", modeloId: "m", itens, criadoEm: "", atualizadoEm: "",
 });
 
-const tela = (itens: ItemChecklist[], podeEditar = true) =>
+const tela = (itens: ItemChecklist[], podeEditar = true, podeExcluir = true) =>
   renderToStaticMarkup(
     createElement(ChecklistProjeto, {
       checklist: checklist(itens),
       usuarios: ["Ana"],
       podeEditar,
+      podeExcluir,
       onSalvarItem: () => {},
       onCriarItem: async () => {},
       onRemoverItem: () => {},
@@ -36,6 +37,15 @@ const tela = (itens: ItemChecklist[], podeEditar = true) =>
   );
 
 describe("tela do check-list", () => {
+  it("excluir tarefa (individual e em lote) só aparece para quem tem a permissão — incluir é de todos", () => {
+    const itens = [t("a", "PRÉ", 0)];
+    const comExcluir = tela(itens, true, true);
+    const semExcluir = tela(itens, true, false);
+    expect(comExcluir).toContain("Excluir tarefa");
+    expect(semExcluir).not.toContain("Excluir tarefa");
+    expect(semExcluir).toContain("Nova tarefa");
+  });
+
   it("mostra as colunas Tarefa, Responsável, Data Prevista, Data de Conclusão e Status", () => {
     const html = tela([t("a", "PRÉ", 0), t("b", "PRÉ", 1, { status: "Concluído", oculto: false })]);
     for (const coluna of ["Tarefa", "Responsável", "Data Prevista", "Data de Conclusão", "Status"]) expect(html).toContain(coluna);

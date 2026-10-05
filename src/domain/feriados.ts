@@ -53,6 +53,13 @@ export function feriadosDoAno(guardados: FeriadosGuardados | undefined, ano: num
   return [...porData.values()].sort((a, b) => a.data.localeCompare(b.data));
 }
 
+/** As datas (aaaa-mm-dd) de todos os feriados dos anos pedidos — o que o motor de prazos pula. */
+export function datasDosFeriados(guardados: FeriadosGuardados | undefined, anos: number[]): Set<string> {
+  const datas = new Set<string>();
+  for (const ano of anos) for (const f of feriadosDoAno(guardados, ano)) datas.add(f.data);
+  return datas;
+}
+
 /** Índice data → feriado, para a tela perguntar dia a dia sem varrer a lista. */
 export function indiceDeFeriados(lista: Feriado[]): Map<string, Feriado> {
   return new Map(lista.map((f) => [f.data, f]));

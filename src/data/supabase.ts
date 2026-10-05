@@ -47,6 +47,7 @@ import type {
   BackupRepository,
   TravaEdicaoRepository,
   ConfigRepository,
+  DevRepository,
   ClienteRepository,
   EcRepository,
   EmpresasRepository,
@@ -67,6 +68,9 @@ import type {
   ItemModeloChecklist,
   StatusChecklist,
   ModalidadeProjeto,
+  ModoPrazoChecklist,
+  RegraPrazoChecklist,
+  EtapaCronogramaProjeto,
   EmpresaGrupo,
   Fornecedor,
   AnexoObservacao,
@@ -1095,6 +1099,27 @@ const empresasRepo: EmpresasRepository = {
 
 /* --------------------------- CONFIG DO APP ------------------------------- */
 
+const devRepo: DevRepository = {
+  async senhaDefinida() {
+    const { data, error } = await supabase.rpc("dev_senha_definida");
+    if (error) throw new Error(error.message);
+    return !!data;
+  },
+  async definirSenha(atual, nova) {
+    const { error } = await supabase.rpc("dev_definir_senha", { atual, nova });
+    if (error) throw new Error(error.message);
+  },
+  async limparBanco(senha, opcoes) {
+    const { data, error } = await supabase.rpc("dev_limpar_banco", {
+      senha,
+      cadastros: opcoes.cadastros,
+      historico: opcoes.historico,
+    });
+    if (error) throw new Error(error.message);
+    return (data ?? {}) as Record<string, number>;
+  },
+};
+
 const configRepo: ConfigRepository = {
   async ler<T>(chave: string) {
     // `maybeSingle`: chave que ainda não existe é resposta válida — a tela cai
@@ -1239,6 +1264,52 @@ const chamadosRepo: ChamadosRepository = {
 
 /* ------------------------------ CHECK-LIST ------------------------------- */
 
+const MODOS_PRAZO: ModoPrazoChecklist[] = [
+  "percentual",
+  "ancora",
+  "semanas-antes",
+  "cronograma",
+  "dias-uteis-apos",
+  "semanas-apos",
+];
+const ETAPAS_CRONOGRAMA: EtapaCronogramaProjeto[] = ["montagem", "alinhamentos", "ensaios", "evento", "desmontagem"];
+
+const listaDeTextos = (v: unknown): string[] =>
+  Array.isArray(v) ? v.map((x) => String(x ?? "").trim()).filter(Boolean) : [];
+
+/**
+ * Regra de prazo vinda do jsonb do modelo. Só o que a régua do modo usa é
+ * mantido — um campo sobrando de uma edição antiga não vira lixo no banco.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapRegraPrazo(p: any): RegraPrazoChecklist {
+  const modo: ModoPrazoChecklist = MODOS_PRAZO.includes(p?.modo) ? p.modo : "percentual";
+  const etapa = (v: unknown) => (ETAPAS_CRONOGRAMA.includes(v as EtapaCronogramaProjeto) ? (v as EtapaCronogramaProjeto) : undefined);
+  switch (modo) {
+    case "ancora":
+      return { modo, diasDoEvento: Number(p.diasDoEvento) || 0 };
+    case "semanas-antes":
+      return { modo, semanas: Math.max(0, Math.round(Number(p.semanas) || 0)), ...(p.fixo ? { fixo: true } : {}) };
+    case "cronograma":
+      return {
+        modo,
+        etapa: etapa(p.etapa) ?? "evento",
+        ...(etapa(p.ou) ? { ou: etapa(p.ou) } : {}),
+        ponta: p.ponta === "primeira" ? "primeira" : "ultima",
+      };
+    case "dias-uteis-apos":
+      return {
+        modo,
+        base: p.base === "evento" ? "evento" : "desmontagem",
+        diasUteis: Math.max(0, Math.round(Number(p.diasUteis) || 0)),
+      };
+    case "semanas-apos":
+      return { modo, base: p.base === "desmontagem" ? "desmontagem" : "evento", semanas: Math.max(0, Math.round(Number(p.semanas) || 0)) };
+    default:
+      return { modo: "percentual", percentual: Number(p?.percentual) || 0 };
+  }
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapModeloChecklist(r: any): ModeloChecklist {
   return {
@@ -1252,11 +1323,9 @@ function mapModeloChecklist(r: any): ModeloChecklist {
         titulo: i.titulo ?? "",
         descricao: i.descricao ?? "",
         etapa: i.etapa ?? "",
-        prazo:
-          i.prazo?.modo === "ancora"
-            ? { modo: "ancora", diasDoEvento: Number(i.prazo.diasDoEvento) || 0 }
-            : { modo: "percentual", percentual: Number(i.prazo?.percentual) || 0 },
+        prazo: mapRegraPrazo(i.prazo),
         responsavelPadrao: i.responsavelPadrao ?? "",
+        funcoes: listaDeTextos(i.funcoes),
         ordem: Number(i.ordem) || n,
       }))
       .sort((a: ItemModeloChecklist, b: ItemModeloChecklist) => a.ordem - b.ordem),
@@ -1280,6 +1349,7 @@ function mapItemChecklist(r: any): ItemChecklist {
     concluidoEm: r.concluido_em ?? "",
     concluidoPor: r.concluido_por ?? "",
     responsavel: r.responsavel ?? "",
+    funcoes: listaDeTextos(r.funcoes),
     observacoes: mapObservacoes(r.id, r.observacoes),
     oculto: !!r.oculto,
     ordem: r.ordem ?? 0,
@@ -1301,6 +1371,7 @@ function itemChecklistRow(i: ItemChecklist) {
     concluido_em: i.concluidoEm || null,
     concluido_por: i.concluidoPor ?? "",
     responsavel: i.responsavel ?? "",
+    funcoes: i.funcoes ?? [],
     observacoes: i.observacoes ?? [],
     oculto: !!i.oculto,
     ordem: i.ordem ?? 0,
@@ -1530,5 +1601,6 @@ export const supabaseRepositorios: Repositorios = {
   chamados: chamadosRepo,
   checklists: checklistRepo,
   backup: backupRepo,
+  dev: devRepo,
   travaEdicao: travaEdicaoRepo,
 };

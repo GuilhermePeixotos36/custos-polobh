@@ -271,6 +271,19 @@ export interface TravaEdicaoRepository {
   fechar(documento: string): Promise<void>;
 }
 
+/**
+ * Ferramentas do DESENVOLVEDOR (papel Admin): a senha de manutenção e a
+ * limpeza do banco. Tudo é conferido de novo no servidor — ver a migração
+ * `20261001120000_dev_limpar_banco.sql`.
+ */
+export interface DevRepository {
+  senhaDefinida(): Promise<boolean>;
+  /** Cria a senha (sem `atual`, só na primeira vez) ou troca. */
+  definirSenha(atual: string, nova: string): Promise<void>;
+  /** Devolve quantas linhas saíram de cada tabela. */
+  limparBanco(senha: string, opcoes: { cadastros: boolean; historico: boolean }): Promise<Record<string, number>>;
+}
+
 export interface Repositorios {
   projetos: ProjetoRepository;
   clientes: ClienteRepository;
@@ -284,5 +297,6 @@ export interface Repositorios {
   chamados: ChamadosRepository;
   checklists: ChecklistRepository;
   backup: BackupRepository;
+  dev: DevRepository;
   travaEdicao: TravaEdicaoRepository;
 }

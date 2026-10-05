@@ -16,6 +16,8 @@ export type Recurso =
   | "oss.emitir"
   | "checklists"
   | "checklists.editar"
+  | "checklists.excluir"
+  | "checklists.padrao"
   | "cronogramas"
   | "fornecedores"
   | "fornecedores.editar"
@@ -36,6 +38,8 @@ export const TODOS_RECURSOS: Recurso[] = [
   "oss.emitir",
   "checklists",
   "checklists.editar",
+  "checklists.excluir",
+  "checklists.padrao",
   "cronogramas",
   "fornecedores",
   "fornecedores.editar",
@@ -97,6 +101,22 @@ export const PERMISSOES_ESPECIAIS: { key: Recurso; label: string; hint: string }
     label: "Emitir a OS (Back-office)",
     hint: "A última fase: emitir a OS já concluída pelo financeiro",
   },
+  /**
+   * EXCLUIR TAREFA e MEXER NA LISTA PADRÃO do check-list ficaram só com a
+   * Coordenação e a Direção (01/10/2026). Incluir e editar tarefa é de todos —
+   * é a equipe inteira que alimenta o check-list —, mas apagar é irreversível e
+   * a lista padrão vale para todos os projetos novos.
+   */
+  {
+    key: "checklists.excluir",
+    label: "Excluir tarefas do check-list",
+    hint: "Apagar tarefas (e refazer o check-list) dentro dos projetos — normalmente Coordenação e Direção",
+  },
+  {
+    key: "checklists.padrao",
+    label: "Editar a lista padrão do check-list",
+    hint: "Configurações › Check-list: as tarefas que nascem em todo projeto novo — normalmente Coordenação e Direção",
+  },
   { key: "configuracoes", label: "Configurações", hint: "Empresas do grupo, áreas e usuários" },
   { key: "logs", label: "Logs do sistema", hint: "Trilha de auditoria — normalmente só o Administrador" },
 ];
@@ -119,6 +139,8 @@ export const PERMISSOES: Record<Papel, Recurso[]> = {
     "oss.emitir",
     "checklists",
     "checklists.editar",
+    "checklists.excluir",
+    "checklists.padrao",
     "cronogramas",
     "fornecedores",
     "fornecedores.editar",

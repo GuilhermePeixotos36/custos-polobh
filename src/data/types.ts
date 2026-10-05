@@ -1085,23 +1085,56 @@ export interface Chamado {
 export type StatusChecklist = "Pendente" | "Em andamento" | "Concluído" | "Não se aplica";
 
 /**
- * Onde a tarefa cai no calendário do projeto. Duas réguas, porque a produção de
- * evento tem dois tipos de tarefa:
+ * Onde a tarefa cai no calendário do projeto. Seis réguas — as duas primeiras
+ * são as do primeiro desenho do módulo; as quatro últimas nasceram com as listas
+ * padrão da Pólobh (01/10/2026), que descrevem o prazo do jeito que a equipe
+ * fala: "segunda-feira da 5ª semana antes do evento", "1º dia útil após a
+ * desmontagem".
  *
  *  - `percentual` — distribui a tarefa proporcionalmente ao período completo do
- *    projeto (0 = início, 1 = fim). É a régua pedida no briefing e serve bem
- *    para o miolo da produção, que "estica" junto com o projeto.
+ *    projeto (0 = início, 1 = fim).
  *  - `ancora` — fixa a tarefa a uma distância em dias do DIA DO EVENTO
- *    (negativo = antes, positivo = depois). Serve para o que não estica:
- *    credenciamento fecha 7 dias antes do evento, seja o projeto de 2 meses ou
- *    de 2 anos.
+ *    (negativo = antes, positivo = depois).
+ *  - `semanas-antes` — "segunda-feira da Nª semana anterior ao evento". É a
+ *    régua ADAPTÁVEL: o projeto pode ser criado 6 semanas ou 6 dias antes do
+ *    evento, e as tarefas se esticam ou se comprimem na janela que existe,
+ *    mantendo a proporção entre elas (ver `calcularDataLimite`).
+ *  - `cronograma` — puxa a data de TRABALHO do cronograma do projeto
+ *    (montagem, alinhamentos, evento, desmontagem).
+ *  - `dias-uteis-apos` — "Nº dia útil após a desmontagem".
+ *  - `semanas-apos` — "segunda-feira da Nª semana após o evento".
  */
+export type ModoPrazoChecklist =
+  | "percentual"
+  | "ancora"
+  | "semanas-antes"
+  | "cronograma"
+  | "dias-uteis-apos"
+  | "semanas-apos";
+
 export interface RegraPrazoChecklist {
-  modo: "percentual" | "ancora";
+  modo: ModoPrazoChecklist;
   /** Modo percentual: fração de 0 a 1 do período do projeto. */
   percentual?: number;
   /** Modo âncora: dias em relação ao evento (ex.: -7 = uma semana antes). */
   diasDoEvento?: number;
+  /** `semanas-antes` e `semanas-apos`: quantas semanas (1 = a semana anterior/seguinte). */
+  semanas?: number;
+  /**
+   * `semanas-antes`: a tarefa NÃO se adapta — fica sempre na Nª semana antes do
+   * evento, qualquer que seja o tamanho da janela do projeto.
+   */
+  fixo?: boolean;
+  /** `cronograma`: de qual etapa do cronograma a data é puxada. */
+  etapa?: EtapaCronogramaProjeto;
+  /** `cronograma`: etapa de reserva, quando a principal não foi preenchida. */
+  ou?: EtapaCronogramaProjeto;
+  /** `cronograma`: o primeiro ou o último dia da etapa (padrão: o último). */
+  ponta?: "primeira" | "ultima";
+  /** `dias-uteis-apos` e `semanas-apos`: a partir de quê (padrão: a desmontagem). */
+  base?: "evento" | "desmontagem";
+  /** `dias-uteis-apos`: quantos dias úteis depois da base. */
+  diasUteis?: number;
 }
 
 /** Item de uma lista padrão (o "molde" de onde nascem os itens do projeto). */
@@ -1114,6 +1147,13 @@ export interface ItemModeloChecklist {
   prazo: RegraPrazoChecklist;
   /** Sugestão de responsável — pode ficar vazio e ser definido no projeto. */
   responsavelPadrao: string;
+  /**
+   * FUNÇÕES responsáveis pela tarefa, como a lista da Pólobh as escreve
+   * ("Direção de Produção", "Back-Office"…). Uma tarefa pode ter mais de uma.
+   * É informação para a equipe saber de quem é a tarefa; quem recebe a
+   * pendência continua sendo o `responsavel` (pessoa).
+   */
+  funcoes?: string[];
   ordem: number;
 }
 
@@ -1151,6 +1191,8 @@ export interface ItemChecklist {
   concluidoEm: string;
   concluidoPor: string;
   responsavel: string;
+  /** Funções responsáveis, herdadas da lista padrão (ver `ItemModeloChecklist.funcoes`). */
+  funcoes?: string[];
   /** Thread de observações — mesmo formato e comportamento dos itens da EC. */
   observacoes: Observacao[];
   /** Item recolhido da visão principal (some da lista, não é apagado). */
