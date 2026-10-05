@@ -66,40 +66,31 @@ grant execute on function tem_recurso(text) to authenticated;
 /* ------------------------------------------------------------------ *
  * 3. RLS.
  *
- * Os itens e o cabeçalho do check-list: inserir e alterar continua com os
- * quatro papéis (todo mundo inclui tarefa); APAGAR passa a exigir o recurso
- * `checklists.excluir`. A lista padrão: escrever exige `checklists.padrao`.
+ * Inserir e alterar continua com os quatro papéis (todo mundo inclui tarefa) —
+ * as políticas `*_write` de antes já dizem isso e ficam como estão.
+ *
+ * APAGAR passa a exigir o recurso `checklists.excluir`. Em vez de desmontar a
+ * política `*_write` (FOR ALL), entra uma política RESTRITIVA de DELETE: no
+ * Postgres as restritivas se combinam com "E" às permissivas, então apagar
+ * passa a exigir as duas coisas — o papel de antes E o recurso novo. Sem DROP:
+ * nada fica um instante sem política enquanto a migração roda.
+ *
+ * Apagar o check-list inteiro (refazer na modalidade certa) é a exclusão mais
+ * pesada que existe aqui — mesma chave.
+ *
+ * A lista padrão: a política de escrita troca de regra (papel → recurso).
  * ------------------------------------------------------------------ */
-drop policy if exists checklist_itens_write on checklist_itens;
-drop policy if exists checklist_itens_insert on checklist_itens;
-drop policy if exists checklist_itens_update on checklist_itens;
-drop policy if exists checklist_itens_delete on checklist_itens;
-
-create policy checklist_itens_insert on checklist_itens for insert
-  with check (papel_atual() in ('Admin','Direcao','Producao','Administrativo'));
-create policy checklist_itens_update on checklist_itens for update
-  using (papel_atual() in ('Admin','Direcao','Producao','Administrativo'))
-  with check (papel_atual() in ('Admin','Direcao','Producao','Administrativo'));
-create policy checklist_itens_delete on checklist_itens for delete
+drop policy if exists checklist_itens_delete_restrito on checklist_itens;
+create policy checklist_itens_delete_restrito on checklist_itens
+  as restrictive for delete
   using (tem_recurso('checklists.excluir'));
 
-drop policy if exists checklists_write on checklists;
-drop policy if exists checklists_insert on checklists;
-drop policy if exists checklists_update on checklists;
-drop policy if exists checklists_delete on checklists;
-
-create policy checklists_insert on checklists for insert
-  with check (papel_atual() in ('Admin','Direcao','Producao','Administrativo'));
-create policy checklists_update on checklists for update
-  using (papel_atual() in ('Admin','Direcao','Producao','Administrativo'))
-  with check (papel_atual() in ('Admin','Direcao','Producao','Administrativo'));
--- Apagar o check-list inteiro (refazer na modalidade certa) é a exclusão mais
--- pesada que existe aqui — mesma chave de excluir tarefa.
-create policy checklists_delete on checklists for delete
+drop policy if exists checklists_delete_restrito on checklists;
+create policy checklists_delete_restrito on checklists
+  as restrictive for delete
   using (tem_recurso('checklists.excluir'));
 
-drop policy if exists checklist_modelos_write on checklist_modelos;
-create policy checklist_modelos_write on checklist_modelos for all
+alter policy checklist_modelos_write on checklist_modelos
   using (tem_recurso('checklists.padrao'))
   with check (tem_recurso('checklists.padrao'));
 
