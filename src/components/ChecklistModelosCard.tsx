@@ -1,16 +1,15 @@
 /**
- * Cadastro das listas padrão de check-list (Configurações → Check-list).
+ * Cadastro das listas padrão de check-list (Configurações › Check-list).
  *
  * É aqui que a Coordenação calibra a régua: o texto de cada tarefa, a etapa em
- * que ela entra e QUANDO ela vence. O "quando" tem dois modos, e a diferença
- * entre eles é o que faz o módulo funcionar em projeto de dois meses e em
- * projeto de dois anos:
+ * que ela entra e QUANDO ela vence. O "quando" tem seis réguas (ver
+ * `ModoPrazoChecklist`), e a que faz o módulo funcionar em evento criado a seis
+ * meses ou a seis dias é "semanas antes do evento": a lista é escrita como o
+ * prazo de manual (ex.: 11 semanas) e, em cada projeto, se estica ou se
+ * comprime na janela que existe entre a criação dele e o evento — mantendo a
+ * proporção entre as tarefas.
  *
- *   • % do projeto — a tarefa "estica" junto com o período. Serve para o miolo
- *     da produção (montar a EC, contratar fornecedores).
- *   • Dias do evento — a tarefa fica grudada no dia D. Serve para o que não
- *     estica: credenciamento fecha 7 dias antes, seja qual for o projeto.
- *
+ * Quem altera: só Coordenação e Direção (recurso `checklists.padrao`).
  * Alterar a lista NÃO mexe nos check-lists já gerados. Cada projeto em
  * andamento recebe um aviso e decide quando trazer as tarefas novas.
  */
@@ -26,16 +25,82 @@ import { confirmar } from "@/store/confirm";
 import { useAuth } from "@/store/auth";
 import { useSugestoes } from "@/hooks/useSugestoes";
 import { cx } from "@/lib/format";
-import type { ItemModeloChecklist, ModalidadeProjeto, ModeloChecklist } from "@/data/types";
+import { descreverPrazo, semanasDeReferencia } from "@/domain/checklist";
+import type {
+  EtapaCronogramaProjeto,
+  ItemModeloChecklist,
+  ModalidadeProjeto,
+  ModeloChecklist,
+  ModoPrazoChecklist,
+  RegraPrazoChecklist,
+} from "@/data/types";
 
 const MODALIDADES: ModalidadeProjeto[] = ["Corporativo", "Cultural"];
 
+const OPCOES_MODO: { valor: ModoPrazoChecklist; rotulo: string }[] = [
+  { valor: "semanas-antes", rotulo: "Semanas antes do evento (adapta)" },
+  { valor: "cronograma", rotulo: "Data do cronograma" },
+  { valor: "dias-uteis-apos", rotulo: "Dias úteis após" },
+  { valor: "semanas-apos", rotulo: "Semanas após o evento" },
+  { valor: "ancora", rotulo: "Dias do evento" },
+  { valor: "percentual", rotulo: "% do projeto" },
+];
+
+const ETAPAS_CRONOGRAMA: { valor: EtapaCronogramaProjeto; rotulo: string }[] = [
+  { valor: "montagem", rotulo: "Montagem" },
+  { valor: "alinhamentos", rotulo: "Alinhamentos/Testes" },
+  { valor: "ensaios", rotulo: "Ensaios" },
+  { valor: "evento", rotulo: "Evento" },
+  { valor: "desmontagem", rotulo: "Desmontagem" },
+];
+
+/** A régua padrão ao trocar de modo — um ponto de partida que a pessoa ajusta. */
+const REGRA_INICIAL: Record<ModoPrazoChecklist, RegraPrazoChecklist> = {
+  "semanas-antes": { modo: "semanas-antes", semanas: 2 },
+  cronograma: { modo: "cronograma", etapa: "evento", ponta: "ultima" },
+  "dias-uteis-apos": { modo: "dias-uteis-apos", base: "desmontagem", diasUteis: 1 },
+  "semanas-apos": { modo: "semanas-apos", base: "evento", semanas: 2 },
+  ancora: { modo: "ancora", diasDoEvento: -7 },
+  percentual: { modo: "percentual", percentual: 0.5 },
+};
+
+/** "Direção de Produção + Back-Office" ⇄ lista. O texto só é lido ao sair do campo. */
+function CampoFuncoes({
+  funcoes,
+  disabled,
+  onChange,
+}: {
+  funcoes: string[];
+  disabled: boolean;
+  onChange: (funcoes: string[]) => void;
+}) {
+  const [texto, setTexto] = useState(funcoes.join(" + "));
+  useEffect(() => setTexto(funcoes.join(" + ")), [funcoes]);
+  return (
+    <Input
+      className="!h-8 !px-2 !text-[12.5px]"
+      value={texto}
+      disabled={disabled}
+      onChange={(e) => setTexto(e.target.value)}
+      onBlur={() =>
+        onChange(
+          texto
+            .split(/\s*[+\n;]\s*/)
+            .map((f) => f.trim())
+            .filter(Boolean)
+        )
+      }
+      placeholder="Funções responsáveis (separe com +)"
+      aria-label="Funções responsáveis pela tarefa"
+    />
+  );
+}
+
 export function ChecklistModelosCard() {
-  // A RLS de `checklist_modelos` só aceita escrita de Admin e Direção. A tela
-  // precisa usar a MESMA regra: com o recurso "configuracoes" genérico, o perfil
-  // Administrativo via o botão "Salvar" habilitado e tomava erro do banco.
-  const papel = useAuth((s) => s.usuario?.papel);
-  const podeEditar = papel === "Admin" || papel === "Direcao";
+  // A RLS de `checklist_modelos` exige o recurso `checklists.padrao` (só
+  // Coordenação e Direção — 01/10/2026). A tela usa a MESMA chave: sem ela o
+  // botão "Salvar" ficaria habilitado e o banco recusaria.
+  const podeEditar = useAuth((s) => s.pode("checklists.padrao"));
   // Título e etapa saem das tarefas reais dos projetos: é o mesmo vocabulário,
   // e a lista padrão nasce justamente do que a casa já faz em cada evento.
   const sugestoes = useSugestoes();
@@ -98,8 +163,9 @@ export function ChecklistModelosCard() {
         titulo: "Nova tarefa",
         descricao: "",
         etapa: lista[lista.length - 1]?.etapa ?? "",
-        prazo: { modo: "percentual", percentual: 0.5 },
+        prazo: { modo: "semanas-antes", semanas: 2 },
         responsavelPadrao: "",
+        funcoes: [],
         ordem: lista.length,
       },
     ]);
@@ -179,6 +245,14 @@ export function ChecklistModelosCard() {
         </span>
       </div>
 
+      {modelo && semanasDeReferencia(modelo) > 0 && (
+        <p className="mb-3 rounded-btn bg-primary-soft px-3 py-2 text-[12.5px] font-bold text-primary-dark">
+          Prazo de manual desta lista: {semanasDeReferencia(modelo)} semanas antes do evento. Em cada projeto, as
+          tarefas “semanas antes do evento” se esticam ou se comprimem para caber entre o dia em que o projeto é
+          criado e o evento, mantendo a proporção entre elas. Tarefa marcada “não adaptar” fica sempre na semana escrita.
+        </p>
+      )}
+
       {!modelo && (
         <EmptyState
           title={`Sem lista cadastrada para projetos ${modalidade}`}
@@ -221,7 +295,7 @@ export function ChecklistModelosCard() {
                       </button>
                     )}
                   </div>
-                  <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_9rem_9rem]">
+                  <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_14rem]">
                     <Input
                       className="!h-8 !px-2 !text-[12.5px] !uppercase"
                       sugestoes={sugestoes.valores.etapaTarefa}
@@ -235,41 +309,19 @@ export function ChecklistModelosCard() {
                       className="!h-8 !px-2 !text-[12.5px]"
                       value={item.prazo.modo}
                       disabled={!podeEditar}
-                      onChange={(e) =>
-                        alterar(item.id, {
-                          prazo:
-                            e.target.value === "ancora"
-                              ? { modo: "ancora", diasDoEvento: -7 }
-                              : { modo: "percentual", percentual: 0.5 },
-                        })
-                      }
+                      onChange={(e) => alterar(item.id, { prazo: REGRA_INICIAL[e.target.value as ModoPrazoChecklist] })}
                       aria-label="Modo do prazo"
                     >
-                      <option value="percentual">% do projeto</option>
-                      <option value="ancora">Dias do evento</option>
+                      {OPCOES_MODO.map((o) => (
+                        <option key={o.valor} value={o.valor}>{o.rotulo}</option>
+                      ))}
                     </Select>
-                    {item.prazo.modo === "percentual" ? (
-                      <NumberInput
-                        className="!h-8 !px-2 !text-[12.5px]"
-                        value={Math.round((item.prazo.percentual ?? 0) * 100)}
-                        disabled={!podeEditar}
-                        onValue={(v) =>
-                          alterar(item.id, {
-                            prazo: { modo: "percentual", percentual: Math.min(100, Math.max(0, v)) / 100 },
-                          })
-                        }
-                        aria-label="Percentual do período do projeto (0 a 100)"
-                      />
-                    ) : (
-                      <NumberInput
-                        className="!h-8 !px-2 !text-[12.5px]"
-                        value={item.prazo.diasDoEvento ?? 0}
-                        disabled={!podeEditar}
-                        onValue={(v) => alterar(item.id, { prazo: { modo: "ancora", diasDoEvento: v } })}
-                        aria-label="Dias em relação ao evento (negativo = antes)"
-                      />
-                    )}
                   </div>
+                  <CampoPrazo
+                    prazo={item.prazo}
+                    disabled={!podeEditar}
+                    onChange={(prazo) => alterar(item.id, { prazo })}
+                  />
                   {/* Descrição e responsável padrão JÁ eram copiados para a
                       tarefa de cada projeto (ver `itemDoModelo`), mas não havia
                       onde preenchê-los: a lista nascia sempre sem explicação e
@@ -300,15 +352,12 @@ export function ChecklistModelosCard() {
                       ))}
                     </Select>
                   </div>
-                  <p className="text-[11.5px] font-bold text-ink-3">
-                    {item.prazo.modo === "percentual"
-                      ? `Vence a ${Math.round((item.prazo.percentual ?? 0) * 100)}% do período do projeto.`
-                      : (item.prazo.diasDoEvento ?? 0) < 0
-                      ? `Vence ${Math.abs(item.prazo.diasDoEvento ?? 0)} dia(s) ANTES do evento.`
-                      : (item.prazo.diasDoEvento ?? 0) === 0
-                      ? "Vence no dia do evento."
-                      : `Vence ${item.prazo.diasDoEvento} dia(s) DEPOIS do evento.`}
-                  </p>
+                  <CampoFuncoes
+                    funcoes={item.funcoes ?? []}
+                    disabled={!podeEditar}
+                    onChange={(funcoes) => alterar(item.id, { funcoes })}
+                  />
+                  <p className="text-[11.5px] font-bold text-ink-3">{descreverPrazo(item.prazo)}</p>
                 </div>
               </div>
             </div>
@@ -323,4 +372,103 @@ export function ChecklistModelosCard() {
       )}
     </Card>
   );
+}
+
+/**
+ * Os campos da régua de prazo de uma tarefa — cada modo pede os seus.
+ * Fica fora do card para o card não virar um `switch` de 80 linhas.
+ */
+function CampoPrazo({
+  prazo,
+  disabled,
+  onChange,
+}: {
+  prazo: RegraPrazoChecklist;
+  disabled: boolean;
+  onChange: (prazo: RegraPrazoChecklist) => void;
+}) {
+  const classe = "!h-8 !px-2 !text-[12.5px]";
+  switch (prazo.modo) {
+    case "semanas-antes":
+      return (
+        <div className="flex items-center gap-3 flex-wrap">
+          <NumberInput
+            className={cx(classe, "!w-24")}
+            value={prazo.semanas ?? 1}
+            disabled={disabled}
+            onValue={(v) => onChange({ ...prazo, semanas: Math.max(0, Math.round(v)) })}
+            aria-label="Quantas semanas antes do evento"
+          />
+          <label className="inline-flex items-center gap-2 text-[12.5px] font-bold text-ink-2">
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-[#F2820D]"
+              checked={!!prazo.fixo}
+              disabled={disabled}
+              onChange={(e) => onChange({ modo: "semanas-antes", semanas: prazo.semanas ?? 1, ...(e.target.checked ? { fixo: true } : {}) })}
+            />
+            Não adaptar ao prazo do projeto
+          </label>
+        </div>
+      );
+    case "cronograma":
+      return (
+        <div className="grid gap-2 sm:grid-cols-3">
+          <Select className={classe} value={prazo.etapa ?? "evento"} disabled={disabled}
+            onChange={(e) => onChange({ ...prazo, etapa: e.target.value as EtapaCronogramaProjeto })}
+            aria-label="Etapa do cronograma">
+            {ETAPAS_CRONOGRAMA.map((o) => <option key={o.valor} value={o.valor}>{o.rotulo}</option>)}
+          </Select>
+          <Select className={classe} value={prazo.ponta ?? "ultima"} disabled={disabled}
+            onChange={(e) => onChange({ ...prazo, ponta: e.target.value as "primeira" | "ultima" })}
+            aria-label="Primeiro ou último dia da etapa">
+            <option value="ultima">Último dia da etapa</option>
+            <option value="primeira">Primeiro dia da etapa</option>
+          </Select>
+          <Select className={classe} value={prazo.ou ?? ""} disabled={disabled}
+            onChange={(e) => {
+              const { ou: _ignorado, ...resto } = prazo;
+              onChange(e.target.value ? { ...resto, ou: e.target.value as EtapaCronogramaProjeto } : resto);
+            }}
+            aria-label="Etapa de reserva">
+            <option value="">Sem etapa de reserva</option>
+            {ETAPAS_CRONOGRAMA.filter((o) => o.valor !== (prazo.etapa ?? "evento")).map((o) => (
+              <option key={o.valor} value={o.valor}>Se vazia, usar {o.rotulo}</option>
+            ))}
+          </Select>
+        </div>
+      );
+    case "dias-uteis-apos":
+      return (
+        <div className="grid gap-2 sm:grid-cols-[8rem_minmax(0,1fr)]">
+          <NumberInput className={classe} value={prazo.diasUteis ?? 1} disabled={disabled}
+            onValue={(v) => onChange({ ...prazo, diasUteis: Math.max(0, Math.round(v)) })}
+            aria-label="Quantos dias úteis" />
+          <Select className={classe} value={prazo.base ?? "desmontagem"} disabled={disabled}
+            onChange={(e) => onChange({ ...prazo, base: e.target.value as "evento" | "desmontagem" })}
+            aria-label="A partir de quê">
+            <option value="desmontagem">após a desmontagem</option>
+            <option value="evento">após o evento</option>
+          </Select>
+        </div>
+      );
+    case "semanas-apos":
+      return (
+        <NumberInput className={cx(classe, "!w-24")} value={prazo.semanas ?? 1} disabled={disabled}
+          onValue={(v) => onChange({ ...prazo, semanas: Math.max(0, Math.round(v)) })}
+          aria-label="Quantas semanas após o evento" />
+      );
+    case "ancora":
+      return (
+        <NumberInput className={cx(classe, "!w-24")} value={prazo.diasDoEvento ?? 0} disabled={disabled}
+          onValue={(v) => onChange({ modo: "ancora", diasDoEvento: v })}
+          aria-label="Dias em relação ao evento (negativo = antes)" />
+      );
+    default:
+      return (
+        <NumberInput className={cx(classe, "!w-24")} value={Math.round((prazo.percentual ?? 0) * 100)} disabled={disabled}
+          onValue={(v) => onChange({ modo: "percentual", percentual: Math.min(100, Math.max(0, v)) / 100 })}
+          aria-label="Percentual do período do projeto (0 a 100)" />
+      );
+  }
 }

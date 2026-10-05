@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { ChecklistModelosCard } from "@/components/ChecklistModelosCard";
+import { ManutencaoDevCard } from "@/components/ManutencaoDevCard";
 import { createPortal } from "react-dom";
 import { PageShell } from "@/components/layout/AppLayout";
 import { BarraConfiguracoes, useSecaoConfig } from "@/components/layout/BarraSecao";
+import { NAV_CONFIG } from "@/components/layout/nav";
 import { Card, CardTitle, Toggle, Badge, Field, Input, Textarea, TelefoneInput, Select, Button, Table, THead, Th, Tr, Td, EmptyState } from "@/components/ui";
 import { IcPlus, IcPencil, IcTrash, IcBloqueio, IcFechar, IcCheck } from "@/components/icons";
 import { ROTULO_PAPEL, PAPEIS_AREA, TELAS, PERMISSOES_ESPECIAIS, useAuth, type Recurso } from "@/store/auth";
@@ -47,7 +49,13 @@ type AbaConfig = "geral" | "checklist" | "areas" | "usuarios" | "backup";
  * de uma delas cairia sempre em "Geral".
  */
 export function Configuracoes() {
-  const aba = useSecaoConfig() as AbaConfig;
+  const pode = useAuth((s) => s.pode);
+  const pedida = useSecaoConfig() as AbaConfig;
+  // A rota abre para quem tem `configuracoes` OU só a lista padrão do check-list
+  // (a Coordenação). Quem não pode ver a seção pedida na URL cai na primeira que
+  // pode — sem isto, abrir ?aba=usuarios à mão mostraria a seção inteira.
+  const permitidas = NAV_CONFIG.filter((s) => s.rota.startsWith("/configuracoes") && (!s.recurso || pode(s.recurso) || !!s.ou?.some(pode)));
+  const aba = (permitidas.some((s) => s.key === pedida) ? pedida : permitidas[0]?.key ?? "geral") as AbaConfig;
   const [retencao, setRetencao] = useState(24);
   const [arquivamentoAuto, setArquivamentoAuto] = useState(true);
 
@@ -82,6 +90,9 @@ export function Configuracoes() {
               <p className="text-[12.5px] text-ink-2">Ao concluir um projeto, os dados são arquivados (não apagados) e seguem disponíveis para consulta e duplicação.</p>
             </div>
           </Card>
+
+          {/* Só o desenvolvedor (papel Admin) enxerga — para os demais não renderiza nada. */}
+          <ManutencaoDevCard />
         </div>
       )}
 

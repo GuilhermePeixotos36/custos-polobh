@@ -20,7 +20,7 @@ export function TopNav() {
   const [minhaConta, setMinhaConta] = useState(false);
   if (!usuario) return null;
 
-  const itens = NAV.filter((i) => pode(i.recurso));
+  const itens = NAV.filter((i) => pode(i.recurso) || !!i.ou?.some(pode));
 
   return (
     <header className="no-print sticky top-0 z-30 h-[var(--altura-topnav)] bg-surface border-b border-border flex items-center gap-3 px-3 md:px-5">

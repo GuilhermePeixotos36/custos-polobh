@@ -486,8 +486,9 @@ const MODULOS: Modulo[] = [
               ["Título", "equipe", "O nome da tarefa como ela aparecerá no projeto."],
               ["Descrição", "equipe", "A instrução: é o que transforma “Fechar fornecedores” em algo que a pessoa consegue seguir sozinha."],
               ["Etapa", "equipe", "Agrupador na tela (PRÉ-PRODUÇÃO, MONTAGEM, PÓS-EVENTO…)."],
-              ["Modo do prazo", "escolha", "% do projeto (a tarefa estica com o período) ou Dias do evento (fica grudada no dia D)."],
-              ["Percentual / Dias", "equipe", "O número do prazo. A linha abaixo do campo traduz em português o que ele significa."],
+              ["Modo do prazo", "escolha", "Semanas antes do evento (se adapta à janela do projeto), Data do cronograma (puxa montagem, evento, desmontagem…), Dias úteis após, Semanas após o evento, Dias do evento ou % do projeto."],
+              ["Número / etapa do prazo", "equipe", "Os campos mudam com o modo. A linha abaixo traduz em português o que a régua faz."],
+              ["Funções", "equipe", "Quem é responsável pela tarefa, pela lista da Pólobh (ex.: Back-Office + Coordenação de Produção). Aparece embaixo do responsável, na tarefa do projeto."],
               ["Responsável padrão", "escolha", "Da lista real de usuários — nome digitado à mão não bate com o cadastro."],
             ]}
           />
@@ -924,18 +925,25 @@ const MODULOS: Modulo[] = [
             tarefa continua aberta.
           </p>
           <Passos>
-            <span><b>Nova etapa</b> e <b>Nova tarefa</b> (ou o <b>+</b> no fim de cada etapa) criam etapas e tarefas só deste projeto.</span>
+            <span><b>Nova etapa</b> e <b>Nova tarefa</b> (ou o <b>+</b> no fim de cada etapa) criam etapas e tarefas só deste projeto — <b>todo mundo</b> pode incluir.</span>
             <span>Para <b>mover</b>, arraste pela alça (⠿) ou use as setas ▲▼. Na ponta de uma etapa a seta leva a tarefa para a etapa vizinha; arrastar a etapa inteira leva as tarefas junto.</span>
             <span>Para <b>concluir ou excluir várias</b> de uma vez, marque as tarefas (ou a etapa, ou <b>Selecionar todas</b>) e use os botões que aparecem no alto da lista.</span>
           </Passos>
+          <Atencao><b>Excluir</b> tarefa é só da <b>Coordenação e da Direção</b>: o botão da lixeira e o “Excluir selecionadas” só aparecem para elas. Os demais usam “Não se aplica” para tirar uma tarefa do caminho.</Atencao>
           <Dica>Ao excluir em lote, a tarefa que veio da lista padrão não é apagada: fica como <b>Não se aplica</b> e sai da lista. Só as criadas à mão somem de vez.</Dica>
         </Secao>
         <Secao titulo="Prazo de cada tarefa">
-          <p>O modelo define a régua de cada tarefa, de dois jeitos:</p>
+          <p>A lista padrão define a régua de cada tarefa. As da Pólobh usam quatro:</p>
           <Passos>
-            <span><b>Percentual</b> da janela do projeto — 0 % é o começo, 100 % é o dia do evento. Serve para o que acompanha o andamento (montar a EC, aprovar, contratar).</span>
-            <span><b>Âncora no evento</b> — tantos dias antes ou depois do dia D (ex.: −15 = quinze dias antes). Serve para o que é preso ao evento (credenciamento, montagem, prestação de contas).</span>
+            <span><b>Semanas antes do evento</b> (“segunda-feira da 5ª semana antes do evento”) — é a régua que <b>se adapta</b>. A lista é escrita como prazo de manual (11 semanas no Cultural, 6 no Corporativo), mas projeto nasce com tempo variável: criado a 5 meses ou a 9 dias do evento. As tarefas então <b>se esticam ou se comprimem</b> para caber entre o dia em que o projeto foi criado e o evento, mantendo a proporção entre elas. Cai sempre em dia útil, nunca antes do nascimento do projeto. Dá para marcar uma tarefa como <b>não adaptar</b>.</span>
+            <span><b>Data do cronograma</b> — Montagem, Desmontagem, Evento e a reunião de alinhamento puxam a data de trabalho que está no <b>cronograma</b> do projeto (Dados Gerais). Cronograma vazio, tarefa sem data.</span>
+            <span><b>Dias úteis após a desmontagem</b> (“4º dia útil após desmontagem”) — pula fins de semana e feriados cadastrados.</span>
+            <span><b>Semanas após o evento</b> (“segunda-feira da 3ª semana após o evento”).</span>
           </Passos>
+          <p>
+            Ainda existem as duas réguas antigas: <b>Percentual</b> da janela do projeto e <b>Dias do evento</b> (tantos dias antes/depois do dia D).
+            Mudou a data do evento ou do cronograma? A tela avisa e o botão <b>Recalcular prazos</b> reposiciona.
+          </p>
           <p>
             Uma data ajustada à mão fica marcada como <Tag>data ajustada à mão</Tag> e o recálculo <b>não</b> passa por cima dela.
           </p>
@@ -993,7 +1001,8 @@ const MODULOS: Modulo[] = [
         <Secao titulo="Modelos (quem edita)">
           <p>
             As listas padrão ficam em <b>Configurações → Check-list</b>, uma por modalidade, e só
-            <b> Direção</b> e <b>Administrador</b> editam. Mudar o modelo <b>não</b> mexe nos check-lists já gerados: dentro do
+            <b> Coordenação</b>, <b>Direção</b> e o <b>Administrador</b> editam (permissão “Editar a lista padrão do check-list”,
+            em Áreas e permissões). Mudar o modelo <b>não</b> mexe nos check-lists já gerados: dentro do
             projeto aparece a ação <b>trazer itens novos</b>, que você aplica quando quiser.
           </p>
         </Secao>

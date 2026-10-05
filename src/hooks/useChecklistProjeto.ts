@@ -20,6 +20,8 @@ import {
   recalcularPrazos,
   sincronizarComModelo,
 } from "@/domain/checklist";
+import { datasDosFeriados } from "@/domain/feriados";
+import { lerFeriados } from "@/lib/feriados";
 import { usePendencias } from "@/store/pendencias";
 import { toast } from "@/store/toast";
 import type { Checklist, ItemChecklist, ModeloChecklist, Projeto } from "@/data/types";
@@ -64,6 +66,8 @@ export function useChecklistProjeto(
   const [checklist, setChecklist] = useState<Checklist | undefined>();
   const [modelos, setModelos] = useState<ModeloChecklist[]>([]);
   const [carregando, setCarregando] = useState(true);
+  // Feriados que a contagem de dias úteis pula (os do ano do evento e vizinhos).
+  const [feriados, setFeriados] = useState<ReadonlySet<string>>(new Set());
   // Evita a segunda geração enquanto a primeira ainda está no ar (StrictMode
   // monta o efeito duas vezes em desenvolvimento).
   const gerando = useRef(false);
@@ -72,6 +76,9 @@ export function useChecklistProjeto(
   const recarregarPendencias = usePendencias((s) => s.carregar);
 
   const projetoId = projeto?.id ?? "";
+  // Ano em que o evento acontece, para a carga de feriados (sem refazer a carga a cada tecla).
+  const anoDoEvento = useRef("");
+  anoDoEvento.current = projeto?.info.evento ?? "";
   const modalidade = projeto?.info.modalidade ?? "";
   const modelo = useMemo(() => modeloDaModalidade(modelos, modalidade), [modelos, modalidade]);
 
@@ -82,12 +89,16 @@ export function useChecklistProjeto(
     }
     setCarregando(true);
     try {
-      const [lista, atual] = await Promise.all([
+      const [lista, atual, guardados] = await Promise.all([
         repo.checklists.listarModelos(),
         repo.checklists.doProjeto(projetoId),
+        // Sem feriado cadastrado a lista ainda funciona: só pula fim de semana.
+        lerFeriados().catch(() => undefined),
       ]);
       setModelos(lista);
       setChecklist(atual);
+      const ano = Number((anoDoEvento.current || "").slice(0, 4)) || new Date().getFullYear();
+      setFeriados(datasDosFeriados(guardados, [ano - 1, ano, ano + 1]));
     } catch (erro) {
       toast(`Não foi possível carregar o check-list: ${(erro as Error).message}`, "danger");
     } finally {
@@ -106,7 +117,7 @@ export function useChecklistProjeto(
     gerando.current = true;
     void (async () => {
       try {
-        const novo = gerarChecklist(projeto, modelo);
+        const novo = gerarChecklist(projeto, modelo, undefined, feriados);
         setChecklist(await repo.checklists.criar(novo));
         toast(`Check-list ${modalidade} criado com ${novo.itens.length} tarefas.`, "success");
         void recarregarPendencias(true);
@@ -118,15 +129,15 @@ export function useChecklistProjeto(
         gerando.current = false;
       }
     })();
-  }, [carregando, checklist, projeto, modelo, podeEditar, projetoId, modalidade, projetoSalvo, carregar, recarregarPendencias]);
+  }, [carregando, checklist, projeto, modelo, podeEditar, projetoId, modalidade, projetoSalvo, carregar, recarregarPendencias, feriados]);
 
   /* ----------------------------- diagnósticos ----------------------------- */
 
   const prazosDesatualizados = useMemo(() => {
     if (!checklist || !projeto || !modelo || !projetoSalvo) return 0;
-    const recalculado = recalcularPrazos(checklist, projeto, modelo);
+    const recalculado = recalcularPrazos(checklist, projeto, modelo, feriados);
     return recalculado.itens.filter((novo, i) => novo.dataLimite !== checklist.itens[i]?.dataLimite).length;
-  }, [checklist, projeto, modelo, projetoSalvo]);
+  }, [checklist, projeto, modelo, projetoSalvo, feriados]);
 
   const itensNovosNoModelo = useMemo(() => {
     if (!checklist || !modelo) return 0;
@@ -202,6 +213,7 @@ export function useChecklistProjeto(
       concluidoEm: "",
       concluidoPor: "",
       responsavel: "",
+      funcoes: [],
       observacoes: [],
       oculto: false,
       ordem,
@@ -269,7 +281,7 @@ export function useChecklistProjeto(
 
   const aplicarRecalculo = useCallback(async () => {
     if (!checklist || !projeto || !modelo) return;
-    const recalculado = recalcularPrazos(checklist, projeto, modelo);
+    const recalculado = recalcularPrazos(checklist, projeto, modelo, feriados);
     const mudaram = recalculado.itens.filter((novo, i) => novo.dataLimite !== checklist.itens[i]?.dataLimite);
     if (!mudaram.length) return;
     setChecklist(recalculado);
@@ -281,11 +293,11 @@ export function useChecklistProjeto(
       toast(`Não foi possível recalcular: ${(erro as Error).message}`, "danger");
       await carregar();
     }
-  }, [checklist, projeto, modelo, carregar, recarregarPendencias]);
+  }, [checklist, projeto, modelo, carregar, recarregarPendencias, feriados]);
 
   const sincronizar = useCallback(async () => {
     if (!checklist || !projeto || !modelo) return;
-    const { checklist: atualizado, adicionados } = sincronizarComModelo(checklist, projeto, modelo);
+    const { checklist: atualizado, adicionados } = sincronizarComModelo(checklist, projeto, modelo, undefined, feriados);
     if (!adicionados) return;
     const novos = atualizado.itens.slice(checklist.itens.length);
     setChecklist(atualizado);
@@ -296,7 +308,7 @@ export function useChecklistProjeto(
       toast(`Não foi possível trazer as tarefas: ${(erro as Error).message}`, "danger");
       await carregar();
     }
-  }, [checklist, projeto, modelo, carregar]);
+  }, [checklist, projeto, modelo, carregar, feriados]);
 
   /**
    * Refaz a lista do zero quando a modalidade do projeto muda.
@@ -308,7 +320,7 @@ export function useChecklistProjeto(
     if (!checklist || !projeto || !modelo) return;
     try {
       await repo.checklists.remover(checklist.id);
-      const novo = gerarChecklist(projeto, modelo);
+      const novo = gerarChecklist(projeto, modelo, undefined, feriados);
       setChecklist(await repo.checklists.criar(novo));
       toast(`Check-list refeito no modelo ${modelo.modalidade}.`, "success");
       void recarregarPendencias(true);
@@ -316,7 +328,7 @@ export function useChecklistProjeto(
       toast(`Não foi possível refazer o check-list: ${(erro as Error).message}`, "danger");
       await carregar();
     }
-  }, [checklist, projeto, modelo, carregar, recarregarPendencias]);
+  }, [checklist, projeto, modelo, carregar, recarregarPendencias, feriados]);
 
   return {
     checklist,

@@ -7,6 +7,8 @@ export interface NavItem {
   label: string;
   icon: ReactNode;
   recurso: Recurso;
+  /** Recursos alternativos: basta ter o principal OU um destes para o item aparecer. */
+  ou?: Recurso[];
   /**
    * Acende a bolinha vermelha de pendências neste item do menu.
    *
@@ -49,7 +51,8 @@ export const NAV: NavItem[] = [
   { to: "/projetos", label: "Projetos", icon: <IcFolder />, recurso: "projetos", pendencias: true },
   // O FLUXOGRAMA fica entre Projetos e Configurações (pedido de 29/09/2026).
   { to: "/fluxograma", label: "Fluxograma", icon: <IcFluxo />, recurso: "guia" },
-  { to: "/configuracoes", label: "Configurações", icon: <IcGear />, recurso: "configuracoes" },
+  // A Coordenação não administra empresas e usuários, mas edita a lista padrão do check-list — por isso o `ou`.
+  { to: "/configuracoes", label: "Configurações", icon: <IcGear />, recurso: "configuracoes", ou: ["checklists.padrao"] },
   { to: "/guia", label: "Guia do Aplicativo", icon: <IcHelp />, recurso: "guia" },
   { to: "/suporte", label: "Help Desk", icon: <IcSuporte />, recurso: "guia", painel: "suporte" },
 ];
@@ -68,6 +71,8 @@ export interface SecaoNav {
   key: string;
   label: string;
   recurso?: Recurso;
+  /** Recursos alternativos (ver `NavItem.ou`). */
+  ou?: Recurso[];
 }
 
 /**
@@ -104,7 +109,7 @@ export const rotaAbaProjeto = (projetoId: string, aba: string) => `/projetos/${p
  */
 export const NAV_CONFIG: (SecaoNav & { rota: string })[] = [
   { key: "geral", label: "Geral", rota: "/configuracoes?aba=geral", recurso: "configuracoes" },
-  { key: "checklist", label: "Check-list", rota: "/configuracoes?aba=checklist", recurso: "configuracoes" },
+  { key: "checklist", label: "Check-list", rota: "/configuracoes?aba=checklist", recurso: "configuracoes", ou: ["checklists.padrao"] },
   { key: "areas", label: "Áreas e permissões", rota: "/configuracoes?aba=areas", recurso: "configuracoes" },
   { key: "usuarios", label: "Usuários", rota: "/configuracoes?aba=usuarios", recurso: "configuracoes" },
   { key: "backup", label: "Back-up", rota: "/configuracoes?aba=backup", recurso: "configuracoes" },

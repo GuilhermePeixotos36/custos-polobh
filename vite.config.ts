@@ -2,9 +2,26 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath, URL } from "node:url";
 
+/**
+ * Versão desta publicação. Vai para o código (`__APP_VERSION__`) e para o
+ * arquivo `/version.json`; a aba aberta compara os dois e, quando há deploy
+ * novo, oferece atualizar (ver `hooks/useVersaoDoApp`). Sem isto, quem deixa o
+ * app aberto dias seguidos continua na versão velha — foi o caso da Marisa.
+ */
+const VERSAO = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) || String(Date.now());
+
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    {
+      name: "polobh-versao",
+      generateBundle() {
+        this.emitFile({ type: "asset", fileName: "version.json", source: JSON.stringify({ versao: VERSAO }) });
+      },
+    },
+  ],
+  define: { __APP_VERSION__: JSON.stringify(VERSAO) },
   resolve: {
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },

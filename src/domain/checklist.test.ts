@@ -76,12 +76,12 @@ describe("datas", () => {
 
 describe("janela do projeto", () => {
   it("usa pré-evento, evento e pós-evento", () => {
-    expect(janelaDoProjeto(projeto())).toEqual({ inicio: "2026-01-01", evento: "2026-03-11", fim: "2026-03-31" });
+    expect(janelaDoProjeto(projeto())).toMatchObject({ inicio: "2026-01-01", evento: "2026-03-11", fim: "2026-03-31" });
   });
 
   it("projeto com só a data do evento ainda posiciona o que é ancorado", () => {
     const j = janelaDoProjeto(projeto({ preEvento: "", posEvento: "" }));
-    expect(j).toEqual({ inicio: "2026-03-11", evento: "2026-03-11", fim: "2026-03-11" });
+    expect(j).toMatchObject({ inicio: "2026-03-11", evento: "2026-03-11", fim: "2026-03-11" });
     expect(calcularDataLimite({ modo: "ancora", diasDoEvento: -10 }, j)).toBe("2026-03-01");
   });
 });

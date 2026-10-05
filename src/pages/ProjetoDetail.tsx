@@ -100,6 +100,7 @@ export function ProjetoDetail() {
   const { porAba, porOs, porEc, itens: minhasPendencias } = useMinhasPendencias();
   const podeEditarProjeto = useAuth((s) => s.pode("projetos.editar"));
   const podeEditarChecklist = useAuth((s) => s.pode("checklists.editar"));
+  const podeExcluirChecklist = useAuth((s) => s.pode("checklists.excluir"));
   // Criar/importar EC grava uma EC nova — o banco recusa quem não tem o recurso,
   // então o botão não pode existir para quem só consulta (era erro cru na cara).
   const podeEditarEc = useAuth((s) => s.pode("ecs.editar"));
@@ -1370,6 +1371,7 @@ export function ProjetoDetail() {
           estado={checklistProjeto}
           projeto={p}
           podeEditar={podeEditarChecklist}
+          podeExcluir={podeExcluirChecklist}
           usuarios={nomesUsuarios}
           pendencias={pendenciasDaTelaAtual}
         />
@@ -1488,12 +1490,14 @@ function ChecklistPainel({
   estado,
   projeto,
   podeEditar,
+  podeExcluir,
   usuarios,
   pendencias,
 }: {
   estado: ReturnType<typeof useChecklistProjeto>;
   projeto: Projeto;
   podeEditar: boolean;
+  podeExcluir: boolean;
   usuarios: string[];
   /** Pendências do usuário nesta aba — viram o badge de cada tarefa. */
   pendencias: Pendencia[];
@@ -1586,7 +1590,7 @@ function ChecklistPainel({
       )}
 
       {/* Trocaram a modalidade do projeto depois da lista criada. */}
-      {podeEditar && estado.modalidadeDivergente && (
+      {podeExcluir && estado.modalidadeDivergente && (
         <Card>
           <div className="flex items-center gap-3 flex-wrap">
             <span className="text-[13px] font-bold text-ink">
@@ -1618,6 +1622,7 @@ function ChecklistPainel({
         checklist={estado.checklist}
         usuarios={usuarios}
         podeEditar={podeEditar}
+        podeExcluir={podeExcluir}
         onSalvarItem={(item) => void estado.salvarItem(item)}
         onCriarItem={(base) => estado.criarItem(base)}
         onRemoverItem={(item) => void estado.removerItem(item)}

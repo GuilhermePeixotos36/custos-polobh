@@ -68,7 +68,7 @@ export function BarraProjeto({
 export function BarraConfiguracoes({ atual }: { atual: string }) {
   const navigate = useNavigate();
   const pode = useAuth((s) => s.pode);
-  const visiveis = NAV_CONFIG.filter((s) => !s.recurso || pode(s.recurso));
+  const visiveis = NAV_CONFIG.filter((s) => !s.recurso || pode(s.recurso) || !!s.ou?.some(pode));
   return (
     <SubGuias
       rotulo="Seções das configurações"

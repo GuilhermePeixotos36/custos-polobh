@@ -891,8 +891,38 @@ Substitui a cobrança informal por uma lista de tarefas com prazo, dono e histó
   impressa dizem, e um arquivo solto na thread criaria uma segunda versão da
   verdade num papel que vai para cliente e fornecedor.
 
+- **Listas padrão da Pólobh** (01/10/2026): Culturais (183 tarefas, 17 etapas) e
+  Corporativos (82 tarefas, 9 etapas), geradas das planilhas em `reference/` por
+  `scripts/gerar-listas-padrao-checklist.mjs` (migração `20261001110000`).
+- **Prazo adaptável:** "segunda-feira da Nª semana antes do evento" é escrita como
+  prazo de manual (11 semanas no Cultural, 6 no Corporativo — a tarefa mais
+  antecipada da lista). Em cada projeto as tarefas se esticam ou se comprimem para
+  caber entre a **criação do projeto** e o evento, mantendo a proporção; caem em
+  dia útil e nunca antes do nascimento do projeto. Montagem, Desmontagem, Evento e
+  alinhamento puxam a **data de trabalho do cronograma**; "Nº dia útil após a
+  desmontagem" e "segunda da Nª semana após o evento" também são réguas. Ver
+  `calcularDataLimite` em `domain/checklist.ts`.
+- **Permissões** (migração `20261001100000`): incluir/editar tarefa é de todos;
+  **excluir** (`checklists.excluir`) e **editar a lista padrão**
+  (`checklists.padrao`) só Coordenação e Direção. A RLS lê a matriz da área por
+  `tem_recurso()`, a mesma régua do `pode()` da tela.
+
 Banco: `checklist_modelos`, `checklists`, `checklist_itens` (migração
 `20260823100000_checklist_workflow.sql`).
+
+## Versão nova publicada
+O build grava `/version.json`; a aba aberta confere a cada 5 minutos (e ao voltar
+ao primeiro plano) e, havendo deploy novo, mostra a faixa **"Há uma versão nova —
+Atualizar agora"** para todos os perfis. Ver `hooks/useVersaoDoApp.ts`.
+
+## Manutenção do desenvolvedor (limpar o banco)
+Em **Configurações › Geral**, só para o papel **Admin** (o desenvolvedor):
+criar/trocar a **senha de manutenção** (hash bcrypt em `dev_segredo`, diferente da
+senha de login) e **limpar o banco** — projetos e tudo o que depende deles, com
+opção de levar clientes/fornecedores e o histórico. Nunca apaga usuários, áreas,
+empresas, configurações nem listas padrão. O servidor confere papel e senha
+(migração `20261001120000`). Esqueceu a senha: `delete from dev_segredo;` no SQL
+do Supabase e crie outra pela tela.
 
 ## Calendário Pólobh (quadro dos projetos)
 Substitui o quadro preto de parede onde a produção anotava, à mão, tudo o que

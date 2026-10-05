@@ -13,6 +13,7 @@ import { BotaoRecolherTudo, ProvedorRecolher } from "./Recolher";
 import { TourOverlay } from "@/tour/TourOverlay";
 import { PainelSuporte } from "@/components/suporte/PainelSuporte";
 import { cx } from "@/lib/format";
+import { useVersaoDoApp } from "@/hooks/useVersaoDoApp";
 
 /** Casca autenticada: sidebar + área de conteúdo. */
 export function AppLayout() {
@@ -21,6 +22,7 @@ export function AppLayout() {
   const carregarPendencias = usePendencias((s) => s.carregar);
   const carregarEmpresas = useEmpresas((s) => s.carregar);
   const { pathname } = useLocation();
+  const versaoNova = useVersaoDoApp();
 
   // Mantém as pendências (badges) atualizadas ao navegar entre telas.
   useEffect(() => {
@@ -49,6 +51,20 @@ export function AppLayout() {
 
   return (
     <div className="flex flex-col min-h-screen">
+      {/* Deploy novo publicado com a aba aberta: todos os perfis passam a ver o
+          mesmo aplicativo assim que clicam (ver `useVersaoDoApp`). */}
+      {versaoNova && (
+        <div className="no-print flex items-center justify-center gap-3 flex-wrap bg-primary text-white px-4 py-2 text-[13px] font-bold">
+          <span>Há uma versão nova do aplicativo. Atualize para usar a mais recente.</span>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="rounded-btn bg-white text-primary-dark px-3 py-1 text-[12.5px] font-extrabold hover:bg-primary-soft"
+          >
+            Atualizar agora
+          </button>
+        </div>
+      )}
       <TopNav />
       <div className="flex-1 min-w-0 flex flex-col">
         <Suspense fallback={<div className="flex-1 grid place-items-center text-ink-3 text-sm">Carregando…</div>}>
