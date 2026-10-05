@@ -34,7 +34,7 @@ begin
     'backup-diario',
     '0 1 * * *',
     format(
-      $job$select net.http_post(url := %L, headers := jsonb_build_object('x-cron-secret', %L, 'Content-Type', 'application/json'), body := '{}'::jsonb);$job$,
+      $job$select net.http_post(url := %L, headers := jsonb_build_object('x-cron-secret', %L, 'Content-Type', 'application/json'), body := '{}'::jsonb, timeout_milliseconds := 60000);$job$,
       p_url, p_segredo
     )
   ) into v_id;
