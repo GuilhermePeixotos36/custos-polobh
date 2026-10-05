@@ -22,5 +22,7 @@ export async function gerarNovaVersaoEc(ec: Ec, opts: { alteracoesNaoSalvas?: bo
   if (!ok) return null;
   const nova = await repo.ecs.novaVersao(ec.id);
   toast(`Nova versão V${String(nova.versao).padStart(2, "0")} criada. A anterior foi arquivada.`, "success");
+  // A versão nova também vai para a pasta do Dropbox do projeto (em segundo plano).
+  void import("@/lib/excel").then((m) => m.arquivarNovaVersaoEc(nova)).catch(() => {});
   return nova;
 }

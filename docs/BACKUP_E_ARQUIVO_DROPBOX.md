@@ -61,7 +61,18 @@ e falha aparecem como aviso; nada trava o download. A OS oficial é o PDF, gerad
 pela impressão do navegador, que não entrega arquivo — então "Baixar PDF" envia a
 OS em **Excel** (sem financeiro) como cópia.
 
-**Pendente (depende do acesso ao Dropbox):** validar com uma pasta real da Pólobh
+**Nova versão também arquiva (05/10/2026).** Só o *download* arquivava; gerar nova
+versão de EC ou de OS (botão da EC e Alerta de alteração dos Dados Gerais) não
+baixa arquivo e nunca chegava à pasta. Agora a versão recém-criada é montada em
+Excel e enviada (`arquivarNovaVersaoEc/Os` em `lib/excel`). E o projeto ativo sem
+o link da pasta ganha a pendência `projeto.semPastaDropbox` (Produtor Responsável,
+Dados Gerais).
+
+**Validado com pasta real (05/10/2026):** o link `/scl/fo/…` resolveu para o caminho
+(`path_lower`), conta Dropbox Pro individual, e um arquivo de teste foi gravado na
+pasta do projeto. O servidor funciona; a falha era só o app não chamar.
+
+**Antes pendente (depende do acesso ao Dropbox):** validar com uma pasta real da Pólobh
 (link `/scl/fo/…` resolve? conta é Business?), publicar `arquivar-documento` e
 definir os segredos. Se o link não resolver, plano B: guardar o **caminho** da
 pasta (ex.: `/Pólobh (HGM)/Projetos/ACME`) em vez do link.

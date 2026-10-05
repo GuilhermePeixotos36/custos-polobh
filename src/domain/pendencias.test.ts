@@ -5,6 +5,7 @@ import {
   ancoraCronogramaOs,
   ancoraObservacoesGeraisEc,
   ancoraProjetoSemEc,
+  ancoraProjetoSemPastaDropbox,
   calcularPendencias,
   destinatariosDaVez,
   podeConcluirPendencia,
@@ -30,7 +31,8 @@ const clienteVazio = (): Cliente => ({
 const projeto = (responsavel: string): Projeto => ({
   id: "p1", nome: "Convenção", cliente: clienteVazio(),
   info: { ...projetoInfoVazio(), titulo: "Convenção", produtoraResponsavel: responsavel },
-  docsUrl: "", status: "Ativo", criadoEm: "", atualizadoEm: "",
+  // Com a pasta do Dropbox preenchida: a pendência "falta o link" tem teste próprio.
+  docsUrl: "https://www.dropbox.com/scl/fo/abc/xyz", status: "Ativo", criadoEm: "", atualizadoEm: "",
 });
 
 const observacao = (o: Partial<Observacao>): Observacao => ({
@@ -435,6 +437,46 @@ describe("o que a pílula alcança sem sair da tela", () => {
     expect(pendenciasDaTela(semEc, { projetoId: "p1", aba: "ec" }).map((x) => x.tipo)).toEqual([
       "projeto.semEc",
     ]);
+  });
+});
+
+describe("projeto sem a pasta do Dropbox", () => {
+  const semPasta = (extra: Partial<Projeto> = {}): Projeto => ({ ...projeto("Carla"), docsUrl: "", ...extra });
+  const dela = (ps: Projeto[]) =>
+    calcularPendencias(ps, [], [], USUARIOS, [], [], HOJE).find((x) => x.tipo === "projeto.semPastaDropbox");
+
+  it("cobra o Produtor Responsável, em Dados Gerais, com âncora no campo do link", () => {
+    const p = dela([semPasta()]);
+    expect(p?.pessoas).toEqual(["Carla"]);
+    expect(p?.aba).toBe("dados");
+    expect(p?.ancora).toBe(ancoraProjetoSemPastaDropbox("p1"));
+  });
+
+  it("com o link da pasta preenchido, não cobra", () => {
+    expect(dela([projeto("Carla")])).toBeUndefined();
+  });
+
+  it("link que não é do Dropbox não vale — o servidor recusaria", () => {
+    expect(dela([semPasta({ docsUrl: "https://drive.google.com/drive/folders/1" })])).toBeDefined();
+    expect(dela([semPasta({ docsUrl: "https://www.dropbox.com/scl/fo/abc" })])).toBeUndefined();
+    expect(dela([semPasta({ docsUrl: "https://dropbox.com/home/Projeto" })])).toBeUndefined();
+  });
+
+  it("sem Produtor Responsável não há para quem cobrar", () => {
+    expect(dela([{ ...semPasta(), info: { ...semPasta().info, produtoraResponsavel: "" } }])).toBeUndefined();
+  });
+
+  it("projeto arquivado (todas as ECs arquivadas) não cobra — mesma régua do 'sem EC'", () => {
+    const arquivada = { ...ec([]), projetoId: "p1", ativa: false, status: "Arquivada" as const };
+    const todas = calcularPendencias([semPasta()], [arquivada], [], USUARIOS, [], [], HOJE);
+    expect(todas.find((x) => x.tipo === "projeto.semPastaDropbox")).toBeUndefined();
+  });
+
+  it("aparece na subguia Dados Gerais do projeto", () => {
+    const todas = calcularPendencias([semPasta()], [], [], USUARIOS, [], [], HOJE);
+    expect(pendenciasDaTela(todas, { projetoId: "p1", aba: "dados" }).map((x) => x.tipo)).toContain(
+      "projeto.semPastaDropbox"
+    );
   });
 });
 

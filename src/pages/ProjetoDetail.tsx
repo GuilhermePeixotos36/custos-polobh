@@ -52,7 +52,7 @@ import {
 import { ABAS_COM_CONVERSA } from "@/data/types";
 import { nomeCurtoFornecedor } from "@/domain/fornecedor";
 import type { AbaComConversa, Cliente, Ec, Observacao, Projeto, ProjetoInfo, StatusOsDoc, StatusProjeto } from "@/data/types";
-import { ancoraConversaAba, ancoraProjetoSemEc, pendenciasDaTela, type Pendencia } from "@/domain/pendencias";
+import { ancoraConversaAba, ancoraProjetoSemEc, ancoraProjetoSemPastaDropbox, pendenciasDaTela, type Pendencia } from "@/domain/pendencias";
 import { CardConversa } from "@/components/CardConversa";
 import { ancoraFornecedorUtil } from "@/domain/dadosUteis";
 import { situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
@@ -1035,7 +1035,8 @@ export function ProjetoDetail() {
               <Field label="Telefone do(a) Produtor(a) Responsável"><TelefoneInput value={p.info.telefoneProdutora} onChange={(v) => updInfo({ telefoneProdutora: v })} /></Field>
               <Field label="E-mail do(a) Produtor(a) Responsável"><Input type="email" sugestoes={sugestoes.valores.emailProdutora} value={p.info.emailProdutora} onChange={(e) => updInfo({ emailProdutora: e.target.value })} /></Field>
               <Field label="Pasta do projeto no Dropbox" className="sm:col-span-2 lg:col-span-3">
-                <div className="flex items-center gap-2">
+                {/* Âncora da pendência "falta o link da pasta" (navegador do canto inferior). */}
+                <div id={idAncoraPendencia(ancoraProjetoSemPastaDropbox(id))} className="flex items-center gap-2">
                   <Input
                     type="url"
                     value={p.docsUrl}
@@ -1048,7 +1049,9 @@ export function ProjetoDetail() {
                     </a>
                   )}
                 </div>
-                <p className="mt-1 text-[11.5px] text-ink-3">Os documentos gerados por este projeto (EC, OS, cronograma) serão salvos nesta pasta.</p>
+                <p className="mt-1 text-[11.5px] text-ink-3">
+                  Os documentos gerados por este projeto (EC, OS, cronograma) serão salvos nesta pasta. Sem o link, nada é arquivado no Dropbox e o Produtor Responsável recebe uma pendência.
+                </p>
               </Field>
               {p.info.modalidade === "Cultural" && (
                 <>

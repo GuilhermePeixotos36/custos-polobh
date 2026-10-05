@@ -233,6 +233,16 @@ export const ancoraCronogramaOs = (osId: string) => `os-cronograma:${osId}`;
 export const ancoraProjetoSemEc = (projetoId: string) => `projeto-sem-ec:${projetoId}`;
 
 /**
+ * Âncora de "projeto sem pasta do Dropbox" — o campo "Pasta do projeto no
+ * Dropbox" em Dados Gerais, onde a pendência se resolve.
+ */
+export const ancoraProjetoSemPastaDropbox = (projetoId: string) => `projeto-sem-dropbox:${projetoId}`;
+
+/** O link é de uma pasta do Dropbox? (O servidor exige o mesmo — ver `arquivar-documento`.) */
+export const linkDeDropboxValido = (link: string | undefined) =>
+  /^https:\/\/(www\.)?dropbox\.com\//i.test((link ?? "").trim());
+
+/**
  * Âncora da conversa geral de uma ABA do projeto — o card no topo dela.
  *
  * Uma por aba, e não uma por projeto: as cinco conversas são independentes, e o
@@ -812,6 +822,28 @@ export function calcularPendencias(
       // comando de criar a primeira. Sem ela este era o número "a mais" do
       // título da subguia EC — contado ali e sem par na lista de ECs.
       ancora: ancoraProjetoSemEc(p.id),
+    });
+  }
+
+  // Projeto ativo sem o link da pasta do Dropbox → pendência do Produtor
+  // Responsável (01/10/2026). Sem o link o app não salva as cópias da EC, da OS
+  // e do cronograma no Dropbox (ver `arquivarCopia`), e o campo era opcional e
+  // silencioso: nenhum projeto estava arquivando nada.
+  for (const p of projetos) {
+    if (statusProjetoAutomatico(p, ecs) !== "Ativo") continue;
+    if (linkDeDropboxValido(p.docsUrl)) continue;
+    const responsavel = p.info.produtoraResponsavel?.trim();
+    if (!responsavel) continue; // sem responsável definido, não há para quem endereçar
+    out.push({
+      id: `projeto.semPastaDropbox:${p.id}`,
+      tipo: "projeto.semPastaDropbox",
+      titulo: `Falta o link da pasta do Dropbox: ${p.nome || "Projeto"}`,
+      pessoas: [responsavel],
+      responsavelProjeto: responsavel,
+      recurso: "projetos",
+      projetoId: p.id,
+      aba: "dados",
+      ancora: ancoraProjetoSemPastaDropbox(p.id),
     });
   }
 
