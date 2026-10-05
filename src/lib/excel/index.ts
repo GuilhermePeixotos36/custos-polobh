@@ -83,13 +83,11 @@ export async function gerarRentabilidadeExcel(ec: Ec, gastoPorLinha: Record<stri
   });
 }
 
-/** Geração da OS em Excel remontada com a marca (ExcelJS sob demanda). */
-export async function gerarOsExcel(
-  os: Os,
-  ec: Ec,
-  opts?: { incluirFinanceiro?: boolean }
-): Promise<void> {
-  const { gerarOsExcel: fn } = await import("./os");
+/**
+ * Empresa emissora e empresas do grupo que entram na OS em Excel — as mesmas no
+ * download e na cópia arquivada, para as duas saírem iguais.
+ */
+function opcoesDeEmpresaDaOs() {
   // empresa emissora (Pólobh Promoções / MF Promoções) vem das Configurações
   const emp = empresaPadrao();
   const empresaPolobh = emp
@@ -104,7 +102,17 @@ export async function gerarOsExcel(
     : undefined;
   // A lista INTEIRA das empresas do grupo vai junto (15/09/2026): o tomador
   // pode ser a MF, e não só a emissora padrão (ver `domain/tomadorOs`).
-  const r = await fn(os, ec, { ...opts, empresaPolobh, empresas: useEmpresas.getState().empresas });
+  return { empresaPolobh, empresas: useEmpresas.getState().empresas };
+}
+
+/** Geração da OS em Excel remontada com a marca (ExcelJS sob demanda). */
+export async function gerarOsExcel(
+  os: Os,
+  ec: Ec,
+  opts?: { incluirFinanceiro?: boolean }
+): Promise<void> {
+  const { gerarOsExcel: fn } = await import("./os");
+  const r = await fn(os, ec, { ...opts, ...opcoesDeEmpresaDaOs() });
   auditar({
     categoria: "Exportação",
     acao: "os.excel",
@@ -166,9 +174,36 @@ export function baixarPdfViaImpressao() {
 export async function arquivarOsNoProjeto(os: Os, ec: Ec): Promise<void> {
   try {
     const [{ criarOsExcelBuffer }, { arquivarCopia }] = await Promise.all([import("./os"), import("@/lib/arquivarDocumento")]);
-    const { buffer, nome } = await criarOsExcelBuffer(os, ec, { incluirFinanceiro: false });
+    const { buffer, nome } = await criarOsExcelBuffer(os, ec, { incluirFinanceiro: false, ...opcoesDeEmpresaDaOs() });
     arquivarCopia(ec.projetoId, nome, buffer);
   } catch {
     /* arquivar nunca atrapalha o download */
+  }
+}
+
+/**
+ * NOVA VERSÃO de OS ou de EC também vai para a pasta do Dropbox (01/10/2026).
+ *
+ * Até aqui só o DOWNLOAD de um documento arquivava a cópia. Gerar nova versão —
+ * pelo botão da EC ou pelo Alerta de alteração dos Dados Gerais — não baixa
+ * arquivo nenhum, então a versão nascia no sistema e nunca chegava à pasta: o
+ * projeto tinha o link certo e nada era salvo. Agora a versão recém-criada é
+ * montada em Excel e arquivada, no mesmo formato das cópias de download (a OS
+ * sem financeiro; a EC no modelo completo).
+ *
+ * Nunca lança: arquivar não pode atrapalhar quem gerou a versão. Projeto sem
+ * link de pasta não arquiva (e a pendência "falta o link" cobra o produtor).
+ */
+export async function arquivarNovaVersaoOs(os: Os, ec: Ec): Promise<void> {
+  await arquivarOsNoProjeto(os, ec);
+}
+
+export async function arquivarNovaVersaoEc(ec: Ec): Promise<void> {
+  try {
+    const [{ criarEcExcelBuffer }, { arquivarCopia }] = await Promise.all([import("./ec"), import("@/lib/arquivarDocumento")]);
+    const { buffer, nome } = await criarEcExcelBuffer(ec, "completa");
+    arquivarCopia(ec.projetoId, nome, buffer);
+  } catch {
+    /* arquivar nunca atrapalha a geração da versão */
   }
 }

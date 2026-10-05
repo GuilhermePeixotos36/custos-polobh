@@ -32,6 +32,7 @@ const ETIQUETA: Record<string, string> = {
   "os.cronograma": "Cronograma",
   "os.credenciamento": "Credenciamento",
   "projeto.semEc": "Sem EC",
+  "projeto.semPastaDropbox": "Pasta Dropbox",
 };
 
 /** Vermelho para o que já passou do prazo; o resto é aviso normal. */

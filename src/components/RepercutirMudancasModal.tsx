@@ -70,7 +70,10 @@ export function RepercutirMudancasModal({
       for (const ec of ecsAlvo) {
         const novo = aplicarMudancasEvento({ info: ec.projeto, cliente: ec.cliente }, atual, mudancas);
         const nova = await repo.ecs.novaVersao(ec.id);
-        await repo.ecs.salvar({ ...nova, projeto: novo.info, cliente: novo.cliente });
+        const salva = { ...nova, projeto: novo.info, cliente: novo.cliente };
+        await repo.ecs.salvar(salva);
+        // A nova versão também vai para a pasta do Dropbox do projeto (em segundo plano).
+        void import("@/lib/excel").then((m) => m.arquivarNovaVersaoEc(salva)).catch(() => {});
         ecsSalvas += 1;
       }
 
@@ -91,6 +94,7 @@ export function RepercutirMudancasModal({
           cliente: novo.cliente,
         });
         conhecidas.push(nova);
+        void import("@/lib/excel").then((m) => m.arquivarNovaVersaoOs(nova, base)).catch(() => {});
         ossReemitidas += 1;
       }
 
