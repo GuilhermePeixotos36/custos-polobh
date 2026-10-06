@@ -108,9 +108,16 @@ async function criarUsuario(sb: ReturnType<typeof admin>, body: Record<string, u
   const { data: convite, error: conviteErro } = await sb.auth.admin.inviteUserByEmail(email);
   if (conviteErro || !convite?.user) throw new Error(conviteErro?.message ?? "Não foi possível convidar este e-mail.");
 
+  // UPSERT, e não insert: o gatilho `on_auth_user_created` (handle_new_user) cria
+  // um perfil provisório — nome tirado do e-mail, papel "Producao" — no instante
+  // em que o Auth cria o login. Inserir por cima batia em `perfis_pkey`, a função
+  // desfazia o convite e o cadastro falhava depois de o e-mail já ter saído
+  // (05/10/2026: o convidado recebia um link que não valia mais). Aqui o perfil
+  // provisório é COMPLETADO com os dados certos; a trigger `sincronizar_papel`
+  // reforça o papel pela área.
   const { data: perfil, error: perfilErro } = await sb
     .from("perfis")
-    .insert({ id: convite.user.id, nome, papel, telefone, area_id: areaId })
+    .upsert({ id: convite.user.id, nome, papel, telefone, area_id: areaId }, { onConflict: "id" })
     .select("area_id, areas(nome)")
     .single();
   if (perfilErro) {
