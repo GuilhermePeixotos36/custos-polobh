@@ -29,9 +29,9 @@
  * O QUE NÃO SE MEXE, de propósito: documento (CNPJ/CPF), telefone, e-mail, URL,
  * código de serviço, número de nota, CNAE e qualquer campo de número. Formatar
  * isso não arruma nada e estraga dado que precisa bater com fonte externa. O
- * NOME DO ITEM da EC também fica de fora: é texto curto e cheio de sigla da
- * casa ("ECAD", "VT", "E-mail MKT"), onde acertar a caixa automaticamente erra
- * mais do que acerta. Texto longo (descritivo, roteiro, observação) tem dono
+ * NOME DO ITEM da EC antes ficava de fora, por ser cheio de sigla da casa; desde
+ * 07/10/2026 ele e o nome do GRUPO têm regra própria (mais abaixo), que só mexe
+ * no que vem todo em maiúsculas e preserva as siglas. Texto longo (descritivo, roteiro, observação) tem dono
  * próprio: o revisor da EC (`lib/correcaoOrtografica`), que preserva parágrafos.
  */
 import { capitalizarFrase, colapsarEspacos, tituloProprio } from "@/lib/format";
@@ -41,6 +41,9 @@ import type {
   ContatoFornecedor,
   EcLinha,
   Fornecedor,
+  GrupoExtraOs,
+  ItemExtraOs,
+  Os,
   ProjetoInfo,
   Representante,
 } from "@/data/types";
@@ -150,6 +153,88 @@ export function padronizarTexto(valor: string | undefined | null, formato: Forma
   }
 }
 
+/* ------------------------- GRUPOS e ITENS (EC e OS) ------------------------ */
+
+/**
+ * NOME DE GRUPO — sempre em CAIXA ALTA (07/10/2026).
+ *
+ * O grupo é cabeçalho de faixa ("EQUIPE PRODUÇÃO", "SEGURANÇA") e sai assim na
+ * tela, no Excel e no documento. Até aqui a caixa alta era só um efeito de CSS
+ * no campo: o que se gravava era o que a pessoa digitou, e "equipe produção"
+ * aparecia maiúscula na tela e minúscula na planilha. Agora a regra é a mesma
+ * em todo lugar, e vale na gravação — venha o nome de onde vier (digitado,
+ * importado de outra EC, modelo).
+ */
+export const padronizarNomeGrupo = (valor: string | undefined | null): string =>
+  colapsarEspacos(valor ?? "").toLocaleUpperCase("pt-BR");
+
+/**
+ * Siglas que a casa escreve em caixa alta e que o teste de `pareceSigla` não
+ * pega (têm vogal e não têm três consoantes seguidas). Só valem quando o nome
+ * do item veio TODO em maiúsculas — em caixa mista nada é mexido.
+ */
+const SIGLAS_DA_CASA = new Set([
+  "ECAD", "BV", "NF", "NFS", "OS", "EC", "DJ", "MC", "TV", "TI", "AV", "RH", "PA",
+  "ART", "LED", "VIP", "PCD", "EPI", "SCE", "GPS", "USB", "CPF", "CNPJ", "UTI", "WIFI",
+]);
+
+/**
+ * NOME DE ITEM (e rótulo de item da OS) — primeira letra maiúscula (07/10/2026).
+ *
+ * Duas regras, as duas SEM IA e sem adivinhar:
+ *  · caixa mista é decisão de gente e se respeita — só garante a primeira letra
+ *    maiúscula ("palco" → "Palco"; "E-mail MKT" fica como está);
+ *  · o que veio TODO EM MAIÚSCULAS ("EQUIPE TÉCNICA", "MÍDIA") vira frase —
+ *    "Equipe técnica", "Mídia" —, preservando as siglas ("ECAD", "VT", "BV").
+ *
+ * Antes o nome do item ficava de fora da padronização por medo de baixar sigla.
+ * O medo continua certo para o texto em caixa mista (por isso não se mexe nele);
+ * mas tudo-maiúsculo já é sinal de texto que veio de fora ou de CapsLock.
+ */
+export function padronizarNomeItem(valor: string | undefined | null): string {
+  const limpo = colapsarEspacos(valor ?? "");
+  if (!limpo) return "";
+  const frase = emCaixaAlta(limpo)
+    ? limpo
+        .split(" ")
+        .map((palavra) => {
+          const letras = palavra.replace(/[^\p{L}]/gu, "");
+          // Palavra de uma letra só e sigla conhecida ficam; o resto desce.
+          return SIGLAS_DA_CASA.has(letras) || (letras.length > 1 && ehSigla(letras))
+            ? palavra
+            : palavra.toLocaleLowerCase("pt-BR");
+        })
+        .join(" ")
+    : limpo;
+  return frase.charAt(0).toLocaleUpperCase("pt-BR") + frase.slice(1);
+}
+
+const padronizarItemExtra = (i: ItemExtraOs): ItemExtraOs => ({ ...i, rotulo: padronizarNomeItem(i.rotulo) });
+const padronizarGrupoExtra = (g: GrupoExtraOs): GrupoExtraOs => ({
+  ...g,
+  nome: padronizarNomeGrupo(g.nome),
+  itens: (g.itens ?? []).map(padronizarItemExtra),
+});
+
+/**
+ * Grupos e itens que a OS carrega: os grupos extras (nome em CAIXA ALTA, itens
+ * em frase) e os rótulos dos itens extras de Logística e Infraestrutura. Os
+ * campos FIXOS não entram — o nome deles é do sistema.
+ */
+export function padronizarBlocosDaOs(os: Pick<Os, "logistica" | "infraestrutura" | "gruposExtras">) {
+  return {
+    logistica: os.logistica && {
+      ...os.logistica,
+      ...(os.logistica.extras ? { extras: os.logistica.extras.map(padronizarItemExtra) } : {}),
+    },
+    infraestrutura: os.infraestrutura && {
+      ...os.infraestrutura,
+      ...(os.infraestrutura.extras ? { extras: os.infraestrutura.extras.map(padronizarItemExtra) } : {}),
+    },
+    gruposExtras: os.gruposExtras?.map(padronizarGrupoExtra),
+  };
+}
+
 /* ----------------------------- por entidade ------------------------------ */
 
 export function padronizarRepresentante(r: Representante | undefined): Representante {
@@ -217,16 +302,17 @@ export function padronizarProjetoInfo(info: ProjetoInfo): ProjetoInfo {
 }
 
 /**
- * Linha da EC: só o fornecedor.
+ * Linha da EC: fornecedor, GRUPO e NOME DO ITEM.
  *
- * O GRUPO é cabeçalho — "PRODUÇÃO", "EQUIPE PRODUÇÃO" são caixa alta por
- * convenção, e saem assim no documento. E o NOME DO ITEM fica de fora porque
- * ali a caixa alta costuma ser intencional: "ECAD", "VT", "MÍDIA" são como a
- * casa escreve, e baixá-las automaticamente erraria mais do que acertaria.
+ * O grupo sai em CAIXA ALTA e o item com a primeira letra maiúscula (ver
+ * `padronizarNomeGrupo` e `padronizarNomeItem`). A descrição financeira NÃO
+ * entra aqui: tem dono próprio (o revisor da EC).
  */
 export function padronizarEcLinha(l: EcLinha): EcLinha {
   return {
     ...l,
+    grupo: padronizarNomeGrupo(l.grupo) || l.grupo,
+    item: padronizarNomeItem(l.item),
     fornecedorRazao: padronizarTexto(l.fornecedorRazao, "titulo-empresa"),
     fornecedorContato: padronizarTexto(l.fornecedorContato, "titulo"),
   };

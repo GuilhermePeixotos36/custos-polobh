@@ -19,13 +19,16 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Input, AutoTextarea, Select, CurrencyInput, NumberInput, Button, classeCampoStatus } from "@/components/ui";
-import { IcGrip, IcChevron, IcPlus, IcEye, IcEyeOff, IcSpark, IcCheck, IcBack } from "@/components/icons";
+import { IcGrip, IcChevron, IcPlus, IcEyeOff, IcSpark, IcCheck, IcBack } from "@/components/icons";
 import { FornecedorField } from "@/components/FornecedorField";
 import { RichTextField } from "@/components/RichTextField";
 import { ObservacoesThread } from "@/components/ObservacoesPopup";
 import { ResumoPropostaModal } from "@/components/ResumoPropostaModal";
 import { NotifDot } from "@/components/NotifDot";
 import { MoverSetas } from "@/components/MoverSetas";
+import { OcultosEcModal } from "@/components/OcultosEcModal";
+import { aplicarAlteracaoDeLinha } from "@/domain/ec";
+import { grupoVisivel, ocultarTudo, ocultosPorGrupo, reexibirItens, totalOcultos } from "@/domain/ocultosEc";
 import { destacarElemento, seguirElemento, idAncoraPendencia, idCampoDescricaoCompleta, idCampoPendencia, idGrupoEc } from "@/lib/destaque";
 import { aprovarLinha, faltasParaEmitirOs, reverterAprovacaoLinha, opcaoNaoSeAplica, OPCOES_VALOR_ITEM, bvVazio, bvDaLinha, bvExigeJustificativa, limitarBvPercentual, BV_PADRAO_PERCENTUAL } from "@/domain/calc";
 import { flags } from "@/lib/flags";
@@ -150,6 +153,7 @@ export function EcGrupos({
   const [expandido, setExpandido] = useState<Record<string, boolean>>({});
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const [ativo, setAtivo] = useState<{ tipo: "grupo" | "item"; chave: string } | null>(null);
+  const [popupOcultos, setPopupOcultos] = useState(false);
   const arrastandoRef = useRef(false);
   // Espelho sempre atual do estado (evita leitura defasada entre onDragOver e onDragEnd).
   const gruposRef = useRef(grupos);
@@ -178,7 +182,7 @@ export function EcGrupos({
   };
 
   const updLinha = (id: string, patch: Partial<EcLinha>) =>
-    commit(grupos.map((g) => ({ ...g, itens: g.itens.map((it) => (it.id === id ? { ...it, ...patch } : it)) })));
+    commit(grupos.map((g) => ({ ...g, itens: g.itens.map((it) => (it.id === id ? aplicarAlteracaoDeLinha(it, patch) : it)) })));
 
   const renomearGrupo = (nomeAntigo: string, novo: string) => {
     commit(grupos.map((g) => (g.nome === nomeAntigo ? { ...g, nome: novo } : g)));
@@ -210,9 +214,13 @@ export function EcGrupos({
    * ordem dos grupos é justamente o que define a leitura da EC e do Excel.
    */
   const moverGrupo = (grupoId: string, direcao: -1 | 1) => {
+    // O vizinho é o grupo VISÍVEL mais próximo: grupo oculto some da tela, e uma
+    // seta que trocasse com ele pareceria não fazer nada.
+    const idsVisiveis = grupos.filter((g) => grupoVisivel(g.itens)).map((g) => g.id);
+    const alvoId = idsVisiveis[idsVisiveis.indexOf(grupoId) + direcao];
     const atual = grupos.findIndex((g) => g.id === grupoId);
-    const destino = atual + direcao;
-    if (atual < 0 || destino < 0 || destino >= grupos.length) return;
+    const destino = grupos.findIndex((g) => g.id === alvoId);
+    if (atual < 0 || destino < 0) return;
     commit(arrayMove(grupos, atual, destino));
     // A tela acompanha o grupo — senão ele sai de vista a cada toque na seta.
     seguirElemento(idGrupoEc(grupoId));
@@ -249,7 +257,9 @@ export function EcGrupos({
       // Tirar o único item apagaria o grupo — a seta já vem desligada nesse caso,
       // e aqui a regra fica garantida também por código.
       if (grupo.itens.length <= 1) return;
-      const iDestino = iGrupo + direcao;
+      // Grupo oculto some da tela: o item passa para o próximo grupo VISÍVEL.
+      let iDestino = iGrupo + direcao;
+      while (iDestino >= 0 && iDestino < grupos.length && !grupoVisivel(grupos[iDestino].itens)) iDestino += direcao;
       if (iDestino < 0 || iDestino >= grupos.length) return;
       const destino = grupos[iDestino];
       const movido = { ...grupo.itens[atual], grupo: destino.nome };
@@ -372,26 +382,32 @@ export function EcGrupos({
   const todosPendentesMarcados =
     pendentesAprovacao.length > 0 && pendentesAprovacao.every((l) => selecionados.has(l.id)) && totalSelecionados === pendentesAprovacao.length;
 
-  /** Oculta/reexibe um item. */
+  /** Oculta um item: ele some da tela (volta pelo popup "Ocultos"). */
   const setOcultoItem = (id: string, oculto: boolean) => updLinha(id, { oculto });
-  /** Oculta/reexibe o grupo inteiro (todos os itens). */
+  /** Oculta o grupo inteiro (todos os itens): o card some da tela. */
   const setOcultoGrupo = (grupoNome: string, oculto: boolean) =>
     commit(grupos.map((g) => (g.nome === grupoNome ? { ...g, itens: g.itens.map((it) => ({ ...it, oculto })) } : g)));
-  /** Sem custo, sem fornecedor e sem observações (independente de estar oculto ou não). */
-  const semConteudo = (it: EcLinha) =>
-    it.valorPolobh === 0 && it.valorCliente === 0 && !it.fornecedorRazao.trim() && !it.fornecedorCnpj.trim() && it.observacoes.length === 0;
-  /** Não preenchido/alterado E visível — candidato a ocultar em massa. */
-  const naoPreenchido = (it: EcLinha) => !it.oculto && semConteudo(it);
-  const qtdNaoPreenchidos = grupos.reduce((n, g) => n + g.itens.filter(naoPreenchido).length, 0);
-  /** Oculta de uma vez todos os itens ainda não preenchidos/alterados, em todos os grupos. */
-  const ocultarNaoPreenchidos = () =>
-    commit(grupos.map((g) => ({ ...g, itens: g.itens.map((it) => (naoPreenchido(it) ? { ...it, oculto: true } : it)) })));
-  /** Oculto e ainda não preenchido — candidato a reexibir em massa. */
-  const ocultoNaoPreenchido = (it: EcLinha) => it.oculto && semConteudo(it);
-  const qtdOcultosNaoPreenchidos = grupos.reduce((n, g) => n + g.itens.filter(ocultoNaoPreenchido).length, 0);
-  /** Reexibe de uma vez todos os itens ocultos que ainda estão sem custo, fornecedor ou observações. */
-  const reexibirNaoPreenchidos = () =>
-    commit(grupos.map((g) => ({ ...g, itens: g.itens.map((it) => (ocultoNaoPreenchido(it) ? { ...it, oculto: false } : it)) })));
+  /**
+   * OCULTAR TUDO: oculta o que já foi criado até este clique. Substitui o
+   * "ocultar não preenchidos" — item e grupo sem preço também precisam ficar
+   * descritos na EC, então "vazio" não é critério para esconder.
+   */
+  const ocultarTudoAgora = () => commit(grupos.map((g) => ({ ...g, itens: ocultarTudo(g.itens) })));
+  const todasAsLinhas = grupos.flatMap((g) => g.itens);
+  const qtdVisiveis = todasAsLinhas.length - totalOcultos(todasAsLinhas);
+  const qtdOcultos = totalOcultos(todasAsLinhas);
+  /** Reexibe os itens escolhidos no popup. */
+  const reexibir = (ids: string[]) => {
+    const alvo = new Set(ids);
+    commit(grupos.map((g) => ({ ...g, itens: reexibirItens(g.itens, alvo) })));
+    // Os grupos que voltaram aparecem abertos, para o resultado ficar à vista.
+    setExpandido((e) => {
+      const novo = { ...e };
+      for (const g of grupos) if (g.itens.some((i) => alvo.has(i.id))) novo[g.id] = true;
+      return novo;
+    });
+  };
+  const gruposVisiveis = grupos.filter((g) => grupoVisivel(g.itens));
 
   /* ------------------------- drag & drop ------------------------- */
   const onDragStart = (e: DragStartEvent) => {
@@ -570,18 +586,18 @@ export function EcGrupos({
               <span className="text-border">|</span>
             </>
           )}
-          {qtdNaoPreenchidos > 0 && (
+          {qtdVisiveis > 0 && (
             <>
-              <button onClick={ocultarNaoPreenchidos} className="hover:text-ink" title="Oculta de uma vez todos os itens sem custo, fornecedor ou observações">
-                Ocultar não preenchidos ({qtdNaoPreenchidos})
+              <button onClick={ocultarTudoAgora} className="hover:text-ink" title="Oculta tudo o que já foi criado até agora — o que você criar depois aparece normalmente. Dá para reexibir em Ocultos.">
+                Ocultar tudo ({qtdVisiveis})
               </button>
               <span className="text-border">|</span>
             </>
           )}
-          {qtdOcultosNaoPreenchidos > 0 && (
+          {qtdOcultos > 0 && (
             <>
-              <button onClick={reexibirNaoPreenchidos} className="hover:text-ink" title="Reexibe de uma vez todos os itens ocultos que ainda estão sem custo, fornecedor ou observações">
-                Reexibir não preenchidos ({qtdOcultosNaoPreenchidos})
+              <button onClick={() => setPopupOcultos(true)} className="hover:text-ink" title="Escolher quais grupos e itens voltam para a tela">
+                Ocultos ({qtdOcultos})
               </button>
               <span className="text-border">|</span>
             </>
@@ -597,17 +613,22 @@ export function EcGrupos({
           Nenhum grupo. Use “Adicionar grupo” para começar.
         </div>
       )}
+      {grupos.length > 0 && gruposVisiveis.length === 0 && (
+        <div className="text-center text-ink-3 text-sm py-8 border border-dashed border-border rounded-card">
+          Tudo está oculto. Use “Adicionar grupo” para criar um novo ou “Ocultos ({qtdOcultos})” para reexibir.
+        </div>
+      )}
 
       <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd}>
-        <SortableContext items={grupos.map((g) => GID(g.id))} strategy={verticalListSortingStrategy}>
+        <SortableContext items={gruposVisiveis.map((g) => GID(g.id))} strategy={verticalListSortingStrategy}>
           <div className="space-y-3">
-            {grupos.map((g, iGrupo) => (
+            {gruposVisiveis.map((g, iGrupo) => (
               <GrupoCard
                 key={g.id}
                 g={g}
                 aberto={isExp(g.id)}
                 primeiroGrupo={iGrupo === 0}
-                ultimoGrupo={iGrupo === grupos.length - 1}
+                ultimoGrupo={iGrupo === gruposVisiveis.length - 1}
                 verFinanceiro={verFinanceiro}
                 fornecedores={fornecedores}
                 usuarios={usuarios}
@@ -648,6 +669,14 @@ export function EcGrupos({
           ) : null}
         </DragOverlay>
       </DndContext>
+
+      {popupOcultos && (
+        <OcultosEcModal
+          grupos={ocultosPorGrupo(todasAsLinhas)}
+          onReexibir={reexibir}
+          onFechar={() => setPopupOcultos(false)}
+        />
+      )}
     </div>
   );
 }
@@ -687,7 +716,6 @@ function GrupoCard({
 }: GrupoProps) {
   const sortable = useSortable({ id: GID(g.id) });
   const droppable = useDroppable({ id: CID(g.id) });
-  const [verOcultos, setVerOcultos] = useState(false);
   const setRefs = (node: HTMLElement | null) => {
     sortable.setNodeRef(node);
     droppable.setNodeRef(node);
@@ -695,8 +723,6 @@ function GrupoCard({
   const style = { transform: CSS.Translate.toString(sortable.transform), transition: sortable.transition };
 
   const visiveis = g.itens.filter((l) => !l.oculto);
-  const ocultos = g.itens.filter((l) => l.oculto);
-  const grupoOculto = g.itens.length > 0 && visiveis.length === 0;
   const subtotal = visiveis.reduce((s, l) => s + (l.valorPolobh || 0) + (l.valorCliente || 0), 0);
   const marcadosNoGrupo = visiveis.filter((l) => selecionados.has(l.id)).length;
   const todosMarcados = visiveis.length > 0 && marcadosNoGrupo === visiveis.length;
@@ -712,7 +738,6 @@ function GrupoCard({
       className={cx(
         "rounded-card border bg-white",
         sortable.isDragging ? "opacity-40" : "border-border",
-        grupoOculto && "opacity-70",
         droppable.isOver && !sortable.isDragging && "ring-2 ring-primary/40 border-primary"
       )}
     >
@@ -750,6 +775,7 @@ function GrupoCard({
         </button>
         <Input
           className="!h-10 !px-2.5 !text-[15px] !font-bold !uppercase max-w-sm"
+          formato="grupo"
           value={g.nome}
           sugestoes={sugestoes.valores.grupoEc}
           onChange={(e) => onRenomear(e.target.value)}
@@ -757,19 +783,18 @@ function GrupoCard({
         <span className="shrink-0 text-[12px] font-bold text-ink-3 bg-[#F0F1F4] rounded-pill px-2.5 py-1">
           {visiveis.length} {visiveis.length === 1 ? "item" : "itens"}
         </span>
-        {grupoOculto && <span className="shrink-0 text-[11px] font-extrabold text-ink-3 bg-[#F0F1F4] rounded-pill px-2 py-0.5 uppercase">Oculto</span>}
         {verFinanceiro && subtotal > 0 && (
           <span className="shrink-0 text-[14px] font-display font-bold text-ink-2">{brl(subtotal)}</span>
         )}
         <div className="ml-auto flex items-center gap-1 shrink-0">
           <button
             type="button"
-            onClick={() => onOcultoGrupo(!grupoOculto)}
+            onClick={() => onOcultoGrupo(true)}
             className="inline-flex items-center rounded-btn p-1.5 text-ink-3 hover:bg-primary-soft hover:text-primary-dark"
-            title={grupoOculto ? "Reexibir grupo" : "Ocultar grupo (mantém guardado)"}
-            aria-label={grupoOculto ? "Reexibir grupo" : "Ocultar grupo"}
+            title="Ocultar grupo — some da tela e fica guardado (reexibir em Ocultos)"
+            aria-label="Ocultar grupo"
           >
-            {grupoOculto ? <IcEye width={17} height={17} /> : <IcEyeOff width={17} height={17} />}
+            <IcEyeOff width={17} height={17} />
           </button>
           <Button variant="soft" size="sm" icon={<IcPlus width={15} height={15} />} onClick={onAddItem}>
             Item
@@ -804,31 +829,8 @@ function GrupoCard({
             ))}
           </SortableContext>
 
-          {visiveis.length === 0 && !grupoOculto && (
-            <div className="text-center text-ink-3 text-[13px] py-4">Nenhum item visível neste grupo.</div>
-          )}
-
-          {/* Itens ocultos guardados */}
-          {ocultos.length > 0 && (
-            <div className="rounded-btn border border-dashed border-border bg-[#FAFAFB]">
-              <button onClick={() => setVerOcultos((v) => !v)} className="w-full flex items-center gap-2 px-3 py-2 text-[12.5px] font-bold text-ink-2 hover:text-ink">
-                <IcChevron width={16} height={16} className={cx("transition-transform", verOcultos && "rotate-90")} />
-                Itens ocultos ({ocultos.length})
-                <span className="text-ink-3 font-medium">— guardados, fora dos totais e do Excel</span>
-              </button>
-              {verOcultos && (
-                <div className="px-3 pb-2.5 space-y-1.5">
-                  {ocultos.map((l) => (
-                    <div key={l.id} className="flex items-center gap-2 rounded-btn bg-white border border-border-soft px-2.5 py-1.5">
-                      <span className="flex-1 min-w-0 truncate text-[13px] text-ink-2">{l.item || l.descricao || "(item sem título)"}</span>
-                      <button type="button" onClick={() => onOcultoItem(l.id, false)} className="inline-flex items-center gap-1 rounded-btn px-2 py-1 text-[12px] font-bold text-ink-3 hover:bg-primary-soft hover:text-primary-dark" title="Reexibir item">
-                        <IcEye width={16} height={16} /> Reexibir
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+          {visiveis.length === 0 && (
+            <div className="text-center text-ink-3 text-[13px] py-4">Este grupo não tem itens.</div>
           )}
 
           <div className="pt-0.5">
@@ -939,6 +941,7 @@ function ItemRow({
             <Input
               className="!h-10 !px-2.5 !text-[13.5px] !font-semibold"
               placeholder="Nome do item"
+              formato="item"
               value={l.item}
               sugestoes={sugestoes.valores.itemEc}
               onChange={(e) => onUpd({ item: e.target.value })}
@@ -993,7 +996,7 @@ function ItemRow({
         )}
 
         <div className="col-start-2 xl:col-start-auto flex xl:flex-col items-center justify-end gap-1 xl:pt-5">
-          <button type="button" onClick={onOcultar} className="text-ink-3 hover:text-primary p-1.5" title="Ocultar item (mantém guardado)" aria-label="Ocultar item">
+          <button type="button" onClick={onOcultar} className="text-ink-3 hover:text-primary p-1.5" title="Ocultar item — some da tela e fica guardado (reexibir em Ocultos)" aria-label="Ocultar item">
             <IcEyeOff width={18} height={18} />
           </button>
         </div>
@@ -1209,6 +1212,7 @@ function OpcoesDeValor({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinh
                           className="!h-8 !px-2 !text-[12.5px]"
                           value={l[campo]}
                           onValue={(v) => onUpd({ [campo]: v } as Partial<EcLinha>)}
+                          title={l.valorPolobh > 0 ? `Até ${brl(l.valorPolobh)} (valor definido do item)` : undefined}
                           aria-label={`${rotulo} do item ${l.item || "sem título"}`}
                         />
                       )}
