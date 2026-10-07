@@ -12,6 +12,7 @@ import { normalizarProjetoInfo, sincronizarCamposLegados } from "@/domain/projet
 // consulta de CNPJ, importação de EC, foto do evento na OS (ver `domain/textos`).
 import {
   padronizarCliente,
+  padronizarBlocosDaOs,
   padronizarEcLinha,
   padronizarFornecedor,
   padronizarProjetoInfo,
@@ -76,6 +77,7 @@ import type {
   AnexoObservacao,
   Observacao,
   Os,
+  GrupoExtraOs,
   Producao,
   Projeto,
   RegistroBackup,
@@ -647,6 +649,16 @@ const ecRepo: EcRepository = {
 /* ----------------------------------- OS ---------------------------------- */
 
 const logisticaVazia = () => ({ transporteMaterial: "", transporteEquipe: "", hospedagem: "", alimentacao: "", estacionamentoCarga: "", estacionamentoEquipe: "", uniformizacao: "" });
+/** Separa `gruposExtras` do jsonb de logística (ver `osRow`). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function separarGruposExtras(bruto: any): { logistica: Os["logistica"]; gruposExtras: GrupoExtraOs[] } {
+  const { gruposExtras, ...logistica } = bruto ?? {};
+  return {
+    logistica: bruto ? (logistica as Os["logistica"]) : logisticaVazia(),
+    gruposExtras: Array.isArray(gruposExtras) ? gruposExtras : [],
+  };
+}
+
 const infraVazia = () => ({ energia: "", internet: "", pontosEletricos: "", estruturas: "", servicosApoio: "", artLaudos: "" });
 const contratoVazio = () => ({ contratante: "" as const, descritivoServicos: "", informacoesComplementares: "", valorUnitario: 0, valorTotal: 0, descontoNegociado: 0, valorAPagar: 0, dataContrato: "", rubrica: "" });
 
@@ -687,7 +699,10 @@ function mapOs(r: any): Os {
     descritivo: r.descritivo ?? "",
     entrega: r.entrega ?? "",
     cronograma: r.cronograma ?? [],
-    logistica: r.logistica ?? logisticaVazia(),
+    // Os grupos extras da OS moram DENTRO do jsonb de logística (a tabela não
+    // tem coluna para eles): separa na leitura, para o resto do app ver
+    // `os.logistica` só com Logística e `os.gruposExtras` à parte.
+    ...separarGruposExtras(r.logistica),
     infraestrutura: r.infraestrutura ?? infraVazia(),
     observacoesGerais: r.observacoes_gerais ?? "",
     observacoes: r.observacoes ?? [],
@@ -701,6 +716,7 @@ function mapOs(r: any): Os {
 }
 
 function osRow(os: Os) {
+  const blocosOs = padronizarBlocosDaOs(os);
   return {
     numero: os.numero,
     ec_id: os.ecId,
@@ -714,8 +730,10 @@ function osRow(os: Os) {
     descritivo: os.descritivo,
     entrega: os.entrega,
     cronograma: os.cronograma,
-    logistica: os.logistica,
-    infraestrutura: os.infraestrutura,
+    // Grupos extras em CAIXA ALTA e itens extras em frase (ver `domain/textos`).
+    // Os grupos extras viajam dentro do jsonb de logística (ver `separarGruposExtras`).
+    logistica: { ...blocosOs.logistica, gruposExtras: blocosOs.gruposExtras ?? [] },
+    infraestrutura: blocosOs.infraestrutura,
     credenciamento: os.credenciamento,
     orcamento: os.orcamento,
     contrato: os.contrato,

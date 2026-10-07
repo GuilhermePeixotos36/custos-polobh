@@ -25,7 +25,7 @@
  * versão nova ("Importar EC" / "Gerar nova versão") — nos dois casos o que
  * estava no ar vai para o arquivo, e nada se perde.
  */
-import type { Ec } from "@/data/types";
+import type { Ec, EcLinha } from "@/data/types";
 
 export type SituacaoEc = "ativa" | "arquivada";
 
@@ -55,4 +55,39 @@ export function motivoBloqueioEc(ec: Pick<Ec, "ativa">): string | null {
   return ecEditavel(ec)
     ? null
     : "está arquivada — no projeto vale outra estimativa, ou nenhuma";
+}
+
+/**
+ * A DESCRIÇÃO FINANCEIRO acompanha o NOME DO ITEM (07/10/2026).
+ *
+ * O resumo do financeiro de cada item nasce igual ao nome dele — quem lê a EC
+ * pelo financeiro vê "Palco", e não um campo vazio. Enquanto ninguém
+ * personalizar o texto, ele segue o nome: se a descrição está vazia ou é
+ * exatamente o nome ANTERIOR do item, trocar o nome troca a descrição junto.
+ * Escreveu algo próprio ali? A descrição vira da pessoa e o nome do item deixa
+ * de mexer nela.
+ */
+export function aplicarAlteracaoDeLinha(anterior: EcLinha, patch: Partial<EcLinha>): EcLinha {
+  const proxima = limitarFormasAoValorDoItem({ ...anterior, ...patch }, patch);
+  if (patch.item === undefined || "descricao" in patch) return proxima;
+  const acompanha = !anterior.descricao.trim() || anterior.descricao === anterior.item;
+  return acompanha ? { ...proxima, descricao: patch.item } : proxima;
+}
+
+const CAMPOS_FORMA = ["valorComBvNf", "valorSemBvComNf", "valorSemBvSemNf"] as const;
+
+/**
+ * O teto de cada forma de cobrança é o valor definido do item (Valor Pólobh):
+ * nenhuma negociação pode custar mais do que o item vale. Sem valor definido
+ * (zero) não há teto — o item ainda está sendo descrito. Só os campos que
+ * acabaram de ser digitados são cortados, para não reescrever dado antigo.
+ */
+export function limitarFormasAoValorDoItem(linha: EcLinha, patch: Partial<EcLinha>): EcLinha {
+  const teto = Number(linha.valorPolobh) || 0;
+  if (teto <= 0) return linha;
+  const fora: Partial<EcLinha> = {};
+  for (const campo of CAMPOS_FORMA) {
+    if (campo in patch && (Number(linha[campo]) || 0) > teto) fora[campo] = teto;
+  }
+  return Object.keys(fora).length ? { ...linha, ...fora } : linha;
 }

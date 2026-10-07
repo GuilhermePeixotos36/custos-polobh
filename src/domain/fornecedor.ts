@@ -19,7 +19,7 @@
  * curto escolhido pela empresa. Mas passa pela mesma peneira, porque muita ficha
  * traz "Som & Luz Produções Ltda" no campo de fantasia também.
  */
-import type { ContatoFornecedor, Fornecedor } from "@/data/types";
+import type { ContatoFornecedor, Fornecedor, Os } from "@/data/types";
 
 /** Forma jurídica: sai sempre, esteja onde estiver. */
 const JURIDICO = new Set([
@@ -404,4 +404,31 @@ export function mesclarContatos(
 /** O contato em uma linha — para a busca da tela e para textos corridos. */
 export function textoDoContato(c: ContatoFornecedor): string {
   return [c.nome, c.funcao, c.telefone, c.email].map((p) => (p ?? "").trim()).filter(Boolean).join(" · ");
+}
+
+/* --------------------- Dados bancários do histórico --------------------- */
+
+const soDigitos = (t: string | undefined | null) => (t ?? "").replace(/\D/g, "");
+
+/** Os dados bancários estão todos em branco? */
+export const bancariosVazios = (d: Fornecedor["dadosBancarios"] | undefined): boolean =>
+  !d || !(d.banco || d.agencia || d.conta || d.chavePix);
+
+/**
+ * Os dados bancários que o fornecedor (mesmo CNPJ/CPF) já usou em OSs
+ * anteriores — o da OS mais recente que os tenha preenchido. Devolve também o
+ * número da OS de onde vieram, para a tela dizer de onde saiu o dado.
+ */
+export function bancariosDoHistorico(
+  oss: Pick<Os, "id" | "numero" | "fornecedor" | "criadoEm">[],
+  cnpj: string,
+  ignorarId?: string,
+): { dados: Fornecedor["dadosBancarios"]; deOs: string } | undefined {
+  const alvo = soDigitos(cnpj);
+  if (alvo.length !== 11 && alvo.length !== 14) return undefined;
+  const candidatas = oss
+    .filter((o) => o.id !== ignorarId && soDigitos(o.fornecedor?.cnpj) === alvo && !bancariosVazios(o.fornecedor?.dadosBancarios))
+    .sort((a, b) => String(b.criadoEm ?? "").localeCompare(String(a.criadoEm ?? "")));
+  const achada = candidatas[0];
+  return achada ? { dados: achada.fornecedor.dadosBancarios, deOs: achada.numero } : undefined;
 }

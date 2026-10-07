@@ -11,6 +11,7 @@ import {
   cx, maskTelefone, onlyDigits, colapsarEspacos, tituloProprio, capitalizarFrase,
   brl, limparEntradaNumerica, parseNumeroBR,
 } from "@/lib/format";
+import { padronizarNomeGrupo, padronizarNomeItem } from "@/domain/textos";
 
 const fieldBase =
   "w-full bg-surface border-[1.5px] border-[#BFC4CE] rounded-btn px-3.5 text-sm text-ink placeholder:text-ink-3 input-focus disabled:bg-[#EDEEF1] disabled:text-ink-2";
@@ -64,9 +65,12 @@ export function Field({
  * - "titulo": Primeira Letra de Cada Palavra Maiúscula (nomes, endereços)
  * - "titulo-empresa": idem, preservando siglas (LTDA, ME…) — para Razão Social
  * - "frase": maiúscula no início das frases (títulos/textos curtos)
+ * - "grupo": CAIXA ALTA (nome de grupo da EC e da OS)
+ * - "item": primeira letra maiúscula; o que vem todo em maiúsculas vira frase,
+ *   preservando siglas (nome de item da EC e da OS)
  * Sem `formato`, o blur ainda apara espaços repetidos (colapsarEspacos).
  */
-export type FormatoCampo = "titulo" | "titulo-empresa" | "frase";
+export type FormatoCampo = "titulo" | "titulo-empresa" | "frase" | "grupo" | "item";
 
 type InputProps = InputHTMLAttributes<HTMLInputElement> & {
   formato?: FormatoCampo;
@@ -87,6 +91,10 @@ function aplicarFormato(v: string, formato?: FormatoCampo): string {
       return tituloProprio(v, { preservarSiglas: true });
     case "frase":
       return capitalizarFrase(v);
+    case "grupo":
+      return padronizarNomeGrupo(v);
+    case "item":
+      return padronizarNomeItem(v);
     default:
       return colapsarEspacos(v);
   }

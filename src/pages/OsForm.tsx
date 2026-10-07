@@ -34,7 +34,8 @@ import {
   OBS_CONTRATO_PADRAO,
 } from "@/domain/calc";
 import { datasDoEvento, ETAPAS_CRONOGRAMA, horariosDoEvento } from "@/domain/projeto";
-import { doCadastro, opcoesPerfilTributario, semVazios } from "@/domain/fornecedor";
+import { bancariosDoHistorico, bancariosVazios, doCadastro, opcoesPerfilTributario, semVazios } from "@/domain/fornecedor";
+import { listarBancos } from "@/lib/bancos";
 import { useEmpresas } from "@/store/empresas";
 import { consultarCnpj } from "@/lib/cnpj";
 import { gerarDescritivo } from "@/lib/ai";
@@ -484,6 +485,35 @@ export function OsForm() {
   // Valores já usados nestes campos em outras OSs (ver `domain/sugestoes`).
   const sugestoes = useSugestoes();
 
+  // Lista de bancos (BrasilAPI) para o autocompletar do campo Banco.
+  const [bancos, setBancos] = useState<string[]>([]);
+  useEffect(() => {
+    let vivo = true;
+    void listarBancos().then((l) => vivo && setBancos(l));
+    return () => { vivo = false; };
+  }, []);
+
+  /**
+   * Fornecedor com histórico: os dados bancários da última OS dele entram
+   * sozinhos, enquanto os da OS atual estiverem em branco — quem já informou
+   * não é sobrescrito, e a tela diz de que OS o dado veio.
+   */
+  const ossDoHistorico = usePendencias((s) => s.oss);
+  const [bancoDaOs, setBancoDaOs] = useState("");
+  const cnpjDaOs = os?.fornecedor.cnpj ?? "";
+  useEffect(() => {
+    if (!editando || !os || !bancariosVazios(os.fornecedor.dadosBancarios)) return;
+    const h = bancariosDoHistorico(ossDoHistorico, cnpjDaOs, os.id);
+    if (!h) return;
+    setOs((o) =>
+      o && bancariosVazios(o.fornecedor.dadosBancarios)
+        ? { ...o, fornecedor: { ...o.fornecedor, dadosBancarios: { ...o.fornecedor.dadosBancarios, ...h.dados } } }
+        : o
+    );
+    setBancoDaOs(h.deOs);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editando, cnpjDaOs, ossDoHistorico]);
+
   if (!os || !ecCtx) return <PageShell title="Carregando…">{null}</PageShell>;
 
   // Linhas da EC que esta OS consolida (mesmo fornecedor).
@@ -555,9 +585,6 @@ export function OsForm() {
 
   /** Empresa emissora não cadastrada: os dados da nota sairiam em branco calados. */
   const faltaCadastroTomador = os.financeiro.tomador === "Polobh" && !empresaPolobh;
-  /** A lei de incentivo da OS ficou diferente do que o Projeto guarda. */
-  const leiDoProjeto = os.projeto.leiIncentivo || os.projeto.incentivosFiscais || "";
-  const leiDivergeDaEc = !!leiDoProjeto && (os.financeiro.leiIncentivo ?? "") !== leiDoProjeto;
 
   // Parcelas: a soma tem que fechar com o valor negociado, senão a OS sai errada.
   const somaParcelas = os.orcamento.parcelas.reduce((s, p) => s + (p.valor || 0), 0);
@@ -565,6 +592,13 @@ export function OsForm() {
     verFinanceiro && os.financeiro.valorAPagar > 0
       ? { valor: os.financeiro.valorAPagar, rotulo: "valor total a pagar" }
       : { valor: os.orcamento.valorComBvNf, rotulo: "valor com BV e NF" };
+  /** O que ainda não foi distribuído em parcelas (nunca negativo). */
+  const saldoParcelas = Math.max(0, refParcelas.valor - somaParcelas);
+  /** Teto de uma parcela: o valor de referência menos o que as OUTRAS já usam. */
+  const tetoDaParcela = (i: number) =>
+    refParcelas.valor > 0
+      ? Math.max(0, refParcelas.valor - (somaParcelas - (os.orcamento.parcelas[i]?.valor || 0)))
+      : Infinity;
   const parcelasDivergem =
     os.orcamento.parcelas.length > 0 &&
     refParcelas.valor > 0 &&
@@ -898,6 +932,11 @@ export function OsForm() {
       }
       usePendencias.getState().carregar(true); // atualiza os badges de pendência
       guard.liberar();
+      // Salvou: volta para a tela de visualização. Antes só a URL era
+      // "navegada" — como é a mesma rota da edição, a pessoa continuava no
+      // formulário aberto.
+      setEditando(false);
+      window.scrollTo({ top: 0 });
       navigate(`/ordens/${salvo.id}`);
     } catch (e) {
       toast(`Erro ao salvar a OS: ${(e as Error).message}`, "danger");
@@ -1316,8 +1355,6 @@ export function OsForm() {
           {/* Os campos que aparecem na NF, no lugar do antigo "Incentivos Fiscais"
               (29/09/2026) — automáticos dos Dados Gerais do projeto. Projeto
               anterior a eles cai no texto único de antes. */}
-          <LinhaOs label="Nome do Projeto Incentivado"><Auto v={os.projeto.projetoIncentivado} /></LinhaOs>
-          <LinhaOs label="Lei de Incentivo à Cultura"><Auto v={os.projeto.leiIncentivo || os.projeto.incentivosFiscais} /></LinhaOs>
           <LinhaOs label="Código do Projeto Incentivado"><Auto v={os.projeto.codigoProjetoIncentivado} /></LinhaOs>
           {/* Plural no rótulo porque o evento de vários dias é o caso comum, e
               porque aqui saem TODAS as faixas do cronograma — não só a primeira,
@@ -1401,7 +1438,7 @@ export function OsForm() {
               <option value="PF">PF</option>
             </Select>
           </LinhaOs>
-          <LinhaOs label="Banco"><Input value={os.fornecedor.dadosBancarios.banco} sugestoes={sugestoes.valores.bancoFornecedor} onChange={(e) => updB({ banco: e.target.value })} /></LinhaOs>
+          <LinhaOs label="Banco" hint={bancoDaOs ? `(dados da ${bancoDaOs}, usada antes por este fornecedor)` : undefined}><Input value={os.fornecedor.dadosBancarios.banco} sugestoes={[...new Set([...bancos, ...sugestoes.valores.bancoFornecedor])]} onChange={(e) => updB({ banco: e.target.value })} /></LinhaOs>
           <LinhaOs label="Agência"><Input value={os.fornecedor.dadosBancarios.agencia} onChange={(e) => updB({ agencia: e.target.value })} /></LinhaOs>
           <LinhaOs label="Conta Corrente"><Input value={os.fornecedor.dadosBancarios.conta} onChange={(e) => updB({ conta: e.target.value })} /></LinhaOs>
           <LinhaOs label="Chave Pix"><Input value={os.fornecedor.dadosBancarios.chavePix} onChange={(e) => updB({ chavePix: e.target.value })} /></LinhaOs>
@@ -1556,14 +1593,14 @@ export function OsForm() {
               label="Prazo de Pagamento"
               hint="(parcelas)"
               acao={
-                <Button variant="secondary" size="sm" onClick={() => updOrc({ parcelas: [...os.orcamento.parcelas, { id: novoId(), descricao: "", valor: 0 }] })}>+ Parcela</Button>
+                <Button variant="secondary" size="sm" onClick={() => updOrc({ parcelas: [...os.orcamento.parcelas, { id: novoId(), descricao: "", valor: saldoParcelas }] })}>+ Parcela</Button>
               }
             >
               <div className="py-1.5 space-y-2">
                 {os.orcamento.parcelas.map((pc, i) => (
-                  <div key={pc.id ?? i} className="grid grid-cols-[1fr_150px_auto] gap-2 items-center">
-                    <Input className="!h-9" placeholder={`Descrição da ${i + 1}ª parcela`} sugestoes={sugestoes.valores.descricaoParcela} value={pc.descricao} onChange={(e) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, descricao: e.target.value } : x)) })} />
-                    <NumberInput className="!h-9" value={pc.valor} onValue={(v) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, valor: v } : x)) })} />
+                  <div key={pc.id ?? i} className="grid grid-cols-[minmax(0,1fr)_minmax(0,150px)_auto] gap-2 items-center">
+                    <Input className="!h-9 min-w-0" placeholder={`Descrição da ${i + 1}ª parcela`} sugestoes={sugestoes.valores.descricaoParcela} value={pc.descricao} onChange={(e) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, descricao: e.target.value } : x)) })} />
+                    <NumberInput className="!h-9 min-w-0" value={pc.valor} title={refParcelas.valor > 0 ? `Até ${brl(tetoDaParcela(i))} (saldo disponível)` : undefined} onValue={(v) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, valor: Math.min(v, tetoDaParcela(i)) } : x)) })} />
                     <button className="text-ink-3 hover:text-danger px-2" title="Remover parcela" onClick={() => updOrc({ parcelas: os.orcamento.parcelas.filter((_, j) => j !== i) })}>✕</button>
                   </div>
                 ))}
@@ -1578,6 +1615,7 @@ export function OsForm() {
                   >
                     <span>
                       Soma das parcelas: <b className="font-display">{brl(somaParcelas)}</b>
+                      {refParcelas.valor > 0 && <> · saldo a distribuir: <b className="font-display">{brl(saldoParcelas)}</b></>}
                     </span>
                     {parcelasDivergem ? (
                       <span>
@@ -1875,27 +1913,6 @@ export function OsForm() {
             <LinhaOs label="Descritivo Nota Fiscal" hint="(auto do descritivo da EC)">
               <Textarea value={os.financeiro.descritivoNf} onChange={(e) => updFin({ descritivoNf: e.target.value })} />
             </LinhaOs>
-            <LinhaOs label="Nome do Projeto Incentivado" hint="(auto do projeto)">
-              <Input value={os.financeiro.projetoIncentivado ?? ""} sugestoes={sugestoes.valores.projetoIncentivado} onChange={(e) => updFin({ projetoIncentivado: e.target.value })} placeholder="Nome do projeto incentivado" />
-            </LinhaOs>
-            {/* Um campo só, com a lei E o número: é a forma como o dado existe no
-                mundo ("Rouanet — PRONAC 26 1234") e como o Projeto já o guarda.
-                Separado em dois, obrigava a redigitar aqui o que a EC sabia. */}
-            <LinhaOs
-              label="Lei de Incentivo à Cultura"
-              hint={leiDivergeDaEc ? `Projeto: ${leiDoProjeto}` : "(lei e nº do projeto)"}
-            >
-              <Input value={os.financeiro.leiIncentivo ?? ""} sugestoes={sugestoes.valores.leiIncentivo} onChange={(e) => updFin({ leiIncentivo: e.target.value })} placeholder="Ex.: Lei Federal de Incentivo à Cultura (Rouanet) — PRONAC 26 1234" />
-              {leiDivergeDaEc && (
-                <button
-                  type="button"
-                  onClick={() => updFin({ leiIncentivo: leiDoProjeto })}
-                  className="mt-1.5 text-[12px] font-bold text-primary-dark hover:underline"
-                >
-                  Usar o que está no Projeto
-                </button>
-              )}
-            </LinhaOs>
             {/* CÓDIGO DO PROJETO INCENTIVADO, sozinho (16/09/2026).
                 O campo acima guarda a lei E o número juntos, porque é assim que
                 eles aparecem na nota e é assim que o Projeto os guarda. Mas o
@@ -1934,7 +1951,6 @@ export function OsForm() {
                 onValor={(cnae) => updFin({ cnae })}
               />
             </LinhaOs>
-            <LinhaOs label="Valor unitário"><NumberInput value={os.financeiro.valorUnitario} onValue={(v) => updFin({ valorUnitario: v })} /></LinhaOs>
             <LinhaOs label="Valor total" hint={finDessincronizado ? undefined : "(espelha o valor negociado no Orçamento)"}>
               <NumberInput value={os.financeiro.valorTotal} onValue={setValorTotalFinanceiro} />
               {finDessincronizado && (
@@ -2093,7 +2109,6 @@ export function OsForm() {
               <Textarea value={os.contrato.informacoesComplementares} onChange={(e) => updCt({ informacoesComplementares: e.target.value })} placeholder="O que este contrato tem de particular e não está no descritivo." />
               <TextosJaUsados valor={os.contrato.informacoesComplementares} opcoes={sugestoes.valores.informacoesComplementares} onEscolher={(informacoesComplementares) => updCt({ informacoesComplementares })} />
             </LinhaOs>
-            <LinhaOs label="Valor unitário"><NumberInput value={os.contrato.valorUnitario} onValue={(v) => updCt({ valorUnitario: v })} /></LinhaOs>
             <LinhaOs label="Valor total" hint={ctDessincronizado ? undefined : "(espelha o valor do Faturamento)"}>
               <NumberInput value={os.contrato.valorTotal} onValue={(v) => updCt({ valorUnitario: v, valorTotal: v, valorAPagar: v - os.contrato.descontoNegociado })} />
               {ctDessincronizado && (
@@ -2710,6 +2725,7 @@ function BlocoDeItens<C extends string>({
       {tituloEditavel && onTitulo && (
         <Input
           className="!h-9 mb-2 font-bold"
+          formato="grupo"
           value={titulo}
           onChange={(e) => onTitulo(e.target.value)}
           placeholder="Nome do grupo (ex.: Segurança)"
@@ -2733,6 +2749,7 @@ function BlocoDeItens<C extends string>({
               {item.extra ? (
                 <Input
                   className="!h-9 !text-[12.5px]"
+                  formato="item"
                   value={extraDoItem?.rotulo ?? ""}
                   onChange={(e) => onBloco({ extras: extras.map((x) => (x.id === item.chave ? { ...x, rotulo: e.target.value } : x)) })}
                   placeholder="Nome do item"
