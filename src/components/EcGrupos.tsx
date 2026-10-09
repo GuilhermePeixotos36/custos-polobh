@@ -1146,8 +1146,11 @@ function ItemRow({
       </div>
 
       {/* Linha 2: metadados */}
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-[0.7fr_2.6fr_1fr_1fr_1fr_1fr_0.7fr] items-end gap-2 px-2.5 pb-2.5 pt-1 border-t border-border-soft bg-[#FCFCFD] rounded-b-card min-w-0">
-        <Campo label="Aprovação" className="w-full">
+      {/* Os campos quebram de linha sozinhos quando falta largura, em vez de serem
+          cortados: status com largura própria e curta, o fornecedor (o campo
+          largo) cresce com o que sobrar. */}
+      <div className="flex flex-wrap items-end gap-x-2 gap-y-2 px-2.5 pb-2.5 pt-1 border-t border-border-soft bg-[#FCFCFD] rounded-b-card min-w-0">
+        <Campo label="Aprovação" className="w-[7rem] shrink-0">
           {/* Aprovar o item JÁ pede a OS: a mesma regra do botão "Aprovar
               selecionados" (ver `aprovarLinha`), para o campo OS não ficar em
               "Pendente" num item que o cliente já liberou. Voltar para Pendente
@@ -1171,18 +1174,18 @@ function ItemRow({
             mais se mexem.
             Os dois levam id próprio: "OS a emitir" é uma pendência, e o
             navegador/sininho pisca exatamente este pedaço da linha. */}
-        <Campo label="OS" className="w-full" id={idCampoPendencia(l.id, "os")}>
+        <Campo label="OS" className="w-[9.5rem] shrink-0" id={idCampoPendencia(l.id, "os")}>
           <Select className={cx("!h-9 !px-2 !text-[12.5px]", classeCampoStatus(l.statusOs))} value={l.statusOs} onChange={(e) => onUpd({ statusOs: e.target.value as StatusOs })}>
             {OPCOES_STATUS_OS.map((o) => <option key={o}>{o}</option>)}
           </Select>
         </Campo>
         {/* Contrato usa exatamente a mesma lista da OS (inclui "Emitir Nova Versão"). */}
-        <Campo label="Contrato" className="w-full" id={idCampoPendencia(l.id, "contrato")}>
+        <Campo label="Contrato" className="w-[9.5rem] shrink-0" id={idCampoPendencia(l.id, "contrato")}>
           <Select className={cx("!h-9 !px-2 !text-[12.5px]", classeCampoStatus(l.contratoStatus))} value={l.contratoStatus} onChange={(e) => onUpd({ contratoStatus: e.target.value as StatusOs })}>
             {OPCOES_STATUS_OS.map((o) => <option key={o}>{o}</option>)}
           </Select>
         </Campo>
-        <Campo label="Fornecedor (CNPJ / Razão social)" className="sm:col-span-2 xl:col-span-1 w-full min-w-0" obrigatorio>
+        <Campo label="Fornecedor (CNPJ / Razão social)" className="flex-[2_1_22rem] min-w-[20rem]" obrigatorio>
           <FornecedorField
             razao={l.fornecedorRazao}
             cnpj={l.fornecedorCnpj}
@@ -1196,13 +1199,13 @@ function ItemRow({
             e voltam preenchidos para o item da EC válida. Editáveis dos dois
             lados, a EC e a OS discordavam sobre o mesmo dado — e, pior, a EC
             esperava por eles para deixar a OS nascer. */}
-        <Campo label="Documento PG" className="w-full">
+        <Campo label="Documento PG" className="flex-[1_1_8rem] min-w-[7rem]">
           <DaOs valor={l.faturaNf} />
         </Campo>
-        <Campo label="Código de Serviço" className="w-full">
+        <Campo label="Código de Serviço" className="flex-[1_1_8rem] min-w-[7rem]">
           <DaOs valor={l.codigoServico} />
         </Campo>
-        <Campo label="Pedido de Compra" className="w-full">
+        <Campo label="Pedido de Compra" className="flex-[1_1_8rem] min-w-[7rem]">
           <DaOs valor={l.pedidoCompra} />
         </Campo>
       </div>

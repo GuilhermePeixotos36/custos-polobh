@@ -36,6 +36,7 @@ import { itemDaLinhaEc } from "@/domain/contratacaoOs";
 import { ecEditavel, situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
 import { useMinhasPendencias } from "@/store/pendencias";
 import { EcItemLeitura } from "@/components/EcItemLeitura";
+import { MoverSetas } from "@/components/MoverSetas";
 import { brl, dataBR } from "@/lib/format";
 import { gerarRentabilidadeExcel } from "@/lib/excel";
 import { useAuth } from "@/store/auth";
@@ -69,6 +70,14 @@ export function EcDetail() {
   const usuarios = (usuariosData ?? []).map((u) => u.nome).filter(Boolean);
   // Como na edição, os grupos abrem RECOLHIDOS: a EC é longa e o olho procura o grupo.
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
+  // Itens marcados: a emissão de OS passa a valer só para eles (sem marcação, vale a EC toda).
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
+  const alternarSelecao = (ids: string[], marcar: boolean) =>
+    setSelecionados((atual) => {
+      const novo = new Set(atual);
+      for (const id of ids) (marcar ? novo.add(id) : novo.delete(id));
+      return novo;
+    });
   /** Itens que ficaram fora da emissão, com o que falta em cada um. */
   const [bloqueados, setBloqueados] = useState<ItemEmissaoOs[]>([]);
   const [subaba, setSubaba] = useState<SubGuiaEc>("ec");
@@ -110,7 +119,8 @@ export function EcDetail() {
   // Item oculto some da tela (e do grupo), igual à edição.
   const gruposLinha = agruparLinhas(ec.linhas.filter((l) => !l.oculto));
   // Quem entra e quem está travado na emissão de OS — alimenta o rótulo do botão.
-  const emissao = analisarEmissaoOs(ec.linhas, verFinanceiro);
+  const linhasDaEmissao = selecionados.size ? ec.linhas.filter((l) => selecionados.has(l.id)) : ec.linhas;
+  const emissao = analisarEmissaoOs(linhasDaEmissao, verFinanceiro);
   const toggleGrupo = (n: string) =>
     setExpandidos((s) => { const x = new Set(s); x.has(n) ? x.delete(n) : x.add(n); return x; });
 
@@ -195,7 +205,7 @@ export function EcDetail() {
     setBloqueados([]);
     // Só entram itens aprovados, com fornecedor identificado e marcados para
     // emitir; o resto é devolvido com o motivo exato de estar travado.
-    const { prontos, bloqueados: travados } = analisarEmissaoOs(ec!.linhas, verFinanceiro);
+    const { prontos, bloqueados: travados } = analisarEmissaoOs(selecionados.size ? ec!.linhas.filter((l) => selecionados.has(l.id)) : ec!.linhas, verFinanceiro);
     if (!prontos.length && !travados.length) {
       toast("Nenhuma linha com status 'Emitir' ou 'Emitir Nova Versão'.", "info");
       return;
@@ -262,7 +272,14 @@ export function EcDetail() {
         <CardTitle hint="Mesma organização por grupos da criação.">
           Estimativa de custos
         </CardTitle>
-        <div className="flex gap-2 text-[12px] font-bold text-ink-2">
+        <div className="flex items-center gap-2 text-[12px] font-bold text-ink-2">
+          {selecionados.size > 0 && (
+            <>
+              <span className="text-primary-dark">{selecionados.size} {selecionados.size === 1 ? "selecionado" : "selecionados"} · a emissão de OS vale só para eles</span>
+              <button onClick={() => setSelecionados(new Set())} className="hover:text-ink">Limpar</button>
+              <span className="text-border">|</span>
+            </>
+          )}
           <button onClick={() => setExpandidos(new Set(gruposLinha.map((g) => g.nome)))} className="hover:text-ink">Expandir</button>
           <span className="text-border">|</span>
           <button onClick={() => setExpandidos(new Set())} className="hover:text-ink">Retrair</button>
@@ -295,27 +312,46 @@ export function EcDetail() {
           const aberto = expandidos.has(g.nome);
           const subtotal = g.itens.reduce((s, l) => s + l.valorPolobh + l.valorCliente, 0);
           return (
-            <div key={g.nome} className="rounded-card border border-border overflow-hidden">
-              {/* Cabeçalho do grupo — mais encorpado que o fundo quase branco de antes,
-                  para o olho encontrar onde um grupo termina e o outro começa. */}
-              <div className={cx("flex items-center gap-2 px-3 py-2.5 bg-[#F1F2F5]", aberto && "border-b border-border")}>
-                <button onClick={() => toggleGrupo(g.nome)} className="text-ink-2 hover:text-ink shrink-0" aria-expanded={aberto} aria-label={`${aberto ? "Retrair" : "Expandir"} ${g.nome}`}>
-                  <IcChevron width={18} height={18} className={cx("transition-transform", aberto && "rotate-90")} />
+            <div key={g.nome} className="rounded-card border border-border bg-white">
+              {/* Cabeçalho do grupo — o mesmo da edição: seleção, setas (apagadas
+                  aqui), seta de recolher, nome, contagem e subtotal. */}
+              <div className={cx("flex items-center gap-2 px-3 py-3", aberto && "border-b border-border-soft")}>
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 shrink-0 accent-[#F2820D] cursor-pointer"
+                  checked={g.itens.every((l) => selecionados.has(l.id))}
+                  ref={(el) => {
+                    const marcados = g.itens.filter((l) => selecionados.has(l.id)).length;
+                    if (el) el.indeterminate = marcados > 0 && marcados < g.itens.length;
+                  }}
+                  onChange={(e) => alternarSelecao(g.itens.map((l) => l.id), e.target.checked)}
+                  aria-label={`Selecionar todos os itens de ${g.nome}`}
+                  title="Selecionar todos os itens deste grupo"
+                />
+                <MoverSetas
+                  rotulo={`o grupo ${g.nome}`}
+                  podeSubir={false}
+                  podeDescer={false}
+                  motivoBloqueio="Para reordenar, edite a EC"
+                  onSubir={() => {}}
+                  onDescer={() => {}}
+                />
+                <button onClick={() => toggleGrupo(g.nome)} className="shrink-0 text-ink-2 hover:text-ink" aria-expanded={aberto} aria-label={`${aberto ? "Retrair" : "Expandir"} ${g.nome}`}>
+                  <IcChevron width={20} height={20} className={cx("transition-transform duration-200", aberto && "rotate-90")} />
                 </button>
-                <button onClick={() => toggleGrupo(g.nome)} className="font-display font-bold text-ink text-[14px] text-left flex-1 uppercase tracking-[0.02em]">
+                <button onClick={() => toggleGrupo(g.nome)} className="text-[15px] font-bold uppercase text-ink text-left min-w-0 truncate">
                   {g.nome}
                 </button>
-                <span className="shrink-0 text-[11px] font-bold text-ink-3 bg-white rounded-pill px-2 py-0.5">
+                <span className="shrink-0 text-[12px] font-bold text-ink-3 bg-[#F0F1F4] rounded-pill px-2.5 py-1">
                   {g.itens.length} {g.itens.length === 1 ? "item" : "itens"}
                 </span>
                 {verFinanceiro && subtotal > 0 && (
-                  <span className="shrink-0 text-[13px] font-display font-bold text-ink">{brl(subtotal)}</span>
+                  <span className="shrink-0 text-[14px] font-display font-bold text-ink-2">{brl(subtotal)}</span>
                 )}
               </div>
 
-              {/* Itens do grupo */}
               {aberto && (
-                <div className="divide-y divide-border-soft">
+                <div className="p-3 space-y-2.5">
                   {g.itens.map((l) => (
                     <EcItemLeitura
                       key={l.id}
@@ -323,6 +359,8 @@ export function EcDetail() {
                       verFinanceiro={verFinanceiro}
                       veDescricaoCompleta={veDescricaoCompleta}
                       usuarios={usuarios}
+                      selecionado={selecionados.has(l.id)}
+                      onSelecionar={() => alternarSelecao([l.id], !selecionados.has(l.id))}
                       onObservacoes={(obs) => salvarObservacoes(l.id, obs)}
                     />
                   ))}
