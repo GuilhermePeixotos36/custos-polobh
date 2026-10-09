@@ -11,6 +11,28 @@ import { useBlocker } from "react-router-dom";
 import { confirmar } from "@/store/confirm";
 import { tourNavegando } from "@/tour/store";
 
+/**
+ * Vários formulários sujos podem estar abertos ao mesmo tempo (a EC e um
+ * comentário em escrita, por exemplo), e cada um tem o seu guarda. A pergunta,
+ * porém, é uma só: enquanto ela está na tela, os outros guardas esperam a MESMA
+ * resposta — sem isso, sair da tela fazia o diálogo aparecer uma vez por guarda.
+ */
+let perguntaAberta: Promise<boolean> | null = null;
+function perguntarSeSai(): Promise<boolean> {
+  if (!perguntaAberta) {
+    perguntaAberta = confirmar({
+      titulo: "Sair sem salvar?",
+      mensagem: "Há alterações não salvas neste formulário. Se sair agora, elas serão perdidas.",
+      confirmarTexto: "Sair sem salvar",
+      cancelarTexto: "Continuar editando",
+      tom: "danger",
+    }).finally(() => {
+      perguntaAberta = null;
+    });
+  }
+  return perguntaAberta;
+}
+
 export function useUnsavedGuard(sujo: boolean) {
   const bypass = useRef(false);
 
@@ -29,13 +51,7 @@ export function useUnsavedGuard(sujo: boolean) {
   useEffect(() => {
     if (blocker.state !== "blocked") return;
     let ativo = true;
-    confirmar({
-      titulo: "Sair sem salvar?",
-      mensagem: "Há alterações não salvas neste formulário. Se sair agora, elas serão perdidas.",
-      confirmarTexto: "Sair sem salvar",
-      cancelarTexto: "Continuar editando",
-      tom: "danger",
-    }).then((ok) => {
+    perguntarSeSai().then((ok) => {
       if (!ativo) return;
       if (ok) blocker.proceed();
       else blocker.reset();

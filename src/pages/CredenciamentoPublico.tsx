@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useAvisoDeSaida } from "@/hooks/useAvisoDeSaida";
 import { useParams } from "react-router-dom";
 import { Button, Input } from "@/components/ui";
 import { useAsync } from "@/hooks/useAsync";
@@ -59,6 +60,8 @@ export function CredenciamentoPublico() {
   const [enviando, setEnviando] = useState(false);
   const [enviado, setEnviado] = useState(false);
   const [erro, setErro] = useState("");
+  // Formulário público preenchido pelo fornecedor: recarregar perderia o que ele digitou.
+  useAvisoDeSaida({ equipe, veiculos }, !enviado);
 
   async function enviar(e: React.FormEvent) {
     e.preventDefault();

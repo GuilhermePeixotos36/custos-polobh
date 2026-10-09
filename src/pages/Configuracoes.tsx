@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useAvisoDeSaida } from "@/hooks/useAvisoDeSaida";
 import { ChecklistModelosCard } from "@/components/ChecklistModelosCard";
 import { ManutencaoDevCard } from "@/components/ManutencaoDevCard";
 import { createPortal } from "react-dom";
@@ -289,6 +290,7 @@ function FeriadosCard() {
   const [ano, setAno] = useState(new Date().getMonth() === 0 ? anoAtual + 1 : anoAtual);
   const { data, loading, reload } = useAsync(() => lerFeriados(), []);
   const [rascunho, setRascunho] = useState<Feriado[] | null>(null);
+  useAvisoDeSaida(rascunho);
   const { data: usuarios } = useAsync(() => repo.auth.usuarios().catch(() => [] as Usuario[]), []);
   const { data: escolhido, reload: recarregarResponsavel } = useAsync(() => lerResponsavelFeriados(), []);
   const ativos = (usuarios ?? []).filter((u) => u.ativo !== false);
@@ -603,6 +605,7 @@ function AreaModal({
   const [editando, setEditando] = useState(novo);
   const [form, setForm] = useState<Area>(area);
   const [salvando, setSalvando] = useState(false);
+  useAvisoDeSaida(form, editando);
 
   // Esc fecha (mas não durante o salvamento, para não deixar a gravação órfã).
   useEffect(() => {
@@ -782,6 +785,7 @@ function UsuariosCard() {
   const { data, loading, error, reload } = useAsync(() => repo.auth.usuariosCompletos(), []);
   const { data: areas } = useAsync(() => repo.areas.listar(), []);
   const [edit, setEdit] = useState<Usuario | null>(null);
+  useAvisoDeSaida(edit);
   const [salvando, setSalvando] = useState(false);
   /** Qual linha está no meio da troca — para travar só o botão dela. */
   const [alterando, setAlterando] = useState<string | null>(null);

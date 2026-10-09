@@ -11,6 +11,7 @@
  * numa cadeira com o app aberto poderia trocar a senha e deixar a dona da conta
  * de fora (ver `trocarSenha`, em `store/auth`).
  */
+import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { Avatar, Button, Field, Input } from "@/components/ui";
@@ -28,6 +29,8 @@ export function MinhaContaModal({ onClose }: { onClose: () => void }) {
   const [confirmacao, setConfirmacao] = useState("");
   const [erro, setErro] = useState("");
   const [salvando, setSalvando] = useState(false);
+  // Senha digitada e não gravada: recarregar a página perderia tudo.
+  useUnsavedGuard(!salvando && !!(atual || nova || confirmacao));
 
   if (!usuario) return null;
 
