@@ -37,13 +37,15 @@ import { ecEditavel, situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/d
 import { useMinhasPendencias } from "@/store/pendencias";
 import { EcItemLeitura } from "@/components/EcItemLeitura";
 import { MoverSetas } from "@/components/MoverSetas";
+import { SeletorEmMassa } from "@/components/EcGrupos";
+import { aplicarMudancaDeStatus, OPCOES_STATUS_OS, type MudancaDeStatus } from "@/domain/statusEc";
 import { brl, dataBR } from "@/lib/format";
 import { gerarRentabilidadeExcel } from "@/lib/excel";
 import { useAuth } from "@/store/auth";
 import { toast } from "@/store/toast";
 import { confirmar } from "@/store/confirm";
 import { cx } from "@/lib/format";
-import type { Ec, EcLinha, Fornecedor, Observacao, Os } from "@/data/types";
+import type { Ec, EcLinha, Fornecedor, Observacao, Os, StatusOs } from "@/data/types";
 
 /** Agrupa as linhas por grupo preservando a ordem de aparição (visão de leitura). */
 function agruparLinhas(linhas: EcLinha[]): { nome: string; itens: EcLinha[] }[] {
@@ -62,7 +64,7 @@ export function EcDetail() {
   const navigate = useNavigate();
   const pode = useAuth((s) => s.pode);
   const papel = useAuth((s) => s.usuario?.papel);
-  const { data: ec, loading } = useAsync(() => repo.ecs.obter(id), [id]);
+  const { data: ec, loading, reload: recarregarEc } = useAsync(() => repo.ecs.obter(id), [id]);
   const { data: oss } = useAsync(() => repo.oss.porEc(id), [id]);
   const { itens: minhasPendencias } = useMinhasPendencias();
   // Usuários do sistema — para exibir/atribuir observações dos itens.
@@ -110,6 +112,12 @@ export function EcDetail() {
   /** A margem tem dono próprio desde 15/09/2026 — ver `PERMISSOES_ESPECIAIS`. */
   const verRentabilidade = pode("rentabilidade");
   const podeEditar = pode("ecs.editar");
+  /**
+   * Mudar status (aprovar, pedir OS/contrato) não é editar a EC: vale para quem
+   * edita a EC e para quem monta a OS, e só enquanto a EC está no ar.
+   */
+  // O banco só aceita gravar EC de Administrador, Direção e Produção.
+  const podeMudarStatus = (pode("ecs.editar") || pode("oss.editar")) && ec.ativa && papel !== "Administrativo";
   // Administrativo (financeiro) só precisa da Descrição Financeira; os demais papéis
   // (Admin, Direção, Produção) veem a Descrição Completa também.
   const veDescricaoCompleta = papel !== "Administrativo";
@@ -121,6 +129,7 @@ export function EcDetail() {
   // Quem entra e quem está travado na emissão de OS — alimenta o rótulo do botão.
   const linhasDaEmissao = selecionados.size ? ec.linhas.filter((l) => selecionados.has(l.id)) : ec.linhas;
   const emissao = analisarEmissaoOs(linhasDaEmissao, verFinanceiro);
+  const linhasMarcadas = ec.linhas.filter((l) => selecionados.has(l.id));
   const toggleGrupo = (n: string) =>
     setExpandidos((s) => { const x = new Set(s); x.has(n) ? x.delete(n) : x.add(n); return x; });
 
@@ -159,6 +168,24 @@ export function EcDetail() {
       navigate(0);
     } catch (e) {
       toast(`Não foi possível salvar a observação: ${(e as Error).message}`, "danger");
+    }
+  }
+
+  /**
+   * Muda só Aprovação, OS e Contrato de um ou vários itens — direto da
+   * visualização, sem abrir a edição. Relê a EC antes de gravar (como as
+   * observações), para não pisar no que outra pessoa mexeu nesse intervalo:
+   * só os três campos dos itens escolhidos são tocados.
+   */
+  async function mudarStatus(ids: string[], mudanca: MudancaDeStatus, limparSelecao = false) {
+    try {
+      const atual = await repo.ecs.obter(ec!.id);
+      if (!atual) throw new Error("EC não encontrada.");
+      await repo.ecs.salvar({ ...atual, linhas: aplicarMudancaDeStatus(atual.linhas, ids, mudanca) });
+      if (limparSelecao) setSelecionados(new Set());
+      recarregarEc();
+    } catch (e) {
+      toast(`Não foi possível mudar o status: ${(e as Error).message}`, "danger");
     }
   }
 
@@ -273,13 +300,6 @@ export function EcDetail() {
           Estimativa de custos
         </CardTitle>
         <div className="flex items-center gap-2 text-[12px] font-bold text-ink-2">
-          {selecionados.size > 0 && (
-            <>
-              <span className="text-primary-dark">{selecionados.size} {selecionados.size === 1 ? "selecionado" : "selecionados"} · a emissão de OS vale só para eles</span>
-              <button onClick={() => setSelecionados(new Set())} className="hover:text-ink">Limpar</button>
-              <span className="text-border">|</span>
-            </>
-          )}
           <button onClick={() => setExpandidos(new Set(gruposLinha.map((g) => g.nome)))} className="hover:text-ink">Expandir</button>
           <span className="text-border">|</span>
           <button onClick={() => setExpandidos(new Set())} className="hover:text-ink">Retrair</button>
@@ -304,6 +324,50 @@ export function EcDetail() {
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {selecionados.size > 0 && (
+        <div className="sticky top-[calc(var(--altura-topnav)+var(--altura-cabecalho)+8px)] z-10 mx-3 mt-3 space-y-1.5 rounded-btn border border-primary bg-primary-soft px-3 py-2 shadow-card">
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-[13px] font-extrabold text-primary-dark">
+              {selecionados.size} {selecionados.size === 1 ? "item selecionado" : "itens selecionados"}
+            </span>
+            {podeMudarStatus && (
+              <>
+                <Button
+                  size="sm"
+                  disabled={!linhasMarcadas.some((l) => l.statusAprovacao === "Pendente")}
+                  onClick={() => mudarStatus([...selecionados], { aprovacao: "OK" }, true)}
+                  title="Marca a Aprovação como OK e, nos itens com OS ainda Pendente, muda a OS para Emitir"
+                >
+                  Aprovar e liberar OS ({linhasMarcadas.filter((l) => l.statusAprovacao === "Pendente").length})
+                </Button>
+                {linhasMarcadas.some((l) => l.statusAprovacao === "OK") && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => mudarStatus([...selecionados], { aprovacao: "Pendente" }, true)}
+                    title="Volta a Aprovação para Pendente e desfaz a OS que ficou em Emitir (não mexe em OS já emitida)"
+                  >
+                    Reverter para Pendente ({linhasMarcadas.filter((l) => l.statusAprovacao === "OK").length})
+                  </Button>
+                )}
+              </>
+            )}
+            <button type="button" onClick={() => setSelecionados(new Set())} className="ml-auto text-[12.5px] font-bold text-ink-2 hover:text-ink">
+              Limpar seleção
+            </button>
+          </div>
+          {podeMudarStatus && (
+            <div className="flex items-center gap-2 flex-wrap border-t border-primary/20 pt-1.5">
+              <span className="text-[11px] font-extrabold uppercase tracking-[0.05em] text-primary-dark/80">Alterar em massa</span>
+              <SeletorEmMassa rotulo="Aprovação" opcoes={["Pendente", "OK"]} onEscolher={(v) => mudarStatus([...selecionados], { aprovacao: v as "Pendente" | "OK" }, true)} />
+              <SeletorEmMassa rotulo="OS" opcoes={OPCOES_STATUS_OS} onEscolher={(v) => mudarStatus([...selecionados], { os: v as StatusOs }, true)} />
+              <SeletorEmMassa rotulo="Contrato" opcoes={OPCOES_STATUS_OS} onEscolher={(v) => mudarStatus([...selecionados], { contrato: v as StatusOs }, true)} />
+            </div>
+          )}
+          <div className="text-[12px] font-bold text-ink-2">A emissão de OS vale só para os itens selecionados.</div>
         </div>
       )}
 
@@ -361,6 +425,8 @@ export function EcDetail() {
                       usuarios={usuarios}
                       selecionado={selecionados.has(l.id)}
                       onSelecionar={() => alternarSelecao([l.id], !selecionados.has(l.id))}
+                      editavelStatus={podeMudarStatus}
+                      onStatus={(m) => mudarStatus([l.id], m)}
                       onObservacoes={(obs) => salvarObservacoes(l.id, obs)}
                     />
                   ))}

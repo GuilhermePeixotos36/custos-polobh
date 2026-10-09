@@ -10,7 +10,8 @@
  * largura, e cada campo tem só a largura de que precisa: nada é cortado.
  */
 import { type ReactNode } from "react";
-import { Badge, tomDoStatus } from "@/components/ui";
+import { Badge, Select, classeCampoStatus, tomDoStatus } from "@/components/ui";
+import { OPCOES_STATUS_OS, type MudancaDeStatus } from "@/domain/statusEc";
 import { ObservacoesThread } from "@/components/ObservacoesPopup";
 import { MoverSetas } from "@/components/MoverSetas";
 import { idAncoraPendencia, idCampoPendencia } from "@/lib/destaque";
@@ -25,6 +26,8 @@ export function EcItemLeitura({
   usuarios,
   selecionado,
   onSelecionar,
+  editavelStatus,
+  onStatus,
   onObservacoes,
 }: {
   linha: EcLinha;
@@ -35,6 +38,9 @@ export function EcItemLeitura({
   usuarios: string[];
   selecionado: boolean;
   onSelecionar: () => void;
+  /** Aprovação, OS e Contrato viram seletores: mudar status não exige editar a EC. */
+  editavelStatus: boolean;
+  onStatus: (m: MudancaDeStatus) => void;
   onObservacoes: (obs: Observacao[]) => void;
 }) {
   return (
@@ -89,15 +95,39 @@ export function EcItemLeitura({
       {/* Linha 2: status e contratação, com a mesma largura dos campos da edição. */}
       <div className="flex flex-wrap items-end gap-x-2 gap-y-2 px-2.5 pb-2.5 pt-2 border-t border-border-soft bg-[#FCFCFD] rounded-b-card min-w-0">
         <Campo label="Aprovação" className="w-[7rem] shrink-0">
-          <Badge tom={tomDoStatus(l.statusAprovacao)}>{l.statusAprovacao}</Badge>
+          {editavelStatus ? (
+            <Select
+              className={cx("!h-9 !px-2 !text-[12.5px]", classeCampoStatus(l.statusAprovacao))}
+              value={l.statusAprovacao}
+              onChange={(e) => onStatus({ aprovacao: e.target.value as "Pendente" | "OK" })}
+              aria-label={`Aprovação do item ${l.item || "sem título"}`}
+            >
+              <option>Pendente</option>
+              <option>OK</option>
+            </Select>
+          ) : (
+            <Badge tom={tomDoStatus(l.statusAprovacao)}>{l.statusAprovacao}</Badge>
+          )}
         </Campo>
         {/* Os dois levam id próprio: "OS/Contrato a emitir" é pendência, e o
             navegador pisca este campo em vez da linha inteira. */}
         <Campo label="OS" className="w-[9.5rem] shrink-0" id={idCampoPendencia(l.id, "os")}>
-          <Badge tom={tomDoStatus(l.statusOs)}>{l.statusOs}</Badge>
+          {editavelStatus ? (
+            <Select className={cx("!h-9 !px-2 !text-[12.5px]", classeCampoStatus(l.statusOs))} value={l.statusOs} onChange={(e) => onStatus({ os: e.target.value as EcLinha["statusOs"] })} aria-label={`OS do item ${l.item || "sem título"}`}>
+              {OPCOES_STATUS_OS.map((o) => <option key={o}>{o}</option>)}
+            </Select>
+          ) : (
+            <Badge tom={tomDoStatus(l.statusOs)}>{l.statusOs}</Badge>
+          )}
         </Campo>
         <Campo label="Contrato" className="w-[9.5rem] shrink-0" id={idCampoPendencia(l.id, "contrato")}>
-          <Badge tom={tomDoStatus(l.contratoStatus)}>{l.contratoStatus}</Badge>
+          {editavelStatus ? (
+            <Select className={cx("!h-9 !px-2 !text-[12.5px]", classeCampoStatus(l.contratoStatus))} value={l.contratoStatus} onChange={(e) => onStatus({ contrato: e.target.value as EcLinha["contratoStatus"] })} aria-label={`Contrato do item ${l.item || "sem título"}`}>
+              {OPCOES_STATUS_OS.map((o) => <option key={o}>{o}</option>)}
+            </Select>
+          ) : (
+            <Badge tom={tomDoStatus(l.contratoStatus)}>{l.contratoStatus}</Badge>
+          )}
         </Campo>
         <Campo label="Fornecedor (CNPJ / Razão social)" className="flex-[2_1_22rem] min-w-[16rem]">
           <Texto valor={l.fornecedorRazao} extra={l.fornecedorCnpj} />
