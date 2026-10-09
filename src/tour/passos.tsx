@@ -259,7 +259,7 @@ export function montarPassos(ctx: ContextoTour, pode: (r: Recurso) => boolean): 
           <P>Três caminhos, e a diferença entre eles importa:</P>
           <Passos
             itens={[
-              <><b>Nova EC</b> — já vem com os itens do <b>modelo da modalidade</b> do projeto. É o caminho normal.</>,
+              <><b>Nova EC</b> — nasce em branco; use <b>Adicionar grupo / item</b> para importar do <b>modelo da modalidade</b> do projeto ou criar do zero. É o caminho normal.</>,
               <><b>EC em branco</b> — sem nenhum item, para um evento que não se parece com nada.</>,
               <><b>Importar EC</b> — copia itens e valores de outra EC, deste projeto ou de qualquer outro.</>,
             ]}

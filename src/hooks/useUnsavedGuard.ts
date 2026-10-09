@@ -45,6 +45,12 @@ export function useUnsavedGuard(sujo: boolean) {
     };
   }, [blocker.state]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Depois de salvar o formulário volta a "limpo": rearma a trava para a próxima
+  // edição (senão o `liberar` do salvamento valeria para sempre).
+  useEffect(() => {
+    if (!sujo) bypass.current = false;
+  }, [sujo]);
+
   useEffect(() => {
     if (!sujo) return;
     const handler = (e: BeforeUnloadEvent) => {

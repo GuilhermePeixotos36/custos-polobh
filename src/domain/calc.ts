@@ -523,7 +523,7 @@ export interface AnaliseEmissaoOs {
  * esta mesma peneira sobre o item já simulado como aprovado, para avisar na
  * hora quantos itens vão ficar travados por falta de dado fiscal.
  */
-export function faltasParaEmitirOs(l: EcLinha): string[] {
+export function faltasParaEmitirOs(l: EcLinha, conferirValor = false): string[] {
   const faltas: string[] = [];
   if (l.statusAprovacao !== "OK") faltas.push("Aprovação (item ainda pendente)");
   if (!l.fornecedorRazao?.trim()) faltas.push("Fornecedor (razão social)");
@@ -541,6 +541,10 @@ export function faltasParaEmitirOs(l: EcLinha): string[] {
   // emitida, quem lê o documento não tem a quem perguntar por que a Pólobh
   // abriu mão da bonificação neste item.
   if (bvJustificativaFaltando(l)) faltas.push("Justificativa do BV");
+  // VALOR VAZIO (09/10/2026). Item sem nenhum valor chegava à emissão e a OS
+  // saía zerada — ou falhava no meio, sem dizer por quê. Só confere quem enxerga
+  // valores: para os outros o banco devolve zero, e isso não é "vazio".
+  if (conferirValor && !temValorDefinido(l)) faltas.push("Valor do item (está vazio)");
   return faltas;
 }
 
@@ -553,12 +557,18 @@ export function faltasParaEmitirOs(l: EcLinha): string[] {
  * obrigatórios entram na mesma peneira — assim a tela consegue dizer, item a
  * item, exatamente o que está travando a emissão em vez de só recusar tudo.
  */
-export function analisarEmissaoOs(linhas: EcLinha[]): AnaliseEmissaoOs {
+export function temValorDefinido(l: EcLinha): boolean {
+  return [l.valorPolobh, l.valorCliente, l.valorComBvNf, l.valorSemBvComNf, l.valorSemBvSemNf].some(
+    (v) => (Number(v) || 0) > 0
+  );
+}
+
+export function analisarEmissaoOs(linhas: EcLinha[], conferirValor = false): AnaliseEmissaoOs {
   const prontos: EcLinha[] = [];
   const bloqueados: ItemEmissaoOs[] = [];
   for (const l of linhas) {
     if (l.statusOs !== "Emitir" && l.statusOs !== "Emitir Nova Versão") continue;
-    const faltas = faltasParaEmitirOs(l);
+    const faltas = faltasParaEmitirOs(l, conferirValor);
     if (faltas.length) bloqueados.push({ linha: l, faltas });
     else prontos.push(l);
   }

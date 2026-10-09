@@ -67,7 +67,8 @@ export function EcDetail() {
   // Usuários do sistema — para exibir/atribuir observações dos itens.
   const { data: usuariosData } = useAsync(() => repo.auth.usuarios(), []);
   const usuarios = (usuariosData ?? []).map((u) => u.nome).filter(Boolean);
-  const [recolhidos, setRecolhidos] = useState<Set<string>>(new Set());
+  // Como na edição, os grupos abrem RECOLHIDOS: a EC é longa e o olho procura o grupo.
+  const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
   /** Itens que ficaram fora da emissão, com o que falta em cada um. */
   const [bloqueados, setBloqueados] = useState<ItemEmissaoOs[]>([]);
   const [subaba, setSubaba] = useState<SubGuiaEc>("ec");
@@ -106,11 +107,12 @@ export function EcDetail() {
   // A EC vive dentro do projeto: voltar/breadcrumb apontam para a subguia EC do projeto.
   const voltarUrl = ec.projetoId ? `/projetos/${ec.projetoId}?aba=ec` : "/projetos";
 
-  const gruposLinha = agruparLinhas(ec.linhas);
+  // Item oculto some da tela (e do grupo), igual à edição.
+  const gruposLinha = agruparLinhas(ec.linhas.filter((l) => !l.oculto));
   // Quem entra e quem está travado na emissão de OS — alimenta o rótulo do botão.
-  const emissao = analisarEmissaoOs(ec.linhas);
+  const emissao = analisarEmissaoOs(ec.linhas, verFinanceiro);
   const toggleGrupo = (n: string) =>
-    setRecolhidos((s) => { const x = new Set(s); x.has(n) ? x.delete(n) : x.add(n); return x; });
+    setExpandidos((s) => { const x = new Set(s); x.has(n) ? x.delete(n) : x.add(n); return x; });
 
   /** Observações são editáveis mesmo na tela de leitura — persiste na hora. */
   /**
@@ -193,7 +195,7 @@ export function EcDetail() {
     setBloqueados([]);
     // Só entram itens aprovados, com fornecedor identificado e marcados para
     // emitir; o resto é devolvido com o motivo exato de estar travado.
-    const { prontos, bloqueados: travados } = analisarEmissaoOs(ec!.linhas);
+    const { prontos, bloqueados: travados } = analisarEmissaoOs(ec!.linhas, verFinanceiro);
     if (!prontos.length && !travados.length) {
       toast("Nenhuma linha com status 'Emitir' ou 'Emitir Nova Versão'.", "info");
       return;
@@ -261,9 +263,9 @@ export function EcDetail() {
           Estimativa de custos
         </CardTitle>
         <div className="flex gap-2 text-[12px] font-bold text-ink-2">
-          <button onClick={() => setRecolhidos(new Set())} className="hover:text-ink">Expandir</button>
+          <button onClick={() => setExpandidos(new Set(gruposLinha.map((g) => g.nome)))} className="hover:text-ink">Expandir</button>
           <span className="text-border">|</span>
-          <button onClick={() => setRecolhidos(new Set(gruposLinha.map((g) => g.nome)))} className="hover:text-ink">Retrair</button>
+          <button onClick={() => setExpandidos(new Set())} className="hover:text-ink">Retrair</button>
         </div>
       </div>
       {bloqueados.length > 0 && (
@@ -290,7 +292,7 @@ export function EcDetail() {
 
       <div className="p-3 space-y-2">
         {gruposLinha.map((g) => {
-          const aberto = !recolhidos.has(g.nome);
+          const aberto = expandidos.has(g.nome);
           const subtotal = g.itens.reduce((s, l) => s + l.valorPolobh + l.valorCliente, 0);
           return (
             <div key={g.nome} className="rounded-card border border-border overflow-hidden">
