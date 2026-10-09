@@ -1509,7 +1509,7 @@ function CamposBv({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinha>) =
  * itens (que podem ter valores diferentes entre si), é um comando. Deixá-lo
  * mostrando a última escolha sugeriria que aquele é o valor de todos.
  */
-function SeletorEmMassa({
+export function SeletorEmMassa({
   rotulo,
   opcoes,
   onEscolher,
