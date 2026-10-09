@@ -1,20 +1,18 @@
 /**
- * Um item da EC em modo leitura.
+ * Um item da EC em modo leitura — o MESMO desenho do modo edição (09/10/2026).
  *
- * O desenho anterior era uma grade de 7 colunas esticada na largura inteira da
- * tela: com os campos de contratação vazios (o caso comum enquanto a EC está em
- * montagem), sobravam vãos enormes e um punhado de "—" soltos no meio do nada, e
- * os valores flutuavam na borda direita sem ligação visual com o item.
+ * Mesmo cartão, mesma trilha de controles à esquerda (seleção + setas), mesmos
+ * campos com o rótulo em cima; a diferença é que aqui nada se digita. As setas
+ * aparecem apagadas — reordenar é coisa da edição — e a seleção serve para
+ * escolher quais itens entram na emissão de OS.
  *
- * Aqui a informação é lida em três faixas curtas, cada peça ocupando só o
- * espaço de que precisa e quebrando linha quando falta espaço:
- *   1. identificação (nome + descrições) e o bloco dos dois valores;
- *   2. uma única linha com status e contratação, campos separados por um traço;
- *   3. observações.
+ * A segunda linha (status e contratação) quebra de linha sozinha quando falta
+ * largura, e cada campo tem só a largura de que precisa: nada é cortado.
  */
-import { Fragment, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { Badge, tomDoStatus } from "@/components/ui";
 import { ObservacoesThread } from "@/components/ObservacoesPopup";
+import { MoverSetas } from "@/components/MoverSetas";
 import { idAncoraPendencia, idCampoPendencia } from "@/lib/destaque";
 import { sanitizarHtmlEditor } from "@/lib/sanitizeHtml";
 import { brl, cx } from "@/lib/format";
@@ -25,6 +23,8 @@ export function EcItemLeitura({
   verFinanceiro,
   veDescricaoCompleta,
   usuarios,
+  selecionado,
+  onSelecionar,
   onObservacoes,
 }: {
   linha: EcLinha;
@@ -33,13 +33,40 @@ export function EcItemLeitura({
   /** Administrativo lê só a Descrição Financeiro; os demais papéis veem a completa. */
   veDescricaoCompleta: boolean;
   usuarios: string[];
+  selecionado: boolean;
+  onSelecionar: () => void;
   onObservacoes: (obs: Observacao[]) => void;
 }) {
   return (
-    <div id={idAncoraPendencia(l.id)} className="px-4 pt-4 pb-1 hover:bg-[#FCFCFD]">
-      {/* Faixa 1 — identificação do item e os dois valores, lado a lado. */}
-      <div className="flex items-start gap-4">
-        <div className="flex-1 min-w-0">
+    <div
+      id={idAncoraPendencia(l.id)}
+      className={cx(
+        "rounded-card border bg-white",
+        selecionado ? "border-primary ring-1 ring-primary/40 bg-primary-soft/30" : "border-border"
+      )}
+    >
+      {/* Linha 1: trilha de controles + identificação + valores */}
+      <div className="flex items-start gap-2 p-2.5 min-w-0">
+        <div className="flex flex-col items-center gap-1 shrink-0 pt-1">
+          <input
+            type="checkbox"
+            className="h-4 w-4 accent-[#F2820D] cursor-pointer"
+            checked={selecionado}
+            onChange={onSelecionar}
+            aria-label={`Selecionar item ${l.item || "sem título"}`}
+            title="Selecionar o item — a emissão de OS passa a valer só para os selecionados"
+          />
+          <MoverSetas
+            rotulo={`o item ${l.item || "sem título"}`}
+            podeSubir={false}
+            podeDescer={false}
+            motivoBloqueio="Para reordenar, edite a EC"
+            onSubir={() => {}}
+            onDescer={() => {}}
+          />
+        </div>
+
+        <div className="flex-1 min-w-0 pt-1">
           <div className="font-bold text-ink text-[13.5px]">{l.item || "—"}</div>
           {l.descricao && <div className="text-[12.5px] text-ink-2 whitespace-pre-wrap mt-0.5">{l.descricao}</div>}
           {veDescricaoCompleta && l.descricaoCompleta && (
@@ -49,8 +76,7 @@ export function EcItemLeitura({
             />
           )}
         </div>
-        {/* Os dois valores num bloco só, com fundo próprio: antes flutuavam
-            soltos na borda direita, longe do item a que se referem. */}
+
         {verFinanceiro && (
           <div className="shrink-0 flex items-center gap-4 rounded-btn bg-[#F4F5F8] px-3 py-1.5">
             <ValorItem rotulo="Pólobh" valor={l.valorPolobh} />
@@ -60,42 +86,34 @@ export function EcItemLeitura({
         )}
       </div>
 
-      {/* Faixa 2 — status e contratação numa ÚNICA linha, com um traço fino
-          separando cada campo do seguinte. Antes eram duas fileiras empilhadas,
-          e sem divisor não dava para saber onde um campo terminava e o outro
-          começava. Em tela estreita a linha quebra sozinha. */}
-      <div className="mt-3 pt-3 pb-3 border-t border-border-soft">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          {[
-            <ChipStatus key="aprovacao" rotulo="Aprovação"><Badge tom={tomDoStatus(l.statusAprovacao)}>{l.statusAprovacao}</Badge></ChipStatus>,
-            // Os dois carregam id próprio: "OS/Contrato a emitir" é pendência, e o
-            // navegador pisca este chip em vez da linha inteira.
-            <ChipStatus key="os" rotulo="OS" id={idCampoPendencia(l.id, "os")}><Badge tom={tomDoStatus(l.statusOs)}>{l.statusOs}</Badge></ChipStatus>,
-            <ChipStatus key="contrato" rotulo="Contrato" id={idCampoPendencia(l.id, "contrato")}><Badge tom={tomDoStatus(l.contratoStatus)}>{l.contratoStatus}</Badge></ChipStatus>,
-            <DadoInline key="fornecedor" rotulo="Fornecedor" valor={l.fornecedorRazao} extra={l.fornecedorCnpj} />,
-            <DadoInline key="documento" rotulo="Documento PG" valor={l.faturaNf} />,
-            // Mesmo esquema de cores dos status: preenchido é assunto resolvido.
-            <ChipStatus key="codigo" rotulo="Código de Serviço">
-              {l.codigoServico.trim()
-                ? <Badge tom={tomDoStatus(l.codigoServico)}>{l.codigoServico}</Badge>
-                : <span className="text-[12.5px] text-ink-3/60">—</span>}
-            </ChipStatus>,
-            <ChipStatus key="pedido" rotulo="Pedido de Compra">
-              {l.pedidoCompra.trim()
-                ? <Badge tom={tomDoStatus(l.pedidoCompra)}>{l.pedidoCompra}</Badge>
-                : <span className="text-[12.5px] text-ink-3/60">—</span>}
-            </ChipStatus>,
-          ].map((campo, i) => (
-            <Fragment key={campo.key}>
-              {i > 0 && <span aria-hidden="true" className="h-4 w-px shrink-0 bg-border" />}
-              {campo}
-            </Fragment>
-          ))}
-        </div>
+      {/* Linha 2: status e contratação, com a mesma largura dos campos da edição. */}
+      <div className="flex flex-wrap items-end gap-x-2 gap-y-2 px-2.5 pb-2.5 pt-2 border-t border-border-soft bg-[#FCFCFD] rounded-b-card min-w-0">
+        <Campo label="Aprovação" className="w-[7rem] shrink-0">
+          <Badge tom={tomDoStatus(l.statusAprovacao)}>{l.statusAprovacao}</Badge>
+        </Campo>
+        {/* Os dois levam id próprio: "OS/Contrato a emitir" é pendência, e o
+            navegador pisca este campo em vez da linha inteira. */}
+        <Campo label="OS" className="w-[9.5rem] shrink-0" id={idCampoPendencia(l.id, "os")}>
+          <Badge tom={tomDoStatus(l.statusOs)}>{l.statusOs}</Badge>
+        </Campo>
+        <Campo label="Contrato" className="w-[9.5rem] shrink-0" id={idCampoPendencia(l.id, "contrato")}>
+          <Badge tom={tomDoStatus(l.contratoStatus)}>{l.contratoStatus}</Badge>
+        </Campo>
+        <Campo label="Fornecedor (CNPJ / Razão social)" className="flex-[2_1_22rem] min-w-[16rem]">
+          <Texto valor={l.fornecedorRazao} extra={l.fornecedorCnpj} />
+        </Campo>
+        <Campo label="Documento PG" className="flex-[1_1_8rem] min-w-[7rem]">
+          <Texto valor={l.faturaNf} />
+        </Campo>
+        <Campo label="Código de Serviço" className="flex-[1_1_8rem] min-w-[7rem]">
+          {l.codigoServico.trim() ? <Badge tom={tomDoStatus(l.codigoServico)}>{l.codigoServico}</Badge> : <Texto valor="" />}
+        </Campo>
+        <Campo label="Pedido de Compra" className="flex-[1_1_8rem] min-w-[7rem]">
+          {l.pedidoCompra.trim() ? <Badge tom={tomDoStatus(l.pedidoCompra)}>{l.pedidoCompra}</Badge> : <Texto valor="" />}
+        </Campo>
       </div>
 
-      {/* Rodapé alinhado ao conteúdo do item (o padding lateral já vem do contêiner). */}
-      <ObservacoesThread ancora={l.id} className="!px-0" observacoes={l.observacoes} usuarios={usuarios} onChange={onObservacoes} />
+      <ObservacoesThread ancora={l.id} observacoes={l.observacoes} usuarios={usuarios} onChange={onObservacoes} />
     </div>
   );
 }
@@ -110,26 +128,29 @@ function ValorItem({ rotulo, valor }: { rotulo: string; valor: number }) {
   );
 }
 
-/** Rótulo curto colado no badge de status (Aprovação, OS, Contrato). */
-function ChipStatus({ rotulo, children, id }: { rotulo: string; children: ReactNode; id?: string }) {
+/** Rótulo pequeno em cima do campo, como na edição. */
+function Campo({ label, className, children, id }: { label: string; className?: string; children: ReactNode; id?: string }) {
   return (
-    <span id={id} className="inline-flex items-center gap-1.5">
-      <span className="text-[9.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">{rotulo}</span>
-      {children}
-    </span>
+    <div id={id} className={cx("block", className)}>
+      <span className="block text-[10.5px] font-extrabold uppercase tracking-[0.05em] text-ink-3 mb-1 truncate">{label}</span>
+      <div className="min-h-9 flex items-center">{children}</div>
+    </div>
   );
 }
 
-/** Rótulo + valor numa única linha. Vazio fica esmaecido, sem roubar destaque. */
-function DadoInline({ rotulo, valor, extra }: { rotulo: string; valor?: string; extra?: string }) {
+/** Texto de leitura. Vazio fica esmaecido, sem roubar destaque. */
+function Texto({ valor, extra }: { valor?: string; extra?: string }) {
   const preenchido = !!valor?.trim();
   return (
-    <span className="inline-flex items-baseline gap-1.5 min-w-0">
-      <span className="text-[9.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3 whitespace-nowrap">{rotulo}</span>
-      <span className={cx("text-[12.5px] truncate", preenchido ? "text-ink font-medium" : "text-ink-3/60")}>
-        {preenchido ? valor : "—"}
-      </span>
-      {preenchido && extra?.trim() && <span className="text-[11px] text-ink-3 whitespace-nowrap">({extra})</span>}
+    <span className="min-w-0 truncate text-[12.5px]" title={preenchido ? [valor, extra].filter(Boolean).join(" · ") : undefined}>
+      {preenchido ? (
+        <>
+          <span className="text-ink font-medium">{valor}</span>
+          {extra?.trim() && <span className="text-[11px] text-ink-3"> ({extra})</span>}
+        </>
+      ) : (
+        <span className="text-ink-3/60">—</span>
+      )}
     </span>
   );
 }
