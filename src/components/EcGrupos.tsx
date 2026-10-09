@@ -246,12 +246,6 @@ export function EcGrupos({
     destacarElemento(idGrupoEc(id));
   };
 
-  /** Item com OS já emitida ou a emitir não se apaga: a OS perderia o vínculo. */
-  const motivoQueImpedeExcluir = (l: EcLinha): string | null =>
-    l.statusOs === "OK" || l.statusOs === "Emitir Nova Versão"
-      ? `O item “${l.item || "sem nome"}” já tem OS (${l.statusOs}). Resolva a OS antes de excluí-lo — dá para ocultá-lo.`
-      : null;
-
   const excluirItem = async (id: string) => {
     const alvo = grupos.flatMap((g) => g.itens).find((i) => i.id === id);
     if (!alvo) return;
@@ -476,17 +470,44 @@ export function EcGrupos({
   const todosPendentesMarcados =
     pendentesAprovacao.length > 0 && pendentesAprovacao.every((l) => selecionados.has(l.id)) && totalSelecionados === pendentesAprovacao.length;
 
+  /** Item com OS emitida (ou a reemitir) não se apaga nem se oculta: a OS perderia o vínculo. */
+  const itemTemOs = (l: EcLinha) => l.statusOs === "OK" || l.statusOs === "Emitir Nova Versão";
+  const motivoQueImpedeExcluir = (l: EcLinha): string | null =>
+    itemTemOs(l) ? `O item “${l.item || "sem nome"}” já tem OS (${l.statusOs}). Resolva a OS antes de excluí-lo.` : null;
+  const motivoQueImpedeOcultar = (l: EcLinha): string | null =>
+    itemTemOs(l) ? `O item “${l.item || "sem nome"}” já tem OS (${l.statusOs}) e não pode ser ocultado.` : null;
+
   /** Oculta um item: ele some da tela (volta pelo popup "Ocultos"). */
-  const setOcultoItem = (id: string, oculto: boolean) => updLinha(id, { oculto });
+  const setOcultoItem = (id: string, oculto: boolean) => {
+    const alvo = grupos.flatMap((g) => g.itens).find((i) => i.id === id);
+    const impede = oculto && alvo ? motivoQueImpedeOcultar(alvo) : null;
+    if (impede) {
+      toast(impede, "warning");
+      return;
+    }
+    updLinha(id, { oculto });
+  };
   /** Oculta o grupo inteiro (todos os itens): o card some da tela. */
-  const setOcultoGrupo = (grupoNome: string, oculto: boolean) =>
+  const setOcultoGrupo = (grupoNome: string, oculto: boolean) => {
+    const alvo = grupos.find((g) => g.nome === grupoNome);
+    const impede = oculto ? alvo?.itens.map(motivoQueImpedeOcultar).find(Boolean) : null;
+    if (impede) {
+      toast(`O grupo ${grupoNome} não pode ser ocultado. ${impede}`, "warning");
+      return;
+    }
     commit(grupos.map((g) => (g.nome === grupoNome ? { ...g, itens: g.itens.map((it) => ({ ...it, oculto })) } : g)));
+  };
   /**
    * OCULTAR TUDO: oculta o que já foi criado até este clique. Substitui o
    * "ocultar não preenchidos" — item e grupo sem preço também precisam ficar
    * descritos na EC, então "vazio" não é critério para esconder.
    */
-  const ocultarTudoAgora = () => commit(grupos.map((g) => ({ ...g, itens: ocultarTudo(g.itens) })));
+  const ocultarTudoAgora = () => {
+    const comOs = grupos.flatMap((g) => g.itens).filter((i) => !i.oculto && itemTemOs(i)).length;
+    // Item com OS fica na tela: só ele escapa do "ocultar tudo".
+    commit(grupos.map((g) => ({ ...g, itens: ocultarTudo(g.itens).map((i, k) => (itemTemOs(g.itens[k]) ? g.itens[k] : i)) })));
+    if (comOs) toast(`${comOs} ${comOs === 1 ? "item com OS permaneceu" : "itens com OS permaneceram"} na tela.`, "info");
+  };
   const todasAsLinhas = grupos.flatMap((g) => g.itens);
   const qtdVisiveis = todasAsLinhas.length - totalOcultos(todasAsLinhas);
   const qtdOcultos = totalOcultos(todasAsLinhas);
