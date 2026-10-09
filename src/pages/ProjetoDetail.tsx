@@ -41,6 +41,7 @@ import { confirmar } from "@/store/confirm";
 import { corrigirRoteirosProjeto } from "@/lib/correcaoOrtografica";
 import { chaveDocumento } from "@/domain/travaEdicao";
 import { useTravaEdicao } from "@/hooks/useTravaEdicao";
+import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import { AvisoTravaEdicao } from "@/components/AvisoTravaEdicao";
 import { eventoEncerradoHaDias, statusProjetoAutomatico } from "@/domain/statusProjeto";
 import { RepercutirMudancasModal } from "@/components/RepercutirMudancasModal";
@@ -643,6 +644,19 @@ export function ProjetoDetail() {
   // apagado. Em projeto novo ele segue ativo — ali o ato é criar, não atualizar.
   const alterado = novo || (baseline !== "" && JSON.stringify(p) !== baseline);
 
+  /**
+   * SAIR SEM SALVAR (09/10/2026). Quem cria um projeto e clica em "voltar" (ou
+   * em qualquer item do menu) antes de salvar perdia tudo, calado. Em projeto
+   * novo, "sujo" é diferente da folha em branco do primeiro render; em projeto
+   * existente, é estar editando com algo mudado. Fechar a aba também avisa.
+   */
+  const fotoDoNovo = useRef<string | null>(null);
+  if (novo && fotoDoNovo.current === null) fotoDoNovo.current = JSON.stringify(p);
+  const sujo = novo
+    ? fotoDoNovo.current !== null && JSON.stringify(p) !== fotoDoNovo.current
+    : editando && baseline !== "" && JSON.stringify(p) !== baseline;
+  const guarda = useUnsavedGuard(sujo);
+
   // Check-list do projeto. Depende de `alterado`: a lista é gerada a partir do
   // que está SALVO, nunca do que ainda está sendo digitado no formulário.
   const checklistProjeto = useChecklistProjeto(novo ? undefined : p, podeEditarChecklist, !alterado);
@@ -689,6 +703,7 @@ export function ProjetoDetail() {
       // emitido: os próximos documentos já nascem com os dados novos.
       if (mudancas.length) setRepercussao({ mudancas, atual });
 
+      guarda.liberar();
       navigate(`/projetos/${salvo.id}`);
     } catch (e) {
       toast(`Erro ao salvar: ${(e as Error).message}`, "danger");

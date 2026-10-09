@@ -1,7 +1,7 @@
 /**
  * Templates de EC (gerados dos modelos da Marisa: Corporativo e Cultural).
- * Ao criar uma EC escolhe-se o tipo e a tabela de custos vem pré-preenchida
- * com estes grupos + itens + descrições (todos editáveis).
+ * Ao criar uma EC ela nasce em branco; estes modelos ficam como opções de
+ * importação em "Adicionar grupo / item" (todos editáveis).
  */
 export interface TemplateItem {
   grupo: string;

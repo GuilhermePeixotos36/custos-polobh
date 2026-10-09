@@ -19,7 +19,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Input, AutoTextarea, Select, CurrencyInput, NumberInput, Button, classeCampoStatus } from "@/components/ui";
-import { IcGrip, IcChevron, IcPlus, IcEyeOff, IcSpark, IcCheck, IcBack } from "@/components/icons";
+import { IcGrip, IcChevron, IcPlus, IcEyeOff, IcTrash, IcSpark, IcCheck, IcBack } from "@/components/icons";
 import { FornecedorField } from "@/components/FornecedorField";
 import { RichTextField } from "@/components/RichTextField";
 import { ObservacoesThread } from "@/components/ObservacoesPopup";
@@ -27,13 +27,17 @@ import { ResumoPropostaModal } from "@/components/ResumoPropostaModal";
 import { NotifDot } from "@/components/NotifDot";
 import { MoverSetas } from "@/components/MoverSetas";
 import { OcultosEcModal } from "@/components/OcultosEcModal";
+import { AdicionarEcModal, type NovoManual } from "@/components/AdicionarEcModal";
+import type { EntradaImportada } from "@/domain/importarModeloEc";
+import { confirmar } from "@/store/confirm";
+import { toast } from "@/store/toast";
 import { aplicarAlteracaoDeLinha } from "@/domain/ec";
 import { grupoVisivel, ocultarTudo, ocultosPorGrupo, reexibirItens, totalOcultos } from "@/domain/ocultosEc";
 import { destacarElemento, seguirElemento, idAncoraPendencia, idCampoDescricaoCompleta, idCampoPendencia, idGrupoEc } from "@/lib/destaque";
 import { aprovarLinha, faltasParaEmitirOs, reverterAprovacaoLinha, opcaoNaoSeAplica, OPCOES_VALOR_ITEM, bvVazio, bvDaLinha, bvExigeJustificativa, limitarBvPercentual, BV_PADRAO_PERCENTUAL } from "@/domain/calc";
 import { flags } from "@/lib/flags";
 import { brl, cx } from "@/lib/format";
-import type { BvItem, EcLinha, Fornecedor, Observacao, OpcaoValorDefinida, StatusAprovacao, StatusOs } from "@/data/types";
+import type { BvItem, EcLinha, Fornecedor, ModalidadeProjeto, Observacao, OpcaoValorDefinida, StatusAprovacao, StatusOs } from "@/data/types";
 import type { Sugestoes } from "@/domain/sugestoes";
 
 /** Opções de status de OS e de Contrato — a mesma lista nos dois campos. */
@@ -143,17 +147,20 @@ interface Props {
    */
   pendenciasPorLinha?: Record<string, number>;
   onValidarFornecedor: (cnpj: string) => Promise<string | null>;
+  /** Modalidade ATUAL do projeto: define o modelo oferecido em "Adicionar grupo / item". */
+  modalidade?: ModalidadeProjeto;
 }
 
 export function EcGrupos({
   linhas, onChange, verFinanceiro, fornecedores, usuarios, sugestoes,
-  pendenciasPorLinha = {}, onValidarFornecedor,
+  pendenciasPorLinha = {}, onValidarFornecedor, modalidade = "",
 }: Props) {
   const [grupos, setGrupos] = useState<Grupo[]>(() => agrupar(linhas));
   const [expandido, setExpandido] = useState<Record<string, boolean>>({});
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const [ativo, setAtivo] = useState<{ tipo: "grupo" | "item"; chave: string } | null>(null);
   const [popupOcultos, setPopupOcultos] = useState(false);
+  const [popupAdicionar, setPopupAdicionar] = useState(false);
   const arrastandoRef = useRef(false);
   // Espelho sempre atual do estado (evita leitura defasada entre onDragOver e onDragEnd).
   const gruposRef = useRef(grupos);
@@ -197,13 +204,100 @@ export function EcGrupos({
     destacarElemento(idAncoraPendencia(nova.id));
   };
 
-  const addGrupo = () => {
-    const nome = nomeGrupoUnico("NOVO GRUPO", grupos);
+  /**
+   * Importa do modelo da modalidade. O item cai dentro do grupo de mesmo nome
+   * (se a EC já o tem); "só o grupo" entra com uma linha em branco, porque o
+   * grupo só existe enquanto tem ao menos uma linha.
+   */
+  const importarDoModelo = (entradas: EntradaImportada[]) => {
+    const proximos = grupos.map((g) => ({ ...g, itens: [...g.itens] }));
+    let ultimoId = "";
+    for (const e of entradas) {
+      const linha = { ...novaLinhaBase(), grupo: e.grupo, item: e.item, descricao: e.descricao };
+      let g = proximos.find((x) => x.nome === e.grupo);
+      if (!g) {
+        g = { id: `grupo-${linha.id}`, nome: e.grupo, itens: [] };
+        proximos.push(g);
+      }
+      g.itens.push(linha);
+      ultimoId = g.id;
+    }
+    commit(proximos);
+    if (ultimoId) setExpandido((x) => ({ ...x, [ultimoId]: true }));
+    toast(`${entradas.length} ${entradas.length === 1 ? "linha importada" : "linhas importadas"} do modelo.`, "success");
+  };
+
+  /** Cria do zero: um grupo novo (com uma linha em branco) ou um item num grupo. */
+  const criarManual = (n: NovoManual) => {
+    if (n.tipo === "item") {
+      const alvo = grupos.find((g) => g.nome === n.grupo);
+      if (!alvo) return;
+      const nova = { ...novaLinhaBase(), grupo: alvo.nome, item: n.nome, descricao: n.nome };
+      commit(grupos.map((g) => (g === alvo ? { ...g, itens: [...g.itens, nova] } : g)));
+      setExpandido((x) => ({ ...x, [alvo.id]: true }));
+      destacarElemento(idAncoraPendencia(nova.id));
+      return;
+    }
+    const nome = nomeGrupoUnico(n.nome, grupos);
     const linha = { ...novaLinhaBase(), grupo: nome };
     const id = `grupo-${linha.id}`;
     commit([...grupos, { id, nome, itens: [linha] }]);
-    setExpandido((e) => ({ ...e, [id]: true }));
+    setExpandido((x) => ({ ...x, [id]: true }));
     destacarElemento(idGrupoEc(id));
+  };
+
+  /** Item com OS já emitida ou a emitir não se apaga: a OS perderia o vínculo. */
+  const motivoQueImpedeExcluir = (l: EcLinha): string | null =>
+    l.statusOs === "OK" || l.statusOs === "Emitir Nova Versão"
+      ? `O item “${l.item || "sem nome"}” já tem OS (${l.statusOs}). Resolva a OS antes de excluí-lo — dá para ocultá-lo.`
+      : null;
+
+  const excluirItem = async (id: string) => {
+    const alvo = grupos.flatMap((g) => g.itens).find((i) => i.id === id);
+    if (!alvo) return;
+    const impede = motivoQueImpedeExcluir(alvo);
+    if (impede) {
+      toast(impede, "warning");
+      return;
+    }
+    const grupo = grupos.find((g) => g.itens.some((i) => i.id === id))!;
+    const ultimo = grupo.itens.length === 1;
+    const ok = await confirmar({
+      titulo: "Excluir este item?",
+      mensagem: `“${alvo.item || "Item sem nome"}” será removido da EC${ultimo ? ", e o grupo " + grupo.nome + " também, por ficar sem itens" : ""}. A exclusão vale ao salvar a EC.`,
+      confirmarTexto: "Excluir item",
+      tom: "danger",
+    });
+    if (!ok) return;
+    commit(
+      grupos
+        .map((g) => (g === grupo ? { ...g, itens: g.itens.filter((i) => i.id !== id) } : g))
+        .filter((g) => g.itens.length > 0),
+    );
+  };
+
+  const excluirGrupo = async (grupoId: string) => {
+    const grupo = grupos.find((g) => g.id === grupoId);
+    if (!grupo) return;
+    const impede = grupo.itens.map(motivoQueImpedeExcluir).find(Boolean);
+    if (impede) {
+      toast(impede, "warning");
+      return;
+    }
+    const n = grupo.itens.length;
+    const ok = await confirmar({
+      titulo: "Excluir este grupo?",
+      mensagem: `O grupo ${grupo.nome} e ${n === 1 ? "o seu 1 item" : `os seus ${n} itens`} serão removidos da EC. A exclusão vale ao salvar a EC.`,
+      confirmarTexto: "Excluir grupo",
+      tom: "danger",
+    });
+    if (!ok) return;
+    setSelecionados((sel) => {
+      const novo = new Set(sel);
+      grupo.itens.forEach((i) => novo.delete(i.id));
+      return novo;
+    });
+    commit(grupos.filter((g) => g.id !== grupoId));
   };
 
   /**
@@ -327,7 +421,7 @@ export function EcGrupos({
   const previaAprovacao = aAprovar
     .map(aprovarLinha)
     .filter((l) => l.statusOs === "Emitir" || l.statusOs === "Emitir Nova Versão")
-    .map(faltasParaEmitirOs);
+    .map((l) => faltasParaEmitirOs(l, verFinanceiro));
   const bloqueiosPrevistos = previaAprovacao.filter((faltas) => faltas.length > 0);
   /** Campos que travam a seleção atual — vira o texto do aviso. */
   const camposFaltantes = [...new Set(bloqueiosPrevistos.flat())];
@@ -570,8 +664,8 @@ export function EcGrupos({
       )}
 
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <Button variant="secondary" size="sm" icon={<IcPlus width={16} height={16} />} onClick={addGrupo}>
-          Adicionar grupo
+        <Button variant="secondary" size="sm" icon={<IcPlus width={16} height={16} />} onClick={() => setPopupAdicionar(true)}>
+          Adicionar grupo / item
         </Button>
         <div className="flex items-center gap-3 text-[13px] font-bold text-ink-2">
           {pendentesAprovacao.length > 0 && (
@@ -610,12 +704,12 @@ export function EcGrupos({
 
       {grupos.length === 0 && (
         <div className="text-center text-ink-3 text-sm py-8 border border-dashed border-border rounded-card">
-          Nenhum grupo. Use “Adicionar grupo” para começar.
+          A EC está em branco. Use “Adicionar grupo / item” para criar do zero ou importar do modelo da modalidade.
         </div>
       )}
       {grupos.length > 0 && gruposVisiveis.length === 0 && (
         <div className="text-center text-ink-3 text-sm py-8 border border-dashed border-border rounded-card">
-          Tudo está oculto. Use “Adicionar grupo” para criar um novo ou “Ocultos ({qtdOcultos})” para reexibir.
+          Tudo está oculto. Use “Adicionar grupo / item” para criar um novo ou “Ocultos ({qtdOcultos})” para reexibir.
         </div>
       )}
 
@@ -641,6 +735,8 @@ export function EcGrupos({
                 onUpdLinha={updLinha}
                 onOcultoItem={setOcultoItem}
                 onOcultoGrupo={(v) => setOcultoGrupo(g.nome, v)}
+                onExcluirItem={excluirItem}
+                onExcluirGrupo={() => excluirGrupo(g.id)}
                 onSelecionarItem={alternarSelecao}
                 onSelecionarGrupo={(marcar) => alternarSelecaoGrupo(g.id, marcar)}
                 onMoverItem={(itemId, direcao) => moverItem(g.id, itemId, direcao)}
@@ -669,6 +765,16 @@ export function EcGrupos({
           ) : null}
         </DragOverlay>
       </DndContext>
+
+      {popupAdicionar && (
+        <AdicionarEcModal
+          modalidade={modalidade}
+          gruposExistentes={grupos.map((g) => g.nome)}
+          onImportar={importarDoModelo}
+          onCriar={criarManual}
+          onFechar={() => setPopupAdicionar(false)}
+        />
+      )}
 
       {popupOcultos && (
         <OcultosEcModal
@@ -701,6 +807,8 @@ interface GrupoProps {
   onUpdLinha: (id: string, patch: Partial<EcLinha>) => void;
   onOcultoItem: (id: string, oculto: boolean) => void;
   onOcultoGrupo: (oculto: boolean) => void;
+  onExcluirItem: (id: string) => void;
+  onExcluirGrupo: () => void;
   onSelecionarItem: (id: string) => void;
   onSelecionarGrupo: (marcar: boolean) => void;
   onMoverItem: (itemId: string, direcao: -1 | 1) => void;
@@ -711,7 +819,7 @@ interface GrupoProps {
 function GrupoCard({
   g, aberto, primeiroGrupo, ultimoGrupo, verFinanceiro, fornecedores, usuarios, sugestoes,
   pendenciasPorLinha, selecionados,
-  onToggle, onRenomear, onAddItem, onUpdLinha, onOcultoItem, onOcultoGrupo,
+  onToggle, onRenomear, onAddItem, onUpdLinha, onOcultoItem, onOcultoGrupo, onExcluirItem, onExcluirGrupo,
   onSelecionarItem, onSelecionarGrupo, onMoverItem, onMoverGrupo, onValidarFornecedor,
 }: GrupoProps) {
   const sortable = useSortable({ id: GID(g.id) });
@@ -796,6 +904,15 @@ function GrupoCard({
           >
             <IcEyeOff width={17} height={17} />
           </button>
+          <button
+            type="button"
+            onClick={onExcluirGrupo}
+            className="inline-flex items-center rounded-btn p-1.5 text-ink-3 hover:bg-danger-soft hover:text-danger"
+            title="Excluir grupo e todos os seus itens"
+            aria-label="Excluir grupo"
+          >
+            <IcTrash width={17} height={17} />
+          </button>
           <Button variant="soft" size="sm" icon={<IcPlus width={15} height={15} />} onClick={onAddItem}>
             Item
           </Button>
@@ -823,6 +940,7 @@ function GrupoCard({
                 motivoBloqueio={itemUnico ? "Único item do grupo — tirá-lo daqui apagaria o grupo" : undefined}
                 onUpd={(patch) => onUpdLinha(l.id, patch)}
                 onOcultar={() => onOcultoItem(l.id, true)}
+                onExcluir={() => onExcluirItem(l.id)}
                 onSelecionar={() => onSelecionarItem(l.id)}
                 onMover={(direcao) => onMoverItem(l.id, direcao)}
                 onValidarFornecedor={onValidarFornecedor}              />
@@ -861,6 +979,7 @@ interface ItemProps {
   motivoBloqueio?: string;
   onUpd: (patch: Partial<EcLinha>) => void;
   onOcultar: () => void;
+  onExcluir: () => void;
   onSelecionar: () => void;
   onMover: (direcao: -1 | 1) => void;
   onValidarFornecedor: (cnpj: string) => Promise<string | null>;
@@ -868,7 +987,7 @@ interface ItemProps {
 
 function ItemRow({
   l, verFinanceiro, fornecedores, usuarios, sugestoes, pendencias, selecionado, primeiro, ultimo, motivoBloqueio,
-  onUpd, onOcultar, onSelecionar, onMover, onValidarFornecedor,
+  onUpd, onOcultar, onExcluir, onSelecionar, onMover, onValidarFornecedor,
 }: ItemProps) {
   const sortable = useSortable({ id: l.id });
   const style = { transform: CSS.Translate.toString(sortable.transform), transition: sortable.transition };
@@ -998,6 +1117,9 @@ function ItemRow({
         <div className="col-start-2 xl:col-start-auto flex xl:flex-col items-center justify-end gap-1 xl:pt-5">
           <button type="button" onClick={onOcultar} className="text-ink-3 hover:text-primary p-1.5" title="Ocultar item — some da tela e fica guardado (reexibir em Ocultos)" aria-label="Ocultar item">
             <IcEyeOff width={18} height={18} />
+          </button>
+          <button type="button" onClick={onExcluir} className="text-ink-3 hover:text-danger p-1.5" title="Excluir item" aria-label="Excluir item">
+            <IcTrash width={18} height={18} />
           </button>
         </div>
       </div>

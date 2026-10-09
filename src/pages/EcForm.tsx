@@ -32,7 +32,6 @@ import {
   ROTULO_HONORARIOS_PADRAO,
   ROTULO_ENCARGOS_PADRAO,
 } from "@/domain/calc";
-import { itensDoTemplate } from "@/domain/ecTemplates";
 import { motivoBloqueioEc, situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
 import { projetoInfoVazio } from "@/domain/projeto";
 import { gerarRentabilidadeExcel } from "@/lib/excel";
@@ -54,7 +53,6 @@ import { EcGrupos } from "@/components/EcGrupos";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
 import { ObservacoesGeraisEc } from "@/components/ObservacoesGeraisEc";
 import { pendenciasDaTela } from "@/domain/pendencias";
-import { bvVazio } from "@/domain/calc";
 import { contatoDeTexto, mesclarContatos } from "@/domain/fornecedor";
 import { useMinhasPendencias } from "@/store/pendencias";
 import { useSugestoes } from "@/hooks/useSugestoes";
@@ -69,39 +67,11 @@ import type {
   Ec,
   EcLinha,
   Fornecedor,
+  ModalidadeProjeto,
   ProjetoInfo,
   TaxaConfig,
 } from "@/data/types";
 import type { EcTotais } from "@/domain/calc";
-
-const novaLinha = (ordem: number): EcLinha => ({
-  id: `nl-${Date.now()}-${ordem}-${Math.random().toString(36).slice(2, 6)}`,
-  grupo: "GERAL",
-  item: "",
-  descricao: "",
-  descricaoCompleta: "",
-  valorPolobh: 0,
-  valorCliente: 0,
-  valorGasto: 0,
-  valorComBvNf: 0,
-  valorSemBvComNf: 0,
-  valorSemBvSemNf: 0,
-  valoresNaoAplicaveis: [],
-  bv: bvVazio(),
-  statusAprovacao: "Pendente",
-  fornecedorRazao: "",
-  fornecedorCnpj: "",
-  fornecedorContato: "",
-  faturaNf: "",
-  codigoServico: "",
-  pedidoCompra: "",
-  statusOs: "Pendente",
-  contratoStatus: "Pendente",
-  observacao: "",
-  observacoes: [],
-  oculto: false,
-  ordem,
-});
 
 /** Monta um Fornecedor completo a partir dos campos conhecidos (resto vazio). */
 const fornecedorNovo = (p: Partial<Fornecedor>): Fornecedor => ({
@@ -183,16 +153,9 @@ export function EcForm() {
       const agora = new Date().toISOString();
       const projetoId = params.get("projeto") ?? "";
       const template = (params.get("template") ?? "") as Ec["template"];
-      // Pré-preenche as linhas com o modelo escolhido (Corporativo/Cultural).
-      const itensTpl = itensDoTemplate(template);
-      const linhasIniciais: EcLinha[] = itensTpl.length
-        ? itensTpl.map((it, i) => ({
-            ...novaLinha(i),
-            grupo: it.grupo,
-            item: it.item,
-            descricao: it.descricao,
-          }))
-        : [novaLinha(0)];
+      // A EC nasce EM BRANCO (09/10/2026): os grupos e itens padrão da
+      // modalidade ficam como opções em "Adicionar grupo / item".
+      const linhasIniciais: EcLinha[] = [];
       const montar = (cliente: Cliente, projeto: ReturnType<typeof projetoVazio>) =>
         iniciar({
           id: "",
@@ -255,6 +218,14 @@ export function EcForm() {
     }
     return mapa;
   }, [pendenciasDaEc]);
+
+  // A modalidade vale a de HOJE do projeto, e não a do dia em que a EC nasceu:
+  // trocar Cultural por Corporativo tem de trocar também o modelo oferecido.
+  const { data: projetoDaEc } = useAsync(
+    () => (ec?.projetoId ? repo.projetos.obter(ec.projetoId) : Promise.resolve(undefined)),
+    [ec?.projetoId]
+  );
+  const modalidadeAtual = (projetoDaEc?.info.modalidade || ec?.projeto.modalidade || ec?.template || "") as ModalidadeProjeto;
 
   const sujo = !!ec && baseline !== "" && JSON.stringify(ec) !== baseline;
   useUnsavedGuard(sujo);
@@ -653,6 +624,7 @@ export function EcForm() {
               sugestoes={sugestoes}
               pendenciasPorLinha={pendenciasPorLinha}
               onValidarFornecedor={validarFornecedor}
+              modalidade={modalidadeAtual}
             />
           </div>
         </Card>
