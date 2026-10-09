@@ -6,6 +6,7 @@ import {
 } from "@/components/ui";
 import { IcSearch, IcTrash, IcPlus } from "@/components/icons";
 import { repo } from "@/data";
+import { useAvisoDeSaida } from "@/hooks/useAvisoDeSaida";
 import { useAsync } from "@/hooks/useAsync";
 import { consultarCnpj } from "@/lib/cnpj";
 import { flags } from "@/lib/flags";
@@ -20,6 +21,8 @@ export function Fornecedores() {
   const { data, loading, error, reload } = useAsync(() => repo.fornecedores.listar(), [], { oQue: "os fornecedores" });
   const [busca, setBusca] = useState("");
   const [edit, setEdit] = useState<Fornecedor | null>(null);
+  // Cadastro aberto e mexido: F5, fechar a aba ou sair da tela pedem confirmação.
+  useAvisoDeSaida(edit);
   /** Apelido que o sistema usaria — mostrado como sugestão enquanto o campo está vazio. */
   const apelidoAutomatico = useMemo(
     () => gerarApelidoFornecedor(edit?.nomeFantasia, edit?.razaoSocial),

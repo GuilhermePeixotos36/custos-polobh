@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import { createPortal } from "react-dom";
 import { Button, Select } from "@/components/ui";
 import { IcComment, IcChevron, IcPencil, IcTrash, IcSend, IcClipe, IcFechar } from "@/components/icons";
@@ -534,6 +535,8 @@ function Composer({
    */
   const [pendentes, setPendentes] = useState<File[]>([]);
   const [enviando, setEnviando] = useState(false);
+  // Comentário escrito e não enviado: recarregar a página perderia o texto.
+  useUnsavedGuard(!enviando && (texto.trim() !== valorInicial.trim() || pendentes.length > 0));
   const [erroAnexo, setErroAnexo] = useState("");
   const arquivoRef = useRef<HTMLInputElement>(null);
   const [mencao, setMencao] = useState<MencaoAtiva | null>(null);

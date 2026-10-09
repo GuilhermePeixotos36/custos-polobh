@@ -19,6 +19,7 @@
  *  · Meus chamados — o andamento do que a pessoa pediu, e a conversa;
  *  · Fila do suporte — só para quem atende (papel Admin, ver `e_suporte`).
  */
+import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge, Button, EmptyState, Field, Input, Select, Textarea, type Tom } from "@/components/ui";
 import { IcCamera, IcCheck, IcChevron, IcClipe, IcFechar, IcSend, IcSuporte, IcTrash } from "@/components/icons";
@@ -272,6 +273,8 @@ function NovoChamado({
   const [tela, setTela] = useState(telaOrigem);
   const [arquivos, setArquivos] = useState<File[]>([]);
   const [enviando, setEnviando] = useState(false);
+  // Chamado escrito e não enviado: recarregar a página perderia o relato.
+  useUnsavedGuard(!enviando && !!(assunto.trim() || descricao.trim() || arquivos.length));
 
   useEffect(() => setTela(telaOrigem), [telaOrigem]);
 
@@ -703,6 +706,7 @@ function CartaoChamado({
   const [resposta, setResposta] = useState("");
   const [arquivos, setArquivos] = useState<File[]>([]);
   const [ocupado, setOcupado] = useState(false);
+  useUnsavedGuard(!ocupado && !!(resposta.trim() || arquivos.length));
   const resolvido = chamado.status === "Resolvido";
 
   async function responder() {
