@@ -56,22 +56,40 @@ export function useRealtimePendencias(ativo: boolean): void {
       agendado = window.setTimeout(() => void carregar(true), AGRUPAR_MS);
     };
 
-    const canal = supabase.channel("polobh-mudancas");
-    for (const table of TABELAS) {
-      canal.on("postgres_changes", { event: "*", schema: "public", table }, pedirRecarga);
-    }
-    canal.subscribe((status) => {
-      // Sem isto, o Realtime cair é INVISÍVEL: a tela continua funcionando
-      // (o relógio segura), e ninguém descobre que o caminho rápido morreu.
-      // O token do socket, por exemplo, expira junto com a sessão.
-      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-        console.warn(`[realtime] canal ${status} — a tela segue atualizando pelo relógio de 3 min.`);
+    /*
+     * O Realtime é um ATALHO: se ele não abrir, a tela segue pelo relógio.
+     * Por isso nada aqui pode derrubar a tela. O Safari do iPhone recusava o
+     * WebSocket ("The operation is insecure") — a política de segurança só
+     * liberava `https:` — e o erro subia até a tela de falha, em todas as
+     * telas, para quem estava no celular (12/10/2026).
+     */
+    let canal: ReturnType<typeof supabase.channel> | null = null;
+    try {
+      canal = supabase.channel("polobh-mudancas");
+      for (const table of TABELAS) {
+        canal.on("postgres_changes", { event: "*", schema: "public", table }, pedirRecarga);
       }
-    });
+      canal.subscribe((status) => {
+        // Sem isto, o Realtime cair é INVISÍVEL: a tela continua funcionando
+        // (o relógio segura), e ninguém descobre que o caminho rápido morreu.
+        // O token do socket, por exemplo, expira junto com a sessão.
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+          console.warn(`[realtime] canal ${status} — a tela segue atualizando pelo relógio de 3 min.`);
+        }
+      });
+    } catch (erro) {
+      console.warn("[realtime] indisponível neste navegador — a tela segue atualizando pelo relógio.", erro);
+    }
 
     return () => {
       window.clearTimeout(agendado);
-      void supabase.removeChannel(canal);
+      if (canal) {
+        try {
+          void supabase.removeChannel(canal).catch(() => undefined);
+        } catch {
+          /* o canal nunca abriu */
+        }
+      }
     };
   }, [ativo, carregar]);
 }
