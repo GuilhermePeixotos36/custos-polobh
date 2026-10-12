@@ -67,7 +67,7 @@ export function desdeQuando(posse: PosseDeEdicao): string {
  */
 export function avisoDePosse(posse: PosseDeEdicao | null, agora: Date = new Date()): string {
   if (!posse || posse.meu) return "";
-  const nome = posse.usuarioNome.trim() || "Outra pessoa";
+  const nome = (posse.usuarioNome ?? "").trim() || "Outra pessoa";
   if (!posseAtiva(posse, agora)) {
     return `${nome} abriu este documento para edição às ${desdeQuando(posse)} e está sem sinal. Você já pode assumir.`;
   }
