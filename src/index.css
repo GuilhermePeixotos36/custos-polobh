@@ -226,12 +226,15 @@ body {
      de subguias. Quem gruda DENTRO da página se posiciona abaixo de
      topnav + cabeçalho. */
   --altura-cabecalho: 96px;
+  /* Barra de menu fixa embaixo, só no celular (ver TopNav). */
+  --altura-nav-celular: 60px;
 }
 
 /* Da largura md para cima volta a respiração do desktop. */
 @media (min-width: 768px) {
   :root {
     --gutter: 40px;
+    --altura-nav-celular: 0px;
   }
 }
 

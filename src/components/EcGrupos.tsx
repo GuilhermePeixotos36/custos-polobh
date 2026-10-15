@@ -870,7 +870,7 @@ function GrupoCard({
         droppable.isOver && !sortable.isDragging && "ring-2 ring-primary/40 border-primary"
       )}
     >
-      <div className={cx("flex items-center gap-2 px-3 py-3", aberto && "border-b border-border-soft")}>
+      <div className={cx("flex items-center gap-2 px-3 py-3 flex-wrap", aberto && "border-b border-border-soft")}>
         {/* Marca de uma vez todos os itens visíveis do grupo. */}
         <input
           type="checkbox"
@@ -903,7 +903,7 @@ function GrupoCard({
           <IcChevron width={20} height={20} className={cx("transition-transform duration-200", aberto && "rotate-90")} />
         </button>
         <Input
-          className="!h-10 !px-2.5 !text-[15px] !font-bold !uppercase max-w-sm"
+          className="!h-10 !px-2.5 !text-[15px] !font-bold !uppercase max-w-sm min-w-0 flex-1 basis-[9rem]"
           formato="grupo"
           value={g.nome}
           sugestoes={sugestoes.valores.grupoEc}
@@ -1185,7 +1185,7 @@ function ItemRow({
             {OPCOES_STATUS_OS.map((o) => <option key={o}>{o}</option>)}
           </Select>
         </Campo>
-        <Campo label="Fornecedor (CNPJ / Razão social)" className="flex-[2_1_22rem] min-w-[20rem]" obrigatorio>
+        <Campo label="Fornecedor (CNPJ / Razão social)" className="basis-full min-w-0 sm:basis-auto sm:flex-[2_1_22rem] sm:min-w-[20rem]" obrigatorio>
           <FornecedorField
             razao={l.fornecedorRazao}
             cnpj={l.fornecedorCnpj}

@@ -379,7 +379,7 @@ export function EcDetail() {
             <div key={g.nome} className="rounded-card border border-border bg-white">
               {/* Cabeçalho do grupo — o mesmo da edição: seleção, setas (apagadas
                   aqui), seta de recolher, nome, contagem e subtotal. */}
-              <div className={cx("flex items-center gap-2 px-3 py-3", aberto && "border-b border-border-soft")}>
+              <div className={cx("flex items-center gap-2 px-3 py-3 flex-wrap", aberto && "border-b border-border-soft")}>
                 <input
                   type="checkbox"
                   className="h-4 w-4 shrink-0 accent-[#F2820D] cursor-pointer"
@@ -393,6 +393,7 @@ export function EcDetail() {
                   title="Selecionar todos os itens deste grupo"
                 />
                 <MoverSetas
+                  className="hidden sm:flex"
                   rotulo={`o grupo ${g.nome}`}
                   podeSubir={false}
                   podeDescer={false}
@@ -403,7 +404,7 @@ export function EcDetail() {
                 <button onClick={() => toggleGrupo(g.nome)} className="shrink-0 text-ink-2 hover:text-ink" aria-expanded={aberto} aria-label={`${aberto ? "Retrair" : "Expandir"} ${g.nome}`}>
                   <IcChevron width={20} height={20} className={cx("transition-transform duration-200", aberto && "rotate-90")} />
                 </button>
-                <button onClick={() => toggleGrupo(g.nome)} className="text-[15px] font-bold uppercase text-ink text-left min-w-0 truncate">
+                <button onClick={() => toggleGrupo(g.nome)} className="text-[15px] font-bold uppercase text-ink text-left min-w-0 flex-1 break-words sm:flex-none sm:truncate">
                   {g.nome}
                 </button>
                 <span className="shrink-0 text-[12px] font-bold text-ink-3 bg-[#F0F1F4] rounded-pill px-2.5 py-1">

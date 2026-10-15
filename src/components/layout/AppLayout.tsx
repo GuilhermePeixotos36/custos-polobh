@@ -50,7 +50,7 @@ export function AppLayout() {
   if (!usuario) return <Navigate to="/login" replace />;
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col min-h-screen pb-[calc(var(--altura-nav-celular)+env(safe-area-inset-bottom))] md:pb-0">
       {/* Deploy novo publicado com a aba aberta: todos os perfis passam a ver o
           mesmo aplicativo assim que clicam (ver `useVersaoDoApp`). */}
       {versaoNova && (
@@ -133,10 +133,15 @@ export function PageShell({
       document.documentElement.style.setProperty("--altura-cabecalho", "0px");
       return;
     }
+    // No celular o cabeçalho NÃO gruda (ver a classe abaixo): ele ocupava
+    // metade da tela o tempo todo. Sem grude, quem se posiciona "abaixo do
+    // cabeçalho" deve contar só a barra do topo.
     const publicar = () =>
       document.documentElement.style.setProperty(
         "--altura-cabecalho",
-        `${Math.round(node.getBoundingClientRect().height)}px`
+        window.matchMedia("(min-width: 768px)").matches
+          ? `${Math.round(node.getBoundingClientRect().height)}px`
+          : "0px"
       );
     publicar();
     // A altura muda sozinha: os botões quebram para uma segunda linha em tela
@@ -151,7 +156,7 @@ export function PageShell({
       <div
         ref={medirCabecalho}
         className={cx(
-          "cabecalho-pagina sticky top-[var(--altura-topnav)] z-20 -mx-[var(--gutter)] px-[var(--gutter)] pt-3 mb-4",
+          "cabecalho-pagina md:sticky top-[var(--altura-topnav)] z-20 -mx-[var(--gutter)] px-[var(--gutter)] pt-3 mb-4",
           // Translúcido com desfoque: encosta no degradê do fundo sem virar uma
           // faixa chapada, e o conteúdo que passa por baixo continua legível.
           "bg-bg/90 backdrop-blur-[6px]",
@@ -178,7 +183,7 @@ export function PageShell({
           </div>
           {/* O comando de recolher/expandir nasce aqui e some sozinho na tela
               que não tem blocos recolhíveis — nenhuma página precisa pedir. */}
-          <div data-tour="acoes-tela" className="flex items-center gap-2.5 shrink-0">
+          <div data-tour="acoes-tela" className="flex items-center gap-2.5 flex-wrap min-w-0 max-w-full md:shrink-0">
             <BotaoRecolherTudo />
             {topAction}
           </div>

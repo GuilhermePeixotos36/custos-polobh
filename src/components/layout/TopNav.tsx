@@ -28,7 +28,7 @@ export function TopNav() {
 
       {/* `data-tour`: âncoras do tour guiado (src/tour). São só marcas de
           posição — nada de comportamento depende delas. */}
-      <nav data-tour="topnav" className="flex items-center gap-1 overflow-x-auto flex-1 min-w-0">
+      <nav data-tour="topnav" className="hidden md:flex items-center gap-1 overflow-x-auto flex-1 min-w-0">
         {itens.map((i) =>
           /* Quem abre painel não navega: a tela de trás continua inteira, que é
              o ponto do Help Desk (ver `NavItem.painel`). */
@@ -79,6 +79,55 @@ export function TopNav() {
           )
         )}
       </nav>
+      {/* CELULAR (15/10/2026): os ícones do menu disputavam a barra de cima com
+          logo, sino, avatar e sair — cabiam dois e meio, e o resto ficava cortado
+          sem dar sinal de que rolava. No celular o menu desce para uma barra fixa
+          embaixo, com todos os itens e o nome de cada um. */}
+      <nav
+        aria-label="Menu"
+        className="md:hidden fixed bottom-0 inset-x-0 z-30 h-[var(--altura-nav-celular)] bg-surface border-t border-border flex items-stretch overflow-x-auto pb-[env(safe-area-inset-bottom)]"
+      >
+        {itens.map((i) => {
+          const conteudo = (ativo: boolean) => (
+            <>
+              <span className="relative shrink-0">
+                {i.icon}
+                {i.pendencias && (
+                  <NotifDot
+                    n={porRecurso[i.recurso] ?? 0}
+                    title={`${porRecurso[i.recurso] ?? 0} pendência(s)`}
+                    className="left-auto -right-2 -top-2"
+                  />
+                )}
+              </span>
+              <span className={cx("text-[10px] leading-tight truncate max-w-full", ativo ? "font-bold" : "font-semibold")}>
+                {i.rotuloCurto ?? i.label}
+              </span>
+            </>
+          );
+          const base = "flex-1 min-w-[60px] flex flex-col items-center justify-center gap-0.5 px-1";
+          return i.painel ? (
+            <button
+              key={i.to}
+              type="button"
+              onClick={() => abrirSuporte()}
+              className={cx(base, painelAberto ? "text-primary-dark" : "text-ink-2")}
+            >
+              {conteudo(painelAberto)}
+            </button>
+          ) : (
+            <NavLink
+              key={i.to}
+              to={i.to}
+              end={i.to === "/"}
+              className={({ isActive }) => cx(base, isActive ? "text-primary-dark bg-primary-soft/60" : "text-ink-2")}
+            >
+              {({ isActive }) => conteudo(isActive)}
+            </NavLink>
+          );
+        })}
+      </nav>
+      <div className="flex-1 md:hidden" />
 
       <div className="flex items-center gap-2 shrink-0">
         {/* Tudo o que é cobrado da pessoa, em qualquer projeto — ver SinoPendencias. */}

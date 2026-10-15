@@ -114,7 +114,7 @@ export function NavegadorPendencias({ pendencias }: { pendencias: Pendencia[] })
   return (
     <div
       ref={medirPilula}
-      className="fixed right-5 bottom-5 z-40 flex items-center gap-2 rounded-card border border-danger/30 bg-white px-3 py-2 shadow-modal max-w-[min(28rem,calc(100vw-2.5rem))]"
+      className="fixed right-5 bottom-[calc(var(--altura-nav-celular)+env(safe-area-inset-bottom)+12px)] md:bottom-5 z-40 flex items-center gap-2 rounded-card border border-danger/30 bg-white px-3 py-2 shadow-modal max-w-[min(28rem,calc(100vw-2.5rem))]"
       role="group"
       aria-label="Navegar pelas pendências desta tela"
     >
