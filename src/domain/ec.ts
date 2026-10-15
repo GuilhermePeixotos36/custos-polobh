@@ -91,3 +91,63 @@ export function limitarFormasAoValorDoItem(linha: EcLinha, patch: Partial<EcLinh
   }
   return Object.keys(fora).length ? { ...linha, ...fora } : linha;
 }
+
+/* ------------------------------ dividir item ------------------------------ */
+
+/** A parte que sai do item original para virar um item novo. */
+export interface ParteDaDivisao {
+  item: string;
+  descricao: string;
+  valorPolobh: number;
+  valorCliente: number;
+}
+
+const centavos = (v: number) => Math.round((Number(v) || 0) * 100) / 100;
+
+/** Por que a divisão não pode ser feita — ou `null` quando pode. */
+export function motivoDivisaoInvalida(original: EcLinha, parte: ParteDaDivisao): string | null {
+  if (!parte.item.trim()) return "Dê um nome ao novo item.";
+  if (parte.valorPolobh < 0 || parte.valorCliente < 0) return "Os valores não podem ser negativos.";
+  if (centavos(parte.valorPolobh) > centavos(original.valorPolobh)) {
+    return "O valor Pólobh da nova parte passa do valor do item.";
+  }
+  if (centavos(parte.valorCliente) > centavos(original.valorCliente)) {
+    return "O valor Cliente da nova parte passa do valor do item.";
+  }
+  return null;
+}
+
+/**
+ * DIVIDIR ITEM (15/10/2026): o mesmo serviço feito por dois fornecedores.
+ *
+ * Cada item da EC tem UM fornecedor, e a OS sai por fornecedor. Quando o item
+ * é atendido por dois, ele vira dois itens no mesmo grupo: o original fica com
+ * o que sobra (e com o fornecedor e a OS que já tinha) e a parte nova nasce
+ * logo abaixo, sem fornecedor, pronta para receber o outro. A soma dos dois é
+ * o valor de antes — a EC não muda de total.
+ *
+ * A parte nova herda a aprovação: o cliente aprovou o serviço, não o
+ * fornecedor. Aprovada, já nasce pedindo a OS dela.
+ */
+export function dividirLinha(original: EcLinha, parte: ParteDaDivisao, base: EcLinha): [EcLinha, EcLinha] {
+  const valorPolobh = Math.max(0, centavos(original.valorPolobh - parte.valorPolobh));
+  const valorCliente = Math.max(0, centavos(original.valorCliente - parte.valorCliente));
+  // As formas de cobrança do original não podem passar do que sobrou nele.
+  const restante = limitarFormasAoValorDoItem(
+    { ...original, valorPolobh, valorCliente },
+    { valorComBvNf: 0, valorSemBvComNf: 0, valorSemBvSemNf: 0 }
+  );
+  const nova: EcLinha = {
+    ...base,
+    grupo: original.grupo,
+    item: parte.item.trim(),
+    descricao: parte.descricao.trim() || parte.item.trim(),
+    valorPolobh: centavos(parte.valorPolobh),
+    valorCliente: centavos(parte.valorCliente),
+    statusAprovacao: original.statusAprovacao,
+    statusOs: original.statusAprovacao === "OK" ? "Emitir" : "Pendente",
+    contratoStatus: original.contratoStatus === "Não se Aplica" ? "Não se Aplica" : "Pendente",
+    oculto: false,
+  };
+  return [restante, nova];
+}

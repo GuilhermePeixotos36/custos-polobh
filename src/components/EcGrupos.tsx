@@ -19,7 +19,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Input, AutoTextarea, Select, CurrencyInput, NumberInput, Button, classeCampoStatus } from "@/components/ui";
-import { IcGrip, IcChevron, IcPlus, IcEyeOff, IcTrash, IcSpark, IcCheck, IcBack } from "@/components/icons";
+import { IcGrip, IcChevron, IcPlus, IcEyeOff, IcTrash, IcDividir, IcSpark, IcCheck, IcBack } from "@/components/icons";
 import { FornecedorField } from "@/components/FornecedorField";
 import { RichTextField } from "@/components/RichTextField";
 import { ObservacoesThread } from "@/components/ObservacoesPopup";
@@ -28,10 +28,11 @@ import { NotifDot } from "@/components/NotifDot";
 import { MoverSetas } from "@/components/MoverSetas";
 import { OcultosEcModal } from "@/components/OcultosEcModal";
 import { AdicionarEcModal, type NovoManual } from "@/components/AdicionarEcModal";
+import { DividirItemModal } from "@/components/DividirItemModal";
 import type { EntradaImportada } from "@/domain/importarModeloEc";
 import { confirmar } from "@/store/confirm";
 import { toast } from "@/store/toast";
-import { aplicarAlteracaoDeLinha } from "@/domain/ec";
+import { aplicarAlteracaoDeLinha, dividirLinha, type ParteDaDivisao } from "@/domain/ec";
 import { grupoVisivel, ocultarTudo, ocultosPorGrupo, reexibirItens, totalOcultos } from "@/domain/ocultosEc";
 import { destacarElemento, seguirElemento, idAncoraPendencia, idCampoDescricaoCompleta, idCampoPendencia, idGrupoEc } from "@/lib/destaque";
 import { aprovarLinha, faltasParaEmitirOs, reverterAprovacaoLinha, opcaoNaoSeAplica, OPCOES_VALOR_ITEM, bvVazio, bvDaLinha, bvExigeJustificativa, limitarBvPercentual, BV_PADRAO_PERCENTUAL } from "@/domain/calc";
@@ -161,6 +162,8 @@ export function EcGrupos({
   const [ativo, setAtivo] = useState<{ tipo: "grupo" | "item"; chave: string } | null>(null);
   const [popupOcultos, setPopupOcultos] = useState(false);
   const [popupAdicionar, setPopupAdicionar] = useState(false);
+  /** Item aberto no "Dividir item". */
+  const [dividindo, setDividindo] = useState<EcLinha | null>(null);
   const arrastandoRef = useRef(false);
   // Espelho sempre atual do estado (evita leitura defasada entre onDragOver e onDragEnd).
   const gruposRef = useRef(grupos);
@@ -244,6 +247,26 @@ export function EcGrupos({
     commit([...grupos, { id, nome, itens: [linha] }]);
     setExpandido((x) => ({ ...x, [id]: true }));
     destacarElemento(idGrupoEc(id));
+  };
+
+  /** Divide o item: o original fica com o resto e a parte nova entra logo abaixo dele. */
+  const dividirItem = (id: string, parte: ParteDaDivisao) => {
+    let novaId = "";
+    commit(
+      grupos.map((g) => {
+        const i = g.itens.findIndex((x) => x.id === id);
+        if (i < 0) return g;
+        const [resto, nova] = dividirLinha(g.itens[i], parte, novaLinhaBase());
+        novaId = nova.id;
+        const itens = [...g.itens];
+        itens.splice(i, 1, resto, nova);
+        return { ...g, itens };
+      })
+    );
+    if (novaId) {
+      toast("Item dividido. Informe o fornecedor e as Alternativas de Custos do item novo e salve a EC.", "success");
+      destacarElemento(idAncoraPendencia(novaId));
+    }
   };
 
   const excluirItem = async (id: string) => {
@@ -757,6 +780,7 @@ export function EcGrupos({
                 onOcultoItem={setOcultoItem}
                 onOcultoGrupo={(v) => setOcultoGrupo(g.nome, v)}
                 onExcluirItem={excluirItem}
+                onDividirItem={setDividindo}
                 onExcluirGrupo={() => excluirGrupo(g.id)}
                 onSelecionarItem={alternarSelecao}
                 onSelecionarGrupo={(marcar) => alternarSelecaoGrupo(g.id, marcar)}
@@ -786,6 +810,15 @@ export function EcGrupos({
           ) : null}
         </DragOverlay>
       </DndContext>
+
+      {dividindo && (
+        <DividirItemModal
+          linha={dividindo}
+          verFinanceiro={verFinanceiro}
+          onDividir={(parte) => dividirItem(dividindo.id, parte)}
+          onFechar={() => setDividindo(null)}
+        />
+      )}
 
       {popupAdicionar && (
         <AdicionarEcModal
@@ -829,6 +862,7 @@ interface GrupoProps {
   onOcultoItem: (id: string, oculto: boolean) => void;
   onOcultoGrupo: (oculto: boolean) => void;
   onExcluirItem: (id: string) => void;
+  onDividirItem: (l: EcLinha) => void;
   onExcluirGrupo: () => void;
   onSelecionarItem: (id: string) => void;
   onSelecionarGrupo: (marcar: boolean) => void;
@@ -840,7 +874,7 @@ interface GrupoProps {
 function GrupoCard({
   g, aberto, primeiroGrupo, ultimoGrupo, verFinanceiro, fornecedores, usuarios, sugestoes,
   pendenciasPorLinha, selecionados,
-  onToggle, onRenomear, onAddItem, onUpdLinha, onOcultoItem, onOcultoGrupo, onExcluirItem, onExcluirGrupo,
+  onToggle, onRenomear, onAddItem, onUpdLinha, onOcultoItem, onOcultoGrupo, onExcluirItem, onExcluirGrupo, onDividirItem,
   onSelecionarItem, onSelecionarGrupo, onMoverItem, onMoverGrupo, onValidarFornecedor,
 }: GrupoProps) {
   const sortable = useSortable({ id: GID(g.id) });
@@ -962,6 +996,7 @@ function GrupoCard({
                 onUpd={(patch) => onUpdLinha(l.id, patch)}
                 onOcultar={() => onOcultoItem(l.id, true)}
                 onExcluir={() => onExcluirItem(l.id)}
+                onDividir={() => onDividirItem(l)}
                 onSelecionar={() => onSelecionarItem(l.id)}
                 onMover={(direcao) => onMoverItem(l.id, direcao)}
                 onValidarFornecedor={onValidarFornecedor}              />
@@ -1001,6 +1036,7 @@ interface ItemProps {
   onUpd: (patch: Partial<EcLinha>) => void;
   onOcultar: () => void;
   onExcluir: () => void;
+  onDividir: () => void;
   onSelecionar: () => void;
   onMover: (direcao: -1 | 1) => void;
   onValidarFornecedor: (cnpj: string) => Promise<string | null>;
@@ -1008,7 +1044,7 @@ interface ItemProps {
 
 function ItemRow({
   l, verFinanceiro, fornecedores, usuarios, sugestoes, pendencias, selecionado, primeiro, ultimo, motivoBloqueio,
-  onUpd, onOcultar, onExcluir, onSelecionar, onMover, onValidarFornecedor,
+  onUpd, onOcultar, onExcluir, onDividir, onSelecionar, onMover, onValidarFornecedor,
 }: ItemProps) {
   const sortable = useSortable({ id: l.id });
   const style = { transform: CSS.Translate.toString(sortable.transform), transition: sortable.transition };
@@ -1138,6 +1174,9 @@ function ItemRow({
         <div className="col-start-2 xl:col-start-auto flex xl:flex-col items-center justify-end gap-1 xl:pt-5">
           <button type="button" onClick={onOcultar} className="text-ink-3 hover:text-primary p-1.5" title="Ocultar item — some da tela e fica guardado (reexibir em Ocultos)" aria-label="Ocultar item">
             <IcEyeOff width={18} height={18} />
+          </button>
+          <button type="button" onClick={onDividir} className="text-ink-3 hover:text-primary p-1.5" title="Dividir item — o mesmo serviço feito por dois fornecedores" aria-label="Dividir item">
+            <IcDividir width={18} height={18} />
           </button>
           <button type="button" onClick={onExcluir} className="text-ink-3 hover:text-danger p-1.5" title="Excluir item" aria-label="Excluir item">
             <IcTrash width={18} height={18} />
