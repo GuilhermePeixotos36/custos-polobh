@@ -914,7 +914,7 @@ const MODULOS: Modulo[] = [
             Cada tarefa pode ter uma <b>descrição</b> embaixo do título — o "como fazer" que veio da lista padrão. Ela
             se edita como o título: clique no texto (ou em <b>+ descrição</b>) e escreva.
           </p>
-          <Dica>Trocar as datas do projeto <b>não</b> mexe nos prazos sozinho: a tela avisa quantas tarefas mudariam e você decide com o botão <b>Recalcular prazos</b>.</Dica>
+          <Dica>Trocar as datas do projeto <b>atualiza os prazos sozinho</b> ao salvar. Ficam como estão as tarefas concluídas e as que tiveram a data ajustada à mão.</Dica>
         </Secao>
         <Secao titulo="Colunas, etapas e movimento">
           <p>
@@ -942,7 +942,7 @@ const MODULOS: Modulo[] = [
           </Passos>
           <p>
             Ainda existem as duas réguas antigas: <b>Percentual</b> da janela do projeto e <b>Dias do evento</b> (tantos dias antes/depois do dia D).
-            Mudou a data do evento ou do cronograma? A tela avisa e o botão <b>Recalcular prazos</b> reposiciona.
+            Mudou a data do evento ou do cronograma? Ao salvar o projeto, os prazos do check-list se reposicionam sozinhos.
           </p>
           <p>
             Uma data ajustada à mão fica marcada como <Tag>data ajustada à mão</Tag> e o recálculo <b>não</b> passa por cima dela.

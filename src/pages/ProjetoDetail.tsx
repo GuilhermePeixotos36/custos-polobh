@@ -1588,7 +1588,8 @@ function ChecklistPainel({
         </Card>
       )}
 
-      {/* As datas do projeto mudaram: o recálculo é oferecido, nunca imposto. */}
+      {/* As datas mudaram: o recálculo roda sozinho (ver useChecklistProjeto).
+          Este aviso só fica na tela se a gravação automática falhar. */}
       {podeEditar && estado.prazosDesatualizados > 0 && (
         <Card>
           <div className="flex items-center gap-3 flex-wrap">
