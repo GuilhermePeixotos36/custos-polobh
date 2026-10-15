@@ -368,7 +368,7 @@ function BlocoCard({
         droppable.isOver && !sortable.isDragging && "ring-2 ring-primary/40 border-primary"
       )}
     >
-      <div className="mb-3 flex items-center gap-2">
+      <div className="mb-3 flex items-center gap-2 flex-wrap">
         <button
           ref={sortable.setActivatorNodeRef}
           {...sortable.listeners}
@@ -393,7 +393,7 @@ function BlocoCard({
             aria-label="Título do bloco"
           />
         )}
-        <div className="ml-auto flex items-center gap-1">
+        <div className="ml-auto flex items-center gap-1 flex-wrap justify-end">
           {etapaPadrao ? (
             <Button
               type="button"

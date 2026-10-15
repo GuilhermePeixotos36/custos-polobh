@@ -19,7 +19,7 @@ export function Toaster() {
        um toast escondido é pior do que toast nenhum: a ação parece não ter
        acontecido, o erro não é lido, e a pessoa refaz tudo achando que o
        clique falhou. Feedback é a última camada da tela, por definição. */
-    <div className="fixed right-5 bottom-[calc(1.25rem+var(--altura-pilula,0px)+0.5rem)] z-[100] flex flex-col gap-2 no-print">
+    <div className="fixed right-5 bottom-[calc(1.25rem+var(--altura-pilula,0px)+0.5rem+var(--altura-nav-celular))] z-[100] flex flex-col gap-2 no-print">
       {toasts.map((t) => (
         <button
           key={t.id}

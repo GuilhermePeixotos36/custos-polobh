@@ -1155,7 +1155,7 @@ export function OsForm() {
           {/* A ORDEM é a do menu da EC (29/09/2026): Editar OS (ou, em edição,
               Revisar + Salvar) · Gerar Nova Versão · Cancelar · Arquivar · PDF.
               "Recolher/Expandir os itens" nasce sozinho ao lado, no cabeçalho. */}
-          {!editando && (podeEditar || verFinanceiro) && !emitida && (
+          {!editando && (podeEditar || verFinanceiro) && !emitida && !encerradaDoc && (
             <Button
               size="sm"
               icon={<IcPencil width={15} height={15} />}
@@ -1227,7 +1227,7 @@ export function OsForm() {
           )}
 
           {/* A PASSAGEM DE BASTÃO — o comando principal de cada fase. */}
-          {podeEditar && fase === "producao" && os.id && (
+          {podeEditar && fase === "producao" && os.id && !encerradaDoc && (
             <Button
               size="sm"
               icon={<IcSend width={15} height={15} />}
@@ -1241,7 +1241,7 @@ export function OsForm() {
               Enviar OS para Conclusão Financeiro
             </Button>
           )}
-          {verFinanceiro && fase === "financeiro" && (
+          {verFinanceiro && fase === "financeiro" && !encerradaDoc && (
             <Button
               size="sm"
               icon={<IcSend width={15} height={15} />}
@@ -1258,12 +1258,12 @@ export function OsForm() {
           {/* A emissão é do BACK-OFFICE, e pede a chave dela (`oss.emitir`).
               Com `oss.editar`, quem monta a OS — a Produção — emitiria o
               documento que a fase acabou de tirar das mãos dela. */}
-          {podeEmitir && fase === "backoffice" && (
+          {podeEmitir && fase === "backoffice" && !encerradaDoc && (
             <Button size="sm" icon={<IcCheck width={15} height={15} />} disabled={busy} onClick={() => void emitirOs()}>
               Emitir OS
             </Button>
           )}
-          {fase !== "producao" && !emitida && (podeEditar || verFinanceiro) && (
+          {fase !== "producao" && !emitida && !encerradaDoc && (podeEditar || verFinanceiro) && (
             <Button variant="text" size="sm" disabled={busy} onClick={() => void devolverFase()}>
               Devolver à etapa anterior
             </Button>
@@ -1299,7 +1299,7 @@ export function OsForm() {
         <span className="font-extrabold uppercase tracking-[0.05em] text-[10.5px] text-ink-3">{ROTULO_FASE[fase]}</span>
         <span>{ESPERANDO_FASE[fase]}</span>
         {os.faseEm && <span className="text-ink-3">desde {dataBR(os.faseEm)}</span>}
-        {!editando && !emitida && (podeEditar || verFinanceiro) && (
+        {!editando && !emitida && !encerradaDoc && (podeEditar || verFinanceiro) && (
           <span className="ml-auto text-ink-3">Modo leitura</span>
         )}
       </div>
@@ -1842,7 +1842,7 @@ export function OsForm() {
             (29/09/2026): quem monta a OS chega ao fim do formulário e o comando
             está ali, sem voltar ao topo. Gera a pendência da Coordenação
             Administrativo-Financeira, como o do cabeçalho. */}
-        {podeEditar && fase === "producao" && os.id && (
+        {podeEditar && fase === "producao" && os.id && !encerradaDoc && (
           <div className="flex justify-end">
             <Button
               icon={<IcSend width={15} height={15} />}

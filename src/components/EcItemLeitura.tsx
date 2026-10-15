@@ -52,7 +52,7 @@ export function EcItemLeitura({
       )}
     >
       {/* Linha 1: trilha de controles + identificação + valores */}
-      <div className="flex items-start gap-2 p-2.5 min-w-0">
+      <div className="flex items-start gap-2 p-2.5 min-w-0 flex-wrap">
         <div className="flex flex-col items-center gap-1 shrink-0 pt-1">
           <input
             type="checkbox"
@@ -63,6 +63,7 @@ export function EcItemLeitura({
             title="Selecionar o item — a emissão de OS passa a valer só para os selecionados"
           />
           <MoverSetas
+            className="hidden sm:flex"
             rotulo={`o item ${l.item || "sem título"}`}
             podeSubir={false}
             podeDescer={false}
@@ -72,7 +73,7 @@ export function EcItemLeitura({
           />
         </div>
 
-        <div className="flex-1 min-w-0 pt-1">
+        <div className="flex-1 min-w-[12rem] pt-1">
           <div className="font-bold text-ink text-[13.5px]">{l.item || "—"}</div>
           {l.descricao && <div className="text-[12.5px] text-ink-2 whitespace-pre-wrap mt-0.5">{l.descricao}</div>}
           {veDescricaoCompleta && l.descricaoCompleta && (
@@ -129,7 +130,7 @@ export function EcItemLeitura({
             <Badge tom={tomDoStatus(l.contratoStatus)}>{l.contratoStatus}</Badge>
           )}
         </Campo>
-        <Campo label="Fornecedor (CNPJ / Razão social)" className="flex-[2_1_22rem] min-w-[16rem]">
+        <Campo label="Fornecedor (CNPJ / Razão social)" className="basis-full min-w-0 sm:basis-auto sm:flex-[2_1_22rem] sm:min-w-[16rem]">
           <Texto valor={l.fornecedorRazao} extra={l.fornecedorCnpj} />
         </Campo>
         <Campo label="Documento PG" className="flex-[1_1_8rem] min-w-[7rem]">

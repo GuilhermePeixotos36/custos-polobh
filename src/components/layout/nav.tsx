@@ -5,6 +5,8 @@ import { IcCalendar, IcFluxo, IcFolder, IcGear, IcHelp, IcSuporte } from "@/comp
 export interface NavItem {
   to: string;
   label: string;
+  /** Rótulo da barra de baixo, no celular (o espaço é de ~60px). */
+  rotuloCurto?: string;
   icon: ReactNode;
   recurso: Recurso;
   /** Recursos alternativos: basta ter o principal OU um destes para o item aparecer. */
@@ -47,14 +49,14 @@ export interface NavItem {
  * esta semana" antes de "onde está cada projeto".
  */
 export const NAV: NavItem[] = [
-  { to: "/calendario", label: "Calendário Pólobh", icon: <IcCalendar />, recurso: "projetos" },
+  { to: "/calendario", label: "Calendário Pólobh", rotuloCurto: "Calendário", icon: <IcCalendar />, recurso: "projetos" },
   { to: "/projetos", label: "Projetos", icon: <IcFolder />, recurso: "projetos", pendencias: true },
   // O FLUXOGRAMA fica entre Projetos e Configurações (pedido de 29/09/2026).
-  { to: "/fluxograma", label: "Fluxograma", icon: <IcFluxo />, recurso: "guia" },
+  { to: "/fluxograma", label: "Fluxograma", rotuloCurto: "Fluxo", icon: <IcFluxo />, recurso: "guia" },
   // A Coordenação não administra empresas e usuários, mas edita a lista padrão do check-list — por isso o `ou`.
-  { to: "/configuracoes", label: "Configurações", icon: <IcGear />, recurso: "configuracoes", ou: ["checklists.padrao"] },
-  { to: "/guia", label: "Guia do Aplicativo", icon: <IcHelp />, recurso: "guia" },
-  { to: "/suporte", label: "Help Desk", icon: <IcSuporte />, recurso: "guia", painel: "suporte" },
+  { to: "/configuracoes", label: "Configurações", rotuloCurto: "Config.", icon: <IcGear />, recurso: "configuracoes", ou: ["checklists.padrao"] },
+  { to: "/guia", label: "Guia do Aplicativo", rotuloCurto: "Guia", icon: <IcHelp />, recurso: "guia" },
+  { to: "/suporte", label: "Help Desk", rotuloCurto: "Suporte", icon: <IcSuporte />, recurso: "guia", painel: "suporte" },
 ];
 
 /* ------------------------- os segundos cabeçalhos ------------------------- */

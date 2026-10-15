@@ -74,7 +74,7 @@ export function OsList() {
               onChange={(e) => setBusca(e.target.value)}
             />
           </div>
-          <div className="flex items-center gap-1" role="group" aria-label="Filtrar OSs">
+          <div className="flex items-center gap-1 flex-wrap" role="group" aria-label="Filtrar OSs">
             {([["todas", "Todas"], ["Rascunho", "Rascunho"], ["Emitida", "Emitida"], ["Cancelada", "Cancelada"], ["Arquivada", "Arquivada"]] as const).map(([valor, rotulo]) => (
               <button
                 key={valor}
