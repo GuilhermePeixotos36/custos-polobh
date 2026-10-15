@@ -63,8 +63,15 @@ export function itemDaLinhaEc(l: EcLinha): ItemContratacaoOs {
  * sair na mesma sequência da estimativa.
  */
 export function sincronizarContratacao(itens: ItemContratacaoOs[], linhas: EcLinha[]): ItemContratacaoOs[] {
-  const decidido = new Map(itens.map((i) => [i.ecLinhaId, i]));
-  return linhas.map((l) => decidido.get(l.id) ?? itemDaLinhaEc(l));
+  const gravados = new Map(itens.map((i) => [i.ecLinhaId, i]));
+  return linhas.map((l) => {
+    const gravado = gravados.get(l.id);
+    // DECIDIDO = o Financeiro já escolheu a forma. Só aí a OS guarda os valores
+    // dela. Antes disso os valores são da EC e a acompanham (15/10/2026): a OS
+    // nascida antes de as Alternativas de Custos serem preenchidas ficava com
+    // R$ 0,00 congelado, e corrigir a EC não chegava à OS.
+    return gravado?.forma ? gravado : itemDaLinhaEc(l);
+  });
 }
 
 /* ------------------------------- o resumo -------------------------------- */

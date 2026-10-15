@@ -54,13 +54,20 @@ describe("a contratação nasce do que a EC levantou", () => {
  */
 describe("quando os itens da OS mudam", () => {
   it("mantém o que já foi decidido e traz da EC só o que entrou agora", () => {
-    const decidido = item({ ecLinhaId: "l1", comBvNf: { naoSeAplica: false, valor: 7777, justificativaBv: "" } });
+    const decidido = item({ ecLinhaId: "l1", forma: "comBvNf", comBvNf: { naoSeAplica: false, valor: 7777, justificativaBv: "" } });
     const linhas = [linha({ id: "l1", valorComBvNf: 10000 }), linha({ id: "l2", valorComBvNf: 2000 })];
     const sincronizado = sincronizarContratacao([decidido], linhas);
     // O que já valia continua valendo — 7777, e não os 10000 da EC.
     expect(sincronizado[0].comBvNf.valor).toBe(7777);
     // O item novo entra com o que a EC diz.
     expect(sincronizado[1].comBvNf.valor).toBe(2000);
+  });
+
+  it("enquanto a forma não foi escolhida, os valores acompanham a EC", () => {
+    const congelado = item({ ecLinhaId: "l1", comBvNf: { naoSeAplica: false, valor: 0, justificativaBv: "" } });
+    const sincronizado = sincronizarContratacao([congelado], [linha({ id: "l1", valorComBvNf: 650, valorSemBvSemNf: 600 })]);
+    expect(sincronizado[0].comBvNf.valor).toBe(650);
+    expect(sincronizado[0].semBvSemNf.valor).toBe(600);
   });
 
   it("item que saiu da OS some da contratação", () => {
