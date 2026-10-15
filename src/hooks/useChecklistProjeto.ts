@@ -287,13 +287,35 @@ export function useChecklistProjeto(
     setChecklist(recalculado);
     try {
       await repo.checklists.salvarItens(mudaram);
-      toast(`${mudaram.length} prazo(s) recalculado(s) a partir das datas do projeto.`, "success");
+      toast(`Check-list atualizado: ${mudaram.length} prazo(s) acompanharam as novas datas do projeto.`, "success");
       void recarregarPendencias(true);
     } catch (erro) {
       toast(`Não foi possível recalcular: ${(erro as Error).message}`, "danger");
       await carregar();
     }
   }, [checklist, projeto, modelo, carregar, recarregarPendencias, feriados]);
+
+  /**
+   * PRAZOS ACOMPANHAM AS DATAS SOZINHOS (15/10/2026).
+   *
+   * Antes a tela só avisava "as datas mudaram" e esperava alguém clicar em
+   * Recalcular prazos — e quem corrige uma data errada não pensa no check-list:
+   * os lembretes continuavam cobrando pela data antiga. Agora, com o projeto
+   * salvo e a lista carregada, o recálculo roda sozinho. Continuam intocadas as
+   * tarefas com data ajustada à mão e as já concluídas (ver `recalcularPrazos`).
+   *
+   * Uma tentativa por combinação de datas: se a gravação falhar, não fica em
+   * laço — o aviso com o botão continua na tela como saída manual.
+   */
+  const ultimoRecalculoAuto = useRef("");
+  useEffect(() => {
+    if (!podeEditar || !projetoSalvo || carregando || !checklist || !projeto || !modelo) return;
+    if (prazosDesatualizados === 0) return;
+    const chave = `${checklist.id}|${JSON.stringify(projeto.info.cronograma ?? {})}|${projeto.info.preEvento}|${projeto.info.evento}|${projeto.info.posEvento}`;
+    if (ultimoRecalculoAuto.current === chave) return;
+    ultimoRecalculoAuto.current = chave;
+    void aplicarRecalculo();
+  }, [podeEditar, projetoSalvo, carregando, checklist, projeto, modelo, prazosDesatualizados, aplicarRecalculo]);
 
   const sincronizar = useCallback(async () => {
     if (!checklist || !projeto || !modelo) return;
