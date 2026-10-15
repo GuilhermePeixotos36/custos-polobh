@@ -139,6 +139,11 @@ export const IcCopy = (p: P) => (
     <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
   </I>
 );
+export const IcDividir = (p: P) => (
+  <I {...p}>
+    <path d="M12 3v6M12 9l-6 6M12 9l6 6M6 15v6M18 15v6" />
+  </I>
+);
 export const IcTrash = (p: P) => (
   <I {...p}>
     <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
