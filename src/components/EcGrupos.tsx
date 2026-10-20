@@ -29,6 +29,8 @@ import { MoverSetas } from "@/components/MoverSetas";
 import { OcultosEcModal } from "@/components/OcultosEcModal";
 import { AdicionarEcModal, type NovoManual } from "@/components/AdicionarEcModal";
 import { DividirItemModal } from "@/components/DividirItemModal";
+import { FaixaDivisao } from "@/components/FaixaDivisao";
+import { infoDasDivisoes, type InfoDivisao } from "@/domain/divisaoEc";
 import type { EntradaImportada } from "@/domain/importarModeloEc";
 import { confirmar } from "@/store/confirm";
 import { toast } from "@/store/toast";
@@ -886,6 +888,7 @@ function GrupoCard({
   const style = { transform: CSS.Translate.toString(sortable.transform), transition: sortable.transition };
 
   const visiveis = g.itens.filter((l) => !l.oculto);
+  const divisoes = infoDasDivisoes(g.itens);
   const subtotal = visiveis.reduce((s, l) => s + (l.valorPolobh || 0) + (l.valorCliente || 0), 0);
   const marcadosNoGrupo = visiveis.filter((l) => selecionados.has(l.id)).length;
   const todosMarcados = visiveis.length > 0 && marcadosNoGrupo === visiveis.length;
@@ -986,6 +989,7 @@ function GrupoCard({
                 usuarios={usuarios}
                 sugestoes={sugestoes}
                 pendencias={pendenciasPorLinha[l.id] ?? 0}
+                divisao={divisoes.get(l.id)}
                 selecionado={selecionados.has(l.id)}
                 // Na borda de um grupo do meio a seta continua ativa: ela leva o
                 // item para o grupo vizinho. Só trava nas pontas da EC ou quando
@@ -1028,6 +1032,8 @@ interface ItemProps {
   sugestoes: Sugestoes;
   /** Pendências do usuário nesta linha — o mesmo número do badge da EC. */
   pendencias: number;
+  /** Parte de um item com mais de um fornecedor (ver `domain/divisaoEc`). */
+  divisao?: InfoDivisao;
   selecionado: boolean;
   primeiro: boolean;
   ultimo: boolean;
@@ -1043,7 +1049,7 @@ interface ItemProps {
 }
 
 function ItemRow({
-  l, verFinanceiro, fornecedores, usuarios, sugestoes, pendencias, selecionado, primeiro, ultimo, motivoBloqueio,
+  l, verFinanceiro, fornecedores, usuarios, sugestoes, pendencias, divisao, selecionado, primeiro, ultimo, motivoBloqueio,
   onUpd, onOcultar, onExcluir, onDividir, onSelecionar, onMover, onValidarFornecedor,
 }: ItemProps) {
   const sortable = useSortable({ id: l.id });
@@ -1077,6 +1083,7 @@ function ItemRow({
         sortable.isDragging && "opacity-40"
       )}
     >
+      {divisao && <FaixaDivisao info={divisao} verFinanceiro={verFinanceiro} />}
       {/* Linha 1: item + descrições + valores */}
       <div className="grid grid-cols-[auto_minmax(0,1fr)] xl:grid-cols-[auto_13rem_minmax(280px,1fr)_auto_auto] items-start gap-2 p-2.5 min-w-0">
         {/* Trilha de controles: seleção, pendências, alça e setas — empilhadas, nunca

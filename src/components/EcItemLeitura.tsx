@@ -14,6 +14,8 @@ import { Badge, Select, classeCampoStatus, tomDoStatus } from "@/components/ui";
 import { OPCOES_STATUS_OS, type MudancaDeStatus } from "@/domain/statusEc";
 import { ObservacoesThread } from "@/components/ObservacoesPopup";
 import { MoverSetas } from "@/components/MoverSetas";
+import { FaixaDivisao } from "@/components/FaixaDivisao";
+import type { InfoDivisao } from "@/domain/divisaoEc";
 import { idAncoraPendencia, idCampoPendencia } from "@/lib/destaque";
 import { sanitizarHtmlEditor } from "@/lib/sanitizeHtml";
 import { brl, cx } from "@/lib/format";
@@ -28,6 +30,7 @@ export function EcItemLeitura({
   onSelecionar,
   editavelStatus,
   onStatus,
+  divisao,
   onObservacoes,
 }: {
   linha: EcLinha;
@@ -41,6 +44,8 @@ export function EcItemLeitura({
   /** Aprovação, OS e Contrato viram seletores: mudar status não exige editar a EC. */
   editavelStatus: boolean;
   onStatus: (m: MudancaDeStatus) => void;
+  /** Parte de um item com mais de um fornecedor. */
+  divisao?: InfoDivisao;
   onObservacoes: (obs: Observacao[]) => void;
 }) {
   return (
@@ -51,6 +56,7 @@ export function EcItemLeitura({
         selecionado ? "border-primary ring-1 ring-primary/40 bg-primary-soft/30" : "border-border"
       )}
     >
+      {divisao && <FaixaDivisao info={divisao} verFinanceiro={verFinanceiro} />}
       {/* Linha 1: trilha de controles + identificação + valores */}
       <div className="flex items-start gap-2 p-2.5 min-w-0 flex-wrap">
         <div className="flex flex-col items-center gap-1 shrink-0 pt-1">

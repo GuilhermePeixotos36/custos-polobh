@@ -457,6 +457,12 @@ export interface EcLinha {
   /** Item ocultado da EC (fica guardado, some da visão e do Excel; pode reexibir). */
   oculto: boolean;
   ordem: number;
+  /**
+   * Chave do ITEM COM PARTES (20/10/2026): igual em todas as partes de um mesmo
+   * serviço atendido por mais de um fornecedor. Ausente = item inteiro. Ver
+   * `domain/divisaoEc`.
+   */
+  divisao?: string;
 }
 
 /** Valores padrão de produção — editáveis por EC. */

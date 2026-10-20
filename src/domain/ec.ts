@@ -25,6 +25,7 @@
  * versão nova ("Importar EC" / "Gerar nova versão") — nos dois casos o que
  * estava no ar vai para o arquivo, e nada se perde.
  */
+import { chaveDeDivisao } from "@/domain/divisaoEc";
 import type { Ec, EcLinha } from "@/data/types";
 
 export type SituacaoEc = "ativa" | "arquivada";
@@ -137,8 +138,10 @@ export function dividirLinha(original: EcLinha, parte: ParteDaDivisao, base: EcL
     { ...original, valorPolobh, valorCliente },
     { valorComBvNf: 0, valorSemBvComNf: 0, valorSemBvSemNf: 0 }
   );
+  const divisao = chaveDeDivisao(original);
   const nova: EcLinha = {
     ...base,
+    divisao,
     grupo: original.grupo,
     item: parte.item.trim(),
     descricao: parte.descricao.trim() || parte.item.trim(),
@@ -149,5 +152,5 @@ export function dividirLinha(original: EcLinha, parte: ParteDaDivisao, base: EcL
     contratoStatus: original.contratoStatus === "Não se Aplica" ? "Não se Aplica" : "Pendente",
     oculto: false,
   };
-  return [restante, nova];
+  return [{ ...restante, divisao }, nova];
 }

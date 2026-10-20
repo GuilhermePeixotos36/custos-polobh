@@ -398,6 +398,7 @@ function mapLinha(r: any): EcLinha {
     observacoes: mapObservacoes(r.id, r.observacoes, r.observacao),
     oculto: !!r.oculto,
     ordem: r.ordem ?? 0,
+    divisao: r.divisao ?? undefined,
   };
 }
 
@@ -434,6 +435,7 @@ function linhaRow(ecId: string, cru: EcLinha) {
     observacoes: l.observacoes ?? [],
     oculto: l.oculto ?? false,
     ordem: l.ordem,
+    divisao: l.divisao ?? null,
   };
 }
 
