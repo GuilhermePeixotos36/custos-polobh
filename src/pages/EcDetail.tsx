@@ -37,6 +37,7 @@ import { ecEditavel, situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/d
 import { useMinhasPendencias } from "@/store/pendencias";
 import { EcItemLeitura } from "@/components/EcItemLeitura";
 import { MoverSetas } from "@/components/MoverSetas";
+import { infoDasDivisoes } from "@/domain/divisaoEc";
 import { SeletorEmMassa } from "@/components/EcGrupos";
 import { aplicarMudancaDeStatus, OPCOES_STATUS_OS, type MudancaDeStatus } from "@/domain/statusEc";
 import { brl, dataBR } from "@/lib/format";
@@ -126,6 +127,7 @@ export function EcDetail() {
 
   // Item oculto some da tela (e do grupo), igual à edição.
   const gruposLinha = agruparLinhas(ec.linhas.filter((l) => !l.oculto));
+  const divisoes = infoDasDivisoes(ec.linhas);
   // Quem entra e quem está travado na emissão de OS — alimenta o rótulo do botão.
   const linhasDaEmissao = selecionados.size ? ec.linhas.filter((l) => selecionados.has(l.id)) : ec.linhas;
   const emissao = analisarEmissaoOs(linhasDaEmissao, verFinanceiro);
@@ -428,6 +430,7 @@ export function EcDetail() {
                       onSelecionar={() => alternarSelecao([l.id], !selecionados.has(l.id))}
                       editavelStatus={podeMudarStatus}
                       onStatus={(m) => mudarStatus([l.id], m)}
+                      divisao={divisoes.get(l.id)}
                       onObservacoes={(obs) => salvarObservacoes(l.id, obs)}
                     />
                   ))}

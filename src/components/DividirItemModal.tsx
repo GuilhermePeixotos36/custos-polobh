@@ -44,8 +44,9 @@ export function DividirItemModal({
           <div className="min-w-0">
             <h3 className="font-display font-bold text-[18px] text-ink tracking-[-0.3px]">Dividir item</h3>
             <p className="text-[12.5px] text-ink-2 mt-1">
-              Para quando <b>{linha.item || "este item"}</b> é atendido por dois fornecedores. A parte nova vira
-              um item logo abaixo, sem fornecedor, e o original fica com o que sobrar — o total da EC não muda.
+              Para quando <b>{linha.item || "este item"}</b> é atendido por mais de um fornecedor. A parte nova
+              entra logo abaixo, sem fornecedor, e o original fica com o que sobrar — o total não muda. As partes
+              ficam ligadas: cada uma gera a sua OS, e para o cliente o item segue sendo um só.
             </p>
           </div>
           <button

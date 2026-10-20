@@ -3,6 +3,7 @@
  * com ExcelJS (que aplica estilos — diferente do SheetJS), usando a paleta
  * Pólobh. A tabela de custos é dinâmica, por isso montamos sob medida.
  */
+import { juntarDivisoes } from "@/domain/divisaoEc";
 import ExcelJS from "exceljs";
 import type { Ec } from "@/data/types";
 import { calcularTotais, rotuloTaxa, tituloEc } from "@/domain/calc";
@@ -106,6 +107,12 @@ export async function criarEcExcelBuffer(
   modelo: ModeloEcExcel = "completa"
 ): Promise<{ buffer: ArrayBuffer; nome: string }> {
   const completa = modelo === "completa";
+  // Item com mais de um fornecedor (ver `domain/divisaoEc`): na planilha que vai
+  // para o cliente ele é UMA linha, com a soma das partes; na completa, que é
+  // de uso interno e tem a coluna de fornecedor, cada parte segue na sua linha.
+  const linhasDoDoc = completa
+    ? ec.linhas
+    : juntarDivisoes([...ec.linhas].sort((a, b) => a.ordem - b.ordem));
   const ultimaColuna = completa ? "L" : "D";
   const wb = new ExcelJS.Workbook();
   wb.creator = "Sistema Pólobh";
@@ -121,7 +128,7 @@ export async function criarEcExcelBuffer(
   // cabem na página pelo fitToWidth do pageSetup, sem encolher a fonte.
   const PT = PT_CORPO;
 
-  const t = calcularTotais(ec.linhas, ec.producao, ec.honorarios, ec.encargos);
+  const t = calcularTotais(linhasDoDoc, ec.producao, ec.honorarios, ec.encargos);
 
   // Larguras lidas do <cols> dos modelos de 2026 (os dois arquivos são iguais).
   // O modelo "financeiro" fica com as quatro primeiras — é o recorte que vai
@@ -142,7 +149,7 @@ export async function criarEcExcelBuffer(
    * É feito aqui, antes de escrever, porque toda altura de linha depende da
    * largura final da coluna.
    */
-  const itensVisiveis = ec.linhas.filter((l) => !l.oculto);
+  const itensVisiveis = linhasDoDoc.filter((l) => !l.oculto);
   const conteudoDaColuna: Record<string, string[]> = {
     C: ["Pólobh", brl(t.valorTotalBruto), ...itensVisiveis.map((l) => brl(l.valorPolobh))],
     D: ["Cliente", brl(t.somaCliente), ...itensVisiveis.map((l) => brl(l.valorCliente))],
@@ -325,8 +332,8 @@ export async function criarEcExcelBuffer(
   const linhasDeItem: number[] = [];
 
   // agrupar por GRUPO (itens ocultos ficam de fora do Excel)
-  const grupos = new Map<string, typeof ec.linhas>();
-  for (const l of [...ec.linhas].filter((l) => !l.oculto).sort((a, b) => a.ordem - b.ordem)) {
+  const grupos = new Map<string, typeof linhasDoDoc>();
+  for (const l of [...linhasDoDoc].filter((l) => !l.oculto).sort((a, b) => a.ordem - b.ordem)) {
     const g = l.grupo || "GERAL";
     if (!grupos.has(g)) grupos.set(g, []);
     grupos.get(g)!.push(l);
@@ -381,7 +388,7 @@ export async function criarEcExcelBuffer(
    * cobrou o quê, o que falta confirmar) e a EC é um documento que vai ao
    * cliente. Elas continuam no sistema, na thread do item.
    */
-  const descritivoDoItem = (l: (typeof ec.linhas)[number]): string => {
+  const descritivoDoItem = (l: (typeof linhasDoDoc)[number]): string => {
     const partes: string[] = [];
     if (l.descricao?.trim()) partes.push(l.descricao.trim());
     if (completa) {
