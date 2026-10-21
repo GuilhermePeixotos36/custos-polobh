@@ -68,6 +68,8 @@ import {
   bvDaContratacao,
   bvDoItem,
   formaDoItem,
+  documentoFiscalDaContratacao,
+  valorDaContratacao,
   COLUNAS_CONTRATACAO,
   itemDaLinhaEc,
   resumoContratacao,
@@ -245,7 +247,9 @@ function aplicarAutoPreenchimento(os: Os, ec: Ec): Os {
       valorComBvNf: totaisContratacao.comBvNf,
       valorSemBvComNf: totaisContratacao.semBvComNf,
       valorSemBvSemNf: totaisContratacao.semBvSemNf,
-      documentoFiscal: os.orcamento.documentoFiscal || docFiscalEc,
+      // A forma de pagamento escolhida decide o documento (21/10/2026); sem
+      // forma ainda, vale o que já estava ou o "Documento PG" da EC.
+      documentoFiscal: documentoFiscalDaContratacao(itensContratacao) || os.orcamento.documentoFiscal || docFiscalEc,
       parcelas: os.orcamento.parcelas.map((p) => (p.id ? p : { ...p, id: novoId() })),
     },
     financeiro: {
@@ -401,7 +405,11 @@ export function OsForm() {
     const linhas = ec.linhas.filter((l) => linhaIds.includes(l.id));
     const grupos = agruparPorFornecedor(linhas);
     const g = grupos[0];
+    // `valorEc` fica gravado (é o preço ao cliente, para a rentabilidade), mas a
+    // OS nasce valendo o que se paga ao FORNECEDOR (ver `valorDaContratacao`).
     const valorEc = linhas.reduce((s, l) => s + l.valorPolobh + l.valorCliente, 0);
+    const itens = linhas.map(itemDaLinhaEc);
+    const valorOs = valorDaContratacao(itens);
 
     // Puxa o fornecedor já cadastrado (pelo CNPJ) para pré-preencher tudo,
     // inclusive os CNAEs — sem precisar reconsultar o CNPJ na API.
@@ -425,7 +433,7 @@ export function OsForm() {
         ecNumero: ec.numero,
         ecLinhaIds: linhaIds,
         // A contratação nasce com o que a EC levantou para cada item.
-        itens: ec.linhas.filter((l) => linhaIds.includes(l.id)).map(itemDaLinhaEc),
+        itens,
         status: "Rascunho",
         fornecedor,
         // Foto dos dados gerais do evento: a partir daqui esta OS não muda mais
@@ -448,9 +456,9 @@ export function OsForm() {
         // O link só existe depois de salvar: quem o monta é `urlCredenciamento`, a
         // partir do token que o banco gera (ver lib/links).
         credenciamento: { prazoLimite: "", linkFormulario: "" },
-        orcamento: { valorEc, valorComBvNf: valorEc, valorSemBvComNf: valorEc, valorSemBvSemNf: valorEc, parcelas: [{ descricao: "Pagamento único", valor: valorEc }], documentoFiscal: "" },
-        financeiro: { tomador: "", descritivoNf: "", cnae: "", codigoServico: "", valorUnitario: valorEc, valorTotal: valorEc, descontoNegociado: 0, valorAPagar: valorEc, bvPercentual: 0, bvValor: 0, bvJustificativa: "", acertoFinanceiro: "" },
-        contrato: { contratante: "", descritivoServicos: "", informacoesComplementares: "", valorUnitario: valorEc, valorTotal: valorEc, descontoNegociado: 0, valorAPagar: valorEc, dataContrato: "", rubrica: "" },
+        orcamento: { valorEc, valorComBvNf: valorOs, valorSemBvComNf: valorOs, valorSemBvSemNf: valorOs, parcelas: [{ descricao: "Pagamento único", valor: valorOs }], documentoFiscal: documentoFiscalDaContratacao(itens) },
+        financeiro: { tomador: "", descritivoNf: "", cnae: "", codigoServico: "", valorUnitario: valorOs, valorTotal: valorOs, descontoNegociado: 0, valorAPagar: valorOs, bvPercentual: 0, bvValor: 0, bvJustificativa: "", acertoFinanceiro: "" },
+        contrato: { contratante: "", descritivoServicos: "", informacoesComplementares: "", valorUnitario: valorOs, valorTotal: valorOs, descontoNegociado: 0, valorAPagar: valorOs, dataContrato: "", rubrica: "" },
         criadoEm: agora,
         atualizadoEm: agora,
       }, ec));
@@ -568,6 +576,7 @@ export function OsForm() {
           valorComBvNf: v,
           valorSemBvComNf: totais.semBvComNf,
           valorSemBvSemNf: totais.semBvSemNf,
+          documentoFiscal: documentoFiscalDaContratacao(itens) || o.orcamento.documentoFiscal,
         },
         financeiro: espelhaFin
           ? { ...o.financeiro, valorUnitario: v, valorTotal: v, valorAPagar: v - o.financeiro.descontoNegociado }
@@ -577,6 +586,8 @@ export function OsForm() {
           : o.contrato,
       };
     });
+  /** O documento que a forma de pagamento escolhida exige ("" = ainda sem forma). */
+  const docDaForma = documentoFiscalDaContratacao(os.itens ?? []);
   /** Esta OS tem contrato? Quem decide é a coluna Contrato dos itens, na EC. */
   const haContrato = temContrato(os, linhasConsolidadas);
 
@@ -1486,17 +1497,9 @@ export function OsForm() {
                 <div key={l.id} className="text-sm">
                   <span className="font-bold text-ink">{l.item || "—"}</span>
                   <span className="text-[12px] text-ink-3"> · {l.grupo}</span>
-                  {verFinanceiro && (
-                    <span className="font-display font-bold text-ink"> — {brl(l.valorPolobh + l.valorCliente)}</span>
-                  )}
                   {l.descricao && <div className="text-[12px] text-ink-2">{l.descricao}</div>}
                 </div>
               ))}
-              {verFinanceiro && (
-                <div className="text-sm font-display font-bold text-primary-dark pt-1.5 border-t border-border-soft">
-                  Total consolidado: {brl(linhasConsolidadas.reduce((s, l) => s + l.valorPolobh + l.valorCliente, 0))}
-                </div>
-              )}
             </div>
           </LinhaOs>
 
@@ -1582,7 +1585,8 @@ export function OsForm() {
               estava. */}
           <SubSecao>Resumo dos Custos</SubSecao>
 
-            <LinhaOs label="Valor do Item na EC do Projeto" hint="(soma dos itens consolidados)"><Auto v={brl(os.orcamento.valorEc)} /></LinhaOs>
+            {/* Sem o valor do item na EC (21/10/2026): aquele é o preço ao
+                cliente. O valor da OS é o que se paga ao fornecedor. */}
             {/* Os totais saem da forma que cada item ADOTOU (29/09/2026): não são
                 digitáveis aqui, e alimentam o Faturamento e o Contrato. */}
             <LinhaOs label="Valor Total Contratado" hint="(soma da forma adotada em cada item)"><Auto v={brl(resumo.contratado)} /></LinhaOs>
@@ -1630,12 +1634,18 @@ export function OsForm() {
               </div>
             </LinhaOs>
 
-            <LinhaOs label="Documento Fiscal" hint="(auto do “Documento PG” da EC)">
-              <Select value={os.orcamento.documentoFiscal} onChange={(e) => updOrc({ documentoFiscal: e.target.value as DocumentoFiscal })}>
-                <option value="">Selecione…</option>
-                {DOCS.map((d) => <option key={d}>{d}</option>)}
-              </Select>
-            </LinhaOs>
+            {docDaForma ? (
+              <LinhaOs label="Documento Fiscal" hint="(segue a forma de pagamento: com NF → Nota Fiscal, sem NF → Fatura)">
+                <Auto v={docDaForma} />
+              </LinhaOs>
+            ) : (
+              <LinhaOs label="Documento Fiscal" hint="(definido pela forma de pagamento; enquanto não há forma, escolha aqui)">
+                <Select value={os.orcamento.documentoFiscal} onChange={(e) => updOrc({ documentoFiscal: e.target.value as DocumentoFiscal })}>
+                  <option value="">Selecione…</option>
+                  {DOCS.map((d) => <option key={d}>{d}</option>)}
+                </Select>
+              </LinhaOs>
+            )}
                     {verFinanceiro && (
             <LinhaOs label="Definido item a item" hint="(o que sai no PDF e na planilha)">
               <TabelaResumoCustos resumo={resumo} />

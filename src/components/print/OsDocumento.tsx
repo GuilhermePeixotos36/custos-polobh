@@ -129,14 +129,14 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
       <LV label="Telefone" valor={f.telefone} />
       <LV label="E-mail" valor={f.email} />
 
+      {/* Só item e descrição (21/10/2026): os valores da EC são o preço ao
+          cliente, e não vão no documento do fornecedor. */}
       <Secao titulo="Itens Consolidados da EC" />
       <table className="w-full text-[11px] border-collapse">
         <thead>
           <tr className="bg-[#595959] text-white">
             <th className="text-left px-2 py-1.5 w-[22%]">Grupo</th>
             <th className="text-left px-2 py-1.5">Item / Descrição</th>
-            <th className="text-right px-2 py-1.5 w-[16%]">Pólobh</th>
-            <th className="text-right px-2 py-1.5 w-[16%]">Cliente</th>
           </tr>
         </thead>
         <tbody>
@@ -147,15 +147,8 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
                 <b>{l.item}</b>
                 {l.descricao ? <span className="text-ink-2"> — {l.descricao}</span> : null}
               </td>
-              <td className="px-2 py-1.5 align-top text-right">{brl(l.valorPolobh)}</td>
-              <td className="px-2 py-1.5 align-top text-right">{brl(l.valorCliente)}</td>
             </tr>
           ))}
-          <tr className="bg-[#D9D9D9] font-bold">
-            <td className="px-2 py-1.5" colSpan={2}>Total consolidado</td>
-            <td className="px-2 py-1.5 text-right">{brl(consolidadas.reduce((s, l) => s + l.valorPolobh, 0))}</td>
-            <td className="px-2 py-1.5 text-right">{brl(consolidadas.reduce((s, l) => s + l.valorCliente, 0))}</td>
-          </tr>
         </tbody>
       </table>
 
@@ -266,9 +259,7 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
             </tr>
           </tfoot>
         </table>
-      ) : (
-        <LV label="Valor do Item na EC do Projeto" valor={brl(os.orcamento.valorEc)} />
-      )}
+      ) : null}
       {/* A emissão fala das duas colunas COM nota; o "sem nota" sai separado,
           para os dois não se lerem como um total só. Cada linha só aparece
           quando há o que dizer nela. */}

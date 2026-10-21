@@ -404,7 +404,6 @@ export async function criarOsExcelBuffer(
 
   if (!itens.length) {
     // OS antiga (ou avulsa): cai no consolidado que já existia na própria OS.
-    linha("Valor do Item na EC do Projeto:", orc.valorEc, { money: true });
     linha("Valor com BV e NF:", orc.valorComBvNf, { money: true });
     linha("Valor Sem BV e Com Nota Fiscal:", orc.valorSemBvComNf, { money: true });
     linha("Valor Sem BV e Sem NF:", orc.valorSemBvSemNf, { money: true });

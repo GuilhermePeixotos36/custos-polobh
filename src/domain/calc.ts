@@ -628,7 +628,12 @@ export interface LinhaFornecedorGrupo {
 export function agruparPorFornecedor(linhas: EcLinha[]): LinhaFornecedorGrupo[] {
   const mapa = new Map<string, LinhaFornecedorGrupo>();
   for (const l of linhas) {
-    const chave = (l.fornecedorCnpj || l.fornecedorRazao || "—").trim();
+    // Pelos DÍGITOS do CNPJ (21/10/2026): o mesmo fornecedor digitado com e
+    // sem máscara não pode virar duas OSs. Sem CNPJ, a razão social sem acento
+    // nem caixa.
+    const cnpj = (l.fornecedorCnpj || "").replace(/\D/g, "");
+    const razao = (l.fornecedorRazao || "").trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
+    const chave = cnpj || razao || "—";
     if (!mapa.has(chave)) {
       mapa.set(chave, {
         chave,

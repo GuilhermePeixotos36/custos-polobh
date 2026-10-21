@@ -18,7 +18,7 @@
  * cada uma responde por si: por que este item sai sem BV, por que aquele sai
  * com BV abaixo do padrão.
  */
-import type { BvItem, EcLinha, ItemContratacaoOs, OpcaoContratacaoOs, OpcaoValorDefinida } from "@/data/types";
+import type { BvItem, DocumentoFiscal, EcLinha, ItemContratacaoOs, OpcaoContratacaoOs, OpcaoValorDefinida } from "@/data/types";
 import { BV_PADRAO_PERCENTUAL, OPCOES_VALOR_ITEM, opcaoNaoSeAplica, r2 } from "@/domain/calc";
 
 /** Forma de cobrança sem valor definido — o estado inicial de tudo. */
@@ -104,6 +104,42 @@ export function formaDoItem(i: ItemContratacaoOs): OpcaoValorDefinida | undefine
   if (i.forma && vale(i.forma)) return i.forma;
   const validas = OPCOES_VALOR_ITEM.map((o) => o.opcao).filter(vale);
   return validas.length === 1 ? validas[0] : undefined;
+}
+
+/**
+ * O documento fiscal que a forma de pagamento escolhida exige (21/10/2026).
+ *
+ * A escolha da forma já diz qual documento o fornecedor entrega: as duas com
+ * NF pedem Nota Fiscal; "Sem BV e Sem NF" é paga por Fatura; uma OS com itens
+ * dos dois tipos pede os dois. `""` = nenhum item tem forma ainda — aí o
+ * documento segue escolhido à mão.
+ */
+export function documentoFiscalDaContratacao(itens: ItemContratacaoOs[]): DocumentoFiscal {
+  let comNota = false;
+  let semNota = false;
+  for (const i of itens) {
+    const forma = formaDoItem(i);
+    if (forma === "semBvSemNf") semNota = true;
+    else if (forma) comNota = true;
+  }
+  if (comNota && semNota) return "Fatura e Nota Fiscal";
+  if (comNota) return "Nota Fiscal";
+  if (semNota) return "Fatura";
+  return "";
+}
+
+/**
+ * O valor da OS: o que vai ser pago ao fornecedor — a soma da forma adotada em
+ * cada item. Item sem forma definida ainda não conta. NUNCA o valor do item na
+ * EC: aquele é o preço ao cliente.
+ */
+export function valorDaContratacao(itens: ItemContratacaoOs[]): number {
+  return r2(
+    itens.reduce((s, i) => {
+      const forma = formaDoItem(i);
+      return s + (forma ? valorDefinido(i[forma]) ?? 0 : 0);
+    }, 0)
+  );
 }
 
 /**

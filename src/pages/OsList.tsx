@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { valorDaContratacao } from "@/domain/contratacaoOs";
 import { useNavigate } from "react-router-dom";
 import { PageShell } from "@/components/layout/AppLayout";
 import { Card, Badge, Table, THead, Tr, Td, Input, EmptyState, AvisoErro, ThOrd, useOrdenacao, tomStatusOs } from "@/components/ui";
@@ -55,7 +56,7 @@ export function OsList() {
       fornecedor: (o) => o.fornecedor.razaoSocial,
       ec: (o) => o.ecNumero,
       modalidade: (o) => o.modalidade,
-      valor: (o) => o.orcamento.valorEc,
+      valor: (o) => valorDaContratacao(o.itens ?? []),
       status: (o) => o.status,
     },
     { col: "numero", dir: "asc" }
@@ -107,7 +108,7 @@ export function OsList() {
               <ThOrd col="fornecedor" ordem={ordem} onSort={ordenarPor}>Fornecedor</ThOrd>
               <ThOrd col="ec" ordem={ordem} onSort={ordenarPor}>EC</ThOrd>
               <ThOrd col="modalidade" ordem={ordem} onSort={ordenarPor}>Modalidade</ThOrd>
-              {verFinanceiro && <ThOrd col="valor" align="right" ordem={ordem} onSort={ordenarPor}>Valor EC</ThOrd>}
+              {verFinanceiro && <ThOrd col="valor" align="right" ordem={ordem} onSort={ordenarPor}>Valor OS</ThOrd>}
               <ThOrd col="status" align="center" ordem={ordem} onSort={ordenarPor}>Status</ThOrd>
             </THead>
             <tbody>
@@ -119,7 +120,7 @@ export function OsList() {
                   <Td>{o.fornecedor.razaoSocial}</Td>
                   <Td className="text-[12.5px] text-ink-2">{o.ecNumero}</Td>
                   <Td>{o.modalidade || "—"}</Td>
-                  {verFinanceiro && <Td align="right" className="font-display font-bold">{brl(o.orcamento.valorEc)}</Td>}
+                  {verFinanceiro && <Td align="right" className="font-display font-bold">{valorDaContratacao(o.itens ?? []) ? brl(valorDaContratacao(o.itens ?? [])) : "a definir"}</Td>}
                   <Td align="center"><Badge tom={tomStatusOs[o.status]}>{o.status}</Badge></Td>
                 </Tr>
               ))}

@@ -32,7 +32,8 @@ import { NavegadorPendencias } from "@/components/NavegadorPendencias";
 import { ObservacoesGeraisEc } from "@/components/ObservacoesGeraisEc";
 import { pendenciasDaTela } from "@/domain/pendencias";
 import { destacarElemento, idAncoraPendencia } from "@/lib/destaque";
-import { itemDaLinhaEc } from "@/domain/contratacaoOs";
+import { documentoFiscalDaContratacao, itemDaLinhaEc, valorDaContratacao } from "@/domain/contratacaoOs";
+import { planoDeEmissao } from "@/domain/emissaoOs";
 import { ecEditavel, situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
 import { useMinhasPendencias } from "@/store/pendencias";
 import { EcItemLeitura } from "@/components/EcItemLeitura";
@@ -100,7 +101,7 @@ export function EcDetail() {
       numero: (o) => o.numero,
       fornecedor: (o) => o.fornecedor.razaoSocial,
       itens: (o) => o.ecLinhaIds.length,
-      valor: (o) => o.orcamento.valorEc,
+      valor: (o) => valorDaContratacao(o.itens ?? []),
       status: (o) => o.status,
     },
     { col: "numero", dir: "asc" }
@@ -242,38 +243,40 @@ export function EcDetail() {
     setBloqueados(travados);
     if (travados.length) apontarBloqueados(travados);
     if (!prontos.length) return;
+    // Uma OS por fornecedor; o item que já estava numa OS viva leva a anterior
+    // ao arquivo (ver `planoDeEmissao`). A confirmação diz exatamente isso.
+    const plano = planoDeEmissao(prontos, oss ?? []);
+    const nomeItem = (l: EcLinha) => l.item?.trim() || l.descricao?.trim() || "(item sem nome)";
+    const listaOss = plano.grupos
+      .map((g, i) => `${i + 1}. ${g.fornecedorRazao?.trim() || g.fornecedorCnpj || "(fornecedor sem nome)"}: ${g.linhas.map(nomeItem).join(", ")}`)
+      .join("\n");
     if (!(await confirmar({
-      titulo: `Emitir OS de ${prontos.length} item(ns)?`,
+      titulo: plano.grupos.length === 1 ? "Emitir 1 OS?" : `Emitir ${plano.grupos.length} OSs — uma por fornecedor?`,
       mensagem: [
-        "Será criada uma OS por fornecedor cujos itens já tenham sido aprovados. " +
-        "Ao solicitar a emissão de uma nova versão de OS previamente emitida, a anterior será " +
-        "automaticamente arquivada. Atenção para os dados a serem inseridos manualmente nas OS's.",
+        listaOss,
+        plano.arquivar.length
+          ? `\n\nSubstituídas (vão para o arquivo): ${plano.arquivar.map((o) => o.numero).join("; ")}.`
+          : "",
+        plano.liberar.length
+          ? ` ${plano.liberar.length} item(ns) dessas OSs que não estão nesta emissão voltam para "Emitir".`
+          : "",
+        "\n\nAtenção para os dados a serem inseridos manualmente nas OSs.",
         travados.length ? `\n\n${travados.length} item(ns) marcado(s) para emitir ficam de fora por dados incompletos — a lista fica na tela.` : "",
       ].join(""),
-      confirmarTexto: "Emitir OS",
+      confirmarTexto: plano.grupos.length === 1 ? "Emitir OS" : `Emitir ${plano.grupos.length} OSs`,
     }))) return;
 
     setEmitindo(true);
     try {
-      const grupos = agruparPorFornecedor(prontos);
       const idsEmitidos = new Set<string>();
+      const idsLiberados = new Set(plano.liberar);
       let criadas = 0;
       // A OS nova nasce com os dados gerais de HOJE do projeto, não os da EC antiga.
       const ecViva = await comDadosAtuaisDoProjeto(ec!);
-      for (const g of grupos) {
-        const idsG = new Set(g.linhas.map((l) => l.id));
-        const temReversao = g.linhas.some((l) => l.statusOs === "Emitir Nova Versão");
-        // "Emitir Nova Versão": arquiva as OSs anteriores que cobrem estes itens.
-        if (temReversao) {
-          for (const o of oss ?? []) {
-            if (o.status === "Cancelada" || o.status === "Arquivada") continue;
-            if (o.ecLinhaIds.some((lid) => idsG.has(lid))) {
-              // Substituída por uma nova versão: ARQUIVADA (Cancelada é decisão
-              // de gente — o negócio caiu).
-              await repo.oss.salvar({ ...o, status: "Arquivada" });
-            }
-          }
-        }
+      // Substituída por uma nova versão: ARQUIVADA (Cancelada é decisão de
+      // gente — o negócio caiu).
+      for (const o of plano.arquivar) await repo.oss.salvar({ ...o, status: "Arquivada" });
+      for (const g of plano.grupos) {
         const seq = await repo.oss.proximaSeq(ec!.id);
         const fornCadastro = g.fornecedorCnpj ? await repo.fornecedores.porCnpj(g.fornecedorCnpj) : undefined;
         // Qual versão desta OS: conta as que já existem para este fornecedor
@@ -284,7 +287,14 @@ export function EcDetail() {
         g.linhas.forEach((l) => idsEmitidos.add(l.id));
       }
       // Linhas emitidas deixam de estar pendentes — passam a "OK".
-      const linhas = ec!.linhas.map((l) => (idsEmitidos.has(l.id) ? { ...l, statusOs: "OK" as const } : l));
+      // Os que perderam a OS (arquivada) sem entrar nesta emissão voltam a "Emitir".
+      const linhas = ec!.linhas.map((l) =>
+        idsEmitidos.has(l.id)
+          ? { ...l, statusOs: "OK" as const }
+          : idsLiberados.has(l.id)
+            ? { ...l, statusOs: "Emitir" as const }
+            : l
+      );
       await repo.ecs.salvar({ ...ec!, linhas });
       toast(`${criadas} OS(s) emitida(s). Complete os dados fiscais de cada uma.`, "success");
       navigate(0);
@@ -454,7 +464,7 @@ export function EcDetail() {
             <ThOrd col="numero" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor}>OS</ThOrd>
             <ThOrd col="fornecedor" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor}>Fornecedor</ThOrd>
             <ThOrd col="itens" align="center" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor}>Itens</ThOrd>
-            {verFinanceiro && <ThOrd col="valor" align="right" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor}>Valor EC</ThOrd>}
+            {verFinanceiro && <ThOrd col="valor" align="right" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor}>Valor OS</ThOrd>}
             <ThOrd col="status" align="center" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor}>Status</ThOrd>
           </THead>
           <tbody>
@@ -467,7 +477,7 @@ export function EcDetail() {
                     {o.ecLinhaIds.length > 1 ? `${o.ecLinhaIds.length} consolidados` : "1 item"}
                   </Badge>
                 </Td>
-                {verFinanceiro && <Td align="right" className="font-display font-bold">{brl(o.orcamento.valorEc)}</Td>}
+                {verFinanceiro && <Td align="right" className="font-display font-bold">{valorDaContratacao(o.itens ?? []) ? brl(valorDaContratacao(o.itens ?? [])) : "a definir"}</Td>}
                 <Td align="center"><Badge tom={tomStatusOs[o.status]}>{o.status}</Badge></Td>
               </Tr>
             ))}
@@ -683,7 +693,11 @@ function montarOsEmissao(
   fornCadastro?: Fornecedor
 ): Os {
   const agora = new Date().toISOString();
+  // `valorEc` fica gravado (preço ao cliente, para a rentabilidade); a OS nasce
+  // valendo o que se paga ao FORNECEDOR (ver `valorDaContratacao`).
   const valorEc = linhas.reduce((s, l) => s + l.valorPolobh + l.valorCliente, 0);
+  const itens = linhas.map(itemDaLinhaEc);
+  const valorOs = valorDaContratacao(itens);
   const g = agruparPorFornecedor(linhas)[0];
   const fornecedor = fornCadastro ?? fornecedorVazioEc(g?.fornecedorRazao ?? "", g?.fornecedorCnpj ?? "");
   return {
@@ -696,7 +710,7 @@ function montarOsEmissao(
     ecLinhaIds: linhas.map((l) => l.id),
     // A contratação nasce com o que a EC levantou: valores, "não se aplica" e
     // BV de cada item. Na OS eles seguem editáveis — é aqui que se fecha.
-    itens: linhas.map(itemDaLinhaEc),
+    itens,
     status: "Rascunho",
     fornecedor,
     // Foto dos dados gerais do evento na emissão — ver `Os.projeto`.
@@ -712,9 +726,9 @@ function montarOsEmissao(
     observacoes: [],
     // Sem link montado à mão: ele nasce do token que o banco gera ao salvar.
     credenciamento: { prazoLimite: "", linkFormulario: "" },
-    orcamento: { valorEc, valorComBvNf: valorEc, valorSemBvComNf: valorEc, valorSemBvSemNf: valorEc, parcelas: [{ descricao: "Pagamento único", valor: valorEc }], documentoFiscal: "" },
-    financeiro: { tomador: "", descritivoNf: "", cnae: "", codigoServico: "", valorUnitario: valorEc, valorTotal: valorEc, descontoNegociado: 0, valorAPagar: valorEc, bvPercentual: 0, bvValor: 0, bvJustificativa: "", acertoFinanceiro: "" },
-    contrato: { contratante: "", descritivoServicos: "", informacoesComplementares: "", valorUnitario: valorEc, valorTotal: valorEc, descontoNegociado: 0, valorAPagar: valorEc, dataContrato: "", rubrica: "" },
+    orcamento: { valorEc, valorComBvNf: valorOs, valorSemBvComNf: valorOs, valorSemBvSemNf: valorOs, parcelas: [{ descricao: "Pagamento único", valor: valorOs }], documentoFiscal: documentoFiscalDaContratacao(itens) },
+    financeiro: { tomador: "", descritivoNf: "", cnae: "", codigoServico: "", valorUnitario: valorOs, valorTotal: valorOs, descontoNegociado: 0, valorAPagar: valorOs, bvPercentual: 0, bvValor: 0, bvJustificativa: "", acertoFinanceiro: "" },
+    contrato: { contratante: "", descritivoServicos: "", informacoesComplementares: "", valorUnitario: valorOs, valorTotal: valorOs, descontoNegociado: 0, valorAPagar: valorOs, dataContrato: "", rubrica: "" },
     criadoEm: agora,
     atualizadoEm: agora,
   };

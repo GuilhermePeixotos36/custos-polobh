@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   bvDaContratacao,
   bvDoItem,
+  documentoFiscalDaContratacao,
+  valorDaContratacao,
   exigeJustificativa,
   formaDoItem,
   problemasDaContratacao,
@@ -256,5 +258,30 @@ describe("a forma de pagamento adotada por item", () => {
     );
     expect(misturada.some((m) => m.includes("mistura formas"))).toBe(true);
     expect(problemasDaContratacao([com({ forma: "comBvNf" })], nome)).toEqual([]);
+  });
+});
+
+describe("o documento fiscal segue a forma de pagamento", () => {
+  const v = (valor: number) => ({ naoSeAplica: false, valor, justificativaBv: "" });
+  const tres = (over: Partial<ItemContratacaoOs>) =>
+    item({ comBvNf: v(1000), semBvComNf: v(900), semBvSemNf: v(800), ...over });
+
+  it("com NF (com ou sem BV) pede Nota Fiscal; sem NF pede Fatura", () => {
+    expect(documentoFiscalDaContratacao([tres({ forma: "comBvNf" })])).toBe("Nota Fiscal");
+    expect(documentoFiscalDaContratacao([tres({ forma: "semBvComNf" })])).toBe("Nota Fiscal");
+    expect(documentoFiscalDaContratacao([tres({ forma: "semBvSemNf" })])).toBe("Fatura");
+  });
+
+  it("itens dos dois tipos pedem Fatura e Nota Fiscal; nenhuma forma, nada", () => {
+    expect(
+      documentoFiscalDaContratacao([tres({ ecLinhaId: "a", forma: "comBvNf" }), tres({ ecLinhaId: "b", forma: "semBvSemNf" })])
+    ).toBe("Fatura e Nota Fiscal");
+    expect(documentoFiscalDaContratacao([tres({})])).toBe("");
+  });
+
+  it("o valor da OS é o que se paga ao fornecedor: a forma adotada de cada item", () => {
+    expect(valorDaContratacao([tres({ forma: "semBvComNf" }), tres({ ecLinhaId: "b", forma: "semBvComNf" })])).toBe(1800);
+    // Sem forma escolhida (e com mais de uma possível) ainda não conta.
+    expect(valorDaContratacao([tres({})])).toBe(0);
   });
 });
