@@ -70,6 +70,7 @@ import {
   formaDoItem,
   documentoFiscalDaContratacao,
   valorDaContratacao,
+  acompanharValorDaOs,
   COLUNAS_CONTRATACAO,
   itemDaLinhaEc,
   resumoContratacao,
@@ -227,7 +228,7 @@ function aplicarAutoPreenchimento(os: Os, ec: Ec): Os {
   const cronogramaPadraoAntigo =
     !!so1 && so1.etapa === "Evento" && !so1.atividades?.trim() && so1.data === os.projeto.evento;
 
-  return {
+  const preenchida: Os = {
     ...os,
     descritivo,
     // A contratação acompanha os itens que a OS consolida: o que já foi
@@ -300,6 +301,12 @@ function aplicarAutoPreenchimento(os: Os, ec: Ec): Os {
         }
       : os.contrato,
   };
+  // OS nascida com o valor do item na EC (preço ao cliente) no Faturamento, no
+  // Contrato e no prazo de pagamento passa a valer o que se paga ao fornecedor.
+  // Emitida não muda sozinha: aquela já foi para o fornecedor.
+  return osEmitida(os)
+    ? preenchida
+    : acompanharValorDaOs(preenchida, [os.orcamento.valorEc], valorDaContratacao(itensContratacao));
 }
 
 const ID_FORMAS_PAGAMENTO = "os-formas-pagamento";
@@ -564,11 +571,8 @@ export function OsForm() {
       if (!o) return o;
       const itens = o.itens.map((i) => (i.ecLinhaId === ecLinhaId ? { ...i, ...patch } : i));
       const { totais } = resumoContratacao(itens, linhasConsolidadas);
-      const anterior = o.orcamento.valorComBvNf;
-      const espelhaFin = o.financeiro.valorTotal === anterior;
-      const espelhaCt = o.contrato.valorTotal === anterior;
       const v = resumoContratacao(itens, linhasConsolidadas).contratado;
-      return {
+      const atualizada: Os = {
         ...o,
         itens,
         orcamento: {
@@ -578,13 +582,14 @@ export function OsForm() {
           valorSemBvSemNf: totais.semBvSemNf,
           documentoFiscal: documentoFiscalDaContratacao(itens) || o.orcamento.documentoFiscal,
         },
-        financeiro: espelhaFin
-          ? { ...o.financeiro, valorUnitario: v, valorTotal: v, valorAPagar: v - o.financeiro.descontoNegociado }
-          : o.financeiro,
-        contrato: espelhaCt
-          ? { ...o.contrato, valorUnitario: v, valorTotal: v, valorAPagar: v - o.contrato.descontoNegociado }
-          : o.contrato,
       };
+      // Faturamento, Contrato e parcela única acompanham enquanto espelharem o
+      // valor de antes — quem ajustou à mão tinha um motivo.
+      return acompanharValorDaOs(
+        atualizada,
+        [valorDaContratacao(o.itens), o.orcamento.valorComBvNf],
+        valorDaContratacao(itens)
+      );
     });
   /** O documento que a forma de pagamento escolhida exige ("" = ainda sem forma). */
   const docDaForma = documentoFiscalDaContratacao(os.itens ?? []);
@@ -1570,87 +1575,6 @@ export function OsForm() {
               cada contratação, e oferecer a de outra OS convidava a repetir o
               que não vale para esta. */}
 
-          {/* RESUMO DOS CUSTOS — o fim do Detalhamento (16/09/2026).
-              Ele era um módulo à parte, "Pagamento ao Fornecedor", e o pedido do
-              check-list é explícito nos dois sentidos: "no final de todos os
-              itens, o sistema deverá consolidar o valor total contratado, o
-              valor total do BV e o valor líquido, prazo de pagamento, documento
-              fiscal … sob o título Resumo dos Custos", e "Módulo Pagamento ao
-              Fornecedor — excluir". O motivo é de leitura: os totais só querem
-              dizer alguma coisa ao lado dos itens que os produziram, e dois
-              cards distantes convidavam a conferir um sem o outro.
-              Quem vê o quê não mudou junto: o bloco era aberto a quem abre a
-              OS, e continua — mover um módulo de lugar não é hora de mexer em
-              permissão. Só a tabela final segue restrita ao financeiro, como já
-              estava. */}
-          <SubSecao>Resumo dos Custos</SubSecao>
-
-            {/* Sem o valor do item na EC (21/10/2026): aquele é o preço ao
-                cliente. O valor da OS é o que se paga ao fornecedor. */}
-            {/* Os totais saem da forma que cada item ADOTOU (29/09/2026): não são
-                digitáveis aqui, e alimentam o Faturamento e o Contrato. */}
-            <LinhaOs label="Valor Total Contratado" hint="(soma da forma adotada em cada item)"><Auto v={brl(resumo.contratado)} /></LinhaOs>
-            <LinhaOs label="Valor Total do BV" hint="(só dos itens com BV e NF)"><Auto v={brl(resumo.bvTotal)} /></LinhaOs>
-            <LinhaOs label="Valor Líquido" hint="(contratado menos o BV)"><Auto v={brl(resumo.liquido)} /></LinhaOs>
-
-            <LinhaOs
-              label="Prazo de Pagamento"
-              hint="(parcelas)"
-              acao={
-                <Button variant="secondary" size="sm" onClick={() => updOrc({ parcelas: [...os.orcamento.parcelas, { id: novoId(), descricao: "", valor: saldoParcelas }] })}>+ Parcela</Button>
-              }
-            >
-              <div className="py-1.5 space-y-2">
-                {os.orcamento.parcelas.map((pc, i) => (
-                  <div key={pc.id ?? i} className="grid grid-cols-[minmax(0,1fr)_minmax(0,150px)_auto] gap-2 items-center">
-                    <Input className="!h-9 min-w-0" placeholder={`Descrição da ${i + 1}ª parcela`} sugestoes={sugestoes.valores.descricaoParcela} value={pc.descricao} onChange={(e) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, descricao: e.target.value } : x)) })} />
-                    <NumberInput className="!h-9 min-w-0" value={pc.valor} title={refParcelas.valor > 0 ? `Até ${brl(tetoDaParcela(i))} (saldo disponível)` : undefined} onValue={(v) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, valor: Math.min(v, tetoDaParcela(i)) } : x)) })} />
-                    <button className="text-ink-3 hover:text-danger px-2" title="Remover parcela" onClick={() => updOrc({ parcelas: os.orcamento.parcelas.filter((_, j) => j !== i) })}>✕</button>
-                  </div>
-                ))}
-                {os.orcamento.parcelas.length === 0 && <p className="text-[12.5px] text-ink-3">Sem parcelas. Use “+ Parcela”.</p>}
-
-                {os.orcamento.parcelas.length > 0 && (
-                  <div
-                    className={cx(
-                      "flex items-center justify-between gap-3 rounded-btn px-3 py-2 text-[12.5px]",
-                      parcelasDivergem ? "bg-danger-soft text-danger font-semibold" : "bg-[#FAFAFB] text-ink-2"
-                    )}
-                  >
-                    <span>
-                      Soma das parcelas: <b className="font-display">{brl(somaParcelas)}</b>
-                      {refParcelas.valor > 0 && <> · saldo a distribuir: <b className="font-display">{brl(saldoParcelas)}</b></>}
-                    </span>
-                    {parcelasDivergem ? (
-                      <span>
-                        Não fecha com o {refParcelas.rotulo} ({brl(refParcelas.valor)}) — diferença de{" "}
-                        {brl(Math.abs(somaParcelas - refParcelas.valor))}.
-                      </span>
-                    ) : (
-                      refParcelas.valor > 0 && <span>Confere com o {refParcelas.rotulo}.</span>
-                    )}
-                  </div>
-                )}
-              </div>
-            </LinhaOs>
-
-            {docDaForma ? (
-              <LinhaOs label="Documento Fiscal" hint="(segue a forma de pagamento: com NF → Nota Fiscal, sem NF → Fatura)">
-                <Auto v={docDaForma} />
-              </LinhaOs>
-            ) : (
-              <LinhaOs label="Documento Fiscal" hint="(definido pela forma de pagamento; enquanto não há forma, escolha aqui)">
-                <Select value={os.orcamento.documentoFiscal} onChange={(e) => updOrc({ documentoFiscal: e.target.value as DocumentoFiscal })}>
-                  <option value="">Selecione…</option>
-                  {DOCS.map((d) => <option key={d}>{d}</option>)}
-                </Select>
-              </LinhaOs>
-            )}
-                    {verFinanceiro && (
-            <LinhaOs label="Definido item a item" hint="(o que sai no PDF e na planilha)">
-              <TabelaResumoCustos resumo={resumo} />
-            </LinhaOs>
-          )}
           </fieldset>
         </CardOs>
 
@@ -1845,7 +1769,7 @@ export function OsForm() {
             se vê a fila inteira e se dispara para todos os fornecedores de uma
             vez. O link continua sendo o desta OS — o que mudou foi o comando.
             O "Pagamento ao Fornecedor" saiu daqui em 16/09/2026: virou o
-            "Resumo dos Custos", no fim do Detalhamento da Contratação. */}
+            "Resumo dos Custos" — hoje um módulo próprio, logo abaixo. */}
         </fieldset>
 
         {/* O BOTÃO QUE PASSA O BASTÃO, logo depois das Observações Gerais
@@ -1867,6 +1791,83 @@ export function OsForm() {
             </Button>
           </div>
         )}
+
+        {/* RESUMO DOS CUSTOS em módulo próprio, depois da parte da produção
+            (22/10/2026). É preenchido pelo Financeiro (prazo de pagamento,
+            documento fiscal), então fica abaixo do botão que passa a OS a ele
+            e só abre na fase dele. Quem vê não mudou: segue aberto a quem abre
+            a OS; só a tabela item a item é restrita ao financeiro. */}
+        <fieldset disabled={!mexeFinanceiro} className="min-w-0 border-0 p-0 m-0 disabled:opacity-100">
+        <CardOs secao="Resumo dos Custos">
+
+            {/* Sem o valor do item na EC (21/10/2026): aquele é o preço ao
+                cliente. O valor da OS é o que se paga ao fornecedor. */}
+            {/* Os totais saem da forma que cada item ADOTOU (29/09/2026): não são
+                digitáveis aqui, e alimentam o Faturamento e o Contrato. */}
+            <LinhaOs label="Valor Total Contratado" hint="(soma da forma adotada em cada item)"><Auto v={brl(resumo.contratado)} /></LinhaOs>
+            <LinhaOs label="Valor Total do BV" hint="(só dos itens com BV e NF)"><Auto v={brl(resumo.bvTotal)} /></LinhaOs>
+            <LinhaOs label="Valor Líquido" hint="(contratado menos o BV)"><Auto v={brl(resumo.liquido)} /></LinhaOs>
+
+            <LinhaOs
+              label="Prazo de Pagamento"
+              hint="(parcelas)"
+              acao={
+                <Button variant="secondary" size="sm" onClick={() => updOrc({ parcelas: [...os.orcamento.parcelas, { id: novoId(), descricao: "", valor: saldoParcelas }] })}>+ Parcela</Button>
+              }
+            >
+              <div className="py-1.5 space-y-2">
+                {os.orcamento.parcelas.map((pc, i) => (
+                  <div key={pc.id ?? i} className="grid grid-cols-[minmax(0,1fr)_minmax(0,150px)_auto] gap-2 items-center">
+                    <Input className="!h-9 min-w-0" placeholder={`Descrição da ${i + 1}ª parcela`} sugestoes={sugestoes.valores.descricaoParcela} value={pc.descricao} onChange={(e) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, descricao: e.target.value } : x)) })} />
+                    <NumberInput className="!h-9 min-w-0" value={pc.valor} title={refParcelas.valor > 0 ? `Até ${brl(tetoDaParcela(i))} (saldo disponível)` : undefined} onValue={(v) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, valor: Math.min(v, tetoDaParcela(i)) } : x)) })} />
+                    <button className="text-ink-3 hover:text-danger px-2" title="Remover parcela" onClick={() => updOrc({ parcelas: os.orcamento.parcelas.filter((_, j) => j !== i) })}>✕</button>
+                  </div>
+                ))}
+                {os.orcamento.parcelas.length === 0 && <p className="text-[12.5px] text-ink-3">Sem parcelas. Use “+ Parcela”.</p>}
+
+                {os.orcamento.parcelas.length > 0 && (
+                  <div
+                    className={cx(
+                      "flex items-center justify-between gap-3 rounded-btn px-3 py-2 text-[12.5px]",
+                      parcelasDivergem ? "bg-danger-soft text-danger font-semibold" : "bg-[#FAFAFB] text-ink-2"
+                    )}
+                  >
+                    <span>
+                      Soma das parcelas: <b className="font-display">{brl(somaParcelas)}</b>
+                      {refParcelas.valor > 0 && <> · saldo a distribuir: <b className="font-display">{brl(saldoParcelas)}</b></>}
+                    </span>
+                    {parcelasDivergem ? (
+                      <span>
+                        Não fecha com o {refParcelas.rotulo} ({brl(refParcelas.valor)}) — diferença de{" "}
+                        {brl(Math.abs(somaParcelas - refParcelas.valor))}.
+                      </span>
+                    ) : (
+                      refParcelas.valor > 0 && <span>Confere com o {refParcelas.rotulo}.</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </LinhaOs>
+
+            {docDaForma ? (
+              <LinhaOs label="Documento Fiscal" hint="(segue a forma de pagamento: com NF → Nota Fiscal, sem NF → Fatura)">
+                <Auto v={docDaForma} />
+              </LinhaOs>
+            ) : (
+              <LinhaOs label="Documento Fiscal" hint="(definido pela forma de pagamento; enquanto não há forma, escolha aqui)">
+                <Select value={os.orcamento.documentoFiscal} onChange={(e) => updOrc({ documentoFiscal: e.target.value as DocumentoFiscal })}>
+                  <option value="">Selecione…</option>
+                  {DOCS.map((d) => <option key={d}>{d}</option>)}
+                </Select>
+              </LinhaOs>
+            )}
+            {verFinanceiro && (
+            <LinhaOs label="Definido item a item" hint="(o que sai no PDF e na planilha)">
+              <TabelaResumoCustos resumo={resumo} />
+            </LinhaOs>
+          )}
+        </CardOs>
+        </fieldset>
 
         {/* OS BLOCOS DO FINANCEIRO só abrem na fase dele (e seguem abertos no
             back-office, que ainda corrige um código de serviço na hora de

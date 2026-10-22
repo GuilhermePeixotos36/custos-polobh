@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   bvDaContratacao,
   bvDoItem,
+  acompanharValorDaOs,
   documentoFiscalDaContratacao,
   valorDaContratacao,
   exigeJustificativa,
@@ -14,7 +15,7 @@ import {
   sincronizarContratacao,
 } from "./contratacaoOs";
 import { bvVazio } from "./calc";
-import type { EcLinha, ItemContratacaoOs } from "@/data/types";
+import type { EcLinha, ItemContratacaoOs, Os } from "@/data/types";
 
 const linha = (p: Partial<EcLinha>): EcLinha =>
   ({
@@ -283,5 +284,33 @@ describe("o documento fiscal segue a forma de pagamento", () => {
     expect(valorDaContratacao([tres({ forma: "semBvComNf" }), tres({ ecLinhaId: "b", forma: "semBvComNf" })])).toBe(1800);
     // Sem forma escolhida (e com mais de uma possível) ainda não conta.
     expect(valorDaContratacao([tres({})])).toBe(0);
+  });
+});
+
+describe("o valor da OS chega ao Faturamento, ao Contrato e às parcelas", () => {
+  const os = (fin: number, ct: number, parcelas: number[]): Os =>
+    ({
+      orcamento: { valorEc: 1500, parcelas: parcelas.map((valor) => ({ descricao: "", valor })) },
+      financeiro: { valorUnitario: fin, valorTotal: fin, valorAPagar: fin, descontoNegociado: 0 },
+      contrato: { valorUnitario: ct, valorTotal: ct, valorAPagar: ct, descontoNegociado: 0 },
+    }) as unknown as Os;
+
+  it("OS nascida com o preço ao cliente (R$ 1.500) passa ao do fornecedor (R$ 1.200)", () => {
+    const r = acompanharValorDaOs(os(1500, 1500, [1500]), [1500], 1200);
+    expect(r.orcamento.parcelas[0].valor).toBe(1200);
+    expect(r.financeiro.valorAPagar).toBe(1200);
+    expect(r.contrato.valorTotal).toBe(1200);
+  });
+
+  it("o que foi ajustado à mão, ou dividido em parcelas, fica", () => {
+    const r = acompanharValorDaOs(os(1300, 1500, [750, 750]), [1500], 1200);
+    expect(r.financeiro.valorTotal).toBe(1300);
+    expect(r.contrato.valorTotal).toBe(1200);
+    expect(r.orcamento.parcelas.map((p) => p.valor)).toEqual([750, 750]);
+  });
+
+  it("sem valor definido na contratação, nada muda", () => {
+    const o = os(1500, 1500, [1500]);
+    expect(acompanharValorDaOs(o, [1500], 0)).toBe(o);
   });
 });

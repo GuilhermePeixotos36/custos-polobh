@@ -18,7 +18,7 @@
  * cada uma responde por si: por que este item sai sem BV, por que aquele sai
  * com BV abaixo do padrão.
  */
-import type { BvItem, DocumentoFiscal, EcLinha, ItemContratacaoOs, OpcaoContratacaoOs, OpcaoValorDefinida } from "@/data/types";
+import type { BvItem, DocumentoFiscal, EcLinha, ItemContratacaoOs, OpcaoContratacaoOs, OpcaoValorDefinida, Os } from "@/data/types";
 import { BV_PADRAO_PERCENTUAL, OPCOES_VALOR_ITEM, opcaoNaoSeAplica, r2 } from "@/domain/calc";
 
 /** Forma de cobrança sem valor definido — o estado inicial de tudo. */
@@ -140,6 +140,35 @@ export function valorDaContratacao(itens: ItemContratacaoOs[]): number {
       return s + (forma ? valorDefinido(i[forma]) ?? 0 : 0);
     }, 0)
   );
+}
+
+/**
+ * Leva o valor da OS ao Faturamento, ao Contrato e ao prazo de pagamento.
+ *
+ * Só move o que ainda ESPELHA um valor anterior (`de`): quem ajustou à mão
+ * tinha um motivo. As parcelas acompanham quando há uma só ("Pagamento único")
+ * — dividida em várias, a divisão é decisão de alguém.
+ *
+ * Caso que motivou (22/10/2026): OSs emitidas até 21/10 nasciam com o valor do
+ * item na EC (preço ao cliente) nesses três lugares — R$ 1.500 numa OS cujo
+ * fornecedor recebe R$ 1.200.
+ */
+export function acompanharValorDaOs(os: Os, de: number[], para: number): Os {
+  if (!(para > 0)) return os;
+  const espelha = (v: number) => de.some((d) => r2(d) === r2(v)) && r2(v) !== r2(para);
+  const { financeiro: f, contrato: c, orcamento: o } = os;
+  const parcelas =
+    o.parcelas.length === 1 && espelha(o.parcelas[0].valor) ? [{ ...o.parcelas[0], valor: para }] : o.parcelas;
+  return {
+    ...os,
+    orcamento: parcelas === o.parcelas ? o : { ...o, parcelas },
+    financeiro: espelha(f.valorTotal)
+      ? { ...f, valorUnitario: para, valorTotal: para, valorAPagar: r2(para - (f.descontoNegociado || 0)) }
+      : f,
+    contrato: espelha(c.valorTotal)
+      ? { ...c, valorUnitario: para, valorTotal: para, valorAPagar: r2(para - (c.descontoNegociado || 0)) }
+      : c,
+  };
 }
 
 /**
