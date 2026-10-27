@@ -101,3 +101,25 @@ export const RECURSO_DA_FASE: Partial<Record<FaseOs, "financeiro" | "oss.emitir"
   // a OS — justamente quem esta fase tirou do caminho.
   backoffice: "oss.emitir",
 };
+
+/** Quem preenche cada bloco da OS (27/10/2026). */
+export type AreaOs = "Produção" | "Financeiro" | "Back-office";
+
+const ETAPA_DA_AREA: Record<AreaOs, FaseOs> = { "Produção": "producao", "Financeiro": "financeiro", "Back-office": "backoffice" };
+
+/**
+ * DESTAQUE DOS BLOCOS DA VEZ (27/10/2026). Quem abre a OS quer saber o que
+ * preencher AGORA: os blocos da área que está com a OS se destacam; os demais
+ * dizem por que estão em leitura. No Back-office os blocos do Financeiro seguem
+ * abertos para correção (`editaFinanceiro`), e a frase diz isso.
+ */
+export function vezDoBloco(area: AreaOs, fase: FaseOs): { vez: boolean; aviso: string } {
+  if (fase === "emitida") return { vez: false, aviso: "OS emitida — em leitura" };
+  const etapa = ETAPA_DA_AREA[area];
+  if (etapa === fase) return { vez: true, aviso: "É a vez deste bloco" };
+  if (area === "Financeiro" && fase === "backoffice") return { vez: false, aviso: "Aberto para correção até a emissão" };
+  return FASES_OS.indexOf(etapa) < FASES_OS.indexOf(fase)
+    ? { vez: false, aviso: `${area} já concluiu — em leitura` }
+    : { vez: false, aviso: `Abre na etapa do ${area}` };
+}
+

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { editaFinanceiro, editaProducao, faseAnterior, faseDaOs, osEmitida, proximaFase } from "./faseOs";
+import { editaFinanceiro, editaProducao, faseAnterior, faseDaOs, osEmitida, proximaFase, vezDoBloco } from "./faseOs";
 import type { Os } from "@/data/types";
 
 const os = (p: Partial<Os>): Os => ({ status: "Rascunho", ...p }) as Os;
@@ -55,5 +55,19 @@ describe("caminho de ida e de volta", () => {
     expect(faseAnterior("backoffice")).toBe("financeiro");
     expect(faseAnterior("financeiro")).toBe("producao");
     expect(faseAnterior("producao")).toBeNull();
+  });
+});
+
+describe("destaque dos blocos da vez", () => {
+  it("destaca os blocos da área que está com a OS", () => {
+    expect(vezDoBloco("Produção", "producao").vez).toBe(true);
+    expect(vezDoBloco("Financeiro", "producao").aviso).toBe("Abre na etapa do Financeiro");
+    expect(vezDoBloco("Produção", "financeiro").aviso).toBe("Produção já concluiu — em leitura");
+    expect(vezDoBloco("Financeiro", "financeiro").vez).toBe(true);
+  });
+  it("no back-office, o Financeiro segue aberto para correção; emitida, tudo em leitura", () => {
+    expect(vezDoBloco("Back-office", "backoffice").vez).toBe(true);
+    expect(vezDoBloco("Financeiro", "backoffice").aviso).toBe("Aberto para correção até a emissão");
+    expect(vezDoBloco("Back-office", "emitida")).toEqual({ vez: false, aviso: "OS emitida — em leitura" });
   });
 });
