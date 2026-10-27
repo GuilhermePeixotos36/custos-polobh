@@ -3,7 +3,7 @@
  * Percentuais fixos: honorários 15%, encargos 16,33%.
  */
 import type { BvItem, Ec, EcLinha, OpcaoValorDefinida, Producao, Fornecedor, Os, TaxaConfig } from "@/data/types";
-import { brl, dataBRCurta } from "@/lib/format";
+import { brl, dataBRCurta, documentoCompleto } from "@/lib/format";
 import { htmlParaLinhas } from "@/lib/htmlTexto";
 import { gerarApelidoFornecedor } from "@/domain/fornecedor";
 
@@ -527,7 +527,8 @@ export function faltasParaEmitirOs(l: EcLinha, conferirValor = false): string[] 
   const faltas: string[] = [];
   if (l.statusAprovacao !== "OK") faltas.push("Aprovação (item ainda pendente)");
   if (!l.fornecedorRazao?.trim()) faltas.push("Fornecedor (razão social)");
-  if (l.fornecedorCnpj.replace(/\D/g, "").length !== 14) faltas.push("CNPJ do fornecedor");
+  // CPF também vale (27/10/2026): pessoa física sem CNPJ é contratação comum.
+  if (!documentoCompleto(l.fornecedorCnpj)) faltas.push("CPF ou CNPJ do fornecedor");
   // DOCUMENTO PG, CÓDIGO DE SERVIÇO e PEDIDO DE COMPRA saíram desta peneira
   // (15/09/2026), e isso era um nó: a EC exigia, para emitir a OS, três dados
   // que só a OS produz. O check-list da Pólobh diz, com todas as letras, que
