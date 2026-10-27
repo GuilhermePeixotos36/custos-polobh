@@ -34,6 +34,7 @@ import { pendenciasDaTela } from "@/domain/pendencias";
 import { destacarElemento, idAncoraPendencia } from "@/lib/destaque";
 import { documentoFiscalDaContratacao, itemDaLinhaEc, valorDaContratacao } from "@/domain/contratacaoOs";
 import { planoDeEmissao } from "@/domain/emissaoOs";
+import { comPerfilPeloDocumento } from "@/domain/fornecedor";
 import { ecEditavel, situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
 import { useMinhasPendencias } from "@/store/pendencias";
 import { EcItemLeitura } from "@/components/EcItemLeitura";
@@ -676,12 +677,12 @@ export function EcDetail() {
 }
 
 function fornecedorVazioEc(razao: string, cnpj: string): Fornecedor {
-  return {
+  return comPerfilPeloDocumento<Fornecedor>({
     id: "", razaoSocial: razao, nomeFantasia: "", cnpj, perfilTributario: "", endereco: "",
     inscricaoEstadual: "", inscricaoMunicipal: "",
     dadosBancarios: { tipoConta: "", banco: "", agencia: "", conta: "", chavePix: "" },
     representante: "", telefone: "", email: "",
-  };
+  });
 }
 
 /** Constrói a OS (rascunho) consolidando as linhas de um fornecedor — espelha a criação do OsForm. */

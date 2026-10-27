@@ -200,6 +200,16 @@ export const PERFIS_TRIBUTARIOS = [
 ] as const;
 
 /**
+ * Fornecedor com CPF nasce "Pessoa Física (RPA)" (27/10/2026): é a única
+ * opção do perfil que serve a quem não tem CNPJ. Só preenche o perfil vazio —
+ * o que alguém escolheu à mão fica.
+ */
+export function comPerfilPeloDocumento<T extends { cnpj: string; perfilTributario: string }>(f: T): T {
+  const pf = (f.cnpj ?? "").replace(/\D/g, "").length === 11;
+  return pf && !(f.perfilTributario ?? "").trim() ? { ...f, perfilTributario: "Pessoa Física (RPA)" } : f;
+}
+
+/**
  * Opções para o campo, com o valor JÁ GRAVADO na frente quando ele não estiver
  * na lista. Um `<select>` cujo valor não existe entre as opções aparece vazio, e
  * salvar a OS depois disso apagaria em silêncio o que estava lá — numa OS antiga

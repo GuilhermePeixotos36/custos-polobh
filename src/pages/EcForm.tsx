@@ -53,7 +53,7 @@ import { EcGrupos } from "@/components/EcGrupos";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
 import { ObservacoesGeraisEc } from "@/components/ObservacoesGeraisEc";
 import { pendenciasDaTela } from "@/domain/pendencias";
-import { contatoDeTexto, mesclarContatos } from "@/domain/fornecedor";
+import { comPerfilPeloDocumento, contatoDeTexto, mesclarContatos } from "@/domain/fornecedor";
 import { useMinhasPendencias } from "@/store/pendencias";
 import { useSugestoes } from "@/hooks/useSugestoes";
 import { EcSubGuias, type SubGuiaEc } from "@/components/EcSubGuias";
@@ -74,7 +74,8 @@ import type {
 import type { EcTotais } from "@/domain/calc";
 
 /** Monta um Fornecedor completo a partir dos campos conhecidos (resto vazio). */
-const fornecedorNovo = (p: Partial<Fornecedor>): Fornecedor => ({
+const fornecedorNovo = (p: Partial<Fornecedor>): Fornecedor =>
+  comPerfilPeloDocumento<Fornecedor>({
   id: "",
   razaoSocial: "",
   nomeFantasia: "",
@@ -90,7 +91,7 @@ const fornecedorNovo = (p: Partial<Fornecedor>): Fornecedor => ({
   cnaes: [],
   contatos: [],
   ...p,
-});
+  });
 
 const clienteVazio = (): Cliente => ({
   id: "",

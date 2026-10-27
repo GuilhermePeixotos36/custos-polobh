@@ -34,7 +34,7 @@ import {
   OBS_CONTRATO_PADRAO,
 } from "@/domain/calc";
 import { datasDoEvento, ETAPAS_CRONOGRAMA, horariosDoEvento } from "@/domain/projeto";
-import { bancariosDoHistorico, bancariosVazios, doCadastro, opcoesPerfilTributario, semVazios } from "@/domain/fornecedor";
+import { bancariosDoHistorico, bancariosVazios, comPerfilPeloDocumento, doCadastro, opcoesPerfilTributario, semVazios } from "@/domain/fornecedor";
 import { listarBancos } from "@/lib/bancos";
 import { useEmpresas } from "@/store/empresas";
 import { consultarCnpj } from "@/lib/cnpj";
@@ -182,7 +182,9 @@ function cronogramaDoProjeto(projeto: ProjetoInfo): Os["cronograma"] {
  * Só toca em campo vazio — nunca sobrescreve o que a equipe digitou. É idempotente,
  * então roda tanto ao criar a OS quanto ao abrir uma já existente.
  */
-function aplicarAutoPreenchimento(os: Os, ec: Ec): Os {
+function aplicarAutoPreenchimento(osOriginal: Os, ec: Ec): Os {
+  // Fornecedor com CPF: perfil "Pessoa Física (RPA)" quando ainda está vazio.
+  const os = { ...osOriginal, fornecedor: comPerfilPeloDocumento(osOriginal.fornecedor) };
   const linhas = ec.linhas.filter((l) => os.ecLinhaIds.includes(l.id));
   const descritivo = os.descritivo || descritivoConsolidado(linhas);
 
@@ -724,7 +726,8 @@ export function OsForm() {
   /** A conta do acerto — tudo calculado, menos o percentual de encargos. */
   const acerto = calcularAcerto(os.financeiro, os.orcamento, bvContratado.valor);
 
-  const updF = (patch: Partial<Fornecedor>) => setOs((o) => (o ? { ...o, fornecedor: { ...o.fornecedor, ...patch } } : o));
+  const updF = (patch: Partial<Fornecedor>) =>
+    setOs((o) => (o ? { ...o, fornecedor: comPerfilPeloDocumento({ ...o.fornecedor, ...patch }) } : o));
   const updB = (patch: Partial<Fornecedor["dadosBancarios"]>) =>
     setOs((o) => (o ? { ...o, fornecedor: { ...o.fornecedor, dadosBancarios: { ...o.fornecedor.dadosBancarios, ...patch } } } : o));
   const updFin = (patch: Partial<Os["financeiro"]>) => setOs((o) => (o ? { ...o, financeiro: { ...o.financeiro, ...patch } } : o));
