@@ -1783,6 +1783,62 @@ export function OsForm() {
           </LinhaOs>
         </CardOs>
 
+        {/* PRAZO DE PAGAMENTO é da PRODUÇÃO (27/10/2026): é ela que negocia
+            com o fornecedor quando ele recebe, e informa ao Financeiro. Cada
+            parcela tem a sua data de pagamento. A FORMA de pagamento segue com
+            o Financeiro, em Dados Emissão Faturamento. */}
+        <CardOs secao="Prazo de Pagamento" area="Produção">
+            <LinhaOs
+              label="Parcelas"
+              hint="(descrição, data de pagamento e valor)"
+              acao={
+                <Button variant="secondary" size="sm" onClick={() => updOrc({ parcelas: [...os.orcamento.parcelas, { id: novoId(), descricao: "", valor: saldoParcelas }] })}>+ Parcela</Button>
+              }
+            >
+              <div className="py-1.5 space-y-2">
+                {os.orcamento.parcelas.map((pc, i) => (
+                  <div key={pc.id ?? i} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_150px_150px_auto] gap-2 items-center">
+                    <Input className="!h-9 min-w-0 col-span-3 sm:col-span-1" placeholder={`Descrição da ${i + 1}ª parcela`} sugestoes={sugestoes.valores.descricaoParcela} value={pc.descricao} onChange={(e) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, descricao: e.target.value } : x)) })} />
+                    <Input
+                      className="!h-9 min-w-0"
+                      type="date"
+                      title="Data de pagamento"
+                      aria-label={`Data de pagamento da ${i + 1}ª parcela`}
+                      value={pc.data ?? ""}
+                      onChange={(e) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, data: e.target.value } : x)) })}
+                    />
+                    <NumberInput className="!h-9 min-w-0" value={pc.valor} title={refParcelas.valor > 0 ? `Até ${brl(tetoDaParcela(i))} (saldo disponível)` : undefined} onValue={(v) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, valor: Math.min(v, tetoDaParcela(i)) } : x)) })} />
+                    <button className="text-ink-3 hover:text-danger px-2" title="Remover parcela" onClick={() => updOrc({ parcelas: os.orcamento.parcelas.filter((_, j) => j !== i) })}>✕</button>
+                  </div>
+                ))}
+                {os.orcamento.parcelas.length === 0 && <p className="text-[12.5px] text-ink-3">Sem parcelas. Use “+ Parcela”.</p>}
+
+                {os.orcamento.parcelas.length > 0 && (
+                  <div
+                    className={cx(
+                      "flex items-center justify-between gap-3 rounded-btn px-3 py-2 text-[12.5px]",
+                      parcelasDivergem ? "bg-danger-soft text-danger font-semibold" : "bg-[#FAFAFB] text-ink-2"
+                    )}
+                  >
+                    <span>
+                      Soma das parcelas: <b className="font-display">{brl(somaParcelas)}</b>
+                      {refParcelas.valor > 0 && <> · saldo a distribuir: <b className="font-display">{brl(saldoParcelas)}</b></>}
+                    </span>
+                    {parcelasDivergem ? (
+                      <span>
+                        Não fecha com o {refParcelas.rotulo} ({brl(refParcelas.valor)}) — diferença de{" "}
+                        {brl(Math.abs(somaParcelas - refParcelas.valor))}.
+                      </span>
+                    ) : (
+                      refParcelas.valor > 0 && <span>Confere com o {refParcelas.rotulo}.</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </LinhaOs>
+
+        </CardOs>
+
         {/* O CREDENCIAMENTO saiu daqui (29/08/2026): virou subaba do Projeto, onde
             se vê a fila inteira e se dispara para todos os fornecedores de uma
             vez. O link continua sendo o desta OS — o que mudou foi o comando.
@@ -1826,43 +1882,24 @@ export function OsForm() {
             <LinhaOs label="Valor Total do BV" hint="(só dos itens com BV e NF)"><Auto v={brl(resumo.bvTotal)} /></LinhaOs>
             <LinhaOs label="Valor Líquido" hint="(contratado menos o BV)"><Auto v={brl(resumo.liquido)} /></LinhaOs>
 
-            <LinhaOs
-              label="Prazo de Pagamento"
-              hint="(parcelas)"
-              acao={
-                <Button variant="secondary" size="sm" onClick={() => updOrc({ parcelas: [...os.orcamento.parcelas, { id: novoId(), descricao: "", valor: saldoParcelas }] })}>+ Parcela</Button>
-              }
-            >
-              <div className="py-1.5 space-y-2">
-                {os.orcamento.parcelas.map((pc, i) => (
-                  <div key={pc.id ?? i} className="grid grid-cols-[minmax(0,1fr)_minmax(0,150px)_auto] gap-2 items-center">
-                    <Input className="!h-9 min-w-0" placeholder={`Descrição da ${i + 1}ª parcela`} sugestoes={sugestoes.valores.descricaoParcela} value={pc.descricao} onChange={(e) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, descricao: e.target.value } : x)) })} />
-                    <NumberInput className="!h-9 min-w-0" value={pc.valor} title={refParcelas.valor > 0 ? `Até ${brl(tetoDaParcela(i))} (saldo disponível)` : undefined} onValue={(v) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, valor: Math.min(v, tetoDaParcela(i)) } : x)) })} />
-                    <button className="text-ink-3 hover:text-danger px-2" title="Remover parcela" onClick={() => updOrc({ parcelas: os.orcamento.parcelas.filter((_, j) => j !== i) })}>✕</button>
-                  </div>
-                ))}
-                {os.orcamento.parcelas.length === 0 && <p className="text-[12.5px] text-ink-3">Sem parcelas. Use “+ Parcela”.</p>}
-
-                {os.orcamento.parcelas.length > 0 && (
-                  <div
-                    className={cx(
-                      "flex items-center justify-between gap-3 rounded-btn px-3 py-2 text-[12.5px]",
-                      parcelasDivergem ? "bg-danger-soft text-danger font-semibold" : "bg-[#FAFAFB] text-ink-2"
-                    )}
-                  >
-                    <span>
-                      Soma das parcelas: <b className="font-display">{brl(somaParcelas)}</b>
-                      {refParcelas.valor > 0 && <> · saldo a distribuir: <b className="font-display">{brl(saldoParcelas)}</b></>}
-                    </span>
-                    {parcelasDivergem ? (
-                      <span>
-                        Não fecha com o {refParcelas.rotulo} ({brl(refParcelas.valor)}) — diferença de{" "}
-                        {brl(Math.abs(somaParcelas - refParcelas.valor))}.
-                      </span>
-                    ) : (
-                      refParcelas.valor > 0 && <span>Confere com o {refParcelas.rotulo}.</span>
-                    )}
-                  </div>
+            {/* O prazo é negociado pela Produção (bloco "Prazo de Pagamento",
+                acima); aqui o Financeiro só o confere. */}
+            <LinhaOs label="Prazo de Pagamento" hint="(negociado pela Produção)">
+              <div className="py-1.5 text-[13px] text-ink space-y-0.5">
+                {os.orcamento.parcelas.length === 0 ? (
+                  <span className="text-ink-3">Sem parcelas informadas.</span>
+                ) : (
+                  os.orcamento.parcelas.map((pc, i) => (
+                    <div key={pc.id ?? i}>
+                      {i + 1}ª — {pc.descricao || "Parcela"}
+                      {pc.data ? ` · ${dataBR(pc.data)}` : " · sem data"}: <b className="font-display">{brl(pc.valor)}</b>
+                    </div>
+                  ))
+                )}
+                {parcelasDivergem && (
+                  <p className="text-danger font-semibold">
+                    Não fecha com o {refParcelas.rotulo} ({brl(refParcelas.valor)}) — diferença de {brl(Math.abs(somaParcelas - refParcelas.valor))}.
+                  </p>
                 )}
               </div>
             </LinhaOs>

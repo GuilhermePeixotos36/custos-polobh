@@ -750,6 +750,11 @@ export interface Parcela {
   id?: string;
   descricao: string;
   valor: number;
+  /**
+   * Data de pagamento da parcela (ISO), combinada pela PRODUÇÃO com o
+   * fornecedor (27/10/2026). A forma de pagamento é do Financeiro.
+   */
+  data?: string;
 }
 
 export interface Orcamento {

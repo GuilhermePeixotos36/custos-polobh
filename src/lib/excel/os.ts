@@ -457,7 +457,7 @@ export async function criarOsExcelBuffer(
     orc.parcelas.forEach((x, i) =>
       linhaBlocos(
         "Prazo de Pagamento:",
-        [`${i + 1}ª — ${x.descricao || "Parcela"}`, dinheiro(x.valor || 0), "", ""],
+        [`${i + 1}ª — ${x.descricao || "Parcela"}`, dinheiro(x.valor || 0), x.data ? `Pagamento em ${dataBR(x.data)}` : "", ""],
         { semRotulo: i > 0 }
       )
     );

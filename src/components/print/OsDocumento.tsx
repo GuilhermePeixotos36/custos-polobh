@@ -285,7 +285,9 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
         valor={
           os.orcamento.parcelas.length === 0
             ? "____"
-            : os.orcamento.parcelas.map((x, i) => `${i + 1}ª — ${x.descricao || "Parcela"}: ${brl(x.valor)}`).join("\n")
+            : os.orcamento.parcelas
+                .map((x, i) => `${i + 1}ª — ${x.descricao || "Parcela"}${x.data ? ` — pagamento em ${dataBR(x.data)}` : ""}: ${brl(x.valor)}`)
+                .join("\n")
         }
       />
 
