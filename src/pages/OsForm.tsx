@@ -1346,7 +1346,7 @@ export function OsForm() {
         <fieldset disabled={!mexeProducao} className="space-y-4 min-w-0 disabled:opacity-100">
 
         {/* Cabeçalho do modelo em Excel */}
-        <CardOs secao="Ordem de Serviço">
+        <CardOs secao="Ordem de Serviço" area="Produção">
           <LinhaOs label="Número da OS"><Auto v={os.numero} /></LinhaOs>
           <LinhaOs label="Projeto"><Auto v={os.projeto.titulo} /></LinhaOs>
           <LinhaOs label="Data de emissão"><Auto v={dataBR(os.criadoEm)} /></LinhaOs>
@@ -1358,7 +1358,7 @@ export function OsForm() {
         </CardOs>
 
         {/* DADOS DO CLIENTE — automático da EC */}
-        <CardOs secao="Dados do Cliente">
+        <CardOs secao="Dados do Cliente" area="Produção">
           <LinhaOs label="Cliente"><Auto v={os.cliente.nome} /></LinhaOs>
           <LinhaOs label="Razão Social"><Auto v={os.cliente.razaoSocial} /></LinhaOs>
           <LinhaOs label="Endereço"><Auto v={os.cliente.endereco} /></LinhaOs>
@@ -1368,7 +1368,7 @@ export function OsForm() {
         </CardOs>
 
         {/* DADOS DO PROJETO — automático da EC, com o cronograma do projeto */}
-        <CardOs secao="Dados do Projeto">
+        <CardOs secao="Dados do Projeto" area="Produção">
           <LinhaOs label="Título"><Auto v={os.projeto.titulo} /></LinhaOs>
           <LinhaOs label="Modalidade"><Auto v={os.projeto.modalidade} /></LinhaOs>
           {/* Os campos que aparecem na NF, no lugar do antigo "Incentivos Fiscais"
@@ -1414,6 +1414,7 @@ export function OsForm() {
         {/* DADOS DO FORNECEDOR */}
         <CardOs
           secao="Dados do Fornecedor"
+          area="Produção"
           acaoSecao={
             <Button variant="soft" size="sm" icon={<IcSearch width={15} height={15} />} onClick={consultar} disabled={busy || !flags.consultaCnpj}>
               Consultar CNPJ
@@ -1473,7 +1474,7 @@ export function OsForm() {
         </fieldset>
 
         {/* DETALHAMENTO DA CONTRATAÇÃO */}
-        <CardOs secao={SECAO_DETALHAMENTO}>
+        <CardOs secao={SECAO_DETALHAMENTO} area="Produção">
           <fieldset disabled={!mexeProducao} className="min-w-0 border-0 p-0 m-0 disabled:opacity-100">
           <LinhaOs label="Modalidade" hint="(obrigatória)">
             <Select
@@ -1525,6 +1526,8 @@ export function OsForm() {
               hint="(valores e BV vêm da EC — o Financeiro escolhe UMA forma por item)"
             >
               <div id={ID_FORMAS_PAGAMENTO} className="py-1.5 space-y-2">
+                {/* Dentro do Detalhamento (da Produção), esta linha é do Financeiro. */}
+                <EtiquetaArea area="Financeiro" />
                 {problemasContratacao.length > 0 && (
                   <div className="rounded-btn bg-warning-soft px-3 py-2 text-[12.5px] text-ink">
                     <p className="font-bold text-warning">Falta resolver antes de emitir:</p>
@@ -1593,7 +1596,7 @@ export function OsForm() {
             Detalhamento — e entregava cronograma, logística e infraestrutura.
             A "Entrega" saiu junto: era um campo de texto livre que repetia o
             que o cronograma já diz, linha a linha e com data. */}
-        <CardOs secao="Cronograma | Logística | Infraestrutura">
+        <CardOs secao="Cronograma | Logística | Infraestrutura" area="Produção">
           {/* Cronograma específico do fornecedor — já vem do cronograma do projeto.
               O `id` é o endereço da pendência "cronograma não preenchido": ela é
               cobrada na etapa da OS e se resolve aqui, então a pílula pisca este
@@ -1743,6 +1746,7 @@ export function OsForm() {
             equipe continua no card do topo. */}
         <CardOs
           secao="Observações Gerais"
+          area="Produção"
           acaoSecao={
             <button
               type="button"
@@ -1801,7 +1805,7 @@ export function OsForm() {
             e só abre na fase dele. Quem vê não mudou: segue aberto a quem abre
             a OS; só a tabela item a item é restrita ao financeiro. */}
         <fieldset disabled={!mexeFinanceiro} className="min-w-0 border-0 p-0 m-0 disabled:opacity-100">
-        <CardOs secao="Resumo dos Custos">
+        <CardOs secao="Resumo dos Custos" area="Financeiro">
 
             {/* Sem o valor do item na EC (21/10/2026): aquele é o preço ao
                 cliente. O valor da OS é o que se paga ao fornecedor. */}
@@ -1883,7 +1887,7 @@ export function OsForm() {
           {/* O nome do módulo é o que ele faz (15/09/2026), e o subtítulo saiu:
               ele listava os quatro documentos possíveis — que é a pergunta do
               campo "Documento PG", não um título. */}
-          <CardOs className="border-active-border" secao="Dados Emissão Faturamento">
+          <CardOs className="border-active-border" secao="Dados Emissão Faturamento" area="Financeiro">
             <LinhaOs label="Tomador dos Serviços">
               {/* Pólobh, MF, Cliente ou Outro. As empresas do grupo vêm do
                   cadastro (Configurações › Empresas do Grupo): a MF já existia
@@ -2234,7 +2238,7 @@ export function OsForm() {
           </CardOs>
           </>
         ) : (
-          <CardOs secao="Faturamento e Contrato">
+          <CardOs secao="Faturamento e Contrato" area="Financeiro">
             <p className="p-4 text-sm text-ink-2">Os blocos de faturamento e contrato são restritos ao seu perfil.</p>
           </CardOs>
         )}
@@ -2274,6 +2278,7 @@ export function OsForm() {
             `domain/acertoFinanceiro`; "Não se aplica" é o padrão, e é resposta. */}
         <CardOs
           secao={SECAO_ACERTOS}
+          area="Financeiro"
           acaoSecao={
             <button
               type="button"
@@ -2336,7 +2341,7 @@ export function OsForm() {
         {/* STATUS DA OS (29/09/2026): onde a OS está até ficar "Emitida" — e,
             emitida, o que muda na EC (a coluna OS dos itens passa de Pendente
             para OK). As pendências abertas moram aqui e levam ao campo. */}
-        <CardOs secao="Status OS">
+        <CardOs secao="Status OS" area="Back-office">
           <LinhaOs label="Etapa">
             <div className="flex items-center gap-1.5 flex-wrap py-1">
               {FASES_OS.map((f, i) => (
@@ -2465,13 +2470,39 @@ const idDaEtapa = (c: Os["cronograma"][number], i: number) => c.id ?? `etapa-${i
  * é o sumário da OS. A ação da seção, quando existe, fica fora do botão: quem
  * clica em "Consultar CNPJ" não quer fechar o bloco.
  */
+/**
+ * QUEM PREENCHE cada bloco da OS (27/10/2026): a etiqueta no cabeçalho diz de
+ * qual área é o bloco — Produção monta, Financeiro conclui, Back-office emite.
+ * Cada área tem a sua cor, para o bloco ser reconhecido de relance.
+ */
+type AreaOs = "Produção" | "Financeiro" | "Back-office";
+const COR_AREA: Record<AreaOs, string> = {
+  "Produção": "bg-[#E3F0FF] text-[#1D4E89] border-[#B9D5F5]",
+  "Financeiro": "bg-[#E6F6EC] text-[#1E6B3A] border-[#BFE3CC]",
+  "Back-office": "bg-[#F3E8FF] text-[#5B2C83] border-[#DCC5F2]",
+};
+
+function EtiquetaArea({ area, sufixo }: { area: AreaOs; sufixo?: string }) {
+  return (
+    <span
+      title={`Bloco preenchido por: ${area}`}
+      className={cx("inline-flex items-center rounded-full border px-2 py-0.5 text-[10.5px] font-extrabold uppercase tracking-[0.04em] whitespace-nowrap", COR_AREA[area])}
+    >
+      Preenche: {area}{sufixo ? ` ${sufixo}` : ""}
+    </span>
+  );
+}
+
 function CardOs({
   className,
   secao,
+  area,
   acaoSecao,
   children,
 }: {
   className?: string;
+  /** Área que preenche o bloco — vira a etiqueta "Preenche: …" no cabeçalho. */
+  area?: AreaOs;
   /** Título da faixa — é ele que identifica o bloco no recolher/expandir. */
   secao: string;
   acaoSecao?: ReactNode;
@@ -2480,16 +2511,17 @@ function CardOs({
   const { recolhida, alternar } = useSecaoRecolhivel(idSecao(secao));
   return (
     <div className={cx("bg-surface border border-border rounded-card shadow-card overflow-hidden [&_input:not([type=checkbox]):not([type=radio])]:!h-8 [&_select]:!h-8 [&_input]:!py-0 [&_select]:!py-0", className)}>
-      <div className="bg-[#C0C0C0] px-4 py-1.5 flex items-center justify-between gap-3">
+      <div className="bg-[#C0C0C0] px-4 py-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <button
           type="button"
           onClick={alternar}
           aria-expanded={!recolhida}
-          className="flex items-center gap-2 flex-1 min-w-0 text-left text-ink hover:opacity-80 transition-opacity"
+          className="flex items-center gap-2 flex-1 min-w-[min(100%,15rem)] text-left text-ink hover:opacity-80 transition-opacity"
         >
           <Chevron aberta={!recolhida} />
           <h3 className="font-display font-bold text-[12.5px] uppercase tracking-[0.05em] text-ink">{secao}</h3>
         </button>
+        {area && <EtiquetaArea area={area} />}
         {acaoSecao && <div className="shrink-0">{acaoSecao}</div>}
       </div>
       {!recolhida && children}
