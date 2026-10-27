@@ -196,19 +196,20 @@ export const PERFIS_TRIBUTARIOS = [
   "Lucro Real",
   "Lucro Presumido/Real",
   "Imune / Isenta",
-  "Pessoa Física (RPA)",
-  // Pessoa física paga com recibo simples, sem RPA (27/10/2026).
+  // Pessoa física: Recibo Simples é o caso comum na Pólobh (RPA é raro), por
+  // isso vem antes e é o padrão para CPF (27/10/2026, pedido da Marisa).
   "Pessoa Física (Recibo Simples)",
+  "Pessoa Física (RPA)",
 ] as const;
 
 /**
- * Fornecedor com CPF nasce "Pessoa Física (RPA)" (27/10/2026): é a única
- * opção do perfil que serve a quem não tem CNPJ. Só preenche o perfil vazio —
- * o que alguém escolheu à mão fica.
+ * Fornecedor com CPF nasce "Pessoa Física (Recibo Simples)" (27/10/2026): é
+ * como a Pólobh paga pessoa física quase sempre — RPA é raro e fica à mão. Só
+ * preenche o perfil vazio; o que alguém escolheu à mão fica.
  */
 export function comPerfilPeloDocumento<T extends { cnpj: string; perfilTributario: string }>(f: T): T {
   const pf = (f.cnpj ?? "").replace(/\D/g, "").length === 11;
-  return pf && !(f.perfilTributario ?? "").trim() ? { ...f, perfilTributario: "Pessoa Física (RPA)" } : f;
+  return pf && !(f.perfilTributario ?? "").trim() ? { ...f, perfilTributario: "Pessoa Física (Recibo Simples)" } : f;
 }
 
 /**
