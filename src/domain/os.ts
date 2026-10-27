@@ -9,6 +9,7 @@
  * na ordem em que os itens aparecem na EC — a mesma ordem da planilha, para
  * quem lê os dois lados não precisar reconciliar nada.
  */
+import { modeloDoContrato } from "@/domain/contratoModelo";
 import type { CampoInfraestrutura, CampoLogistica, Ec, EcLinha, Fornecedor, ItemExtraOs, Os, StatusOs } from "@/data/types";
 
 export interface ItemDaOs {
@@ -246,4 +247,17 @@ export function exigeNovaVersaoPorFornecedor(
   // Fornecedor apagado no meio da edição não é troca: é campo em branco.
   if (!(atual?.cnpj ?? "").trim() && !(atual?.razaoSocial ?? "").trim()) return false;
   return !mesmoFornecedor(original, atual);
+}
+
+/**
+ * A OS é de projeto INCENTIVADO? (27/10/2026)
+ *
+ * Projeto corporativo não tem lei de incentivo: "Nome do Projeto Incentivado"
+ * e "Lei de Incentivo à Cultura" não podem aparecer na OS dele (tela, PDF e
+ * planilha), nem o objeto do contrato pode falar em projeto aprovado por lei.
+ * Segue o modelo do contrato — Cultural pela modalidade do projeto, ou porque
+ * alguém escolheu o modelo Cultural num corporativo com item incentivado.
+ */
+export function osIncentivada(os: Pick<Os, "projeto" | "contrato">): boolean {
+  return (os.contrato?.modelo || modeloDoContrato(os.projeto?.modalidade ?? "")) === "Cultural";
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   itensDaOs,
+  osIncentivada,
   CAMPOS_LOGISTICA,
   CAMPOS_INFRAESTRUTURA,
   itensParaDocumento,
@@ -339,5 +340,17 @@ describe("itens criados dentro da OS (15/09/2026)", () => {
     const lista = itensParaDocumento(comExtras([], ["uniformizacao"]), CAMPOS_LOGISTICA);
     expect(lista[0].rotulo).toBe("Uniformização Equipe");
     expect(lista).toHaveLength(CAMPOS_LOGISTICA.length);
+  });
+});
+
+describe("OS de projeto incentivado", () => {
+  const os = (modalidade: string, modelo?: string) =>
+    ({ projeto: { modalidade }, contrato: { modelo } }) as unknown as Parameters<typeof osIncentivada>[0];
+  it("cultural é incentivado; corporativo não mostra lei de incentivo", () => {
+    expect(osIncentivada(os("Cultural"))).toBe(true);
+    expect(osIncentivada(os("Corporativo"))).toBe(false);
+  });
+  it("corporativo com contrato no modelo Cultural conta como incentivado", () => {
+    expect(osIncentivada(os("Corporativo", "Cultural"))).toBe(true);
   });
 });

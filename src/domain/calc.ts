@@ -712,7 +712,9 @@ export const OBS_CONTRATO_PADRAO =
  * Objeto do contrato — montado a partir dos dados de faturamento da OS.
  * Usado tanto na tela quanto no Excel, para não divergirem.
  */
-export function textoObjetoContrato(fin: Os["financeiro"]): string {
+export function textoObjetoContrato(fin: Os["financeiro"], incentivada = true): string {
+  // Projeto corporativo não tem projeto incentivado nem lei a citar (27/10/2026).
+  if (!incentivada) return "O objeto do presente é a prestação dos serviços e/ou o fornecimento dos produtos descritos a seguir:";
   const projeto = fin.projetoIncentivado?.trim() || "[projeto incentivado]";
   // `leiIncentivo` já traz a lei COM o número ("… (Rouanet) — PRONAC 26 1234"),
   // então não há mais um "sob o número" a costurar aqui: o campo é a frase.

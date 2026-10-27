@@ -78,7 +78,7 @@ import {
   sincronizarContratacao,
 } from "@/domain/contratacaoOs";
 import {
-  CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, exigeNovaVersaoPorFornecedor,
+  CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, exigeNovaVersaoPorFornecedor, osIncentivada,
   itensDoBloco, temContrato,
 } from "@/domain/os";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
@@ -185,6 +185,7 @@ function cronogramaDoProjeto(projeto: ProjetoInfo): Os["cronograma"] {
 function aplicarAutoPreenchimento(osOriginal: Os, ec: Ec): Os {
   // Fornecedor com CPF: perfil "Pessoa Física (Recibo Simples)" quando ainda está vazio.
   const os = { ...osOriginal, fornecedor: comPerfilPeloDocumento(osOriginal.fornecedor) };
+  const incentivada = osIncentivada(os);
   const linhas = ec.linhas.filter((l) => os.ecLinhaIds.includes(l.id));
   const descritivo = os.descritivo || descritivoConsolidado(linhas);
 
@@ -266,13 +267,20 @@ function aplicarAutoPreenchimento(osOriginal: Os, ec: Ec): Os {
       tomador: os.financeiro.tomador || "Polobh",
       codigoServico: os.financeiro.codigoServico || codigoServico,
       cnae: os.financeiro.cnae || cnaeUnico,
-      projetoIncentivado:
-        os.financeiro.projetoIncentivado || os.projeto.projetoIncentivado || os.projeto.nomeProjeto || os.projeto.titulo,
+      // Projeto incentivado só em OS de projeto cultural (27/10/2026): no
+      // corporativo esses campos não são preenchidos nem aparecem.
+      projetoIncentivado: incentivada
+        ? os.financeiro.projetoIncentivado || os.projeto.projetoIncentivado || os.projeto.nomeProjeto || os.projeto.titulo
+        : os.financeiro.projetoIncentivado,
       // O código vem do Projeto (Dados Gerais) quando a OS ainda não tem o seu.
-      codigoProjetoIncentivado: os.financeiro.codigoProjetoIncentivado || os.projeto.codigoProjetoIncentivado || "",
+      codigoProjetoIncentivado: incentivada
+        ? os.financeiro.codigoProjetoIncentivado || os.projeto.codigoProjetoIncentivado || ""
+        : os.financeiro.codigoProjetoIncentivado,
       // Lei COM o número do projeto: é assim que o Projeto já guarda
       // ("Lei Federal de Incentivo à Cultura (Rouanet) — PRONAC 26 1234").
-      leiIncentivo: os.financeiro.leiIncentivo || os.projeto.leiIncentivo || os.projeto.incentivosFiscais || LEI_INCENTIVO_PADRAO,
+      leiIncentivo: incentivada
+        ? os.financeiro.leiIncentivo || os.projeto.leiIncentivo || os.projeto.incentivosFiscais || LEI_INCENTIVO_PADRAO
+        : os.financeiro.leiIncentivo,
       // Como o fornecedor recebe: o mesmo padrão do modelo que o contrato usa.
       // O bloco de emissão fecha neste par (valor a pagar + forma), e nascer
       // vazio obrigava a redigitar em toda OS a resposta de sempre.
@@ -1375,7 +1383,9 @@ export function OsForm() {
           {/* Os campos que aparecem na NF, no lugar do antigo "Incentivos Fiscais"
               (29/09/2026) — automáticos dos Dados Gerais do projeto. Projeto
               anterior a eles cai no texto único de antes. */}
-          <LinhaOs label="Código do Projeto Incentivado"><Auto v={os.projeto.codigoProjetoIncentivado} /></LinhaOs>
+          {osIncentivada(os) && (
+            <LinhaOs label="Código do Projeto Incentivado"><Auto v={os.projeto.codigoProjetoIncentivado} /></LinhaOs>
+          )}
           {/* Plural no rótulo porque o evento de vários dias é o caso comum, e
               porque aqui saem TODAS as faixas do cronograma — não só a primeira,
               que é o que os campos legados `evento`/`horario` guardam. */}
@@ -2120,7 +2130,7 @@ export function OsForm() {
             <LinhaOs label="Descritivo dos Serviços e/ou Produtos" hint="(auto do descritivo da NF)">
               {/* Objeto do contrato — montado com os dados de faturamento acima. */}
               <p className="mb-2 text-[13px] text-ink bg-[#FAFAFB] border border-border-soft rounded-btn px-3 py-2.5">
-                {textoObjetoContrato(os.financeiro)}
+                {textoObjetoContrato(os.financeiro, osIncentivada(os))}
               </p>
               <Textarea value={os.contrato.descritivoServicos} onChange={(e) => updCt({ descritivoServicos: e.target.value })} placeholder="Padrão: vem do Descritivo NF — editável" />
             </LinhaOs>

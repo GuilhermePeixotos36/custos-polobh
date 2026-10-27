@@ -26,7 +26,7 @@ import {
 } from "@/domain/calc";
 import { bvDaContratacao, COLUNAS_CONTRATACAO, resumoContratacao, sincronizarContratacao } from "@/domain/contratacaoOs";
 import { datasDoEvento, ETAPAS_CRONOGRAMA, horariosDoEvento } from "@/domain/projeto";
-import { itensParaDocumento, temContrato, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA } from "@/domain/os";
+import { itensParaDocumento, temContrato, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, osIncentivada } from "@/domain/os";
 import { calcularAcerto } from "@/domain/acertoFinanceiro";
 import { dadosDoTomador, RETENCOES_PADRAO } from "@/domain/tomadorOs";
 import { COR, fill, FONT_LIGHT, baixar, nomeArquivo, carregarLogo, encaixarLogo, linhasVisuais, alturaParaLinhas } from "./shared";
@@ -247,10 +247,11 @@ export async function criarOsExcelBuffer(
 
   /* --------------------------- DADOS DO PROJETO ------------------------ */
   const p = os.projeto;
+  const incentivada = osIncentivada(os);
   secao("DADOS DO PROJETO");
   linha("Título:", p.titulo);
   linha("Modalidade:", p.modalidade);
-  linha("Incentivos Fiscais:", p.incentivosFiscais);
+  if (incentivada) linha("Incentivos Fiscais:", p.incentivosFiscais);
   // Todas as faixas do evento (ver `datasDoEvento`): a planilha é o que o
   // fornecedor recebe, e ela mostrava só o primeiro dia.
   linha("Data(s):", datasDoEvento(p));
@@ -492,9 +493,12 @@ export async function criarOsExcelBuffer(
     const primeiraNf = linha("Descritivo Nota Fiscal:", fin.descritivoNf, { altura: 30 });
     linha("", `Dados do Projeto: ${p.titulo}`, { semRotulo: true });
     // Projeto incentivado: campos próprios da OS; OSs antigas caem no texto único da EC.
-    linha("", `Nome Projeto Incentivado: ${fin.projetoIncentivado || (p.incentivosFiscais ? p.incentivosFiscais : "")}`, { semRotulo: true });
-    // A lei já vem com o número do projeto na mesma string — uma linha só.
-    linha("", `Lei de Incentivo à Cultura: ${fin.leiIncentivo || p.incentivosFiscais || ""}`, { semRotulo: true });
+    // Só em projeto incentivado (cultural): corporativo não tem lei de incentivo.
+    if (incentivada) {
+      linha("", `Nome Projeto Incentivado: ${fin.projetoIncentivado || (p.incentivosFiscais ? p.incentivosFiscais : "")}`, { semRotulo: true });
+      // A lei já vem com o número do projeto na mesma string — uma linha só.
+      linha("", `Lei de Incentivo à Cultura: ${fin.leiIncentivo || p.incentivosFiscais || ""}`, { semRotulo: true });
+    }
     const ultimaNf = linha("", `CNAE: ${fin.cnae || ""}`, { semRotulo: true });
     agruparRotulo(primeiraNf, ultimaNf);
 
@@ -544,7 +548,7 @@ export async function criarOsExcelBuffer(
     linha("Inscrição Estadual:", contr?.inscricaoEstadual ?? "");
     linha("Inscrição Municipal:", contr?.inscricaoMunicipal ?? "");
 
-    const primeiraDesc = linha("Descritivo da Contratação:", textoObjetoContrato(fin), { fixo: true, altura: 44 });
+    const primeiraDesc = linha("Descritivo da Contratação:", textoObjetoContrato(fin, incentivada), { fixo: true, altura: 44 });
     linha("", `DESCRITIVO DOS SERVIÇOS E/OU PRODUTOS:\n${ct.descritivoServicos || fin.descritivoNf || os.descritivo}`, {
       semRotulo: true, altura: 44,
     });

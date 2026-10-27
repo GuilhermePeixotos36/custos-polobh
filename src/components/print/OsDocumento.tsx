@@ -1,5 +1,5 @@
 /** OS como documento A4 — visualização em tela + PDF. Espelha o modelo em Excel. */
-import { itensParaDocumento, temContrato, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA } from "@/domain/os";
+import { itensParaDocumento, temContrato, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, osIncentivada } from "@/domain/os";
 import type { Cliente, Ec, Os } from "@/data/types";
 import { brl, dataBR } from "@/lib/format";
 import { textoObjetoContrato, FORMA_PAGAMENTO_PADRAO, OBS_CONTRATO_PADRAO } from "@/domain/calc";
@@ -56,6 +56,7 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
   // só os itens consolidados, que são dela mesmo.
   const cli = os.cliente;
   const p = os.projeto;
+  const incentivada = osIncentivada(os);
   const f = os.fornecedor;
   const b = f.dadosBancarios;
   const consolidadas = ec.linhas.filter((l) => os.ecLinhaIds.includes(l.id));
@@ -102,7 +103,7 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
       <Secao titulo="Dados do Projeto" />
       <LV label="Título" valor={p.titulo} />
       <LV label="Modalidade" valor={p.modalidade} />
-      <LV label="Incentivos Fiscais" valor={p.incentivosFiscais} />
+      {incentivada && <LV label="Incentivos Fiscais" valor={p.incentivosFiscais} />}
       {/* Todas as faixas do evento, e não só a primeira: é este papel que vai
           ao fornecedor, e um evento de três dias saía dali como se fosse de um. */}
       <LV label="Data(s)" valor={datasDoEvento(p)} />
@@ -298,9 +299,14 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
           <LV label="Inscrição Estadual" valor={tom?.ie ?? ""} />
           <LV label="Inscrição Municipal" valor={tom?.im ?? ""} />
           <LV label="Descritivo Nota Fiscal" valor={os.financeiro.descritivoNf} />
-          <LV label="Nome do Projeto Incentivado" valor={os.financeiro.projetoIncentivado || p.incentivosFiscais} />
-          {/* A lei já traz o número do projeto na mesma linha ("… — PRONAC 26 1234"). */}
-          <LV label="Lei de Incentivo à Cultura" valor={os.financeiro.leiIncentivo || p.incentivosFiscais} />
+          {/* Só em projeto incentivado (cultural): corporativo não tem lei de incentivo. */}
+          {incentivada && (
+            <>
+              <LV label="Nome do Projeto Incentivado" valor={os.financeiro.projetoIncentivado || p.incentivosFiscais} />
+              {/* A lei já traz o número do projeto na mesma linha ("… — PRONAC 26 1234"). */}
+              <LV label="Lei de Incentivo à Cultura" valor={os.financeiro.leiIncentivo || p.incentivosFiscais} />
+            </>
+          )}
           <LV label="CNAE" valor={os.financeiro.cnae} />
           {/* Os VALORES sobem e os dois códigos descem (15/09/2026): é pelos
               valores que se confere a nota. */}
@@ -334,7 +340,7 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
           <LV label="CNPJ/CPF" valor={contr?.doc ?? ""} />
           <LV label="Inscrição Estadual" valor={contr?.ie ?? ""} />
           <LV label="Inscrição Municipal" valor={contr?.im ?? ""} />
-          <LV label="Objeto do Contrato" valor={textoObjetoContrato(os.financeiro)} />
+          <LV label="Objeto do Contrato" valor={textoObjetoContrato(os.financeiro, incentivada)} />
           <LV
             label="Descritivo dos Serviços e/ou Produtos"
             valor={os.contrato.descritivoServicos || os.financeiro.descritivoNf || os.descritivo}
