@@ -399,7 +399,7 @@ const MODULOS: Modulo[] = [
             bloco="Dados do Fornecedor"
             itens={[
               ["CNPJ + Consultar CNPJ", "equipe", "O botão busca o cadastro da casa primeiro e a Receita depois. Traz razão social, endereço, perfil e as atividades (CNAE)."],
-              ["Perfil (regime tributário)", "escolha", "MEI, Simples, Lucro Presumido, Lucro Real, Imune/Isenta, Pessoa Física (RPA). Decide retenção e o que a nota precisa trazer."],
+              ["Perfil (regime tributário)", "escolha", "MEI, Simples, Lucro Presumido, Lucro Real, Imune/Isenta, Pessoa Física (RPA), Pessoa Física (Recibo Simples). Com CPF, o sistema já marca Pessoa Física (RPA). Decide retenção e o que a nota precisa trazer."],
               ["Inscrição Municipal", "equipe", "Tem botão de busca, como o do cliente."],
               ["Dados bancários / Pix", "equipe", "Nenhuma fonte pública tem isso: é memória da casa, e a consulta de CNPJ nunca apaga."],
             ]}
