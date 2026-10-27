@@ -80,7 +80,7 @@ describe("perfil tributário do fornecedor", () => {
   it("oferece os regimes que um fornecedor de evento realmente tem", () => {
     expect(opcoesPerfilTributario("")).toEqual([
       "MEI", "Simples Nacional", "Lucro Presumido", "Lucro Real",
-      "Lucro Presumido/Real", "Imune / Isenta", "Pessoa Física (RPA)",
+      "Lucro Presumido/Real", "Imune / Isenta", "Pessoa Física (RPA)", "Pessoa Física (Recibo Simples)",
     ]);
   });
 
@@ -92,11 +92,11 @@ describe("perfil tributário do fornecedor", () => {
   it("põe na frente o valor antigo que não está na lista, em vez de apagá-lo", () => {
     const opcoes = opcoesPerfilTributario("Simples Nac.");
     expect(opcoes[0]).toBe("Simples Nac.");
-    expect(opcoes).toHaveLength(8);
+    expect(opcoes).toHaveLength(9);
   });
 
   it("não duplica quando só a caixa difere", () => {
-    expect(opcoesPerfilTributario("simples nacional")).toHaveLength(7);
+    expect(opcoesPerfilTributario("simples nacional")).toHaveLength(8);
   });
 });
 

@@ -197,6 +197,8 @@ export const PERFIS_TRIBUTARIOS = [
   "Lucro Presumido/Real",
   "Imune / Isenta",
   "Pessoa Física (RPA)",
+  // Pessoa física paga com recibo simples, sem RPA (27/10/2026).
+  "Pessoa Física (Recibo Simples)",
 ] as const;
 
 /**
