@@ -3,6 +3,7 @@ import {
   contatoDeTexto, doCadastro, gerarApelidoFornecedor, limparContatos, mesclarContatos,
   normalizarContatos, opcoesPerfilTributario, semVazios, textoDoContato,
 } from "./fornecedor";
+import { comPerfilPeloDocumento } from "./fornecedor";
 import type { Fornecedor } from "@/data/types";
 
 /**
@@ -244,5 +245,16 @@ describe("contatos do fornecedor: juntando o que vem das ECs", () => {
   it("texto de uma linha serve à busca da tela", () => {
     expect(textoDoContato({ nome: "Maria", funcao: "Produção", telefone: "(31) 99999-0000" }))
       .toBe("Maria · Produção · (31) 99999-0000");
+  });
+});
+
+describe("perfil do fornecedor com CPF", () => {
+  const f = (cnpj: string, perfilTributario = "") => ({ cnpj, perfilTributario });
+  it("CPF com perfil vazio vira Pessoa Física (RPA)", () => {
+    expect(comPerfilPeloDocumento(f("055.650.834-35")).perfilTributario).toBe("Pessoa Física (RPA)");
+  });
+  it("CNPJ, ou perfil já escolhido, fica como está", () => {
+    expect(comPerfilPeloDocumento(f("11.111.111/0001-11")).perfilTributario).toBe("");
+    expect(comPerfilPeloDocumento(f("055.650.834-35", "MEI")).perfilTributario).toBe("MEI");
   });
 });
