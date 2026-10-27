@@ -183,7 +183,7 @@ function cronogramaDoProjeto(projeto: ProjetoInfo): Os["cronograma"] {
  * então roda tanto ao criar a OS quanto ao abrir uma já existente.
  */
 function aplicarAutoPreenchimento(osOriginal: Os, ec: Ec): Os {
-  // Fornecedor com CPF: perfil "Pessoa Física (RPA)" quando ainda está vazio.
+  // Fornecedor com CPF: perfil "Pessoa Física (Recibo Simples)" quando ainda está vazio.
   const os = { ...osOriginal, fornecedor: comPerfilPeloDocumento(osOriginal.fornecedor) };
   const linhas = ec.linhas.filter((l) => os.ecLinhaIds.includes(l.id));
   const descritivo = os.descritivo || descritivoConsolidado(linhas);

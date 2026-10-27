@@ -80,7 +80,7 @@ describe("perfil tributário do fornecedor", () => {
   it("oferece os regimes que um fornecedor de evento realmente tem", () => {
     expect(opcoesPerfilTributario("")).toEqual([
       "MEI", "Simples Nacional", "Lucro Presumido", "Lucro Real",
-      "Lucro Presumido/Real", "Imune / Isenta", "Pessoa Física (RPA)", "Pessoa Física (Recibo Simples)",
+      "Lucro Presumido/Real", "Imune / Isenta", "Pessoa Física (Recibo Simples)", "Pessoa Física (RPA)",
     ]);
   });
 
@@ -250,8 +250,8 @@ describe("contatos do fornecedor: juntando o que vem das ECs", () => {
 
 describe("perfil do fornecedor com CPF", () => {
   const f = (cnpj: string, perfilTributario = "") => ({ cnpj, perfilTributario });
-  it("CPF com perfil vazio vira Pessoa Física (RPA)", () => {
-    expect(comPerfilPeloDocumento(f("055.650.834-35")).perfilTributario).toBe("Pessoa Física (RPA)");
+  it("CPF com perfil vazio vira Pessoa Física (Recibo Simples)", () => {
+    expect(comPerfilPeloDocumento(f("055.650.834-35")).perfilTributario).toBe("Pessoa Física (Recibo Simples)");
   });
   it("CNPJ, ou perfil já escolhido, fica como está", () => {
     expect(comPerfilPeloDocumento(f("11.111.111/0001-11")).perfilTributario).toBe("");
