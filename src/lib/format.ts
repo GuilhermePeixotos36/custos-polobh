@@ -1,5 +1,14 @@
 /** Utilitários de formatação (pt-BR, BRL, datas dd/mm/aaaa). */
 
+/**
+ * CPF (11 dígitos) ou CNPJ (14) completo — o fornecedor pode ser pessoa física
+ * (27/10/2026: a Pólobh contrata com frequência quem não tem CNPJ).
+ */
+export const documentoCompleto = (s: string | undefined | null): boolean => {
+  const n = (s ?? "").replace(/\D/g, "").length;
+  return n === 11 || n === 14;
+};
+
 export const brl = (v: number | null | undefined): string =>
   (v ?? 0).toLocaleString("pt-BR", {
     style: "currency",

@@ -380,8 +380,13 @@ describe("analisarEmissaoOs", () => {
   it("barra item sem fornecedor identificado", () => {
     const r = analisarEmissaoOs([completo({ id: "a", fornecedorRazao: "", fornecedorCnpj: "123" })]);
     expect(r.bloqueados[0].faltas).toEqual(
-      expect.arrayContaining(["Fornecedor (razão social)", "CNPJ do fornecedor"])
+      expect.arrayContaining(["Fornecedor (razão social)", "CPF ou CNPJ do fornecedor"])
     );
+  });
+
+  it("fornecedor pessoa física: CPF vale no lugar do CNPJ", () => {
+    const r = analisarEmissaoOs([completo({ id: "a", fornecedorRazao: "Carolina", fornecedorCnpj: "055.650.834-35" })]);
+    expect(r.prontos.map((l) => l.id)).toEqual(["a"]);
   });
 
   // Documento PG, Código de Serviço e Pedido de Compra NASCEM NA OS

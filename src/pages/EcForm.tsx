@@ -335,7 +335,8 @@ export function EcForm() {
     const porCnpj = new Map<string, { cnpjRaw: string; razao: string; contatos: ContatoFornecedor[] }>();
     for (const l of linhas) {
       const d = onlyDigits(l.fornecedorCnpj);
-      if (d.length !== 14) continue;
+      // CPF entra também: pessoa física vira fornecedor cadastrado como as demais.
+      if (d.length !== 14 && d.length !== 11) continue;
       if (!porCnpj.has(d)) porCnpj.set(d, { cnpjRaw: l.fornecedorCnpj, razao: l.fornecedorRazao, contatos: [] });
       const e = porCnpj.get(d)!;
       if (!e.razao && l.fornecedorRazao) e.razao = l.fornecedorRazao;

@@ -42,6 +42,7 @@
  * para "OS/Contrato a emitir"). Para adicionar uma nova regra, basta empurrar
  * mais objetos em `calcularPendencias`.
  */
+import { documentoCompleto } from "@/lib/format";
 import { ABAS_COM_CONVERSA } from "@/data/types";
 import { ESPERANDO_FASE, faseDaOs, RECURSO_DA_FASE } from "@/domain/faseOs";
 import type { Recurso } from "@/store/auth";
@@ -679,12 +680,12 @@ export function calcularPendencias(
       // cobrado por eles, e é quem responde pelo projeto.
       if (
         linha.statusAprovacao === "OK" &&
-        (!linha.fornecedorRazao?.trim() || (linha.fornecedorCnpj ?? "").replace(/\D/g, "").length !== 14)
+        (!linha.fornecedorRazao?.trim() || !documentoCompleto(linha.fornecedorCnpj))
       ) {
         out.push({
           id: `ec.fornecedor:${ec.id}:${linha.id}`,
           tipo: "ec.fornecedor",
-          titulo: `Preencher CNPJ e razão social do fornecedor: ${linha.item || linha.grupo || "item sem nome"}`,
+          titulo: `Preencher CPF/CNPJ e razão social do fornecedor: ${linha.item || linha.grupo || "item sem nome"}`,
           responsavelProjeto: respDe(ec.projetoId),
           recurso: "projetos",
           projetoId: ec.projetoId,

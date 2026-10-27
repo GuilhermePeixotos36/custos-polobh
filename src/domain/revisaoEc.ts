@@ -82,7 +82,7 @@ const CAMPOS_ITEM: { label: string; ler: (l: EcLinha) => string }[] = [
   { label: "OS", ler: (l) => texto(l.statusOs) },
   { label: "Contrato", ler: (l) => texto(l.contratoStatus) },
   { label: "Fornecedor", ler: (l) => texto(l.fornecedorRazao) },
-  { label: "CNPJ do fornecedor", ler: (l) => texto(l.fornecedorCnpj) },
+  { label: "CPF/CNPJ do fornecedor", ler: (l) => texto(l.fornecedorCnpj) },
   { label: "Documento PG", ler: (l) => texto(l.faturaNf) },
   { label: "Valor com BV e NF", ler: (l) => dinheiro(l.valorComBvNf) },
   { label: "Valor sem BV e com NF", ler: (l) => dinheiro(l.valorSemBvComNf) },

@@ -33,7 +33,7 @@ export function FornecedorField({ razao, cnpj, fornecedores, onChange, onValidar
   const ultimoAplicado = useRef("");
 
   const registrado = useMemo(
-    () => (digits.length === 14 ? fornecedores.find((f) => onlyDigits(f.cnpj) === digits) : undefined),
+    () => (digits.length === 14 || digits.length === 11 ? fornecedores.find((f) => onlyDigits(f.cnpj) === digits) : undefined),
     [fornecedores, digits]
   );
   const podeValidar = digits.length === 14 && !registrado && cnpjValido(digits);
@@ -43,7 +43,7 @@ export function FornecedorField({ razao, cnpj, fornecedores, onChange, onValidar
   // Autocomplete: dispara quando o CNPJ fica completo E quando a lista de
   // fornecedores chega depois (carregamento assíncrono).
   useEffect(() => {
-    if (digits.length !== 14) {
+    if (digits.length !== 14 && digits.length !== 11) {
       // CNPJ incompleto/apagado: libera o próximo preenchimento automático.
       ultimoAplicado.current = "";
       return;
@@ -87,7 +87,7 @@ export function FornecedorField({ razao, cnpj, fornecedores, onChange, onValidar
       <div className="relative flex items-center gap-1 w-[10.5rem] shrink-0">
         <Input
           className="!h-9 !px-2 !text-[12.5px]"
-          placeholder="CNPJ do fornecedor"
+          placeholder="CPF ou CNPJ"
           inputMode="numeric"
           autoComplete="off"
           value={cnpj}
