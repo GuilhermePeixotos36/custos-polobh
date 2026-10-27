@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { comDadosAtuaisDoProjeto } from "@/lib/projetoAoVivo";
 import { LegendaProjeto } from "@/components/layout/LegendaProjeto";
@@ -17,7 +17,7 @@ import {
   AvisoHomologacaoEmail,
   MOTIVO_DISPARO_DESLIGADO,
 } from "@/components/ui";
-import { IcCheck, IcCopy, IcDoc, IcEye, IcPencil, IcSearch, IcSend, IcSpark } from "@/components/icons";
+import { IcCheck, IcCopy, IcDoc, IcEye, IcPencil, IcSearch, IcSend, IcSpark, IcCadeado } from "@/components/icons";
 import { CardConversa } from "@/components/CardConversa";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
@@ -53,7 +53,7 @@ import { calcularAcerto } from "@/domain/acertoFinanceiro";
 import { clausulasPadrao, modeloDoContrato, type ChaveClausula, type ModeloContrato } from "@/domain/contratoModelo";
 import { baixarContrato } from "@/lib/docx";
 import { dadosDoTomador, opcoesDeTomador, RETENCOES_PADRAO, TOMADOR_OUTRO } from "@/domain/tomadorOs";
-import { editaFinanceiro, FASES_OS, editaProducao, ESPERANDO_FASE, faseAnterior, faseDaOs, osEmitida, ROTULO_FASE, type FaseOs } from "@/domain/faseOs";
+import { editaFinanceiro, vezDoBloco, type AreaOs, FASES_OS, editaProducao, ESPERANDO_FASE, faseAnterior, faseDaOs, osEmitida, ROTULO_FASE, type FaseOs } from "@/domain/faseOs";
 import { RevisaoEcModal } from "@/components/RevisaoEcModal";
 import { revisarOs } from "@/domain/revisaoOs";
 import type { RevisaoEc } from "@/domain/revisaoEc";
@@ -1142,6 +1142,7 @@ export function OsForm() {
   }
 
   return (
+    <FaseDaOsCtx.Provider value={encerradaDoc ? null : fase}>
     <PageShell
       breadcrumb={
         <button onClick={() => navigate(`/estimativas/${ecCtx.id}`)} className="hover:text-ink">{ecCtx.numero}</button>
@@ -2399,6 +2400,7 @@ export function OsForm() {
         />
       )}
     </PageShell>
+    </FaseDaOsCtx.Provider>
   );
 
   function setCron(i: number, patch: Partial<Os["cronograma"][number]>) {
@@ -2475,20 +2477,44 @@ const idDaEtapa = (c: Os["cronograma"][number], i: number) => c.id ?? `etapa-${i
  * qual área é o bloco — Produção monta, Financeiro conclui, Back-office emite.
  * Cada área tem a sua cor, para o bloco ser reconhecido de relance.
  */
-type AreaOs = "Produção" | "Financeiro" | "Back-office";
 const COR_AREA: Record<AreaOs, string> = {
   "Produção": "bg-[#E3F0FF] text-[#1D4E89] border-[#B9D5F5]",
   "Financeiro": "bg-[#E6F6EC] text-[#1E6B3A] border-[#BFE3CC]",
   "Back-office": "bg-[#F3E8FF] text-[#5B2C83] border-[#DCC5F2]",
 };
 
+/** Contorno e faixa do bloco quando é a vez da área dele. */
+const DESTAQUE_AREA: Record<AreaOs, { borda: string; faixa: string }> = {
+  "Produção": { borda: "border-[#4A90D9] ring-2 ring-[#4A90D9]/25", faixa: "bg-[#CFE3FA]" },
+  "Financeiro": { borda: "border-[#3FA36B] ring-2 ring-[#3FA36B]/25", faixa: "bg-[#CDEBD8]" },
+  "Back-office": { borda: "border-[#8A5CC2] ring-2 ring-[#8A5CC2]/25", faixa: "bg-[#E6D6F7]" },
+};
+
+/** A etapa em que a OS está — os blocos se destacam conforme ela (ver `vezDoBloco`). */
+const FaseDaOsCtx = createContext<FaseOs | null>(null);
+
 function EtiquetaArea({ area, sufixo }: { area: AreaOs; sufixo?: string }) {
+  const fase = useContext(FaseDaOsCtx);
+  const situacao = fase ? vezDoBloco(area, fase) : null;
   return (
-    <span
-      title={`Bloco preenchido por: ${area}`}
-      className={cx("inline-flex items-center rounded-full border px-2 py-0.5 text-[10.5px] font-extrabold uppercase tracking-[0.04em] whitespace-nowrap", COR_AREA[area])}
-    >
-      Preenche: {area}{sufixo ? ` ${sufixo}` : ""}
+    <span className="inline-flex items-center gap-1.5 flex-wrap">
+      <span
+        title={`Bloco preenchido por: ${area}`}
+        className={cx("inline-flex items-center rounded-full border px-2 py-0.5 text-[10.5px] font-extrabold uppercase tracking-[0.04em] whitespace-nowrap", COR_AREA[area])}
+      >
+        Preenche: {area}{sufixo ? ` ${sufixo}` : ""}
+      </span>
+      {situacao && (
+        situacao.vez ? (
+          <span className="inline-flex items-center rounded-full bg-ink text-white px-2 py-0.5 text-[10.5px] font-extrabold uppercase tracking-[0.04em] whitespace-nowrap">
+            É a vez deste bloco
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-ink-2 whitespace-nowrap">
+            <IcCadeado width={12} height={12} /> {situacao.aviso}
+          </span>
+        )
+      )}
     </span>
   );
 }
@@ -2509,9 +2535,11 @@ function CardOs({
   children: ReactNode;
 }) {
   const { recolhida, alternar } = useSecaoRecolhivel(idSecao(secao));
+  const fase = useContext(FaseDaOsCtx);
+  const destaque = area && fase && vezDoBloco(area, fase).vez ? DESTAQUE_AREA[area] : null;
   return (
-    <div className={cx("bg-surface border border-border rounded-card shadow-card overflow-hidden [&_input:not([type=checkbox]):not([type=radio])]:!h-8 [&_select]:!h-8 [&_input]:!py-0 [&_select]:!py-0", className)}>
-      <div className="bg-[#C0C0C0] px-4 py-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+    <div className={cx("bg-surface border border-border rounded-card shadow-card overflow-hidden [&_input:not([type=checkbox]):not([type=radio])]:!h-8 [&_select]:!h-8 [&_input]:!py-0 [&_select]:!py-0", className, destaque?.borda)}>
+      <div className={cx(destaque ? destaque.faixa : "bg-[#C0C0C0]", "px-4 py-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1")}>
         <button
           type="button"
           onClick={alternar}
