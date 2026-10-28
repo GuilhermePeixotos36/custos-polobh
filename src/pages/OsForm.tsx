@@ -96,7 +96,9 @@ import type {
   Os,
   ProjetoInfo,
 } from "@/data/types";
-import { AVISO_REVISAO_PARCIAL, revisarDocumento } from "@/lib/correcaoOrtografica";
+import {
+  avisarFalhaRevisao, lembrarRevisados, pendentesDeRevisao, perguntarRevisao, revisarPendentes, somenteMaiusculas,
+} from "@/lib/revisaoInterativa";
 import { aplicarNaOs, camposDaOs } from "@/domain/revisaoTexto";
 import { chaveDocumento } from "@/domain/travaEdicao";
 import { useTravaEdicao } from "@/hooks/useTravaEdicao";
@@ -387,6 +389,10 @@ export function OsForm() {
   const [baseline, setBaseline] = useState("");
   const [cnpjMsg, setCnpjMsg] = useState("");
   const [busy, setBusy] = useState(false);
+  /** "Revisar" em andamento (a IA leva alguns segundos). */
+  const [revisando, setRevisando] = useState(false);
+  /** Textos já revisados nesta edição (id → texto final): o "Salvar" não pergunta de novo. */
+  const [jaRevisados, setJaRevisados] = useState<Map<string, string>>(() => new Map());
 
   /**
    * O fornecedor COMO ELE ESTAVA quando a tela abriu (ou logo depois de salvar).
@@ -905,6 +911,15 @@ export function OsForm() {
         confirmarTexto: "Enviar OS",
       }))) return;
     }
+    // Textos alterados ainda não revisados: pergunta antes de gravar (28/10/2026).
+    const gravadaParaRevisao = baseline ? (JSON.parse(baseline) as Os) : null;
+    const comPatchParaRevisao = { ...os!, ...patch };
+    const pendentes = pendentesDeRevisao(
+      camposDaOs(comPatchParaRevisao),
+      camposDaOs(gravadaParaRevisao ?? comPatchParaRevisao),
+      jaRevisados,
+    );
+    const querRevisao = pendentes.length > 0 && (await perguntarRevisao(pendentes.length));
     setBusy(true);
     try {
       // O BV é gravado na própria OS (a Produção negocia), mas depende do
@@ -918,23 +933,21 @@ export function OsForm() {
       const linkCred = urlCredenciamento(os!);
 
       /*
-       * REVISÃO DE TEXTO (25/09/2026). A OS é o documento que SAI DA CASA — vai
-       * por e-mail para o fornecedor, impressa e em planilha. Era justamente a
-       * que não passava por revisão nenhuma.
-       *
-       * Vai só o que mudou desde a última gravação: numa OS de sessenta linhas,
-       * corrigir um valor não remanda sessenta descrições para a IA. O que está
-       * marcado como "não se aplica" também fica de fora — não sai no documento,
-       * e revisar o que ninguém vai ler é gastar por nada.
+       * REVISÃO DE TEXTO. A OS é o documento que SAI DA CASA — vai por e-mail
+       * para o fornecedor, impressa e em planilha. Desde 28/10/2026 a revisão
+       * por IA é perguntada (acima) e vai só o que mudou desde a última gravação
+       * e ainda não foi revisado. O que está marcado como "não se aplica" fica
+       * de fora — não sai no documento. Sem revisão, vale só a regra de
+       * maiúsculas.
        */
-      const gravada = baseline ? (JSON.parse(baseline) as Os) : null;
-      const comPatch = { ...os!, ...patch };
-      const { documento: revisada, revisaoCompleta } = await revisarDocumento(
-        camposDaOs(comPatch),
-        camposDaOs(gravada ?? comPatch),
-        (revisados) => aplicarNaOs(comPatch, revisados),
-      );
-      if (!revisaoCompleta) toast(AVISO_REVISAO_PARCIAL, "warning");
+      let revisada = comPatchParaRevisao;
+      if (querRevisao) {
+        const { textos, falhou } = await revisarPendentes(pendentes);
+        revisada = aplicarNaOs(comPatchParaRevisao, textos);
+        if (falhou) await avisarFalhaRevisao();
+      } else if (pendentes.length) {
+        revisada = aplicarNaOs(comPatchParaRevisao, somenteMaiusculas(pendentes));
+      }
 
       let salvo = await repo.oss.salvar({
         ...revisada,
@@ -989,9 +1002,21 @@ export function OsForm() {
     return l?.item?.trim() || l?.descricao?.trim() || "(item sem nome)";
   };
 
-  function revisar() {
+  /**
+   * Revisar: manda à IA SÓ os textos alterados ainda não revisados (28/10/2026)
+   * e abre o comparativo do que mudou desde o último salvamento.
+   */
+  async function revisar() {
     const gravada = baseline ? (JSON.parse(baseline) as Os) : null;
-    setRevisao(revisarOs(gravada, os!, nomeDoItemEc));
+    const pendentes = pendentesDeRevisao(camposDaOs(os!), camposDaOs(gravada ?? os!), jaRevisados);
+    setRevisando(true);
+    const { textos, falhou } = await revisarPendentes(pendentes);
+    setRevisando(false);
+    const corrigida = aplicarNaOs(os!, textos);
+    setOs(corrigida);
+    if (falhou) await avisarFalhaRevisao();
+    else setJaRevisados(lembrarRevisados(jaRevisados, pendentes, textos));
+    setRevisao(revisarOs(gravada, corrigida, nomeDoItemEc));
   }
 
   /**
@@ -1207,8 +1232,8 @@ export function OsForm() {
               de gravar; Salvar grava. */}
           {editando && (
             <>
-              <Button variant="secondary" size="sm" onClick={revisar} disabled={busy} title="Mostra o que mudou desde o último salvamento, para conferir antes de gravar">
-                Revisar
+              <Button variant="secondary" size="sm" onClick={() => void revisar()} disabled={busy || revisando} title="Corrige a ortografia dos textos alterados (IA) e mostra o que mudou desde o último salvamento">
+                {revisando ? "Revisando…" : "Revisar"}
               </Button>
               <Button size="sm" onClick={() => void salvar()} disabled={busy}>
                 {busy ? "Salvando…" : "Salvar"}
