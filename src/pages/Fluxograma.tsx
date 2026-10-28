@@ -18,7 +18,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PageShell } from "@/components/layout/AppLayout";
-import { Button, Card } from "@/components/ui";
+import { Button, CarregandoTela, Card } from "@/components/ui";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import { useAuth } from "@/store/auth";
@@ -190,6 +190,7 @@ export function Fluxograma() {
               className="hidden"
               onChange={(e) => void trocar(e.target.files?.[0])}
             />
+            {salvando && <CarregandoTela />}
             <Button size="sm" variant="secondary" disabled={salvando} onClick={() => arquivo.current?.click()}>
               {salvando ? "Salvando…" : "Trocar imagem"}
             </Button>

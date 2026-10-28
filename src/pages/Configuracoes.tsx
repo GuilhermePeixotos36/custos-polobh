@@ -6,7 +6,7 @@ import { createPortal } from "react-dom";
 import { PageShell } from "@/components/layout/AppLayout";
 import { BarraConfiguracoes, useSecaoConfig } from "@/components/layout/BarraSecao";
 import { NAV_CONFIG } from "@/components/layout/nav";
-import { Card, CardTitle, Toggle, Badge, Field, Input, Textarea, TelefoneInput, Select, Button, Table, THead, Th, Tr, Td, EmptyState } from "@/components/ui";
+import { Card, CardTitle, Toggle, Badge, Field, Input, Textarea, TelefoneInput, Select, Button, Table, THead, Th, Tr, Td, EmptyState, CarregandoTela } from "@/components/ui";
 import { IcPlus, IcPencil, IcTrash, IcBloqueio, IcFechar, IcCheck } from "@/components/icons";
 import { ROTULO_PAPEL, PAPEIS_AREA, TELAS, PERMISSOES_ESPECIAIS, useAuth, type Recurso } from "@/store/auth";
 import { useEmpresas } from "@/store/empresas";
@@ -665,6 +665,7 @@ function AreaModal({
           <div className="flex items-center gap-2 shrink-0">
             {editando ? (
               <>
+                {salvando && <CarregandoTela />}
                 <Button size="sm" onClick={salvar} disabled={salvando}>{salvando ? "Salvando…" : "Salvar"}</Button>
                 <Button size="sm" variant="secondary" onClick={cancelar} disabled={salvando}>Cancelar</Button>
               </>
@@ -941,6 +942,7 @@ function UsuariosCard() {
               </Select>
             </Field>
             <div className="flex gap-2 pt-1">
+              {salvando && <CarregandoTela />}
               <Button block onClick={salvar} disabled={salvando}>{salvando ? "Salvando…" : "Salvar"}</Button>
               <Button variant="secondary" onClick={() => setEdit(null)}>Cancelar</Button>
             </div>

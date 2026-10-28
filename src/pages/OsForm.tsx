@@ -16,6 +16,7 @@ import {
   AvisoEmailPendente,
   AvisoHomologacaoEmail,
   MOTIVO_DISPARO_DESLIGADO,
+  CarregandoTela,
 } from "@/components/ui";
 import { IcCheck, IcCopy, IcDoc, IcEye, IcPencil, IcSearch, IcSend, IcSpark, IcCadeado } from "@/components/icons";
 import { CardConversa } from "@/components/CardConversa";
@@ -1227,6 +1228,10 @@ export function OsForm() {
               Editar OS
             </Button>
           )}
+
+          {/* Aguarde no meio da tela enquanto salva, revisa ou muda de etapa. */}
+          {busy && <CarregandoTela texto="Salvando…" />}
+          {revisando && <CarregandoTela texto="Revisando os textos…" />}
 
           {/* EDIÇÃO: um botão para cada função. Revisar mostra o que mudou antes
               de gravar; Salvar grava. */}
