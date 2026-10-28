@@ -1631,6 +1631,60 @@ export function OsForm() {
               que não vale para esta. */}
 
           </fieldset>
+          {/* PRAZO DE PAGAMENTO (28/10/2026): virou uma linha do Detalhamento
+              da Contratação — os dois são da Produção, que negocia com o
+              fornecedor quando ele recebe. Cada parcela tem a sua data. A FORMA
+              de pagamento segue com o Financeiro, em Dados Emissão Faturamento. */}
+          <fieldset disabled={!mexeProducao} className="min-w-0 border-0 p-0 m-0 disabled:opacity-100">
+            <LinhaOs
+              label="Prazo de pagamento"
+              hint="(parcelas: descrição, data de pagamento e valor)"
+              acao={
+                <Button variant="secondary" size="sm" onClick={() => updOrc({ parcelas: [...os.orcamento.parcelas, { id: novoId(), descricao: "", valor: saldoParcelas }] })}>+ Parcela</Button>
+              }
+            >
+              <div className="py-1.5 space-y-2">
+                {os.orcamento.parcelas.map((pc, i) => (
+                  <div key={pc.id ?? i} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_150px_150px_auto] gap-2 items-center">
+                    <Input className="!h-9 min-w-0 col-span-3 sm:col-span-1" placeholder={`Descrição da ${i + 1}ª parcela`} sugestoes={sugestoes.valores.descricaoParcela} value={pc.descricao} onChange={(e) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, descricao: e.target.value } : x)) })} />
+                    <Input
+                      className="!h-9 min-w-0"
+                      type="date"
+                      title="Data de pagamento"
+                      aria-label={`Data de pagamento da ${i + 1}ª parcela`}
+                      value={pc.data ?? ""}
+                      onChange={(e) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, data: e.target.value } : x)) })}
+                    />
+                    <NumberInput className="!h-9 min-w-0" value={pc.valor} title={refParcelas.valor > 0 ? `Até ${brl(tetoDaParcela(i))} (saldo disponível)` : undefined} onValue={(v) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, valor: Math.min(v, tetoDaParcela(i)) } : x)) })} />
+                    <button className="text-ink-3 hover:text-danger px-2" title="Remover parcela" onClick={() => updOrc({ parcelas: os.orcamento.parcelas.filter((_, j) => j !== i) })}>✕</button>
+                  </div>
+                ))}
+                {os.orcamento.parcelas.length === 0 && <p className="text-[12.5px] text-ink-3">Sem parcelas. Use “+ Parcela”.</p>}
+
+                {os.orcamento.parcelas.length > 0 && (
+                  <div
+                    className={cx(
+                      "flex items-center justify-between gap-3 rounded-btn px-3 py-2 text-[12.5px]",
+                      parcelasDivergem ? "bg-danger-soft text-danger font-semibold" : "bg-[#FAFAFB] text-ink-2"
+                    )}
+                  >
+                    <span>
+                      Soma das parcelas: <b className="font-display">{brl(somaParcelas)}</b>
+                      {refParcelas.valor > 0 && <> · saldo a distribuir: <b className="font-display">{brl(saldoParcelas)}</b></>}
+                    </span>
+                    {parcelasDivergem ? (
+                      <span>
+                        Não fecha com o {refParcelas.rotulo} ({brl(refParcelas.valor)}) — diferença de{" "}
+                        {brl(Math.abs(somaParcelas - refParcelas.valor))}.
+                      </span>
+                    ) : (
+                      refParcelas.valor > 0 && <span>Confere com o {refParcelas.rotulo}.</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </LinhaOs>
+          </fieldset>
         </CardOs>
 
         <fieldset disabled={!mexeProducao} className="space-y-4 min-w-0 disabled:opacity-100">
@@ -1821,61 +1875,6 @@ export function OsForm() {
           </LinhaOs>
         </CardOs>
 
-        {/* PRAZO DE PAGAMENTO é da PRODUÇÃO (27/10/2026): é ela que negocia
-            com o fornecedor quando ele recebe, e informa ao Financeiro. Cada
-            parcela tem a sua data de pagamento. A FORMA de pagamento segue com
-            o Financeiro, em Dados Emissão Faturamento. */}
-        <CardOs secao="Prazo de Pagamento" area="Produção">
-            <LinhaOs
-              label="Parcelas"
-              hint="(descrição, data de pagamento e valor)"
-              acao={
-                <Button variant="secondary" size="sm" onClick={() => updOrc({ parcelas: [...os.orcamento.parcelas, { id: novoId(), descricao: "", valor: saldoParcelas }] })}>+ Parcela</Button>
-              }
-            >
-              <div className="py-1.5 space-y-2">
-                {os.orcamento.parcelas.map((pc, i) => (
-                  <div key={pc.id ?? i} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_150px_150px_auto] gap-2 items-center">
-                    <Input className="!h-9 min-w-0 col-span-3 sm:col-span-1" placeholder={`Descrição da ${i + 1}ª parcela`} sugestoes={sugestoes.valores.descricaoParcela} value={pc.descricao} onChange={(e) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, descricao: e.target.value } : x)) })} />
-                    <Input
-                      className="!h-9 min-w-0"
-                      type="date"
-                      title="Data de pagamento"
-                      aria-label={`Data de pagamento da ${i + 1}ª parcela`}
-                      value={pc.data ?? ""}
-                      onChange={(e) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, data: e.target.value } : x)) })}
-                    />
-                    <NumberInput className="!h-9 min-w-0" value={pc.valor} title={refParcelas.valor > 0 ? `Até ${brl(tetoDaParcela(i))} (saldo disponível)` : undefined} onValue={(v) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, valor: Math.min(v, tetoDaParcela(i)) } : x)) })} />
-                    <button className="text-ink-3 hover:text-danger px-2" title="Remover parcela" onClick={() => updOrc({ parcelas: os.orcamento.parcelas.filter((_, j) => j !== i) })}>✕</button>
-                  </div>
-                ))}
-                {os.orcamento.parcelas.length === 0 && <p className="text-[12.5px] text-ink-3">Sem parcelas. Use “+ Parcela”.</p>}
-
-                {os.orcamento.parcelas.length > 0 && (
-                  <div
-                    className={cx(
-                      "flex items-center justify-between gap-3 rounded-btn px-3 py-2 text-[12.5px]",
-                      parcelasDivergem ? "bg-danger-soft text-danger font-semibold" : "bg-[#FAFAFB] text-ink-2"
-                    )}
-                  >
-                    <span>
-                      Soma das parcelas: <b className="font-display">{brl(somaParcelas)}</b>
-                      {refParcelas.valor > 0 && <> · saldo a distribuir: <b className="font-display">{brl(saldoParcelas)}</b></>}
-                    </span>
-                    {parcelasDivergem ? (
-                      <span>
-                        Não fecha com o {refParcelas.rotulo} ({brl(refParcelas.valor)}) — diferença de{" "}
-                        {brl(Math.abs(somaParcelas - refParcelas.valor))}.
-                      </span>
-                    ) : (
-                      refParcelas.valor > 0 && <span>Confere com o {refParcelas.rotulo}.</span>
-                    )}
-                  </div>
-                )}
-              </div>
-            </LinhaOs>
-
-        </CardOs>
 
         {/* O CREDENCIAMENTO saiu daqui (29/08/2026): virou subaba do Projeto, onde
             se vê a fila inteira e se dispara para todos os fornecedores de uma
@@ -1920,7 +1919,7 @@ export function OsForm() {
             <LinhaOs label="Valor Total do BV" hint="(só dos itens com BV e NF)"><Auto v={brl(resumo.bvTotal)} /></LinhaOs>
             <LinhaOs label="Valor Líquido" hint="(contratado menos o BV)"><Auto v={brl(resumo.liquido)} /></LinhaOs>
 
-            {/* O prazo é negociado pela Produção (bloco "Prazo de Pagamento",
+            {/* O prazo é negociado pela Produção (linha "Prazo de pagamento" do Detalhamento da Contratação,
                 acima); aqui o Financeiro só o confere. */}
             <LinhaOs label="Prazo de Pagamento" hint="(negociado pela Produção)">
               <div className="py-1.5 text-[13px] text-ink space-y-0.5">
@@ -2330,25 +2329,6 @@ export function OsForm() {
         )}
         </fieldset>
 
-        {/* O BOTÃO DO BACK-OFFICE, logo depois do módulo Contrato (29/09/2026):
-            fora do fieldset, que trava tudo em leitura. Gera a pendência do
-            Back-office, como o do cabeçalho. */}
-        {verFinanceiro && fase === "financeiro" && (
-          <div className="flex justify-end">
-            <Button
-              icon={<IcSend width={15} height={15} />}
-              disabled={busy}
-              onClick={() => void avancarFase("backoffice", {
-                titulo: "Enviar esta OS para emissão pelo Back-office?",
-                mensagem: "A OS vira pendência do Back-office, que a emite. Emissão e faturamento continuam editáveis até a emissão.",
-                confirmar: "Enviar ao Back-office",
-              })}
-            >
-              Enviar OS para Emissão Back-Office
-            </Button>
-          </div>
-        )}
-
         <fieldset disabled={!mexeFinanceiro} className="space-y-4 min-w-0 disabled:opacity-100">
 
         {/* ACERTOS FINANCEIROS — o que a Pólobh acerta por dentro.
@@ -2423,6 +2403,26 @@ export function OsForm() {
           </LinhaOs>
         </CardOs>
         </fieldset>
+
+        {/* O BOTÃO DO BACK-OFFICE, logo depois dos Acertos Financeiros
+            (28/10/2026; antes ficava entre o Contrato e os Acertos): é o fim da
+            parte do Financeiro. Fora do fieldset, que trava tudo em leitura.
+            Gera a pendência do Back-office, como o do cabeçalho. */}
+        {verFinanceiro && fase === "financeiro" && (
+          <div className="flex justify-end">
+            <Button
+              icon={<IcSend width={15} height={15} />}
+              disabled={busy}
+              onClick={() => void avancarFase("backoffice", {
+                titulo: "Enviar esta OS para emissão pelo Back-office?",
+                mensagem: "A OS vira pendência do Back-office, que a emite. Emissão e faturamento continuam editáveis até a emissão.",
+                confirmar: "Enviar ao Back-office",
+              })}
+            >
+              Enviar OS para Emissão Back-Office
+            </Button>
+          </div>
+        )}
 
         {/* STATUS DA OS (29/09/2026): onde a OS está até ficar "Emitida" — e,
             emitida, o que muda na EC (a coluna OS dos itens passa de Pendente
