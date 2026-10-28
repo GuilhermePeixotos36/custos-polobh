@@ -758,4 +758,12 @@ describe("item aprovado sem os dados do fornecedor", () => {
   it("CNPJ incompleto conta como faltando", () => {
     expect(com({ statusAprovacao: "OK", fornecedorRazao: "Buffet Ltda", fornecedorCnpj: "12.345" })).toHaveLength(1);
   });
+
+  it("CPF completo vale como documento do fornecedor", () => {
+    expect(com({ statusAprovacao: "OK", fornecedorRazao: "Carolina Estelian", fornecedorCnpj: "055.650.834-35" })).toHaveLength(0);
+  });
+
+  it("item com OS 'Não se Aplica' (só descrito, sem OS) não cobra fornecedor", () => {
+    expect(com({ statusAprovacao: "OK", statusOs: "Não se Aplica" })).toHaveLength(0);
+  });
 });
