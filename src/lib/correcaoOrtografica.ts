@@ -44,6 +44,50 @@ export function corrigirMaiusculasHtml(html: string): string {
   return sanitizarHtmlEditor(html).split(/(<[^>]+>)/g).map((parte) => parte.startsWith("<") ? parte : corrigirMaiusculas(parte)).join("");
 }
 
+/**
+ * DESCRIÇÃO COMPLETA EM TÓPICOS (28/10/2026). A revisão deixa o texto em
+ * bullets: cada linha vira um tópico. A linha sem números seguida de linhas
+ * com números ("Saguão Prédio" → "01 profissional x 01 diária…") é tratada
+ * como o nome de um local: vira um tópico em negrito, com os itens dentro.
+ * Texto que já tem lista fica como está — quem formatou à mão decidiu.
+ * É determinístico de propósito: vale mesmo quando a IA falha.
+ */
+export function emTopicos(html: string): string {
+  if (!html.trim() || /<(ul|ol)\b/i.test(html) || typeof DOMParser === "undefined") return html;
+  const doc = new DOMParser().parseFromString(`<div id="raiz">${sanitizarHtmlEditor(html)}</div>`, "text/html");
+  const raiz = doc.getElementById("raiz");
+  if (!raiz) return html;
+  // Cada parágrafo (e cada quebra <br> dentro dele) é uma linha.
+  const linhas: string[] = [];
+  let atual = "";
+  const fechar = () => { if (atual.replace(/&nbsp;|\s/g, "")) linhas.push(atual.trim()); atual = ""; };
+  for (const no of [...raiz.childNodes]) {
+    if (no instanceof HTMLElement && ["P", "DIV", "BLOCKQUOTE"].includes(no.tagName)) {
+      fechar();
+      for (const parte of no.innerHTML.split(/<br\s*\/?>/i)) { atual = parte; fechar(); }
+    } else if (no instanceof HTMLElement && no.tagName === "BR") {
+      fechar();
+    } else {
+      atual += no instanceof HTMLElement ? no.outerHTML : (no.textContent ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;");
+    }
+  }
+  fechar();
+  if (!linhas.length) return html;
+  const texto = (l: string) => l.replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").trim();
+  const temNumero = (l: string) => /\d/.test(texto(l));
+  const negrito = (l: string) => (/^<(b|strong)>[\s\S]*<\/(b|strong)>$/i.test(l) ? l : `<strong>${l}</strong>`);
+  let out = "";
+  for (let i = 0; i < linhas.length; i++) {
+    const l = linhas[i];
+    const titulo = !temNumero(l) && texto(l).length <= 60 && i + 1 < linhas.length && temNumero(linhas[i + 1]);
+    if (!titulo) { out += `<li>${l}</li>`; continue; }
+    const itens: string[] = [];
+    while (i + 1 < linhas.length && temNumero(linhas[i + 1])) itens.push(linhas[++i]);
+    out += `<li>${negrito(l)}<ul>${itens.map((x) => `<li>${x}</li>`).join("")}</ul></li>`;
+  }
+  return `<ul>${out}</ul>`;
+}
+
 async function corrigirTextos(
   textos: DescricaoCorrigida[],
   fallback: (texto: string, id: string) => string
@@ -196,7 +240,8 @@ export async function revisarCampos(campos: CampoRevisavel[]): Promise<Resultado
     else aPedir.push(campo);
   }
 
-  const localDe = (campo: CampoRevisavel) => (campo.html ? corrigirMaiusculasHtml : corrigirMaiusculas);
+  const localDe = (campo: CampoRevisavel) =>
+    campo.topicos ? (t: string) => emTopicos(corrigirMaiusculasHtml(t)) : campo.html ? corrigirMaiusculasHtml : corrigirMaiusculas;
   const porId = new Map(campos.map((c) => [c.id, c]));
 
   const resultado = await corrigirTextos(

@@ -15,7 +15,7 @@
  * volta a contar como pendente.
  */
 import { confirmar } from "@/store/confirm";
-import { corrigirMaiusculas, corrigirMaiusculasHtml, revisarCampos } from "@/lib/correcaoOrtografica";
+import { corrigirMaiusculas, corrigirMaiusculasHtml, emTopicos, revisarCampos } from "@/lib/correcaoOrtografica";
 import { retratoDeTextos, type CampoRevisavel } from "@/domain/revisaoTexto";
 
 /** Textos alterados desde a gravação que ainda não passaram pela revisão. */
@@ -30,7 +30,7 @@ export function pendentesDeRevisao(
 
 /** Só a regra de maiúsculas, sem IA — o que vale quando não há revisão. */
 export function somenteMaiusculas(campos: CampoRevisavel[]): Map<string, string> {
-  return new Map(campos.map((c) => [c.id, c.html ? corrigirMaiusculasHtml(c.texto) : corrigirMaiusculas(c.texto)]));
+  return new Map(campos.map((c) => [c.id, c.topicos ? emTopicos(corrigirMaiusculasHtml(c.texto)) : c.html ? corrigirMaiusculasHtml(c.texto) : corrigirMaiusculas(c.texto)]));
 }
 
 /**
