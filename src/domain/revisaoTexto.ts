@@ -33,6 +33,8 @@ export interface CampoRevisavel {
   texto: string;
   /** Rich-text do editor: o revisor precisa preservar as tags. */
   html?: boolean;
+  /** Além de revisar, deixa o texto em tópicos (bullets). Ver `emTopicos`. */
+  topicos?: boolean;
 }
 
 const vale = (t: string | undefined | null): boolean => Boolean(t && t.trim());
@@ -47,7 +49,7 @@ export function camposDaEc(linhas: EcLinha[]): CampoRevisavel[] {
     if (vale(l.item)) campos.push({ id: `ec:${l.id}:item`, texto: l.item });
     if (vale(l.descricao)) campos.push({ id: `ec:${l.id}:descricao`, texto: l.descricao });
     if (vale(l.descricaoCompleta)) {
-      campos.push({ id: `ec:${l.id}:completa`, texto: l.descricaoCompleta, html: true });
+      campos.push({ id: `ec:${l.id}:completa`, texto: l.descricaoCompleta, html: true, topicos: true });
     }
   }
   return campos;
