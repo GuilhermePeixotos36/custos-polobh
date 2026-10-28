@@ -35,6 +35,23 @@ interface DescricaoEntrada {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  // DIAGNÓSTICO (28/10/2026): GET ?diagnostico=1 diz se a conta de IA responde
+  // e quanto saldo resta — sem expor a chave e sem gastar créditos. Foi assim
+  // que se achou a revisão parada desde 27/10: créditos da OpenRouter no fim.
+  if (req.method === "GET" && new URL(req.url).searchParams.get("diagnostico")) {
+    const chave = Deno.env.get("OPENROUTER_API_KEY");
+    if (!chave) return new Response(JSON.stringify({ ok: false, erro: "OPENROUTER_API_KEY não configurada." }), { headers: cors });
+    const r = await fetch("https://openrouter.ai/api/v1/key", { headers: { Authorization: `Bearer ${chave}` } });
+    const corpo = await r.json().catch(() => null);
+    const d = corpo?.data ?? {};
+    // Saldo da conta inteira (não só da chave): é ele que acaba e derruba a revisão.
+    const c = await fetch("https://openrouter.ai/api/v1/credits", { headers: { Authorization: `Bearer ${chave}` } });
+    const creditos = (await c.json().catch(() => null))?.data ?? {};
+    return new Response(
+      JSON.stringify({ ok: r.ok, status: r.status, modelo: MODEL, limite: d.limit ?? null, uso: d.usage ?? null, restante: d.limit_remaining ?? null, erro: corpo?.error?.message ?? null, creditosTotais: creditos.total_credits ?? null, usoTotal: creditos.total_usage ?? null }),
+      { headers: { ...cors, "Content-Type": "application/json" } },
+    );
+  }
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405, headers: cors });
 
   const json = (body: unknown, status = 200) =>
@@ -76,17 +93,28 @@ Deno.serve(async (req) => {
           { role: "user", content: conteudo },
         ],
         temperature: 0,
-        // Limita a saída: sem isso o modelo pede o default (~65k tokens) e a conta
-        // OpenRouter recusa por saldo (erro 402). A revisão é sempre curta.
-        max_tokens: 12000,
+        // Reserva de saída PROPORCIONAL ao texto (28/10/2026). A OpenRouter recusa
+        // (402) quando o saldo não cobre o máximo pedido — com 12.000 fixos, um
+        // saldo baixo derrubava até a revisão de uma linha. O texto revisado tem
+        // o tamanho do original: ~1 token a cada 3 caracteres, com folga.
+        max_tokens: Math.min(12000, Math.ceil(conteudo.length / 2) + 400),
         response_format: { type: "json_object" },
       }),
     });
-    if (!resp.ok) return json({ ok: false, erro: `OpenRouter ${resp.status}` }, 502);
+    if (!resp.ok) {
+      // O motivo vai para o log da função (sem a chave): 402 = sem saldo,
+      // 401 = chave inválida, 429 = limite de uso.
+      const detalhe = (await resp.text().catch(() => "")).slice(0, 300);
+      console.error(`revisor: OpenRouter ${resp.status} ${detalhe}`);
+      return json({ ok: false, erro: `OpenRouter ${resp.status}` }, 502);
+    }
 
     const data = await resp.json();
     const texto = data?.choices?.[0]?.message?.content;
-    if (typeof texto !== "string") return json({ ok: false, erro: "Resposta vazia do revisor." }, 502);
+    if (typeof texto !== "string") {
+      console.error(`revisor: resposta vazia ${JSON.stringify(data).slice(0, 300)}`);
+      return json({ ok: false, erro: "Resposta vazia do revisor." }, 502);
+    }
 
     const revisado = JSON.parse(texto) as { descricoes?: DescricaoEntrada[] };
     if (!Array.isArray(revisado.descricoes)) return json({ ok: false, erro: "Resposta inválida do revisor." }, 502);
