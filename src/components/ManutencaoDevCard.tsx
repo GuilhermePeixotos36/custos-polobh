@@ -103,14 +103,14 @@ function ManutencaoDev() {
             </h4>
             <div className="grid gap-2 sm:grid-cols-3">
               {temSenha && (
-                <Field label="Senha atual">
+                <Field label="Senha atual" obrigatorio>
                   <Input type="password" autoComplete="off" value={atual} onChange={(e) => setAtual(e.target.value)} />
                 </Field>
               )}
-              <Field label="Senha nova (mín. 8)">
+              <Field label="Senha nova (mín. 8)" obrigatorio>
                 <Input type="password" autoComplete="new-password" value={nova} onChange={(e) => setNova(e.target.value)} />
               </Field>
-              <Field label="Repita a senha nova">
+              <Field label="Repita a senha nova" obrigatorio>
                 <Input type="password" autoComplete="new-password" value={repetir} onChange={(e) => setRepetir(e.target.value)} />
               </Field>
             </div>
@@ -135,10 +135,10 @@ function ManutencaoDev() {
                 Apagar também o histórico (logs, e-mails, chamados, registros de back-up)
               </label>
               <div className="grid gap-2 sm:grid-cols-2">
-                <Field label="Senha de manutenção">
+                <Field label="Senha de manutenção" obrigatorio>
                   <Input type="password" autoComplete="off" value={senha} onChange={(e) => setSenha(e.target.value)} />
                 </Field>
-                <Field label={`Digite ${PALAVRA} para confirmar`}>
+                <Field label={`Digite ${PALAVRA} para confirmar`} obrigatorio>
                   <Input value={palavra} onChange={(e) => setPalavra(e.target.value)} />
                 </Field>
               </div>

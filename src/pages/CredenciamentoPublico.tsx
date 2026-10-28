@@ -146,7 +146,7 @@ export function CredenciamentoPublico() {
                   <div key={i} className="flex flex-wrap items-center gap-2">
                     <Input
                       className="flex-1 min-w-[12rem]"
-                      placeholder="Nome completo"
+                      placeholder="Nome completo *"
                       value={m.nome}
                       onChange={(e) => setEquipe((l) => l.map((x, j) => (j === i ? { ...x, nome: e.target.value } : x)))}
                     />

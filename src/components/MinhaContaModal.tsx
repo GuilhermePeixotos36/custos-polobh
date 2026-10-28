@@ -103,7 +103,7 @@ export function MinhaContaModal({ onClose }: { onClose: () => void }) {
               navegador não sabe de qual conta é a senha que acabou de mudar. */}
           <input type="hidden" name="username" autoComplete="username" value={usuario.email} readOnly />
 
-          <Field label="Senha atual" className="mb-3">
+          <Field label="Senha atual" className="mb-3" obrigatorio>
             <Input
               type="password"
               autoComplete="current-password"
@@ -112,7 +112,7 @@ export function MinhaContaModal({ onClose }: { onClose: () => void }) {
               placeholder="••••••••"
             />
           </Field>
-          <Field label="Nova senha" className="mb-3">
+          <Field label="Nova senha" className="mb-3" obrigatorio>
             <Input
               type="password"
               autoComplete="new-password"
@@ -121,7 +121,7 @@ export function MinhaContaModal({ onClose }: { onClose: () => void }) {
               placeholder="••••••••"
             />
           </Field>
-          <Field label="Repita a nova senha" className="mb-4">
+          <Field label="Repita a nova senha" className="mb-4" obrigatorio>
             <Input
               type="password"
               autoComplete="new-password"

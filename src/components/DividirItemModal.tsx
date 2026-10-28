@@ -6,7 +6,7 @@
  */
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { Button, CurrencyInput, Input } from "@/components/ui";
+import { Button, CurrencyInput, Input, MarcaObrigatorio } from "@/components/ui";
 import { IcFechar } from "@/components/icons";
 import { motivoDivisaoInvalida, type ParteDaDivisao } from "@/domain/ec";
 import { brl } from "@/lib/format";
@@ -69,7 +69,7 @@ export function DividirItemModal({
           }}
         >
           <label className="block">
-            <span className="block text-[11px] font-extrabold uppercase tracking-[0.05em] text-ink-3 mb-1">Nome do novo item</span>
+            <span className="block text-[11px] font-extrabold uppercase tracking-[0.05em] text-ink-3 mb-1">Nome do novo item<MarcaObrigatorio /></span>
             <Input formato="item" value={parte.item} onChange={(e) => upd({ item: e.target.value })} autoFocus />
           </label>
           <label className="block">

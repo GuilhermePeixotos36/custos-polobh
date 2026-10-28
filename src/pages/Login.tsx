@@ -67,10 +67,10 @@ export function Login() {
         <form onSubmit={submeter} className="bg-surface border border-border rounded-card-lg shadow-card p-7">
           <h2 className="font-display font-bold text-xl tracking-[-0.4px] mb-6">Entrar</h2>
 
-          <Field label="E-mail" className="mb-4">
+          <Field label="E-mail" className="mb-4" obrigatorio>
             <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="voce@polobh.com.br" autoComplete="username" required />
           </Field>
-          <Field label="Senha" className="mb-5">
+          <Field label="Senha" className="mb-5" obrigatorio>
             <Input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} placeholder="••••••" autoComplete="current-password" required />
           </Field>
 
