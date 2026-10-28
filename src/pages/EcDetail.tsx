@@ -374,7 +374,7 @@ export function EcDetail() {
           </div>
           {podeMudarStatus && (
             <div className="flex items-center gap-2 flex-wrap border-t border-primary/20 pt-1.5">
-              <span className="text-[11px] font-extrabold uppercase tracking-[0.05em] text-primary-dark/80">Alterar em massa</span>
+              <span className="text-[11px] font-extrabold uppercase tracking-wider text-primary-dark/80">Alterar em massa</span>
               <SeletorEmMassa rotulo="Aprovação" opcoes={["Pendente", "OK"]} onEscolher={(v) => mudarStatus([...selecionados], { aprovacao: v as "Pendente" | "OK" }, true)} />
               <SeletorEmMassa rotulo="OS" opcoes={OPCOES_STATUS_OS} onEscolher={(v) => mudarStatus([...selecionados], { os: v as StatusOs }, true)} />
               <SeletorEmMassa rotulo="Contrato" opcoes={OPCOES_STATUS_OS} onEscolher={(v) => mudarStatus([...selecionados], { contrato: v as StatusOs }, true)} />
@@ -395,7 +395,7 @@ export function EcDetail() {
               <div className={cx("flex items-center gap-2 px-3 py-3 flex-wrap", aberto && "border-b border-border-soft")}>
                 <input
                   type="checkbox"
-                  className="h-4 w-4 shrink-0 accent-[#F2820D] cursor-pointer"
+                  className="h-4 w-4 shrink-0 accent-primary cursor-pointer"
                   checked={g.itens.every((l) => selecionados.has(l.id))}
                   ref={(el) => {
                     const marcados = g.itens.filter((l) => selecionados.has(l.id)).length;
@@ -417,7 +417,7 @@ export function EcDetail() {
                 <button onClick={() => toggleGrupo(g.nome)} className="shrink-0 text-ink-2 hover:text-ink" aria-expanded={aberto} aria-label={`${aberto ? "Retrair" : "Expandir"} ${g.nome}`}>
                   <IcChevron width={20} height={20} className={cx("transition-transform duration-200", aberto && "rotate-90")} />
                 </button>
-                <button onClick={() => toggleGrupo(g.nome)} className="text-[15px] font-bold uppercase text-ink text-left min-w-0 flex-1 break-words sm:flex-none sm:truncate">
+                <button onClick={() => toggleGrupo(g.nome)} className="text-[15px] font-bold uppercase text-ink text-left min-w-0 flex-1 wrap-break-word sm:flex-none sm:truncate">
                   {g.nome}
                 </button>
                 <span className="shrink-0 text-[12px] font-bold text-ink-3 bg-[#F0F1F4] rounded-pill px-2.5 py-1">

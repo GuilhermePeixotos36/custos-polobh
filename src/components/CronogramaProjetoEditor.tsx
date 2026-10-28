@@ -387,7 +387,7 @@ function BlocoCard({
           </h3>
         ) : (
           <Input
-            className="!h-9 !text-[13.5px] !font-bold max-w-xs"
+            className="h-9! text-[13.5px]! font-bold! max-w-xs"
             formato="titulo"
             sugestoes={sugestoesEtapa}
             value={bloco.titulo}

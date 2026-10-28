@@ -33,7 +33,7 @@ export function DividirItemModal({
   const upd = (p: Partial<ParteDaDivisao>) => setParte((x) => ({ ...x, ...p }));
 
   return createPortal(
-    <div className="no-print fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-6">
+    <div className="no-print fixed inset-0 z-70 flex items-center justify-center p-3 sm:p-6">
       <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" onClick={onFechar} />
       <div
         role="dialog"
@@ -69,11 +69,11 @@ export function DividirItemModal({
           }}
         >
           <label className="block">
-            <span className="block text-[11px] font-extrabold uppercase tracking-[0.05em] text-ink-3 mb-1">Nome do novo item<MarcaObrigatorio /></span>
+            <span className="block text-[11px] font-extrabold uppercase tracking-wider text-ink-3 mb-1">Nome do novo item<MarcaObrigatorio /></span>
             <Input formato="item" value={parte.item} onChange={(e) => upd({ item: e.target.value })} autoFocus />
           </label>
           <label className="block">
-            <span className="block text-[11px] font-extrabold uppercase tracking-[0.05em] text-ink-3 mb-1">
+            <span className="block text-[11px] font-extrabold uppercase tracking-wider text-ink-3 mb-1">
               Descrição financeiro <span className="normal-case font-semibold">(opcional — vazio usa o nome)</span>
             </span>
             <Input value={parte.descricao} onChange={(e) => upd({ descricao: e.target.value })} />
@@ -82,7 +82,7 @@ export function DividirItemModal({
           {verFinanceiro && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label className="block">
-                <span className="block text-[11px] font-extrabold uppercase tracking-[0.05em] text-ink-3 mb-1">
+                <span className="block text-[11px] font-extrabold uppercase tracking-wider text-ink-3 mb-1">
                   Pólobh da nova parte
                 </span>
                 <CurrencyInput value={parte.valorPolobh} onValue={(v) => upd({ valorPolobh: v })} />
@@ -91,7 +91,7 @@ export function DividirItemModal({
                 </span>
               </label>
               <label className="block">
-                <span className="block text-[11px] font-extrabold uppercase tracking-[0.05em] text-ink-3 mb-1">
+                <span className="block text-[11px] font-extrabold uppercase tracking-wider text-ink-3 mb-1">
                   Cliente da nova parte
                 </span>
                 <CurrencyInput value={parte.valorCliente} onValue={(v) => upd({ valorCliente: v })} />

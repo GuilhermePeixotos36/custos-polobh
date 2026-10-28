@@ -145,7 +145,7 @@ export function CredenciamentoPublico() {
                 {equipe.map((m, i) => (
                   <div key={i} className="flex flex-wrap items-center gap-2">
                     <Input
-                      className="flex-1 min-w-[12rem]"
+                      className="flex-1 min-w-48"
                       placeholder="Nome completo *"
                       value={m.nome}
                       onChange={(e) => setEquipe((l) => l.map((x, j) => (j === i ? { ...x, nome: e.target.value } : x)))}
@@ -155,7 +155,7 @@ export function CredenciamentoPublico() {
                       return (
                         <Input
                           key={campo}
-                          className="flex-1 min-w-[9rem]"
+                          className="flex-1 min-w-36"
                           type={def.tipo}
                           inputMode={def.inputMode}
                           placeholder={def.placeholder}

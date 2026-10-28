@@ -113,7 +113,7 @@ function LegendaOrigem() {
 function Campos({ bloco, itens }: { bloco: string; itens: [string, Origem, string][] }) {
   return (
     <div className="rounded-card border border-border overflow-hidden">
-      <div className="bg-[#EDEEF1] px-3 py-2 text-[11.5px] font-extrabold uppercase tracking-[0.05em] text-ink-2">{bloco}</div>
+      <div className="bg-[#EDEEF1] px-3 py-2 text-[11.5px] font-extrabold uppercase tracking-wider text-ink-2">{bloco}</div>
       <div className="divide-y divide-border-soft">
         {itens.map(([nome, origem, o_que]) => (
           <div key={nome} className="grid sm:grid-cols-[13rem_6.5rem_minmax(0,1fr)] gap-x-3 gap-y-1 px-3 py-2 items-start">
@@ -1134,9 +1134,9 @@ const MODULOS: Modulo[] = [
           <Tela titulo="custos-polobh.vercel.app/credenciamento/…">
             <div className="space-y-2 text-[12px]">
               <div className="font-display font-bold text-ink">Equipe</div>
-              <div className="grid grid-cols-[1fr_90px_1fr] gap-1.5"><span className="bg-bg rounded px-2 py-1">Nome</span><span className="bg-bg rounded px-2 py-1">CPF</span><span className="bg-bg rounded px-2 py-1">Função</span></div>
+              <div className="grid grid-cols-[1fr_90px_1fr] gap-1.5"><span className="bg-bg rounded-sm px-2 py-1">Nome</span><span className="bg-bg rounded-sm px-2 py-1">CPF</span><span className="bg-bg rounded-sm px-2 py-1">Função</span></div>
               <div className="font-display font-bold text-ink pt-1">Veículos</div>
-              <div className="grid grid-cols-[1fr_90px] gap-1.5"><span className="bg-bg rounded px-2 py-1">Modelo</span><span className="bg-bg rounded px-2 py-1">Placa</span></div>
+              <div className="grid grid-cols-[1fr_90px] gap-1.5"><span className="bg-bg rounded-sm px-2 py-1">Modelo</span><span className="bg-bg rounded-sm px-2 py-1">Placa</span></div>
             </div>
           </Tela>
           <Atencao>Após o <b>prazo limite</b>, o formulário não aceita mais envios.</Atencao>
@@ -1391,7 +1391,7 @@ function PassoModulo({
     <button
       onClick={onClick}
       className={cx(
-        "flex-1 min-w-[13rem] flex items-center gap-3 px-4 py-3 rounded-card border border-border bg-surface",
+        "flex-1 min-w-52 flex items-center gap-3 px-4 py-3 rounded-card border border-border bg-surface",
         "hover:bg-[#FAFAFB] transition-colors text-left",
         proximo ? "flex-row-reverse text-right" : ""
       )}
@@ -1615,7 +1615,7 @@ export function Guia() {
         {/* Conteúdo */}
         <div ref={conteudo} className="min-w-0">
         {ativo ? (
-          <Card className="!p-6 md:!p-8">
+          <Card className="p-6! md:p-8!">
             <div className="flex items-center gap-3 mb-5 pb-5 border-b border-border-soft">
               <span className="h-11 w-11 rounded-card bg-primary-soft text-primary-dark grid place-items-center">{ativo.icone}</span>
               <div>

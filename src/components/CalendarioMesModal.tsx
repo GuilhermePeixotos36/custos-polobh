@@ -88,7 +88,7 @@ export function CalendarioMesModal({
   const larguraMinima = `calc(${COLUNA_NOME} + ${dias * LARGURA_DIA}px)`;
 
   return createPortal(
-    <div className="no-print fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-6">
+    <div className="no-print fixed inset-0 z-70 flex items-center justify-center p-3 sm:p-6">
       <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" onClick={onFechar} />
       <div className="relative w-full max-w-[1280px] max-h-[92vh] flex flex-col bg-surface rounded-card-lg shadow-modal border border-border animate-[fadein_.14s_ease] overflow-hidden">
         {/* ---------------------------------- topo --------------------------------- */}

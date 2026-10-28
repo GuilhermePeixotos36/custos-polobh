@@ -1170,7 +1170,7 @@ export function ProjetoDetail() {
                         {!oculto && (
                           <RichTextField
                             somenteLeitura={!editando}
-                            className="[&_[contenteditable]]:min-h-[220px]"
+                            className="**:[[contenteditable]]:min-h-[220px]"
                             value={chave ? p.info.roteiros[chave] : extra!.conteudo}
                             onChange={(v) => chave
                               ? updInfo({ roteiros: { ...p.info.roteiros, [chave]: v } })

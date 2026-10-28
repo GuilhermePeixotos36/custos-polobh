@@ -21,10 +21,10 @@ export function ConfirmDialog() {
   const danger = opts.tom === "danger";
 
   return (
-    /* z-[90]: acima dos modais (z-[70]) e do painel do Help Desk. Em z-[60] a
+    /* z-90: acima dos modais (z-[70]) e do painel do Help Desk. Em z-60 a
        confirmação abria ATRÁS de quem a pediu — invisível e inclicável, então a
        promessa nunca resolvia e o botão ficava travado em "…". */
-    <div className="no-print fixed inset-0 z-[90] flex items-center justify-center p-4">
+    <div className="no-print fixed inset-0 z-90 flex items-center justify-center p-4">
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-[1px]"
         onClick={() => responder(false)}
@@ -39,7 +39,7 @@ export function ConfirmDialog() {
           {!opts.somenteOk && (
             <button
               onClick={() => responder(false)}
-              className="h-10 px-4 rounded-btn font-bold text-sm bg-surface text-ink border-[1.5px] border-[#D6D9E0] hover:bg-[#FAFAFB]"
+              className="h-10 px-4 rounded-btn font-bold text-sm bg-surface text-ink border-[1.5px] border-border hover:bg-[#FAFAFB]"
             >
               {opts.cancelarTexto ?? "Cancelar"}
             </button>

@@ -112,7 +112,7 @@ export function RepercutirMudancasModal({
   }
 
   return createPortal(
-    <div className="no-print fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-6">
+    <div className="no-print fixed inset-0 z-70 flex items-center justify-center p-3 sm:p-6">
       <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" onClick={aplicando ? undefined : onFechar} />
       <div className="relative w-full max-w-[760px] max-h-[92vh] flex flex-col bg-surface rounded-card-lg shadow-modal border border-border animate-[fadein_.14s_ease] overflow-hidden">
         <div className="flex items-start gap-3 px-5 py-4 border-b border-border-soft">
@@ -149,9 +149,9 @@ export function RepercutirMudancasModal({
                 >
                   <div className="font-bold text-ink">{m.label}</div>
                   <div className="min-w-0 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                    <span className="text-ink-3 line-through break-words whitespace-pre-line">{m.antes || "—"}</span>
+                    <span className="text-ink-3 line-through wrap-break-word whitespace-pre-line">{m.antes || "—"}</span>
                     <span className="text-ink-3">→</span>
-                    <span className="text-ink font-semibold break-words whitespace-pre-line">{m.depois || "—"}</span>
+                    <span className="text-ink font-semibold wrap-break-word whitespace-pre-line">{m.depois || "—"}</span>
                   </div>
                 </div>
               ))}

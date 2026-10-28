@@ -184,7 +184,7 @@ export function Agenda() {
       <Card>
         <div className="flex items-center gap-2 flex-wrap">
           <Select
-            className="!h-9 !text-[13px] !w-[15rem]"
+            className="h-9! text-[13px]! w-60!"
             value={responsavel}
             onChange={(e) => setResponsavel(e.target.value)}
             aria-label="Filtrar por responsável"
@@ -198,7 +198,7 @@ export function Agenda() {
             ))}
           </Select>
           <Select
-            className="!h-9 !text-[13px] !w-[18rem]"
+            className="h-9! text-[13px]! w-[18rem]!"
             value={projetoId}
             onChange={(e) => setProjetoId(e.target.value)}
             aria-label="Filtrar por projeto"
@@ -317,7 +317,7 @@ function LinhaAgenda({
         )}
         <span
           className={cx(
-            "text-[12.5px] font-extrabold tabular-nums w-[5.5rem] text-right",
+            "text-[12.5px] font-extrabold tabular-nums w-22 text-right",
             atrasada ? "text-danger" : "text-ink-2"
           )}
         >

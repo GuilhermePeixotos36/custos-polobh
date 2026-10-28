@@ -90,7 +90,7 @@ export function Login() {
             type="button"
             onClick={() => void esqueciSenha()}
             disabled={enviandoLink}
-            className="mt-4 block w-full text-center text-[12.5px] font-bold text-ink-2 hover:text-primary-dark input-focus rounded"
+            className="mt-4 block w-full text-center text-[12.5px] font-bold text-ink-2 hover:text-primary-dark input-focus rounded-sm"
           >
             {enviandoLink ? "Enviando…" : "Esqueceu a sua senha?"}
           </button>

@@ -181,7 +181,7 @@ export function Calendario() {
                     "h-9 px-3.5 rounded-btn text-[13px] font-bold border-[1.5px] transition-colors",
                     filtro === f.key
                       ? "bg-primary-soft border-active-border text-primary-dark"
-                      : "bg-surface border-[#D6D9E0] text-ink-2 hover:text-ink"
+                      : "bg-surface border-border text-ink-2 hover:text-ink"
                   )}
                 >
                   {f.label}
@@ -190,7 +190,7 @@ export function Calendario() {
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <Select className="!h-9 !w-auto min-w-[150px]" value={modalidade} onChange={(e) => setModalidade(e.target.value)}>
+            <Select className="h-9! w-auto! min-w-[150px]" value={modalidade} onChange={(e) => setModalidade(e.target.value)}>
               <option value="">Modalidade</option>
               <option value="Corporativo">Corporativo</option>
               <option value="Cultural">Cultural</option>
@@ -198,7 +198,7 @@ export function Calendario() {
             {/* Os três filtros agem JUNTOS (pergunta do check-list de 15/09):
                 Ativos + Culturais + "Marisa" devolve os culturais ativos dela. */}
             {produtoras.length > 0 && (
-              <Select className="!h-9 !w-auto min-w-[210px]" value={produtora} onChange={(e) => setProdutora(e.target.value)}>
+              <Select className="h-9! w-auto! min-w-[210px]" value={produtora} onChange={(e) => setProdutora(e.target.value)}>
                 <option value="">Produtor(a) Responsável</option>
                 {produtoras.map((nome) => (
                   <option key={nome} value={nome}>{nome}</option>
@@ -318,7 +318,7 @@ function CardMes({
       onClick={onAbrir}
       className={cx(
         "group text-left bg-surface border rounded-card-lg shadow-card p-4 flex flex-col gap-3 transition-all duration-150",
-        "hover:-translate-y-[2px] hover:shadow-[0_18px_32px_-24px_rgba(16,30,66,.55)] hover:border-primary/45",
+        "hover:translate-y-[-2px] hover:shadow-[0_18px_32px_-24px_rgba(16,30,66,.55)] hover:border-primary/45",
         ehMesAtual ? "border-primary/55 ring-2 ring-primary/15" : "border-border",
         segmentos.length === 0 && "bg-[#FBFBFC]"
       )}
@@ -327,7 +327,7 @@ function CardMes({
         <h3 className={cx("font-display font-bold text-[15px] tracking-[-0.2px]", segmentos.length ? "text-ink" : "text-ink-3")}>
           {MESES[mes]}
         </h3>
-        {ehMesAtual && <span className="text-[9.5px] font-extrabold uppercase tracking-[0.1em] text-primary-dark bg-primary-soft rounded-pill px-2 py-0.5">agora</span>}
+        {ehMesAtual && <span className="text-[9.5px] font-extrabold uppercase tracking-widest text-primary-dark bg-primary-soft rounded-pill px-2 py-0.5">agora</span>}
         <span className="ml-auto">
           <Badge tom={segmentos.length ? "warning" : "neutral"}>
             {segmentos.length === 0 ? "livre" : `${segmentos.length} projeto${segmentos.length > 1 ? "s" : ""}`}
@@ -361,7 +361,7 @@ function CardMes({
         </div>
         {diaDeHoje > 0 && (
           <span
-            className="absolute -top-[3px] -bottom-[3px] w-[2px] rounded-pill bg-ink/70"
+            className="absolute top-[-3px] bottom-[-3px] w-[2px] rounded-pill bg-ink/70"
             style={{ left: `${((diaDeHoje - 0.5) / dias) * 100}%` }}
             title="hoje"
           />
@@ -441,7 +441,7 @@ function VistaLista({
               <h3 className="font-display font-bold text-[15px] text-ink">
                 {MESES[mes]} <span className="text-ink-3 font-semibold">de {ano}</span>
               </h3>
-              {ehMesAtual && <span className="text-[9.5px] font-extrabold uppercase tracking-[0.1em] text-primary-dark bg-primary-soft rounded-pill px-2 py-0.5">agora</span>}
+              {ehMesAtual && <span className="text-[9.5px] font-extrabold uppercase tracking-widest text-primary-dark bg-primary-soft rounded-pill px-2 py-0.5">agora</span>}
               <Badge tom="warning">{segmentos.length} projeto{segmentos.length > 1 ? "s" : ""}</Badge>
               <button
                 onClick={() => onAbrirMes(mes)}

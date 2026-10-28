@@ -38,7 +38,7 @@ interface Props {
   onChange: (obs: Observacao[]) => void;
   /** Habilita anexos nesta thread. Ausente = thread sem arquivo. */
   anexos?: ApiAnexos;
-  /** Ajusta o espaçamento do rodapé ao contêiner que o recebe (ex.: `!px-0`). */
+  /** Ajusta o espaçamento do rodapé ao contêiner que o recebe (ex.: `px-0!`). */
   className?: string;
   /**
    * Id do item dono desta thread (linha da EC, tarefa do check-list, OS). Com
@@ -226,7 +226,7 @@ export function ObservacoesThread({ observacoes, usuarios, onChange, className, 
             <button
               type="button"
               onClick={() => { setCompor({ modo: "novo" }); setAberto(true); }}
-              className="ml-auto inline-flex items-center gap-1.5 h-8 px-2.5 rounded-btn border-[1.5px] border-[#D6D9E0] bg-surface text-[12px] font-bold text-ink-2 hover:text-ink hover:border-primary/50 input-focus"
+              className="ml-auto inline-flex items-center gap-1.5 h-8 px-2.5 rounded-btn border-[1.5px] border-border bg-surface text-[12px] font-bold text-ink-2 hover:text-ink hover:border-primary/50 input-focus"
               title="Adicionar Observação"
             >
               <IcComment width={14} height={14} /> Observações
@@ -236,7 +236,7 @@ export function ObservacoesThread({ observacoes, usuarios, onChange, className, 
           <button
             type="button"
             onClick={() => { setCompor({ modo: "novo" }); setAberto(true); }}
-            className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-ink-3 hover:text-primary-dark input-focus rounded"
+            className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-ink-3 hover:text-primary-dark input-focus rounded-sm"
             title="Adicionar Observação"
           >
             <IcComment width={14} height={14} /> Adicionar Observação
@@ -673,7 +673,7 @@ function Composer({
       {comResponsavel && (
         <div className="flex items-center gap-2 mb-2">
           <span className="text-[11.5px] font-bold text-ink-2 shrink-0">Responsável:</span>
-          <Select className="!h-8 !text-[12.5px] flex-1" value={responsavel} onChange={(e) => setResponsavel(e.target.value)}>
+          <Select className="h-8! text-[12.5px]! flex-1" value={responsavel} onChange={(e) => setResponsavel(e.target.value)}>
             <option value="">— Ninguém (observação geral) —</option>
             {usuarios.map((u) => (
               <option key={u} value={u}>{u}</option>
@@ -690,7 +690,7 @@ function Composer({
         autoCapitalize="sentences"
         autoCorrect="on"
         placeholder="Escreva uma observação… use @ para mencionar alguém"
-        className="w-full resize-none bg-transparent text-[13px] text-ink outline-none placeholder:text-ink-3 leading-relaxed"
+        className="w-full resize-none bg-transparent text-[13px] text-ink outline-hidden placeholder:text-ink-3 leading-relaxed"
         value={texto}
         onChange={(e) => {
           setTexto(e.target.value);

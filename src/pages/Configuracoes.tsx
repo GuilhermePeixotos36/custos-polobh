@@ -86,7 +86,7 @@ export function Configuracoes() {
               </div>
               <div>
                 <label className="text-[12.5px] font-bold text-ink">Prazo de arquivamento: <span className="text-primary-dark">{retencao} meses</span></label>
-                <input type="range" min={6} max={48} step={6} value={retencao} onChange={(e) => setRetencao(Number(e.target.value))} className="w-full accent-[#F2820D] mt-2" />
+                <input type="range" min={6} max={48} step={6} value={retencao} onChange={(e) => setRetencao(Number(e.target.value))} className="w-full accent-primary mt-2" />
               </div>
               <p className="text-[12.5px] text-ink-2">Ao concluir um projeto, os dados são arquivados (não apagados) e seguem disponíveis para consulta e duplicação.</p>
             </div>
@@ -336,7 +336,7 @@ function FeriadosCard() {
           lançar os feriados municipais do ANO SEGUINTE; ela some quando o ano
           tem feriado lançado. Quem administra (Admin, Direção, Coordenação,
           Financeiro) escolhe quem recebe. */}
-      <Field label="Quem recebe o lembrete de janeiro" className="max-w-[22rem] mb-3">
+      <Field label="Quem recebe o lembrete de janeiro" className="max-w-88 mb-3">
         <Select value={responsavel} onChange={(e) => void trocarResponsavel(e.target.value)}>
           <option value="">Ninguém</option>
           {ativos.map((u) => (
@@ -346,7 +346,7 @@ function FeriadosCard() {
       </Field>
 
       <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <Field label="Ano" className="max-w-[8rem]">
+        <Field label="Ano" className="max-w-32">
           <Input
             type="number"
             value={ano}
@@ -363,13 +363,13 @@ function FeriadosCard() {
           <div key={i} className="flex items-center gap-2 flex-wrap">
             <Input
               type="date"
-              className="max-w-[11rem]"
+              className="max-w-44"
               value={f.data}
               onChange={(e) => mudar(i, { data: e.target.value })}
               aria-label="Data do feriado"
             />
             <Input
-              className="flex-1 min-w-[14rem]"
+              className="flex-1 min-w-56"
               value={f.nome}
               placeholder="Nome do feriado (ex.: Nossa Senhora da Conceição)"
               onChange={(e) => mudar(i, { nome: e.target.value })}
@@ -443,7 +443,7 @@ function Marcador({
       disabled={travado}
       title={titulo}
       onChange={(e) => onChange(e.target.checked)}
-      className="w-[17px] h-[17px] accent-[#F2820D] cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+      className="w-[17px] h-[17px] accent-primary cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
     />
   );
 }
@@ -646,7 +646,7 @@ function AreaModal({
   const telasVisiveis = TELAS.filter((t) => form.recursos.includes(t.ver)).length;
 
   return createPortal(
-    <div className="no-print fixed inset-0 z-[60] flex items-center justify-center p-4">
+    <div className="no-print fixed inset-0 z-60 flex items-center justify-center p-4">
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-[1px]"
         onClick={editando ? undefined : onFechar}
@@ -902,7 +902,7 @@ function UsuariosCard() {
                         title={impedimento ?? (ativo ? "Tira o acesso, preservando o histórico" : "Devolve o acesso")}
                         onClick={(e) => { e.stopPropagation(); void alternarAcesso(u); }}
                         className={cx(
-                          "text-[12px] font-bold rounded px-2 py-1 input-focus",
+                          "text-[12px] font-bold rounded-sm px-2 py-1 input-focus",
                           impedimento ? "text-ink-3 cursor-not-allowed" : ativo ? "text-danger hover:underline" : "text-success hover:underline"
                         )}
                       >

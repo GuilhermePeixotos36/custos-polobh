@@ -152,11 +152,11 @@ export function PageShell({
 
   return (
     <ProvedorRecolher>
-    <main className="flex-1 px-[var(--gutter)] py-5 md:py-[30px] max-w-[1720px] w-full mx-auto">
+    <main className="flex-1 px-(--gutter) py-5 md:py-[30px] max-w-[1720px] w-full mx-auto">
       <div
         ref={medirCabecalho}
         className={cx(
-          "cabecalho-pagina md:sticky top-[var(--altura-topnav)] z-20 -mx-[var(--gutter)] px-[var(--gutter)] pt-3 mb-4",
+          "cabecalho-pagina md:sticky top-(--altura-topnav) z-20 -mx-(--gutter) px-(--gutter) pt-3 mb-4",
           // Translúcido com desfoque: encosta no degradê do fundo sem virar uma
           // faixa chapada, e o conteúdo que passa por baixo continua legível.
           "bg-bg/90 backdrop-blur-[6px]",
@@ -192,7 +192,7 @@ export function PageShell({
         {/* Sangra até as bordas para o fio virar a base do cabeçalho inteiro, e
             rola na horizontal quando as guias não cabem na largura da tela. */}
         {subabas && (
-          <div data-tour="subguias" className="mt-3 -mx-[var(--gutter)] px-[var(--gutter)] border-b border-border overflow-x-auto">{subabas}</div>
+          <div data-tour="subguias" className="mt-3 -mx-(--gutter) px-(--gutter) border-b border-border overflow-x-auto">{subabas}</div>
         )}
       </div>
       {children}

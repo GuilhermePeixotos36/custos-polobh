@@ -1375,7 +1375,7 @@ export function OsForm() {
       >
         <Stepper value={encerradaDoc ? -1 : FASES_OS.indexOf(fase)}>
           {FASES_OS.map((f, i) => (
-            <StepperItem key={f} step={i} completed={emitida && !encerradaDoc} className="relative flex-1 !flex-col">
+            <StepperItem key={f} step={i} completed={emitida && !encerradaDoc} className="relative flex-1 flex-col!">
               <StepperTrigger asChild className="flex-col gap-2 text-center">
                 <StepperIndicator />
                 <div className="space-y-0.5 px-1">
@@ -1384,7 +1384,7 @@ export function OsForm() {
                 </div>
               </StepperTrigger>
               {i < FASES_OS.length - 1 && (
-                <StepperSeparator className="absolute top-4 left-[calc(50%+1.5rem)] right-[calc(-50%+1.5rem)] -order-1 m-0 -translate-y-1/2 !w-auto !flex-none" />
+                <StepperSeparator className="absolute top-4 left-[calc(50%+1.5rem)] right-[calc(-50%+1.5rem)] -order-1 m-0 -translate-y-1/2 w-auto! flex-none!" />
               )}
             </StepperItem>
           ))}
@@ -1689,16 +1689,16 @@ export function OsForm() {
               <div className="py-1.5 space-y-2">
                 {os.orcamento.parcelas.map((pc, i) => (
                   <div key={pc.id ?? i} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_150px_150px_auto] gap-2 items-center">
-                    <Input className="!h-9 min-w-0 col-span-3 sm:col-span-1" placeholder={`Descrição da ${i + 1}ª parcela`} sugestoes={sugestoes.valores.descricaoParcela} value={pc.descricao} onChange={(e) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, descricao: e.target.value } : x)) })} />
+                    <Input className="h-9! min-w-0 col-span-3 sm:col-span-1" placeholder={`Descrição da ${i + 1}ª parcela`} sugestoes={sugestoes.valores.descricaoParcela} value={pc.descricao} onChange={(e) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, descricao: e.target.value } : x)) })} />
                     <Input
-                      className="!h-9 min-w-0"
+                      className="h-9! min-w-0"
                       type="date"
                       title="Data de pagamento"
                       aria-label={`Data de pagamento da ${i + 1}ª parcela`}
                       value={pc.data ?? ""}
                       onChange={(e) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, data: e.target.value } : x)) })}
                     />
-                    <NumberInput className="!h-9 min-w-0" value={pc.valor} title={refParcelas.valor > 0 ? `Até ${brl(tetoDaParcela(i))} (saldo disponível)` : undefined} onValue={(v) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, valor: Math.min(v, tetoDaParcela(i)) } : x)) })} />
+                    <NumberInput className="h-9! min-w-0" value={pc.valor} title={refParcelas.valor > 0 ? `Até ${brl(tetoDaParcela(i))} (saldo disponível)` : undefined} onValue={(v) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, valor: Math.min(v, tetoDaParcela(i)) } : x)) })} />
                     <button className="text-ink-3 hover:text-danger px-2" title="Remover parcela" onClick={() => updOrc({ parcelas: os.orcamento.parcelas.filter((_, j) => j !== i) })}>✕</button>
                   </div>
                 ))}
@@ -1758,7 +1758,7 @@ export function OsForm() {
                 <button
                   type="button"
                   onClick={() => setOs((o) => (o ? { ...o, cronogramaNaoSeAplica: !o.cronogramaNaoSeAplica } : o))}
-                  className="text-[10.5px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded px-1"
+                  className="text-[10.5px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded-sm px-1"
                   title={os.cronogramaNaoSeAplica ? "Voltar a preencher o cronograma" : "Esta OS não tem cronograma — o bloco some do documento"}
                 >
                   {os.cronogramaNaoSeAplica ? "Informar cronograma" : "Não se aplica"}
@@ -1798,10 +1798,10 @@ export function OsForm() {
                             onSubir={() => moverCronograma(i, -1)}
                             onDescer={() => moverCronograma(i, 1)}
                           />
-                          <Input className="!h-9" type="date" value={c.data} onChange={(e) => setCron(i, { data: e.target.value })} />
-                          <Input className="!h-9" placeholder="08h às 18h" sugestoes={sugestoes.valores.horario} value={c.horario} onChange={(e) => setCron(i, { horario: e.target.value })} />
-                          <Input className="!h-9" placeholder="Montagem, Ensaio…" sugestoes={sugestoes.valores.etapaCronograma} value={c.etapa} onChange={(e) => setCron(i, { etapa: e.target.value })} />
-                          <Input className="!h-9" placeholder="Descritivo da contratação" sugestoes={sugestoes.valores.atividadesCronograma} value={c.atividades} onChange={(e) => setCron(i, { atividades: e.target.value })} />
+                          <Input className="h-9!" type="date" value={c.data} onChange={(e) => setCron(i, { data: e.target.value })} />
+                          <Input className="h-9!" placeholder="08h às 18h" sugestoes={sugestoes.valores.horario} value={c.horario} onChange={(e) => setCron(i, { horario: e.target.value })} />
+                          <Input className="h-9!" placeholder="Montagem, Ensaio…" sugestoes={sugestoes.valores.etapaCronograma} value={c.etapa} onChange={(e) => setCron(i, { etapa: e.target.value })} />
+                          <Input className="h-9!" placeholder="Descritivo da contratação" sugestoes={sugestoes.valores.atividadesCronograma} value={c.atividades} onChange={(e) => setCron(i, { atividades: e.target.value })} />
                           <button
                             type="button"
                             className="text-ink-3 hover:text-danger px-2"
@@ -1876,7 +1876,7 @@ export function OsForm() {
             <button
               type="button"
               onClick={adicionarGrupoExtra}
-              className="py-1.5 text-[12.5px] font-bold text-primary-dark hover:underline input-focus rounded"
+              className="py-1.5 text-[12.5px] font-bold text-primary-dark hover:underline input-focus rounded-sm"
             >
               + Novo grupo (além de Logística e Infraestrutura)
             </button>
@@ -1897,7 +1897,7 @@ export function OsForm() {
             <button
               type="button"
               onClick={() => setOs((o) => (o ? { ...o, observacoesGeraisNaoSeAplica: !o.observacoesGeraisNaoSeAplica } : o))}
-              className="text-[10.5px] font-bold text-ink-2 hover:text-primary-dark input-focus rounded px-1"
+              className="text-[10.5px] font-bold text-ink-2 hover:text-primary-dark input-focus rounded-sm px-1"
               title={os.observacoesGeraisNaoSeAplica ? "Voltar a escrever observações" : "Esta OS não tem observações — o bloco some do documento"}
             >
               {os.observacoesGeraisNaoSeAplica ? "Informar" : "Não se aplica"}
@@ -2156,7 +2156,7 @@ export function OsForm() {
                 <button
                   type="button"
                   onClick={() => updFin({ retencoesNaoSeAplica: !os.financeiro.retencoesNaoSeAplica })}
-                  className="text-[10.5px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded px-1"
+                  className="text-[10.5px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded-sm px-1"
                 >
                   {os.financeiro.retencoesNaoSeAplica ? "Usar o texto padrão" : "Não se aplica"}
                 </button>
@@ -2167,7 +2167,7 @@ export function OsForm() {
               ) : (
                 <>
                   <Textarea
-                    className="min-h-[86px] !bg-warning-soft !border-warning/50"
+                    className="min-h-[86px] bg-warning-soft! border-warning/50!"
                     value={os.financeiro.retencoes ?? RETENCOES_PADRAO}
                     onChange={(e) => updFin({ retencoes: e.target.value })}
                   />
@@ -2309,7 +2309,7 @@ export function OsForm() {
                       <button
                         type="button"
                         onClick={() => updClausula(c.chave, c.padrao)}
-                        className="text-[10.5px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded px-1"
+                        className="text-[10.5px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded-sm px-1"
                       >
                         Voltar ao texto do modelo
                       </button>
@@ -2392,7 +2392,7 @@ export function OsForm() {
             <button
               type="button"
               onClick={() => updFin({ acertoNaoSeAplica: !(os.financeiro.acertoNaoSeAplica ?? true) })}
-              className="text-[10.5px] font-bold text-ink-2 hover:text-primary-dark input-focus rounded px-1"
+              className="text-[10.5px] font-bold text-ink-2 hover:text-primary-dark input-focus rounded-sm px-1"
             >
               {(os.financeiro.acertoNaoSeAplica ?? true) ? "Lançar acerto" : "Não se aplica"}
             </button>
@@ -2419,7 +2419,7 @@ export function OsForm() {
               <LinhaOs label="Encargos sobre o acréscimo" hint="(percentual editável)">
                 <div className="flex items-center gap-2 flex-wrap">
                   <NumberInput
-                    className="!w-24"
+                    className="w-24!"
                     value={acerto.encargosPercentual}
                     onValue={(v) => updFin({ encargosAcrescimoPercentual: v })}
                     aria-label="Percentual de encargos sobre o acréscimo"
@@ -2635,7 +2635,7 @@ function CardOs({
   const fase = useContext(FaseDaOsCtx);
   const destaque = area && fase && vezDoBloco(area, fase).vez ? DESTAQUE_AREA[area] : null;
   return (
-    <div className={cx("bg-surface border border-border rounded-card shadow-card overflow-hidden [&_input:not([type=checkbox]):not([type=radio])]:!h-8 [&_select]:!h-8 [&_input]:!py-0 [&_select]:!py-0", className, destaque?.borda)}>
+    <div className={cx("bg-surface border border-border rounded-card shadow-card overflow-hidden [&_input:not([type=checkbox]):not([type=radio])]:h-8! [&_select]:h-8! [&_input]:py-0! [&_select]:py-0!", className, destaque?.borda)}>
       <div className={cx(destaque ? destaque.faixa : "bg-[#C0C0C0]", "px-4 py-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1")}>
         <button
           type="button"
@@ -2644,7 +2644,7 @@ function CardOs({
           className="flex items-center gap-2 flex-1 min-w-[min(100%,15rem)] text-left text-ink hover:opacity-80 transition-opacity"
         >
           <Chevron aberta={!recolhida} />
-          <h3 className="font-display font-bold text-[12.5px] uppercase tracking-[0.05em] text-ink">{secao}</h3>
+          <h3 className="font-display font-bold text-[12.5px] uppercase tracking-wider text-ink">{secao}</h3>
         </button>
         {area && <EtiquetaArea area={area} />}
         {acaoSecao && <div className="shrink-0">{acaoSecao}</div>}
@@ -2898,7 +2898,7 @@ function BlocoDeItens<C extends string>({
     >
       {tituloEditavel && onTitulo && (
         <Input
-          className="!h-9 mb-2 font-bold"
+          className="h-9! mb-2 font-bold"
           formato="grupo"
           value={titulo}
           onChange={(e) => onTitulo(e.target.value)}
@@ -2922,7 +2922,7 @@ function BlocoDeItens<C extends string>({
                   criado aqui é justamente o que quem cria precisa escrever. */}
               {item.extra ? (
                 <Input
-                  className="!h-9 !text-[12.5px]"
+                  className="h-9! text-[12.5px]!"
                   formato="item"
                   value={extraDoItem?.rotulo ?? ""}
                   onChange={(e) => onBloco({ extras: extras.map((x) => (x.id === item.chave ? { ...x, rotulo: e.target.value } : x)) })}
@@ -2940,7 +2940,7 @@ function BlocoDeItens<C extends string>({
                 </div>
               ) : (
                 <Input
-                  className="!h-9"
+                  className="h-9!"
                   sugestoes={sugestoes[item.chave] ?? []}
                   value={item.valor}
                   onChange={(e) => escrever(item.chave as C, item.extra, e.target.value)}
@@ -2951,7 +2951,7 @@ function BlocoDeItens<C extends string>({
                 <button
                   type="button"
                   onClick={() => alternar(item.chave as C, item.extra)}
-                  className="text-[10.5px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded px-1"
+                  className="text-[10.5px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded-sm px-1"
                   title={item.naoSeAplica ? "Voltar a informar este item" : "Este item não se aplica — some do documento e da planilha"}
                 >
                   {item.naoSeAplica ? "Informar" : "Não se aplica"}
@@ -3048,7 +3048,7 @@ function ItemContratacao({
                   checked={escolhida}
                   disabled={!podeEscolher || !temValor}
                   onChange={() => onUpd({ forma: chave })}
-                  className="mt-0.5 h-3.5 w-3.5 accent-[#F2820D] shrink-0"
+                  className="mt-0.5 h-3.5 w-3.5 accent-primary shrink-0"
                 />
                 <span className="text-[11px] font-bold leading-tight text-ink-2">{longo}</span>
               </span>
@@ -3104,7 +3104,7 @@ function TabelaResumoCustos({ resumo }: { resumo: ResumoContratacao }) {
     <div className="py-1.5 overflow-x-auto">
       <table className="w-full text-[12.5px] border-collapse">
         <thead>
-          <tr className="text-[10.5px] font-extrabold uppercase tracking-[0.05em] text-ink-3">
+          <tr className="text-[10.5px] font-extrabold uppercase tracking-wider text-ink-3">
             <th className="text-left font-extrabold pb-1.5 pr-2">Item</th>
             {colunas.map((c) => (
               <th key={c.chave} className="text-right font-extrabold pb-1.5 px-2 whitespace-nowrap">{c.curto}</th>

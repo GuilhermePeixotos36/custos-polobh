@@ -663,7 +663,7 @@ export function EcGrupos({
           {/* Os três status, um a um: o atalho acima faz o par mais comum
               (aprovar + liberar OS); aqui se muda só o que se quer mudar. */}
           <div className="flex items-center gap-2 flex-wrap border-t border-primary/20 pt-1.5">
-            <span className="text-[11px] font-extrabold uppercase tracking-[0.05em] text-primary-dark/80">
+            <span className="text-[11px] font-extrabold uppercase tracking-wider text-primary-dark/80">
               Alterar em massa
             </span>
             <SeletorEmMassa
@@ -911,7 +911,7 @@ function GrupoCard({
         {/* Marca de uma vez todos os itens visíveis do grupo. */}
         <input
           type="checkbox"
-          className="h-4 w-4 shrink-0 accent-[#F2820D] cursor-pointer"
+          className="h-4 w-4 shrink-0 accent-primary cursor-pointer"
           checked={todosMarcados}
           ref={(el) => { if (el) el.indeterminate = marcadosNoGrupo > 0 && !todosMarcados; }}
           onChange={(e) => onSelecionarGrupo(e.target.checked)}
@@ -940,7 +940,7 @@ function GrupoCard({
           <IcChevron width={20} height={20} className={cx("transition-transform duration-200", aberto && "rotate-90")} />
         </button>
         <Input
-          className="!h-10 !px-2.5 !text-[15px] !font-bold !uppercase max-w-sm min-w-0 flex-1 basis-[9rem]"
+          className="h-10! px-2.5! text-[15px]! font-bold! uppercase! max-w-sm min-w-0 flex-1 basis-36"
           formato="grupo"
           value={g.nome}
           sugestoes={sugestoes.valores.grupoEc}
@@ -1091,7 +1091,7 @@ function ItemRow({
         <div className="flex flex-col items-center gap-1 shrink-0 pt-1.5">
           <input
             type="checkbox"
-            className="h-4 w-4 accent-[#F2820D] cursor-pointer"
+            className="h-4 w-4 accent-primary cursor-pointer"
             checked={selecionado}
             onChange={onSelecionar}
             aria-label={`Selecionar item ${l.item || "sem título"}`}
@@ -1122,7 +1122,7 @@ function ItemRow({
         <div className="min-w-0">
           <Campo label="Item">
             <Input
-              className="!h-10 !px-2.5 !text-[13.5px] !font-semibold"
+              className="h-10! px-2.5! text-[13.5px]! font-semibold!"
               placeholder="Nome do item"
               formato="item"
               value={l.item}
@@ -1135,7 +1135,7 @@ function ItemRow({
         <div className="col-start-2 xl:col-start-auto min-w-0 grid gap-2">
           <Campo label="Descrição Financeiro">
             <AutoTextarea
-              className="!text-[13px] whitespace-pre-wrap"
+              className="text-[13px]! whitespace-pre-wrap"
               placeholder="Descrição do item — use Enter para criar parágrafos"
               value={l.descricao}
               rows={3}
@@ -1170,10 +1170,10 @@ function ItemRow({
         {verFinanceiro && (
           <div className="col-start-2 xl:col-start-auto grid grid-cols-2 gap-2 min-w-0">
             <Campo label="Pólobh" className="w-full xl:w-32">
-              <CurrencyInput className="!h-10 !px-2.5 !text-[13.5px]" value={l.valorPolobh} onValue={(v) => onUpd({ valorPolobh: v })} />
+              <CurrencyInput className="h-10! px-2.5! text-[13.5px]!" value={l.valorPolobh} onValue={(v) => onUpd({ valorPolobh: v })} />
             </Campo>
             <Campo label="Cliente" className="w-full xl:w-32">
-              <CurrencyInput className="!h-10 !px-2.5 !text-[13.5px]" value={l.valorCliente} onValue={(v) => onUpd({ valorCliente: v })} />
+              <CurrencyInput className="h-10! px-2.5! text-[13.5px]!" value={l.valorCliente} onValue={(v) => onUpd({ valorCliente: v })} />
             </Campo>
           </div>
         )}
@@ -1196,13 +1196,13 @@ function ItemRow({
           cortados: status com largura própria e curta, o fornecedor (o campo
           largo) cresce com o que sobrar. */}
       <div className="flex flex-wrap items-end gap-x-2 gap-y-2 px-2.5 pb-2.5 pt-1 border-t border-border-soft bg-[#FCFCFD] rounded-b-card min-w-0">
-        <Campo label="Aprovação" className="w-[7rem] shrink-0">
+        <Campo label="Aprovação" className="w-28 shrink-0">
           {/* Aprovar o item JÁ pede a OS: a mesma regra do botão "Aprovar
               selecionados" (ver `aprovarLinha`), para o campo OS não ficar em
               "Pendente" num item que o cliente já liberou. Voltar para Pendente
               desfaz só a OS que a aprovação criou. */}
           <Select
-            className={cx("!h-9 !px-2 !text-[12.5px]", classeCampoStatus(l.statusAprovacao))}
+            className={cx("h-9! px-2! text-[12.5px]!", classeCampoStatus(l.statusAprovacao))}
             value={l.statusAprovacao}
             onChange={(e) => {
               const escolhido = e.target.value as StatusAprovacao;
@@ -1220,14 +1220,14 @@ function ItemRow({
             mais se mexem.
             Os dois levam id próprio: "OS a emitir" é uma pendência, e o
             navegador/sininho pisca exatamente este pedaço da linha. */}
-        <Campo label="OS" className="w-[9.5rem] shrink-0" id={idCampoPendencia(l.id, "os")}>
-          <Select className={cx("!h-9 !px-2 !text-[12.5px]", classeCampoStatus(l.statusOs))} value={l.statusOs} onChange={(e) => onUpd({ statusOs: e.target.value as StatusOs })}>
+        <Campo label="OS" className="w-38 shrink-0" id={idCampoPendencia(l.id, "os")}>
+          <Select className={cx("h-9! px-2! text-[12.5px]!", classeCampoStatus(l.statusOs))} value={l.statusOs} onChange={(e) => onUpd({ statusOs: e.target.value as StatusOs })}>
             {OPCOES_STATUS_OS.map((o) => <option key={o}>{o}</option>)}
           </Select>
         </Campo>
         {/* Contrato usa exatamente a mesma lista da OS (inclui "Emitir Nova Versão"). */}
-        <Campo label="Contrato" className="w-[9.5rem] shrink-0" id={idCampoPendencia(l.id, "contrato")}>
-          <Select className={cx("!h-9 !px-2 !text-[12.5px]", classeCampoStatus(l.contratoStatus))} value={l.contratoStatus} onChange={(e) => onUpd({ contratoStatus: e.target.value as StatusOs })}>
+        <Campo label="Contrato" className="w-38 shrink-0" id={idCampoPendencia(l.id, "contrato")}>
+          <Select className={cx("h-9! px-2! text-[12.5px]!", classeCampoStatus(l.contratoStatus))} value={l.contratoStatus} onChange={(e) => onUpd({ contratoStatus: e.target.value as StatusOs })}>
             {OPCOES_STATUS_OS.map((o) => <option key={o}>{o}</option>)}
           </Select>
         </Campo>
@@ -1245,13 +1245,13 @@ function ItemRow({
             e voltam preenchidos para o item da EC válida. Editáveis dos dois
             lados, a EC e a OS discordavam sobre o mesmo dado — e, pior, a EC
             esperava por eles para deixar a OS nascer. */}
-        <Campo label="Documento PG" className="flex-[1_1_8rem] min-w-[7rem]">
+        <Campo label="Documento PG" className="flex-[1_1_8rem] min-w-28">
           <DaOs valor={l.faturaNf} />
         </Campo>
-        <Campo label="Código de Serviço" className="flex-[1_1_8rem] min-w-[7rem]">
+        <Campo label="Código de Serviço" className="flex-[1_1_8rem] min-w-28">
           <DaOs valor={l.codigoServico} />
         </Campo>
-        <Campo label="Pedido de Compra" className="flex-[1_1_8rem] min-w-[7rem]">
+        <Campo label="Pedido de Compra" className="flex-[1_1_8rem] min-w-28">
           <DaOs valor={l.pedidoCompra} />
         </Campo>
       </div>
@@ -1345,7 +1345,7 @@ function OpcoesDeValor({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinh
           height={12}
           className={cx("shrink-0 text-ink-3 transition-transform", aberta ? "rotate-90" : "")}
         />
-        <span className="text-[10.5px] font-extrabold uppercase tracking-[0.05em] text-ink-3 group-hover/alt:text-ink-2">
+        <span className="text-[10.5px] font-extrabold uppercase tracking-wider text-ink-3 group-hover/alt:text-ink-2">
           Alternativas de Custos
         </span>
         <span className="text-[11px] text-ink-3 truncate">
@@ -1363,7 +1363,7 @@ function OpcoesDeValor({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinh
                 {["Modalidade", "Valor", "BV", "Observações sob o BV"].map((c) => (
                   <th
                     key={c}
-                    className="px-2 py-1 text-[9.5px] font-extrabold uppercase tracking-[0.05em] text-ink-3 border-b border-border-soft"
+                    className="px-2 py-1 text-[9.5px] font-extrabold uppercase tracking-wider text-ink-3 border-b border-border-soft"
                   >
                     {c}
                   </th>
@@ -1385,14 +1385,14 @@ function OpcoesDeValor({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinh
                         <button
                           type="button"
                           onClick={() => alternarNaoSeAplica(opcao)}
-                          className="text-[10px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded"
+                          className="text-[10px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded-sm"
                           title={naoSeAplica ? "Voltar a informar um valor" : "Este item não é cobrado desta forma"}
                         >
                           {naoSeAplica ? "Informar valor" : "Não se aplica"}
                         </button>
                       )}
                     </td>
-                    <td className="px-2 py-1 border-b border-border-soft w-[9rem]">
+                    <td className="px-2 py-1 border-b border-border-soft w-36">
                       {/* Ou o valor, ou "Não se aplica" — as duas respostas
                           possíveis, ambas diferentes de deixar em branco. */}
                       {naoSeAplica ? (
@@ -1401,7 +1401,7 @@ function OpcoesDeValor({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinh
                         </div>
                       ) : (
                         <CurrencyInput
-                          className="!h-8 !px-2 !text-[12.5px]"
+                          className="h-8! px-2! text-[12.5px]!"
                           value={l[campo]}
                           onValue={(v) => onUpd({ [campo]: v } as Partial<EcLinha>)}
                           title={l.valorPolobh > 0 ? `Até ${brl(l.valorPolobh)} (valor definido do item)` : undefined}
@@ -1409,7 +1409,7 @@ function OpcoesDeValor({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinh
                         />
                       )}
                     </td>
-                    <td className="px-2 py-1 border-b border-border-soft w-[11rem]">
+                    <td className="px-2 py-1 border-b border-border-soft w-44">
                       {opcao === "comBvNf" ? (
                         naoSeAplica ? (
                           <span className="text-[11px] text-ink-3">—</span>
@@ -1459,7 +1459,7 @@ function ObservacaoDaForma({
     return (
       <>
         <AutoTextarea
-          className={cx("!text-[12px]", faltando && "!border-danger !bg-danger-soft")}
+          className={cx("text-[12px]!", faltando && "border-danger! bg-danger-soft!")}
           rows={1}
           value={bv.justificativa ?? ""}
           onChange={(e) => onUpd({ bv: { ...bv, justificativa: e.target.value } })}
@@ -1479,7 +1479,7 @@ function ObservacaoDaForma({
   const chave = opcao === "semBvComNf" ? "observacaoSemBvComNf" : "observacaoSemBvSemNf";
   return (
     <AutoTextarea
-      className="!text-[12px]"
+      className="text-[12px]!"
       rows={1}
       value={bv[chave] ?? ""}
       onChange={(e) => onUpd({ bv: { ...bv, [chave]: e.target.value } })}
@@ -1525,14 +1525,14 @@ function CamposBv({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinha>) =
       </div>
       {bv.modo === "percentual" ? (
         <NumberInput
-          className="!h-8 !px-2 !text-[12.5px]"
+          className="h-8! px-2! text-[12.5px]!"
           value={bv.valor}
           onValue={(v: number) => mudar({ valor: limitarBvPercentual(v) })}
           aria-label={`Percentual do BV do item ${l.item || "sem título"}`}
         />
       ) : (
         <CurrencyInput
-          className="!h-8 !px-2 !text-[12.5px]"
+          className="h-8! px-2! text-[12.5px]!"
           value={bv.valor}
           onValue={(v: number) => mudar({ valor: v })}
           aria-label={`Valor fixo do BV do item ${l.item || "sem título"}`}
@@ -1568,7 +1568,7 @@ export function SeletorEmMassa({
     <label className="flex items-center gap-1.5">
       <span className="text-[11.5px] font-bold text-ink-2">{rotulo}</span>
       <Select
-        className="!h-8 !px-2 !text-[12px] !w-auto"
+        className="h-8! px-2! text-[12px]! w-auto!"
         value=""
         onChange={(e) => {
           if (!e.target.value) return;
@@ -1590,7 +1590,7 @@ export function SeletorEmMassa({
 function Campo({ label, className, children, obrigatorio, id }: { label: string; className?: string; children: React.ReactNode; obrigatorio?: boolean; id?: string }) {
   return (
     <label id={id} className={cx("block", className)}>
-      <span className="block text-[10.5px] font-extrabold uppercase tracking-[0.05em] text-ink-3 mb-1 truncate">
+      <span className="block text-[10.5px] font-extrabold uppercase tracking-wider text-ink-3 mb-1 truncate">
         {label}
         {obrigatorio && <span className="text-danger" title="Obrigatório para emitir a OS"> *</span>}
       </span>

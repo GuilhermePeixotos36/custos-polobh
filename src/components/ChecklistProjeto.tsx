@@ -462,7 +462,7 @@ export function ChecklistProjeto({
             </Button>
           )}
           <Select
-            className="!h-9 !w-auto !text-[13px]"
+            className="h-9! w-auto! text-[13px]!"
             value={agrupamento}
             onChange={(e) => setAgrupamento(e.target.value as Agrupamento)}
             aria-label="Agrupar tarefas"
@@ -472,7 +472,7 @@ export function ChecklistProjeto({
           </Select>
           {responsaveis.length > 0 && (
             <Select
-              className="!h-9 !w-auto !text-[13px]"
+              className="h-9! w-auto! text-[13px]!"
               value={filtroResponsavel}
               onChange={(e) => setFiltroResponsavel(e.target.value)}
               aria-label="Filtrar por responsável"
@@ -517,7 +517,7 @@ export function ChecklistProjeto({
               type="checkbox"
               checked={todasMarcadas}
               onChange={(e) => alternarMarca(idsVisiveis, e.target.checked)}
-              className="h-4 w-4 accent-[#F2820D]"
+              className="h-4 w-4 accent-primary"
             />
             Selecionar todas
           </label>
@@ -583,7 +583,7 @@ export function ChecklistProjeto({
                           onChange={(e) => alternarMarca(idsDoBloco, e.target.checked)}
                           title="Selecionar as tarefas desta etapa"
                           aria-label={`Selecionar as tarefas de ${bloco.titulo}`}
-                          className="h-4 w-4 accent-[#F2820D] shrink-0"
+                          className="h-4 w-4 accent-primary shrink-0"
                         />
                       )}
                       {agrupamento === "data" && <IcCalendar width={15} height={15} className="text-ink-3 shrink-0" />}
@@ -615,7 +615,7 @@ export function ChecklistProjeto({
                       </span>
                     </header>
                     {/* Cabeçalho das colunas (só em tela larga). */}
-                    <div className={cx(GRADE_COLUNAS, "max-md:hidden px-4 py-1.5 border-b border-border-soft text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-ink-3")}>
+                    <div className={cx(GRADE_COLUNAS, "max-md:hidden px-4 py-1.5 border-b border-border-soft text-[10.5px] font-extrabold uppercase tracking-widest text-ink-3")}>
                       <span />
                       <span />
                       <span>Tarefa</span>
@@ -863,7 +863,7 @@ function ItemCard({
               checked={selecionada}
               onChange={(e) => onSelecionar(e.target.checked)}
               aria-label={`Selecionar a tarefa ${item.titulo || "sem título"}`}
-              className="h-4 w-4 accent-[#F2820D]"
+              className="h-4 w-4 accent-primary"
             />
           )}
         </span>
@@ -901,7 +901,7 @@ function ItemCard({
           {editandoTitulo ? (
             <Input
               autoFocus
-              className={cx("!h-8 !px-2 !text-[14px] !font-bold w-full", fechado && "line-through")}
+              className={cx("h-8! px-2! text-[14px]! font-bold! w-full", fechado && "line-through")}
               sugestoes={sugestoesTitulo}
               value={titulo}
               placeholder="Descreva a tarefa"
@@ -924,7 +924,7 @@ function ItemCard({
               disabled={!podeEditar}
               onClick={() => setEditandoTitulo(true)}
               className={cx(
-                "block w-full text-left text-[14px] font-bold leading-snug rounded px-1 -mx-1 py-0.5 input-focus",
+                "block w-full text-left text-[14px] font-bold leading-snug rounded-sm px-1 -mx-1 py-0.5 input-focus",
                 podeEditar && "hover:bg-[#F1F2F5] cursor-text",
                 fechado ? "line-through text-ink-3" : "text-ink",
                 !item.titulo && "text-ink-3 font-semibold italic"
@@ -939,7 +939,7 @@ function ItemCard({
           {editandoDescricao ? (
             <Input
               autoFocus
-              className="!h-7 !px-2 !text-[12.5px] w-full mt-0.5"
+              className="h-7! px-2! text-[12.5px]! w-full mt-0.5"
               value={descricao}
               placeholder="O que precisa ser feito"
               onChange={(e) => setDescricao(e.target.value)}
@@ -959,7 +959,7 @@ function ItemCard({
               disabled={!podeEditar}
               onClick={() => setEditandoDescricao(true)}
               className={cx(
-                "block w-full text-left text-[12.5px] leading-snug rounded px-1 -mx-1 mt-0.5 input-focus",
+                "block w-full text-left text-[12.5px] leading-snug rounded-sm px-1 -mx-1 mt-0.5 input-focus",
                 fechado ? "text-ink-3" : "text-ink-2",
                 podeEditar && "hover:bg-[#F1F2F5] cursor-text"
               )}
@@ -979,7 +979,7 @@ function ItemCard({
                 podeEditar={podeEditar}
               >
                 <Select
-                  className="!h-7 !px-1.5 !text-[12.5px] !w-[14rem]"
+                  className="h-7! px-1.5! text-[12.5px]! w-56!"
                   value={item.etapa}
                   onChange={(e) => onAlterar({ etapa: e.target.value })}
                   aria-label="Etapa da tarefa"
@@ -1005,7 +1005,7 @@ function ItemCard({
               <button
                 type="button"
                 onClick={() => setEditandoDescricao(true)}
-                className="font-bold text-ink-3 hover:text-primary-dark rounded px-1 -mx-1 input-focus opacity-0 group-hover:opacity-100 focus:opacity-100 max-md:opacity-100 transition-opacity"
+                className="font-bold text-ink-3 hover:text-primary-dark rounded-sm px-1 -mx-1 input-focus opacity-0 group-hover:opacity-100 focus:opacity-100 max-md:opacity-100 transition-opacity"
               >
                 + descrição
               </button>
@@ -1013,7 +1013,7 @@ function ItemCard({
             {!temConversa && (
               <div className="ml-auto max-md:ml-0 max-md:w-full opacity-0 group-hover:opacity-100 focus-within:opacity-100 max-md:opacity-100 transition-opacity">
                 <ObservacoesThread
-                  className="!border-t-0 !px-0 !py-0"
+                  className="border-t-0! px-0! py-0!"
                   ancora={item.id}
                   observacoes={item.observacoes ?? []}
                   usuarios={usuarios}
@@ -1028,7 +1028,7 @@ function ItemCard({
           {temConversa && (
             <div className="mt-1.5 pt-1.5 border-t border-border-soft">
               <ObservacoesThread
-                className="!border-t-0 !px-0 !py-0"
+                className="border-t-0! px-0! py-0!"
                 ancora={item.id}
                 observacoes={item.observacoes ?? []}
                 usuarios={usuarios}
@@ -1051,7 +1051,7 @@ function ItemCard({
               podeEditar={podeEditar}
             >
               <Select
-                className="!h-7 !px-1.5 !text-[12.5px] !w-[13rem]"
+                className="h-7! px-1.5! text-[12.5px]! w-52!"
                 value={item.responsavel}
                 onChange={(e) => onAlterar({ responsavel: e.target.value })}
                 aria-label="Responsável pela tarefa"
@@ -1084,7 +1084,7 @@ function ItemCard({
             >
               <Input
                 type="date"
-                className="!h-7 !px-1.5 !text-[12.5px] !w-[9.5rem]"
+                className="h-7! px-1.5! text-[12.5px]! w-38!"
                 value={item.dataLimite}
                 // Editar a data trava o item contra o recálculo automático: o
                 // ajuste da pessoa vale mais que a régua do modelo.
@@ -1110,7 +1110,7 @@ function ItemCard({
                 o que se escolhe é Pendente, Concluído ou Não se aplica. */}
             <CampoDiscreto titulo="Status" rotulo={status} tom={tomStatusExibido[status]} podeEditar={podeEditar}>
               <Select
-                className="!h-7 !px-1.5 !text-[12.5px] !w-[9.5rem]"
+                className="h-7! px-1.5! text-[12.5px]! w-38!"
                 value={item.status === "Concluído" || item.status === "Não se aplica" ? item.status : "Pendente"}
                 onChange={(e) => onStatus(e.target.value as StatusChecklist)}
                 aria-label="Status da tarefa"
@@ -1206,7 +1206,7 @@ function NomeDaEtapa({ nome, onRenomear }: { nome: string; onRenomear: (nome: st
         type="button"
         onClick={() => setEditando(true)}
         title="Renomear a etapa (vale para todas as tarefas dela)"
-        className="text-[12.5px] font-extrabold uppercase tracking-[0.06em] text-ink-2 truncate text-left rounded px-1 -mx-1 hover:bg-[#F1F2F5] input-focus"
+        className="text-[12.5px] font-extrabold uppercase tracking-[0.06em] text-ink-2 truncate text-left rounded-sm px-1 -mx-1 hover:bg-[#F1F2F5] input-focus"
       >
         {nome}
       </button>
@@ -1265,7 +1265,7 @@ function CampoDiscreto({
   if (aberto && podeEditar) {
     return (
       // Fecha ao sair do campo — inclusive quando o foco vai para outro lugar
-      // da tela. `blur` no container não basta: ele não dispara para o filho.
+      // da tela. `blur-sm` no container não basta: ele não dispara para o filho.
       <span
         onBlur={(e) => {
           if (!e.currentTarget.contains(e.relatedTarget as Node)) setAberto(false);
@@ -1284,7 +1284,7 @@ function CampoDiscreto({
       title={podeEditar ? `${titulo} — clique para alterar` : titulo}
       aria-label={`${titulo}: ${rotulo}`}
       className={cx(
-        "inline-flex items-center gap-1 rounded px-1 -mx-1 py-0.5 font-semibold input-focus",
+        "inline-flex items-center gap-1 rounded-sm px-1 -mx-1 py-0.5 font-semibold input-focus",
         podeEditar && "hover:bg-[#F1F2F5]",
         tom === "danger" ? "text-danger" : tom === "warning" ? "text-warning" : vazio ? "text-ink-3" : "text-ink-2",
         !podeEditar && "cursor-default"
@@ -1332,7 +1332,7 @@ function ConclusaoDoItem({
       >
         <Input
           type="datetime-local"
-          className="!h-7 !px-1.5 !text-[12px] !w-[12.5rem]"
+          className="h-7! px-1.5! text-[12px]! w-50!"
           value={quando}
           onChange={(e) => onAlterar(definirDataConclusao(item, e.target.value))}
           aria-label="Data e hora em que a tarefa foi concluída"

@@ -158,7 +158,7 @@ export function TourOverlay() {
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[70]"
+      className="fixed inset-0 z-70"
       // O bloqueio do app é GEOMÉTRICO: esta camada cobre a tela inteira, então
       // todo clique para nela e nada chega ao app atrás — inclusive por cima do
       // elemento iluminado. Não use `stopPropagation` na captura para isso: ela

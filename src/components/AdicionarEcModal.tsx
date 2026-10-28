@@ -72,7 +72,7 @@ export function AdicionarEcModal({
   };
 
   return createPortal(
-    <div className="no-print fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-6">
+    <div className="no-print fixed inset-0 z-70 flex items-center justify-center p-3 sm:p-6">
       <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" onClick={onFechar} />
       <div
         role="dialog"
@@ -105,10 +105,10 @@ export function AdicionarEcModal({
             }}
             className="rounded-btn border border-border-soft bg-[#FAFAFB] p-3 space-y-2"
           >
-            <div className="text-[11px] font-extrabold uppercase tracking-[0.05em] text-ink-3">Criar novo</div>
+            <div className="text-[11px] font-extrabold uppercase tracking-wider text-ink-3">Criar novo</div>
             <div className="flex flex-wrap items-center gap-2">
               <Input
-                className="!h-10 flex-1 min-w-[180px]"
+                className="h-10! flex-1 min-w-[180px]"
                 placeholder={tipo === "grupo" ? "Nome do grupo" : "Nome do item"}
                 formato={tipo === "grupo" ? "grupo" : "item"}
                 value={nome}
@@ -135,7 +135,7 @@ export function AdicionarEcModal({
               gruposExistentes.length > 0 ? (
                 <label className="flex items-center gap-2 text-[12.5px] text-ink-2">
                   No grupo
-                  <Select className="!h-9 max-w-xs" value={grupoDestino} onChange={(e) => setGrupoDestino(e.target.value)}>
+                  <Select className="h-9! max-w-xs" value={grupoDestino} onChange={(e) => setGrupoDestino(e.target.value)}>
                     {gruposExistentes.map((g) => <option key={g}>{g}</option>)}
                   </Select>
                 </label>
@@ -148,7 +148,7 @@ export function AdicionarEcModal({
           {/* Importar do modelo */}
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <div className="text-[11px] font-extrabold uppercase tracking-[0.05em] text-ink-3">Importar do modelo</div>
+              <div className="text-[11px] font-extrabold uppercase tracking-wider text-ink-3">Importar do modelo</div>
               <div className="ml-auto inline-flex rounded-btn border border-border overflow-hidden text-[12px] font-bold">
                 {(["Corporativo", "Cultural"] as const).map((m) => (
                   <button
@@ -176,7 +176,7 @@ export function AdicionarEcModal({
                     <div className="flex items-center gap-2 px-3 py-2 bg-[#FAFAFB]">
                       <input
                         type="checkbox"
-                        className="h-4 w-4 accent-[#F2820D] cursor-pointer"
+                        className="h-4 w-4 accent-primary cursor-pointer"
                         checked={grupoMarcado}
                         ref={(el) => {
                           if (el) el.indeterminate = grupoMarcado && marcadosNoGrupo > 0 && marcadosNoGrupo < g.itens.length;
@@ -204,7 +204,7 @@ export function AdicionarEcModal({
                             <label className="flex items-center gap-2 py-1 cursor-pointer text-[13px] text-ink-2">
                               <input
                                 type="checkbox"
-                                className="h-4 w-4 accent-[#F2820D]"
+                                className="h-4 w-4 accent-primary"
                                 checked={sel.itens.has(i.chave)}
                                 onChange={(e) => setSel((s) => alternarItem(s, g, i.chave, e.target.checked))}
                               />

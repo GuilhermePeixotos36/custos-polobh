@@ -69,7 +69,7 @@ export function OsList() {
           <div className="relative max-w-md flex-1 min-w-[220px]">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-3"><IcSearch width={16} height={16} /></span>
             <Input
-              className="!h-10 pl-9"
+              className="h-10! pl-9"
               placeholder="Buscar por número, fornecedor, CNPJ, EC…"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}

@@ -146,7 +146,7 @@ export function PainelSuporte() {
   return (
     <div
       className={cx(
-        "no-print fixed inset-0 z-[70] flex justify-end",
+        "no-print fixed inset-0 z-70 flex justify-end",
         // Escondido, e não desmontado, enquanto o print é tirado: desmontar
         // perderia o texto que a pessoa já escreveu.
         ocultoParaPrint && "opacity-0 pointer-events-none"

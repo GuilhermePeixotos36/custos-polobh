@@ -76,7 +76,7 @@ function Seta({
       aria-label={`Mover ${rotulo} para ${paraCima ? "cima" : "baixo"}`}
       title={dica}
       className={cx(
-        "inline-flex h-5 w-5 items-center justify-center rounded text-ink-3 transition-colors",
+        "inline-flex h-5 w-5 items-center justify-center rounded-sm text-ink-3 transition-colors",
         disabled ? "opacity-25 cursor-default" : "hover:bg-primary-soft hover:text-primary-dark"
       )}
     >

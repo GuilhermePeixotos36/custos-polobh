@@ -125,7 +125,7 @@ export function SinoPendencias() {
             <div className="max-h-[min(28rem,70vh)] overflow-y-auto py-1.5">
               {grupos.map((g) => (
                 <div key={g.titulo} className="px-1.5 pb-1.5">
-                  <div className="px-2 pt-1.5 pb-1 text-[10.5px] font-extrabold uppercase tracking-[0.05em] text-ink-3 truncate">
+                  <div className="px-2 pt-1.5 pb-1 text-[10.5px] font-extrabold uppercase tracking-wider text-ink-3 truncate">
                     {g.titulo}
                   </div>
                   {g.itens.map((p) => (

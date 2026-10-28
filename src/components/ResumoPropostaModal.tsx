@@ -72,7 +72,7 @@ export function ResumoPropostaModal({ onInserir, onClose }: Props) {
   }
 
   return createPortal(
-    <div className="no-print fixed inset-0 z-[70] flex items-center justify-center p-4">
+    <div className="no-print fixed inset-0 z-70 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px]" onClick={loading ? undefined : onClose} />
       <div className="relative w-full max-w-[520px] bg-surface rounded-card-lg shadow-modal border border-border p-6 animate-[fadein_.12s_ease] max-h-[85vh] overflow-y-auto">
         <h3 className="font-display font-bold text-[17px] text-ink tracking-[-0.3px] flex items-center gap-2">

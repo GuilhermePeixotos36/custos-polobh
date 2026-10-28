@@ -86,10 +86,10 @@ export function tomDoStatus(valor: string | undefined | null): Tom {
  * texto na cor do status, mantendo a borda do design system.
  */
 const CAMPO_POR_TOM: Record<Tom, string> = {
-  success: "!bg-success-soft !text-success !font-bold",
-  warning: "!bg-warning-soft !text-warning !font-bold",
-  danger: "!bg-danger-soft !text-danger !font-bold",
-  info: "!bg-info-soft !text-info !font-bold",
+  success: "bg-success-soft! text-success! font-bold!",
+  warning: "bg-warning-soft! text-warning! font-bold!",
+  danger: "bg-danger-soft! text-danger! font-bold!",
+  info: "bg-info-soft! text-info! font-bold!",
   neutral: "",
 };
 

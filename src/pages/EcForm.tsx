@@ -670,7 +670,7 @@ function TaxaEditor({ cfg, onChange, comMinimo = false }: { cfg: TaxaConfig; onC
   return (
     <div className="inline-flex items-center gap-1.5 flex-wrap">
       <Select
-        className="!h-8 !w-[68px] !px-2 !text-[12px]"
+        className="h-8! w-[68px]! px-2! text-[12px]!"
         value={cfg.modo}
         onChange={(e) => {
           const modo = e.target.value as TaxaConfig["modo"];
@@ -684,7 +684,7 @@ function TaxaEditor({ cfg, onChange, comMinimo = false }: { cfg: TaxaConfig; onC
         <>
           <div className="relative">
             <NumberInput
-              className="!h-8 !w-24 !px-2 !pr-6 !text-[12px] text-right"
+              className="h-8! w-24! px-2! pr-6! text-[12px]! text-right"
               min={0}
               max={100}
               step={0.01}
@@ -697,7 +697,7 @@ function TaxaEditor({ cfg, onChange, comMinimo = false }: { cfg: TaxaConfig; onC
             <label className="inline-flex items-center gap-1.5 text-[11.5px] text-ink-3">
               mín.
               <CurrencyInput
-                className="!h-8 !w-28 !px-2 !text-[12px]"
+                className="h-8! w-28! px-2! text-[12px]!"
                 value={cfg.minimo || 0}
                 onValue={(v) => onChange({ ...cfg, minimo: v })}
                 title="Taxa mínima: quando o percentual render menos que este valor, cobra-se o mínimo"
@@ -706,7 +706,7 @@ function TaxaEditor({ cfg, onChange, comMinimo = false }: { cfg: TaxaConfig; onC
           )}
         </>
       ) : (
-        <CurrencyInput className="!h-8 !w-32 !px-2 !text-[12px]" value={cfg.valor || 0} onValue={(v) => onChange({ ...cfg, modo: "fixo", valor: v })} />
+        <CurrencyInput className="h-8! w-32! px-2! text-[12px]!" value={cfg.valor || 0} onValue={(v) => onChange({ ...cfg, modo: "fixo", valor: v })} />
       )}
     </div>
   );
@@ -735,7 +735,7 @@ function ResumoCustos({
   onEncargosRotulo: (v: string) => void;
 }) {
   const rotuloClasse =
-    "font-semibold text-ink bg-transparent outline-none border-b border-dashed border-transparent hover:border-border focus:border-primary-dark min-w-0 flex-1 mr-2";
+    "font-semibold text-ink bg-transparent outline-hidden border-b border-dashed border-transparent hover:border-border focus:border-primary-dark min-w-0 flex-1 mr-2";
   const subTotalCliente = Math.round((t.somaCliente + t.honorariosCliente) * 100) / 100;
   return (
     <div className="overflow-x-auto">

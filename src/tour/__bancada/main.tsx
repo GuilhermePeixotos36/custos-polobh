@@ -24,7 +24,7 @@ import "@/index.css";
 function TelaFalsa() {
   return (
     <div className="min-h-[3000px] bg-bg">
-      <header className="sticky top-0 z-30 h-[var(--altura-topnav)] bg-surface border-b border-border flex items-center gap-3 px-5">
+      <header className="sticky top-0 z-30 h-(--altura-topnav) bg-surface border-b border-border flex items-center gap-3 px-5">
         <nav data-tour="topnav" className="flex items-center gap-1 flex-1">
           {["projetos", "calendario", "agenda", "fornecedores", "configuracoes", "logs", "guia"].map((r) => (
             <a key={r} data-tour={`nav-${r}`} className="px-3 h-9 rounded-btn text-[13px] font-semibold inline-flex items-center bg-[#F5F6F8]">
@@ -37,7 +37,7 @@ function TelaFalsa() {
       </header>
 
       <main className="px-6 py-5">
-        <div className="sticky top-[var(--altura-topnav)] z-20 bg-bg/90 pt-3 pb-3 mb-4" style={{ height: 118 }}>
+        <div className="sticky top-(--altura-topnav) z-20 bg-bg/90 pt-3 pb-3 mb-4" style={{ height: 118 }}>
           <div className="flex items-end justify-between gap-4">
             <h1 className="font-display font-bold text-[30px]">Bancada</h1>
             <div data-tour="acoes-tela" className="flex items-center gap-2.5 shrink-0">

@@ -156,7 +156,7 @@ export function EnvioCronograma({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
           <Th className="w-10">
             <input
               type="checkbox"
-              className="h-4 w-4 shrink-0 accent-[#F2820D] cursor-pointer"
+              className="h-4 w-4 shrink-0 accent-primary cursor-pointer"
               checked={todosMarcados}
               ref={(el) => {
                 if (el) el.indeterminate = marcados.size > 0 && !todosMarcados;
@@ -179,7 +179,7 @@ export function EnvioCronograma({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
               <Td>
                 <input
                   type="checkbox"
-                  className="h-4 w-4 shrink-0 accent-[#F2820D] cursor-pointer"
+                  className="h-4 w-4 shrink-0 accent-primary cursor-pointer"
                   checked={marcados.has(f.os.id)}
                   disabled={!podeEnviarCronograma(f)}
                   onChange={() =>

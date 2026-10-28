@@ -84,9 +84,9 @@ export function FornecedorField({ razao, cnpj, fornecedores, onChange, onValidar
 
   return (
     <div className="flex items-center gap-1.5">
-      <div className="relative flex items-center gap-1 w-[10.5rem] shrink-0">
+      <div className="relative flex items-center gap-1 w-42 shrink-0">
         <Input
-          className="!h-9 !px-2 !text-[12.5px]"
+          className="h-9! px-2! text-[12.5px]!"
           placeholder="CPF ou CNPJ"
           inputMode="numeric"
           autoComplete="off"
@@ -129,7 +129,7 @@ export function FornecedorField({ razao, cnpj, fornecedores, onChange, onValidar
         )}
       </div>
       <Input
-        className="!h-9 !px-2 !text-[12.5px] flex-1 min-w-[6rem]"
+        className="h-9! px-2! text-[12.5px]! flex-1 min-w-24"
         placeholder="Razão social"
         value={razao}
         onChange={(e) => onChange({ fornecedorRazao: e.target.value })}

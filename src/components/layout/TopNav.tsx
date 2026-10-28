@@ -23,7 +23,7 @@ export function TopNav() {
   const itens = NAV.filter((i) => pode(i.recurso) || !!i.ou?.some(pode));
 
   return (
-    <header className="no-print sticky top-0 z-30 h-[var(--altura-topnav)] bg-surface border-b border-border flex items-center gap-3 px-3 md:px-5">
+    <header className="no-print sticky top-0 z-30 h-(--altura-topnav) bg-surface border-b border-border flex items-center gap-3 px-3 md:px-5">
       <img src="/polobh-logo.png" alt="Pólobh" className="h-6 w-auto object-contain shrink-0" />
 
       {/* `data-tour`: âncoras do tour guiado (src/tour). São só marcas de
@@ -85,7 +85,7 @@ export function TopNav() {
           embaixo, com todos os itens e o nome de cada um. */}
       <nav
         aria-label="Menu"
-        className="md:hidden fixed bottom-0 inset-x-0 z-30 h-[var(--altura-nav-celular)] bg-surface border-t border-border flex items-stretch overflow-x-auto pb-[env(safe-area-inset-bottom)]"
+        className="md:hidden fixed bottom-0 inset-x-0 z-30 h-(--altura-nav-celular) bg-surface border-t border-border flex items-stretch overflow-x-auto pb-[env(safe-area-inset-bottom)]"
       >
         {itens.map((i) => {
           const conteudo = (ativo: boolean) => (

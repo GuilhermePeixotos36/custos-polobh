@@ -60,7 +60,7 @@ export function ErroAplicacao() {
             >
               Sair e entrar de novo
             </button>
-            <p className="mt-4 break-words rounded-btn bg-[#F5F6F8] px-3 py-2 text-left text-[11px] leading-snug text-ink-3">
+            <p className="mt-4 wrap-break-word rounded-btn bg-[#F5F6F8] px-3 py-2 text-left text-[11px] leading-snug text-ink-3">
               Detalhe técnico (envie este texto ao suporte): {motivoTecnico(erro)} · {window.location.pathname}
             </p>
           </>

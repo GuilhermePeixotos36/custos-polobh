@@ -96,7 +96,7 @@ export function Projetos() {
               onClick={() => setFiltro(f.key)}
               className={cx(
                 "h-9 px-3.5 rounded-btn text-[13px] font-bold border-[1.5px] transition-colors",
-                filtro === f.key ? "bg-primary-soft border-active-border text-primary-dark" : "bg-surface border-[#D6D9E0] text-ink-2 hover:text-ink"
+                filtro === f.key ? "bg-primary-soft border-active-border text-primary-dark" : "bg-surface border-border text-ink-2 hover:text-ink"
               )}
             >
               {f.label}

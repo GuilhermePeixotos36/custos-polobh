@@ -153,7 +153,7 @@ export function RentabilidadeItens({
                   <tr key={c.id} className="border-b border-border-soft">
                     <td className="px-3 py-1.5 pl-6" colSpan={2}>
                       <Input
-                        className="!h-9 !text-[12.5px]"
+                        className="h-9! text-[12.5px]!"
                         value={c.descricao}
                         onChange={(e) => mudarCusto(c.id, { descricao: e.target.value })}
                         placeholder="Ex.: diária da equipe de produção"
@@ -162,7 +162,7 @@ export function RentabilidadeItens({
                     </td>
                     <td className="px-3 py-1.5">
                       <CurrencyInput
-                        className="!h-9 !text-[12.5px]"
+                        className="h-9! text-[12.5px]!"
                         value={c.valor}
                         onValue={(valor) => mudarCusto(c.id, { valor })}
                         aria-label="Valor do custo interno"
