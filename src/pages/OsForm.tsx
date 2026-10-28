@@ -24,7 +24,7 @@ import {
   StepperDescription,
   StepperSeparator,
 } from "@/components/ui";
-import { IcCheck, IcCopy, IcDoc, IcEye, IcPencil, IcSearch, IcSend, IcSpark, IcCadeado } from "@/components/icons";
+import { IcBack, IcCheck, IcCopy, IcDoc, IcEye, IcPencil, IcSearch, IcSend, IcSpark, IcCadeado } from "@/components/icons";
 import { CardConversa } from "@/components/CardConversa";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
@@ -1206,7 +1206,7 @@ export function OsForm() {
       // O segundo cabeçalho do projeto: a OS é uma página interna dele, e sem
       // esta barra quem entrava aqui perdia toda a referência de onde estava.
       subabas={ecCtx.projetoId ? <BarraProjeto projetoId={ecCtx.projetoId} atual="os" /> : undefined}
-      topAction={
+      acoes={
         /*
          * O MENU DA OS, como o da EC (15/09/2026).
          *
@@ -1220,10 +1220,17 @@ export function OsForm() {
          * fornecedor um documento que ainda está sendo montado é o que a fase
          * veio impedir.
          */
-        <div className="flex gap-2 flex-wrap">
+        <>
+        {/* Mesma barra da EC (28/10/2026): "Voltar ao projeto" à esquerda e os
+            comandos alinhados à direita — antes eles ficavam ao lado do título
+            e, com o número longo da OS, caíam no meio da tela. */}
+        <button onClick={() => navigate(ecCtx.projetoId ? `/projetos/${ecCtx.projetoId}?aba=os` : "/projetos")} className="inline-flex items-center gap-1.5 text-sm text-ink-2 hover:text-ink font-semibold shrink-0">
+          <IcBack width={16} height={16} /> Voltar ao projeto
+        </button>
+        <div className="flex gap-2 flex-wrap justify-end ml-auto">
           {/* A ORDEM é a do menu da EC (29/09/2026): Editar OS (ou, em edição,
               Revisar + Salvar) · Gerar Nova Versão · Cancelar · Arquivar · PDF.
-              "Recolher/Expandir os itens" nasce sozinho ao lado, no cabeçalho. */}
+              Cada bloco abre e fecha pela seta do próprio cabeçalho. */}
           {!editando && (podeEditar || verFinanceiro) && !emitida && !encerradaDoc && (
             <Button
               size="sm"
@@ -1375,7 +1382,7 @@ export function OsForm() {
             </Button>
           )}
         </div>
-      }
+      </>}
     >
       <AvisoTravaEdicao trava={trava} />
       <AvisoEmailPendente className="mb-4" />
@@ -2650,7 +2657,8 @@ function CardOs({
   acaoSecao?: ReactNode;
   children: ReactNode;
 }) {
-  const { recolhida, alternar } = useSecaoRecolhivel(idSecao(secao));
+  // A OS abre só com os títulos dos blocos (28/10/2026); a seta abre cada um.
+  const { recolhida, alternar } = useSecaoRecolhivel(idSecao(secao), { fechadoDeInicio: true });
   const fase = useContext(FaseDaOsCtx);
   const destaque = area && fase && vezDoBloco(area, fase).vez ? DESTAQUE_AREA[area] : null;
   return (
@@ -2662,13 +2670,17 @@ function CardOs({
           aria-expanded={!recolhida}
           className="flex items-center gap-2 flex-1 min-w-[min(100%,15rem)] text-left text-ink hover:opacity-80 transition-opacity"
         >
-          <Chevron aberta={!recolhida} />
+          <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-white/70 text-ink shrink-0" title={recolhida ? "Abrir o bloco" : "Fechar o bloco"}>
+            <Chevron aberta={!recolhida} />
+          </span>
           <h3 className="font-display font-bold text-[12.5px] uppercase tracking-[0.05em] text-ink">{secao}</h3>
         </button>
         {area && <EtiquetaArea area={area} />}
         {acaoSecao && <div className="shrink-0">{acaoSecao}</div>}
       </div>
-      {!recolhida && children}
+      {/* Fechado, o conteúdo só fica OCULTO (e não fora da tela): assim o
+          "ir até a pendência" acha o campo e abre o bloco antes de rolar. */}
+      <div data-secao-conteudo={idSecao(secao)} hidden={recolhida}>{children}</div>
     </div>
   );
 }

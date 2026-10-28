@@ -28,6 +28,9 @@ const DURACAO_MS = 2600;
  * quadros, e aí o destaque simplesmente nunca acontecia.
  */
 const MAX_TENTATIVAS = 12;
+
+/** Pedido para abrir um bloco recolhido (ouvido pelo `ProvedorRecolher`). */
+export const EVENTO_ABRIR_SECAO = "secao:abrir";
 const INTERVALO_MS = 16;
 
 const semAnimacao = () =>
@@ -188,6 +191,14 @@ function comElemento(id: string, acao: (el: HTMLElement) => void): void {
   const tentar = () => {
     const el = document.getElementById(id);
     if (!el) {
+      if (tentativas++ < MAX_TENTATIVAS) window.setTimeout(tentar, INTERVALO_MS);
+      return;
+    }
+    // Alvo dentro de um BLOCO RECOLHIDO (a OS abre com tudo fechado): pede para
+    // abrir o bloco e só então rola — escondido, o elemento não tem posição.
+    const fechado = el.closest<HTMLElement>("[data-secao-conteudo][hidden]");
+    if (fechado) {
+      window.dispatchEvent(new CustomEvent(EVENTO_ABRIR_SECAO, { detail: fechado.dataset.secaoConteudo }));
       if (tentativas++ < MAX_TENTATIVAS) window.setTimeout(tentar, INTERVALO_MS);
       return;
     }

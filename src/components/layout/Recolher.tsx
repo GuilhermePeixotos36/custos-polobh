@@ -35,10 +35,15 @@ import {
   type ReactNode,
 } from "react";
 import { cx } from "@/lib/format";
+import { EVENTO_ABRIR_SECAO } from "@/lib/destaque";
 
 interface AcoesRecolher {
-  /** Registra o bloco (devolve a baixa, para quando ele sai da tela). */
-  registrar(id: string): () => void;
+  /**
+   * Registra o bloco (devolve a baixa, para quando ele sai da tela).
+   * `fechadoDeInicio`: na PRIMEIRA vez que o bloco aparece, ele já nasce
+   * recolhido (a OS abre só com os títulos — 28/10/2026).
+   */
+  registrar(id: string, fechadoDeInicio?: boolean): () => void;
   alternar(id: string): void;
   /** Abre um bloco específico — usado por quem precisa levar a pessoa a um campo. */
   expandir(id: string): void;
@@ -62,11 +67,17 @@ export function ProvedorRecolher({ children }: { children: ReactNode }) {
   const [total, setTotal] = useState(0);
   /** Quem está na tela agora — o "tudo" de recolher tudo. */
   const registradas = useRef<Set<string>>(new Set());
+  /** Quem já apareceu alguma vez: o "nasce recolhido" vale só na primeira. */
+  const conhecidas = useRef<Set<string>>(new Set());
 
   const acoes = useMemo<AcoesRecolher>(
     () => ({
-      registrar(id) {
+      registrar(id, fechadoDeInicio) {
         registradas.current.add(id);
+        if (!conhecidas.current.has(id)) {
+          conhecidas.current.add(id);
+          if (fechadoDeInicio) setRecolhidas((atuais) => (atuais.has(id) ? atuais : new Set(atuais).add(id)));
+        }
         setTotal(registradas.current.size);
         return () => {
           registradas.current.delete(id);
@@ -100,6 +111,16 @@ export function ProvedorRecolher({ children }: { children: ReactNode }) {
     []
   );
 
+  // O destaque (ir até a pendência, até o campo) abre o bloco que esconde o alvo.
+  useEffect(() => {
+    const abrir = (e: Event) => {
+      const id = (e as CustomEvent<string>).detail;
+      if (id) acoes.expandir(id);
+    };
+    window.addEventListener(EVENTO_ABRIR_SECAO, abrir);
+    return () => window.removeEventListener(EVENTO_ABRIR_SECAO, abrir);
+  }, [acoes]);
+
   const estado = useMemo<EstadoRecolher>(() => ({ recolhidas, total }), [recolhidas, total]);
 
   return (
@@ -121,11 +142,14 @@ export function useAcoesRecolher(): AcoesRecolher | null {
  * Fora de um `ProvedorRecolher` devolve "sempre expandido", sem quebrar — é o
  * que faz o componente do bloco servir também em tela de impressão.
  */
-export function useSecaoRecolhivel(id: string): { recolhida: boolean; alternar: () => void } {
+export function useSecaoRecolhivel(
+  id: string,
+  { fechadoDeInicio = false }: { fechadoDeInicio?: boolean } = {},
+): { recolhida: boolean; alternar: () => void } {
   const acoes = useContext(AcoesCtx);
   const { recolhidas } = useContext(EstadoCtx);
   // `acoes` tem identidade estável, então isto roda uma vez na montagem.
-  useEffect(() => acoes?.registrar(id), [acoes, id]);
+  useEffect(() => acoes?.registrar(id, fechadoDeInicio), [acoes, id]); // eslint-disable-line react-hooks/exhaustive-deps
   const alternar = useCallback(() => acoes?.alternar(id), [acoes, id]);
   return { recolhida: recolhidas.has(id), alternar };
 }
