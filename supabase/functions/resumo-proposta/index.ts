@@ -1,14 +1,17 @@
 import { autorizar, respostaAutorizacao } from "../_shared/auth.ts";
 import { base64, buscarPublico } from "../_shared/fetch-publico.ts";
+import { completarGratis } from "../_shared/openrouter.ts";
 
 /**
  * Edge Function: resumo-proposta
  * Recebe orçamentos de fornecedores (imagens JPG/PNG, PDF, texto extraído de
  * Excel, ou um link) e usa um modelo multimodal do OpenRouter para sintetizar
  * um descritivo em tópicos com os valores individuais. A chave fica só aqui.
+ * Desde 28/10/2026 usa só modelos GRATUITOS, trocando de um para outro quando
+ * falham; com imagem, só os que leem imagem (ver `_shared/openrouter.ts`).
  *
  * Deploy:   supabase functions deploy resumo-proposta
- * Segredos: supabase secrets set OPENROUTER_API_KEY=...   (opcional: OPENROUTER_MODEL=...)
+ * Segredos: supabase secrets set OPENROUTER_API_KEY=...   (opcional: OPENROUTER_FREE_MODELS=...)
  *
  * Body (JSON):
  *   {
@@ -37,7 +40,6 @@ const PROMPT =
   "prestados e seus seus valores individuais. Responda em português, em bullet points " +
   "(um item por linha, começando com '• '), sem introdução nem conclusão.";
 
-const MODEL = Deno.env.get("OPENROUTER_MODEL") || "google/gemini-2.5-flash";
 
 interface Payload {
   textos?: string[];
@@ -95,31 +97,17 @@ Deno.serve(async (req) => {
 
     if (!temConteudo) return json({ ok: false, erro: "Nenhum orçamento foi enviado." }, 400);
 
-    const bodyReq: Parte = {
-      model: MODEL,
+    const temImagem = partes.some((x) => x.type === "image_url");
+    const resposta = await completarGratis(apiKey, {
+      titulo: "Polobh EC",
       messages: [{ role: "user", content: partes }],
       temperature: 0.2,
-      // Resumo é sempre curto (lista de tópicos) — limita para não estourar
-      // o crédito da conta OpenRouter (alguns modelos pedem 60k+ por padrão).
-      max_tokens: 2000,
-    };
-
-    const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "X-Title": "Polobh EC",
-      },
-      body: JSON.stringify(bodyReq),
+      // Resumo é sempre curto (lista de tópicos).
+      max_tokens: 3000,
+      imagem: temImagem,
     });
-    if (!resp.ok) {
-      const detalhe = await resp.text();
-      return json({ ok: false, erro: `OpenRouter ${resp.status}: ${detalhe.slice(0, 500)}` }, 502);
-    }
-    const data = await resp.json();
-    const resumo = data?.choices?.[0]?.message?.content?.trim() || "";
-    if (!resumo) return json({ ok: false, erro: "O modelo não retornou conteúdo." }, 502);
+    if (!resposta.ok) return json({ ok: false, erro: resposta.erro }, resposta.status === 429 ? 429 : 502);
+    const resumo = resposta.texto;
 
     return json({ ok: true, resumo });
   } catch (e) {
