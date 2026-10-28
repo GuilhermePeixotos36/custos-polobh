@@ -703,7 +703,7 @@ function montarOsEmissao(
   const fornecedor = fornCadastro ?? fornecedorVazioEc(g?.fornecedorRazao ?? "", g?.fornecedorCnpj ?? "");
   return {
     id: "",
-    numero: numeroOs(ecAtual, fornecedor, versao, agora),
+    numero: numeroOs(ecAtual, fornecedor, versao, agora, linhas.map((l) => l.id)),
     slugCredenciamento: "",
     seq,
     ecId: ecAtual.id,

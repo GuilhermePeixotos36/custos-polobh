@@ -244,30 +244,41 @@ export function versaoOs(oss: Os[], ecId: string, fornecedorCnpj: string, fornec
 }
 
 /**
- * Título da OS: "OS – {Apelido do Cliente} – {Projeto} – {Ano} – {Apelido do
- * Fornecedor} – ({NN}) em {DD MM AA}".
+ * Título da OS (28/10/2026): "OS – {Projeto} – {Item} – {Fornecedor} ({N}) em
+ * {DD MM AA}". Ex.: "OS – BM – Convenção de Vendas 2027 – Cenografia – Âmbar (1)
+ * em 27 10 26".
  *
- * Segue o mesmo espírito do título da EC — o que identifica o documento é a
- * linguagem da casa (apelidos), não um código —, com o fornecedor no meio, já
- * que é ele quem recebe a OS, e a versão entre parênteses no fim.
- *
- * Cada pedaço tem um plano B: EC antiga, gravada antes de o projeto ter cliente
- * abreviado / nome / ano separados, cai no título completo do projeto.
+ * - Projeto: apelido do cliente + nome do projeto + ano ("BM – Convenção de
+ *   Vendas 2027"); EC antiga, sem os pedaços separados, usa o título do projeto.
+ * - Item: o nome do item da EC; com mais de um item na OS, "Diversos".
+ * - Fornecedor: o apelido (ver `apelidoFornecedor`), com a versão entre
+ *   parênteses logo depois.
  */
 export function numeroOs(
   ec: Ec,
   fornecedor: Pick<Fornecedor, "apelido" | "nomeFantasia" | "razaoSocial"> | string | undefined,
   versao: number,
-  criadoEm: string = new Date().toISOString()
+  criadoEm: string = new Date().toISOString(),
+  ecLinhaIds: string[] = []
 ): string {
   const p = ec.projeto;
   const cliente = (p.clienteAbreviado || ec.cliente?.apelido || ec.cliente?.nome || "").trim();
-  const projeto = (p.nomeProjeto || p.titulo || "").trim();
+  const nome = (p.nomeProjeto || "").trim();
   const ano = (p.anoProjeto || (p.evento || criadoEm || "").slice(0, 4)).trim();
-  const partes = [cliente, projeto, ano, apelidoFornecedor(fornecedor)].filter(Boolean);
+  const projeto = nome ? [cliente, [nome, ano].filter(Boolean).join(" ")].filter(Boolean).join(" – ") : (p.titulo || cliente).trim();
+  const item = itemDoTituloOs(ec, ecLinhaIds);
+  const forn = apelidoFornecedor(fornecedor);
   const data = dataBRCurta(criadoEm);
-  const numero = `(${String(versao).padStart(2, "0")})`;
-  return `OS – ${partes.join(" – ")} – ${data ? `${numero} em ${data}` : numero}`;
+  const fim = [forn, `(${versao})`].filter(Boolean).join(" ") + (data ? ` em ${data}` : "");
+  return ["OS", projeto, item, fim].filter(Boolean).join(" – ");
+}
+
+/** O item no título da OS: o nome do único item, ou "Diversos" com mais de um. */
+export function itemDoTituloOs(ec: Pick<Ec, "linhas">, ecLinhaIds: string[]): string {
+  if (ecLinhaIds.length > 1) return "Diversos";
+  if (!ecLinhaIds.length) return "";
+  const l = (ec.linhas ?? []).find((x) => x.id === ecLinhaIds[0]);
+  return (l?.item || l?.descricao || "").trim();
 }
 
 export const producaoPadrao = (): Producao => ({

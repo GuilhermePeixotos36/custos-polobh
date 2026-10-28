@@ -89,7 +89,7 @@ export function RepercutirMudancasModal({
         const versao = versaoOs(conhecidas, os.ecId, os.fornecedor?.cnpj ?? "", os.fornecedor?.razaoSocial ?? "");
         const base: Ec = { ...(ec as Ec), projeto: novo.info, cliente: novo.cliente };
         const nova = await repo.oss.gerarNovaVersao(os, {
-          numero: numeroOs(base, os.fornecedor, versao, new Date().toISOString()),
+          numero: numeroOs(base, os.fornecedor, versao, new Date().toISOString(), os.ecLinhaIds),
           projeto: novo.info,
           cliente: novo.cliente,
         });
