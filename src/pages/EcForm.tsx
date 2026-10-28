@@ -14,6 +14,7 @@ import {
   NumberInput,
   CurrencyInput,
   Select,
+  CarregandoTela,
 } from "@/components/ui";
 import { IcCopy, IcEye, IcSearch, IcBack } from "@/components/icons";
 import { repo } from "@/data";
@@ -519,6 +520,8 @@ export function EcForm() {
             <Button size="sm" onClick={() => void salvar()} disabled={salvando || mostrarSalvo}>
               {salvando ? "Salvando…" : mostrarSalvo ? "Salvo" : "Salvar"}
             </Button>
+            {salvando && <CarregandoTela texto="Salvando…" />}
+            {revisando && <CarregandoTela texto="Revisando os textos…" />}
             {!!ec.id && podeEditar && (
               <Button variant="secondary" size="sm" icon={<IcCopy width={16} height={16} />}
                 onClick={async () => {

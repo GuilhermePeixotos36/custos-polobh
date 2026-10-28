@@ -13,7 +13,7 @@
  */
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, Field, Input } from "@/components/ui";
+import { Button, CarregandoTela, Field, Input } from "@/components/ui";
 import { motivoSenhaNovaInvalida } from "@/domain/senha";
 import { useAuth } from "@/store/auth";
 import { supabase } from "@/lib/supabaseClient";
@@ -102,6 +102,8 @@ export function NovaSenha() {
               {erro && (
                 <p className="mb-4 text-[12.5px] font-semibold text-danger bg-danger-soft rounded-btn px-3 py-2">{erro}</p>
               )}
+
+              {salvando && <CarregandoTela />}
 
               <Button type="submit" block disabled={salvando || temSessao === null}>
                 {salvando ? "Salvando…" : "Salvar senha"}

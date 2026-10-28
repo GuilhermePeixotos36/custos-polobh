@@ -7,6 +7,7 @@ import { NAV_PROJETO } from "@/components/layout/nav";
 import {
   Card, CardTitle, Button, Field, Input, Label, TelefoneInput, Select, Badge,
   Table, THead, Tr, Td, EmptyState, ThOrd, useOrdenacao, tomStatusOs, type Tom,
+  CarregandoTela,
 } from "@/components/ui";
 import { IcPlus, IcBack, IcDownload, IcSearch, IcTrash, IcEye, IcEyeOff, IcDoc, IcCopy, IcCalendar, IcPencil } from "@/components/icons";
 import { RichTextField } from "@/components/RichTextField";
@@ -829,6 +830,7 @@ export function ProjetoDetail() {
                 </Button>
               ) : (
                 <>
+                  {salvando && <CarregandoTela />}
                   {!novo && (
                     <Button variant="secondary" size="sm" onClick={cancelarEdicao} disabled={salvando}>
                       Cancelar

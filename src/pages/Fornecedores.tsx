@@ -3,6 +3,7 @@ import { PageShell } from "@/components/layout/AppLayout";
 import {
   Card, CardTitle, Button, Field, Input, TelefoneInput, Select, Table, THead, Tr, Td,
   Badge, EmptyState, AvisoErro, Avatar, ThOrd, useOrdenacao,
+  CarregandoTela,
 } from "@/components/ui";
 import { IcSearch, IcTrash, IcPlus } from "@/components/icons";
 import { repo } from "@/data";
@@ -322,6 +323,7 @@ export function Fornecedores() {
               </div>
 
               <div className="flex gap-2 pt-1">
+                {salvando && <CarregandoTela />}
                 {podeEditar && <Button block onClick={salvar} disabled={salvando}>{salvando ? "Salvando…" : "Salvar"}</Button>}
                 <Button variant="secondary" block={!podeEditar} onClick={() => setEdit(null)}>{podeEditar ? "Cancelar" : "Fechar"}</Button>
               </div>

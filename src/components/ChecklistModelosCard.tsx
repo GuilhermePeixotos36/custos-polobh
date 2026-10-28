@@ -14,7 +14,7 @@
  * andamento recebe um aviso e decide quando trazer as tarefas novas.
  */
 import { useEffect, useMemo, useState } from "react";
-import { Button, Card, CardTitle, EmptyState, Input, NumberInput, Select } from "@/components/ui";
+import { Button, CarregandoTela, Card, CardTitle, EmptyState, Input, NumberInput, Select } from "@/components/ui";
 import { IcPlus, IcTrash } from "@/components/icons";
 import { MoverSetas } from "@/components/MoverSetas";
 import { repo } from "@/data";
@@ -212,6 +212,7 @@ export function ChecklistModelosCard() {
 
   return (
     <Card>
+      {salvando && <CarregandoTela />}
       <CardTitle
         hint="As tarefas que o sistema cria automaticamente ao definir a modalidade de um projeto. Alterar aqui não mexe nos check-lists já criados — cada projeto em andamento é avisado e decide quando trazer as novas."
         action={
