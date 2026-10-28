@@ -9,7 +9,7 @@ import { useAvisosPendencias } from "@/hooks/useAvisosPendencias";
 import { useMonitorPendencias } from "@/hooks/useMonitorPendencias";
 import { useRealtimePendencias } from "@/hooks/useRealtimePendencias";
 import { useEmpresas } from "@/store/empresas";
-import { BotaoRecolherTudo, ProvedorRecolher } from "./Recolher";
+import { ProvedorRecolher } from "./Recolher";
 import { TourOverlay } from "@/tour/TourOverlay";
 import { PainelSuporte } from "@/components/suporte/PainelSuporte";
 import { cx } from "@/lib/format";
@@ -181,10 +181,9 @@ export function PageShell({
             {legenda}
             {subtitle && <p className="text-ink-2 text-[15px] mt-2">{subtitle}</p>}
           </div>
-          {/* O comando de recolher/expandir nasce aqui e some sozinho na tela
-              que não tem blocos recolhíveis — nenhuma página precisa pedir. */}
+          {/* O "Recolher tudo" saiu daqui (28/10/2026): cada bloco abre e fecha
+              pela seta do próprio cabeçalho. */}
           <div data-tour="acoes-tela" className="flex items-center gap-2.5 flex-wrap min-w-0 max-w-full md:shrink-0">
-            <BotaoRecolherTudo />
             {topAction}
           </div>
         </div>
