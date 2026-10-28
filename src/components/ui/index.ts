@@ -8,3 +8,4 @@ export { Table, THead, Th, Tr, Td } from "./Table";
 export { CarregandoTela } from "./CarregandoTela";
 export { useOrdenacao, ThOrd, compararValores } from "./Ordenacao";
 export type { DirOrdem, EstadoOrdem, ValorOrdenavel } from "./Ordenacao";
+export { Stepper, StepperItem, StepperTrigger, StepperIndicator, StepperTitle, StepperDescription, StepperSeparator } from "./Stepper";
