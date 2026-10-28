@@ -443,7 +443,7 @@ export function OsForm() {
       setEcCtx(ec);
       iniciar(aplicarAutoPreenchimento({
         id: "",
-        numero: numeroOs(ec, fornecedor, versaoOs(ossDaEc ?? [], ec.id, fornecedor.cnpj, fornecedor.razaoSocial), agora),
+        numero: numeroOs(ec, fornecedor, versaoOs(ossDaEc ?? [], ec.id, fornecedor.cnpj, fornecedor.razaoSocial), agora, linhaIds),
         slugCredenciamento: "",
         seq,
         ecId: ec.id,
@@ -847,7 +847,7 @@ export function OsForm() {
       // A versão da série deste fornecedor nesta EC, para o número sair certo.
       const todas = await repo.oss.porEc(ecCtx!.id);
       const versao = versaoOs(todas, ecCtx!.id, os!.fornecedor.cnpj, os!.fornecedor.razaoSocial);
-      const numero = numeroOs(ecCtx!, os!.fornecedor, versao);
+      const numero = numeroOs(ecCtx!, os!.fornecedor, versao, undefined, os!.ecLinhaIds);
       const nova = await repo.oss.gerarNovaVersao(
         // A anterior vai para o arquivo como ela era: com o fornecedor de antes.
         { ...os!, fornecedor: anterior ?? os!.fornecedor },
@@ -1006,7 +1006,7 @@ export function OsForm() {
       const viva = await comDadosAtuaisDoProjeto(ecCtx!);
       const todas = await repo.oss.porEc(ecCtx!.id);
       const versao = versaoOs(todas, ecCtx!.id, os!.fornecedor.cnpj, os!.fornecedor.razaoSocial);
-      const numero = numeroOs(viva, os!.fornecedor, versao);
+      const numero = numeroOs(viva, os!.fornecedor, versao, undefined, os!.ecLinhaIds);
       const nova = await repo.oss.gerarNovaVersao(os!, { numero, projeto: viva.projeto, cliente: viva.cliente });
       toast(`Nova versão ${nova.numero} criada em rascunho. A anterior foi arquivada.`, "success");
       usePendencias.getState().carregar(true);

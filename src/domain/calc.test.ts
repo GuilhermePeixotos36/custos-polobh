@@ -174,18 +174,22 @@ describe("formas de cobrar o item", () => {
 describe("numeroOs", () => {
   const comProjeto = (p: Partial<Ec["projeto"]>): Ec =>
     ({
-      id: "ec1", cliente: { apelido: "ACME", nome: "ACME LTDA" },
-      projeto: { clienteAbreviado: "ACME", nomeProjeto: "Convenção Anual", anoProjeto: "2026", ...p },
+      id: "ec1", cliente: { apelido: "BM", nome: "Banco Mercantil" },
+      projeto: { clienteAbreviado: "BM", nomeProjeto: "Convenção de Vendas", anoProjeto: "2027", ...p },
+      linhas: [
+        { id: "l1", item: "Cenografia", descricao: "" },
+        { id: "l2", item: "Iluminação", descricao: "" },
+      ],
     }) as unknown as Ec;
 
-  it("monta o título com apelidos, ano, fornecedor, versão e data", () => {
-    const n = numeroOs(
-      comProjeto({}),
-      { apelido: "Som & Luz", nomeFantasia: "Som e Luz Produções", razaoSocial: "SOM & LUZ LTDA" },
-      1,
-      "2026-08-27T10:00:00.000Z"
-    );
-    expect(n).toBe("OS – ACME – Convenção Anual – 2026 – Som & Luz – (01) em 27 08 26");
+  it("OS – projeto – item – fornecedor (versão) em data", () => {
+    const n = numeroOs(comProjeto({}), { apelido: "Âmbar", razaoSocial: "AMBAR CENOGRAFIA LTDA" }, 1, "2026-10-27T10:00:00.000Z", ["l1"]);
+    expect(n).toBe("OS – BM – Convenção de Vendas 2027 – Cenografia – Âmbar (1) em 27 10 26");
+  });
+
+  it("mais de um item na OS: Diversos", () => {
+    const n = numeroOs(comProjeto({}), "Âmbar", 2, "2026-10-27T10:00:00.000Z", ["l1", "l2"]);
+    expect(n).toBe("OS – BM – Convenção de Vendas 2027 – Diversos – Âmbar (2) em 27 10 26");
   });
 
   it("sem apelido no cadastro, o sistema gera a partir do nome", () => {
@@ -193,8 +197,8 @@ describe("numeroOs", () => {
     expect(apelidoFornecedor({ razaoSocial: "SOM & LUZ PRODUÇÕES LTDA" })).toBe("Som & Luz");
     expect(apelidoFornecedor({ nomeFantasia: "Sonora AV", razaoSocial: "Sonora Áudio e Iluminação Ltda" }))
       .toBe("Sonora AV");
-    expect(numeroOs(comProjeto({}), { razaoSocial: "MONTA TUDO ESTRUTURAS LTDA" }, 2, "2026-08-27T10:00:00.000Z"))
-      .toContain("– Monta Tudo – (02) em");
+    expect(numeroOs(comProjeto({}), { razaoSocial: "MONTA TUDO ESTRUTURAS LTDA" }, 2, "2026-08-27T10:00:00.000Z", ["l1"]))
+      .toContain("– Monta Tudo (2) em");
   });
 
   it("apelido preenchido à mão vence a geração automática", () => {
@@ -202,14 +206,10 @@ describe("numeroOs", () => {
       .toBe("Som&Luz BH");
   });
 
-  it("EC antiga, sem cliente/projeto/ano separados, cai no título do projeto", () => {
-    const antiga = comProjeto({
-      clienteAbreviado: "", nomeProjeto: "", anoProjeto: "",
-      titulo: "ACME – Convenção Anual – 2026", evento: "2026-08-15",
-    });
-    const n = numeroOs(antiga, "Som & Luz", 1, "2026-08-27T10:00:00.000Z");
-    // O apelido vem do cliente cadastrado, e o ano da data do evento.
-    expect(n).toBe("OS – ACME – ACME – Convenção Anual – 2026 – 2026 – Som & Luz – (01) em 27 08 26");
+  it("EC antiga, sem cliente/projeto/ano separados, usa o título do projeto", () => {
+    const antiga = comProjeto({ clienteAbreviado: "", nomeProjeto: "", anoProjeto: "", titulo: "BM – Convenção de Vendas – 2027" });
+    const n = numeroOs(antiga, "Âmbar", 1, "2026-10-27T10:00:00.000Z", ["l2"]);
+    expect(n).toBe("OS – BM – Convenção de Vendas – 2027 – Iluminação – Âmbar (1) em 27 10 26");
   });
 });
 
