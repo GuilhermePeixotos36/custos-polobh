@@ -118,7 +118,7 @@ export function vezDoBloco(area: AreaOs, fase: FaseOs): { vez: boolean; aviso: s
   const etapa = ETAPA_DA_AREA[area];
   if (etapa === fase) return { vez: true, aviso: "É a vez deste bloco" };
   // Com o Back-office, tudo segue aberto a ele para correção até a emissão.
-  if (fase === "backoffice") return { vez: false, aviso: "Aberto ao Back-office para correção" };
+  if (fase === "backoffice") return { vez: false, aviso: "Aberto ao Back-office para revisão" };
   return FASES_OS.indexOf(etapa) < FASES_OS.indexOf(fase)
     ? { vez: false, aviso: `${area} já concluiu — em leitura` }
     : { vez: false, aviso: `Abre na etapa do ${area}` };
