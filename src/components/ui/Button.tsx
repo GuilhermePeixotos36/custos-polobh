@@ -1,6 +1,12 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { buttonVariants } from "@heroui/styles";
 import { cx } from "@/lib/format";
 
+/**
+ * Botão do app com o visual do HeroUI v3 (`buttonVariants`). As variantes
+ * antigas continuam valendo — cada uma aponta para a do HeroUI mais próxima —,
+ * então nenhuma tela precisou mudar.
+ */
 type Variant = "primary" | "dark" | "secondary" | "soft" | "text" | "danger";
 type Size = "md" | "sm";
 
@@ -11,38 +17,31 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
   block?: boolean;
 }
 
-const base =
-  "inline-flex items-center justify-center gap-2 font-bold rounded-btn transition-colors select-none disabled:cursor-not-allowed";
+const PARA_HEROUI = {
+  primary: "primary",
+  dark: "primary",
+  secondary: "outline",
+  soft: "secondary",
+  text: "ghost",
+  danger: "danger-soft",
+} as const;
 
-const variants: Record<Variant, string> = {
-  // laranja é claro -> texto escuro (#2A1602)
-  primary:
-    "bg-primary-grad text-[#2A1602] shadow-btn hover:brightness-[1.03] disabled:bg-none disabled:bg-[#EEF1F7] disabled:text-[#A3ADC2] disabled:shadow-none",
-  dark: "bg-avatar-grad text-white hover:brightness-110",
-  secondary:
-    "bg-surface text-ink border-[1.5px] border-border hover:bg-[#FAFAFB]",
-  soft: "bg-primary-soft text-primary-dark hover:bg-[#FBE7CF]",
-  text: "text-ink-2 hover:text-ink hover:bg-[#F1F2F5]",
-  danger: "bg-danger-soft text-danger hover:bg-[#F7D9D9]",
+/** Ajustes de cor por cima da variante do HeroUI (escuro e "soft" laranja). */
+const EXTRA: Partial<Record<Variant, string>> = {
+  primary: "font-semibold shadow-btn",
+  dark: "font-semibold [--button-bg:var(--foreground)] [--button-bg-hover:#2b2d33] [--button-fg:#fff]",
+  soft: "[--button-bg:var(--color-primary-soft)] [--button-bg-hover:#fbe7cf] [--button-fg:var(--color-primary-dark)]",
+  secondary: "bg-surface",
 };
 
-const sizes: Record<Size, string> = {
-  md: "h-11 px-4 text-sm",
-  sm: "h-9 px-3 text-[13px]",
-};
-
-export function Button({
-  variant = "primary",
-  size = "md",
-  icon,
-  block,
-  className,
-  children,
-  ...rest
-}: Props) {
+export function Button({ variant = "primary", size = "md", icon, block, className, children, ...rest }: Props) {
   return (
     <button
-      className={cx(base, variants[variant], sizes[size], block && "w-full", className)}
+      className={cx(
+        buttonVariants({ variant: PARA_HEROUI[variant], size, fullWidth: !!block, isIconOnly: !children && !!icon }),
+        EXTRA[variant],
+        className,
+      )}
       {...rest}
     >
       {icon}

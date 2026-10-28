@@ -1,13 +1,15 @@
+import { chipVariants } from "@heroui/styles";
 import { cx } from "@/lib/format";
 
 export type Tom = "success" | "warning" | "danger" | "info" | "neutral";
 
-const tons: Record<Tom, string> = {
-  success: "bg-success-soft text-success",
-  warning: "bg-warning-soft text-warning",
-  danger: "bg-danger-soft text-danger",
-  info: "bg-info-soft text-info",
-  neutral: "bg-[#F0F1F4] text-ink-2",
+/** Selo = Chip "soft" do HeroUI v3, na cor do tom. Azul (info) não existe lá: vai por classe. */
+const COR: Record<Tom, "success" | "warning" | "danger" | "default"> = {
+  success: "success",
+  warning: "warning",
+  danger: "danger",
+  info: "default",
+  neutral: "default",
 };
 
 export function Badge({
@@ -19,15 +21,10 @@ export function Badge({
   tom?: Tom;
   className?: string;
 }) {
+  const { base, label } = chipVariants({ color: COR[tom], variant: "soft", size: "sm" });
   return (
-    <span
-      className={cx(
-        "inline-flex items-center rounded-pill px-2.5 py-1 text-[11.5px] font-bold leading-none whitespace-nowrap",
-        tons[tom],
-        className
-      )}
-    >
-      {children}
+    <span className={cx(base(), "font-semibold whitespace-nowrap", tom === "info" && "bg-info-soft! text-info!", className)}>
+      <span className={label()}>{children}</span>
     </span>
   );
 }

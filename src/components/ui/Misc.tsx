@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { cx, iniciais } from "@/lib/format";
 import { flags } from "@/lib/flags";
 
+/** Interruptor com o visual do Switch do HeroUI v3 (mesmas classes, sem react-aria). */
 export function Toggle({
   checked,
   onChange,
@@ -12,29 +13,22 @@ export function Toggle({
   label?: ReactNode;
 }) {
   return (
-    <label className="inline-flex items-center gap-2.5 cursor-pointer select-none">
+    <label className="switch switch--md flex-row! inline-flex! items-center gap-2.5 cursor-pointer select-none [&_.switch\_\_thumb]:bg-white!" data-selected={checked}>
       <button
         type="button"
         role="switch"
         aria-checked={checked}
         onClick={() => onChange(!checked)}
-        className={cx(
-          "relative w-[46px] h-[27px] rounded-pill transition-colors",
-          checked ? "bg-primary" : "bg-[#CDD0D6]"
-        )}
+        className="switch__control"
       >
-        <span
-          className={cx(
-            "absolute top-[3px] h-[21px] w-[21px] rounded-full bg-white shadow-sm transition-all",
-            checked ? "left-[22px]" : "left-[3px]"
-          )}
-        />
+        <span className="switch__thumb" />
       </button>
       {label && <span className="text-sm text-ink">{label}</span>}
     </label>
   );
 }
 
+/** Avatar do HeroUI v3: círculo com as iniciais em fundo laranja suave. */
 export function Avatar({
   nome,
   size = 40,
@@ -43,25 +37,19 @@ export function Avatar({
   size?: number;
 }) {
   return (
-    <div
-      className="bg-avatar-grad flex items-center justify-center rounded-[12px] shrink-0"
-      style={{ width: size, height: size }}
-    >
-      <span
-        className="font-display font-extrabold text-amber"
-        style={{ fontSize: size * 0.36 }}
-      >
+    <span className="avatar avatar--soft shrink-0" style={{ width: size, height: size }}>
+      <span className="avatar__fallback avatar__fallback--accent font-display font-bold" style={{ fontSize: size * 0.36 }}>
         {iniciais(nome)}
       </span>
-    </div>
+    </span>
   );
 }
 
 export function ProgressBar({ value }: { value: number }) {
   return (
-    <div className="h-2 w-full rounded-pill bg-[#EDEEF2] overflow-hidden">
+    <div className="h-2 w-full rounded-full bg-default overflow-hidden" role="progressbar" aria-valuenow={Math.round(value)} aria-valuemin={0} aria-valuemax={100}>
       <div
-        className="h-full rounded-pill bg-progress-grad"
+        className="h-full rounded-full bg-accent transition-[width] duration-500"
         style={{ width: `${Math.max(0, Math.min(100, value))}%` }}
       />
     </div>

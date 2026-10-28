@@ -17,8 +17,10 @@ export function Card({
     <div
       data-tour={marcaTour}
       className={cx(
-        "bg-surface border border-border rounded-card shadow-card",
-        padded && "p-5 md:p-6",
+        // Visual do card do HeroUI v3: superfície branca, cantos largos e a
+        // sombra suave dele. O espaçamento interno segue o do app.
+        "card card--default !block !gap-0 !rounded-2xl border border-border/70",
+        padded ? "p-5 md:p-6" : "!p-0",
         className
       )}
     >
@@ -39,10 +41,10 @@ export function CardTitle({
   return (
     <div className="flex items-start justify-between gap-3 mb-4">
       <div className="flex items-start gap-2.5 min-w-0">
-        <span className="mt-1 h-4 w-1.5 rounded-full bg-progress-grad shrink-0" />
+        <span className="mt-1 h-4 w-1 rounded-full bg-accent shrink-0" />
         <div className="min-w-0">
-          <h3 className="font-display font-bold text-[15px] text-ink">{children}</h3>
-          {hint && <p className="text-[12.5px] text-ink-2 mt-0.5">{hint}</p>}
+          <h3 className="font-display font-semibold text-[15px] text-foreground">{children}</h3>
+          {hint && <p className="text-[12.5px] text-muted mt-0.5">{hint}</p>}
         </div>
       </div>
       {action}

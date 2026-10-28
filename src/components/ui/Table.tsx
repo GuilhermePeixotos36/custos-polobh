@@ -64,14 +64,16 @@ export function Th({
     <th
       aria-sort={ariaSort}
       className={cx(
-        "px-3 py-2.5 text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-ink-3",
+        // Cabeçalho no estilo da Table do HeroUI v3: faixa cinza clara, cantos
+        // arredondados nas pontas, rótulo em caixa normal.
+        "px-3 py-2.5 text-[12px] font-medium text-muted bg-surface-secondary first:rounded-l-xl last:rounded-r-xl",
         grudado
           ? // No celular a tabela rola de lado dentro do próprio contêiner, e o
           // `sticky` passava a contar a partir DELE: o cabeçalho descia 150px
           // e cobria as linhas (12/10/2026). Grudar só vale da tela média
           // para cima, onde a tabela não tem rolagem própria.
-          "bg-surface border-b border-border md:border-b-0 md:sticky md:top-[calc(var(--altura-topnav)+var(--altura-cabecalho))] md:z-10 md:shadow-[inset_0_-1px_0_var(--border)]"
-          : "border-b border-border",
+          "md:sticky md:top-[calc(var(--altura-topnav)+var(--altura-cabecalho))] md:z-10"
+          : "",
         align === "right" && "text-right",
         align === "center" && "text-center",
         className
@@ -103,8 +105,8 @@ export function Tr({
       id={id}
       onClick={onClick}
       className={cx(
-        "border-b border-border-soft last:border-0",
-        onClick && "cursor-pointer hover:bg-[#FAFAFB]",
+        "border-b border-separator last:border-0 transition-colors",
+        onClick && "cursor-pointer hover:bg-surface-secondary/60",
         className
       )}
     >

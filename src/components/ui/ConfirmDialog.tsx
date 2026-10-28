@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useConfirm } from "@/store/confirm";
-import { cx } from "@/lib/format";
+import { buttonVariants } from "@heroui/styles";
 
 /** Modal de confirmação — montado uma vez no AppLayout. */
 export function ConfirmDialog() {
@@ -26,11 +26,11 @@ export function ConfirmDialog() {
        promessa nunca resolvia e o botão ficava travado em "…". */
     <div className="no-print fixed inset-0 z-90 flex items-center justify-center p-4">
       <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-[1px]"
+        className="absolute inset-0 bg-backdrop backdrop-blur-[2px]"
         onClick={() => responder(false)}
       />
-      <div className="relative w-full max-w-[420px] bg-surface rounded-card-lg shadow-modal border border-border p-6 animate-[fadein_.12s_ease]">
-        <h3 className="font-display font-bold text-[17px] text-ink tracking-[-0.3px]">{opts.titulo}</h3>
+      <div className="relative w-full max-w-[420px] bg-overlay rounded-3xl shadow-overlay p-6 animate-[fadein_.12s_ease]">
+        <h3 className="font-display font-semibold text-[17px] text-foreground tracking-[-0.3px]">{opts.titulo}</h3>
         {/* `whitespace-pre-line`: a mensagem às vezes traz um parágrafo extra
             (ex.: os itens que ficaram de fora da emissão de OS). */}
         {opts.mensagem && <p className="text-ink-2 text-[13.5px] mt-2 leading-relaxed whitespace-pre-line">{opts.mensagem}</p>}
@@ -39,7 +39,7 @@ export function ConfirmDialog() {
           {!opts.somenteOk && (
             <button
               onClick={() => responder(false)}
-              className="h-10 px-4 rounded-btn font-bold text-sm bg-surface text-ink border-[1.5px] border-border hover:bg-[#FAFAFB]"
+              className={buttonVariants({ variant: "tertiary" })}
             >
               {opts.cancelarTexto ?? "Cancelar"}
             </button>
@@ -47,10 +47,7 @@ export function ConfirmDialog() {
           <button
             autoFocus
             onClick={() => responder(true)}
-            className={cx(
-              "h-10 px-4 rounded-btn font-bold text-sm text-white transition-colors",
-              danger ? "bg-danger hover:brightness-95" : "bg-primary-grad text-[#2A1602] shadow-btn"
-            )}
+            className={buttonVariants({ variant: danger ? "danger" : "primary" })}
           >
             {opts.confirmarTexto ?? "Confirmar"}
           </button>

@@ -60,7 +60,7 @@ export function SubGuias<K extends string>({
   const secundaria = variante === "secundaria";
   return (
     <div
-      className={cx("flex items-center gap-1", secundaria && "py-1.5")}
+      className={cx("flex items-center gap-1", secundaria && "my-1.5 p-1 rounded-full bg-default w-fit max-w-full overflow-x-auto")}
       role="tablist"
       aria-label={rotulo}
     >
@@ -75,17 +75,17 @@ export function SubGuias<K extends string>({
           title={a.titulo}
           onClick={() => onChange(a.key)}
           className={cx(
-            "whitespace-nowrap font-bold transition-colors inline-flex items-center gap-1.5",
+            "whitespace-nowrap font-medium transition-colors inline-flex items-center gap-1.5",
             secundaria
-              ? "px-3 h-7 text-[12.5px] rounded-pill"
+              ? "px-3 h-7 text-[12.5px] rounded-full"
               : "px-4 h-10 text-[13.5px] border-b-2 -mb-px",
             a.desabilitada
               ? cx("text-ink-3/40 cursor-not-allowed", !secundaria && "border-transparent")
               : atual === a.key
                 ? secundaria
-                  ? "bg-primary-soft text-primary-dark"
-                  : "text-primary-dark border-primary"
-                : cx("text-ink-2 hover:text-ink", secundaria ? "hover:bg-[#F1F2F5]" : "border-transparent")
+                  ? "bg-surface text-foreground font-semibold shadow-surface"
+                  : "text-foreground font-semibold border-accent"
+                : cx("text-muted hover:text-foreground", secundaria ? "hover:bg-surface/70" : "border-transparent")
           )}
         >
           {a.label}

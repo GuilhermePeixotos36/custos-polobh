@@ -23,7 +23,7 @@ export function TopNav() {
   const itens = NAV.filter((i) => pode(i.recurso) || !!i.ou?.some(pode));
 
   return (
-    <header className="no-print sticky top-0 z-30 h-(--altura-topnav) bg-surface border-b border-border flex items-center gap-3 px-3 md:px-5">
+    <header className="no-print sticky top-0 z-30 h-(--altura-topnav) bg-surface/85 backdrop-blur-md border-b border-separator flex items-center gap-3 px-3 md:px-5">
       <img src="/polobh-logo.png" alt="Pólobh" className="h-6 w-auto object-contain shrink-0" />
 
       {/* `data-tour`: âncoras do tour guiado (src/tour). São só marcas de
@@ -39,8 +39,8 @@ export function TopNav() {
               data-tour={`nav-${i.to.replace("/", "")}`}
               onClick={() => abrirSuporte()}
               className={cx(
-                "flex items-center gap-2 px-3 h-9 rounded-btn text-[13px] font-semibold whitespace-nowrap transition-colors",
-                painelAberto ? "bg-primary-soft text-primary-dark" : "text-ink-2 hover:text-ink hover:bg-[#F5F6F8]"
+                "flex items-center gap-2 px-3 h-9 rounded-full text-[13px] font-medium whitespace-nowrap transition-colors",
+                painelAberto ? "bg-default text-foreground font-semibold" : "text-muted hover:text-foreground hover:bg-default"
               )}
             >
               <span className="shrink-0">{i.icon}</span>
@@ -54,10 +54,10 @@ export function TopNav() {
               end={i.to === "/"}
               className={({ isActive }) =>
                 cx(
-                  "flex items-center gap-2 px-3 h-9 rounded-btn text-[13px] font-semibold whitespace-nowrap transition-colors",
+                  "flex items-center gap-2 px-3 h-9 rounded-full text-[13px] font-medium whitespace-nowrap transition-colors",
                   isActive
-                    ? "bg-primary-soft text-primary-dark"
-                    : "text-ink-2 hover:text-ink hover:bg-[#F5F6F8]"
+                    ? "bg-default text-foreground font-semibold shadow-[inset_0_-2px_0_var(--accent)]"
+                    : "text-muted hover:text-foreground hover:bg-default"
                 )
               }
             >

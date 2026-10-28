@@ -1,4 +1,36 @@
-@import 'tailwindcss';
+/* REESTILIZAÇÃO COM HEROUI v3 (branch de teste): o pacote traz o Tailwind 4,
+   o tema e o CSS dos componentes. Logo abaixo, o tema dele recebe as cores da
+   Pólobh — laranja como cor de destaque, os mesmos tons de texto e de status. */
+@import "@heroui/styles";
+
+:root,
+.light,
+[data-theme="light"] {
+  --accent: #f2820d;
+  --accent-foreground: #2a1602;
+  --focus: #f2820d;
+  --background: #eef0f3;
+  --foreground: #15161a;
+  --muted: #7e838d;
+  --surface: #ffffff;
+  --overlay: #ffffff;
+  --border: #dfe2e8;
+  --separator: #e9ebf0;
+  --default: #f1f2f5;
+  --default-foreground: #15161a;
+  --success: #0e7c50;
+  --success-foreground: #ffffff;
+  --warning: #b57c0c;
+  --warning-foreground: #ffffff;
+  --danger: #c13438;
+  --danger-foreground: #ffffff;
+  --field-background: #ffffff;
+  --field-foreground: #15161a;
+  --field-placeholder: #9aa0aa;
+  --field-border: #d3d7df;
+  --field-border-width: 1px;
+  --radius: 0.625rem;
+}
 
 @theme {
   --color-ink-2: #585c66;
@@ -14,11 +46,11 @@
   --color-amber: #fbb040;
   --color-active-border: #f6dec0;
   --color-graphite: #3a3c44;
-  --color-bg: #e8eaee;
+  --color-bg: #eef0f3;
   --color-surface: #ffffff;
 
-  --color-border: #d6d9e0;
-  --color-border-soft: #e4e6ec;
+  --color-border: #dfe2e8;
+  --color-border-soft: #e9ebf0;
 
   --color-success: #0e7c50;
   --color-success-soft: #e4f6ee;
@@ -35,14 +67,14 @@
   --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
   --font-display: Sora, system-ui, sans-serif;
 
-  --radius-btn: 11px;
-  --radius-card: 16px;
-  --radius-card-lg: 18px;
+  --radius-btn: 12px;
+  --radius-card: 20px;
+  --radius-card-lg: 24px;
   --radius-pill: 99px;
 
-  --shadow-card: 0 1px 2px rgba(16, 30, 66, 0.04);
-  --shadow-btn: 0 10px 20px -10px rgba(242, 130, 13, 0.55);
-  --shadow-modal: 0 40px 90px -30px rgba(16, 30, 66, 0.28);
+  --shadow-card: var(--shadow-surface);
+  --shadow-btn: 0 6px 14px -8px rgba(242, 130, 13, 0.45);
+  --shadow-modal: var(--shadow-overlay);
 
   --background-image-brand-mesh: linear-gradient(
     120deg,
@@ -50,9 +82,10 @@
     #f2820d 45%,
     #8c8e96 100%
   );
-  --background-image-primary-grad: linear-gradient(135deg, #fbb040, #f2820d);
+  /* HeroUI: botão de destaque em cor chapada, sem degradê. */
+  --background-image-primary-grad: linear-gradient(#f2820d, #f2820d);
   --background-image-avatar-grad: linear-gradient(135deg, #3a3c44, #0b0b0d);
-  --background-image-progress-grad: linear-gradient(90deg, #fbb040, #f2820d);
+  --background-image-progress-grad: linear-gradient(#f2820d, #f2820d);
 }
 
 /*
@@ -130,10 +163,8 @@
     --primary-soft: #fdf1e3;
     --active-border: #f6dec0;
     --graphite: #3a3c44;
-    --bg: #e8eaee;
-    --surface: #ffffff;
-    --border: #d6d9e0;
-    --border-soft: #e4e6ec;
+    --bg: #eef0f3;
+    --border-soft: #e9ebf0;
   }
 
   * {
@@ -154,19 +185,7 @@
 
   body {
     margin: 0;
-    background-color: #e8eaee;
-    background-image:
-      radial-gradient(
-        1100px 620px at 100% -12%,
-        rgba(251, 176, 64, 0.12),
-        transparent 60%
-      ),
-      radial-gradient(
-        900px 600px at -12% 112%,
-        rgba(242, 130, 13, 0.06),
-        transparent 55%
-      );
-    background-repeat: no-repeat;
+    background-color: var(--background);
     color: var(--ink);
     font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
     font-size: 1rem;

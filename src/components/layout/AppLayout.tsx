@@ -173,7 +173,7 @@ export function PageShell({
         <div className="flex items-end justify-between gap-4 flex-wrap">
           <div>
             <div className="flex items-center gap-2.5 flex-wrap">
-              <h1 className="font-display font-bold text-[30px] tracking-[-0.7px] text-ink leading-none">
+              <h1 className="font-display font-semibold text-[28px] tracking-[-0.6px] text-foreground leading-none">
                 {title}
               </h1>
               {titleAdornment}

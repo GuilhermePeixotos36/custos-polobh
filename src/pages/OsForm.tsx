@@ -2635,8 +2635,8 @@ function CardOs({
   const fase = useContext(FaseDaOsCtx);
   const destaque = area && fase && vezDoBloco(area, fase).vez ? DESTAQUE_AREA[area] : null;
   return (
-    <div className={cx("bg-surface border border-border rounded-card shadow-card overflow-hidden [&_input:not([type=checkbox]):not([type=radio])]:h-8! [&_select]:h-8! [&_input]:py-0! [&_select]:py-0!", className, destaque?.borda)}>
-      <div className={cx(destaque ? destaque.faixa : "bg-[#C0C0C0]", "px-4 py-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1")}>
+    <div className={cx("bg-surface border border-border/70 rounded-2xl shadow-surface overflow-hidden [&_input:not([type=checkbox]):not([type=radio])]:h-8! [&_select]:h-8! [&_input]:py-0! [&_select]:py-0!", className, destaque?.borda)}>
+      <div className={cx(destaque ? destaque.faixa : "bg-surface-secondary", "px-4 py-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1")}>
         <button
           type="button"
           onClick={alternar}
@@ -2644,7 +2644,7 @@ function CardOs({
           className="flex items-center gap-2 flex-1 min-w-[min(100%,15rem)] text-left text-ink hover:opacity-80 transition-opacity"
         >
           <Chevron aberta={!recolhida} />
-          <h3 className="font-display font-bold text-[12.5px] uppercase tracking-wider text-ink">{secao}</h3>
+          <h3 className="font-display font-semibold text-[13px] tracking-[0.01em] text-foreground">{secao}</h3>
         </button>
         {area && <EtiquetaArea area={area} />}
         {acaoSecao && <div className="shrink-0">{acaoSecao}</div>}
@@ -2657,7 +2657,7 @@ function CardOs({
 /** Sub-cabeçalho — cinza claro das barras de grupo da planilha (COR.groupGray). */
 function SubSecao({ children }: { children: ReactNode }) {
   return (
-    <div className="bg-[#D9D9D9] border-y border-border px-4 py-2 text-center font-bold text-[11.5px] uppercase tracking-[0.04em] text-ink">
+    <div className="bg-surface-secondary/70 border-y border-separator px-4 py-2 text-center font-semibold text-[12px] text-muted">
       {children}
     </div>
   );
@@ -2682,10 +2682,10 @@ function LinhaOs({
   children: ReactNode;
 }) {
   return (
-    <div id={id} className="grid md:grid-cols-[240px_minmax(0,1fr)] gap-x-4 items-start px-4 py-0 border-b border-border-soft last:border-b-0">
+    <div id={id} className="grid md:grid-cols-[240px_minmax(0,1fr)] gap-x-4 items-start px-4 py-1 border-b border-separator last:border-b-0">
       <div className="md:py-1 flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <span className="block text-[11.5px] font-extrabold uppercase tracking-[0.03em] text-ink-2">{label}{obrigatorio && <MarcaObrigatorio title="Obrigatório para emitir a OS" />}</span>
+          <span className="block text-[12px] font-semibold text-ink-2">{label}{obrigatorio && <MarcaObrigatorio title="Obrigatório para emitir a OS" />}</span>
           {hint && <span className="block text-[10.5px] font-semibold text-ink-3">{hint}</span>}
         </div>
         {acao && <div className="shrink-0 md:hidden">{acao}</div>}

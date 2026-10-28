@@ -13,8 +13,14 @@ import {
 } from "@/lib/format";
 import { padronizarNomeGrupo, padronizarNomeItem } from "@/domain/textos";
 
+/**
+ * Campo com o visual do HeroUI v3 (classe `.input`: borda fina, cantos do
+ * tema, foco em anel laranja). Desabilitado NÃO fica translúcido como no
+ * HeroUI: a OS e o projeto mostram tudo em leitura com `fieldset disabled`, e
+ * texto a 50% de opacidade ficaria ilegível — vira um cinza claro legível.
+ */
 const fieldBase =
-  "w-full bg-surface border-[1.5px] border-[#BFC4CE] rounded-btn px-3.5 text-sm text-ink placeholder:text-ink-3 input-focus disabled:bg-[#EDEEF1] disabled:text-ink-2";
+  "input w-full px-3.5 text-sm! text-ink placeholder:text-ink-3 disabled:opacity-100! disabled:bg-[#F3F4F6]! disabled:text-ink-2! disabled:shadow-none!";
 /** Destaque de campo obrigatório não preenchido: contorno + preenchimento vermelhos. */
 const fieldErro = "border-danger! bg-danger-soft!";
 const dataIsoValida = (v: string) => {
@@ -47,7 +53,7 @@ export function Label({
 }) {
   return (
     <label htmlFor={htmlFor} className="block mb-1.5">
-      <span className="text-[12.5px] font-bold text-ink">{children}{obrigatorio && <MarcaObrigatorio />}</span>
+      <span className="text-[12.5px] font-semibold text-ink">{children}{obrigatorio && <MarcaObrigatorio />}</span>
       {hint && <span className="text-[12px] text-ink-3 font-medium ml-1">{hint}</span>}
     </label>
   );
