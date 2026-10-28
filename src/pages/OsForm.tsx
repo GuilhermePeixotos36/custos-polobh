@@ -18,6 +18,13 @@ import {
   MOTIVO_DISPARO_DESLIGADO,
   CarregandoTela,
   MarcaObrigatorio,
+  Stepper,
+  StepperItem,
+  StepperTrigger,
+  StepperIndicator,
+  StepperTitle,
+  StepperDescription,
+  StepperSeparator,
 } from "@/components/ui";
 import { IcCheck, IcCopy, IcDoc, IcEye, IcPencil, IcSearch, IcSend, IcSpark, IcCadeado } from "@/components/icons";
 import { CardConversa } from "@/components/CardConversa";
@@ -1354,20 +1361,56 @@ export function OsForm() {
       <AvisoEmailPendente className="mb-4" />
       <AvisoHomologacaoEmail className="mb-4" />
 
-      {/* ONDE A OS ESTÁ, e o que isso trava (15/09/2026). Sem esta linha, os
-          campos em cinza pareceriam defeito: quem abre a OS na fase do
-          financeiro precisa saber por que o descritivo não aceita digitação. */}
-      <div className={cx(
-        "mb-4 flex items-center gap-3 flex-wrap rounded-card border px-4 py-2.5 text-[12.5px]",
-        emitida ? "border-success/40 bg-success-soft text-ink" : "border-border-soft bg-[#FBFBFC] text-ink-2"
-      )}>
-        <span className="font-extrabold uppercase tracking-[0.05em] text-[10.5px] text-ink-3">{ROTULO_FASE[fase]}</span>
-        <span>{ESPERANDO_FASE[fase]}</span>
-        {os.faseEm && <span className="text-ink-3">desde {dataBR(os.faseEm)}</span>}
-        {!editando && !emitida && !encerradaDoc && (podeEditar || verFinanceiro) && (
-          <span className="ml-auto text-ink-3">Modo leitura</span>
+      {/* ONDE A OS ESTÁ (28/10/2026): a linha do tempo das quatro etapas, no
+          alto — antes era uma faixa de texto aqui e o bloco "Status OS" no fim
+          da tela. A etapa atual tem uma aura girando; as concluídas, um check.
+          Embaixo, o que a etapa espera (sem isso os campos em cinza pareceriam
+          defeito) e as pendências que travam a emissão, que levam ao campo. */}
+      <section
+        aria-label="Etapa da OS"
+        className={cx(
+          "mb-4 rounded-card border px-4 pt-4 pb-3 shadow-card",
+          emitida ? "border-success/40 bg-success-soft/40" : "border-border-soft bg-surface"
         )}
-      </div>
+      >
+        <Stepper value={encerradaDoc ? -1 : FASES_OS.indexOf(fase)}>
+          {FASES_OS.map((f, i) => (
+            <StepperItem key={f} step={i} completed={emitida && !encerradaDoc} className="relative flex-1 !flex-col">
+              <StepperTrigger asChild className="flex-col gap-2 text-center">
+                <StepperIndicator />
+                <div className="space-y-0.5 px-1">
+                  <StepperTitle>{TITULO_ETAPA_OS[f]}</StepperTitle>
+                  <StepperDescription className="max-sm:hidden">{DESCRICAO_ETAPA_OS[f]}</StepperDescription>
+                </div>
+              </StepperTrigger>
+              {i < FASES_OS.length - 1 && (
+                <StepperSeparator className="absolute top-4 left-[calc(50%+1.5rem)] right-[calc(-50%+1.5rem)] -order-1 m-0 -translate-y-1/2 !w-auto !flex-none" />
+              )}
+            </StepperItem>
+          ))}
+        </Stepper>
+        <div className="mt-3 pt-2.5 border-t border-border-soft flex items-center gap-x-3 gap-y-1 flex-wrap text-[12.5px] text-ink-2">
+          <span>{ESPERANDO_FASE[fase]}</span>
+          {os.faseEm && <span className="text-ink-3">desde {dataBR(os.faseEm)}</span>}
+          {!editando && !emitida && !encerradaDoc && (podeEditar || verFinanceiro) && (
+            <span className="ml-auto text-ink-3">Modo leitura</span>
+          )}
+        </div>
+        {!emitida && !encerradaDoc && (problemasContratacao.length > 0 || pendenciasAbertasDaOs.length > 0) && (
+          <ul className="mt-2 space-y-0.5 text-[12.5px]">
+            {problemasContratacao.map((m) => (
+              <li key={m}>
+                <button type="button" className="text-left text-danger font-bold hover:underline" onClick={() => destacarElemento(ID_FORMAS_PAGAMENTO, "pendencia")}>{m}</button>
+              </li>
+            ))}
+            {pendenciasAbertasDaOs.map((p) => (
+              <li key={p.id}>
+                <button type="button" className="text-left text-danger font-bold hover:underline" onClick={() => irParaPendencia(p)}>{p.titulo}</button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <div className="space-y-4">
         {/* A CONVERSA vem primeiro (pedido de 09/09/2026), e com o mesmo rótulo
@@ -2424,50 +2467,6 @@ export function OsForm() {
           </div>
         )}
 
-        {/* STATUS DA OS (29/09/2026): onde a OS está até ficar "Emitida" — e,
-            emitida, o que muda na EC (a coluna OS dos itens passa de Pendente
-            para OK). As pendências abertas moram aqui e levam ao campo. */}
-        <CardOs secao="Status OS" area="Back-office">
-          <LinhaOs label="Etapa">
-            <div className="flex items-center gap-1.5 flex-wrap py-1">
-              {FASES_OS.map((f, i) => (
-                <span key={f} className="flex items-center gap-1.5">
-                  {i > 0 && <span className="text-ink-3">→</span>}
-                  <span className={cx(
-                    "rounded-full px-2.5 py-0.5 text-[11.5px] font-bold",
-                    f === fase ? "bg-primary text-white" : FASES_OS.indexOf(f) < FASES_OS.indexOf(fase) ? "bg-success-soft text-ink" : "bg-[#F1F2F4] text-ink-3"
-                  )}>{ROTULO_FASE[f]}</span>
-                </span>
-              ))}
-            </div>
-          </LinhaOs>
-          <LinhaOs label="Status da OS"><Badge tom={tomStatusOs[os.status]}>{os.status}</Badge></LinhaOs>
-          <LinhaOs label="Na EC" hint="(coluna OS dos itens)">
-            <div className="py-1.5 text-[12.5px] text-ink-2">
-              {emitida
-                ? `${linhasConsolidadas.length} item(ns) com a OS em OK.`
-                : `${linhasConsolidadas.length} item(ns) aguardando a emissão; passam de Pendente para OK quando a OS for emitida.`}
-            </div>
-          </LinhaOs>
-          <LinhaOs label="Pendências" hint="(clique para ir ao campo)">
-            {pendenciasAbertasDaOs.length === 0 && problemasContratacao.length === 0 ? (
-              <div className="py-1.5 text-[12.5px] font-bold text-success">Nenhuma pendência em aberto.</div>
-            ) : (
-              <ul className="py-1.5 space-y-1 text-[12.5px]">
-                {problemasContratacao.map((m) => (
-                  <li key={m}>
-                    <button type="button" className="text-left text-danger font-bold hover:underline" onClick={() => destacarElemento(ID_FORMAS_PAGAMENTO, "pendencia")}>{m}</button>
-                  </li>
-                ))}
-                {pendenciasAbertasDaOs.map((p) => (
-                  <li key={p.id}>
-                    <button type="button" className="text-left text-danger font-bold hover:underline" onClick={() => irParaPendencia(p)}>{p.titulo}</button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </LinhaOs>
-        </CardOs>
       </div>
 
       {/* Sem a pílula flutuante de pendências nesta tela (29/09/2026): as
@@ -2521,6 +2520,19 @@ export function OsForm() {
  */
 /** Blocos que o aviso precisa abrir antes de rolar até o campo. */
 const SECAO_DETALHAMENTO = "Detalhamento da Contratação";
+/** Os nomes curtos das etapas na linha do tempo do alto da OS. */
+const TITULO_ETAPA_OS: Record<FaseOs, string> = {
+  producao: "Produção",
+  financeiro: "Financeiro",
+  backoffice: "Back-office",
+  emitida: "Emitida",
+};
+const DESCRICAO_ETAPA_OS: Record<FaseOs, string> = {
+  producao: "Monta a OS",
+  financeiro: "Pagamento e faturamento",
+  backoffice: "Revisa e emite",
+  emitida: "OS concluída",
+};
 const SECAO_ACERTOS = "Acertos Financeiros";
 
 /** Colunas do cronograma do fornecedor — cabeçalho e linhas usam a MESMA grade. */
