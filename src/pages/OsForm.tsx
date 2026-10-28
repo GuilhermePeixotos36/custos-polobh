@@ -497,8 +497,14 @@ export function OsForm() {
    * financeiro só abrem quando ela chega lá.
    */
   const fase = os ? faseDaOs(os) : "producao";
-  const mexeProducao = editando && podeEditar && os != null && editaProducao(os);
-  const mexeFinanceiro = editando && verFinanceiro && os != null && editaFinanceiro(os);
+  /**
+   * BACK-OFFICE CORRIGE TUDO (28/10/2026, pedido da Viviane): quem emite a OS
+   * (`oss.emitir`) precisa acertar qualquer campo para aprovar e emitir — os
+   * blocos da Produção e do Financeiro ficam abertos a ele até a emissão.
+   */
+  const backofficeCorrige = editando && podeEmitir && os != null && !osEmitida(os);
+  const mexeProducao = (editando && podeEditar && os != null && editaProducao(os)) || backofficeCorrige;
+  const mexeFinanceiro = (editando && verFinanceiro && os != null && editaFinanceiro(os)) || (backofficeCorrige && verFinanceiro);
   const emitida = os != null && osEmitida(os);
   // Pendências desta OS — mesma lista que alimenta o badge vermelho dela.
   const { itens: pendenciasDoUsuario } = useMinhasPendencias();
