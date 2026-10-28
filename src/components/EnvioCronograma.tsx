@@ -12,9 +12,8 @@
 import { useMemo, useState } from "react";
 import {
   Button, Card, CardTitle, Table, THead, Th, Tr, Td, EmptyState, Badge,
-  AvisoHomologacaoEmail, MOTIVO_DISPARO_DESLIGADO,
 } from "@/components/ui";
-import { flags } from "@/lib/flags";
+import { disparoBloqueado, notaCaixaDeTeste } from "@/lib/avisoHomologacao";
 import { IcSend } from "@/components/icons";
 import { enviarCronogramaAoFornecedor, resumoDoEnvio } from "@/lib/email";
 import { textoWhatsAppCronograma } from "@/lib/email/templates";
@@ -62,9 +61,10 @@ export function EnvioCronograma({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
   }
 
   async function enviarUm(f: NaFilaCronograma) {
+    if (await disparoBloqueado("o cronograma")) return;
     if (!(await confirmar({
       titulo: `Enviar o cronograma para ${f.fornecedor}?`,
-      mensagem: `Vai um e-mail para ${f.email} com as etapas da ${f.os.numero}.`,
+      mensagem: `Vai um e-mail para ${f.email} com as etapas da ${f.os.numero}.${notaCaixaDeTeste()}`,
       confirmarTexto: "Enviar",
     }))) return;
     setEnviando(f.os.id);
@@ -78,12 +78,13 @@ export function EnvioCronograma({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
 
   async function enviarLote() {
     if (!alvos.length) return;
+    if (await disparoBloqueado("o cronograma")) return;
     const marcou = marcados.size > 0;
     if (!(await confirmar({
       titulo: `Enviar o cronograma a ${alvos.length} fornecedor(es)?`,
-      mensagem: marcou
+      mensagem: (marcou
         ? "Cada marcado recebe o cronograma da OS dele — inclusive quem ainda está com as etapas em branco."
-        : "Cada um recebe o cronograma da OS dele. Fica de fora quem está sem e-mail e quem ainda não tem etapas.",
+        : "Cada um recebe o cronograma da OS dele. Fica de fora quem está sem e-mail e quem ainda não tem etapas.") + notaCaixaDeTeste(),
       confirmarTexto: marcou ? "Enviar aos marcados" : "Enviar a todos",
     }))) return;
     setEnviando("lote");
@@ -127,11 +128,9 @@ export function EnvioCronograma({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
               size="sm"
               icon={<IcSend width={15} height={15} />}
               onClick={enviarLote}
-              disabled={!alvos.length || !!enviando || !flags.disparoFornecedor}
+              disabled={!alvos.length || !!enviando}
               title={
-                !flags.disparoFornecedor
-                  ? MOTIVO_DISPARO_DESLIGADO
-                  : marcados.size
+                marcados.size
                   ? `${alvos.length} marcado(s) com e-mail cadastrado`
                   : alvos.length
                     ? `${alvos.length} fornecedor(es) com cronograma montado`
@@ -148,7 +147,6 @@ export function EnvioCronograma({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
         >
           Envio dos cronogramas
         </CardTitle>
-        <AvisoHomologacaoEmail />
       </div>
 
       <Table>
@@ -222,11 +220,9 @@ export function EnvioCronograma({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
                 <Button
                   variant="secondary"
                   size="sm"
-                  disabled={!podeEnviarCronograma(f) || !!enviando || !flags.disparoFornecedor}
+                  disabled={!podeEnviarCronograma(f) || !!enviando}
                   title={
-                    !flags.disparoFornecedor
-                      ? MOTIVO_DISPARO_DESLIGADO
-                      : f.email
+                    f.email
                         ? "Enviar só para este fornecedor"
                         : "Fornecedor sem e-mail cadastrado"
                   }

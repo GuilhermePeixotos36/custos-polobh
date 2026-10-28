@@ -19,10 +19,10 @@
  *    um bloco por fornecedor; no dia do evento isso é uma lista impressa,
  *    conferida nome a nome (ver `lib/excel/credenciamento`).
  */
+import { notaCaixaDeTeste } from "@/lib/avisoHomologacao";
 import { useMemo, useState } from "react";
 import {
   Button, Card, CardTitle, Input, Table, THead, Th, Tr, Td, EmptyState, Badge,
-  AvisoHomologacaoEmail,
 } from "@/components/ui";
 import { IcSend, IcLink, IcCheck, IcDownload } from "@/components/icons";
 import { repo } from "@/data";
@@ -94,7 +94,7 @@ export function CredenciamentoProjeto({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
   async function enviarUm(f: NaFila) {
     if (!(await confirmar({
       titulo: `Enviar credenciamento para ${f.fornecedor}?`,
-      mensagem: `Será enviado um e-mail com o link do formulário para ${f.email}.`,
+      mensagem: `Será enviado um e-mail com o link do formulário para ${f.email}.${notaCaixaDeTeste()}`,
       confirmarTexto: "Enviar",
     }))) return;
     setEnviando(f.os.id);
@@ -112,9 +112,9 @@ export function CredenciamentoProjeto({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
     const marcou = marcados.size > 0;
     if (!(await confirmar({
       titulo: `Enviar credenciamento a ${alvos.length} fornecedor(es)?`,
-      mensagem: marcou
+      mensagem: (marcou
         ? "Cada um dos marcados recebe um e-mail com o SEU link — inclusive quem já respondeu, caso precise refazer."
-        : "Cada um recebe um e-mail com o SEU link. Quem já respondeu e quem está sem e-mail cadastrado ficam de fora.",
+        : "Cada um recebe um e-mail com o SEU link. Quem já respondeu e quem está sem e-mail cadastrado ficam de fora.") + notaCaixaDeTeste(),
       confirmarTexto: marcou ? "Enviar aos marcados" : "Enviar a todos",
     }))) return;
     setEnviando("lote");
@@ -212,7 +212,6 @@ export function CredenciamentoProjeto({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
           >
             Credenciamento dos Fornecedores
           </CardTitle>
-          <AvisoHomologacaoEmail />
         </div>
 
         <Table>

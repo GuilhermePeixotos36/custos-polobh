@@ -882,8 +882,8 @@ const MODULOS: Modulo[] = [
             A tela passa a mostrar a data do envio.
           </p>
           <Atencao>
-            Enquanto o sistema está em <b>homologação</b>, o botão de disparar fica <b>desabilitado</b> e nenhum
-            e-mail chega a fornecedor ou cliente: o que for enviado por qualquer tela vai para a caixa de teste da
+            Enquanto o sistema está em <b>homologação</b>, clicar em disparar mostra um <b>aviso</b> e nada é
+            enviado; nenhum e-mail chega a fornecedor ou cliente: o que for enviado por qualquer tela vai para a caixa de teste da
             equipe, com o destinatário original no assunto. É uma trava de publicação — nem o Administrador liga ou
             desliga pela interface.
           </Atencao>
@@ -1101,8 +1101,8 @@ const MODULOS: Modulo[] = [
             <span><b>Marque</b> fornecedores para alcançar só eles — inclusive quem ainda está com as etapas em branco, quando a intenção é justamente avisar que o dele está para sair.</span>
           </Passos>
           <Atencao>
-            Em homologação este botão fica <b>desabilitado</b>, como o de disparar OS, e nada chega a fornecedor
-            nenhum.
+            Em homologação, clicar neste botão mostra um <b>aviso</b> e nada é enviado, como no de disparar OS —
+            nada chega a fornecedor nenhum.
           </Atencao>
         </Secao>
       </>

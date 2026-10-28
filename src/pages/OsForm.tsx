@@ -14,8 +14,6 @@ import {
   Badge,
   tomStatusOs,
   AvisoEmailPendente,
-  AvisoHomologacaoEmail,
-  MOTIVO_DISPARO_DESLIGADO,
   CarregandoTela,
   MarcaObrigatorio,
   Stepper,
@@ -49,6 +47,7 @@ import { useEmpresas } from "@/store/empresas";
 import { consultarCnpj } from "@/lib/cnpj";
 import { gerarDescritivo } from "@/lib/ai";
 import { dispararOsPorEmail } from "@/lib/email";
+import { disparoBloqueado, notaCaixaDeTeste } from "@/lib/avisoHomologacao";
 import { arquivarOsNoProjeto } from "@/lib/excel";
 import { flags } from "@/lib/flags";
 import { brl, cx, dataBR, maskCpfCnpjInput } from "@/lib/format";
@@ -913,10 +912,11 @@ export function OsForm() {
       return;
     }
     if (opcoes?.disparar) {
+      if (await disparoBloqueado("a OS")) return;
       const destino = os!.fornecedor.email || "o fornecedor (sem e-mail cadastrado)";
       if (!(await confirmar({
         titulo: "Enviar esta OS ao fornecedor?",
-        mensagem: `A OS ${os!.numero} será enviada por e-mail para ${destino}. O envio fica registrado na OS.`,
+        mensagem: `A OS ${os!.numero} será enviada por e-mail para ${destino}. O envio fica registrado na OS.${notaCaixaDeTeste()}`,
         confirmarTexto: "Enviar OS",
       }))) return;
     }
@@ -1348,8 +1348,8 @@ export function OsForm() {
               size="sm"
               icon={<IcSend width={15} height={15} />}
               onClick={() => void salvar(undefined, undefined, { disparar: true })}
-              disabled={busy || !flags.disparoFornecedor}
-              title={flags.disparoFornecedor ? "Envia a OS emitida ao fornecedor" : MOTIVO_DISPARO_DESLIGADO}
+              disabled={busy}
+              title="Envia a OS emitida ao fornecedor"
             >
               Disparar OS
             </Button>
@@ -1359,7 +1359,6 @@ export function OsForm() {
     >
       <AvisoTravaEdicao trava={trava} />
       <AvisoEmailPendente className="mb-4" />
-      <AvisoHomologacaoEmail className="mb-4" />
 
       {/* ONDE A OS ESTÁ (28/10/2026): a linha do tempo das quatro etapas, no
           alto — antes era uma faixa de texto aqui e o bloco "Status OS" no fim
