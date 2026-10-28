@@ -2,7 +2,11 @@
 import { Fragment } from "react";
 import type { Ec } from "@/data/types";
 import { calcularTotais } from "@/domain/calc";
-import { brl, dataBR } from "@/lib/format";
+import { brl, cx, dataBR } from "@/lib/format";
+import { sanitizarHtmlEditor } from "@/lib/sanitizeHtml";
+
+/** Rich-text vazio ("<p></p>") não conta como descrição. */
+const texto = (html?: string) => (html ?? "").replace(/<[^>]+>|&nbsp;/g, "").trim();
 
 function Secao({ titulo }: { titulo: string }) {
   return (
@@ -96,7 +100,17 @@ export function EcDocumento({ ec }: { ec: Ec }) {
               {linhas.map((l) => (
                 <tr key={l.id} className="border-b border-border-soft doc-avoid-break">
                   <td className="px-2 py-1.5 align-top font-semibold">{l.item}</td>
-                  <td className="px-2 py-1.5 align-top whitespace-pre-wrap">{l.descricao}</td>
+                  <td className="px-2 py-1.5 align-top">
+                    {/* Resumo e, logo abaixo, a Descrição Completa (28/10/2026):
+                        antes o PDF só trazia o resumo, e o detalhe sumia. */}
+                    {l.descricao && <div className="whitespace-pre-wrap">{l.descricao}</div>}
+                    {texto(l.descricaoCompleta) && (
+                      <div
+                        className={cx(l.descricao && "mt-1", "[&_p]:my-0 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4")}
+                        dangerouslySetInnerHTML={{ __html: sanitizarHtmlEditor(l.descricaoCompleta) }}
+                      />
+                    )}
+                  </td>
                   <td className="px-2 py-1.5 align-top text-ink-2">{l.fornecedorRazao}</td>
                   <td className="px-2 py-1.5 align-top text-right">{brl(l.valorPolobh)}</td>
                   <td className="px-2 py-1.5 align-top text-right">{brl(l.valorCliente)}</td>

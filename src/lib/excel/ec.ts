@@ -375,7 +375,7 @@ export async function criarEcExcelBuffer(
 
   /**
    * O descritivo do item, tudo numa célula só na COLUNA B: a Descrição
-   * (principal) e, no modelo completo, a Descrição Completa.
+   * (principal) e, logo abaixo, a Descrição Completa — nos dois modelos.
    *
    * Vai junto de propósito — é um texto só sobre o mesmo serviço, e reparti-lo
    * em células separadas fazia a leitura pular de caixa em caixa. O que dá conta
@@ -391,10 +391,11 @@ export async function criarEcExcelBuffer(
   const descritivoDoItem = (l: (typeof linhasDoDoc)[number]): string => {
     const partes: string[] = [];
     if (l.descricao?.trim()) partes.push(l.descricao.trim());
-    if (completa) {
-      const completaTxt = htmlParaLinhas(l.descricaoCompleta);
-      if (completaTxt.length) partes.push(completaTxt.join("\n"));
-    }
+    // Nos DOIS modelos (28/10/2026): antes a Descrição Completa só entrava no
+    // modelo Completa, e o Financeiro — o que vai ao cliente — saía só com o
+    // resumo ("Contratação de Equipe Promotores, sendo:") e o detalhe sumia.
+    const completaTxt = htmlParaLinhas(l.descricaoCompleta);
+    if (completaTxt.length) partes.push(completaTxt.join("\n"));
     // Linha em branco entre os blocos de texto: é o que separa o resumo do
     // detalhamento dentro da mesma célula.
     return partes.join("\n\n");
