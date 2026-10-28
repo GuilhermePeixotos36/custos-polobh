@@ -1,4 +1,5 @@
 import { autorizar, respostaAutorizacao } from "../_shared/auth.ts";
+import { completarGratis, extrairJson, ordemGratuitos } from "../_shared/openrouter.ts";
 
 /**
  * O revisor de português do sistema.
@@ -8,7 +9,9 @@ import { autorizar, respostaAutorizacao } from "../_shared/auth.ts";
  * check-list e os roteiros do projeto. O que chega aqui é sempre a mesma coisa:
  * uma lista de { id, descricao }, e quem sabe de onde cada id veio é a tela.
  *
- * Usa a mesma chave OpenRouter das demais funções de IA do projeto.
+ * Usa a mesma chave OpenRouter das demais funções de IA do projeto, e só
+ * modelos GRATUITOS, trocando de um para outro quando falham (desde 28/10/2026,
+ * ver `_shared/openrouter.ts`).
  *
  * Deploy: supabase functions deploy corrigir-descricoes-ec
  */
@@ -19,7 +22,6 @@ const cors = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const MODEL = Deno.env.get("OPENROUTER_MODEL") || "google/gemini-2.5-flash";
 const PROMPT = `Você é um revisor de português brasileiro. Corrija somente ortografia,
 acentuação, concordância, pontuação e maiúsculas iniciais nas descrições recebidas.
 Preserve rigorosamente IDs, nomes próprios, siglas, marcas, códigos, números, valores,
@@ -35,20 +37,28 @@ interface DescricaoEntrada {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
-  // DIAGNÓSTICO (28/10/2026): GET ?diagnostico=1 diz se a conta de IA responde
-  // e quanto saldo resta — sem expor a chave e sem gastar créditos. Foi assim
-  // que se achou a revisão parada desde 27/10: créditos da OpenRouter no fim.
+  // DIAGNÓSTICO (28/10/2026): GET ?diagnostico=1 mostra a chave, o saldo e a
+  // ordem dos modelos gratuitos que serão tentados — sem gastar nada.
   if (req.method === "GET" && new URL(req.url).searchParams.get("diagnostico")) {
     const chave = Deno.env.get("OPENROUTER_API_KEY");
     if (!chave) return new Response(JSON.stringify({ ok: false, erro: "OPENROUTER_API_KEY não configurada." }), { headers: cors });
     const r = await fetch("https://openrouter.ai/api/v1/key", { headers: { Authorization: `Bearer ${chave}` } });
-    const corpo = await r.json().catch(() => null);
-    const d = corpo?.data ?? {};
-    // Saldo da conta inteira (não só da chave): é ele que acaba e derruba a revisão.
-    const c = await fetch("https://openrouter.ai/api/v1/credits", { headers: { Authorization: `Bearer ${chave}` } });
-    const creditos = (await c.json().catch(() => null))?.data ?? {};
+    const d = (await r.json().catch(() => null))?.data ?? {};
+    // ?diagnostico=teste faz uma correção de verdade (gasta 1 pedido gratuito do dia).
+    const teste = new URL(req.url).searchParams.get("diagnostico") === "teste"
+      ? await completarGratis(chave, {
+        titulo: "Polobh EC - Diagnóstico",
+        messages: [
+          { role: "system", content: PROMPT },
+          { role: "user", content: JSON.stringify({ descricoes: [{ id: "t", descricao: "<p>Saguão Predio</p><p>01 profssiinal x 01 diária de 04 horas</p>" }] }) },
+        ],
+        max_tokens: 2000,
+        json: true,
+        aceitar: (texto) => Array.isArray(extrairJson<{ descricoes?: unknown }>(texto)?.descricoes),
+      })
+      : null;
     return new Response(
-      JSON.stringify({ ok: r.ok, status: r.status, modelo: MODEL, limite: d.limit ?? null, uso: d.usage ?? null, restante: d.limit_remaining ?? null, erro: corpo?.error?.message ?? null, creditosTotais: creditos.total_credits ?? null, usoTotal: creditos.total_usage ?? null }),
+      JSON.stringify({ ok: r.ok, status: r.status, uso: d.usage ?? null, gratuito: d.is_free_tier ?? null, limite: d.limit ?? null, modelos: await ordemGratuitos(), teste }),
       { headers: { ...cors, "Content-Type": "application/json" } },
     );
   }
@@ -79,51 +89,34 @@ Deno.serve(async (req) => {
 
     const conteudo = JSON.stringify({ descricoes });
     if (conteudo.length > 45_000) return json({ ok: false, erro: "Lote de revisão acima do limite permitido." }, 413);
-    const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "X-Title": "Polobh EC - Correção ortográfica",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [
-          { role: "system", content: PROMPT },
-          { role: "user", content: conteudo },
-        ],
-        temperature: 0,
-        // Reserva de saída PROPORCIONAL ao texto (28/10/2026). A OpenRouter recusa
-        // (402) quando o saldo não cobre o máximo pedido — com 12.000 fixos, um
-        // saldo baixo derrubava até a revisão de uma linha. O texto revisado tem
-        // o tamanho do original: ~1 token a cada 3 caracteres, com folga.
-        max_tokens: Math.min(12000, Math.ceil(conteudo.length / 2) + 400),
-        response_format: { type: "json_object" },
-      }),
+    const resposta = await completarGratis(apiKey, {
+      titulo: "Polobh EC - Correção ortográfica",
+      messages: [
+        { role: "system", content: PROMPT },
+        { role: "user", content: conteudo },
+      ],
+      temperature: 0,
+      // Gratuito não consome saldo: a reserva só precisa caber o texto revisado.
+      max_tokens: Math.min(16000, Math.ceil(conteudo.length / 2) + 2000),
+      json: true,
+      aceitar: (texto) => Array.isArray(extrairJson<{ descricoes?: unknown }>(texto)?.descricoes),
     });
-    if (!resp.ok) {
-      // O motivo vai para o log da função (sem a chave): 402 = sem saldo,
-      // 401 = chave inválida, 429 = limite de uso.
-      const detalhe = (await resp.text().catch(() => "")).slice(0, 300);
-      console.error(`revisor: OpenRouter ${resp.status} ${detalhe}`);
-      return json({ ok: false, erro: `OpenRouter ${resp.status}` }, 502);
-    }
+    if (!resposta.ok) return json({ ok: false, erro: resposta.erro }, resposta.status === 429 ? 429 : 502);
+    const revisado = extrairJson<{ descricoes?: DescricaoEntrada[] }>(resposta.texto) ?? {};
 
-    const data = await resp.json();
-    const texto = data?.choices?.[0]?.message?.content;
-    if (typeof texto !== "string") {
-      console.error(`revisor: resposta vazia ${JSON.stringify(data).slice(0, 300)}`);
-      return json({ ok: false, erro: "Resposta vazia do revisor." }, 502);
-    }
-
-    const revisado = JSON.parse(texto) as { descricoes?: DescricaoEntrada[] };
-    if (!Array.isArray(revisado.descricoes)) return json({ ok: false, erro: "Resposta inválida do revisor." }, 502);
-
-    const idsPermitidos = new Set(descricoes.map((item) => item.id));
-    const resultado = revisado.descricoes.filter(
-      (item) => idsPermitidos.has(item?.id) && typeof item?.descricao === "string"
-    );
-    return json({ ok: true, descricoes: resultado });
+    const original = new Map(descricoes.map((item) => [item.id, item.descricao]));
+    // Modelo gratuito às vezes reescreve demais ou perde tags: a correção só vale
+    // se o texto continuar do mesmo tamanho (folga de 40%) e com as mesmas tags.
+    const tags = (t: string) => (t.match(/<[^>]+>/g) ?? []).length;
+    const resultado = (revisado.descricoes ?? []).filter((item) => {
+      const antes = original.get(item?.id);
+      if (antes === undefined || typeof item?.descricao !== "string") return false;
+      const proporcao = item.descricao.length / Math.max(1, antes.length);
+      return (proporcao > 0.6 && proporcao < 1.4) || Math.abs(item.descricao.length - antes.length) < 20
+        ? tags(item.descricao) === tags(antes)
+        : false;
+    });
+    return json({ ok: true, descricoes: resultado, modelo: resposta.modelo });
   } catch (erro) {
     const resposta = respostaAutorizacao(erro, cors);
     if (resposta) return resposta;
