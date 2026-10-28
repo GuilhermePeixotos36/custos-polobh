@@ -36,12 +36,14 @@ export function ConfirmDialog() {
         {opts.mensagem && <p className="text-ink-2 text-[13.5px] mt-2 leading-relaxed whitespace-pre-line">{opts.mensagem}</p>}
 
         <div className="flex justify-end gap-2 mt-6">
-          <button
-            onClick={() => responder(false)}
-            className="h-10 px-4 rounded-btn font-bold text-sm bg-surface text-ink border-[1.5px] border-[#D6D9E0] hover:bg-[#FAFAFB]"
-          >
-            {opts.cancelarTexto ?? "Cancelar"}
-          </button>
+          {!opts.somenteOk && (
+            <button
+              onClick={() => responder(false)}
+              className="h-10 px-4 rounded-btn font-bold text-sm bg-surface text-ink border-[1.5px] border-[#D6D9E0] hover:bg-[#FAFAFB]"
+            >
+              {opts.cancelarTexto ?? "Cancelar"}
+            </button>
+          )}
           <button
             autoFocus
             onClick={() => responder(true)}

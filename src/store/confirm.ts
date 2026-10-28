@@ -7,6 +7,8 @@ export interface ConfirmOptions {
   confirmarTexto?: string;
   cancelarTexto?: string;
   tom?: "danger" | "primary";
+  /** Só o botão de confirmar: é um aviso, não uma pergunta. */
+  somenteOk?: boolean;
 }
 
 interface ConfirmState {

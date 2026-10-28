@@ -41,8 +41,8 @@ import { revisarEc, type RevisaoEc } from "@/domain/revisaoEc";
 import { RevisaoEcModal } from "@/components/RevisaoEcModal";
 import { consultarCnpj } from "@/lib/cnpj";
 import {
-  AVISO_REVISAO_PARCIAL, corrigirMaiusculas, corrigirMaiusculasHtml, revisarDocumento,
-} from "@/lib/correcaoOrtografica";
+  avisarFalhaRevisao, lembrarRevisados, pendentesDeRevisao, perguntarRevisao, revisarPendentes, somenteMaiusculas,
+} from "@/lib/revisaoInterativa";
 import { aplicarNaEc, camposDaEc } from "@/domain/revisaoTexto";
 import { chaveDocumento } from "@/domain/travaEdicao";
 import { useTravaEdicao } from "@/hooks/useTravaEdicao";
@@ -126,6 +126,10 @@ export function EcForm() {
   const [cnpjLoading, setCnpjLoading] = useState(false);
   const [cnpjMsg, setCnpjMsg] = useState("");
   const [salvando, setSalvando] = useState(false);
+  /** "Revisar" em andamento (a IA leva alguns segundos). */
+  const [revisando, setRevisando] = useState(false);
+  /** Textos já revisados nesta edição (id → texto final): o "Salvar" não pergunta de novo. */
+  const [jaRevisados, setJaRevisados] = useState<Map<string, string>>(() => new Map());
   const [mostrarSalvo, setMostrarSalvo] = useState(false);
   const [subaba, setSubaba] = useState<SubGuiaEc>("ec");
   // Fornecedores registrados — alimentam a lista suspensa por CNPJ na tabela de custos.
@@ -381,31 +385,28 @@ export function EcForm() {
   }
 
   /**
-   * Revisar: padroniza a formatação dos textos (sem IA) e ABRE O COMPARATIVO do
-   * que muda ao salvar — pedido de 15/09/2026.
+   * Revisar: manda à IA SÓ os textos alterados ainda não revisados (28/10/2026;
+   * antes só padronizava maiúsculas) e ABRE O COMPARATIVO do que muda ao salvar.
    *
-   * A ordem importa: a padronização acontece primeiro, e o comparativo já mostra
-   * o texto corrigido. Ao contrário, a pessoa conferiria uma coisa e gravaria
-   * outra — as correções de caixa entrariam depois da conferência, sem passar
-   * por olho nenhum.
+   * A ordem importa: a revisão acontece primeiro, e o comparativo já mostra o
+   * texto corrigido. Ao contrário, a pessoa conferiria uma coisa e gravaria
+   * outra — as correções entrariam depois da conferência, sem passar por olho
+   * nenhum.
    */
-  function revisar() {
-    const corrigida = ec
-      ? {
-          ...ec,
-          linhas: ec.linhas.map((linha) => ({
-            ...linha,
-            item: corrigirMaiusculas(linha.item),
-            descricao: corrigirMaiusculas(linha.descricao),
-            descricaoCompleta: corrigirMaiusculasHtml(linha.descricaoCompleta),
-          })),
-        }
-      : ec;
-    setEc(corrigida);
+  async function revisar() {
+    if (!ec) return;
     // O comparativo é contra a última versão GRAVADA, que é o que a baseline
     // guarda desde o carregamento da tela.
-    const gravada = baseline ? (JSON.parse(baseline) as typeof ec) : null;
-    setRevisao(corrigida ? revisarEc(gravada, corrigida) : null);
+    const gravada = baseline ? (JSON.parse(baseline) as Ec) : null;
+    const pendentes = pendentesDeRevisao(camposDaEc(ec.linhas), camposDaEc(gravada?.linhas ?? []), jaRevisados);
+    setRevisando(true);
+    const { textos, falhou } = await revisarPendentes(pendentes);
+    setRevisando(false);
+    const corrigida = { ...ec, linhas: aplicarNaEc(ec.linhas, textos) };
+    setEc(corrigida);
+    if (falhou) await avisarFalhaRevisao();
+    else setJaRevisados(lembrarRevisados(jaRevisados, pendentes, textos));
+    setRevisao(revisarEc(gravada, corrigida));
   }
 
   /**
@@ -414,24 +415,27 @@ export function EcForm() {
    * para a tela de visualização da EC.
    */
   async function salvar(): Promise<boolean> {
+    /*
+     * REVISÃO DE TEXTO. Desde 25/09/2026 o salvamento revisava os textos
+     * alterados sem perguntar. Desde 28/10/2026 ele PERGUNTA: se há texto
+     * alterado que ainda não passou pelo "Revisar", um diálogo oferece revisar
+     * antes de gravar. Vai só o que mudou desde a última gravação — é o que
+     * mantém o custo preso ao número de edições de texto, e não ao de
+     * salvamentos. Sem revisão, vale só a regra de maiúsculas.
+     */
+    const gravada = baseline ? (JSON.parse(baseline) as Ec) : null;
+    const pendentes = pendentesDeRevisao(camposDaEc(ec!.linhas), camposDaEc(gravada?.linhas ?? []), jaRevisados);
+    const querRevisao = pendentes.length > 0 && (await perguntarRevisao(pendentes.length));
     setSalvando(true);
     try {
-      /*
-       * REVISÃO DE TEXTO (25/09/2026). Até aqui a EC só passava pela correção
-       * de maiúsculas, e apenas quando alguém clicava em "Revisar" — o revisor
-       * por IA estava programado (`corrigirDescricoes`) e não era chamado por
-       * tela nenhuma. De fora parecia que a revisão acontecia.
-       *
-       * Agora ela é obrigatória no salvamento, como a Pólobh pediu, e vai só o
-       * que MUDOU desde a última gravação: é o que mantém o custo preso ao
-       * número de edições de texto, e não ao de salvamentos.
-       */
-      const gravada = baseline ? (JSON.parse(baseline) as Ec) : null;
-      const { documento: linhas, revisaoCompleta } = await revisarDocumento(
-        camposDaEc(ec!.linhas),
-        camposDaEc(gravada?.linhas ?? []),
-        (revisados) => aplicarNaEc(ec!.linhas, revisados),
-      );
+      let linhas = ec!.linhas;
+      if (querRevisao) {
+        const { textos, falhou } = await revisarPendentes(pendentes);
+        linhas = aplicarNaEc(linhas, textos);
+        if (falhou) await avisarFalhaRevisao();
+      } else if (pendentes.length) {
+        linhas = aplicarNaEc(linhas, somenteMaiusculas(pendentes));
+      }
 
       const salvo = await repo.ecs.salvar({
         ...ec!,
@@ -439,8 +443,8 @@ export function EcForm() {
         numero,
         responsavel: ec!.responsavel || ec!.projeto.produtoraResponsavel,
       });
-      if (!revisaoCompleta) toast(AVISO_REVISAO_PARCIAL, "warning");
       setEc(salvo);
+      setJaRevisados(new Map());
       // Registra/atualiza os fornecedores citados e acumula seus contatos.
       await acumularFornecedores(ec!.linhas).catch(() => {});
       setBaseline(JSON.stringify(salvo));
@@ -509,8 +513,8 @@ export function EcForm() {
               partem da EC GRAVADA (nova versão, PDF) ficam à mão. Emitir OS NÃO
               está aqui: a emissão é só da EC já salva (29/09/2026). */}
           <div className="flex gap-2 flex-wrap">
-            <Button variant="secondary" size="sm" onClick={revisar} disabled={salvando} title="Padroniza a formatação dos textos e mostra o que muda ao salvar">
-              Revisar
+            <Button variant="secondary" size="sm" onClick={() => void revisar()} disabled={salvando || revisando} title="Corrige a ortografia dos textos alterados (IA) e mostra o que muda ao salvar">
+              {revisando ? "Revisando…" : "Revisar"}
             </Button>
             <Button size="sm" onClick={() => void salvar()} disabled={salvando || mostrarSalvo}>
               {salvando ? "Salvando…" : mostrarSalvo ? "Salvo" : "Salvar"}
