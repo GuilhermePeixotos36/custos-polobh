@@ -90,6 +90,7 @@ import {
   itensDoBloco, temContrato,
 } from "@/domain/os";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
+import { podeDescartar } from "@/lib/cancelarEdicao";
 import type { ResumoContratacao } from "@/domain/contratacaoOs";
 import type {
   GrupoExtraOs,
@@ -1245,6 +1246,25 @@ export function OsForm() {
               de gravar; Salvar grava. */}
           {editando && (
             <>
+              {/* CANCELAR EDIÇÃO (28/10/2026): joga fora o que foi digitado e
+                  volta a OS salva, em leitura. Pergunta antes se há alteração. */}
+              <Button
+                variant="text"
+                size="sm"
+                disabled={busy}
+                onClick={async () => {
+                  if (!(await podeDescartar(sujo))) return;
+                  if (!os.id) {
+                    guard.liberar();
+                    navigate(`/estimativas/${ecCtx.id}`);
+                    return;
+                  }
+                  if (baseline) setOs(JSON.parse(baseline));
+                  setEditando(false);
+                }}
+              >
+                Cancelar edição
+              </Button>
               <Button variant="secondary" size="sm" onClick={() => void revisar()} disabled={busy || revisando} title="Corrige a ortografia dos textos alterados (IA) e mostra o que mudou desde o último salvamento">
                 {revisando ? "Revisando…" : "Revisar"}
               </Button>
