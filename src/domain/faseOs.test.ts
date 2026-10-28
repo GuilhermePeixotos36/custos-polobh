@@ -67,8 +67,8 @@ describe("destaque dos blocos da vez", () => {
   });
   it("no back-office, o Financeiro segue aberto para correção; emitida, tudo em leitura", () => {
     expect(vezDoBloco("Back-office", "backoffice").vez).toBe(true);
-    expect(vezDoBloco("Financeiro", "backoffice").aviso).toBe("Aberto ao Back-office para correção");
-    expect(vezDoBloco("Produção", "backoffice").aviso).toBe("Aberto ao Back-office para correção");
+    expect(vezDoBloco("Financeiro", "backoffice").aviso).toBe("Aberto ao Back-office para revisão");
+    expect(vezDoBloco("Produção", "backoffice").aviso).toBe("Aberto ao Back-office para revisão");
     expect(vezDoBloco("Back-office", "emitida")).toEqual({ vez: false, aviso: "OS emitida — em leitura" });
   });
 });
