@@ -2664,17 +2664,28 @@ function CardOs({
   return (
     <div className={cx("bg-surface border border-border rounded-card shadow-card overflow-hidden [&_input:not([type=checkbox]):not([type=radio])]:!h-8 [&_select]:!h-8 [&_input]:!py-0 [&_select]:!py-0", className, destaque?.borda)}>
       <div className={cx(destaque ? destaque.faixa : "bg-[#C0C0C0]", "px-4 py-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1")}>
-        <button
-          type="button"
+        {/* NÃO é um <button> (28/10/2026): os blocos de outra área ficam dentro
+            de um `fieldset disabled` (leitura), que desliga todo botão lá
+            dentro — e a seta parava de abrir o bloco. Abrir e fechar é só ver,
+            então vale para qualquer pessoa, em qualquer fase. */}
+        <div
+          role="button"
+          tabIndex={0}
           onClick={alternar}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              alternar();
+            }
+          }}
           aria-expanded={!recolhida}
-          className="flex items-center gap-2 flex-1 min-w-[min(100%,15rem)] text-left text-ink hover:opacity-80 transition-opacity"
+          className="flex items-center gap-2 flex-1 min-w-[min(100%,15rem)] text-left text-ink hover:opacity-80 transition-opacity cursor-pointer select-none rounded-md focus-visible:outline-2 focus-visible:outline-primary"
         >
           <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-white/70 text-ink shrink-0" title={recolhida ? "Abrir o bloco" : "Fechar o bloco"}>
             <Chevron aberta={!recolhida} />
           </span>
           <h3 className="font-display font-bold text-[12.5px] uppercase tracking-[0.05em] text-ink">{secao}</h3>
-        </button>
+        </div>
         {area && <EtiquetaArea area={area} />}
         {acaoSecao && <div className="shrink-0">{acaoSecao}</div>}
       </div>
