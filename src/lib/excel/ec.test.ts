@@ -110,6 +110,20 @@ describe("Excel da EC", () => {
 });
 
 describe("helpers de layout do Excel", () => {
+  it("o modelo financeiro também traz a descrição completa, logo abaixo do resumo", async () => {
+    const { ws } = await abrir(ecBase([linha({
+      item: "Promotores", descricao: "Contratação de Equipe Promotores, sendo:",
+      descricaoCompleta: "<ul><li><strong>Saguão Prédio</strong><ul><li>01 profissional x 01 diária de 04 horas</li></ul></li></ul>",
+      valorPolobh: 988,
+    })]), "financeiro");
+    const celulas: string[] = [];
+    ws.eachRow((row) => row.eachCell((c) => celulas.push(String(c.value ?? ""))));
+    const descritivo = celulas.find((t) => t.includes("Contratação de Equipe Promotores"));
+    expect(descritivo).toContain("Saguão Prédio");
+    expect(descritivo).toContain("01 profissional x 01 diária de 04 horas");
+    expect(descritivo!.indexOf("Contratação")).toBeLessThan(descritivo!.indexOf("Saguão"));
+  });
+
   it("encaixarLogo respeita a proporção e a caixa", () => {
     const ext = encaixarLogo({ buffer: new Uint8Array(0), largura: 523, altura: 190 }, { largura: 170, altura: 54 });
     expect(ext.height).toBeLessThanOrEqual(54);
