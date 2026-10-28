@@ -43,6 +43,7 @@ import { corrigirRoteirosProjeto } from "@/lib/correcaoOrtografica";
 import { chaveDocumento } from "@/domain/travaEdicao";
 import { useTravaEdicao } from "@/hooks/useTravaEdicao";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
+import { podeDescartar } from "@/lib/cancelarEdicao";
 import { AvisoTravaEdicao } from "@/components/AvisoTravaEdicao";
 import { eventoEncerradoHaDias, statusProjetoAutomatico } from "@/domain/statusProjeto";
 import { RepercutirMudancasModal } from "@/components/RepercutirMudancasModal";
@@ -663,7 +664,13 @@ export function ProjetoDetail() {
   const checklistProjeto = useChecklistProjeto(novo ? undefined : p, podeEditarChecklist, !alterado);
 
   /** Sai da edição jogando fora o que foi digitado — volta ao que está salvo. */
-  function cancelarEdicao() {
+  async function cancelarEdicao() {
+    if (!(await podeDescartar(sujo))) return;
+    if (novo) {
+      guarda.liberar();
+      navigate("/projetos");
+      return;
+    }
     if (baseline) setP(JSON.parse(baseline));
     setTentouSalvar(false);
     setEditando(false);
@@ -831,11 +838,11 @@ export function ProjetoDetail() {
               ) : (
                 <>
                   {salvando && <CarregandoTela />}
-                  {!novo && (
-                    <Button variant="secondary" size="sm" onClick={cancelarEdicao} disabled={salvando}>
-                      Cancelar
-                    </Button>
-                  )}
+                  {/* Também no projeto novo (28/10/2026): ali "cancelar" é
+                      desistir do cadastro e voltar à lista. */}
+                  <Button variant="secondary" size="sm" onClick={() => void cancelarEdicao()} disabled={salvando}>
+                    Cancelar edição
+                  </Button>
                   <Button
                     size="sm"
                     onClick={salvar}

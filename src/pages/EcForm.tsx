@@ -61,6 +61,7 @@ import { EcSubGuias, type SubGuiaEc } from "@/components/EcSubGuias";
 import { flags } from "@/lib/flags";
 import { toast } from "@/store/toast";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
+import { podeDescartar } from "@/lib/cancelarEdicao";
 import { brl, cx, maskCpfCnpjInput, onlyDigits } from "@/lib/format";
 import type {
   Cliente,
@@ -234,7 +235,7 @@ export function EcForm() {
   const modalidadeAtual = (projetoDaEc?.info.modalidade || ec?.projeto.modalidade || ec?.template || "") as ModalidadeProjeto;
 
   const sujo = !!ec && baseline !== "" && JSON.stringify(ec) !== baseline;
-  useUnsavedGuard(sujo);
+  const guarda = useUnsavedGuard(sujo);
 
   /**
    * TRAVA DE PRESENÇA (25/09/2026). A tela da EC é o formulário inteiro: abrir
@@ -514,6 +515,20 @@ export function EcForm() {
               partem da EC GRAVADA (nova versão, PDF) ficam à mão. Emitir OS NÃO
               está aqui: a emissão é só da EC já salva (29/09/2026). */}
           <div className="flex gap-2 flex-wrap">
+            {/* CANCELAR EDIÇÃO (28/10/2026): volta à EC salva (ou ao projeto, se
+                ela ainda não existe), perguntando antes se há algo digitado. */}
+            <Button
+              variant="text"
+              size="sm"
+              disabled={salvando}
+              onClick={async () => {
+                if (!(await podeDescartar(sujo))) return;
+                guarda.liberar();
+                navigate(id ? `/estimativas/${id}` : voltarUrl);
+              }}
+            >
+              Cancelar edição
+            </Button>
             <Button variant="secondary" size="sm" onClick={() => void revisar()} disabled={salvando || revisando} title="Corrige a ortografia dos textos alterados (IA) e mostra o que muda ao salvar">
               {revisando ? "Revisando…" : "Revisar"}
             </Button>
