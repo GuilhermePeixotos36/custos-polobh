@@ -544,7 +544,7 @@ const SELECT_EC = "*, linhas:ec_linhas_visiveis(*)";
  * antigo, que `mapObservacoes` ainda converte.
  */
 const SELECT_EC_PAINEL =
-  "*, linhas:ec_linhas_visiveis(id,grupo,item,pedido_compra,codigo_servico,status_os,contrato_status,status_aprovacao,observacao,observacoes,oculto,ordem)";
+  "*, linhas:ec_linhas_visiveis(id,grupo,item,pedido_compra,codigo_servico,status_os,contrato_status,status_aprovacao,observacao,observacoes,oculto,ordem,fornecedor_razao,fornecedor_cnpj)";
 
 /**
  * A cópia de uma EC acontece DENTRO do banco (RPC `importar_ec`), e não aqui.

@@ -678,8 +678,11 @@ export function calcularPendencias(
       // razão social é da produtora. A EC aprovada pode existir sem esses dados
       // — eles só são exigidos para gerar OS e contrato —, mas alguém precisa ser
       // cobrado por eles, e é quem responde pelo projeto.
+      // OS "Não se Aplica" (28/10/2026): item só descrito, sem valor nem OS —
+      // não há fornecedor a cobrar.
       if (
         linha.statusAprovacao === "OK" &&
+        linha.statusOs !== "Não se Aplica" &&
         (!linha.fornecedorRazao?.trim() || !documentoCompleto(linha.fornecedorCnpj))
       ) {
         out.push({
