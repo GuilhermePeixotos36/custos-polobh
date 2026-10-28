@@ -92,10 +92,10 @@ export function NovaSenha() {
               <p className="text-ink-2 text-[13.5px] mt-0.5 mb-5">
                 Escolha uma frase que só você saiba — ela vale mais que uma senha curta cheia de símbolos.
               </p>
-              <Field label="Nova senha" className="mb-4">
+              <Field label="Nova senha" className="mb-4" obrigatorio>
                 <Input type="password" value={nova} onChange={(e) => setNova(e.target.value)} autoComplete="new-password" required />
               </Field>
-              <Field label="Confirme a nova senha" className="mb-5">
+              <Field label="Confirme a nova senha" className="mb-5" obrigatorio>
                 <Input type="password" value={confirmacao} onChange={(e) => setConfirmacao(e.target.value)} autoComplete="new-password" required />
               </Field>
 

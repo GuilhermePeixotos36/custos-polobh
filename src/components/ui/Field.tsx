@@ -24,18 +24,30 @@ const dataIsoValida = (v: string) => {
   return ano >= 1900 && ano <= 2100 && !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v;
 };
 
+/** Asterisco vermelho de campo obrigatório. */
+export function MarcaObrigatorio({ title = "Preenchimento obrigatório" }: { title?: string }) {
+  return (
+    <span className="text-danger font-bold" title={title} aria-label="obrigatório">
+      {" "}*
+    </span>
+  );
+}
+
 export function Label({
   children,
   htmlFor,
   hint,
+  obrigatorio,
 }: {
   children: ReactNode;
   htmlFor?: string;
   hint?: ReactNode;
+  /** Marca o campo com * vermelho. */
+  obrigatorio?: boolean;
 }) {
   return (
     <label htmlFor={htmlFor} className="block mb-1.5">
-      <span className="text-[12.5px] font-bold text-ink">{children}</span>
+      <span className="text-[12.5px] font-bold text-ink">{children}{obrigatorio && <MarcaObrigatorio />}</span>
       {hint && <span className="text-[12px] text-ink-3 font-medium ml-1">{hint}</span>}
     </label>
   );
@@ -46,15 +58,18 @@ export function Field({
   hint,
   children,
   className,
+  obrigatorio,
 }: {
   label?: ReactNode;
   hint?: ReactNode;
   children: ReactNode;
   className?: string;
+  /** Marca o rótulo com * vermelho. */
+  obrigatorio?: boolean;
 }) {
   return (
     <div className={className}>
-      {label && <Label hint={hint}>{label}</Label>}
+      {label && <Label hint={hint} obrigatorio={obrigatorio}>{label}</Label>}
       {children}
     </div>
   );

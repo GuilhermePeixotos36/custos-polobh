@@ -691,7 +691,7 @@ function AreaModal({
 
         <div className="px-6 py-5 overflow-y-auto grid gap-3">
           <div className="grid sm:grid-cols-2 gap-3">
-            <Field label="Nome da área">
+            <Field label="Nome da área" obrigatorio>
               {editando ? (
                 <Input formato="titulo" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} placeholder="Ex.: Atendimento" />
               ) : (
@@ -927,10 +927,10 @@ function UsuariosCard() {
             </div>
           )}
           <div className="grid gap-3">
-            <Field label="Nome"><Input formato="titulo" value={edit.nome} onChange={(e) => setEdit({ ...edit, nome: e.target.value })} /></Field>
-            <Field label="E-mail"><Input type="email" value={edit.email} onChange={(e) => setEdit({ ...edit, email: e.target.value })} placeholder="nome@polobh.com.br" /></Field>
+            <Field label="Nome" obrigatorio><Input formato="titulo" value={edit.nome} onChange={(e) => setEdit({ ...edit, nome: e.target.value })} /></Field>
+            <Field label="E-mail" obrigatorio><Input type="email" value={edit.email} onChange={(e) => setEdit({ ...edit, email: e.target.value })} placeholder="nome@polobh.com.br" /></Field>
             <Field label="Telefone"><TelefoneInput value={edit.telefone} onChange={(v) => setEdit({ ...edit, telefone: v })} /></Field>
-            <Field label="Área" hint="Define as telas que este usuário enxerga e edita">
+            <Field label="Área" hint="Define as telas que este usuário enxerga e edita" obrigatorio={edit.papel !== "Admin"}>
               <Select value={edit.areaId ?? ""} onChange={(e) => setEdit({ ...edit, areaId: e.target.value })}>
                 <option value="">
                   {edit.papel === "Admin" ? "Sem área — acesso total (desenvolvedor)" : "Selecione a área…"}
@@ -989,7 +989,7 @@ function HelpDeskCard() {
       <CardTitle hint="Quem recebe os chamados abertos pelo botão Help Desk. A resposta volta para quem abriu.">
         Help Desk
       </CardTitle>
-      <Field label="E-mail do suporte">
+      <Field label="E-mail do suporte" obrigatorio>
         <Input
           type="email"
           value={email}

@@ -368,7 +368,7 @@ function NovoChamado({
       </Field>
 
       <div id={CAMPO_ASSUNTO}>
-        <Field label="Assunto">
+        <Field label="Assunto" obrigatorio>
           <Input
             value={assunto}
             onChange={(e) => setAssunto(e.target.value)}
@@ -379,7 +379,7 @@ function NovoChamado({
       </div>
 
       <div id={CAMPO_DESCRICAO}>
-        <Field label="O que aconteceu">
+        <Field label="O que aconteceu" obrigatorio>
           <Textarea
             rows={6}
             value={descricao}

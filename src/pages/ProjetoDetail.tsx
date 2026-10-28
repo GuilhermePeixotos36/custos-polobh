@@ -933,7 +933,7 @@ export function ProjetoDetail() {
               }>Cliente</CardTitle>
               {cnpjMsg && <div className="mb-3 text-[12.5px] text-info bg-info-soft rounded-btn px-3 py-2">{cnpjMsg}</div>}
               <div className="grid sm:grid-cols-2 gap-4">
-                <Field label="CNPJ/CPF">
+                <Field label="CNPJ/CPF" obrigatorio>
                   <div className="relative">
                     <Input
                       value={p.cliente.cnpjCpf}
@@ -963,7 +963,7 @@ export function ProjetoDetail() {
                     )}
                   </div>
                 </Field>
-                <Field label="Cliente (nome)">
+                <Field label="Cliente (nome)" obrigatorio>
                   <div className="relative">
                     <Input
                       formato="titulo"
@@ -1017,17 +1017,17 @@ export function ProjetoDetail() {
           <Card>
             <CardTitle>Informações do projeto</CardTitle>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <Field label="Cliente (apelido)"><Input erro={chavesComErro.has("clienteAbreviado")} sugestoes={sugestoes.valores.clienteApelido} value={p.info.clienteAbreviado} onChange={(e) => updTituloParte({ clienteAbreviado: e.target.value })} placeholder="Ex.: ACME" /></Field>
-              <Field label="Nome do projeto"><Input formato="titulo" erro={chavesComErro.has("nomeProjeto")} sugestoes={sugestoes.valores.nomeProjeto} value={p.info.nomeProjeto} onChange={(e) => updTituloParte({ nomeProjeto: e.target.value })} /></Field>
-              <Field label="Ano"><Input erro={chavesComErro.has("anoProjeto")} sugestoes={sugestoes.valores.anoProjeto} value={p.info.anoProjeto} inputMode="numeric" onChange={(e) => updTituloParte({ anoProjeto: onlyDigits(e.target.value).slice(0, 4) })} placeholder="2026" /></Field>
-              <Field label="Modalidade">
+              <Field label="Cliente (apelido)" obrigatorio><Input erro={chavesComErro.has("clienteAbreviado")} sugestoes={sugestoes.valores.clienteApelido} value={p.info.clienteAbreviado} onChange={(e) => updTituloParte({ clienteAbreviado: e.target.value })} placeholder="Ex.: ACME" /></Field>
+              <Field label="Nome do projeto" obrigatorio><Input formato="titulo" erro={chavesComErro.has("nomeProjeto")} sugestoes={sugestoes.valores.nomeProjeto} value={p.info.nomeProjeto} onChange={(e) => updTituloParte({ nomeProjeto: e.target.value })} /></Field>
+              <Field label="Ano" obrigatorio><Input erro={chavesComErro.has("anoProjeto")} sugestoes={sugestoes.valores.anoProjeto} value={p.info.anoProjeto} inputMode="numeric" onChange={(e) => updTituloParte({ anoProjeto: onlyDigits(e.target.value).slice(0, 4) })} placeholder="2026" /></Field>
+              <Field label="Modalidade" obrigatorio>
                 <Select erro={chavesComErro.has("modalidade")} value={p.info.modalidade} onChange={(e) => updInfo({ modalidade: e.target.value as ProjetoInfo["modalidade"] })}>
                   <option value="">Selecione</option>
                   <option value="Cultural">Cultural</option>
                   <option value="Corporativo">Corporativo</option>
                 </Select>
               </Field>
-              <Field label="Local">
+              <Field label="Local" obrigatorio>
                 <Input
                   formato="titulo"
                   erro={chavesComErro.has("local")}

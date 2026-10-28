@@ -207,8 +207,8 @@ export function Fornecedores() {
             }>{edit.id ? "Editar fornecedor" : "Novo fornecedor"}</CardTitle>
             {msg && <div className="mb-3 text-[12.5px] text-info bg-info-soft rounded-btn px-3 py-2">{msg}</div>}
             <div className="grid gap-3">
-              <Field label="CNPJ/CPF"><Input value={edit.cnpj} onChange={(e) => setEdit(comPerfilPeloDocumento({ ...edit, cnpj: maskCpfCnpjInput(e.target.value) }))} inputMode="numeric" placeholder="00.000.000/0000-00" /></Field>
-              <Field label="Razão social"><Input formato="titulo-empresa" value={edit.razaoSocial} onChange={(e) => setEdit({ ...edit, razaoSocial: e.target.value })} /></Field>
+              <Field label="CNPJ/CPF" hint="(ou razão social)" obrigatorio><Input value={edit.cnpj} onChange={(e) => setEdit(comPerfilPeloDocumento({ ...edit, cnpj: maskCpfCnpjInput(e.target.value) }))} inputMode="numeric" placeholder="00.000.000/0000-00" /></Field>
+              <Field label="Razão social" hint="(ou CNPJ/CPF)" obrigatorio><Input formato="titulo-empresa" value={edit.razaoSocial} onChange={(e) => setEdit({ ...edit, razaoSocial: e.target.value })} /></Field>
               <Field label="Nome fantasia"><Input formato="titulo" value={edit.nomeFantasia} onChange={(e) => setEdit({ ...edit, nomeFantasia: e.target.value })} /></Field>
               {/* O apelido é GERADO a partir do nome (ver domain/fornecedor) e
                   entra no título das OSs. O campo existe só como saída para

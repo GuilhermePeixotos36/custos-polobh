@@ -17,6 +17,7 @@ import {
   AvisoHomologacaoEmail,
   MOTIVO_DISPARO_DESLIGADO,
   CarregandoTela,
+  MarcaObrigatorio,
 } from "@/components/ui";
 import { IcCheck, IcCopy, IcDoc, IcEye, IcPencil, IcSearch, IcSend, IcSpark, IcCadeado } from "@/components/icons";
 import { CardConversa } from "@/components/CardConversa";
@@ -1510,8 +1511,8 @@ export function OsForm() {
           <LinhaOs label="Conta Corrente"><Input value={os.fornecedor.dadosBancarios.conta} onChange={(e) => updB({ conta: e.target.value })} /></LinhaOs>
           <LinhaOs label="Chave Pix"><Input value={os.fornecedor.dadosBancarios.chavePix} onChange={(e) => updB({ chavePix: e.target.value })} /></LinhaOs>
           <LinhaOs label="Representante"><Input formato="titulo" value={os.fornecedor.representante} onChange={(e) => updF({ representante: e.target.value })} /></LinhaOs>
-          <LinhaOs label="Telefone"><TelefoneInput value={os.fornecedor.telefone} onChange={(v) => updF({ telefone: v })} /></LinhaOs>
-          <LinhaOs label="E-mail"><Input value={os.fornecedor.email} onChange={(e) => updF({ email: e.target.value })} /></LinhaOs>
+          <LinhaOs label="Telefone" obrigatorio><TelefoneInput value={os.fornecedor.telefone} onChange={(v) => updF({ telefone: v })} /></LinhaOs>
+          <LinhaOs label="E-mail" obrigatorio><Input value={os.fornecedor.email} onChange={(e) => updF({ email: e.target.value })} /></LinhaOs>
         </CardOs>
 
         {/* O bloco de cima é da PRODUÇÃO; o Detalhamento tem partes dela e uma do
@@ -1523,7 +1524,7 @@ export function OsForm() {
         {/* DETALHAMENTO DA CONTRATAÇÃO */}
         <CardOs secao={SECAO_DETALHAMENTO} area="Produção">
           <fieldset disabled={!mexeProducao} className="min-w-0 border-0 p-0 m-0 disabled:opacity-100">
-          <LinhaOs label="Modalidade" hint="(obrigatória)">
+          <LinhaOs label="Modalidade" obrigatorio>
             <Select
               value={os.modalidade}
               erro={!os.modalidade}
@@ -1570,6 +1571,7 @@ export function OsForm() {
             <fieldset disabled={!mexeFinanceiro} className="min-w-0 border-0 p-0 m-0 disabled:opacity-100">
             <LinhaOs
               label="Formas de pagamento"
+              obrigatorio
               hint="(valores e BV vêm da EC — o Financeiro escolhe UMA forma por item)"
             >
               <div id={ID_FORMAS_PAGAMENTO} className="py-1.5 space-y-2">
@@ -2655,10 +2657,13 @@ function LinhaOs({
   hint,
   acao,
   id,
+  obrigatorio,
   children,
 }: {
   label: string;
   hint?: string;
+  /** Marca o rótulo com * vermelho (exigido para emitir a OS). */
+  obrigatorio?: boolean;
   acao?: ReactNode;
   /** Âncora do destaque — usada quando este campo trava o salvamento. */
   id?: string;
@@ -2668,7 +2673,7 @@ function LinhaOs({
     <div id={id} className="grid md:grid-cols-[240px_minmax(0,1fr)] gap-x-4 items-start px-4 py-0 border-b border-border-soft last:border-b-0">
       <div className="md:py-1 flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <span className="block text-[11.5px] font-extrabold uppercase tracking-[0.03em] text-ink-2">{label}</span>
+          <span className="block text-[11.5px] font-extrabold uppercase tracking-[0.03em] text-ink-2">{label}{obrigatorio && <MarcaObrigatorio title="Obrigatório para emitir a OS" />}</span>
           {hint && <span className="block text-[10.5px] font-semibold text-ink-3">{hint}</span>}
         </div>
         {acao && <div className="shrink-0 md:hidden">{acao}</div>}

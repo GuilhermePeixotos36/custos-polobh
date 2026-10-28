@@ -28,7 +28,7 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, useSortable, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Button, Field, Input } from "@/components/ui";
+import { Button, Field, Input, MarcaObrigatorio } from "@/components/ui";
 import { useSugestoes } from "@/hooks/useSugestoes";
 import { IcGrip, IcPlus, IcTrash, IcEye, IcEyeOff } from "@/components/icons";
 import { MoverSetas, moverNaLista } from "@/components/MoverSetas";
@@ -381,7 +381,10 @@ function BlocoCard({
           <IcGrip width={18} height={18} />
         </button>
         {etapaPadrao ? (
-          <h3 id={`cronograma-${bloco.id}`} className="text-sm font-bold text-ink">{bloco.titulo}</h3>
+          <h3 id={`cronograma-${bloco.id}`} className="text-sm font-bold text-ink">
+            {bloco.titulo}
+            {bloco.etapa === "evento" && <MarcaObrigatorio title="Informe ao menos uma data do evento" />}
+          </h3>
         ) : (
           <Input
             className="!h-9 !text-[13.5px] !font-bold max-w-xs"
