@@ -489,6 +489,7 @@ function mapEc(r: any): Ec {
     criadoEm: r.criado_em,
     atualizadoEm: r.atualizado_em,
     canceladaSubstituida: r.cancelada_substituida ?? false,
+    baixadaEm: r.baixada_em ?? null,
     ativa: r.ativa ?? true,
   };
 }
@@ -621,6 +622,16 @@ const ecRepo: EcRepository = {
       alvoId: novoId,
     });
     return nova;
+  },
+  async novaVersaoComMapa(id) {
+    const r = ok(await supabase.rpc("nova_versao_ec_com_mapa", { p_ec_id: id })) as { id: string; mapa: Record<string, string> };
+    const nova = await this.obter(r.id);
+    if (!nova) throw new Error("Falha ao reler a nova versão.");
+    return { ec: nova, mapa: r.mapa ?? {} };
+  },
+  async marcarBaixada(id) {
+    if (!isUuid(id)) return;
+    ok(await supabase.rpc("marcar_ec_baixada", { p_ec_id: id }));
   },
   async novaVersao(id) {
     const orig = await this.obter(id);

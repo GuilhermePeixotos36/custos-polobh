@@ -182,14 +182,14 @@ describe("numeroOs", () => {
       ],
     }) as unknown as Ec;
 
-  it("OS – projeto – item – fornecedor (versão) em data", () => {
+  it("projeto – item – fornecedor – OS (versão) em data", () => {
     const n = numeroOs(comProjeto({}), { apelido: "Âmbar", razaoSocial: "AMBAR CENOGRAFIA LTDA" }, 1, "2026-10-27T10:00:00.000Z", ["l1"]);
-    expect(n).toBe("OS – BM – Convenção de Vendas 2027 – Cenografia – Âmbar (01) em 27 10 26");
+    expect(n).toBe("BM – Convenção de Vendas 2027 – Cenografia – Âmbar – OS (01) em 27 10 26");
   });
 
   it("mais de um item na OS: Diversos", () => {
     const n = numeroOs(comProjeto({}), "Âmbar", 2, "2026-10-27T10:00:00.000Z", ["l1", "l2"]);
-    expect(n).toBe("OS – BM – Convenção de Vendas 2027 – Diversos – Âmbar (02) em 27 10 26");
+    expect(n).toBe("BM – Convenção de Vendas 2027 – Diversos – Âmbar – OS (02) em 27 10 26");
   });
 
   it("sem apelido no cadastro, o sistema gera a partir do nome", () => {
@@ -198,7 +198,7 @@ describe("numeroOs", () => {
     expect(apelidoFornecedor({ nomeFantasia: "Sonora AV", razaoSocial: "Sonora Áudio e Iluminação Ltda" }))
       .toBe("Sonora AV");
     expect(numeroOs(comProjeto({}), { razaoSocial: "MONTA TUDO ESTRUTURAS LTDA" }, 2, "2026-08-27T10:00:00.000Z", ["l1"]))
-      .toContain("– Monta Tudo (02) em");
+      .toContain("– Monta Tudo – OS (02) em");
   });
 
   it("apelido preenchido à mão vence a geração automática", () => {
@@ -209,7 +209,7 @@ describe("numeroOs", () => {
   it("EC antiga, sem cliente/projeto/ano separados, usa o título do projeto", () => {
     const antiga = comProjeto({ clienteAbreviado: "", nomeProjeto: "", anoProjeto: "", titulo: "BM – Convenção de Vendas – 2027" });
     const n = numeroOs(antiga, "Âmbar", 1, "2026-10-27T10:00:00.000Z", ["l2"]);
-    expect(n).toBe("OS – BM – Convenção de Vendas – 2027 – Iluminação – Âmbar (01) em 27 10 26");
+    expect(n).toBe("BM – Convenção de Vendas – 2027 – Iluminação – Âmbar – OS (01) em 27 10 26");
   });
 });
 

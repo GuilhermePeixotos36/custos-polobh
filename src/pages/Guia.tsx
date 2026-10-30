@@ -664,7 +664,7 @@ const MODULOS: Modulo[] = [
             <div className="space-y-2 text-[12px]">
               <div className="flex items-center gap-2"><span className="text-ink-3 line-through">Expominas</span><span className="text-ink-3">→</span><b className="text-ink">Minascentro</b></div>
               <div className="flex items-center gap-2"><span className="text-ink">EC – ACME – V02</span><span className="text-ink-3">nova versão</span></div>
-              <div className="flex items-center gap-2"><span className="text-ink">OS – Som &amp; Luz – (01)</span><span className="text-ink-3">nova versão</span></div>
+              <div className="flex items-center gap-2"><span className="text-ink">Som &amp; Luz – OS (01)</span><span className="text-ink-3">nova versão</span></div>
             </div>
           </Tela>
           <Passos>
@@ -837,7 +837,7 @@ const MODULOS: Modulo[] = [
           </Passos>
           <Dica>
             O <b>título da OS</b> é montado sozinho:
-            <b> OS – Apelido do Cliente – Nome do Projeto – Ano – Apelido do Fornecedor – (NN) em DD MM AA</b>.
+            <b> Apelido do Cliente – Nome do Projeto Ano – Item – Apelido do Fornecedor – OS (NN) em DD MM AA</b>.
             O <b>(NN)</b> é a versão daquela OS: a primeira emissão é (01), e cada "Emitir Nova Versão" para o mesmo
             fornecedor avança para (02), (03)… O <b>apelido do fornecedor é gerado pelo sistema</b> a partir do nome
             dele — a razão social vem da Receita cheia de forma jurídica e descrição de atividade, e o sistema descarta

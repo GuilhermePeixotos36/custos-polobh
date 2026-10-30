@@ -76,6 +76,14 @@ export interface EcRepository {
    */
   importar(origemId: string, destino: Ec): Promise<Ec>;
   novaVersao(id: string): Promise<Ec>;
+  /**
+   * Nova versão + o mapa "id da linha antiga → id da linha copiada", para a
+   * tela gravar as edições na versão nova mantendo cada linha (ver o salvar
+   * da EC baixada).
+   */
+  novaVersaoComMapa(id: string): Promise<{ ec: Ec; mapa: Record<string, string> }>;
+  /** Marca esta versão como baixada/arquivada (só a primeira vez conta). */
+  marcarBaixada(id: string): Promise<void>;
   /** Torna esta EC a ativa do projeto (arquiva as demais). Reativa arquivadas. */
   definirAtiva(id: string): Promise<Ec>;
   remover(id: string): Promise<void>;

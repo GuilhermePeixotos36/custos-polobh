@@ -7,7 +7,8 @@ import { tituloEc } from "@/domain/calc";
  * nome de arquivo (/, :, etc.) substituídos por espaço.
  */
 export function nomeEcExcel(ec: Ec, modelo: "financeiro" | "completa"): string {
-  const sufixo = modelo === "completa" ? "Completa" : "Financeiro";
-  const base = `${tituloEc(ec)} - ${sufixo}`.replace(/[\\/:*?"<>|]/g, " ").replace(/\s+/g, " ").trim();
+  // Só a planilha financeira leva complemento; a completa é "a" EC (30/10/2026).
+  const sufixo = modelo === "financeiro" ? " - Financeiro" : "";
+  const base = `${tituloEc(ec)}${sufixo}`.replace(/[\\/:*?"<>|]/g, " ").replace(/\s+/g, " ").trim();
   return `${base}.xlsx`;
 }

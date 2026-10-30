@@ -614,6 +614,12 @@ export interface Ec {
   canceladaSubstituida?: boolean;
   /** Apenas uma EC fica ativa por projeto; as demais versões ficam arquivadas. */
   ativa: boolean;
+  /**
+   * Quando esta versão foi baixada (Excel) ou arquivada na pasta do projeto.
+   * Depois disso ela não muda mais: editar e salvar gera uma versão nova
+   * (30/10/2026), para o arquivo da pasta nunca divergir do sistema.
+   */
+  baixadaEm?: string | null;
 }
 
 /* --------------------------------- OS ----------------------------------- */
