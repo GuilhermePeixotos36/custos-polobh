@@ -34,14 +34,23 @@ const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.s
  * link de pasta (ou sem projeto) simplesmente não arquiva, sem aviso — o link é
  * opcional. Falha real de envio vira um aviso na tela.
  */
-export function arquivarCopia(projetoId: string | undefined, nome: string, buffer: ArrayBuffer): void {
+export function arquivarCopia(
+  projetoId: string | undefined,
+  nome: string,
+  buffer: ArrayBuffer,
+  /** Chamado só quando a cópia chegou de fato à pasta. */
+  onArquivado?: () => void,
+): void {
   if (!projetoId || !/^[0-9a-f-]{36}$/i.test(projetoId)) return;
   void (async () => {
     try {
       const { data } = await supabase.from("projetos").select("docs_url").eq("id", projetoId).maybeSingle();
       if (!/^https?:\/\//i.test((data?.docs_url ?? "").trim())) return;
       const r = await arquivarDocumento(projetoId, nome.endsWith(".xlsx") ? nome : `${nome}.xlsx`, new Blob([buffer], { type: XLSX_MIME }));
-      if (r.ok) toast("Cópia salva na pasta Dropbox do projeto.", "success");
+      if (r.ok) {
+        toast("Cópia salva na pasta Dropbox do projeto.", "success");
+        onArquivado?.();
+      }
       else toast(`Não foi possível salvar no Dropbox do projeto: ${r.erro}`, "info");
     } catch {
       /* arquivar nunca atrapalha quem gerou o documento */

@@ -62,6 +62,9 @@ export async function gerarEcExcel(
   const { gerarEcExcel: fn } = await import("./ec");
   const r = await fn(ec, opts);
   if (r !== "cancelado") {
+    // BAIXOU = esta versão não muda mais: a próxima edição salva como versão
+    // nova (30/10/2026). Vale para os dois modelos.
+    void import("@/data").then(({ repo }) => repo.ecs.marcarBaixada(ec.id)).catch(() => {});
     const modelo = opts?.modelo === "financeiro" ? "financeiro" : "completo";
     auditar({ categoria: "Exportação", acao: "ec.excel", mensagem: `EC ${ec.numero} exportada para Excel (${modelo})`, alvoId: ec.id });
   }
@@ -202,7 +205,10 @@ export async function arquivarNovaVersaoEc(ec: Ec): Promise<void> {
   try {
     const [{ criarEcExcelBuffer }, { arquivarCopia }] = await Promise.all([import("./ec"), import("@/lib/arquivarDocumento")]);
     const { buffer, nome } = await criarEcExcelBuffer(ec, "completa");
-    arquivarCopia(ec.projetoId, nome, buffer);
+    // Chegou à pasta = esta versão fica como está (ver `marcarBaixada`).
+    arquivarCopia(ec.projetoId, nome, buffer, () => {
+      void import("@/data").then(({ repo }) => repo.ecs.marcarBaixada(ec.id)).catch(() => {});
+    });
   } catch {
     /* arquivar nunca atrapalha a geração da versão */
   }

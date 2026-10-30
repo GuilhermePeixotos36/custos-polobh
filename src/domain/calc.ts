@@ -244,9 +244,9 @@ export function versaoOs(oss: Os[], ecId: string, fornecedorCnpj: string, fornec
 }
 
 /**
- * Título da OS (28/10/2026): "OS – {Projeto} – {Item} – {Fornecedor} ({N}) em
- * {DD MM AA}". Ex.: "OS – BM – Convenção de Vendas 2027 – Cenografia – Âmbar (01)
- * em 27 10 26".
+ * Título da OS (30/10/2026): "{Projeto} – {Item} – {Fornecedor} – OS ({N}) em
+ * {DD MM AA}". Ex.: "BM – Convenção de Vendas 2027 – Transporte Terrestre – Raos
+ * Transfer – OS (01) em 28 10 26". Até 30/10 o "OS" vinha no começo.
  *
  * - Projeto: apelido do cliente + nome do projeto + ano ("BM – Convenção de
  *   Vendas 2027"); EC antiga, sem os pedaços separados, usa o título do projeto.
@@ -269,8 +269,8 @@ export function numeroOs(
   const item = itemDoTituloOs(ec, ecLinhaIds);
   const forn = apelidoFornecedor(fornecedor);
   const data = dataBRCurta(criadoEm);
-  const fim = [forn, `(${String(versao).padStart(2, "0")})`].filter(Boolean).join(" ") + (data ? ` em ${data}` : "");
-  return ["OS", projeto, item, fim].filter(Boolean).join(" – ");
+  const fim = `OS (${String(versao).padStart(2, "0")})` + (data ? ` em ${data}` : "");
+  return [projeto, item, forn, fim].filter(Boolean).join(" – ");
 }
 
 /** O item no título da OS: o nome do único item, ou "Diversos" com mais de um. */

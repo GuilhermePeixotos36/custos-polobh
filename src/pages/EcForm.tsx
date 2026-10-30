@@ -439,12 +439,47 @@ export function EcForm() {
         linhas = aplicarNaEc(linhas, somenteMaiusculas(pendentes));
       }
 
+      /*
+       * EC JÁ BAIXADA (30/10/2026): a versão que está na pasta do projeto não
+       * muda mais. O salvar cria a versão seguinte e grava as edições NELA — a
+       * tela continua dizendo "Editar EC"; a versão nova é só a consequência.
+       * Confere no banco na hora (alguém pode ter baixado com a tela aberta).
+       */
+      let alvo: Ec = { ...ec!, linhas, numero };
+      let virouVersao: number | null = null;
+      const noBanco = /^[0-9a-f-]{36}$/i.test(alvo.id) ? await repo.ecs.obter(alvo.id) : undefined;
+      if (noBanco?.baixadaEm) {
+        const { ec: nova, mapa } = await repo.ecs.novaVersaoComMapa(alvo.id);
+        alvo = {
+          ...alvo,
+          id: nova.id,
+          versao: nova.versao,
+          numero: numeroEc(alvo.cliente.nome || "Cliente", alvo.projeto.titulo || "Projeto", nova.versao),
+          status: nova.status,
+          ativa: nova.ativa,
+          canceladaSubstituida: nova.canceladaSubstituida,
+          criadoEm: nova.criadoEm,
+          atualizadoEm: nova.atualizadoEm,
+          baixadaEm: null,
+          // Cada linha segue sendo "a mesma" na versão nova: é o que preserva
+          // os valores que quem salva não enxerga.
+          linhas: alvo.linhas.map((l) => ({ ...l, id: mapa[l.id] ?? l.id })),
+        };
+        // Se o salvamento abaixo falhar, tentar de novo grava nesta versão nova
+        // (e não cria outra).
+        setEc(alvo);
+        virouVersao = nova.versao;
+      }
+
       const salvo = await repo.ecs.salvar({
-        ...ec!,
-        linhas,
-        numero,
-        responsavel: ec!.responsavel || ec!.projeto.produtoraResponsavel,
+        ...alvo,
+        responsavel: alvo.responsavel || alvo.projeto.produtoraResponsavel,
       });
+      if (virouVersao !== null) {
+        toast(`Esta versão já tinha sido baixada. As alterações foram salvas na versão nova (${String(virouVersao).padStart(2, "0")}), que agora é a ativa.`, "success");
+        // A versão nova também vai para a pasta do projeto, já com as alterações.
+        void import("@/lib/excel").then((m) => m.arquivarNovaVersaoEc(salvo)).catch(() => {});
+      }
       setEc(salvo);
       setJaRevisados(new Map());
       // Registra/atualiza os fornecedores citados e acumula seus contatos.
@@ -546,7 +581,9 @@ export function EcForm() {
                 Gerar Nova Versão EC
               </Button>
             )}
-            <ExcelEcMenu ec={{ ...ec, numero }} />
+            {/* O Excel sai da versão GRAVADA: baixar marca a versão como fechada
+                (ver `marcarBaixada`), então o arquivo tem de ser o que está salvo. */}
+            <ExcelEcMenu ec={sujo && baseline ? (JSON.parse(baseline) as Ec) : { ...ec, numero }} />
             {!!ec.id && (
               <Button variant="secondary" size="sm" icon={<IcEye width={16} height={16} />} onClick={() => navigate(`/estimativas/${ec.id}/imprimir`)}>
                 EC PDF
