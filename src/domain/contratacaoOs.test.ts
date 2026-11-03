@@ -3,6 +3,7 @@ import {
   bvDaContratacao,
   bvDoItem,
   acompanharValorDaOs,
+  alinharAoValorContratado,
   documentoFiscalDaContratacao,
   valorDaContratacao,
   exigeJustificativa,
@@ -312,5 +313,38 @@ describe("o valor da OS chega ao Faturamento, ao Contrato e às parcelas", () =>
   it("sem valor definido na contratação, nada muda", () => {
     const o = os(1500, 1500, [1500]);
     expect(acompanharValorDaOs(o, [1500], 0)).toBe(o);
+  });
+});
+
+describe("a OS segue o valor da contratação quando a EC muda (03/11/2026)", () => {
+  const os = (o: { valorEc: number; valorContratado?: number; parcelas: number[] }, fin: number, ct = 0): Os =>
+    ({
+      orcamento: { valorEc: o.valorEc, valorContratado: o.valorContratado, parcelas: o.parcelas.map((valor) => ({ descricao: "", valor })) },
+      financeiro: { valorUnitario: fin, valorTotal: fin, valorAPagar: fin, descontoNegociado: 0 },
+      contrato: { valorUnitario: ct, valorTotal: ct, valorAPagar: ct, descontoNegociado: 0 },
+    }) as unknown as Os;
+
+  it("o caso da Carol: item foi de R$ 1.300 a R$ 1.550 e a OS (sem memória) ficou para trás", () => {
+    const r = alinharAoValorContratado(os({ valorEc: 1850, parcelas: [1300] }, 1300), 1550);
+    expect(r.orcamento.parcelas[0].valor).toBe(1550);
+    expect(r.financeiro.valorAPagar).toBe(1550);
+    expect(r.orcamento.valorContratado).toBe(1550);
+  });
+
+  it("com memória, segue a mudança seguinte também", () => {
+    const r = alinharAoValorContratado(os({ valorEc: 1850, valorContratado: 1550, parcelas: [1550] }, 1550), 1700);
+    expect(r.orcamento.parcelas[0].valor).toBe(1700);
+    expect(r.financeiro.valorTotal).toBe(1700);
+  });
+
+  it("parcela única sempre acompanha; Faturamento ajustado à mão fica", () => {
+    const r = alinharAoValorContratado(os({ valorEc: 1850, valorContratado: 1550, parcelas: [1550] }, 1400), 1700);
+    expect(r.orcamento.parcelas[0].valor).toBe(1700);
+    expect(r.financeiro.valorTotal).toBe(1400);
+  });
+
+  it("dividida em parcelas, a divisão fica (a tela avisa se não fechar)", () => {
+    const r = alinharAoValorContratado(os({ valorEc: 1850, valorContratado: 1550, parcelas: [775, 775] }, 1550), 1700);
+    expect(r.orcamento.parcelas.map((p) => p.valor)).toEqual([775, 775]);
   });
 });

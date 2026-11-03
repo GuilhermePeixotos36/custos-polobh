@@ -172,6 +172,35 @@ export function acompanharValorDaOs(os: Os, de: number[], para: number): Os {
 }
 
 /**
+ * Mantém a OS presa ao VALOR DA CONTRATAÇÃO — a forma de pagamento escolhida em
+ * cada item, somada (03/11/2026).
+ *
+ * Caso que motivou: o item mudou na EC de R$ 1.300 para R$ 1.550; a OS recebeu o
+ * valor novo nas formas de pagamento, mas a parcela única e o Faturamento
+ * ficaram em R$ 1.300 — e a parcela não aceitava passar disso.
+ *
+ * - A PARCELA ÚNICA é sempre o valor da contratação (pedido da Produção).
+ * - Faturamento e Contrato seguem quando ainda espelham o valor anterior (a
+ *   memória `valorContratado`, o valor da EC, ou — na OS gravada antes dessa
+ *   memória existir — a própria parcela única, que era o espelho dele).
+ *   Ajuste feito à mão fica.
+ */
+export function alinharAoValorContratado(os: Os, para: number): Os {
+  if (!(para > 0)) return os;
+  const o = os.orcamento;
+  const anterior = o.valorContratado;
+  const de = [o.valorEc];
+  if (anterior !== undefined) de.push(anterior);
+  else if (o.parcelas.length === 1) de.push(o.parcelas[0].valor);
+  const r = acompanharValorDaOs(os, de, para);
+  const parcelas =
+    r.orcamento.parcelas.length === 1 && r2(r.orcamento.parcelas[0].valor) !== r2(para)
+      ? [{ ...r.orcamento.parcelas[0], valor: para }]
+      : r.orcamento.parcelas;
+  return { ...r, orcamento: { ...r.orcamento, parcelas, valorContratado: para } };
+}
+
+/**
  * O que impede a contratação de estar pronta para a emissão (lista vazia = ok).
  *
  * Três coisas, decididas com a Pólobh (29/09/2026): todo item tem uma forma

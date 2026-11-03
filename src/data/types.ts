@@ -765,6 +765,12 @@ export interface Parcela {
 
 export interface Orcamento {
   valorEc: number; // auto da EC (somado das linhas consolidadas)
+  /**
+   * O último valor da contratação (soma da forma escolhida em cada item) que a
+   * OS acompanhou. É a "memória" que deixa a parcela única, o Faturamento e o
+   * Contrato seguirem a EC quando o valor do item muda (03/11/2026).
+   */
+  valorContratado?: number;
   valorComBvNf: number;
   valorSemBvComNf: number;
   valorSemBvSemNf: number;

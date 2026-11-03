@@ -78,7 +78,7 @@ import {
   formaDoItem,
   documentoFiscalDaContratacao,
   valorDaContratacao,
-  acompanharValorDaOs,
+  alinharAoValorContratado,
   COLUNAS_CONTRATACAO,
   itemDaLinhaEc,
   resumoContratacao,
@@ -325,9 +325,7 @@ function aplicarAutoPreenchimento(osOriginal: Os, ec: Ec): Os {
   // OS nascida com o valor do item na EC (preço ao cliente) no Faturamento, no
   // Contrato e no prazo de pagamento passa a valer o que se paga ao fornecedor.
   // Emitida não muda sozinha: aquela já foi para o fornecedor.
-  return osEmitida(os)
-    ? preenchida
-    : acompanharValorDaOs(preenchida, [os.orcamento.valorEc], valorDaContratacao(itensContratacao));
+  return osEmitida(os) ? preenchida : alinharAoValorContratado(preenchida, valorDaContratacao(itensContratacao));
 }
 
 const ID_FORMAS_PAGAMENTO = "os-formas-pagamento";
@@ -614,11 +612,10 @@ export function OsForm() {
           documentoFiscal: documentoFiscalDaContratacao(itens) || o.orcamento.documentoFiscal,
         },
       };
-      // Faturamento, Contrato e parcela única acompanham enquanto espelharem o
-      // valor de antes — quem ajustou à mão tinha um motivo.
-      return acompanharValorDaOs(
-        atualizada,
-        [valorDaContratacao(o.itens), o.orcamento.valorComBvNf],
+      // Parcela única acompanha sempre; Faturamento e Contrato, enquanto
+      // espelharem o valor de antes — quem ajustou à mão tinha um motivo.
+      return alinharAoValorContratado(
+        { ...atualizada, orcamento: { ...atualizada.orcamento, valorContratado: atualizada.orcamento.valorContratado ?? valorDaContratacao(o.itens) } },
         valorDaContratacao(itens)
       );
     });
@@ -635,9 +632,13 @@ export function OsForm() {
 
   // Parcelas: a soma tem que fechar com o valor negociado, senão a OS sai errada.
   const somaParcelas = os.orcamento.parcelas.reduce((s, p) => s + (p.valor || 0), 0);
+  // A referência é o VALOR DA CONTRATAÇÃO: a forma escolhida em cada item,
+  // somada (03/11/2026). Antes era o valor a pagar do Faturamento, que podia
+  // ficar desatualizado e travava a parcela num valor antigo.
+  const valorContratadoAgora = valorDaContratacao(os.itens ?? []);
   const refParcelas =
-    verFinanceiro && os.financeiro.valorAPagar > 0
-      ? { valor: os.financeiro.valorAPagar, rotulo: "valor total a pagar" }
+    valorContratadoAgora > 0
+      ? { valor: valorContratadoAgora, rotulo: "valor da forma de pagamento escolhida" }
       : { valor: os.orcamento.valorComBvNf, rotulo: "valor com BV e NF" };
   /** O que ainda não foi distribuído em parcelas (nunca negativo). */
   const saldoParcelas = Math.max(0, refParcelas.valor - somaParcelas);
