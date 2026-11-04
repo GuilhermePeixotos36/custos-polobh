@@ -214,6 +214,15 @@ describe("definirStatus", () => {
     expect(r.oculto).toBe(true);
   });
 
+  it("reabrir uma concluída volta a Pendente, apaga a conclusão e traz de volta à lista", () => {
+    const feita = definirStatus(base, "Concluído", "Carol", "2026-11-04T10:00:00Z");
+    const r = definirStatus(feita, "Pendente", "Carol", "2026-11-04T11:00:00Z");
+    expect(r.status).toBe("Pendente");
+    expect(r.concluidoEm).toBe("");
+    expect(r.concluidoPor).toBe("");
+    expect(r.oculto).toBe(false);
+  });
+
   it("reabrir limpa o carimbo e traz o item de volta", () => {
     const concluido = definirStatus(base, "Concluído", "Marisa", "2026-01-20T10:00:00Z");
     const r = definirStatus(concluido, "Em andamento", "Carol", "2026-01-21T10:00:00Z");
