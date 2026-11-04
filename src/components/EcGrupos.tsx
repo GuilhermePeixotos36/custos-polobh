@@ -167,6 +167,7 @@ export function EcGrupos({
   const [popupOcultos, setPopupOcultos] = useState(false);
   const [popupAdicionar, setPopupAdicionar] = useState(false);
   const arrastandoRef = useRef(false);
+  const ultimoAvisoExcedeu = useRef(0);
   // Espelho sempre atual do estado (evita leitura defasada entre onDragOver e onDragEnd).
   const gruposRef = useRef(grupos);
   gruposRef.current = grupos;
@@ -243,7 +244,9 @@ export function EcGrupos({
       const vinc = todasLinhas().find((l) => l.id === id);
       if (!principal || !vinc) return;
       const r = definirValorVinculado(principal, vinc, valor, forma);
-      if (r.excedeu) {
+      // Um aviso por tentativa: o campo manda o valor a cada tecla e ao sair.
+      if (r.excedeu && Date.now() - ultimoAvisoExcedeu.current > 2500) {
+        ultimoAvisoExcedeu.current = Date.now();
         toast(`A soma dos fornecedores não pode passar do valor do item. Disponível para este fornecedor: ${brl(r.disponivel)}.`, "warning");
       }
       trocarLinhas([r.principal, r.vinculado]);
