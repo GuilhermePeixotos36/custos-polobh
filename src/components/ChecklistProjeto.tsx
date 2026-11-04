@@ -20,7 +20,7 @@ import {
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Badge, Button, Card, EmptyState, Input, ProgressBar, Select, type Tom } from "@/components/ui";
-import { IcCheck, IcPlus, IcEye, IcEyeOff, IcCalendar, IcTrash, IcGrip } from "@/components/icons";
+import { IcBack, IcCheck, IcPlus, IcEye, IcEyeOff, IcCalendar, IcTrash, IcGrip } from "@/components/icons";
 import { ObservacoesThread } from "@/components/ObservacoesPopup";
 import { MoverSetas } from "@/components/MoverSetas";
 import { NotifDot } from "@/components/NotifDot";
@@ -352,6 +352,30 @@ export function ChecklistProjeto({
   };
 
   /**
+   * REABRIR em lote (04/11/2026): o caminho de volta do "Concluir
+   * selecionadas". A tarefa concluída (ou marcada "Não se aplica") volta a
+   * Pendente e reaparece na lista; a data de conclusão é apagada, por isso
+   * pergunta antes.
+   */
+  const reabrirMarcadas = async () => {
+    const alvo = marcadas.filter((i) => encerrado(i));
+    if (!alvo.length) return;
+    const ok = await confirmar({
+      titulo: alvo.length === 1 ? "Reabrir esta tarefa?" : `Reabrir ${alvo.length} tarefas?`,
+      mensagem: "Elas voltam para Pendente e reaparecem na lista. A data de conclusão registrada é apagada.",
+      confirmarTexto: "Reabrir",
+    });
+    if (!ok) return;
+    const agora = new Date().toISOString();
+    const ids = new Set(alvo.map((i) => i.id));
+    setEncerradasAgora((atuais) => atuais.filter((id) => !ids.has(id)));
+    onSalvarVarios(alvo.map((i) => definirStatus(i, "Pendente", nomeAtual, agora)));
+    setSelecionadas(new Set());
+  };
+  const temEncerradaMarcada = marcadas.some((i) => encerrado(i));
+  const temAbertaMarcada = marcadas.some((i) => !encerrado(i));
+
+  /**
    * Excluir em lote. A tarefa que veio da lista padrão não some do banco — a
    * lista padrão continua sendo o padrão, e a tarefa reaparecia como "nova" no
    * aviso de sincronização —, então ela vira "Não se aplica" e sai da vista, que
@@ -525,14 +549,27 @@ export function ChecklistProjeto({
             {marcadas.length
               ? `${marcadas.length} ${marcadas.length === 1 ? "selecionada" : "selecionadas"}`
               : podeExcluir
-              ? "Marque tarefas para concluir ou excluir em lote"
-              : "Marque tarefas para concluir em lote"}
+              ? "Marque tarefas para concluir, reabrir ou excluir em lote"
+              : "Marque tarefas para concluir ou reabrir em lote"}
           </span>
           {marcadas.length > 0 && (
             <div className="ml-auto flex items-center gap-2 flex-wrap">
-              <Button size="sm" variant="secondary" icon={<IcCheck width={15} height={15} />} onClick={concluirMarcadas}>
-                Concluir selecionadas
-              </Button>
+              {temAbertaMarcada && (
+                <Button size="sm" variant="secondary" icon={<IcCheck width={15} height={15} />} onClick={concluirMarcadas}>
+                  Concluir selecionadas
+                </Button>
+              )}
+              {temEncerradaMarcada && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon={<IcBack width={15} height={15} />}
+                  onClick={() => void reabrirMarcadas()}
+                  title="Volta as tarefas concluídas (ou que não se aplicam) para Pendente"
+                >
+                  Reabrir selecionadas
+                </Button>
+              )}
               {podeExcluir && (
                 <Button size="sm" variant="danger" icon={<IcTrash width={15} height={15} />} onClick={() => void excluirMarcadas()}>
                   Excluir selecionadas
