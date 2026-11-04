@@ -18,8 +18,8 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Input, AutoTextarea, Select, CurrencyInput, NumberInput, Button, classeCampoStatus } from "@/components/ui";
-import { IcGrip, IcChevron, IcPlus, IcEyeOff, IcTrash, IcDividir, IcSpark, IcCheck, IcBack } from "@/components/icons";
+import { Input, AutoTextarea, Select, CurrencyInput, NumberInput, Button, classeCampoStatus, MarcaObrigatorio } from "@/components/ui";
+import { IcGrip, IcChevron, IcPlus, IcEyeOff, IcTrash, IcSpark, IcCheck, IcBack } from "@/components/icons";
 import { FornecedorField } from "@/components/FornecedorField";
 import { RichTextField } from "@/components/RichTextField";
 import { ObservacoesThread } from "@/components/ObservacoesPopup";
@@ -28,13 +28,15 @@ import { NotifDot } from "@/components/NotifDot";
 import { MoverSetas } from "@/components/MoverSetas";
 import { OcultosEcModal } from "@/components/OcultosEcModal";
 import { AdicionarEcModal, type NovoManual } from "@/components/AdicionarEcModal";
-import { DividirItemModal } from "@/components/DividirItemModal";
-import { FaixaDivisao } from "@/components/FaixaDivisao";
-import { infoDasDivisoes, type InfoDivisao } from "@/domain/divisaoEc";
+import { infoDasDivisoes } from "@/domain/divisaoEc";
 import type { EntradaImportada } from "@/domain/importarModeloEc";
 import { confirmar } from "@/store/confirm";
 import { toast } from "@/store/toast";
-import { aplicarAlteracaoDeLinha, dividirLinha, type ParteDaDivisao } from "@/domain/ec";
+import { aplicarAlteracaoDeLinha } from "@/domain/ec";
+import {
+  agruparVinculados, definirValorVinculado, desvincular, formaDoVinculado, novoVinculado, valorTotalDoItem,
+  CAMPO_DA_FORMA, ROTULO_FORMA, type FormaVinculo,
+} from "@/domain/fornecedoresItem";
 import { grupoVisivel, ocultarTudo, ocultosPorGrupo, reexibirItens, totalOcultos } from "@/domain/ocultosEc";
 import { destacarElemento, seguirElemento, idAncoraPendencia, idCampoDescricaoCompleta, idCampoPendencia, idGrupoEc } from "@/lib/destaque";
 import { aprovarLinha, faltasParaEmitirOs, reverterAprovacaoLinha, opcaoNaoSeAplica, OPCOES_VALOR_ITEM, bvVazio, bvDaLinha, bvExigeJustificativa, limitarBvPercentual, BV_PADRAO_PERCENTUAL } from "@/domain/calc";
@@ -158,14 +160,12 @@ export function EcGrupos({
   linhas, onChange, verFinanceiro, fornecedores, usuarios, sugestoes,
   pendenciasPorLinha = {}, onValidarFornecedor, modalidade = "",
 }: Props) {
-  const [grupos, setGrupos] = useState<Grupo[]>(() => agrupar(linhas));
+  const [grupos, setGrupos] = useState<Grupo[]>(() => agruparVinculados(agrupar(linhas)));
   const [expandido, setExpandido] = useState<Record<string, boolean>>({});
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const [ativo, setAtivo] = useState<{ tipo: "grupo" | "item"; chave: string } | null>(null);
   const [popupOcultos, setPopupOcultos] = useState(false);
   const [popupAdicionar, setPopupAdicionar] = useState(false);
-  /** Item aberto no "Dividir item". */
-  const [dividindo, setDividindo] = useState<EcLinha | null>(null);
   const arrastandoRef = useRef(false);
   // Espelho sempre atual do estado (evita leitura defasada entre onDragOver e onDragEnd).
   const gruposRef = useRef(grupos);
@@ -176,7 +176,7 @@ export function EcGrupos({
     if (arrastandoRef.current) return;
     const propSig = JSON.stringify(linhas);
     const curSig = JSON.stringify(achatar(grupos));
-    if (propSig !== curSig) setGrupos(agrupar(linhas));
+    if (propSig !== curSig) setGrupos(agruparVinculados(agrupar(linhas)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [linhas]);
 
@@ -187,14 +187,83 @@ export function EcGrupos({
   const expandirTodos = (v: boolean) => setExpandido(Object.fromEntries(grupos.map((g) => [g.id, v])));
 
   /* ------- edição (atualiza estado local e propaga) ------- */
-  const commit = (next: Grupo[]) => {
+  const commit = (proximo: Grupo[]) => {
+    // Fornecedores vinculados andam sempre colados ao item principal.
+    const next = agruparVinculados(proximo);
     gruposRef.current = next;
     setGrupos(next);
     onChange(achatar(next));
   };
 
-  const updLinha = (id: string, patch: Partial<EcLinha>) =>
-    commit(grupos.map((g) => ({ ...g, itens: g.itens.map((it) => (it.id === id ? aplicarAlteracaoDeLinha(it, patch) : it)) })));
+  const updLinha = (id: string, patch: Partial<EcLinha>) => {
+    // Nome, descrição e aprovação do item principal valem para os fornecedores
+    // vinculados a ele: é o mesmo serviço, aprovado uma vez pelo cliente.
+    const alvo = grupos.flatMap((g) => g.itens).find((it) => it.id === id);
+    const herda: Partial<EcLinha> = {};
+    for (const k of ["item", "descricao", "statusAprovacao"] as const) if (k in patch) (herda as Record<string, unknown>)[k] = patch[k];
+    const chave = alvo?.divisao && Object.keys(herda).length ? alvo.divisao : "";
+    commit(
+      grupos.map((g) => ({
+        ...g,
+        itens: g.itens.map((it) =>
+          it.id === id ? aplicarAlteracaoDeLinha(it, patch) : chave && it.divisao === chave ? aplicarAlteracaoDeLinha(it, herda) : it
+        ),
+      }))
+    );
+  };
+
+  /* ------- vários fornecedores no mesmo item (ver domain/fornecedoresItem) ------- */
+  const trocarLinhas = (trocas: EcLinha[], remover: string[] = [], inserirDepoisDe?: { id: string; linha: EcLinha }) =>
+    commit(
+      grupos.map((g) => {
+        const itens: EcLinha[] = [];
+        for (const it of g.itens) {
+          if (remover.includes(it.id)) continue;
+          itens.push(trocas.find((t) => t.id === it.id) ?? it);
+          if (inserirDepoisDe && it.id === inserirDepoisDe.id) itens.push(inserirDepoisDe.linha);
+        }
+        return { ...g, itens };
+      })
+    );
+  const todasLinhas = () => grupos.flatMap((g) => g.itens);
+  const acoesVinculo: AcoesVinculo = {
+    vincular: (principalId) => {
+      const principal = todasLinhas().find((l) => l.id === principalId);
+      if (!principal) return;
+      const r = novoVinculado(principal, novaLinhaBase());
+      // Entra no FIM da lista de fornecedores do item.
+      const membros = todasLinhas().filter((l) => principal.divisao && l.divisao === principal.divisao);
+      const depoisDe = membros.length ? membros[membros.length - 1].id : principalId;
+      trocarLinhas([r.principal], [], { id: depoisDe, linha: r.vinculado });
+      destacarElemento(idAncoraPendencia(r.vinculado.id));
+    },
+    alterar: (id, patch) => trocarLinhas(todasLinhas().filter((l) => l.id === id).map((l) => aplicarAlteracaoDeLinha(l, patch))),
+    valor: (principalId, id, valor, forma) => {
+      const principal = todasLinhas().find((l) => l.id === principalId);
+      const vinc = todasLinhas().find((l) => l.id === id);
+      if (!principal || !vinc) return;
+      const r = definirValorVinculado(principal, vinc, valor, forma);
+      if (r.excedeu) {
+        toast(`A soma dos fornecedores não pode passar do valor do item. Disponível para este fornecedor: ${brl(r.disponivel)}.`, "warning");
+      }
+      trocarLinhas([r.principal, r.vinculado]);
+    },
+    remover: async (principalId, id) => {
+      const principal = todasLinhas().find((l) => l.id === principalId);
+      const vinc = todasLinhas().find((l) => l.id === id);
+      if (!principal || !vinc) return;
+      const impede = motivoQueImpedeExcluir(vinc);
+      if (impede) return toast(impede, "warning");
+      const ok = await confirmar({
+        titulo: "Tirar este fornecedor do item?",
+        mensagem: `${vinc.fornecedorRazao || "O fornecedor sem nome"} sai do item${vinc.valorPolobh ? ` e os ${brl(vinc.valorPolobh)} voltam para o item principal` : ""}. Vale ao salvar a EC.`,
+        confirmarTexto: "Tirar fornecedor",
+        tom: "danger",
+      });
+      if (!ok) return;
+      trocarLinhas([desvincular(principal, vinc)], [id]);
+    },
+  };
 
   const renomearGrupo = (nomeAntigo: string, novo: string) => {
     commit(grupos.map((g) => (g.nome === nomeAntigo ? { ...g, nome: novo } : g)));
@@ -251,30 +320,12 @@ export function EcGrupos({
     destacarElemento(idGrupoEc(id));
   };
 
-  /** Divide o item: o original fica com o resto e a parte nova entra logo abaixo dele. */
-  const dividirItem = (id: string, parte: ParteDaDivisao) => {
-    let novaId = "";
-    commit(
-      grupos.map((g) => {
-        const i = g.itens.findIndex((x) => x.id === id);
-        if (i < 0) return g;
-        const [resto, nova] = dividirLinha(g.itens[i], parte, novaLinhaBase());
-        novaId = nova.id;
-        const itens = [...g.itens];
-        itens.splice(i, 1, resto, nova);
-        return { ...g, itens };
-      })
-    );
-    if (novaId) {
-      toast("Item dividido. Informe o fornecedor e as Alternativas de Custos do item novo e salve a EC.", "success");
-      destacarElemento(idAncoraPendencia(novaId));
-    }
-  };
-
   const excluirItem = async (id: string) => {
     const alvo = grupos.flatMap((g) => g.itens).find((i) => i.id === id);
     if (!alvo) return;
-    const impede = motivoQueImpedeExcluir(alvo);
+    // Fornecedores vinculados saem junto com o item principal.
+    const juntos = alvo.divisao ? grupos.flatMap((g) => g.itens).filter((i) => i.id !== id && i.divisao === alvo.divisao) : [];
+    const impede = [alvo, ...juntos].map(motivoQueImpedeExcluir).find(Boolean) ?? null;
     if (impede) {
       toast(impede, "warning");
       return;
@@ -290,7 +341,7 @@ export function EcGrupos({
     if (!ok) return;
     commit(
       grupos
-        .map((g) => (g === grupo ? { ...g, itens: g.itens.filter((i) => i.id !== id) } : g))
+        .map((g) => ({ ...g, itens: g.itens.filter((i) => i.id !== id && !juntos.some((j) => j.id === i.id)) }))
         .filter((g) => g.itens.length > 0),
     );
   };
@@ -782,7 +833,7 @@ export function EcGrupos({
                 onOcultoItem={setOcultoItem}
                 onOcultoGrupo={(v) => setOcultoGrupo(g.nome, v)}
                 onExcluirItem={excluirItem}
-                onDividirItem={setDividindo}
+                acoesVinculo={acoesVinculo}
                 onExcluirGrupo={() => excluirGrupo(g.id)}
                 onSelecionarItem={alternarSelecao}
                 onSelecionarGrupo={(marcar) => alternarSelecaoGrupo(g.id, marcar)}
@@ -813,14 +864,6 @@ export function EcGrupos({
         </DragOverlay>
       </DndContext>
 
-      {dividindo && (
-        <DividirItemModal
-          linha={dividindo}
-          verFinanceiro={verFinanceiro}
-          onDividir={(parte) => dividirItem(dividindo.id, parte)}
-          onFechar={() => setDividindo(null)}
-        />
-      )}
 
       {popupAdicionar && (
         <AdicionarEcModal
@@ -864,7 +907,7 @@ interface GrupoProps {
   onOcultoItem: (id: string, oculto: boolean) => void;
   onOcultoGrupo: (oculto: boolean) => void;
   onExcluirItem: (id: string) => void;
-  onDividirItem: (l: EcLinha) => void;
+  acoesVinculo: AcoesVinculo;
   onExcluirGrupo: () => void;
   onSelecionarItem: (id: string) => void;
   onSelecionarGrupo: (marcar: boolean) => void;
@@ -876,7 +919,7 @@ interface GrupoProps {
 function GrupoCard({
   g, aberto, primeiroGrupo, ultimoGrupo, verFinanceiro, fornecedores, usuarios, sugestoes,
   pendenciasPorLinha, selecionados,
-  onToggle, onRenomear, onAddItem, onUpdLinha, onOcultoItem, onOcultoGrupo, onExcluirItem, onExcluirGrupo, onDividirItem,
+  onToggle, onRenomear, onAddItem, onUpdLinha, onOcultoItem, onOcultoGrupo, onExcluirItem, onExcluirGrupo, acoesVinculo,
   onSelecionarItem, onSelecionarGrupo, onMoverItem, onMoverGrupo, onValidarFornecedor,
 }: GrupoProps) {
   const sortable = useSortable({ id: GID(g.id) });
@@ -887,9 +930,12 @@ function GrupoCard({
   };
   const style = { transform: CSS.Translate.toString(sortable.transform), transition: sortable.transition };
 
-  const visiveis = g.itens.filter((l) => !l.oculto);
+  const todasVisiveis = g.itens.filter((l) => !l.oculto);
   const divisoes = infoDasDivisoes(g.itens);
-  const subtotal = visiveis.reduce((s, l) => s + (l.valorPolobh || 0) + (l.valorCliente || 0), 0);
+  // Fornecedores vinculados não são cards: aparecem como linhas dentro do item principal.
+  const visiveis = todasVisiveis.filter((l) => (divisoes.get(l.id)?.parte ?? 1) === 1);
+  const vinculadosDoCard = (l: EcLinha) => (l.divisao && divisoes.has(l.id) ? todasVisiveis.filter((x) => x.divisao === l.divisao && x.id !== l.id) : []);
+  const subtotal = todasVisiveis.reduce((s, l) => s + (l.valorPolobh || 0) + (l.valorCliente || 0), 0);
   const marcadosNoGrupo = visiveis.filter((l) => selecionados.has(l.id)).length;
   const todosMarcados = visiveis.length > 0 && marcadosNoGrupo === visiveis.length;
   // Conta os itens TODOS (inclusive ocultos): o grupo sobrevive enquanto tiver
@@ -989,7 +1035,8 @@ function GrupoCard({
                 usuarios={usuarios}
                 sugestoes={sugestoes}
                 pendencias={pendenciasPorLinha[l.id] ?? 0}
-                divisao={divisoes.get(l.id)}
+                vinculados={vinculadosDoCard(l)}
+                acoesVinculo={acoesVinculo}
                 selecionado={selecionados.has(l.id)}
                 // Na borda de um grupo do meio a seta continua ativa: ela leva o
                 // item para o grupo vizinho. Só trava nas pontas da EC ou quando
@@ -1000,7 +1047,6 @@ function GrupoCard({
                 onUpd={(patch) => onUpdLinha(l.id, patch)}
                 onOcultar={() => onOcultoItem(l.id, true)}
                 onExcluir={() => onExcluirItem(l.id)}
-                onDividir={() => onDividirItem(l)}
                 onSelecionar={() => onSelecionarItem(l.id)}
                 onMover={(direcao) => onMoverItem(l.id, direcao)}
                 onValidarFornecedor={onValidarFornecedor}              />
@@ -1032,8 +1078,9 @@ interface ItemProps {
   sugestoes: Sugestoes;
   /** Pendências do usuário nesta linha — o mesmo número do badge da EC. */
   pendencias: number;
-  /** Parte de um item com mais de um fornecedor (ver `domain/divisaoEc`). */
-  divisao?: InfoDivisao;
+  /** Outros fornecedores deste item (ver `domain/fornecedoresItem`). */
+  vinculados: EcLinha[];
+  acoesVinculo: AcoesVinculo;
   selecionado: boolean;
   primeiro: boolean;
   ultimo: boolean;
@@ -1042,15 +1089,14 @@ interface ItemProps {
   onUpd: (patch: Partial<EcLinha>) => void;
   onOcultar: () => void;
   onExcluir: () => void;
-  onDividir: () => void;
   onSelecionar: () => void;
   onMover: (direcao: -1 | 1) => void;
   onValidarFornecedor: (cnpj: string) => Promise<string | null>;
 }
 
 function ItemRow({
-  l, verFinanceiro, fornecedores, usuarios, sugestoes, pendencias, divisao, selecionado, primeiro, ultimo, motivoBloqueio,
-  onUpd, onOcultar, onExcluir, onDividir, onSelecionar, onMover, onValidarFornecedor,
+  l, verFinanceiro, fornecedores, usuarios, sugestoes, pendencias, vinculados, acoesVinculo, selecionado, primeiro, ultimo, motivoBloqueio,
+  onUpd, onOcultar, onExcluir, onSelecionar, onMover, onValidarFornecedor,
 }: ItemProps) {
   const sortable = useSortable({ id: l.id });
   const style = { transform: CSS.Translate.toString(sortable.transform), transition: sortable.transition };
@@ -1083,7 +1129,6 @@ function ItemRow({
         sortable.isDragging && "opacity-40"
       )}
     >
-      {divisao && <FaixaDivisao info={divisao} verFinanceiro={verFinanceiro} />}
       {/* Linha 1: item + descrições + valores */}
       <div className="grid grid-cols-[auto_minmax(0,1fr)] xl:grid-cols-[auto_13rem_minmax(280px,1fr)_auto_auto] items-start gap-2 p-2.5 min-w-0">
         {/* Trilha de controles: seleção, pendências, alça e setas — empilhadas, nunca
@@ -1182,9 +1227,6 @@ function ItemRow({
           <button type="button" onClick={onOcultar} className="text-ink-3 hover:text-primary p-1.5" title="Ocultar item — some da tela e fica guardado (reexibir em Ocultos)" aria-label="Ocultar item">
             <IcEyeOff width={18} height={18} />
           </button>
-          <button type="button" onClick={onDividir} className="text-ink-3 hover:text-primary p-1.5" title="Dividir item — o mesmo serviço feito por dois fornecedores" aria-label="Dividir item">
-            <IcDividir width={18} height={18} />
-          </button>
           <button type="button" onClick={onExcluir} className="text-ink-3 hover:text-danger p-1.5" title="Excluir item" aria-label="Excluir item">
             <IcTrash width={18} height={18} />
           </button>
@@ -1231,7 +1273,7 @@ function ItemRow({
             {OPCOES_STATUS_OS.map((o) => <option key={o}>{o}</option>)}
           </Select>
         </Campo>
-        <Campo label="Fornecedor (CNPJ / Razão social)" className="basis-full min-w-0 sm:basis-auto sm:flex-[2_1_22rem] sm:min-w-[20rem]" obrigatorio>
+        <Campo label={vinculados.length ? "Fornecedor 1 (CNPJ / Razão social)" : "Fornecedor (CNPJ / Razão social)"} className="basis-full min-w-0 sm:basis-auto sm:flex-[2_1_22rem] sm:min-w-[20rem]" obrigatorio>
           <FornecedorField
             razao={l.fornecedorRazao}
             cnpj={l.fornecedorCnpj}
@@ -1255,6 +1297,15 @@ function ItemRow({
           <DaOs valor={l.pedidoCompra} />
         </Campo>
       </div>
+
+      <FornecedoresDoItem
+        principal={l}
+        vinculados={vinculados}
+        verFinanceiro={verFinanceiro}
+        fornecedores={fornecedores}
+        acoes={acoesVinculo}
+        onValidarFornecedor={onValidarFornecedor}
+      />
 
       {verFinanceiro && <OpcoesDeValor l={l} onUpd={onUpd} />}
 
@@ -1596,5 +1647,121 @@ function Campo({ label, className, children, obrigatorio, id }: { label: string;
       </span>
       {children}
     </label>
+  );
+}
+
+/* --------------------- vários fornecedores no mesmo item --------------------- */
+
+export interface AcoesVinculo {
+  vincular(principalId: string): void;
+  alterar(id: string, patch: Partial<EcLinha>): void;
+  valor(principalId: string, id: string, valor: number, forma?: FormaVinculo): void;
+  remover(principalId: string, id: string): void | Promise<void>;
+}
+
+/**
+ * Os OUTROS fornecedores de um item (04/11/2026), em linhas logo abaixo dele.
+ *
+ * Cada linha é um fornecedor com CPF/CNPJ, valor, forma de pagamento e o status
+ * da OS dele — cada um vira a sua OS. O valor sai do item principal (o
+ * "fornecedor 1"), então a soma nunca passa do valor do item: o sistema barra.
+ * Para o cliente, o item segue sendo um só.
+ */
+function FornecedoresDoItem({
+  principal,
+  vinculados,
+  verFinanceiro,
+  fornecedores,
+  acoes,
+  onValidarFornecedor,
+}: {
+  principal: EcLinha;
+  vinculados: EcLinha[];
+  verFinanceiro: boolean;
+  fornecedores: Fornecedor[];
+  acoes: AcoesVinculo;
+  onValidarFornecedor: (cnpj: string) => Promise<string | null>;
+}) {
+  const total = valorTotalDoItem(principal, vinculados);
+  const rotulo = "block text-[10.5px] font-extrabold uppercase tracking-[0.05em] text-ink-3 mb-1";
+  return (
+    <div className="px-2.5 pb-2.5 -mt-0.5">
+      {vinculados.length > 0 && (
+        <div className="rounded-btn border border-border-soft bg-[#FAFAFB] p-2.5 space-y-2.5">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+            <span className="text-[11px] font-extrabold uppercase tracking-[0.05em] text-ink-2">
+              Outros fornecedores deste item ({vinculados.length})
+            </span>
+            {verFinanceiro && (
+              <span className="text-[11.5px] font-semibold text-ink-3">
+                Valor do item {brl(total)} · fornecedor 1 fica com <b className="text-ink-2">{brl(principal.valorPolobh)}</b>
+              </span>
+            )}
+          </div>
+          {vinculados.map((v, i) => (
+            <div key={v.id} id={idAncoraPendencia(v.id)} className="flex flex-wrap items-end gap-2 rounded-btn">
+              <span className="w-5 pb-2.5 text-[12px] font-bold text-ink-3">{i + 2}.</span>
+              <label className="block flex-[2_1_20rem] min-w-[16rem]">
+                <span className={rotulo}>Fornecedor {i + 2} (CPF/CNPJ / Razão social)<MarcaObrigatorio title="Obrigatório para emitir a OS" /></span>
+                <FornecedorField
+                  razao={v.fornecedorRazao}
+                  cnpj={v.fornecedorCnpj}
+                  fornecedores={fornecedores}
+                  onChange={(patch) => acoes.alterar(v.id, patch)}
+                  onValidar={onValidarFornecedor}
+                />
+              </label>
+              {verFinanceiro && (
+                <>
+                  <label className="block w-36">
+                    <span className={rotulo}>Valor</span>
+                    <CurrencyInput className="!h-9 !text-[13px]" value={v.valorPolobh} onValue={(x) => acoes.valor(principal.id, v.id, x)} />
+                  </label>
+                  <label className="block w-44">
+                    <span className={rotulo}>Forma de pagamento</span>
+                    <Select
+                      className="!h-9 !px-2 !text-[12.5px]"
+                      value={formaDoVinculado(v)}
+                      onChange={(e) => acoes.valor(principal.id, v.id, v.valorPolobh, e.target.value as FormaVinculo)}
+                    >
+                      {(Object.keys(CAMPO_DA_FORMA) as FormaVinculo[]).map((f) => (
+                        <option key={f} value={f}>{ROTULO_FORMA[f]}</option>
+                      ))}
+                    </Select>
+                  </label>
+                </>
+              )}
+              <label className="block w-[9.5rem]">
+                <span className={rotulo}>OS</span>
+                <Select
+                  className={cx("!h-9 !px-2 !text-[12.5px]", classeCampoStatus(v.statusOs))}
+                  value={v.statusOs}
+                  onChange={(e) => acoes.alterar(v.id, { statusOs: e.target.value as StatusOs })}
+                >
+                  {OPCOES_STATUS_OS.map((o) => <option key={o}>{o}</option>)}
+                </Select>
+              </label>
+              <button
+                type="button"
+                onClick={() => void acoes.remover(principal.id, v.id)}
+                className="mb-1 p-1.5 text-ink-3 hover:text-danger"
+                title="Tirar este fornecedor do item (o valor volta para o fornecedor 1)"
+                aria-label={`Tirar o fornecedor ${i + 2}`}
+              >
+                <IcTrash width={17} height={17} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={() => acoes.vincular(principal.id)}
+        className="mt-1.5 inline-flex items-center gap-1.5 rounded-btn px-2 py-1 text-[12.5px] font-bold text-primary-dark hover:bg-primary-soft"
+        title="Este item é pago a mais de um fornecedor: cada um vira a sua OS"
+      >
+        <IcPlus width={14} height={14} /> Vincular {vinculados.length ? "mais um" : "outro"} fornecedor a este item
+      </button>
+    </div>
   );
 }

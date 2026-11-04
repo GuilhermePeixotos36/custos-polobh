@@ -680,9 +680,16 @@ export function calcularPendencias(
       // cobrado por eles, e é quem responde pelo projeto.
       // OS "Não se Aplica" (28/10/2026): item só descrito, sem valor nem OS —
       // não há fornecedor a cobrar.
+      // Item com OUTROS fornecedores vinculados que repassou todo o valor a eles
+      // (04/11/2026): não sobrou nada para pagar a um fornecedor próprio.
+      const repassouTudo =
+        !!linha.divisao &&
+        !(Number(linha.valorPolobh) || 0) &&
+        ec.linhas.some((x) => x.id !== linha.id && x.divisao === linha.divisao && !x.oculto);
       if (
         linha.statusAprovacao === "OK" &&
         linha.statusOs !== "Não se Aplica" &&
+        !repassouTudo &&
         (!linha.fornecedorRazao?.trim() || !documentoCompleto(linha.fornecedorCnpj))
       ) {
         out.push({
