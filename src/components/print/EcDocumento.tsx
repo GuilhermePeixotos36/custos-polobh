@@ -2,6 +2,7 @@
 import { Fragment } from "react";
 import type { Ec } from "@/data/types";
 import { calcularTotais } from "@/domain/calc";
+import { juntarDivisoes } from "@/domain/divisaoEc";
 import { brl, cx, dataBR } from "@/lib/format";
 import { sanitizarHtmlEditor } from "@/lib/sanitizeHtml";
 
@@ -30,8 +31,21 @@ export function EcDocumento({ ec }: { ec: Ec }) {
   const cli = ec.cliente;
   const p = ec.projeto;
 
+  // Item pago a vários fornecedores (04/11/2026) sai como UMA linha, com a soma
+  // dos valores e os fornecedores juntos — como no Excel financeiro.
+  const ordenadas = [...ec.linhas].sort((a, b) => a.ordem - b.ordem);
+  const fornecedoresDaDivisao = new Map<string, string[]>();
+  for (const l of ordenadas) {
+    if (!l.divisao || l.oculto || !l.fornecedorRazao?.trim()) continue;
+    const nomes = fornecedoresDaDivisao.get(l.divisao) ?? [];
+    if (!nomes.includes(l.fornecedorRazao.trim())) nomes.push(l.fornecedorRazao.trim());
+    fornecedoresDaDivisao.set(l.divisao, nomes);
+  }
+  const fornecedorDe = (l: Ec["linhas"][number]) =>
+    l.divisao && fornecedoresDaDivisao.has(l.divisao) ? fornecedoresDaDivisao.get(l.divisao)!.join(", ") : l.fornecedorRazao;
+
   const grupos = new Map<string, typeof ec.linhas>();
-  for (const l of [...ec.linhas].sort((a, b) => a.ordem - b.ordem)) {
+  for (const l of juntarDivisoes(ordenadas)) {
     const g = l.grupo || "GERAL";
     if (!grupos.has(g)) grupos.set(g, []);
     grupos.get(g)!.push(l);
@@ -111,7 +125,7 @@ export function EcDocumento({ ec }: { ec: Ec }) {
                       />
                     )}
                   </td>
-                  <td className="px-2 py-1.5 align-top text-ink-2">{l.fornecedorRazao}</td>
+                  <td className="px-2 py-1.5 align-top text-ink-2">{fornecedorDe(l)}</td>
                   <td className="px-2 py-1.5 align-top text-right">{brl(l.valorPolobh)}</td>
                   <td className="px-2 py-1.5 align-top text-right">{brl(l.valorCliente)}</td>
                 </tr>
