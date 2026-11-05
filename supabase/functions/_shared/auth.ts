@@ -5,6 +5,8 @@ export type Papel = "Admin" | "Direcao" | "Producao" | "Administrativo";
 export interface UsuarioAutorizado {
   id: string;
   papel: Papel;
+  /** Nome do perfil (para os registros de consumo e de ações). */
+  nome?: string;
 }
 
 /** Valida o JWT do usuário e o papel no servidor. A anon key isolada nunca autoriza. */
@@ -24,13 +26,13 @@ export async function autorizar(req: Request, papeis: Papel[]): Promise<UsuarioA
   }
   const { data: perfil, error: perfilError } = await admin
     .from("perfis")
-    .select("papel")
+    .select("papel, nome")
     .eq("id", authData.user.id)
     .maybeSingle();
   if (perfilError || !perfil || !papeis.includes(perfil.papel as Papel)) {
     throw new Response(JSON.stringify({ ok: false, erro: "Sem permissão para esta operação." }), { status: 403 });
   }
-  return { id: authData.user.id, papel: perfil.papel as Papel };
+  return { id: authData.user.id, papel: perfil.papel as Papel, nome: (perfil as { nome?: string }).nome ?? undefined };
 }
 
 export function respostaAutorizacao(erro: unknown, cors: Record<string, string>): Response | null {

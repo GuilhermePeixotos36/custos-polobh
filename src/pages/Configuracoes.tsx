@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAvisoDeSaida } from "@/hooks/useAvisoDeSaida";
 import { ChecklistModelosCard } from "@/components/ChecklistModelosCard";
+import { ConsumoIaCard } from "@/components/ConsumoIaCard";
 import { ManutencaoDevCard } from "@/components/ManutencaoDevCard";
 import { createPortal } from "react-dom";
 import { PageShell } from "@/components/layout/AppLayout";
@@ -41,7 +42,7 @@ import {
 import { baixarArquivoBase64 } from "@/lib/backup/baixar";
 import type { Area, Papel, Usuario } from "@/data/types";
 
-type AbaConfig = "geral" | "checklist" | "areas" | "usuarios" | "backup";
+type AbaConfig = "geral" | "checklist" | "areas" | "usuarios" | "backup" | "ia";
 
 /**
  * A aba vem da URL (`?aba=`), e não de estado solto: a barra de Configurações
@@ -102,6 +103,7 @@ export function Configuracoes() {
       {aba === "areas" && <AreasCard />}
       {aba === "usuarios" && <UsuariosCard />}
       {aba === "backup" && <BackupCard />}
+      {aba === "ia" && <ConsumoIaCard />}
     </PageShell>
   );
 }

@@ -7,11 +7,14 @@
 import { supabase } from "@/lib/supabaseClient";
 import { textoDoPdf } from "@/lib/pdfTexto";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import type { ConsumoIa } from "@/domain/consumoIa";
 
 export interface ResumoResultado {
   ok: boolean;
   resumo?: string;
   erro?: string;
+  /** Tokens e custo da leitura (05/11/2026). */
+  consumo?: ConsumoIa;
 }
 
 const IMG_RE = /^image\/(png|jpe?g|webp|gif|bmp)$/i;
@@ -144,7 +147,7 @@ export async function resumirProposta(entrada: { files: File[]; link?: string })
       return { ok: false, erro: msg };
     }
     const r = data as ResumoResultado;
-    return r?.ok ? { ok: true, resumo: r.resumo } : { ok: false, erro: r?.erro || "Falha ao resumir." };
+    return r?.ok ? { ok: true, resumo: r.resumo, consumo: r.consumo } : { ok: false, erro: r?.erro || "Falha ao resumir." };
   } catch (e) {
     return { ok: false, erro: (e as Error).message };
   }

@@ -75,6 +75,7 @@ export type LogCategoria =
   | "Cliente"
   | "Configuração"
   | "Exportação"
+  | "IA"
   | "Sistema";
 
 /** Um evento de auditoria. Estrutura pronta para virar tabela `audit_log`. */

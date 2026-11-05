@@ -1,6 +1,7 @@
 import { autorizar, respostaAutorizacao } from "../_shared/auth.ts";
 import { base64, buscarPublico } from "../_shared/fetch-publico.ts";
 import { completarGratis } from "../_shared/openrouter.ts";
+import { registrarUsoIa } from "../_shared/ia-uso.ts";
 
 /**
  * Edge Function: resumo-proposta
@@ -59,7 +60,7 @@ Deno.serve(async (req) => {
     new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
   try {
-    await autorizar(req, ["Admin", "Direcao", "Producao"]);
+    const quem = await autorizar(req, ["Admin", "Direcao", "Producao"]);
     const apiKey = Deno.env.get("OPENROUTER_API_KEY");
     if (!apiKey) return json({ ok: false, erro: "OPENROUTER_API_KEY não configurada na função." }, 500);
 
@@ -98,6 +99,7 @@ Deno.serve(async (req) => {
     if (!temConteudo) return json({ ok: false, erro: "Nenhum orçamento foi enviado." }, 400);
 
     const temImagem = partes.some((x) => x.type === "image_url");
+    const inicio = Date.now();
     const resposta = await completarGratis(apiKey, {
       titulo: "Polobh EC",
       messages: [{ role: "user", content: partes }],
@@ -106,10 +108,12 @@ Deno.serve(async (req) => {
       max_tokens: 3000,
       imagem: temImagem,
     });
-    if (!resposta.ok) return json({ ok: false, erro: resposta.erro }, resposta.status === 429 ? 429 : 502);
+    // Itens = quantas partes de conteúdo foram lidas (imagens, páginas e textos), sem o pedido.
+    const consumo = await registrarUsoIa(quem, "leitura_orcamento", resposta, { itens: partes.length - 1, duracaoMs: Date.now() - inicio });
+    if (!resposta.ok) return json({ ok: false, erro: resposta.erro, consumo }, resposta.status === 429 ? 429 : 502);
     const resumo = resposta.texto;
 
-    return json({ ok: true, resumo });
+    return json({ ok: true, resumo, consumo });
   } catch (e) {
     const resposta = respostaAutorizacao(e, cors);
     if (resposta) return resposta;
