@@ -350,20 +350,23 @@ export function EcForm() {
       const c = contatoDeTexto(l.fornecedorContato);
       if (c) e.contatos = mesclarContatos(e.contatos, [c]);
     }
-    for (const [digits, info] of porCnpj) {
-      const existente = fornecedores.find((f) => onlyDigits(f.cnpj) === digits);
-      if (existente) {
-        const atuais = existente.contatos ?? [];
-        const juntos = mesclarContatos(atuais, info.contatos);
-        // Só grava se mudou de fato: sem isto, salvar a mesma EC duas vezes
-        // reescreveria todos os fornecedores dela sem nenhum motivo.
-        if (JSON.stringify(juntos) !== JSON.stringify(atuais)) {
-          await repo.fornecedores.salvar({ ...existente, contatos: juntos });
+    // Em paralelo: um fornecedor não depende do outro.
+    await Promise.all(
+      [...porCnpj].map(async ([digits, info]) => {
+        const existente = fornecedores.find((f) => onlyDigits(f.cnpj) === digits);
+        if (existente) {
+          const atuais = existente.contatos ?? [];
+          const juntos = mesclarContatos(atuais, info.contatos);
+          // Só grava se mudou de fato: sem isto, salvar a mesma EC duas vezes
+          // reescreveria todos os fornecedores dela sem nenhum motivo.
+          if (JSON.stringify(juntos) !== JSON.stringify(atuais)) {
+            await repo.fornecedores.salvar({ ...existente, contatos: juntos });
+          }
+        } else {
+          await repo.fornecedores.salvar(fornecedorNovo({ cnpj: info.cnpjRaw, razaoSocial: info.razao, contatos: info.contatos }));
         }
-      } else {
-        await repo.fornecedores.salvar(fornecedorNovo({ cnpj: info.cnpjRaw, razaoSocial: info.razao, contatos: info.contatos }));
-      }
-    }
+      })
+    );
   }
 
   async function consultar() {
@@ -447,8 +450,8 @@ export function EcForm() {
        */
       let alvo: Ec = { ...ec!, linhas, numero };
       let virouVersao: number | null = null;
-      const noBanco = /^[0-9a-f-]{36}$/i.test(alvo.id) ? await repo.ecs.obter(alvo.id) : undefined;
-      if (noBanco?.baixadaEm) {
+      const baixada = /^[0-9a-f-]{36}$/i.test(alvo.id) ? await repo.ecs.baixadaEm(alvo.id) : null;
+      if (baixada) {
         const { ec: nova, mapa } = await repo.ecs.novaVersaoComMapa(alvo.id);
         alvo = {
           ...alvo,
@@ -482,12 +485,13 @@ export function EcForm() {
       }
       setEc(salvo);
       setJaRevisados(new Map());
-      // Registra/atualiza os fornecedores citados e acumula seus contatos.
-      await acumularFornecedores(ec!.linhas).catch(() => {});
+      // Registra/atualiza os fornecedores citados e acumula seus contatos — em
+      // segundo plano: a EC já está gravada, e a pessoa não espera por isto.
+      void acumularFornecedores(ec!.linhas).catch(() => {});
       setBaseline(JSON.stringify(salvo));
       setSalvando(false);
       setMostrarSalvo(true);
-      setTimeout(() => navigate(`/estimativas/${salvo.id}`), 700);
+      setTimeout(() => navigate(`/estimativas/${salvo.id}`), 250);
       return true;
     } catch (e) {
       toast(`Erro ao salvar: ${(e as Error).message}`, "danger");

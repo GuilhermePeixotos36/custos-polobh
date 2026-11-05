@@ -562,6 +562,13 @@ const SELECT_EC_PAINEL =
  * O `numero` vai como base e volta com o "V" da versão que o banco decidiu.
  */
 
+/**
+ * A EC que acabou de ser salva (e relida do banco), guardada por poucos
+ * segundos: depois de salvar, o app abre a tela da EC, que leria de novo a
+ * mesma coisa. Vale UMA leitura e expira em 5 s.
+ */
+const ecRecemSalva = new Map<string, { ec: Ec; em: number }>();
+
 const ecRepo: EcRepository = {
   async listar() {
     const data = ok(await supabase.from("ecs").select(SELECT_EC).order("criado_em", { ascending: false }));
@@ -572,6 +579,11 @@ const ecRepo: EcRepository = {
     return (data ?? []).map(mapEc);
   },
   async obter(id) {
+    // Quem acabou de salvar já tem a EC relida em mãos: a tela seguinte usa essa
+    // cópia uma vez, sem buscar tudo de novo (ver `ecRecemSalva`).
+    const recente = ecRecemSalva.get(id);
+    ecRecemSalva.delete(id);
+    if (recente && Date.now() - recente.em < 5000) return recente.ec;
     const data = ok(await supabase.from("ecs").select(SELECT_EC).eq("id", id).maybeSingle());
     return data ? mapEc(data) : undefined;
   },
@@ -590,8 +602,10 @@ const ecRepo: EcRepository = {
       p_esperado_em: atualizando ? ec.atualizadoEm : null,
     })));
     const id = data as string;
+    ecRecemSalva.delete(id);
     const salvo = await this.obter(id);
     if (!salvo) throw new Error("Falha ao reler a EC salva.");
+    ecRecemSalva.set(id, { ec: salvo, em: Date.now() });
     auditar({
       categoria: "EC",
       acao: atualizando ? "ec.atualizar" : "ec.criar",
@@ -632,6 +646,11 @@ const ecRepo: EcRepository = {
   async marcarBaixada(id) {
     if (!isUuid(id)) return;
     ok(await supabase.rpc("marcar_ec_baixada", { p_ec_id: id }));
+  },
+  async baixadaEm(id) {
+    if (!isUuid(id)) return null;
+    const data = ok(await supabase.from("ecs").select("baixada_em").eq("id", id).maybeSingle()) as { baixada_em?: string | null } | null;
+    return data?.baixada_em ?? null;
   },
   async novaVersao(id) {
     const orig = await this.obter(id);

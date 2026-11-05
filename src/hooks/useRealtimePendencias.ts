@@ -39,8 +39,11 @@ import { usePendencias } from "@/store/pendencias";
  */
 const TABELAS = ["projetos", "ecs", "oss", "checklists", "checklist_itens", "credenciamentos"] as const;
 
-/** Respiro para agrupar a rajada de eventos de um único salvamento. */
-const AGRUPAR_MS = 800;
+/**
+ * Respiro para agrupar a rajada de eventos de um único salvamento. 1,5 s
+ * (05/11/2026; era 0,8 s): deixa a tela seguinte ao salvar abrir primeiro.
+ */
+const AGRUPAR_MS = 1500;
 
 export function useRealtimePendencias(ativo: boolean): void {
   const carregar = usePendencias((s) => s.carregar);

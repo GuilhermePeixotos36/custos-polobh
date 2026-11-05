@@ -84,6 +84,8 @@ export interface EcRepository {
   novaVersaoComMapa(id: string): Promise<{ ec: Ec; mapa: Record<string, string> }>;
   /** Marca esta versão como baixada/arquivada (só a primeira vez conta). */
   marcarBaixada(id: string): Promise<void>;
+  /** Só a data em que esta versão foi baixada (consulta leve, sem as linhas). */
+  baixadaEm(id: string): Promise<string | null>;
   /** Torna esta EC a ativa do projeto (arquiva as demais). Reativa arquivadas. */
   definirAtiva(id: string): Promise<Ec>;
   remover(id: string): Promise<void>;
