@@ -6,6 +6,7 @@ import { useAsync } from "@/hooks/useAsync";
 import { cx, dataBR, maskCpfCnpjInput, maskPlaca } from "@/lib/format";
 import type { CredenciamentoMembro, CredenciamentoVeiculo } from "@/data/types";
 import { camposDoCredenciamento, pedeVeiculo, type CampoCredenciamento } from "@/domain/credenciamentoCampos";
+import { PRAZOS } from "@/lib/privacidade";
 
 interface Contexto {
   evento: { titulo: string; local: string; data: string };
@@ -192,6 +193,15 @@ export function CredenciamentoPublico() {
             </section>
             )}
 
+            {/* LGPD (05/11/2026): quem preenche dados de terceiros precisa saber
+                para quê, com quem vão e até quando ficam guardados. */}
+            <p className="text-[12.5px] leading-relaxed text-ink-2 bg-surface border border-border rounded-card px-4 py-3">
+              <b>Sobre os seus dados:</b> as informações deste formulário servem só para liberar a entrada da equipe e dos
+              veículos no evento. A Pólobh as repassa ao local ou à organização do evento e as apaga automaticamente{" "}
+              {PRAZOS.credenciamentoDias} dias depois do envio. Ao enviar, confirme que as pessoas listadas sabem desse uso.{" "}
+              <a href="/privacidade" target="_blank" rel="noreferrer" className="font-semibold text-primary-dark underline">Política de privacidade</a>
+            </p>
+
             {erro && <p className="text-[13px] font-semibold text-danger bg-danger-soft rounded-btn px-3 py-2">{erro}</p>}
 
             <Button type="submit" block disabled={enviando}>
@@ -200,7 +210,10 @@ export function CredenciamentoPublico() {
           </form>
         )}
 
-        <p className="text-center text-ink-3 text-[12px] mt-10">© Pólobh Promoções</p>
+        <p className="text-center text-ink-3 text-[12px] mt-10">
+          © Pólobh Promoções ·{" "}
+          <a href="/privacidade" target="_blank" rel="noreferrer" className="underline hover:text-primary-dark">Política de privacidade</a>
+        </p>
       </main>
     </div>
   );

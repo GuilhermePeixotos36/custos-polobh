@@ -96,7 +96,10 @@ export function Login() {
           </button>
         </form>
 
-        <p className="text-center text-ink-3 text-[11.5px] mt-6">© Pólobh Promoções</p>
+        <p className="text-center text-ink-3 text-[11.5px] mt-6">
+          © Pólobh Promoções ·{" "}
+          <a href="/privacidade" target="_blank" rel="noreferrer" className="underline hover:text-primary-dark">Política de privacidade</a>
+        </p>
       </div>
     </div>
   );
