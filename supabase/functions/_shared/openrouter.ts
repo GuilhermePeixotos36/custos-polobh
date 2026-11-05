@@ -122,7 +122,59 @@ export interface PedidoIa {
 
 export type RespostaIa = { ok: true; texto: string; modelo: string } | { ok: false; erro: string; status: number };
 
+/**
+ * CONTA DIRETA NA OPENAI (05/11/2026). A Pólobh preferiu uma conta própria na
+ * OpenAI à compra de créditos na OpenRouter. Com o segredo OPENAI_API_KEY
+ * configurado, o pedido vai primeiro para a OpenAI (modelo OPENAI_MODEL,
+ * padrão gpt-4.1-mini: bom português, rápido e barato); se ela falhar, segue
+ * para a OpenRouter como antes. Sem o segredo, nada muda.
+ */
+async function completarOpenAI(p: PedidoIa, resta: number): Promise<RespostaIa | null> {
+  const chave = Deno.env.get("OPENAI_API_KEY");
+  if (!chave) return null;
+  const modelo = Deno.env.get("OPENAI_MODEL") || "gpt-4.1-mini";
+  const corpo: Record<string, unknown> = {
+    model: modelo,
+    messages: p.messages,
+    temperature: p.temperature ?? 0,
+    max_tokens: p.max_tokens,
+  };
+  if (p.json) corpo.response_format = { type: "json_object" };
+  try {
+    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${chave}`, "Content-Type": "application/json" },
+      body: JSON.stringify(corpo),
+      signal: AbortSignal.timeout(Math.min(25_000, resta)),
+    });
+    if (!resp.ok) {
+      const detalhe = (await resp.text().catch(() => "")).slice(0, 300);
+      console.error(`ia: openai/${modelo}: ${resp.status} ${detalhe}`);
+      return { ok: false, status: resp.status, erro: `openai/${modelo}: ${resp.status}` };
+    }
+    const data = await resp.json().catch(() => null);
+    const escolha = data?.choices?.[0];
+    const texto = String(escolha?.message?.content ?? "").trim();
+    if (!texto || (p.aceitar && !p.aceitar(texto))) {
+      console.error(`ia: openai/${modelo}: resposta vazia ou inválida (fim: ${escolha?.finish_reason ?? "?"})`);
+      return { ok: false, status: 502, erro: `openai/${modelo}: resposta inválida` };
+    }
+    return { ok: true, texto, modelo: `openai/${modelo}` };
+  } catch (e) {
+    console.error(`ia: openai/${modelo}: ${(e as Error).message}`);
+    return { ok: false, status: 504, erro: `openai/${modelo}: ${(e as Error).message}` };
+  }
+}
+
 export async function completarGratis(apiKey: string, p: PedidoIa): Promise<RespostaIa> {
+  const inicioGeral = Date.now();
+  const prazoGeral = p.prazoMs ?? 35_000;
+  const viaOpenAI = await completarOpenAI(p, prazoGeral);
+  if (viaOpenAI?.ok) return viaOpenAI;
+  // A OpenAI falhou (ou não está configurada): o que sobrou do prazo fica para a OpenRouter.
+  p = { ...p, prazoMs: prazoGeral - (Date.now() - inicioGeral) };
+  if (!apiKey) return viaOpenAI ?? { ok: false, status: 500, erro: "Nenhuma chave de IA configurada." };
+
   const gratuitos = ordenar(await modelosGratuitos()).filter((m) => !p.imagem || m.imagem);
   const pagos = (await contaComCredito(apiKey)) ? modelosPagos() : [];
   const candidatos = [...pagos, ...gratuitos.slice(0, p.tentativas ?? 5)];
