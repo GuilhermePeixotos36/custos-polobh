@@ -1,4 +1,6 @@
 import { supabase } from "@/lib/supabaseClient";
+import { toast } from "@/store/toast";
+import { somarConsumos, textoConsumo, type ConsumoIa } from "@/domain/consumoIa";
 import { apenasMudados, retratoDeTextos, type CampoRevisavel } from "@/domain/revisaoTexto";
 import type { EcLinha } from "@/data/types";
 import type { RoteiroExtraProjeto, RoteirosProjeto } from "@/data/types";
@@ -12,6 +14,8 @@ interface DescricaoCorrigida {
 interface RespostaCorrecao {
   ok?: boolean;
   descricoes?: DescricaoCorrigida[];
+  /** Tokens e custo desta chamada (05/11/2026). */
+  consumo?: ConsumoIa;
 }
 
 export interface ResultadoCorrecao {
@@ -104,12 +108,14 @@ async function corrigirTextos(
     else atual.push(item);
   }
   const revisados = new Map<string, string>();
+  const consumos: (ConsumoIa | undefined)[] = [];
   let revisaoCompleta = true;
   for (let inicio = 0; inicio < lotes.length; inicio += 3) {
     const respostas = await Promise.all(lotes.slice(inicio, inicio + 3).map(async (lote) => {
       try {
         const { data, error } = await supabase.functions.invoke("corrigir-descricoes-ec", { body: { descricoes: lote } });
         const resposta = data as RespostaCorrecao;
+        consumos.push(resposta?.consumo);
         return !error && resposta?.ok && Array.isArray(resposta.descricoes) ? resposta.descricoes : null;
       } catch { return null; }
     }));
@@ -123,6 +129,9 @@ async function corrigirTextos(
       if (lote.some((item) => !revisados.has(item.id))) revisaoCompleta = false;
     });
   }
+  // Mostra na hora quanto a revisão gastou (fica registrado em Configurações > Consumo de IA).
+  const consumo = somarConsumos(consumos);
+  if (consumo && consumo.tokensEntrada + consumo.tokensSaida > 0) toast(`Revisão por IA: ${textoConsumo(consumo)}`, "info");
   return {
     textos: new Map(locais.map((item) => [item.id, revisados.get(item.id) ?? item.descricao])),
     revisaoCompleta,

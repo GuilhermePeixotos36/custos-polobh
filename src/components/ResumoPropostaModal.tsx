@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import { Input, Field, Button } from "@/components/ui";
 import { IcSpark, IcTrash, IcPlus } from "@/components/icons";
 import { resumirProposta } from "@/lib/resumoProposta";
+import { textoConsumo } from "@/domain/consumoIa";
+import { toast } from "@/store/toast";
 
 interface Props {
   onInserir: (html: string) => void;
@@ -65,6 +67,8 @@ export function ResumoPropostaModal({ onInserir, onClose }: Props) {
         return;
       }
       onInserir(html);
+      // Quanto a leitura gastou (fica registrado em Configurações > Consumo de IA).
+      if (r.consumo) toast(`Leitura por IA: ${textoConsumo(r.consumo)}`, "info");
       onClose();
     } finally {
       setLoading(false);

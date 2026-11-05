@@ -120,7 +120,21 @@ export interface PedidoIa {
   prazoMs?: number;
 }
 
-export type RespostaIa = { ok: true; texto: string; modelo: string } | { ok: false; erro: string; status: number };
+/** Tokens gastos numa chamada (somados entre as tentativas que chegaram a responder). */
+export interface UsoIa {
+  entrada: number;
+  saida: number;
+}
+
+export type RespostaIa =
+  | { ok: true; texto: string; modelo: string; uso: UsoIa }
+  | { ok: false; erro: string; status: number; uso?: UsoIa };
+
+// deno-lint-ignore no-explicit-any
+const lerUso = (data: any): UsoIa => ({
+  entrada: Number(data?.usage?.prompt_tokens) || 0,
+  saida: Number(data?.usage?.completion_tokens) || 0,
+});
 
 /**
  * CONTA DIRETA NA OPENAI (05/11/2026). A Pólobh preferiu uma conta própria na
@@ -155,11 +169,12 @@ async function completarOpenAI(p: PedidoIa, resta: number): Promise<RespostaIa |
     const data = await resp.json().catch(() => null);
     const escolha = data?.choices?.[0];
     const texto = String(escolha?.message?.content ?? "").trim();
+    const uso = lerUso(data);
     if (!texto || (p.aceitar && !p.aceitar(texto))) {
       console.error(`ia: openai/${modelo}: resposta vazia ou inválida (fim: ${escolha?.finish_reason ?? "?"})`);
-      return { ok: false, status: 502, erro: `openai/${modelo}: resposta inválida` };
+      return { ok: false, status: 502, erro: `openai/${modelo}: resposta inválida`, uso };
     }
-    return { ok: true, texto, modelo: `openai/${modelo}` };
+    return { ok: true, texto, modelo: `openai/${modelo}`, uso };
   } catch (e) {
     console.error(`ia: openai/${modelo}: ${(e as Error).message}`);
     return { ok: false, status: 504, erro: `openai/${modelo}: ${(e as Error).message}` };
@@ -171,6 +186,8 @@ export async function completarGratis(apiKey: string, p: PedidoIa): Promise<Resp
   const prazoGeral = p.prazoMs ?? 35_000;
   const viaOpenAI = await completarOpenAI(p, prazoGeral);
   if (viaOpenAI?.ok) return viaOpenAI;
+  // Uma resposta da OpenAI recusada (fora do formato) também foi cobrada.
+  const gastoAntes: UsoIa = viaOpenAI?.uso ?? { entrada: 0, saida: 0 };
   // A OpenAI falhou (ou não está configurada): o que sobrou do prazo fica para a OpenRouter.
   p = { ...p, prazoMs: prazoGeral - (Date.now() - inicioGeral) };
   if (!apiKey) return viaOpenAI ?? { ok: false, status: 500, erro: "Nenhuma chave de IA configurada." };
@@ -228,14 +245,15 @@ export async function completarGratis(apiKey: string, p: PedidoIa): Promise<Resp
     const data = await resp.json().catch(() => null);
     const escolha = data?.choices?.[0];
     const texto = String(escolha?.message?.content ?? "").trim();
+    const uso = lerUso(data);
     if (!texto || (p.aceitar && !p.aceitar(texto))) {
       ultimo = `${m.id}: resposta vazia ou inválida (fim: ${escolha?.finish_reason ?? "?"})`;
       console.error(`ia: ${ultimo} ${texto.slice(0, 150)}`);
       continue;
     }
-    return { ok: true, texto, modelo: m.id };
+    return { ok: true, texto, modelo: m.id, uso: { entrada: uso.entrada + gastoAntes.entrada, saida: uso.saida + gastoAntes.saida } };
   }
-  return { ok: false, status, erro: `Nenhum modelo de IA respondeu (${ultimo}).` };
+  return { ok: false, status, erro: `Nenhum modelo de IA respondeu (${ultimo}).`, uso: gastoAntes };
 }
 
 /** Tira cercas ```json e texto em volta: modelos gratuitos nem sempre devolvem JSON puro. */

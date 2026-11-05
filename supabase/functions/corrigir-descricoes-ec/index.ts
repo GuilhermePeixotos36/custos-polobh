@@ -1,5 +1,6 @@
 import { autorizar, respostaAutorizacao } from "../_shared/auth.ts";
 import { completarGratis, extrairJson, ordemGratuitos } from "../_shared/openrouter.ts";
+import { registrarUsoIa } from "../_shared/ia-uso.ts";
 
 /**
  * O revisor de português do sistema.
@@ -60,6 +61,8 @@ Deno.serve(async (req) => {
         aceitar: (texto) => Array.isArray(extrairJson<{ descricoes?: unknown }>(texto)?.descricoes),
       })
       : null;
+    // O teste também gasta: entra no consumo como "diagnóstico".
+    if (teste) await registrarUsoIa({ nome: "Diagnóstico" }, "diagnostico", teste, { itens: 1 });
     return new Response(
       JSON.stringify({ ok: r.ok, status: r.status, openai: !!Deno.env.get("OPENAI_API_KEY"), uso: d.usage ?? null, gratuito: d.is_free_tier ?? null, limite: d.limit ?? null, modelos: await ordemGratuitos(), teste }),
       { headers: { ...cors, "Content-Type": "application/json" } },
@@ -78,7 +81,7 @@ Deno.serve(async (req) => {
     // check-list: ele edita a OS na fase do financeiro, e sem isto a revisão
     // dele voltaria 403 — o texto gravava, mas com um aviso de "IA
     // indisponível" a cada salvamento, que é o pior dos dois mundos.
-    await autorizar(req, ["Admin", "Direcao", "Producao", "Administrativo"]);
+    const quem = await autorizar(req, ["Admin", "Direcao", "Producao", "Administrativo"]);
     const apiKey = Deno.env.get("OPENROUTER_API_KEY");
     if (!apiKey) return json({ ok: false, erro: "OPENROUTER_API_KEY não configurada." }, 500);
 
@@ -92,6 +95,7 @@ Deno.serve(async (req) => {
 
     const conteudo = JSON.stringify({ descricoes });
     if (conteudo.length > 45_000) return json({ ok: false, erro: "Lote de revisão acima do limite permitido." }, 413);
+    const inicio = Date.now();
     const resposta = await completarGratis(apiKey, {
       titulo: "Polobh EC - Correção ortográfica",
       messages: [
@@ -104,7 +108,8 @@ Deno.serve(async (req) => {
       json: true,
       aceitar: (texto) => Array.isArray(extrairJson<{ descricoes?: unknown }>(texto)?.descricoes),
     });
-    if (!resposta.ok) return json({ ok: false, erro: resposta.erro }, resposta.status === 429 ? 429 : 502);
+    const consumo = await registrarUsoIa(quem, "revisao", resposta, { itens: descricoes.length, duracaoMs: Date.now() - inicio });
+    if (!resposta.ok) return json({ ok: false, erro: resposta.erro, consumo }, resposta.status === 429 ? 429 : 502);
     const revisado = extrairJson<{ descricoes?: DescricaoEntrada[] }>(resposta.texto) ?? {};
 
     const original = new Map(descricoes.map((item) => [item.id, item.descricao]));
@@ -119,7 +124,7 @@ Deno.serve(async (req) => {
         ? tags(item.descricao) === tags(antes)
         : false;
     });
-    return json({ ok: true, descricoes: resultado, modelo: resposta.modelo });
+    return json({ ok: true, descricoes: resultado, modelo: resposta.modelo, consumo });
   } catch (erro) {
     const resposta = respostaAutorizacao(erro, cors);
     if (resposta) return resposta;
