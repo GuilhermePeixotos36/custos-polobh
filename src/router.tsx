@@ -25,6 +25,7 @@ const Configuracoes = lazyComRecuperacao(() => import("@/pages/Configuracoes").t
 const Fluxograma = lazyComRecuperacao(() => import("@/pages/Fluxograma").then((m) => ({ default: m.Fluxograma })));
 const Logs = lazyComRecuperacao(() => import("@/pages/Logs").then((m) => ({ default: m.Logs })));
 const Guia = lazyComRecuperacao(() => import("@/pages/Guia").then((m) => ({ default: m.Guia })));
+const Privacidade = lazyComRecuperacao(() => import("@/pages/Privacidade").then((m) => ({ default: m.Privacidade })));
 const Suporte = lazyComRecuperacao(() => import("@/pages/Suporte").then((m) => ({ default: m.Suporte })));
 
 /** Suspense para rotas públicas (fora da casca autenticada). */
@@ -39,6 +40,7 @@ export const router = createBrowserRouter([
   { path: "/nova-senha", element: <NovaSenha />, errorElement: <ErroAplicacao /> },
   { path: "/cronograma/:slug", element: <P><CronogramaPublico /></P>, errorElement: <ErroAplicacao /> }, // público (sem login)
   { path: "/credenciamento/:token", element: <P><CredenciamentoPublico /></P>, errorElement: <ErroAplicacao /> }, // público (sem login)
+  { path: "/privacidade", element: <P><Privacidade /></P>, errorElement: <ErroAplicacao /> }, // público (sem login)
   { path: "/estimativas/:id/imprimir", element: <P><ImprimirEc /></P>, errorElement: <ErroAplicacao /> },
   { path: "/ordens/:id/imprimir", element: <P><ImprimirOs /></P>, errorElement: <ErroAplicacao /> },
   {
