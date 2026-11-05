@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
       })
       : null;
     return new Response(
-      JSON.stringify({ ok: r.ok, status: r.status, uso: d.usage ?? null, gratuito: d.is_free_tier ?? null, limite: d.limit ?? null, modelos: await ordemGratuitos(), teste }),
+      JSON.stringify({ ok: r.ok, status: r.status, openai: !!Deno.env.get("OPENAI_API_KEY"), uso: d.usage ?? null, gratuito: d.is_free_tier ?? null, limite: d.limit ?? null, modelos: await ordemGratuitos(), teste }),
       { headers: { ...cors, "Content-Type": "application/json" } },
     );
   }
