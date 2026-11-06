@@ -8,7 +8,7 @@ import ExcelJS from "exceljs";
 import type { Ec } from "@/data/types";
 import { calcularTotais, rotuloTaxa, tituloEc } from "@/domain/calc";
 import { brl, dataBR } from "@/lib/format";
-import { htmlParaLinhas } from "@/lib/htmlTexto";
+import { htmlParaLinhas, htmlParaTrechos } from "@/lib/htmlTexto";
 import {
   COR, fill, gradeAuto, baixar, salvarComPicker, carregarLogo, encaixarLogo,
   REALCE, regraRealce, regraValorPreenchido,
@@ -401,6 +401,27 @@ export async function criarEcExcelBuffer(
     return partes.join("\n\n");
   };
 
+  /**
+   * O mesmo descritivo como TEXTO RICO do Excel (06/11/2026, pedido da Marisa):
+   * o negrito da Descrição Completa passa para a planilha, com os tópicos e
+   * parágrafos de `htmlParaTrechos`. Cada trecho leva a fonte inteira — no
+   * texto rico, a fonte da célula não vale para os trechos.
+   */
+  const descritivoRico = (l: (typeof linhasDoDoc)[number]): ExcelJS.CellRichTextValue | string => {
+    const trechos = htmlParaTrechos(l.descricaoCompleta);
+    const principal = l.descricao?.trim() ?? "";
+    if (!trechos.some((t) => t.negrito)) return descritivoDoItem(l);
+    const fonte = (negrito: boolean): Partial<ExcelJS.Font> => ({
+      name: negrito ? FONT_BOLD : FONT_LIGHT, bold: negrito, size: PT, color: { argb: COR.ink },
+    });
+    return {
+      richText: [
+        ...(principal ? [{ text: `${principal}\n\n`, font: fonte(false) }] : []),
+        ...trechos.map((t) => ({ text: t.texto, font: fonte(t.negrito) })),
+      ],
+    };
+  };
+
   for (const [grupo, linhas] of grupos) {
     ws.mergeCells(`A${r}:${ultimaColuna}${r}`);
     const gc = ws.getCell(`A${r}`);
@@ -429,13 +450,13 @@ export async function criarEcExcelBuffer(
       const fim = inicio + quantas - 1;
       linhasDeItem.push(inicio);
 
-      const vals: (string | number)[] = completa
+      const vals: (string | number | ExcelJS.CellRichTextValue)[] = completa
         ? [
-            l.item, descritivo, l.valorPolobh, l.valorCliente, l.statusAprovacao,
+            l.item, descritivoRico(l), l.valorPolobh, l.valorCliente, l.statusAprovacao,
             l.fornecedorRazao, l.fornecedorCnpj, l.faturaNf, l.codigoServico,
             l.pedidoCompra, l.statusOs, l.contratoStatus,
           ]
-        : [l.item, descritivo, l.valorPolobh, l.valorCliente];
+        : [l.item, descritivoRico(l), l.valorPolobh, l.valorCliente];
       vals.forEach((v, i) => {
         const col = COLS[i];
         const c = ws.getCell(`${col}${inicio}`);
@@ -733,7 +754,8 @@ export async function gerarEcExcel(
   opts?: { picker?: boolean; modelo?: ModeloEcExcel }
 ): Promise<"salvo" | "cancelado" | "baixado"> {
   const { buffer, nome } = await criarEcExcelBuffer(ec, opts?.modelo);
-  if (opts?.picker) return salvarComPicker(buffer as ArrayBuffer, nome, ec.projetoId);
-  baixar(buffer, nome, ec.projetoId);
+  // Download é só download: a cópia da pasta sai pelo "Salvar na pasta".
+  if (opts?.picker) return salvarComPicker(buffer as ArrayBuffer, nome);
+  baixar(buffer, nome);
   return "baixado";
 }

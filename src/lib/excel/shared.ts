@@ -231,17 +231,78 @@ export function encaixarLogo(logo: LogoPolobh, caixa: { largura: number; altura:
 }
 
 /**
- * Estima quantas linhas visuais um texto ocupa numa célula de `largura` colunas
- * (unidade de largura do Excel ≈ 1 caractere), considerando as quebras manuais.
+ * Largura aproximada de cada caractere em UNIDADES DE COLUNA do Excel (1
+ * unidade ≈ a largura do "0" da fonte padrão, ~7px), para um corpo de 11pt.
+ *
+ * CALIBRAGEM (06/11/2026, a altura ficava desproporcional): a conta antiga
+ * tratava toda letra como 1 unidade e cortava cada parágrafo em pedaços de
+ * tamanho fixo. Mas "i", "l", "t" e o espaço ocupam metade disso, e quase todo
+ * texto de EC é minúsculo — a planilha ganhava linhas a mais, e o item ficava
+ * com um vão branco embaixo. Agora a conta quebra por PALAVRA, como o Excel, e
+ * soma a largura real de cada letra.
+ */
+const LARGURA_CHAR: Record<string, number> = (() => {
+  const t: Record<string, number> = {};
+  const grupo = (chars: string, w: number) => { for (const c of chars) t[c] = w; };
+  grupo("iljI|!.,:;'´`", 0.45);
+  grupo("ftr()[]\"-", 0.6);
+  grupo(" ", 0.5);
+  grupo("sz*", 0.8);
+  grupo("ckvxyJ", 0.92);
+  grupo("abdeghnopquáàâãéêíóôõúç0123456789$•◦", 1.05);
+  grupo("EFLPS", 1.1);
+  grupo("ABKRTUVXYZÁÉÍÓÚ", 1.3);
+  grupo("CDGHNOQÇÔÕ", 1.55);
+  grupo("mw%@", 1.5);
+  grupo("MW", 1.8);
+  return t;
+})();
+const larguraChar = (c: string) => LARGURA_CHAR[c] ?? 1;
+
+/** Margem interna da célula (as duas laterais), em unidades de coluna. */
+const MARGEM_CELULA = 0.8;
+
+/**
+ * Estima quantas linhas visuais um texto ocupa numa célula de `largura` colunas,
+ * considerando as quebras manuais e quebrando por palavra, como o Excel faz.
  * É a base do ajuste de altura das linhas: sem isso o texto longo fica cortado,
  * porque o Excel só auto-ajusta a altura de linhas que ele mesmo escreveu.
+ * `escala` corrige a largura das letras quando o corpo não é 11pt (ou é negrito).
  */
-export function linhasVisuais(texto: string, largura: number): number {
+export function linhasVisuais(texto: string, largura: number, escala = 1): number {
   if (!texto) return 1;
-  const porLinha = Math.max(8, Math.floor(largura) - 1);
+  const util = Math.max(6, largura - MARGEM_CELULA);
   return String(texto)
     .split("\n")
-    .reduce((n, paragrafo) => n + Math.max(1, Math.ceil(paragrafo.length / porLinha)), 0);
+    .reduce((n, paragrafo) => n + linhasDoParagrafo(paragrafo, util, escala), 0);
+}
+
+function linhasDoParagrafo(paragrafo: string, util: number, escala: number): number {
+  if (!paragrafo.trim()) return 1;
+  let linhas = 1;
+  let ocupado = 0;
+  const espaco = larguraChar(" ") * escala;
+  for (const palavra of paragrafo.split(/ +/)) {
+    if (!palavra) continue;
+    let w = 0;
+    for (const c of palavra) w += larguraChar(c) * escala;
+    const comEspaco = ocupado > 0 ? ocupado + espaco + w : w;
+    if (comEspaco <= util) {
+      ocupado = comEspaco;
+      continue;
+    }
+    if (ocupado > 0) {
+      linhas++;
+      ocupado = 0;
+    }
+    // Palavra maior que a linha inteira: o Excel a parte onde couber.
+    while (w > util) {
+      linhas++;
+      w -= util;
+    }
+    ocupado = w;
+  }
+  return linhas;
 }
 
 /** Altura máxima de linha no Excel (em pontos) — limite real do formato .xlsx. */

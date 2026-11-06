@@ -62,9 +62,10 @@ export async function gerarEcExcel(
   const { gerarEcExcel: fn } = await import("./ec");
   const r = await fn(ec, opts);
   if (r !== "cancelado") {
-    // BAIXOU = esta versão não muda mais: a próxima edição salva como versão
-    // nova (30/10/2026). Vale para os dois modelos.
-    void import("@/data").then(({ repo }) => repo.ecs.marcarBaixada(ec.id)).catch(() => {});
+    // Baixar NÃO congela mais a versão nem copia para o Dropbox (06/11/2026):
+    // quem faz isso é só o botão "Salvar na pasta" (ver `salvarEcNaPasta`).
+    // Antes, cada download marcava a EC como baixada e toda edição seguinte
+    // virava uma versão nova — a EC da Carol foi da v3 à v8 num dia.
     const modelo = opts?.modelo === "financeiro" ? "financeiro" : "completo";
     auditar({ categoria: "Exportação", acao: "ec.excel", mensagem: `EC ${ec.numero} exportada para Excel (${modelo})`, alvoId: ec.id });
   }
@@ -171,16 +172,21 @@ export function baixarPdfViaImpressao() {
 
 /**
  * A OS "oficial" é o PDF, que sai pela impressão do navegador — e a impressão
- * não entrega um arquivo que o app possa copiar. Então, ao baixar o PDF, a
- * pasta Dropbox do projeto recebe a OS em Excel (sem financeiro) como cópia.
+ * não entrega um arquivo que o app possa copiar. Então a pasta Dropbox do
+ * projeto recebe a OS em Excel (sem financeiro) como cópia.
+ *
+ * UMA VEZ POR VERSÃO (06/11/2026): a cópia sai ao EMITIR a OS e ao gerar nova
+ * versão — não mais a cada clique em "OS PDF" nem em cada download do Excel,
+ * que geravam "OS (01) (1)", "(2)" na pasta. E se o arquivo da versão já
+ * estiver lá, o servidor não envia de novo.
  */
 export async function arquivarOsNoProjeto(os: Os, ec: Ec): Promise<void> {
   try {
     const [{ criarOsExcelBuffer }, { arquivarCopia }] = await Promise.all([import("./os"), import("@/lib/arquivarDocumento")]);
     const { buffer, nome } = await criarOsExcelBuffer(os, ec, { incluirFinanceiro: false, ...opcoesDeEmpresaDaOs() });
-    arquivarCopia(ec.projetoId, nome, buffer);
+    arquivarCopia(ec.projetoId, nome, buffer, undefined, { seExistir: "pular" });
   } catch {
-    /* arquivar nunca atrapalha o download */
+    /* arquivar nunca atrapalha quem emitiu */
   }
 }
 
@@ -208,8 +214,29 @@ export async function arquivarNovaVersaoEc(ec: Ec): Promise<void> {
     // Chegou à pasta = esta versão fica como está (ver `marcarBaixada`).
     arquivarCopia(ec.projetoId, nome, buffer, () => {
       void import("@/data").then(({ repo }) => repo.ecs.marcarBaixada(ec.id)).catch(() => {});
-    });
+    }, { seExistir: "pular" });
   } catch {
     /* arquivar nunca atrapalha a geração da versão */
   }
+}
+
+/**
+ * "SALVAR NA PASTA" da EC (06/11/2026): monta o Excel completo, envia para a
+ * pasta Dropbox do projeto e ESPERA a resposta. Chegou (ou a mesma versão já
+ * estava lá) = a versão fica registrada como arquivada (`marcarBaixada`), e a
+ * próxima mudança que for para a pasta vira a versão seguinte.
+ */
+export async function salvarEcNaPasta(ec: Ec): Promise<import("@/lib/arquivarDocumento").ResultadoPasta> {
+  const [{ criarEcExcelBuffer }, { salvarNaPasta }, { repo }] = await Promise.all([
+    import("./ec"),
+    import("@/lib/arquivarDocumento"),
+    import("@/data"),
+  ]);
+  const { buffer, nome } = await criarEcExcelBuffer(ec, "completa");
+  const r = await salvarNaPasta(ec.projetoId, nome, buffer, { seExistir: "pular" });
+  if (r.status === "ok" || r.status === "ja-existia") {
+    await repo.ecs.marcarBaixada(ec.id).catch(() => {});
+    auditar({ categoria: "Exportação", acao: "ec.pasta", mensagem: `EC ${ec.numero} salva na pasta do projeto (${nome})`, alvoId: ec.id });
+  }
+  return r;
 }

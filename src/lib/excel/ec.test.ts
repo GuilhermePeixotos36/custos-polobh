@@ -117,11 +117,20 @@ describe("helpers de layout do Excel", () => {
       valorPolobh: 988,
     })]), "financeiro");
     const celulas: string[] = [];
-    ws.eachRow((row) => row.eachCell((c) => celulas.push(String(c.value ?? ""))));
+    let negritos: string[] = [];
+    ws.eachRow((row) => row.eachCell((c) => {
+      const v = c.value as { richText?: { text: string; font?: { bold?: boolean } }[] } | string | null;
+      if (v && typeof v === "object" && v.richText) {
+        celulas.push(v.richText.map((t) => t.text).join(""));
+        negritos = negritos.concat(v.richText.filter((t) => t.font?.bold).map((t) => t.text));
+      } else celulas.push(String(v ?? ""));
+    }));
     const descritivo = celulas.find((t) => t.includes("Contratação de Equipe Promotores"));
     expect(descritivo).toContain("Saguão Prédio");
     expect(descritivo).toContain("01 profissional x 01 diária de 04 horas");
     expect(descritivo!.indexOf("Contratação")).toBeLessThan(descritivo!.indexOf("Saguão"));
+    // O negrito da tela chega à planilha (06/11/2026).
+    expect(negritos).toEqual(["Saguão Prédio"]);
   });
 
   it("encaixarLogo respeita a proporção e a caixa", () => {
