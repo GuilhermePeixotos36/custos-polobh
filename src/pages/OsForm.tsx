@@ -900,7 +900,7 @@ export function OsForm() {
    * troca de fornecedor de uma OS já emitida, que não bloqueia — desvia para
    * uma nova versão.
    */
-  async function salvar(status?: Os["status"], patch?: Partial<Os>, opcoes?: { disparar?: boolean }) {
+  async function salvar(status?: Os["status"], patch?: Partial<Os>, opcoes?: { disparar?: boolean }): Promise<Os | undefined> {
     /**
      * TROCA DE FORNECEDOR numa OS que já saiu da casa: não é edição, é outro
      * contrato. A OS anterior existe do lado do primeiro fornecedor — deixar
@@ -922,7 +922,11 @@ export function OsForm() {
         confirmarTexto: "Enviar OS",
       }))) return;
     }
-    // Textos alterados ainda não revisados: pergunta antes de gravar (28/10/2026).
+    // Textos alterados ainda não revisados. A revisão por IA é oferecida só
+    // quando a OS SAI DA CASA — ao emitir ou enviar ao fornecedor (06/11/2026).
+    // O "Salvar" do dia a dia só grava: perguntar a cada salvamento cansava, e
+    // o texto ainda ia mudar antes de sair.
+    const momentoDeRevisar = status === "Emitida" || !!opcoes?.disparar;
     const gravadaParaRevisao = baseline ? (JSON.parse(baseline) as Os) : null;
     const comPatchParaRevisao = { ...os!, ...patch };
     const pendentes = pendentesDeRevisao(
@@ -930,7 +934,7 @@ export function OsForm() {
       camposDaOs(gravadaParaRevisao ?? comPatchParaRevisao),
       jaRevisados,
     );
-    const querRevisao = pendentes.length > 0 && (await perguntarRevisao(pendentes.length));
+    const querRevisao = momentoDeRevisar && pendentes.length > 0 && (await perguntarRevisao(pendentes.length));
     setBusy(true);
     try {
       // O BV é gravado na própria OS (a Produção negocia), mas depende do
@@ -995,8 +999,10 @@ export function OsForm() {
       setEditando(false);
       window.scrollTo({ top: 0 });
       navigate(`/ordens/${salvo.id}`);
+      return salvo;
     } catch (e) {
       toast(`Erro ao salvar a OS: ${(e as Error).message}`, "danger");
+      return undefined;
     } finally {
       setBusy(false);
     }
@@ -1182,12 +1188,16 @@ export function OsForm() {
       mensagem: "A OS passa a Emitida e os itens da EC que ela consolida ficam com a OS em OK. Depois disso, o que mudar exige uma nova versão.",
       confirmarTexto: "Emitir OS",
     }))) return;
-    await salvar("Emitida", { fase: "emitida" });
+    const emitida = await salvar("Emitida", { fase: "emitida" });
+    if (!emitida) return;
     try {
-      await repo.oss.fecharItensNaEc(os!.id);
+      await repo.oss.fecharItensNaEc(emitida.id);
     } catch (e) {
       toast(`A OS foi emitida, mas os itens da EC não foram fechados: ${(e as Error).message}`, "warning");
     }
+    // A cópia da OS vai para a pasta Dropbox UMA vez, aqui na emissão
+    // (06/11/2026) — antes saía a cada clique em "OS PDF".
+    if (ecCtx) void arquivarOsNoProjeto(emitida, ecCtx);
     setEditando(false);
   }
 
@@ -1305,7 +1315,6 @@ export function OsForm() {
             icon={<IcEye width={16} height={16} />}
             onClick={() => {
               if (!os.id) return toast("Salve a OS antes de baixar o PDF.", "info");
-              void arquivarOsNoProjeto(os, ecCtx);
               navigate(`/ordens/${os.id}/imprimir?auto=1`);
             }}
           >

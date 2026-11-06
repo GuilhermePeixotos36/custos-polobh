@@ -604,5 +604,6 @@ export async function gerarOsExcel(
   opts: { incluirFinanceiro?: boolean; empresaPolobh?: EmpresaEmissora; empresas?: EmpresaGrupo[] } = {}
 ): Promise<void> {
   const { buffer, nome } = await criarOsExcelBuffer(os, ec, opts);
-  baixar(buffer, nome, ec.projetoId);
+  // Download é só download: a cópia da pasta sai ao emitir a OS.
+  baixar(buffer, nome);
 }

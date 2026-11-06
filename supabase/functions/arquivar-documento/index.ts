@@ -15,6 +15,10 @@
  *
  * Nome: cada VERSÃO é um arquivo novo. Nada é sobrescrito; se o nome já existir,
  * o Dropbox acrescenta " (1)" (autorename).
+ *
+ * `seExistir: "pular"` (EC e OS, 06/11/2026): o nome da EC e da OS já carrega a
+ * versão, então um arquivo com o mesmo nome é a MESMA versão. Nesse caso nada é
+ * enviado e a resposta diz `jaExistia` — era o que gerava "OS (01) (1)", "(2)".
  */
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { autorizar, respostaAutorizacao } from "../_shared/auth.ts";
@@ -58,7 +62,8 @@ Deno.serve(async (req) => {
     throw e;
   }
 
-  const { projetoId, nomeArquivo, conteudoBase64 } = await req.json().catch(() => ({}));
+  const { projetoId, nomeArquivo, conteudoBase64, seExistir } = await req.json().catch(() => ({}));
+  const pular = seExistir === "pular";
   if (!projetoId || !nomeArquivo || !conteudoBase64) return json({ ok: false, erro: "Dados incompletos." }, 400);
 
   const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
@@ -96,12 +101,18 @@ Deno.serve(async (req) => {
         "Dropbox-API-Arg": ascii({
           path: `${m.path_lower}/${nomeSeguro(nomeArquivo)}`,
           mode: "add",
-          autorename: true,
+          autorename: !pular,
           mute: true,
         }),
       },
       body: bytes,
     });
+    if (pular && up.status === 409) {
+      const corpo = await up.text();
+      if (/conflict/i.test(corpo)) {
+        return json({ ok: true, jaExistia: true, caminho: `${m.path_lower}/${nomeSeguro(nomeArquivo)}` });
+      }
+    }
     if (!up.ok) return json({ ok: false, erro: `Dropbox recusou o arquivo (${up.status}).` }, 502);
     const salvo = await up.json();
     return json({ ok: true, caminho: salvo.path_display });

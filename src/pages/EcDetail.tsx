@@ -11,6 +11,7 @@ import {
   CardTitle,
   Badge,
   Button,
+  CarregandoTela,
   Table,
   THead,
   Tr,
@@ -87,6 +88,8 @@ export function EcDetail() {
   const [bloqueados, setBloqueados] = useState<ItemEmissaoOs[]>([]);
   const [subaba, setSubaba] = useState<SubGuiaEc>("ec");
   const [emitindo, setEmitindo] = useState(false);
+  /** "Salvar na pasta" em andamento: o passo que está acontecendo. */
+  const [enviandoPasta, setEnviandoPasta] = useState<string | null>(null);
 
   const t = useMemo(
     () => (ec ? calcularTotais(ec.linhas, ec.producao, ec.honorarios, ec.encargos) : null),
@@ -579,6 +582,29 @@ export function EcDetail() {
               Gerar Nova Versão EC
             </Button>
           )}
+          {/* SALVAR NA PASTA (06/11/2026) — ver `lib/salvarEcNaPasta`. */}
+          {podeEditar && ecEditavel(ec) && (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={!!enviandoPasta}
+              title="Revisa os textos e envia o Excel da EC para a pasta Dropbox do projeto. Se a versão da pasta já mudou, cria a versão seguinte."
+              onClick={async () => {
+                setEnviandoPasta("Conferindo…");
+                try {
+                  const { salvarEcNaPasta } = await import("@/lib/salvarEcNaPasta");
+                  const final = await salvarEcNaPasta(ec, { aoAndar: setEnviandoPasta });
+                  if (final && final.id !== ec.id) navigate(`/estimativas/${final.id}`);
+                  else if (final) recarregarEc();
+                } finally {
+                  setEnviandoPasta(null);
+                }
+              }}
+            >
+              Salvar na pasta
+            </Button>
+          )}
+          {enviandoPasta && <CarregandoTela texto={enviandoPasta} />}
           <ExcelEcMenu ec={ec} />
           <Button variant="secondary" size="sm" icon={<IcEye width={16} height={16} />} onClick={() => navigate(`/estimativas/${ec.id}/imprimir`)}>
             EC PDF

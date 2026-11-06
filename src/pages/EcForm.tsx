@@ -42,7 +42,7 @@ import { revisarEc, type RevisaoEc } from "@/domain/revisaoEc";
 import { RevisaoEcModal } from "@/components/RevisaoEcModal";
 import { consultarCnpj } from "@/lib/cnpj";
 import {
-  avisarFalhaRevisao, lembrarRevisados, pendentesDeRevisao, perguntarRevisao, revisarPendentes, somenteMaiusculas,
+  avisarFalhaRevisao, lembrarRevisados, pendentesDeRevisao, revisarPendentes, somenteMaiusculas,
 } from "@/lib/revisaoInterativa";
 import { aplicarNaEc, camposDaEc } from "@/domain/revisaoTexto";
 import { chaveDocumento } from "@/domain/travaEdicao";
@@ -133,6 +133,8 @@ export function EcForm() {
   /** Textos já revisados nesta edição (id → texto final): o "Salvar" não pergunta de novo. */
   const [jaRevisados, setJaRevisados] = useState<Map<string, string>>(() => new Map());
   const [mostrarSalvo, setMostrarSalvo] = useState(false);
+  /** "Salvar na pasta" em andamento: o passo que está acontecendo. */
+  const [enviandoPasta, setEnviandoPasta] = useState<string | null>(null);
   const [subaba, setSubaba] = useState<SubGuiaEc>("ec");
   // Fornecedores registrados — alimentam a lista suspensa por CNPJ na tabela de custos.
   const { data: fornData, reload: reloadForn } = useAsync(() => repo.fornecedores.listar(), []);
@@ -415,88 +417,64 @@ export function EcForm() {
   }
 
   /**
-   * Salvar (rápido): apenas persiste a EC. Sem IA e sem exportar Excel (use os botões de Excel).
-   * Ao concluir, o botão mostra "Salvo" (esmaecido) por um instante e o usuário é levado
-   * para a tela de visualização da EC.
+   * SALVAR: só grava (06/11/2026). Sem revisão por IA, sem versão nova e sem
+   * Dropbox — isso tudo é do botão "Salvar na pasta" (ver `lib/salvarEcNaPasta`).
+   * Os textos ainda não revisados recebem só a regra de maiúsculas da casa.
+   * Ao concluir, o botão mostra "Salvo" por um instante e a pessoa vai para a
+   * visualização da EC (a não ser que `navegar` seja false).
    */
-  async function salvar(): Promise<boolean> {
-    /*
-     * REVISÃO DE TEXTO. Desde 25/09/2026 o salvamento revisava os textos
-     * alterados sem perguntar. Desde 28/10/2026 ele PERGUNTA: se há texto
-     * alterado que ainda não passou pelo "Revisar", um diálogo oferece revisar
-     * antes de gravar. Vai só o que mudou desde a última gravação — é o que
-     * mantém o custo preso ao número de edições de texto, e não ao de
-     * salvamentos. Sem revisão, vale só a regra de maiúsculas.
-     */
+  async function salvar(opcoes: { navegar?: boolean } = {}): Promise<Ec | null> {
+    const navegar = opcoes.navegar ?? true;
     const gravada = baseline ? (JSON.parse(baseline) as Ec) : null;
     const pendentes = pendentesDeRevisao(camposDaEc(ec!.linhas), camposDaEc(gravada?.linhas ?? []), jaRevisados);
-    const querRevisao = pendentes.length > 0 && (await perguntarRevisao(pendentes.length));
     setSalvando(true);
     try {
-      let linhas = ec!.linhas;
-      if (querRevisao) {
-        const { textos, falhou } = await revisarPendentes(pendentes);
-        linhas = aplicarNaEc(linhas, textos);
-        if (falhou) await avisarFalhaRevisao();
-      } else if (pendentes.length) {
-        linhas = aplicarNaEc(linhas, somenteMaiusculas(pendentes));
-      }
-
-      /*
-       * EC JÁ BAIXADA (30/10/2026): a versão que está na pasta do projeto não
-       * muda mais. O salvar cria a versão seguinte e grava as edições NELA — a
-       * tela continua dizendo "Editar EC"; a versão nova é só a consequência.
-       * Confere no banco na hora (alguém pode ter baixado com a tela aberta).
-       */
-      let alvo: Ec = { ...ec!, linhas, numero };
-      let virouVersao: number | null = null;
-      const baixada = /^[0-9a-f-]{36}$/i.test(alvo.id) ? await repo.ecs.baixadaEm(alvo.id) : null;
-      if (baixada) {
-        const { ec: nova, mapa } = await repo.ecs.novaVersaoComMapa(alvo.id);
-        alvo = {
-          ...alvo,
-          id: nova.id,
-          versao: nova.versao,
-          numero: numeroEc(alvo.cliente.nome || "Cliente", alvo.projeto.titulo || "Projeto", nova.versao),
-          status: nova.status,
-          ativa: nova.ativa,
-          canceladaSubstituida: nova.canceladaSubstituida,
-          criadoEm: nova.criadoEm,
-          atualizadoEm: nova.atualizadoEm,
-          baixadaEm: null,
-          // Cada linha segue sendo "a mesma" na versão nova: é o que preserva
-          // os valores que quem salva não enxerga.
-          linhas: alvo.linhas.map((l) => ({ ...l, id: mapa[l.id] ?? l.id })),
-        };
-        // Se o salvamento abaixo falhar, tentar de novo grava nesta versão nova
-        // (e não cria outra).
-        setEc(alvo);
-        virouVersao = nova.versao;
-      }
-
+      const linhas = pendentes.length ? aplicarNaEc(ec!.linhas, somenteMaiusculas(pendentes)) : ec!.linhas;
+      const alvo: Ec = { ...ec!, linhas, numero };
       const salvo = await repo.ecs.salvar({
         ...alvo,
         responsavel: alvo.responsavel || alvo.projeto.produtoraResponsavel,
       });
-      if (virouVersao !== null) {
-        toast(`Esta versão já tinha sido baixada. As alterações foram salvas na versão nova (${String(virouVersao).padStart(2, "0")}), que agora é a ativa.`, "success");
-        // A versão nova também vai para a pasta do projeto, já com as alterações.
-        void import("@/lib/excel").then((m) => m.arquivarNovaVersaoEc(salvo)).catch(() => {});
+      // Versão que já está na pasta e acabou de mudar: o aviso diz o que vai
+      // acontecer, para ninguém achar que a pasta foi atualizada.
+      if (navegar && salvo.baixadaEm) {
+        toast(`EC salva. A pasta do projeto continua com a versão ${String(salvo.versao).padStart(2, "0")} como estava; use "Salvar na pasta" para levar estas alterações como a versão ${String(salvo.versao + 1).padStart(2, "0")}.`, "info");
       }
       setEc(salvo);
-      setJaRevisados(new Map());
       // Registra/atualiza os fornecedores citados e acumula seus contatos — em
       // segundo plano: a EC já está gravada, e a pessoa não espera por isto.
       void acumularFornecedores(ec!.linhas).catch(() => {});
       setBaseline(JSON.stringify(salvo));
       setSalvando(false);
-      setMostrarSalvo(true);
-      setTimeout(() => navigate(`/estimativas/${salvo.id}`), 250);
-      return true;
+      if (navegar) {
+        setJaRevisados(new Map());
+        setMostrarSalvo(true);
+        setTimeout(() => navigate(`/estimativas/${salvo.id}`), 250);
+      }
+      return salvo;
     } catch (e) {
       toast(`Erro ao salvar: ${(e as Error).message}`, "danger");
       setSalvando(false);
-      return false;
+      return null;
+    }
+  }
+
+  /** "Salvar na pasta": grava o que está em edição e leva a EC para o Dropbox do projeto. */
+  async function salvarNaPasta() {
+    if (!ec) return;
+    const gravada = sujo || !/^[0-9a-f-]{36}$/i.test(ec.id) ? await salvar({ navegar: false }) : ec;
+    if (!gravada) return;
+    setEnviandoPasta("Salvando…");
+    try {
+      const { salvarEcNaPasta } = await import("@/lib/salvarEcNaPasta");
+      const final = await salvarEcNaPasta(gravada, { jaRevisados, aoAndar: setEnviandoPasta });
+      if (final) {
+        setJaRevisados(new Map());
+        guarda.liberar();
+        navigate(`/estimativas/${final.id}`);
+      }
+    } finally {
+      setEnviandoPasta(null);
     }
   }
 
@@ -574,8 +552,22 @@ export function EcForm() {
             <Button size="sm" onClick={() => void salvar()} disabled={salvando || mostrarSalvo}>
               {salvando ? "Salvando…" : mostrarSalvo ? "Salvo" : "Salvar"}
             </Button>
+            {/* SALVAR NA PASTA (06/11/2026): oferece a revisão, cria a versão
+                seguinte se a da pasta já mudou e envia o Excel ao Dropbox. */}
+            {podeEditar && (
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={salvando || revisando || !!enviandoPasta}
+                onClick={() => void salvarNaPasta()}
+                title="Revisa os textos, salva e envia o Excel da EC para a pasta Dropbox do projeto. Se a versão da pasta já mudou, cria a versão seguinte."
+              >
+                Salvar na pasta
+              </Button>
+            )}
             {salvando && <CarregandoTela texto="Salvando…" />}
             {revisando && <CarregandoTela texto="Revisando os textos…" />}
+            {enviandoPasta && <CarregandoTela texto={enviandoPasta} />}
             {!!ec.id && podeEditar && (
               <Button variant="secondary" size="sm" icon={<IcCopy width={16} height={16} />}
                 onClick={async () => {
@@ -585,8 +577,7 @@ export function EcForm() {
                 Gerar Nova Versão EC
               </Button>
             )}
-            {/* O Excel sai da versão GRAVADA: baixar marca a versão como fechada
-                (ver `marcarBaixada`), então o arquivo tem de ser o que está salvo. */}
+            {/* O Excel sai da versão GRAVADA — o arquivo é o que está salvo. */}
             <ExcelEcMenu ec={sujo && baseline ? (JSON.parse(baseline) as Ec) : { ...ec, numero }} />
             {!!ec.id && (
               <Button variant="secondary" size="sm" icon={<IcEye width={16} height={16} />} onClick={() => navigate(`/estimativas/${ec.id}/imprimir`)}>
