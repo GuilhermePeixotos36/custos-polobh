@@ -90,6 +90,19 @@ export function EcDetail() {
   const [emitindo, setEmitindo] = useState(false);
   /** "Salvar na pasta" em andamento: o passo que está acontecendo. */
   const [enviandoPasta, setEnviandoPasta] = useState<string | null>(null);
+  /** "Salvar na pasta" — ver `lib/salvarEcNaPasta`. */
+  async function salvarNaPasta() {
+    if (!ec) return;
+    setEnviandoPasta("Conferindo…");
+    try {
+      const { salvarEcNaPasta } = await import("@/lib/salvarEcNaPasta");
+      const final = await salvarEcNaPasta(ec, { aoAndar: setEnviandoPasta });
+      if (final && final.id !== ec.id) navigate(`/estimativas/${final.id}`);
+      else if (final) recarregarEc();
+    } finally {
+      setEnviandoPasta(null);
+    }
+  }
 
   const t = useMemo(
     () => (ec ? calcularTotais(ec.linhas, ec.producao, ec.honorarios, ec.encargos) : null),
@@ -589,23 +602,13 @@ export function EcDetail() {
               size="sm"
               disabled={!!enviandoPasta}
               title="Revisa os textos e envia o Excel da EC para a pasta Dropbox do projeto. Se a versão da pasta já mudou, cria a versão seguinte."
-              onClick={async () => {
-                setEnviandoPasta("Conferindo…");
-                try {
-                  const { salvarEcNaPasta } = await import("@/lib/salvarEcNaPasta");
-                  const final = await salvarEcNaPasta(ec, { aoAndar: setEnviandoPasta });
-                  if (final && final.id !== ec.id) navigate(`/estimativas/${final.id}`);
-                  else if (final) recarregarEc();
-                } finally {
-                  setEnviandoPasta(null);
-                }
-              }}
+              onClick={() => void salvarNaPasta()}
             >
               Salvar na pasta
             </Button>
           )}
           {enviandoPasta && <CarregandoTela texto={enviandoPasta} />}
-          <ExcelEcMenu ec={ec} />
+          <ExcelEcMenu ec={ec} onSalvarNaPasta={podeEditar && ecEditavel(ec) ? () => void salvarNaPasta() : undefined} />
           <Button variant="secondary" size="sm" icon={<IcEye width={16} height={16} />} onClick={() => navigate(`/estimativas/${ec.id}/imprimir`)}>
             EC PDF
           </Button>
