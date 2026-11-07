@@ -867,6 +867,16 @@ export function EcGrupos({
         </DragOverlay>
       </DndContext>
 
+      {/* O MESMO BOTÃO NO FIM DA LISTA (07/11/2026, pedido da Carol): o grupo
+          novo entra no fim da EC, e quem monta a EC está lá embaixo — subir até
+          o topo a cada grupo novo era ida e volta à toa. O de cima continua. */}
+      {gruposVisiveis.length > 0 && (
+        <div className="flex justify-center pt-1">
+          <Button variant="secondary" size="sm" icon={<IcPlus width={16} height={16} />} onClick={() => setPopupAdicionar(true)}>
+            Adicionar grupo / item
+          </Button>
+        </div>
+      )}
 
       {popupAdicionar && (
         <AdicionarEcModal
