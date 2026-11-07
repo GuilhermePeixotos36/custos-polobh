@@ -578,7 +578,10 @@ export function EcForm() {
               </Button>
             )}
             {/* O Excel sai da versão GRAVADA — o arquivo é o que está salvo. */}
-            <ExcelEcMenu ec={sujo && baseline ? (JSON.parse(baseline) as Ec) : { ...ec, numero }} />
+            <ExcelEcMenu
+              ec={sujo && baseline ? (JSON.parse(baseline) as Ec) : { ...ec, numero }}
+              onSalvarNaPasta={podeEditar ? () => void salvarNaPasta() : undefined}
+            />
             {!!ec.id && (
               <Button variant="secondary" size="sm" icon={<IcEye width={16} height={16} />} onClick={() => navigate(`/estimativas/${ec.id}/imprimir`)}>
                 EC PDF
