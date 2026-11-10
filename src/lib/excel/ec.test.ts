@@ -102,7 +102,7 @@ describe("Excel da EC", () => {
     expect(textos.some((t) => t.includes("taxa mínima") && t.includes("mínimo aplicado"))).toBe(true);
   });
 
-  it("item com dois fornecedores sai como UMA linha nos dois modelos, com a soma e a descrição do principal", async () => {
+  it("item com dois fornecedores é UM item: soma e descrição do principal; na completa, uma linha por fornecedor em F a L", async () => {
     const partes = [
       linha({
         id: "p1", item: "Equipe", descricao: "Contratação de equipe de produção, sendo:",
@@ -115,17 +115,34 @@ describe("Excel da EC", () => {
         fornecedorRazao: "Dedicato Turismo LTDA", fornecedorCnpj: "18.190.388/0001-04",
       }),
     ];
-    for (const modelo of ["completa", "financeiro"] as const) {
-      const { ws } = await abrir(ecBase(partes), modelo);
+    // Financeiro: uma linha só, com a soma.
+    {
+      const { ws } = await abrir(ecBase(partes), "financeiro");
       const linhasDoItem: number[] = [];
       ws.eachRow((row, i) => { if (String(row.getCell("A").value ?? "") === "Equipe") linhasDoItem.push(i); });
-      expect(`${modelo}:${linhasDoItem.length}`).toBe(`${modelo}:1`);
+      expect(linhasDoItem).toHaveLength(1);
       expect(ws.getCell(`C${linhasDoItem[0]}`).value).toBe(1500);
-      if (modelo === "completa") {
-        expect(ws.getCell(`F${linhasDoItem[0]}`).value).toBe("Barbara Duarte Miranda\nDedicato Turismo LTDA");
-        expect(ws.getCell(`G${linhasDoItem[0]}`).value).toBe("106.886.796-50\n18.190.388/0001-04");
-        expect(ws.getCell(`K${linhasDoItem[0]}`).value).toBe("OK");
-      }
+    }
+    // Completa: A a E mesclados nas duas linhas; F a L, uma linha por fornecedor.
+    {
+      const { ws } = await abrir(ecBase(partes), "completa");
+      let inicio = 0;
+      ws.eachRow((row, i) => { if (!inicio && String(row.getCell("A").value ?? "") === "Equipe") inicio = i; });
+      expect(inicio).toBeGreaterThan(0);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const merges: string[] = (ws.model as any).merges ?? [];
+      for (const col of "ABCDE") expect(merges).toContain(`${col}${inicio}:${col}${inicio + 1}`);
+      for (const col of "FGHIJKL") expect(merges.some((m) => m.startsWith(`${col}${inicio}:`))).toBe(false);
+      expect(ws.getCell(`C${inicio}`).value).toBe(1500);
+      expect(ws.getCell(`F${inicio}`).value).toBe("Barbara Duarte Miranda");
+      expect(ws.getCell(`G${inicio}`).value).toBe("106.886.796-50");
+      expect(ws.getCell(`F${inicio + 1}`).value).toBe("Dedicato Turismo LTDA");
+      expect(ws.getCell(`G${inicio + 1}`).value).toBe("18.190.388/0001-04");
+      expect(ws.getCell(`K${inicio + 1}`).value).toBe("OK");
+      // Moldura do bloco: em cima na 1ª linha de fornecedor, embaixo na última.
+      expect(ws.getCell(`F${inicio}`).border?.top?.style).toBe("medium");
+      expect(ws.getCell(`F${inicio}`).border?.bottom?.style).not.toBe("medium");
+      expect(ws.getCell(`F${inicio + 1}`).border?.bottom?.style).toBe("medium");
     }
   });
 

@@ -102,41 +102,35 @@ const TITULO_DOCUMENTO = "Estimativa de Custos | Proposta Comercial";
 
 export type ModeloEcExcel = "financeiro" | "completa";
 
-/** Valores das partes sem repetição e sem vazio, um por linha da célula. */
-const listaDistinta = (valores: (string | undefined)[]) =>
-  [...new Set(valores.map((v) => (v ?? "").trim()).filter(Boolean))].join("\n");
-
 /**
  * Item com mais de um fornecedor no modelo COMPLETA (09/11/2026, pedido da
- * Carol): o item é UMA linha, como no financeiro e no PDF — a divisão por
- * fornecedor só existe na OS. A linha já vem somada por `juntarDivisoes`; aqui
- * entram, na faixa de documentação, os fornecedores de todas as partes (um por
- * linha, Razão Social e CNPJ na mesma ordem) e os status/documentos de cada uma.
- * A aprovação é a do item principal.
+ * Carol e do Guilherme): o item é UM bloco. Item, Descrição, valores (soma das
+ * partes) e Aprovação ocupam uma célula só, mais alta; a faixa de fornecedor e
+ * documentação (F a L) ganha uma linha por fornecedor, porque cada um tem a sua
+ * razão social, CNPJ, nota, código, pedido, OS e contrato.
+ *
+ * Devolve as partes visíveis de cada item dividido (2+), pelo id da linha
+ * principal — que é o id que `juntarDivisoes` mantém na linha somada.
  */
-function comFornecedoresDasPartes(juntas: EcLinha[], ordenadas: EcLinha[]): EcLinha[] {
-  const partes = new Map<string, EcLinha[]>();
+function partesPorPrincipal(ordenadas: EcLinha[]): Map<string, EcLinha[]> {
+  const porChave = new Map<string, EcLinha[]>();
   for (const l of ordenadas) {
     if (!l.divisao || l.oculto) continue;
-    partes.set(l.divisao, [...(partes.get(l.divisao) ?? []), l]);
+    porChave.set(l.divisao, [...(porChave.get(l.divisao) ?? []), l]);
   }
-  return juntas.map((l) => {
-    const ps = l.divisao && !l.oculto ? partes.get(l.divisao) : undefined;
-    if (!ps || ps.length < 2) return l;
-    const comFornecedor = ps.filter((p) => p.fornecedorRazao?.trim() || p.fornecedorCnpj?.trim());
-    const distinto = (f: (p: EcLinha) => string | undefined) => listaDistinta(ps.map(f));
-    return {
-      ...l,
-      fornecedorRazao: comFornecedor.map((p) => p.fornecedorRazao?.trim() || "—").join("\n"),
-      fornecedorCnpj: comFornecedor.map((p) => p.fornecedorCnpj?.trim() || "—").join("\n"),
-      faturaNf: distinto((p) => p.faturaNf),
-      codigoServico: distinto((p) => p.codigoServico),
-      pedidoCompra: distinto((p) => p.pedidoCompra),
-      statusOs: distinto((p) => p.statusOs),
-      contratoStatus: distinto((p) => p.contratoStatus),
-    };
-  });
+  const saida = new Map<string, EcLinha[]>();
+  for (const ps of porChave.values()) if (ps.length >= 2) saida.set(ps[0].id, ps);
+  return saida;
 }
+
+/** Colunas que, no item dividido, ganham uma linha por fornecedor (F a L). */
+const COLS_POR_FORNECEDOR = ["F", "G", "H", "I", "J", "K", "L"];
+
+/** Valores de uma parte na faixa F a L, na ordem das colunas. */
+const valoresDoFornecedor = (p: EcLinha): string[] => [
+  p.fornecedorRazao, p.fornecedorCnpj, p.faturaNf, p.codigoServico,
+  p.pedidoCompra, p.statusOs, p.contratoStatus,
+];
 
 export async function criarEcExcelBuffer(
   ec: Ec,
@@ -144,12 +138,12 @@ export async function criarEcExcelBuffer(
 ): Promise<{ buffer: ArrayBuffer; nome: string }> {
   const completa = modelo === "completa";
   // Item com mais de um fornecedor (ver `domain/divisaoEc`): nos DOIS modelos
-  // ele é UMA linha, com a descrição do item principal e a soma das partes. A
+  // ele é UM item, com a descrição do principal e a soma das partes. A
   // separação por fornecedor é da OS, não da EC (09/11/2026). Na completa, a
-  // faixa de documentação lista os fornecedores de todas as partes.
+  // faixa F a L mostra uma linha por fornecedor dentro do bloco do item.
   const ordenadas = [...ec.linhas].sort((a, b) => a.ordem - b.ordem);
-  const juntas = juntarDivisoes(ordenadas);
-  const linhasDoDoc = completa ? comFornecedoresDasPartes(juntas, ordenadas) : juntas;
+  const linhasDoDoc = juntarDivisoes(ordenadas);
+  const partesDoItem = completa ? partesPorPrincipal(ordenadas) : new Map<string, EcLinha[]>();
   const ultimaColuna = completa ? "L" : "D";
   const wb = new ExcelJS.Workbook();
   wb.creator = "Sistema Pólobh";
@@ -187,17 +181,20 @@ export async function criarEcExcelBuffer(
    * largura final da coluna.
    */
   const itensVisiveis = linhasDoDoc.filter((l) => !l.oculto);
+  // A faixa F a L mostra TODAS as partes (uma linha por fornecedor), então a
+  // largura dela é medida sobre as linhas originais, não sobre as somadas.
+  const linhasDaFaixa = ordenadas.filter((l) => !l.oculto);
   const conteudoDaColuna: Record<string, string[]> = {
     C: ["Pólobh", brl(t.valorTotalBruto), ...itensVisiveis.map((l) => brl(l.valorPolobh))],
     D: ["Cliente", brl(t.somaCliente), ...itensVisiveis.map((l) => brl(l.valorCliente))],
     E: ["Status Aprovação", ...itensVisiveis.map((l) => l.statusAprovacao)],
-    F: ["Fornecedor", "(Razão Social)", ...itensVisiveis.map((l) => l.fornecedorRazao)],
-    G: ["Fornecedor", "(CNPJ)", ...itensVisiveis.map((l) => l.fornecedorCnpj)],
-    H: ["Fatura ou", "Nota Fiscal", ...itensVisiveis.map((l) => l.faturaNf)],
-    I: ["Código Serviço", ...itensVisiveis.map((l) => l.codigoServico)],
-    J: ["Pedido de Compra", ...itensVisiveis.map((l) => l.pedidoCompra)],
-    K: ["OS", ...itensVisiveis.map((l) => l.statusOs)],
-    L: ["Contrato", ...itensVisiveis.map((l) => l.contratoStatus)],
+    F: ["Fornecedor", "(Razão Social)", ...linhasDaFaixa.map((l) => l.fornecedorRazao)],
+    G: ["Fornecedor", "(CNPJ)", ...linhasDaFaixa.map((l) => l.fornecedorCnpj)],
+    H: ["Fatura ou", "Nota Fiscal", ...linhasDaFaixa.map((l) => l.faturaNf)],
+    I: ["Código Serviço", ...linhasDaFaixa.map((l) => l.codigoServico)],
+    J: ["Pedido de Compra", ...linhasDaFaixa.map((l) => l.pedidoCompra)],
+    K: ["OS", ...linhasDaFaixa.map((l) => l.statusOs)],
+    L: ["Contrato", ...linhasDaFaixa.map((l) => l.contratoStatus)],
   };
   for (const [col, textos] of Object.entries(conteudoDaColuna)) {
     const i = COLS.indexOf(col);
@@ -379,8 +376,6 @@ export async function criarEcExcelBuffer(
   const colunasAtivas = COLS.slice(0, completa ? 12 : 4);
   const larguraA = larguraDe("A", "A");
   const larguraB = larguraDe("B", "B");
-  const larguraF = completa ? larguraDe("F", "F") : 0;
-  const larguraG = completa ? larguraDe("G", "G") : 0;
   /**
    * Altura que o texto exige, SEM o teto de 409,5pt: o teto é de cada linha da
    * planilha, e a célula mesclada do item vale a SOMA das linhas que ocupa.
@@ -461,6 +456,97 @@ export async function criarEcExcelBuffer(
     };
   };
 
+  /**
+   * Escreve uma célula de item. Vertical ao meio: com a coluna mesclada de ponta
+   * a ponta do item, o valor fica centrado na altura do bloco, e não colado no
+   * topo. O descritivo é a exceção — texto longo lê melhor a partir do topo.
+   * Sem preenchimento nas linhas de dados — o destaque fica só no cabeçalho.
+   */
+  const escreverCelula = (
+    col: string, linha: number, v: string | number | ExcelJS.CellRichTextValue, blocoAlto: boolean,
+  ) => {
+    const i = COLS.indexOf(col);
+    const c = ws.getCell(`${col}${linha}`);
+    c.value = v as ExcelJS.CellValue;
+    c.font = { name: FONT_LIGHT, bold: i === 0, size: PT, color: { argb: COR.ink } };
+    c.alignment = {
+      wrapText: true,
+      vertical: col === "B" && blocoAlto ? "top" : "middle",
+      horizontal: ALINHAMENTO_ITEM[col] ?? "left",
+    };
+    if (MOEDA.has(i)) c.numFmt = FORMATO_MOEDA_ITEM;
+  };
+
+  /**
+   * Item com vários fornecedores (só na completa): A a E numa célula só, da
+   * altura do bloco inteiro; F a L com uma linha por fornecedor. Cada linha de
+   * fornecedor tem a altura que o próprio conteúdo pede; se o descritivo pedir
+   * mais que a soma, o excedente é repartido entre elas, e o que passar do teto
+   * de 409,5pt por linha vira linhas extras no fim (a última parte se estende
+   * até lá). Devolve a próxima linha livre.
+   */
+  const escreverItemDividido = (l: EcLinha, partes: EcLinha[], precisa: number, inicio: number): number => {
+    const n = partes.length;
+    const minimos = partes.map((p) =>
+      Math.min(ALTURA_MAX_LINHA, Math.max(
+        ALTURA_ITEM,
+        ...valoresDoFornecedor(p).map((v, i) => alturaSemTeto(v ?? "", larguraDe(COLS_POR_FORNECEDOR[i], COLS_POR_FORNECEDOR[i]))),
+      )),
+    );
+    const somaMinimos = minimos.reduce((s, h) => s + h, 0);
+    const sobra = Math.max(0, precisa - somaMinimos) / n;
+    let excedente = 0;
+    const alturas = minimos.map((h) => {
+      const alvo = h + sobra;
+      if (alvo <= ALTURA_MAX_LINHA) return alvo;
+      excedente += alvo - ALTURA_MAX_LINHA;
+      return ALTURA_MAX_LINHA;
+    });
+    while (excedente > 0.01) {
+      const h = Math.min(ALTURA_MAX_LINHA, excedente);
+      alturas.push(Math.max(ALTURA_ITEM, h));
+      excedente -= h;
+    }
+    const fim = inicio + alturas.length - 1;
+    alturas.forEach((h, i) => (ws.getRow(inicio + i).height = h));
+
+    // A a E: o item inteiro, numa célula só de cima a baixo do bloco.
+    const doItem: (string | number | ExcelJS.CellRichTextValue)[] = [
+      l.item, descritivoRico(l), l.valorPolobh, l.valorCliente, l.statusAprovacao,
+    ];
+    doItem.forEach((v, i) => {
+      const col = COLS[i];
+      escreverCelula(col, inicio, v, fim > inicio);
+      if (fim > inicio) ws.mergeCells(`${col}${inicio}:${col}${fim}`);
+      ws.getCell(`${col}${inicio}`).border = {
+        ...gradeAuto,
+        top: { style: MOLDURA },
+        bottom: { style: MOLDURA },
+        ...(i === 0 ? { left: { style: MOLDURA } } : {}),
+      };
+    });
+
+    // F a L: uma linha por fornecedor; a última se estende pelas linhas extras.
+    partes.forEach((p, k) => {
+      const linha = inicio + k;
+      const ate = k === n - 1 ? fim : linha;
+      valoresDoFornecedor(p).forEach((v, i) => {
+        const col = COLS_POR_FORNECEDOR[i];
+        escreverCelula(col, linha, v ?? "", false);
+        if (ate > linha) ws.mergeCells(`${col}${linha}:${col}${ate}`);
+        ws.getCell(`${col}${linha}`).border = {
+          ...gradeAuto,
+          ...(k === 0 ? { top: { style: MOLDURA } } : {}),
+          ...(k === n - 1 ? { bottom: { style: MOLDURA } } : {}),
+          ...(col === ultimaColuna ? { right: { style: MOLDURA } } : {}),
+        };
+      });
+      // Cada linha de fornecedor entra no realce dos status (OK, Emitir…).
+      linhasDeItem.push(linha);
+    });
+    return fim + 1;
+  };
+
   for (const [grupo, linhas] of grupos) {
     ws.mergeCells(`A${r}:${ultimaColuna}${r}`);
     const gc = ws.getCell(`A${r}`);
@@ -481,14 +567,13 @@ export async function criarEcExcelBuffer(
       const descritivo = descritivoDoItem(l);
       // Altura que o bloco precisa ter: o descritivo inteiro (numa célula só) e,
       // no mínimo, o que o nome do item exige na coluna A.
-      // Na completa, um item com vários fornecedores lista um por linha nas
-      // colunas F e G — a altura tem de caber essa lista também.
-      const precisa = Math.max(
-        alturaSemTeto(descritivo, larguraB),
-        alturaSemTeto(l.item, larguraA),
-        completa ? alturaSemTeto(l.fornecedorRazao ?? "", larguraF) : 0,
-        completa ? alturaSemTeto(l.fornecedorCnpj ?? "", larguraG) : 0,
-      );
+      const precisa = Math.max(alturaSemTeto(descritivo, larguraB), alturaSemTeto(l.item, larguraA));
+
+      const partes = partesDoItem.get(l.id);
+      if (partes) {
+        r = escreverItemDividido(l, partes, precisa, r);
+        continue;
+      }
       // Nenhuma LINHA passa de 409,5pt; a célula mesclada, sim — ela vale a soma
       // das linhas que ocupa. É daí que sai a quantidade de linhas do item.
       const quantas = Math.max(1, Math.ceil(precisa / ALTURA_MAX_LINHA));
@@ -503,22 +588,7 @@ export async function criarEcExcelBuffer(
             l.pedidoCompra, l.statusOs, l.contratoStatus,
           ]
         : [l.item, descritivoRico(l), l.valorPolobh, l.valorCliente];
-      vals.forEach((v, i) => {
-        const col = COLS[i];
-        const c = ws.getCell(`${col}${inicio}`);
-        c.value = v as ExcelJS.CellValue;
-        c.font = { name: FONT_LIGHT, bold: i === 0, size: PT, color: { argb: COR.ink } };
-        // Vertical ao meio: com a coluna mesclada de ponta a ponta do item, o
-        // valor fica centrado na altura do bloco, e não colado no topo. O
-        // descritivo é a exceção — texto longo lê melhor a partir do topo.
-        c.alignment = {
-          wrapText: true,
-          vertical: col === "B" && quantas > 1 ? "top" : "middle",
-          horizontal: ALINHAMENTO_ITEM[col] ?? "left",
-        };
-        if (MOEDA.has(i)) c.numFmt = FORMATO_MOEDA_ITEM;
-        // Sem preenchimento nas linhas de dados — o destaque fica só no cabeçalho.
-      });
+      vals.forEach((v, i) => escreverCelula(COLS[i], inicio, v, quantas > 1));
 
       // Altura repartida em partes iguais entre as linhas do bloco.
       const alturaLinha = Math.min(ALTURA_MAX_LINHA, Math.max(ALTURA_ITEM, precisa / quantas));
