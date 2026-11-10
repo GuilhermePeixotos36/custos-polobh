@@ -4,7 +4,7 @@ import type { Cliente, Ec, Os } from "@/data/types";
 import { brl, dataBR } from "@/lib/format";
 import { textoObjetoContrato, FORMA_PAGAMENTO_PADRAO, OBS_CONTRATO_PADRAO } from "@/domain/calc";
 import { bvDaContratacao, COLUNAS_CONTRATACAO, resumoContratacao, sincronizarContratacao } from "@/domain/contratacaoOs";
-import { calcularAcerto } from "@/domain/acertoFinanceiro";
+import { calcularAcerto, percentualDoBv } from "@/domain/acertoFinanceiro";
 import { datasDoEvento, horariosDoEvento, resumoCronogramaProjeto } from "@/domain/projeto";
 import { useEmpresas } from "@/store/empresas";
 import { dadosDoTomador, RETENCOES_PADRAO } from "@/domain/tomadorOs";
@@ -74,6 +74,11 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
   const infraestrutura = itensParaDocumento(os.infraestrutura, CAMPOS_INFRAESTRUTURA);
   const tom = fiscaisDe(os.financeiro.tomador, cli, os.financeiro.tomadorAvulso);
   const acerto = calcularAcerto(os.financeiro, os.orcamento, bvDaContratacao(os.itens ?? []).valor);
+  /** "R$ 300,00 (15%)" — o percentual só aparece quando há BV e valor original. */
+  const pctBv = percentualDoBv(acerto);
+  const bvComPercentual =
+    brl(acerto.bvSobreOriginal) +
+    (pctBv === null ? "" : ` (${pctBv.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%)`);
   const contr = fiscaisDe(os.contrato.contratante, cli);
 
   return (
@@ -368,7 +373,7 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
           ) : (
             <>
               <LV label="Valor original dos serviços" valor={brl(acerto.valorOriginal)} />
-              <LV label="BV sobre o valor original" valor={brl(acerto.bvSobreOriginal)} />
+              <LV label="BV sobre o valor original" valor={bvComPercentual} />
               <LV label="Valor da NF" valor={brl(acerto.valorNf)} />
               <LV label="Valor do acréscimo" valor={brl(acerto.acrescimo)} />
               <LV label={`Encargos sobre o acréscimo (${acerto.encargosPercentual}%)`} valor={brl(acerto.encargosSobreAcrescimo)} />
