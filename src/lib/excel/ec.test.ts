@@ -102,6 +102,33 @@ describe("Excel da EC", () => {
     expect(textos.some((t) => t.includes("taxa mínima") && t.includes("mínimo aplicado"))).toBe(true);
   });
 
+  it("item com dois fornecedores sai como UMA linha nos dois modelos, com a soma e a descrição do principal", async () => {
+    const partes = [
+      linha({
+        id: "p1", item: "Equipe", descricao: "Contratação de equipe de produção, sendo:",
+        valorPolobh: 750, divisao: "div-p1", ordem: 0, statusOs: "OK",
+        fornecedorRazao: "Barbara Duarte Miranda", fornecedorCnpj: "106.886.796-50",
+      }),
+      linha({
+        id: "p2", item: "Equipe", descricao: "Contratação de equipe de produção, sendo:",
+        valorPolobh: 750, divisao: "div-p1", ordem: 1, statusOs: "OK",
+        fornecedorRazao: "Dedicato Turismo LTDA", fornecedorCnpj: "18.190.388/0001-04",
+      }),
+    ];
+    for (const modelo of ["completa", "financeiro"] as const) {
+      const { ws } = await abrir(ecBase(partes), modelo);
+      const linhasDoItem: number[] = [];
+      ws.eachRow((row, i) => { if (String(row.getCell("A").value ?? "") === "Equipe") linhasDoItem.push(i); });
+      expect(`${modelo}:${linhasDoItem.length}`).toBe(`${modelo}:1`);
+      expect(ws.getCell(`C${linhasDoItem[0]}`).value).toBe(1500);
+      if (modelo === "completa") {
+        expect(ws.getCell(`F${linhasDoItem[0]}`).value).toBe("Barbara Duarte Miranda\nDedicato Turismo LTDA");
+        expect(ws.getCell(`G${linhasDoItem[0]}`).value).toBe("106.886.796-50\n18.190.388/0001-04");
+        expect(ws.getCell(`K${linhasDoItem[0]}`).value).toBe("OK");
+      }
+    }
+  });
+
   it("gera o modelo financeiro sem quebrar", async () => {
     const { ws, nome } = await abrir(ecBase([linha({ item: "Buffet", valorPolobh: 1000 })]), "financeiro");
     expect(ws.rowCount).toBeGreaterThan(10);

@@ -5,7 +5,7 @@
  */
 import { juntarDivisoes } from "@/domain/divisaoEc";
 import ExcelJS from "exceljs";
-import type { Ec } from "@/data/types";
+import type { Ec, EcLinha } from "@/data/types";
 import { calcularTotais, rotuloTaxa, tituloEc } from "@/domain/calc";
 import { brl, dataBR } from "@/lib/format";
 import { htmlParaLinhas, htmlParaTrechos } from "@/lib/htmlTexto";
@@ -102,17 +102,54 @@ const TITULO_DOCUMENTO = "Estimativa de Custos | Proposta Comercial";
 
 export type ModeloEcExcel = "financeiro" | "completa";
 
+/** Valores das partes sem repetição e sem vazio, um por linha da célula. */
+const listaDistinta = (valores: (string | undefined)[]) =>
+  [...new Set(valores.map((v) => (v ?? "").trim()).filter(Boolean))].join("\n");
+
+/**
+ * Item com mais de um fornecedor no modelo COMPLETA (09/11/2026, pedido da
+ * Carol): o item é UMA linha, como no financeiro e no PDF — a divisão por
+ * fornecedor só existe na OS. A linha já vem somada por `juntarDivisoes`; aqui
+ * entram, na faixa de documentação, os fornecedores de todas as partes (um por
+ * linha, Razão Social e CNPJ na mesma ordem) e os status/documentos de cada uma.
+ * A aprovação é a do item principal.
+ */
+function comFornecedoresDasPartes(juntas: EcLinha[], ordenadas: EcLinha[]): EcLinha[] {
+  const partes = new Map<string, EcLinha[]>();
+  for (const l of ordenadas) {
+    if (!l.divisao || l.oculto) continue;
+    partes.set(l.divisao, [...(partes.get(l.divisao) ?? []), l]);
+  }
+  return juntas.map((l) => {
+    const ps = l.divisao && !l.oculto ? partes.get(l.divisao) : undefined;
+    if (!ps || ps.length < 2) return l;
+    const comFornecedor = ps.filter((p) => p.fornecedorRazao?.trim() || p.fornecedorCnpj?.trim());
+    const distinto = (f: (p: EcLinha) => string | undefined) => listaDistinta(ps.map(f));
+    return {
+      ...l,
+      fornecedorRazao: comFornecedor.map((p) => p.fornecedorRazao?.trim() || "—").join("\n"),
+      fornecedorCnpj: comFornecedor.map((p) => p.fornecedorCnpj?.trim() || "—").join("\n"),
+      faturaNf: distinto((p) => p.faturaNf),
+      codigoServico: distinto((p) => p.codigoServico),
+      pedidoCompra: distinto((p) => p.pedidoCompra),
+      statusOs: distinto((p) => p.statusOs),
+      contratoStatus: distinto((p) => p.contratoStatus),
+    };
+  });
+}
+
 export async function criarEcExcelBuffer(
   ec: Ec,
   modelo: ModeloEcExcel = "completa"
 ): Promise<{ buffer: ArrayBuffer; nome: string }> {
   const completa = modelo === "completa";
-  // Item com mais de um fornecedor (ver `domain/divisaoEc`): na planilha que vai
-  // para o cliente ele é UMA linha, com a soma das partes; na completa, que é
-  // de uso interno e tem a coluna de fornecedor, cada parte segue na sua linha.
-  const linhasDoDoc = completa
-    ? ec.linhas
-    : juntarDivisoes([...ec.linhas].sort((a, b) => a.ordem - b.ordem));
+  // Item com mais de um fornecedor (ver `domain/divisaoEc`): nos DOIS modelos
+  // ele é UMA linha, com a descrição do item principal e a soma das partes. A
+  // separação por fornecedor é da OS, não da EC (09/11/2026). Na completa, a
+  // faixa de documentação lista os fornecedores de todas as partes.
+  const ordenadas = [...ec.linhas].sort((a, b) => a.ordem - b.ordem);
+  const juntas = juntarDivisoes(ordenadas);
+  const linhasDoDoc = completa ? comFornecedoresDasPartes(juntas, ordenadas) : juntas;
   const ultimaColuna = completa ? "L" : "D";
   const wb = new ExcelJS.Workbook();
   wb.creator = "Sistema Pólobh";
@@ -342,6 +379,8 @@ export async function criarEcExcelBuffer(
   const colunasAtivas = COLS.slice(0, completa ? 12 : 4);
   const larguraA = larguraDe("A", "A");
   const larguraB = larguraDe("B", "B");
+  const larguraF = completa ? larguraDe("F", "F") : 0;
+  const larguraG = completa ? larguraDe("G", "G") : 0;
   /**
    * Altura que o texto exige, SEM o teto de 409,5pt: o teto é de cada linha da
    * planilha, e a célula mesclada do item vale a SOMA das linhas que ocupa.
@@ -442,7 +481,14 @@ export async function criarEcExcelBuffer(
       const descritivo = descritivoDoItem(l);
       // Altura que o bloco precisa ter: o descritivo inteiro (numa célula só) e,
       // no mínimo, o que o nome do item exige na coluna A.
-      const precisa = Math.max(alturaSemTeto(descritivo, larguraB), alturaSemTeto(l.item, larguraA));
+      // Na completa, um item com vários fornecedores lista um por linha nas
+      // colunas F e G — a altura tem de caber essa lista também.
+      const precisa = Math.max(
+        alturaSemTeto(descritivo, larguraB),
+        alturaSemTeto(l.item, larguraA),
+        completa ? alturaSemTeto(l.fornecedorRazao ?? "", larguraF) : 0,
+        completa ? alturaSemTeto(l.fornecedorCnpj ?? "", larguraG) : 0,
+      );
       // Nenhuma LINHA passa de 409,5pt; a célula mesclada, sim — ela vale a soma
       // das linhas que ocupa. É daí que sai a quantidade de linhas do item.
       const quantas = Math.max(1, Math.ceil(precisa / ALTURA_MAX_LINHA));
