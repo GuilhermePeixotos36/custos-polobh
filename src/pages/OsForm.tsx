@@ -1994,7 +1994,7 @@ export function OsForm() {
                 cliente. O valor da OS é o que se paga ao fornecedor. */}
             {/* Os totais saem da forma que cada item ADOTOU (29/09/2026): não são
                 digitáveis aqui, e alimentam o Faturamento e o Contrato. */}
-            <LinhaOs label="Valor Total Contratado" hint="(soma da forma adotada em cada item)"><Auto v={brl(resumo.contratado)} /></LinhaOs>
+            <LinhaOs label="Valor Total Contratado" hint="(soma da forma adotada em cada item; sem forma escolhida, conta a Com BV e NF)"><Auto v={brl(resumo.contratado)} /></LinhaOs>
             <LinhaOs label="Valor Total do BV" hint="(só dos itens com BV e NF)"><Auto v={brl(resumo.bvTotal)} /></LinhaOs>
             <LinhaOs label="Valor Líquido" hint="(contratado menos o BV)"><Auto v={brl(resumo.liquido)} /></LinhaOs>
 
