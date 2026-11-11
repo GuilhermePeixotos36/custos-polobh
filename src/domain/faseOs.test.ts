@@ -72,3 +72,39 @@ describe("destaque dos blocos da vez", () => {
     expect(vezDoBloco("Back-office", "emitida")).toEqual({ vez: false, aviso: "OS emitida — em leitura" });
   });
 });
+
+describe("Direção de Produção valida o contrato da OS cultural (11/11/2026)", async () => {
+  const { comValidacaoDeContrato, fasesDoCaminho, RECURSO_DA_FASE } = await import("./faseOs");
+
+  it("só a OS cultural COM contrato passa pela Direção", () => {
+    expect(comValidacaoDeContrato(true, true)).toBe(true);
+    expect(comValidacaoDeContrato(true, false)).toBe(false);
+    expect(comValidacaoDeContrato(false, true)).toBe(false);
+  });
+
+  it("o caminho com validação ganha a etapa entre Produção e Financeiro", () => {
+    expect(fasesDoCaminho(true)).toEqual(["producao", "direcao", "financeiro", "backoffice", "emitida"]);
+    expect(proximaFase("producao", true)).toBe("direcao");
+    expect(proximaFase("direcao", true)).toBe("financeiro");
+    expect(faseAnterior("financeiro", true)).toBe("direcao");
+    expect(faseAnterior("direcao", true)).toBe("producao");
+  });
+
+  it("sem validação o caminho é o de sempre", () => {
+    expect(fasesDoCaminho(false)).toEqual(["producao", "financeiro", "backoffice", "emitida"]);
+    expect(proximaFase("producao", false)).toBe("financeiro");
+    expect(faseAnterior("financeiro", false)).toBe("producao");
+    // Uma OS que já está com a Direção volta para a Produção de qualquer jeito.
+    expect(faseAnterior("direcao", false)).toBe("producao");
+  });
+
+  it("a pendência da etapa vai para quem valida contrato", () => {
+    expect(RECURSO_DA_FASE.direcao).toBe("oss.validarContrato");
+  });
+
+  it("o bloco da Direção é a vez dela só na etapa dela", () => {
+    expect(vezDoBloco("Direção de Produção", "direcao").vez).toBe(true);
+    expect(vezDoBloco("Direção de Produção", "producao").aviso).toBe("Abre na etapa da Direção de Produção");
+    expect(vezDoBloco("Produção", "direcao").vez).toBe(false);
+  });
+});

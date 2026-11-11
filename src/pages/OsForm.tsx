@@ -62,7 +62,7 @@ import { calcularAcerto } from "@/domain/acertoFinanceiro";
 import { clausulasPadrao, modeloDoContrato, type ChaveClausula, type ModeloContrato } from "@/domain/contratoModelo";
 import { baixarContrato } from "@/lib/docx";
 import { dadosDoTomador, opcoesDeTomador, RETENCOES_PADRAO, TOMADOR_OUTRO } from "@/domain/tomadorOs";
-import { editaFinanceiro, vezDoBloco, type AreaOs, FASES_OS, editaProducao, ESPERANDO_FASE, faseAnterior, faseDaOs, osEmitida, ROTULO_FASE, type FaseOs } from "@/domain/faseOs";
+import { editaFinanceiro, vezDoBloco, type AreaOs, comValidacaoDeContrato, fasesDoCaminho, editaProducao, ESPERANDO_FASE, faseAnterior, faseDaOs, osEmitida, ROTULO_FASE, type FaseOs } from "@/domain/faseOs";
 import { RevisaoEcModal } from "@/components/RevisaoEcModal";
 import { revisarOs } from "@/domain/revisaoOs";
 import type { RevisaoEc } from "@/domain/revisaoEc";
@@ -339,6 +339,8 @@ export function OsForm() {
   const verFinanceiro = pode("financeiro");
   const podeEditar = pode("oss.editar");
   const podeEmitir = pode("oss.emitir");
+  /** Direção de Produção: valida o contrato da OS cultural (11/11/2026). */
+  const podeValidarContrato = pode("oss.validarContrato");
   /**
    * MODO LEITURA (15/09/2026). A OS abria sempre em edição, e qualquer pessoa
    * que a abrisse para conferir estava, tecnicamente, editando um documento que
@@ -624,6 +626,18 @@ export function OsForm() {
   const docDaForma = documentoFiscalDaContratacao(os.itens ?? []);
   /** Esta OS tem contrato? Quem decide é a coluna Contrato dos itens, na EC. */
   const haContrato = temContrato(os, linhasConsolidadas);
+  /** OS cultural: o contrato é preenchido pela Produção e validado pela Direção de Produção. */
+  const contratoCultural = osIncentivada(os);
+  /** Esta OS passa pela Direção de Produção (ou já está com ela). */
+  const validaContrato = comValidacaoDeContrato(contratoCultural, haContrato) || fase === "direcao";
+  /**
+   * Quem mexe nos Dados para Contrato agora. Na cultural: a Produção enquanto
+   * monta, a Direção de Produção enquanto valida (e o Back-office, que corrige
+   * tudo até emitir). Na corporativa, o Financeiro, como sempre.
+   */
+  const mexeContrato = contratoCultural
+    ? (editando && ((fase === "producao" && podeEditar) || (fase === "direcao" && podeValidarContrato))) || backofficeCorrige
+    : mexeFinanceiro;
 
   /** Trocar o fornecedor de uma OS já emitida arquiva esta e abre a seguinte. */
   const trocouFornecedor = exigeNovaVersaoPorFornecedor(os, fornecedorGravado.current, os.fornecedor);
@@ -1141,9 +1155,41 @@ export function OsForm() {
     setEditando(false);
   }
 
+  /**
+   * O botão da Produção. Na OS cultural com contrato, a OS vai primeiro para a
+   * Direção de Produção validar os Dados para Contrato (11/11/2026); nas
+   * outras, direto para o Financeiro, como sempre.
+   */
+  async function enviarDaProducao() {
+    if (validaContrato) {
+      await avancarFase("direcao", {
+        titulo: "Enviar esta OS para a Direção de Produção?",
+        mensagem:
+          "A Direção de Produção recebe uma pendência para validar os Dados para Contrato. Os blocos da produção passam a leitura; depois da validação a OS segue para o Financeiro. Você pode receber a OS de volta, se precisar.",
+        confirmar: "Enviar à Direção de Produção",
+      });
+      return;
+    }
+    await avancarFase("financeiro", {
+      titulo: "Enviar esta OS para a conclusão do Financeiro?",
+      mensagem: "Os blocos da produção passam a leitura e a OS vira pendência da Coordenação Administrativo-Financeira. Você pode receber a OS de volta, se precisar.",
+      confirmar: "Enviar ao Financeiro",
+    });
+  }
+
+  /** A Direção de Produção valida o contrato e passa a OS ao Financeiro. */
+  async function validarContrato() {
+    await avancarFase("financeiro", {
+      titulo: "Validar o contrato e enviar a OS ao Financeiro?",
+      mensagem:
+        "Os Dados para Contrato ficam validados e a OS vira pendência da Coordenação Administrativo-Financeira. Se algo precisar de ajuste da Produção, use \"Devolver à etapa anterior\".",
+      confirmar: "Validar e enviar",
+    });
+  }
+
   /** Devolve a OS para a etapa anterior — acontece, e precisa ser explícito. */
   async function devolverFase() {
-    const anterior = faseAnterior(fase);
+    const anterior = faseAnterior(fase, validaContrato);
     if (!anterior) return;
     if (!(await confirmar({
       titulo: "Devolver esta OS para a etapa anterior?",
@@ -1243,7 +1289,7 @@ export function OsForm() {
           {/* A ORDEM é a do menu da EC (29/09/2026): Editar OS (ou, em edição,
               Revisar + Salvar) · Gerar Nova Versão · Cancelar · Arquivar · PDF.
               Cada bloco abre e fecha pela seta do próprio cabeçalho. */}
-          {!editando && (podeEditar || verFinanceiro) && !emitida && !encerradaDoc && (
+          {!editando && (podeEditar || verFinanceiro || podeValidarContrato) && !emitida && !encerradaDoc && (
             <Button
               size="sm"
               icon={<IcPencil width={15} height={15} />}
@@ -1338,17 +1384,15 @@ export function OsForm() {
 
           {/* A PASSAGEM DE BASTÃO — o comando principal de cada fase. */}
           {podeEditar && fase === "producao" && os.id && !encerradaDoc && (
-            <Button
-              size="sm"
-              icon={<IcSend width={15} height={15} />}
-              disabled={busy}
-              onClick={() => void avancarFase("financeiro", {
-                titulo: "Enviar esta OS para a conclusão do Financeiro?",
-                mensagem: "Os blocos da produção passam a leitura e a OS vira pendência da Coordenação Administrativo-Financeira. Você pode receber a OS de volta, se precisar.",
-                confirmar: "Enviar ao Financeiro",
-              })}
-            >
-              Enviar OS para Conclusão Financeiro
+            <Button size="sm" icon={<IcSend width={15} height={15} />} disabled={busy} onClick={() => void enviarDaProducao()}>
+              {validaContrato ? "Enviar para Direção de Produção" : "Enviar OS para Conclusão Financeiro"}
+            </Button>
+          )}
+          {/* DIREÇÃO DE PRODUÇÃO (11/11/2026): confere os Dados para Contrato da
+              OS cultural e passa a OS ao Financeiro. */}
+          {podeValidarContrato && fase === "direcao" && !encerradaDoc && (
+            <Button size="sm" icon={<IcCheck width={15} height={15} />} disabled={busy} onClick={() => void validarContrato()}>
+              Validar contrato e enviar ao Financeiro
             </Button>
           )}
           {verFinanceiro && fase === "financeiro" && !encerradaDoc && (
@@ -1373,7 +1417,7 @@ export function OsForm() {
               Emitir OS
             </Button>
           )}
-          {fase !== "producao" && !emitida && !encerradaDoc && (podeEditar || verFinanceiro) && (
+          {fase !== "producao" && !emitida && !encerradaDoc && (podeEditar || verFinanceiro || podeValidarContrato) && (
             <Button variant="text" size="sm" disabled={busy} onClick={() => void devolverFase()}>
               Devolver à etapa anterior
             </Button>
@@ -1410,8 +1454,8 @@ export function OsForm() {
           emitida ? "border-success/40 bg-success-soft/40" : "border-border-soft bg-surface"
         )}
       >
-        <Stepper value={encerradaDoc ? -1 : FASES_OS.indexOf(fase)}>
-          {FASES_OS.map((f, i) => (
+        <Stepper value={encerradaDoc ? -1 : fasesDoCaminho(validaContrato).indexOf(fase)}>
+          {fasesDoCaminho(validaContrato).map((f, i, etapas) => (
             <StepperItem key={f} step={i} completed={emitida && !encerradaDoc} className="relative flex-1 !flex-col">
               <StepperTrigger asChild className="flex-col gap-2 text-center">
                 <StepperIndicator />
@@ -1420,7 +1464,7 @@ export function OsForm() {
                   <StepperDescription className="max-sm:hidden">{DESCRICAO_ETAPA_OS[f]}</StepperDescription>
                 </div>
               </StepperTrigger>
-              {i < FASES_OS.length - 1 && (
+              {i < etapas.length - 1 && (
                 <StepperSeparator className="absolute top-4 left-[calc(50%+1.5rem)] right-[calc(-50%+1.5rem)] -order-1 m-0 -translate-y-1/2 !w-auto !flex-none" />
               )}
             </StepperItem>
@@ -1429,7 +1473,7 @@ export function OsForm() {
         <div className="mt-3 pt-2.5 border-t border-border-soft flex items-center gap-x-3 gap-y-1 flex-wrap text-[12.5px] text-ink-2">
           <span>{ESPERANDO_FASE[fase]}</span>
           {os.faseEm && <span className="text-ink-3">desde {dataBR(os.faseEm)}</span>}
-          {!editando && !emitida && !encerradaDoc && (podeEditar || verFinanceiro) && (
+          {!editando && !emitida && !encerradaDoc && (podeEditar || verFinanceiro || podeValidarContrato) && (
             <span className="ml-auto text-ink-3">Modo leitura</span>
           )}
         </div>
@@ -1969,22 +2013,206 @@ export function OsForm() {
             "Resumo dos Custos" — hoje um módulo próprio, logo abaixo. */}
         </fieldset>
 
+        {/* DADOS PARA CONTRATO em bloco PRÓPRIO, abaixo das Observações Gerais
+            (11/11/2026). Só existe quando a EC pediu contrato ("Emitir" ou
+            "Emitir Nova Versão" na coluna Contrato de algum item) — sem contrato,
+            o bloco nem aparece.
+              · OS CULTURAL: a Produção preenche e envia para a Direção de
+                Produção, que confere, pode corrigir e manda ao Financeiro;
+              · OS CORPORATIVA: segue com o Financeiro, como antes (e só quem vê
+                o financeiro o enxerga). */}
+        {haContrato && (contratoCultural || verFinanceiro) && (
+          <fieldset disabled={!mexeContrato} className="space-y-4 min-w-0 disabled:opacity-100">
+          <CardOs
+            secao="Dados para Contrato"
+            area={contratoCultural ? (fase === "producao" ? "Produção" : "Direção de Produção") : "Financeiro"}
+          >
+
+            {/* MODELO — Corporativo ou Cultural, os dois .docx que a Pólobh
+                mandou em 16/09/2026. A modalidade do projeto já responde isso
+                na quase totalidade dos casos, e é ela que vale enquanto
+                ninguém escolher: o seletor existe para o projeto corporativo
+                com um item incentivado, que é raro e existe. */}
+            <LinhaOs label="Modelo do Contrato" hint={`(o projeto é ${os.projeto.modalidade || "sem modalidade"})`}>
+              <Select
+                value={os.contrato.modelo ?? ""}
+                onChange={(e) => updCt({ modelo: (e.target.value || undefined) as ModeloContrato | undefined })}
+              >
+                <option value="">Pela modalidade do projeto — {modeloContrato}</option>
+                <option value="Corporativo">Corporativo</option>
+                <option value="Cultural">Cultural</option>
+              </Select>
+              {modeloContrato === "Cultural" && (
+                <p className="mt-1.5 text-[12px] text-ink-2">
+                  O modelo Cultural nomeia o projeto incentivado, a lei e o código na Cláusula Primeira —
+                  os três vêm dos Dados Gerais do projeto (conferidos no bloco de faturamento).
+                </p>
+              )}
+            </LinhaOs>
+
+            {/* CONTRATANTE = TOMADOR. O modelo é explícito no bloco de
+                assinaturas ("CONTRATANTE – Razão Social do Tomador"), então o
+                padrão é seguir o que já foi respondido no faturamento, e não
+                perguntar de novo. */}
+            <LinhaOs label="Contratante" hint="(quem contrata o fornecedor — por padrão, o tomador da nota)">
+              <Select value={os.contrato.contratante} onChange={(e) => updCt({ contratante: e.target.value })}>
+                <option value="">
+                  Mesmo do faturamento{dadosTomador ? ` — ${dadosTomador.rotulo}` : ""}
+                </option>
+                {opcoesDeTomador(empresas).map((o) => (
+                  <option key={o.valor} value={o.valor}>{o.rotulo}</option>
+                ))}
+              </Select>
+            </LinhaOs>
+            {dadosContratante ? (
+              <>
+                <LinhaOs label="Razão Social"><Auto v={dadosContratante.razaoSocial} /></LinhaOs>
+                <LinhaOs label="Endereço"><Auto v={dadosContratante.endereco} /></LinhaOs>
+                <LinhaOs label="CNPJ/CPF"><Auto v={dadosContratante.cnpjCpf} /></LinhaOs>
+                <LinhaOs label="Inscrição Estadual"><Auto v={dadosContratante.inscricaoEstadual} /></LinhaOs>
+                <LinhaOs label="Inscrição Municipal"><Auto v={dadosContratante.inscricaoMunicipal} /></LinhaOs>
+              </>
+            ) : (
+              <LinhaOs label="Dados do Contratante">
+                <p className="py-2 text-[12.5px] text-ink-3">Selecione o contratante para carregar os dados fiscais.</p>
+              </LinhaOs>
+            )}
+            <LinhaOs label="Descritivo dos Serviços e/ou Produtos" hint="(auto do descritivo da NF)">
+              {/* Objeto do contrato — montado com os dados de faturamento acima. */}
+              <p className="mb-2 text-[13px] text-ink bg-[#FAFAFB] border border-border-soft rounded-btn px-3 py-2.5">
+                {textoObjetoContrato(os.financeiro, osIncentivada(os))}
+              </p>
+              <Textarea value={os.contrato.descritivoServicos} onChange={(e) => updCt({ descritivoServicos: e.target.value })} placeholder="Padrão: vem do Descritivo NF — editável" />
+            </LinhaOs>
+            <LinhaOs label="Informações Complementares" hint="(preencher)">
+              <Textarea value={os.contrato.informacoesComplementares} onChange={(e) => updCt({ informacoesComplementares: e.target.value })} placeholder="O que este contrato tem de particular e não está no descritivo." />
+              <TextosJaUsados valor={os.contrato.informacoesComplementares} opcoes={sugestoes.valores.informacoesComplementares} onEscolher={(informacoesComplementares) => updCt({ informacoesComplementares })} />
+            </LinhaOs>
+            <LinhaOs label="Valor total" hint={ctDessincronizado ? undefined : "(espelha o valor do Faturamento)"}>
+              <NumberInput value={os.contrato.valorTotal} onValue={(v) => updCt({ valorUnitario: v, valorTotal: v, valorAPagar: v - os.contrato.descontoNegociado })} />
+              {ctDessincronizado && (
+                <div className="mt-1.5 flex items-center gap-2 flex-wrap text-[12px] text-warning">
+                  <span className="font-semibold">
+                    Diferente do Faturamento ({brl(os.financeiro.valorTotal)}).
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const v = os.financeiro.valorTotal;
+                      updCt({ valorUnitario: v, valorTotal: v, valorAPagar: v - os.contrato.descontoNegociado });
+                    }}
+                    className="font-bold text-primary-dark hover:underline"
+                  >
+                    Usar o valor do Faturamento
+                  </button>
+                </div>
+              )}
+            </LinhaOs>
+            <LinhaOs label="Desconto Especial Negociado"><NumberInput value={os.contrato.descontoNegociado} onValue={(v) => updCt({ descontoNegociado: v, valorAPagar: os.contrato.valorTotal - v })} /></LinhaOs>
+            <LinhaOs label="Valor total a pagar"><Auto v={brl(os.contrato.valorAPagar)} /></LinhaOs>
+            <LinhaOs label="Forma de Pagamento" hint="(padrão do modelo — editável)">
+              <Input value={os.contrato.formaPagamento ?? ""} sugestoes={sugestoes.valores.formaPagamento} onChange={(e) => updCt({ formaPagamento: e.target.value })} placeholder={FORMA_PAGAMENTO_PADRAO} />
+            </LinhaOs>
+            <LinhaOs label="Observações Gerais" hint="(padrão do modelo — editável)">
+              <Textarea value={os.contrato.observacoesGerais ?? ""} onChange={(e) => updCt({ observacoesGerais: e.target.value })} />
+              <TextosJaUsados valor={os.contrato.observacoesGerais ?? ""} opcoes={sugestoes.valores.observacoesContrato} onEscolher={(observacoesGerais) => updCt({ observacoesGerais })} />
+            </LinhaOs>
+            <LinhaOs label="Data do Contrato" hint="(auto — data da emissão da OS)"><Input type="date" value={os.contrato.dataContrato} onChange={(e) => updCt({ dataContrato: e.target.value })} /></LinhaOs>
+            <LinhaOs label="Rubrica" hint="(preencher)"><Input value={os.contrato.rubrica} sugestoes={sugestoes.valores.rubrica} onChange={(e) => updCt({ rubrica: e.target.value })} placeholder="Iniciais de quem responde pelo contrato" /></LinhaOs>
+
+            {/* AS SETE CLÁUSULAS. Nos dois modelos, cada uma traz à margem a
+                anotação "Manter este campo editável" — é o texto da casa, e ele
+                sai do padrão quando o negócio pede. Cada campo nasce com o texto
+                do modelo e só é gravado quando muda: assim, corrigir o padrão
+                mais tarde vale para os contratos que ainda não foram assinados.
+                A Cláusula Primeira é a exceção — o que se escreve aqui é a
+                abertura; o descritivo e os valores logo abaixo dela são montados
+                com os dados da OS, e é por isso que o rótulo diz isso. */}
+            <SubSecao>Cláusulas do Contrato — modelo {modeloContrato}</SubSecao>
+            {clausulas.map((c) => {
+              const escrito = os.contrato.clausulas?.[c.chave];
+              const mudou = !!escrito && escrito.trim() !== c.padrao;
+              return (
+                <LinhaOs
+                  key={c.chave}
+                  label={c.titulo}
+                  hint={c.chave === "objeto" ? "(a abertura — o objeto e os valores entram abaixo dela, da OS)" : "(texto do modelo — editável)"}
+                  acao={
+                    mudou ? (
+                      <button
+                        type="button"
+                        onClick={() => updClausula(c.chave, c.padrao)}
+                        className="text-[10.5px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded px-1"
+                      >
+                        Voltar ao texto do modelo
+                      </button>
+                    ) : undefined
+                  }
+                >
+                  <Textarea
+                    className="min-h-[92px]"
+                    value={escrito ?? c.padrao}
+                    onChange={(e) => updClausula(c.chave, e.target.value)}
+                  />
+                </LinhaOs>
+              );
+            })}
+
+            <SubSecao>Assinatura</SubSecao>
+            <LinhaOs label="Cidade" hint="(onde se assina)">
+              <Input
+                formato="titulo"
+                value={os.contrato.cidade ?? ""}
+                onChange={(e) => updCt({ cidade: e.target.value })}
+                placeholder="Belo Horizonte"
+              />
+            </LinhaOs>
+            {/* As duas testemunhas do modelo. Ficam em branco no documento
+                quando ninguém as informa — é assim que o contrato sai hoje, para
+                ser assinado à mão, e é assim que ele continua saindo. */}
+            {([1, 2] as const).map((n) => {
+              const campo = n === 1 ? "testemunha1" : "testemunha2";
+              const t = os.contrato[campo] ?? { nome: "", cpf: "" };
+              return (
+                <LinhaOs key={campo} label={`Testemunha ${n}`} hint="(nome e CPF — em branco, assina à mão)">
+                  <div className="flex gap-2 flex-wrap">
+                    <Input
+                      className="flex-1 min-w-[180px]"
+                      formato="titulo"
+                      value={t.nome}
+                      onChange={(e) => updCt({ [campo]: { ...t, nome: e.target.value } })}
+                      placeholder="Nome"
+                    />
+                    <Input
+                      className="w-[170px]"
+                      value={t.cpf}
+                      onChange={(e) => updCt({ [campo]: { ...t, cpf: maskCpfCnpjInput(e.target.value) } })}
+                      placeholder="CPF"
+                      inputMode="numeric"
+                    />
+                  </div>
+                </LinhaOs>
+              );
+            })}
+          </CardOs>
+          </fieldset>
+        )}
+
         {/* O BOTÃO QUE PASSA O BASTÃO, logo depois das Observações Gerais
             (29/09/2026): quem monta a OS chega ao fim do formulário e o comando
             está ali, sem voltar ao topo. Gera a pendência da Coordenação
             Administrativo-Financeira, como o do cabeçalho. */}
         {podeEditar && fase === "producao" && os.id && !encerradaDoc && (
           <div className="flex justify-end">
-            <Button
-              icon={<IcSend width={15} height={15} />}
-              disabled={busy}
-              onClick={() => void avancarFase("financeiro", {
-                titulo: "Enviar esta OS para a conclusão do Financeiro?",
-                mensagem: "Os blocos da produção passam a leitura e a OS vira pendência da Coordenação Administrativo-Financeira. Você pode receber a OS de volta, se precisar.",
-                confirmar: "Enviar ao Financeiro",
-              })}
-            >
-              Enviar OS para Conclusão Financeiro
+            <Button icon={<IcSend width={15} height={15} />} disabled={busy} onClick={() => void enviarDaProducao()}>
+              {validaContrato ? "Enviar para Direção de Produção" : "Enviar OS para Conclusão Financeiro"}
+            </Button>
+          </div>
+        )}
+        {podeValidarContrato && fase === "direcao" && !encerradaDoc && (
+          <div className="flex justify-end">
+            <Button icon={<IcCheck width={15} height={15} />} disabled={busy} onClick={() => void validarContrato()}>
+              Validar contrato e enviar ao Financeiro
             </Button>
           </div>
         )}
@@ -2248,185 +2476,6 @@ export function OsForm() {
               )}
             </LinhaOs>
 
-            {/* DADOS PARA CONTRATO — só existe quando a EC pediu "Emitir" ou
-                "Emitir Nova Versão" na coluna Contrato de algum item.
-                "Não se aplica" lá significa que não há contrato, e um grupo
-                vazio na tela não é neutro: ele descreve um contrato inexistente
-                com valores, forma de pagamento e data, e é isso que sai no
-                documento do fornecedor. Então o grupo inteiro não aparece — nem
-                como aviso (revisão de 09/09/2026). */}
-            {haContrato && (
-            <>
-            <SubSecao>Dados para Contrato</SubSecao>
-
-            {/* MODELO — Corporativo ou Cultural, os dois .docx que a Pólobh
-                mandou em 16/09/2026. A modalidade do projeto já responde isso
-                na quase totalidade dos casos, e é ela que vale enquanto
-                ninguém escolher: o seletor existe para o projeto corporativo
-                com um item incentivado, que é raro e existe. */}
-            <LinhaOs label="Modelo do Contrato" hint={`(o projeto é ${os.projeto.modalidade || "sem modalidade"})`}>
-              <Select
-                value={os.contrato.modelo ?? ""}
-                onChange={(e) => updCt({ modelo: (e.target.value || undefined) as ModeloContrato | undefined })}
-              >
-                <option value="">Pela modalidade do projeto — {modeloContrato}</option>
-                <option value="Corporativo">Corporativo</option>
-                <option value="Cultural">Cultural</option>
-              </Select>
-              {modeloContrato === "Cultural" && (
-                <p className="mt-1.5 text-[12px] text-ink-2">
-                  O modelo Cultural nomeia o projeto incentivado, a lei e o código na Cláusula Primeira —
-                  os três vêm do bloco de faturamento, acima.
-                </p>
-              )}
-            </LinhaOs>
-
-            {/* CONTRATANTE = TOMADOR. O modelo é explícito no bloco de
-                assinaturas ("CONTRATANTE – Razão Social do Tomador"), então o
-                padrão é seguir o que já foi respondido no faturamento, e não
-                perguntar de novo. */}
-            <LinhaOs label="Contratante" hint="(quem contrata o fornecedor — por padrão, o tomador da nota)">
-              <Select value={os.contrato.contratante} onChange={(e) => updCt({ contratante: e.target.value })}>
-                <option value="">
-                  Mesmo do faturamento{dadosTomador ? ` — ${dadosTomador.rotulo}` : ""}
-                </option>
-                {opcoesDeTomador(empresas).map((o) => (
-                  <option key={o.valor} value={o.valor}>{o.rotulo}</option>
-                ))}
-              </Select>
-            </LinhaOs>
-            {dadosContratante ? (
-              <>
-                <LinhaOs label="Razão Social"><Auto v={dadosContratante.razaoSocial} /></LinhaOs>
-                <LinhaOs label="Endereço"><Auto v={dadosContratante.endereco} /></LinhaOs>
-                <LinhaOs label="CNPJ/CPF"><Auto v={dadosContratante.cnpjCpf} /></LinhaOs>
-                <LinhaOs label="Inscrição Estadual"><Auto v={dadosContratante.inscricaoEstadual} /></LinhaOs>
-                <LinhaOs label="Inscrição Municipal"><Auto v={dadosContratante.inscricaoMunicipal} /></LinhaOs>
-              </>
-            ) : (
-              <LinhaOs label="Dados do Contratante">
-                <p className="py-2 text-[12.5px] text-ink-3">Selecione o contratante para carregar os dados fiscais.</p>
-              </LinhaOs>
-            )}
-            <LinhaOs label="Descritivo dos Serviços e/ou Produtos" hint="(auto do descritivo da NF)">
-              {/* Objeto do contrato — montado com os dados de faturamento acima. */}
-              <p className="mb-2 text-[13px] text-ink bg-[#FAFAFB] border border-border-soft rounded-btn px-3 py-2.5">
-                {textoObjetoContrato(os.financeiro, osIncentivada(os))}
-              </p>
-              <Textarea value={os.contrato.descritivoServicos} onChange={(e) => updCt({ descritivoServicos: e.target.value })} placeholder="Padrão: vem do Descritivo NF — editável" />
-            </LinhaOs>
-            <LinhaOs label="Informações Complementares" hint="(preencher)">
-              <Textarea value={os.contrato.informacoesComplementares} onChange={(e) => updCt({ informacoesComplementares: e.target.value })} placeholder="O que este contrato tem de particular e não está no descritivo." />
-              <TextosJaUsados valor={os.contrato.informacoesComplementares} opcoes={sugestoes.valores.informacoesComplementares} onEscolher={(informacoesComplementares) => updCt({ informacoesComplementares })} />
-            </LinhaOs>
-            <LinhaOs label="Valor total" hint={ctDessincronizado ? undefined : "(espelha o valor do Faturamento)"}>
-              <NumberInput value={os.contrato.valorTotal} onValue={(v) => updCt({ valorUnitario: v, valorTotal: v, valorAPagar: v - os.contrato.descontoNegociado })} />
-              {ctDessincronizado && (
-                <div className="mt-1.5 flex items-center gap-2 flex-wrap text-[12px] text-warning">
-                  <span className="font-semibold">
-                    Diferente do Faturamento ({brl(os.financeiro.valorTotal)}).
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const v = os.financeiro.valorTotal;
-                      updCt({ valorUnitario: v, valorTotal: v, valorAPagar: v - os.contrato.descontoNegociado });
-                    }}
-                    className="font-bold text-primary-dark hover:underline"
-                  >
-                    Usar o valor do Faturamento
-                  </button>
-                </div>
-              )}
-            </LinhaOs>
-            <LinhaOs label="Desconto Especial Negociado"><NumberInput value={os.contrato.descontoNegociado} onValue={(v) => updCt({ descontoNegociado: v, valorAPagar: os.contrato.valorTotal - v })} /></LinhaOs>
-            <LinhaOs label="Valor total a pagar"><Auto v={brl(os.contrato.valorAPagar)} /></LinhaOs>
-            <LinhaOs label="Forma de Pagamento" hint="(padrão do modelo — editável)">
-              <Input value={os.contrato.formaPagamento ?? ""} sugestoes={sugestoes.valores.formaPagamento} onChange={(e) => updCt({ formaPagamento: e.target.value })} placeholder={FORMA_PAGAMENTO_PADRAO} />
-            </LinhaOs>
-            <LinhaOs label="Observações Gerais" hint="(padrão do modelo — editável)">
-              <Textarea value={os.contrato.observacoesGerais ?? ""} onChange={(e) => updCt({ observacoesGerais: e.target.value })} />
-              <TextosJaUsados valor={os.contrato.observacoesGerais ?? ""} opcoes={sugestoes.valores.observacoesContrato} onEscolher={(observacoesGerais) => updCt({ observacoesGerais })} />
-            </LinhaOs>
-            <LinhaOs label="Data do Contrato" hint="(auto — data da emissão da OS)"><Input type="date" value={os.contrato.dataContrato} onChange={(e) => updCt({ dataContrato: e.target.value })} /></LinhaOs>
-            <LinhaOs label="Rubrica" hint="(preencher)"><Input value={os.contrato.rubrica} sugestoes={sugestoes.valores.rubrica} onChange={(e) => updCt({ rubrica: e.target.value })} placeholder="Iniciais de quem responde pelo contrato" /></LinhaOs>
-
-            {/* AS SETE CLÁUSULAS. Nos dois modelos, cada uma traz à margem a
-                anotação "Manter este campo editável" — é o texto da casa, e ele
-                sai do padrão quando o negócio pede. Cada campo nasce com o texto
-                do modelo e só é gravado quando muda: assim, corrigir o padrão
-                mais tarde vale para os contratos que ainda não foram assinados.
-                A Cláusula Primeira é a exceção — o que se escreve aqui é a
-                abertura; o descritivo e os valores logo abaixo dela são montados
-                com os dados da OS, e é por isso que o rótulo diz isso. */}
-            <SubSecao>Cláusulas do Contrato — modelo {modeloContrato}</SubSecao>
-            {clausulas.map((c) => {
-              const escrito = os.contrato.clausulas?.[c.chave];
-              const mudou = !!escrito && escrito.trim() !== c.padrao;
-              return (
-                <LinhaOs
-                  key={c.chave}
-                  label={c.titulo}
-                  hint={c.chave === "objeto" ? "(a abertura — o objeto e os valores entram abaixo dela, da OS)" : "(texto do modelo — editável)"}
-                  acao={
-                    mudou ? (
-                      <button
-                        type="button"
-                        onClick={() => updClausula(c.chave, c.padrao)}
-                        className="text-[10.5px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded px-1"
-                      >
-                        Voltar ao texto do modelo
-                      </button>
-                    ) : undefined
-                  }
-                >
-                  <Textarea
-                    className="min-h-[92px]"
-                    value={escrito ?? c.padrao}
-                    onChange={(e) => updClausula(c.chave, e.target.value)}
-                  />
-                </LinhaOs>
-              );
-            })}
-
-            <SubSecao>Assinatura</SubSecao>
-            <LinhaOs label="Cidade" hint="(onde se assina)">
-              <Input
-                formato="titulo"
-                value={os.contrato.cidade ?? ""}
-                onChange={(e) => updCt({ cidade: e.target.value })}
-                placeholder="Belo Horizonte"
-              />
-            </LinhaOs>
-            {/* As duas testemunhas do modelo. Ficam em branco no documento
-                quando ninguém as informa — é assim que o contrato sai hoje, para
-                ser assinado à mão, e é assim que ele continua saindo. */}
-            {([1, 2] as const).map((n) => {
-              const campo = n === 1 ? "testemunha1" : "testemunha2";
-              const t = os.contrato[campo] ?? { nome: "", cpf: "" };
-              return (
-                <LinhaOs key={campo} label={`Testemunha ${n}`} hint="(nome e CPF — em branco, assina à mão)">
-                  <div className="flex gap-2 flex-wrap">
-                    <Input
-                      className="flex-1 min-w-[180px]"
-                      formato="titulo"
-                      value={t.nome}
-                      onChange={(e) => updCt({ [campo]: { ...t, nome: e.target.value } })}
-                      placeholder="Nome"
-                    />
-                    <Input
-                      className="w-[170px]"
-                      value={t.cpf}
-                      onChange={(e) => updCt({ [campo]: { ...t, cpf: maskCpfCnpjInput(e.target.value) } })}
-                      placeholder="CPF"
-                      inputMode="numeric"
-                    />
-                  </div>
-                </LinhaOs>
-              );
-            })}
-            </>
-            )}
           </CardOs>
           </>
         ) : (
@@ -2587,12 +2636,14 @@ const SECAO_DETALHAMENTO = "Detalhamento da Contratação";
 /** Os nomes curtos das etapas na linha do tempo do alto da OS. */
 const TITULO_ETAPA_OS: Record<FaseOs, string> = {
   producao: "Produção",
+  direcao: "Direção de Produção",
   financeiro: "Financeiro",
   backoffice: "Back-office",
   emitida: "Emitida",
 };
 const DESCRICAO_ETAPA_OS: Record<FaseOs, string> = {
   producao: "Monta a OS",
+  direcao: "Valida o contrato",
   financeiro: "Pagamento e faturamento",
   backoffice: "Revisa e emite",
   emitida: "OS concluída",
@@ -2640,6 +2691,7 @@ const idDaEtapa = (c: Os["cronograma"][number], i: number) => c.id ?? `etapa-${i
  */
 const COR_AREA: Record<AreaOs, string> = {
   "Produção": "bg-[#E3F0FF] text-[#1D4E89] border-[#B9D5F5]",
+  "Direção de Produção": "bg-[#FFF1E0] text-[#8A4B0F] border-[#F5D3AE]",
   "Financeiro": "bg-[#E6F6EC] text-[#1E6B3A] border-[#BFE3CC]",
   "Back-office": "bg-[#F3E8FF] text-[#5B2C83] border-[#DCC5F2]",
 };
@@ -2647,6 +2699,7 @@ const COR_AREA: Record<AreaOs, string> = {
 /** Contorno e faixa do bloco quando é a vez da área dele. */
 const DESTAQUE_AREA: Record<AreaOs, { borda: string; faixa: string }> = {
   "Produção": { borda: "border-[#4A90D9] ring-2 ring-[#4A90D9]/25", faixa: "bg-[#CFE3FA]" },
+  "Direção de Produção": { borda: "border-[#E08A2E] ring-2 ring-[#E08A2E]/25", faixa: "bg-[#FBE0C2]" },
   "Financeiro": { borda: "border-[#3FA36B] ring-2 ring-[#3FA36B]/25", faixa: "bg-[#CDEBD8]" },
   "Back-office": { borda: "border-[#8A5CC2] ring-2 ring-[#8A5CC2]/25", faixa: "bg-[#E6D6F7]" },
 };

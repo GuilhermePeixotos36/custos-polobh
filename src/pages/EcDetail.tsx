@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { comDadosAtuaisDoProjeto } from "@/lib/projetoAoVivo";
-import { ExcelEcMenu } from "@/components/ExcelEcMenu";
 import { gerarNovaVersaoEc } from "@/lib/novaVersaoEc";
 import { LegendaProjeto } from "@/components/layout/LegendaProjeto";
 import { PageShell } from "@/components/layout/AppLayout";
@@ -601,14 +600,13 @@ export function EcDetail() {
               variant="secondary"
               size="sm"
               disabled={!!enviandoPasta}
-              title="Revisa os textos e envia o Excel da EC para a pasta Dropbox do projeto. Se a versão da pasta já mudou, cria a versão seguinte."
+              title="Revisa os textos e envia as duas planilhas da EC (Completa e Financeiro) para a pasta Dropbox do projeto. Se a versão da pasta já mudou, cria a versão seguinte."
               onClick={() => void salvarNaPasta()}
             >
               Salvar na pasta
             </Button>
           )}
           {enviandoPasta && <CarregandoTela texto={enviandoPasta} />}
-          <ExcelEcMenu ec={ec} onSalvarNaPasta={podeEditar && ecEditavel(ec) ? () => void salvarNaPasta() : undefined} />
           <Button variant="secondary" size="sm" icon={<IcEye width={16} height={16} />} onClick={() => navigate(`/estimativas/${ec.id}/imprimir`)}>
             EC PDF
           </Button>
