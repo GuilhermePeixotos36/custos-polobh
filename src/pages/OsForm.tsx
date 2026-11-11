@@ -87,7 +87,7 @@ import {
   sincronizarContratacao,
 } from "@/domain/contratacaoOs";
 import {
-  CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, exigeNovaVersaoPorFornecedor, osIncentivada,
+  CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, exigeNovaVersaoPorFornecedor, osIncentivada, incentivoDoContrato,
   itensDoBloco, temContrato,
 } from "@/domain/os";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
@@ -320,6 +320,18 @@ function aplicarAutoPreenchimento(osOriginal: Os, ec: Ec): Os {
           // A data do contrato é a da emissão da OS, não a de hoje: abrir a OS
           // três meses depois não pode reescrever quando ela foi feita.
           dataContrato: os.contrato.dataContrato || (os.criadoEm || new Date().toISOString()).slice(0, 10),
+          // OS cultural: os três dados do projeto incentivado nascem dos Dados
+          // Gerais do projeto, no próprio bloco do contrato (11/11/2026).
+          ...(incentivada
+            ? {
+                projetoIncentivado:
+                  os.contrato.projetoIncentivado || os.financeiro.projetoIncentivado || os.projeto.projetoIncentivado || os.projeto.nomeProjeto || os.projeto.titulo,
+                codigoProjetoIncentivado:
+                  os.contrato.codigoProjetoIncentivado || os.financeiro.codigoProjetoIncentivado || os.projeto.codigoProjetoIncentivado || "",
+                leiIncentivo:
+                  os.contrato.leiIncentivo || os.financeiro.leiIncentivo || os.projeto.leiIncentivo || os.projeto.incentivosFiscais || LEI_INCENTIVO_PADRAO,
+              }
+            : {}),
         }
       : os.contrato,
   };
@@ -519,8 +531,15 @@ export function OsForm() {
    * blocos da Produção e do Financeiro ficam abertos a ele até a emissão.
    */
   const backofficeCorrige = editando && podeEmitir && os != null && !osEmitida(os);
-  const mexeProducao = (editando && podeEditar && os != null && editaProducao(os)) || backofficeCorrige;
-  const mexeFinanceiro = (editando && verFinanceiro && os != null && editaFinanceiro(os)) || (backofficeCorrige && verFinanceiro);
+  /**
+   * DIREÇÃO DE PRODUÇÃO CORRIGE O QUE PRECISAR (11/11/2026): na etapa dela, quem
+   * valida o contrato edita a OS inteira — como o Back-office na dele —, sem
+   * depender de a área também ter "Emitir OS".
+   */
+  const direcaoCorrige = editando && podeValidarContrato && os != null && faseDaOs(os) === "direcao";
+  const mexeProducao = (editando && podeEditar && os != null && editaProducao(os)) || backofficeCorrige || direcaoCorrige;
+  const mexeFinanceiro =
+    (editando && verFinanceiro && os != null && editaFinanceiro(os)) || (backofficeCorrige && verFinanceiro) || (direcaoCorrige && verFinanceiro);
   const emitida = os != null && osEmitida(os);
   // Pendências desta OS — mesma lista que alimenta o badge vermelho dela.
   const { itens: pendenciasDoUsuario } = useMinhasPendencias();
@@ -2045,10 +2064,40 @@ export function OsForm() {
               {modeloContrato === "Cultural" && (
                 <p className="mt-1.5 text-[12px] text-ink-2">
                   O modelo Cultural nomeia o projeto incentivado, a lei e o código na Cláusula Primeira —
-                  os três vêm dos Dados Gerais do projeto (conferidos no bloco de faturamento).
+                  os três vêm dos Dados Gerais do projeto e podem ser conferidos logo abaixo.
                 </p>
               )}
             </LinhaOs>
+
+            {/* PROJETO INCENTIVADO no próprio contrato (11/11/2026): os mesmos
+                três campos dos Dados Gerais, já preenchidos de lá. É daqui que
+                sai a Cláusula Primeira do contrato Cultural. */}
+            {modeloContrato === "Cultural" && (
+              <>
+                <LinhaOs label="Nome do Projeto Incentivado" hint="(dos Dados Gerais do projeto)">
+                  <Input
+                    formato="titulo"
+                    value={os.contrato.projetoIncentivado ?? ""}
+                    onChange={(e) => updCt({ projetoIncentivado: e.target.value })}
+                  />
+                </LinhaOs>
+                <LinhaOs label="Código do Projeto Incentivado" hint="(dos Dados Gerais do projeto)">
+                  <Input
+                    value={os.contrato.codigoProjetoIncentivado ?? ""}
+                    sugestoes={sugestoes.valores.codigoProjetoIncentivado}
+                    onChange={(e) => updCt({ codigoProjetoIncentivado: e.target.value })}
+                    placeholder="Ex.: PRONAC 26 1234"
+                  />
+                </LinhaOs>
+                <LinhaOs label="Lei de Incentivo à Cultura" hint="(dos Dados Gerais do projeto)">
+                  <Input
+                    value={os.contrato.leiIncentivo ?? ""}
+                    onChange={(e) => updCt({ leiIncentivo: e.target.value })}
+                    placeholder="Ex.: Lei Federal de Incentivo à Cultura (Rouanet)"
+                  />
+                </LinhaOs>
+              </>
+            )}
 
             {/* CONTRATANTE = TOMADOR. O modelo é explícito no bloco de
                 assinaturas ("CONTRATANTE – Razão Social do Tomador"), então o
@@ -2080,7 +2129,7 @@ export function OsForm() {
             <LinhaOs label="Descritivo dos Serviços e/ou Produtos" hint="(auto do descritivo da NF)">
               {/* Objeto do contrato — montado com os dados de faturamento acima. */}
               <p className="mb-2 text-[13px] text-ink bg-[#FAFAFB] border border-border-soft rounded-btn px-3 py-2.5">
-                {textoObjetoContrato(os.financeiro, osIncentivada(os))}
+                {textoObjetoContrato({ ...os.financeiro, ...incentivoDoContrato(os) }, osIncentivada(os))}
               </p>
               <Textarea value={os.contrato.descritivoServicos} onChange={(e) => updCt({ descritivoServicos: e.target.value })} placeholder="Padrão: vem do Descritivo NF — editável" />
             </LinhaOs>

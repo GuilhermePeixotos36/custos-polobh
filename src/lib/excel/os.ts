@@ -26,7 +26,7 @@ import {
 } from "@/domain/calc";
 import { bvDaContratacao, COLUNAS_CONTRATACAO, resumoContratacao, sincronizarContratacao } from "@/domain/contratacaoOs";
 import { datasDoEvento, ETAPAS_CRONOGRAMA, horariosDoEvento } from "@/domain/projeto";
-import { itensParaDocumento, temContrato, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, osIncentivada } from "@/domain/os";
+import { itensParaDocumento, temContrato, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, osIncentivada, incentivoDoContrato } from "@/domain/os";
 import { calcularAcerto } from "@/domain/acertoFinanceiro";
 import { dadosDoTomador, RETENCOES_PADRAO } from "@/domain/tomadorOs";
 import { COR, fill, FONT_LIGHT, baixar, nomeArquivo, carregarLogo, encaixarLogo, linhasVisuais, alturaParaLinhas } from "./shared";
@@ -548,7 +548,7 @@ export async function criarOsExcelBuffer(
     linha("Inscrição Estadual:", contr?.inscricaoEstadual ?? "");
     linha("Inscrição Municipal:", contr?.inscricaoMunicipal ?? "");
 
-    const primeiraDesc = linha("Descritivo da Contratação:", textoObjetoContrato(fin, incentivada), { fixo: true, altura: 44 });
+    const primeiraDesc = linha("Descritivo da Contratação:", textoObjetoContrato({ ...fin, ...incentivoDoContrato(os) }, incentivada), { fixo: true, altura: 44 });
     linha("", `DESCRITIVO DOS SERVIÇOS E/OU PRODUTOS:\n${ct.descritivoServicos || fin.descritivoNf || os.descritivo}`, {
       semRotulo: true, altura: 44,
     });

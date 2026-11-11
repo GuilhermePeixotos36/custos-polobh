@@ -261,3 +261,22 @@ export function exigeNovaVersaoPorFornecedor(
 export function osIncentivada(os: Pick<Os, "projeto" | "contrato">): boolean {
   return (os.contrato?.modelo || modeloDoContrato(os.projeto?.modalidade ?? "")) === "Cultural";
 }
+
+/**
+ * Os três dados do projeto incentivado como o CONTRATO os usa (11/11/2026): o
+ * que estiver no bloco Dados para Contrato, senão o do faturamento, senão o dos
+ * Dados Gerais do projeto.
+ */
+export function incentivoDoContrato(
+  os: Pick<Os, "projeto" | "contrato" | "financeiro">,
+): { projetoIncentivado: string; codigoProjetoIncentivado: string; leiIncentivo: string } {
+  const ct = os.contrato ?? ({} as Os["contrato"]);
+  const f = os.financeiro ?? ({} as Os["financeiro"]);
+  const p = os.projeto ?? ({} as Os["projeto"]);
+  const primeiro = (...v: (string | undefined)[]) => (v.find((x) => x && x.trim()) ?? "").trim();
+  return {
+    projetoIncentivado: primeiro(ct.projetoIncentivado, f.projetoIncentivado, p.projetoIncentivado),
+    codigoProjetoIncentivado: primeiro(ct.codigoProjetoIncentivado, f.codigoProjetoIncentivado, p.codigoProjetoIncentivado),
+    leiIncentivo: primeiro(ct.leiIncentivo, f.leiIncentivo, p.leiIncentivo, p.incentivosFiscais),
+  };
+}

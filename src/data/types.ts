@@ -917,6 +917,15 @@ export interface ContratoOs {
   dataContrato: string; // ISO date
   rubrica: string;
   /**
+   * PROJETO INCENTIVADO NO CONTRATO (11/11/2026). Na OS cultural os três campos
+   * dos Dados Gerais do projeto entram no bloco Dados para Contrato — quem o
+   * preenche é a Produção, que não grava o faturamento (restrito). Nascem dos
+   * Dados Gerais e são a fonte da Cláusula Primeira do contrato Cultural.
+   */
+  projetoIncentivado?: string;
+  codigoProjetoIncentivado?: string;
+  leiIncentivo?: string;
+  /**
    * Qual dos dois modelos da casa este contrato usa (16/09/2026).
    *
    * Em branco significa "o que a modalidade do projeto disser" — Cultural para
