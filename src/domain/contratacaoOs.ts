@@ -107,6 +107,17 @@ export function formaDoItem(i: ItemContratacaoOs): OpcaoValorDefinida | undefine
 }
 
 /**
+ * A forma que conta no VALOR da OS: a escolhida ou, sem escolha ainda, a
+ * presumida — "Com BV e NF" se tiver valor (é a da EC, a do BV e a da parcela
+ * única), senão a primeira das três que tiver. `undefined` = nenhuma tem valor.
+ */
+export function formaPresumida(i: ItemContratacaoOs): OpcaoValorDefinida | undefined {
+  const escolhida = formaDoItem(i);
+  if (escolhida) return escolhida;
+  return OPCOES_VALOR_ITEM.map((o) => o.opcao).find((o) => (valorDefinido(i[o]) ?? 0) > 0);
+}
+
+/**
  * O documento fiscal que a forma de pagamento escolhida exige (21/10/2026).
  *
  * A escolha da forma já diz qual documento o fornecedor entrega: as duas com
@@ -297,6 +308,25 @@ export function resumoContratacao(itens: ItemContratacaoOs[], linhas: EcLinha[])
   const temValor = (ler: (l: LinhaResumoContratacao) => number | null) =>
     out.some((l) => (ler(l) ?? 0) > 0);
 
+  /*
+   * O QUE A OS VALE conta UMA forma por item (11/11/2026). Com a forma
+   * escolhida, ela; sem forma ainda (OS nova, ou reaberta depois de o valor
+   * mudar na EC), a forma PRESUMIDA — a "Com BV e NF", que é a da EC e a que o
+   * BV e a parcela única já usam, ou a primeira que tiver valor.
+   *
+   * Caso que motivou: OS (03) do Prêmio Jornalista, item com R$ 4.500 / 3.825 /
+   * 3.825 nas três alternativas e forma ainda não escolhida — o "Valor Total
+   * Contratado" saía R$ 12.150, a soma das três, quando o fornecedor recebe uma
+   * delas só. Os `totais` por coluna continuam sendo "quanto daria cada forma",
+   * que é o que o rodapé de cada coluna mostra.
+   */
+  const somaDaForma = { comBvNf: 0, semBvComNf: 0, semBvSemNf: 0 };
+  for (const i of itens) {
+    const forma = formaPresumida(i);
+    if (forma) somaDaForma[forma] = r2(somaDaForma[forma] + (valorDefinido(i[forma]) ?? 0));
+  }
+  const contratado = r2(somaDaForma.comBvNf + somaDaForma.semBvComNf + somaDaForma.semBvSemNf);
+
   return {
     linhas: out,
     totais,
@@ -305,11 +335,11 @@ export function resumoContratacao(itens: ItemContratacaoOs[], linhas: EcLinha[])
       semBvComNf: temValor((l) => l.semBvComNf),
       semBvSemNf: temValor((l) => l.semBvSemNf),
     },
-    totalComNota: r2(totais.comBvNf + totais.semBvComNf),
-    totalSemNota: totais.semBvSemNf,
-    contratado: r2(totais.comBvNf + totais.semBvComNf + totais.semBvSemNf),
+    totalComNota: r2(somaDaForma.comBvNf + somaDaForma.semBvComNf),
+    totalSemNota: somaDaForma.semBvSemNf,
+    contratado,
     bvTotal: bvDaContratacao(itens).valor,
-    liquido: r2(totais.comBvNf + totais.semBvComNf + totais.semBvSemNf - bvDaContratacao(itens).valor),
+    liquido: r2(contratado - bvDaContratacao(itens).valor),
   };
 }
 

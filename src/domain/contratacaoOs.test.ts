@@ -120,11 +120,36 @@ describe("Resumo dos Custos", () => {
     expect(r.colunas).toEqual({ comBvNf: true, semBvComNf: false, semBvSemNf: true });
   });
 
-  it("separa o que gera nota do que não gera", () => {
-    // Os dados de emissão falam só das duas colunas "com NF".
+  it("separa o que gera nota do que não gera, uma forma por item", () => {
+    // Os dois itens ainda sem forma escolhida contam pela "Com BV e NF" — a
+    // alternativa "Sem BV e Sem NF" deles não é dinheiro a mais (11/11/2026).
     const r = resumoContratacao(contratacao, linhas);
     expect(r.totalComNota).toBe(15000);
-    expect(r.totalSemNota).toBe(12000);
+    expect(r.totalSemNota).toBe(0);
+    const escolhida = resumoContratacao([{ ...contratacao[0], forma: "semBvSemNf" }, contratacao[1]], linhas);
+    expect(escolhida.totalComNota).toBe(5000);
+    expect(escolhida.totalSemNota).toBe(8000);
+  });
+
+  it("sem forma escolhida, o valor contratado NÃO soma as três alternativas", () => {
+    // OS (03) do Prêmio Jornalista: R$ 4.500 / 3.825 / 3.825 saía R$ 12.150.
+    const tres = [item({
+      ecLinhaId: "l1",
+      bv: { modo: "percentual", valor: 15 },
+      comBvNf: { naoSeAplica: false, valor: 4500, justificativaBv: "" },
+      semBvComNf: { naoSeAplica: false, valor: 3825, justificativaBv: "" },
+      semBvSemNf: { naoSeAplica: false, valor: 3825, justificativaBv: "" },
+    })];
+    const r = resumoContratacao(tres, linhas);
+    expect(r.contratado).toBe(4500);
+    expect(r.bvTotal).toBe(675);
+    expect(r.liquido).toBe(3825);
+    // As três continuam à vista, para o Financeiro escolher.
+    expect(r.linhas[0]).toMatchObject({ comBvNf: 4500, semBvComNf: 3825, semBvSemNf: 3825 });
+    // Escolhida a "Sem BV e Com NF", vale ela, e o BV some.
+    const e = resumoContratacao([{ ...tres[0], forma: "semBvComNf" }], linhas);
+    expect(e.contratado).toBe(3825);
+    expect(e.liquido).toBe(3825);
   });
 
   it("zero preenchido continua sendo zero, e não \"não se aplica\"", () => {

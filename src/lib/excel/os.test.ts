@@ -221,9 +221,11 @@ describe("Excel da OS — modelo novo", () => {
     expect(total).toContain("13.000,00"); // com BV e NF
     expect(total).toContain("12.300,00"); // sem BV, com NF
     expect(total).toContain("11.600,00"); // sem BV, sem NF
-    // E o que vira nota fiscal são só as duas colunas COM nota.
+    // O que vira nota fiscal conta UMA forma por item (11/11/2026): sem forma
+    // escolhida, a Com BV e NF — antes somava duas alternativas (25.300).
     expect(texto).toContain("Total a Faturar");
-    expect(texto).toContain("25300"); // 13.000 + 12.300
+    expect(texto).toContain("13000");
+    expect(texto).not.toContain("25300");
   });
 
   it("forma que não se aplica a item nenhum não vira coluna", async () => {
