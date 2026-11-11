@@ -15,6 +15,8 @@ export type Recurso =
   | "oss.editar"
   | "oss.emitir"
   | "oss.validarContrato"
+  | "oss.etapaFinanceiro"
+  | "oss.etapaBackoffice"
   | "checklists"
   | "checklists.editar"
   | "checklists.excluir"
@@ -38,6 +40,8 @@ export const TODOS_RECURSOS: Recurso[] = [
   "oss.editar",
   "oss.emitir",
   "oss.validarContrato",
+  "oss.etapaFinanceiro",
+  "oss.etapaBackoffice",
   "checklists",
   "checklists.editar",
   "checklists.excluir",
@@ -129,6 +133,22 @@ export const PERMISSOES_ESPECIAIS: { key: Recurso; label: string; hint: string }
     label: "Validar contrato da OS cultural (Direção de Produção)",
     hint: "Recebe a OS cultural com contrato, confere os Dados para Contrato e a envia ao Financeiro",
   },
+  /**
+   * QUEM É COBRADO por cada etapa da OS (11/11/2026). Separado de quem PODE
+   * agir: "Bloco financeiro" e "Emitir a OS" também estão com a Coordenação e a
+   * Diretoria Produção, que recebiam "Aguardando o Financeiro" de todas as OSs
+   * da casa. Estas chaves só decidem para quem vai a pendência da etapa.
+   */
+  {
+    key: "oss.etapaFinanceiro",
+    label: "Responde pela etapa do Financeiro na OS",
+    hint: "Recebe a pendência \"Aguardando o Financeiro\" de cada OS — hoje a Coordenação Administrativo-Financeira",
+  },
+  {
+    key: "oss.etapaBackoffice",
+    label: "Responde pela etapa do Back-office na OS",
+    hint: "Recebe a pendência \"Aguardando o Back-office emitir\" de cada OS — hoje o Back-office",
+  },
   { key: "configuracoes", label: "Configurações", hint: "Empresas do grupo, áreas e usuários" },
   { key: "logs", label: "Logs do sistema", hint: "Trilha de auditoria — normalmente só o Administrador" },
 ];
@@ -174,6 +194,7 @@ export const PERMISSOES: Record<Papel, Recurso[]> = {
     "guia",
   ],
   Administrativo: [
+    "oss.etapaFinanceiro",
     "projetos",
     "ecs",
     "oss",

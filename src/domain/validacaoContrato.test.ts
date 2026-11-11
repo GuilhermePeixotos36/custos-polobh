@@ -12,10 +12,12 @@ import type { Recurso } from "@/store/auth";
 const AREAS: Record<string, Recurso[]> = {
   "Diretoria Produção (Marisa)": ["projetos", "ecs", "oss", "oss.emitir", "oss.validarContrato", "financeiro"],
   "Produção (Barbara)": ["projetos", "ecs", "ecs.editar", "oss", "oss.editar"],
-  "Coordenação Adm.-Financeira (Tiago)": ["projetos", "ecs", "oss", "oss.editar", "oss.emitir", "financeiro"],
+  "Coordenação Adm.-Financeira (Tiago)": ["projetos", "ecs", "oss", "oss.editar", "oss.emitir", "financeiro", "oss.etapaFinanceiro"],
+  "Coordenação Produção (Carol)": ["projetos", "ecs", "oss", "oss.editar", "oss.emitir", "financeiro"],
+  "Back-office (Viviane)": ["projetos", "ecs", "oss", "oss.editar", "oss.emitir", "financeiro", "oss.etapaBackoffice"],
 };
 
-const pendenciaDaEtapa = (fase: "direcao" | "financeiro"): Pendencia => ({
+const pendenciaDaEtapa = (fase: "direcao" | "financeiro" | "backoffice"): Pendencia => ({
   id: `os.fase:os1:${fase}`,
   tipo: "os.fase",
   titulo: `${ESPERANDO_FASE[fase]} (OS teste)`,
@@ -36,11 +38,12 @@ describe("OS cultural com contrato: Produção → Direção de Produção → F
     expect(quemRecebe(pendenciaDaEtapa("direcao"))).toEqual(["Diretoria Produção (Marisa)"]);
   });
 
-  it("depois de validada, a pendência passa ao Financeiro (e a Marisa, que vê o financeiro, segue vendo)", () => {
-    expect(quemRecebe(pendenciaDaEtapa("financeiro"))).toEqual([
-      "Diretoria Produção (Marisa)",
-      "Coordenação Adm.-Financeira (Tiago)",
-    ]);
+  it("depois de validada, a pendência passa SÓ ao Financeiro — não à Carol nem à Marisa, que também veem valores", () => {
+    expect(quemRecebe(pendenciaDaEtapa("financeiro"))).toEqual(["Coordenação Adm.-Financeira (Tiago)"]);
+  });
+
+  it("a etapa do Back-office cobra só o Back-office", () => {
+    expect(quemRecebe(pendenciaDaEtapa("backoffice"))).toEqual(["Back-office (Viviane)"]);
   });
 
 });

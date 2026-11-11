@@ -259,7 +259,11 @@ export async function salvarEcNaPasta(ec: Ec): Promise<import("@/lib/arquivarDoc
    * mesma versão com conteúdos diferentes.
    */
   const algumNaPasta = resultados.some((x) => x.status === "ok" || x.status === "ja-existia");
-  if (algumNaPasta) await repo.ecs.marcarBaixada(ec.id).catch(() => {});
+  // Guarda também a impressão digital do conteúdo que foi (ver `domain/impressaoEc`).
+  if (algumNaPasta) {
+    const { impressaoDigitalEc } = await import("@/domain/impressaoEc");
+    await repo.ecs.marcarBaixada(ec.id, impressaoDigitalEc(ec)).catch(() => {});
+  }
   if (r.status === "ok" || r.status === "ja-existia") {
     auditar({ categoria: "Exportação", acao: "ec.pasta", mensagem: `EC ${rotuloNumeroEc(ec.numero)} salva na pasta do projeto (${nomes.join(" e ")})`, alvoId: ec.id });
   }
