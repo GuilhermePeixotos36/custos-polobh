@@ -57,115 +57,133 @@ export interface ClausulaContrato {
 
 /* ------------------------------ os textos ------------------------------- */
 
+/*
+ * NEGRITO NOS TEXTOS (11/11/2026). As cláusulas são campos de texto, e um campo
+ * de texto não guarda negrito — então o negrito é marcado com `**assim**`, e
+ * quem desenha o documento (`partirEmDestaques`) o devolve. CONTRATANTE e
+ * CONTRATADO(A) continuam em negrito sozinhos, onde quer que apareçam.
+ *
+ * Os textos abaixo seguem a "Solicitação de Revisão do Sistema de Geração de
+ * Contratos", de 11/11/2026. O que o Corporativo tem de diferente do Cultural
+ * está marcado em cada trecho.
+ */
+
 const OBJETO_INTRO =
   "Entre as partes acima qualificadas, fica justo e acertado o presente Contrato, " +
   "que se regerá pelas cláusulas e condições seguintes:";
 
-/** Obrigações — a parte que os dois modelos têm igual, antes das do CONTRATANTE. */
-const OBRIGACOES_CONTRATADO = (culturais: boolean) =>
+const OBRIGACOES = (cultural: boolean) =>
   [
     "São obrigações do(a) CONTRATADO(A):",
     "",
     "Fornecer, dentro dos prazos, especificações técnicas e de qualidade previamente acordados, " +
       "ao(à) CONTRATANTE os produtos e ou serviços descritos na Cláusula Primeira deste instrumento;",
-    culturais
-      ? "Fornecer notas e ou recibos fiscais válidos e devidamente preenchidos em conformidade com as " +
-        "instruções da Legislação de Incentivo à Cultura por meio da qual serão efetuados os pagamentos " +
-        "do(a) CONTRATANTE e com o que está estabelecido neste documento."
-      : "Fornecer notas e ou recibos fiscais válidos e devidamente preenchidos em conformidade com as " +
-        "instruções fornecidas, por meio da qual serão efetuados os pagamentos do(a) CONTRATADO(A), " +
-        "e com o que está estabelecido neste documento.",
-    "",
-    "O(A) CONTRATADO(A) declara, para todos os fins de direito, que está regular com todas as suas " +
-      "obrigações trabalhistas, estando com todos os seus funcionários devidamente contratados conforme " +
-      "as normas de contrato de trabalho da CLT, ou respeitando a Legislação 6.019/1974, que prevê regras " +
-      "para contratação de trabalho temporário, respondendo diretamente a qualquer passivo trabalhista que " +
-      "tiver origem em suas ações ou omissões.",
-    "Caso haja alguma autuação, referente a trabalhadores que sejam funcionários diretos, indiretos, " +
-      "terceirizados, temporários, ou de qualquer natureza, do(a) CONTRATADO(A), o mesmo é o responsável " +
-      "direto pela realização de defesas e justificativas, sendo ainda responsável por eventuais multas " +
-      "aplicadas pelo Ministério do Trabalho e Emprego, ou qualquer ente fiscalizador da atividade realizada.",
+    cultural
+      ? "Fornecer notas e/ou recibos fiscais válidos e devidamente preenchidos em conformidade com as " +
+        "instruções da Legislação de Incentivo à Cultura, por meio da qual serão efetuados os pagamentos " +
+        "do(a) CONTRATANTE, e com o que está estabelecido neste documento;"
+      : // Corporativo: a mesma frase, sem a legislação de incentivo (que ele não tem).
+        "Fornecer notas e/ou recibos fiscais válidos e devidamente preenchidos em conformidade com as " +
+        "instruções fornecidas, por meio das quais serão efetuados os pagamentos ao(à) CONTRATADO(A), " +
+        "e com o que está estabelecido neste documento;",
+    "Assegurar, para todos os fins de direito, a regularidade de suas obrigações trabalhistas, mantendo " +
+      "todos os seus funcionários devidamente contratados conforme as normas da CLT ou da Lei n.º 6.019/1974 " +
+      "(que dispõe sobre o trabalho temporário). O(a) CONTRATADO(A) responderá diretamente por qualquer " +
+      "passivo trabalhista decorrente de suas ações ou omissões.",
+    "Assumir a responsabilidade direta pela apresentação de defesas e justificativas, bem como pelo " +
+      "pagamento de eventuais multas aplicadas pelo Ministério do Trabalho e Emprego ou por qualquer outro " +
+      "órgão fiscalizador da atividade, caso ocorra alguma autuação referente a trabalhadores — sejam eles " +
+      "empregados diretos, indiretos, terceirizados, temporários ou vinculados a qualquer título ao(à) CONTRATADO(A).",
     "",
     "São obrigações do(a) CONTRATANTE:",
     "",
-  ].join("\n");
-
-const OBRIGACOES = (culturais: boolean) =>
-  OBRIGACOES_CONTRATADO(culturais) +
-  [
-    ...(culturais
+    ...(cultural
       ? [
-          "Receber e administrar os recursos financeiros destinados exclusivamente ao projeto identificado " +
-            "no campo OBJETO deste termo em conformidade com as determinações da Legislação de Incentivo à Cultura;",
+          "Receber e gerir os recursos financeiros destinados exclusivamente ao projeto identificado na " +
+            "cláusula do **OBJETO** deste contrato, em conformidade com a legislação de incentivo à cultura aplicável;",
         ]
       : []),
-    "Efetuar, dentro dos prazos previamente acordados, o(s) pagamento(s) dos produtos e ou serviços " +
-      "fornecidos pelo(a) CONTRATADO(A) conforme determinado por este termo;",
-    "Fornecer ao(à) CONTRATADO(A) condições necessárias para o bom fornecimento de produtos e ou serviços.",
+    "Efetuar, nos prazos e condições acordados, os pagamentos referentes aos bens fornecidos e/ou serviços " +
+      "prestados pelo(a) CONTRATADO(A), conforme estipulado neste instrumento;",
+    "Assegurar ao(à) CONTRATADO(A) as condições e informações necessárias para a adequada entrega dos bens " +
+      "e/ou execução dos serviços.",
   ].join("\n");
 
 const VIGENCIA = [
-  "A vigência do presente contrato terá início na data de sua assinatura e fim com o cumprimento " +
-    "satisfatório, pelas partes, de todas as obrigações nele previstas;",
-  "Em caso de descumprimento de quaisquer cláusulas do presente contrato por qualquer das partes, " +
-    "a parte inocente poderá dar por encerrado o contrato, independentemente de aviso prévio ou " +
-    "antecedência, arcando a parte culpada com as perdas e danos que se apurarem e ficando obrigada a " +
-    "assegurar à parte inocente todos os direitos que lhe couberem em função do presente contrato;",
-  "Em hipótese de caso fortuito ou de força maior, conforme definido pelo Código Civil Brasileiro, " +
-    "o presente contrato poderá ser rescindido de pleno direito, sem qualquer ônus para as partes.",
-  "Terá o(a) CONTRATADO(A), todavia, direito de receber proporcionalmente a remuneração prevista na " +
-    "Cláusula Segunda pelos serviços já tenham sido prestados até a data do evento causador do " +
-    "encerramento do contrato.",
+  "O presente contrato entrará em vigor na data de sua assinatura e permanecerá válido até o cumprimento " +
+    "integral e satisfatório de todas as obrigações nele previstas por ambas as partes.",
+  "Em caso de descumprimento de qualquer obrigação prevista neste instrumento, a parte prejudicada poderá " +
+    "rescindir o contrato imediatamente, independentemente de aviso ou notificação prévia. Nessa hipótese, a " +
+    "parte infratora arcará com as perdas e danos apurados e deverá assegurar à parte inocente todos os " +
+    "direitos decorrentes deste contrato.",
+  "Na hipótese de caso fortuito ou força maior, nos termos do Código Civil Brasileiro, o contrato poderá " +
+    "ser rescindido de pleno direito, sem ônus ou penalidades para as partes. Contudo, o(a) CONTRATADO(A) " +
+    "terá o direito de receber a remuneração prevista na Cláusula Segunda de forma proporcional aos serviços " +
+    "que já tenham sido efetivamente prestados até a data do evento.",
 ].join("\n");
 
-const INEXECUCAO =
-  "A título de Cláusula Penal, a inexecução contratual total ou o inadimplemento das obrigações " +
-  "contratuais assumidas e aqui acordadas pelas partes ensejará o pagamento de multa de 10% (dez por cento) " +
-  "do valor total deste Termo à parte que der causa à inexecução. Quando a obrigação for cumprida em parte " +
-  "pelo infrator a parte prejudicada poderá reduzir proporcionalmente a pena ora estipulada levando-se em " +
-  "consideração o montante remanescente da obrigação não cumprida, nos termos do artigo 413 do Código Civil Brasileiro.";
+const INEXECUCAO = [
+  "A título de Cláusula Penal, a inexecução total ou o inadimplemento das obrigações assumidas neste " +
+    "instrumento ensejará à parte infratora o pagamento de multa equivalente a 10% (dez por cento) do valor " +
+    "total deste Termo, em favor da parte prejudicada.",
+  "**Parágrafo Único**. Caso a obrigação seja cumprida parcialmente, a penalidade prevista no caput deverá " +
+    "ser reduzida de forma proporcional ao montante remanescente não cumprido, nos termos do artigo 413 do " +
+    "Código Civil Brasileiro.",
+].join("\n");
 
 const CONFIDENCIALIDADE = [
-  "As partes concordam em manter sigilo e confidencialidade, ad eternum, de todas as informações " +
-    "confidenciais trocadas entre elas incluindo, mas não se limitando, a dados financeiros, detalhes " +
-    "desta negociação, e informações de propriedade intelectual.",
-  "",
-  "As partes concordam em não usar ou revelar quaisquer informações confidenciais a terceiros, exceto " +
-    "com o consentimento prévio por escrito da outra parte ou como for exigido por lei.",
-  "Cada parte responderá, perante a outra, pelos danos a que der causa por suas ações ou omissões, " +
-    "violações contratuais e legais, indenizando por perdas e danos.",
-  "As partes responderão, igualmente, por si, seus prepostos, empregados ou colaboradores, inclusive " +
-    "pelo descumprimento da obrigação de sigilo e confidencialidade.",
+  "As Partes comprometem-se a manter o mais absoluto sigilo e confidencialidade sobre todas as informações " +
+    "confidenciais trocadas entre si durante a vigência deste instrumento e pelo prazo de 5 (cinco) anos após " +
+    "o seu término, independentemente do motivo, incluindo, mas não se limitando a dados financeiros, " +
+    "estratégias comerciais, detalhes desta negociação e informações de propriedade intelectual.",
+  "**Parágrafo Primeiro**. As Partes obrigam-se a não utilizar, reproduzir ou divulgar quaisquer informações " +
+    "confidenciais a terceiros sem o consentimento prévio e expresso, por escrito, da Parte reveladora.",
+  "**Parágrafo Segundo**. Não serão consideradas confidenciais as informações que: (i) já forem de domínio " +
+    "público no momento da revelação ou tornarem-se públicas sem culpa da Parte receptora; (ii) já eram " +
+    "legitimamente conhecidas pela Parte receptora antes de sua divulgação; ou (iii) tiverem sua divulgação " +
+    "exigida por lei ou ordem judicial, hipótese em que a Parte receptora deverá notificar previamente a outra " +
+    "Parte, sempre que legalmente possível, para que esta possa tomar as medidas cabíveis.",
+  "**Parágrafo Terceiro**. Cada Parte responderá integralmente perante a outra por quaisquer perdas e danos " +
+    "comprovados a que der causa decorrentes do descumprimento desta cláusula, inclusive por atos ou omissões " +
+    "de seus sócios, administradores, empregados, prepostos, prestadores de serviços ou colaboradores, sem " +
+    "prejuízo das demais sanções legais e contratuais aplicáveis.",
 ].join("\n");
 
-const FINAIS = (culturais: boolean) =>
+const FINAIS = (cultural: boolean) =>
   [
-    "Qualquer ato de tolerância ou omissão de qualquer das partes não constituirá novação, renúncia ou " +
-      "modificação do pactuado, ficando convencionado para todos os fins de direito que o ato será de mera liberalidade;",
-    "",
-    ...(culturais
+    "**Tolerância e Novação:** A eventual tolerância ou omissão de qualquer das Partes quanto ao " +
+      "descumprimento de obrigações aqui assumidas não constituirá novação, renúncia ou alteração do " +
+      "pactuado, representando mera liberalidade que não impedirá a exigência futura do cumprimento " +
+      "integral deste Contrato.",
+    ...(cultural
       ? [
-          "Qualquer outro serviço relacionado ao Projeto Cultural deverá ser objeto de novo contrato e nova remuneração;",
-          "",
+          "**Serviços Adicionais:** A execução de qualquer outro serviço relacionado ao Projeto Cultural não " +
+            "previsto expressamente no objeto deste instrumento dependerá de prévia negociação entre as Partes " +
+            "e deverá ser formalizada por meio de termo aditivo ou novo contrato, mediante remuneração " +
+            "específica a ser ajustada.",
         ]
       : []),
-    "As partes concordam com os termos deste contrato que não poderá receber emendas, complementações, " +
-      "a não ser que tais alterações sejam feitas através de novo documento escrito;",
-    "",
-    "O presente instrumento é firmado em caráter de absoluto sigilo e confidencialidade, estando ajustado " +
-      "entre as partes que seu teor não poderá ser levado ao conhecimento de terceiros, salvo nos casos " +
-      "obrigatórios previstos em lei.",
+    "**Alterações Contratuais:** As Partes concordam integralmente com os termos deste Contrato, o qual " +
+      "somente poderá ser alterado, aditado ou complementado mediante instrumento escrito devidamente " +
+      "assinado por ambas as Partes.",
+    "**Sigilo do Instrumento:** Os termos e condições deste Contrato sujeitam-se integralmente às obrigações " +
+      "de sigilo e confidencialidade previstas na Cláusula Quinta.",
   ].join("\n");
 
 const FORO =
-  "Fica eleito o foro de Belo Horizonte, para reger o presente instrumento e dirimir eventuais dúvidas a ele relacionadas.";
+  "Fica eleito o foro da Comarca de Belo Horizonte, Estado de Minas Gerais, para dirimir quaisquer dúvidas " +
+  "ou litígios oriundos do presente instrumento, com renúncia expressa a qualquer outro, por mais " +
+  "privilegiado que seja.";
 
 /** O fecho, logo antes da cidade e da data. Não é cláusula, e não é editável. */
 export const FECHO_CONTRATO =
-  "E por estarem assim justas e contratadas, assinam as partes o presente instrumento em 02 (duas) vias " +
-  "de igual teor e forma, na presença das testemunhas abaixo.";
+  "E, por estarem assim justas e contratadas, as Partes firmam o presente instrumento por meio eletrônico, " +
+  "reconhecendo como válida e plenamente eficaz a assinatura eletrônica utilizada, para todos os fins de " +
+  "direito, nos termos dos artigos 107 e 219 do Código Civil, do art. 10 da Medida Provisória nº 2.200-2/2001, " +
+  "do art. 411 do Código de Processo Civil e da Lei nº 14.063/2020, renunciando ao direito de impugnar sua " +
+  "autenticidade, integridade e validade jurídica.";
 
-/** A frase que fecha a Cláusula Primeira nos dois modelos, depois dos valores. */
+/** A frase que fecha os valores — é o padrão do campo "Observações Gerais" do contrato. */
 export const RESSALVA_VALORES =
   "Estes valores poderão ser revistos em caso de faltas ou execução parcial dos serviços ora contratados.";
 
@@ -182,10 +200,10 @@ export function clausulasPadrao(modelo: ModeloContrato): ClausulaContrato[] {
       padrao: OBJETO_INTRO,
     },
     { chave: "obrigacoes", titulo: "CLÁUSULA SEGUNDA: DAS OBRIGAÇÕES DAS PARTES", padrao: OBRIGACOES(cultural) },
-    { chave: "vigencia", titulo: "CLÁUSULA TERCEIRA: DA VIGÊNCIA", padrao: VIGENCIA },
+    { chave: "vigencia", titulo: "CLÁUSULA TERCEIRA: DA VIGÊNCIA E DA RESCISÃO", padrao: VIGENCIA },
     { chave: "inexecucao", titulo: "CLÁUSULA QUARTA: DA INEXECUÇÃO DO CONTRATO", padrao: INEXECUCAO },
     { chave: "confidencialidade", titulo: "CLÁUSULA QUINTA: DA CONFIDENCIALIDADE", padrao: CONFIDENCIALIDADE },
-    { chave: "finais", titulo: "CLÁUSULA SEXTA: DAS CONSIDERAÇÕES FINAIS", padrao: FINAIS(cultural) },
+    { chave: "finais", titulo: "CLÁUSULA SEXTA: DAS DISPOSIÇÕES GERAIS", padrao: FINAIS(cultural) },
     { chave: "foro", titulo: "CLÁUSULA SÉTIMA: DO FORO", padrao: FORO },
   ];
 }

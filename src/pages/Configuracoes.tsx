@@ -3,6 +3,9 @@ import { useAvisoDeSaida } from "@/hooks/useAvisoDeSaida";
 import { ChecklistModelosCard } from "@/components/ChecklistModelosCard";
 import { ConsumoIaCard } from "@/components/ConsumoIaCard";
 import { AvisosNoAparelho } from "@/components/AvisosNoAparelho";
+import { gravarTestemunhasDaCasa, testemunhasDaCasa } from "@/lib/contratoPdf";
+import { TESTEMUNHAS_PADRAO, type TestemunhaFixa } from "@/domain/testemunhasContrato";
+import { maskCpfCnpjInput } from "@/lib/format";
 import { ManutencaoDevCard } from "@/components/ManutencaoDevCard";
 import { createPortal } from "react-dom";
 import { PageShell } from "@/components/layout/AppLayout";
@@ -70,6 +73,8 @@ export function Configuracoes() {
         <div className="space-y-4">
           <EmpresasGrupoCard />
 
+          <TestemunhasContratoCard />
+
           <NotificacoesCard />
 
           <HelpDeskCard />
@@ -124,6 +129,60 @@ function NotificacoesCard() {
         Notificações no aparelho
       </CardTitle>
       <AvisosNoAparelho />
+    </Card>
+  );
+}
+
+/**
+ * As TESTEMUNHAS FIXAS dos contratos (11/11/2026): o Tiago e a Viviane assinam
+ * todos os contratos, então os dados deles moram aqui, uma vez, e não em cada
+ * OS. Só quem administra grava (a mesma regra dos demais ajustes da casa).
+ */
+function TestemunhasContratoCard() {
+  const [lista, setLista] = useState<TestemunhaFixa[]>(TESTEMUNHAS_PADRAO);
+  const [salvando, setSalvando] = useState(false);
+
+  useEffect(() => {
+    void testemunhasDaCasa().then(setLista);
+  }, []);
+
+  const editar = (i: number, patch: Partial<TestemunhaFixa>) =>
+    setLista((l) => l.map((t, k) => (k === i ? { ...t, ...patch } : t)));
+
+  async function salvar() {
+    setSalvando(true);
+    try {
+      await gravarTestemunhasDaCasa(lista);
+      toast("Testemunhas dos contratos salvas.", "success");
+    } catch (e) {
+      toast(`Não foi possível salvar: ${(e as Error).message}`, "danger");
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardTitle hint="Assinam todos os contratos gerados pelo sistema — não é preciso preencher em cada OS">
+        Testemunhas dos contratos
+      </CardTitle>
+      <div className="grid md:grid-cols-2 gap-4">
+        {lista.map((t, i) => (
+          <div key={i} className="space-y-2">
+            <Field label={`Testemunha ${i + 1} — nome`}>
+              <Input formato="titulo" value={t.nome} onChange={(e) => editar(i, { nome: e.target.value })} />
+            </Field>
+            <Field label="CPF">
+              <Input value={t.cpf} onChange={(e) => editar(i, { cpf: maskCpfCnpjInput(e.target.value) })} inputMode="numeric" placeholder="000.000.000-00" />
+            </Field>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3">
+        <Button size="sm" onClick={() => void salvar()} disabled={salvando}>
+          {salvando ? "Salvando…" : "Salvar testemunhas"}
+        </Button>
+      </div>
     </Card>
   );
 }
@@ -193,6 +252,12 @@ function EmpresasGrupoCard() {
                 </Field>
                 <Field label="Inscrição Municipal">
                   <Input value={e.inscricaoMunicipal} onChange={(ev) => editar(e.id, { inscricaoMunicipal: ev.target.value })} onBlur={() => salvar(e.id)} />
+                </Field>
+                <Field label="Telefone (entra no contrato, na qualificação do Contratante)">
+                  <TelefoneInput value={e.telefone ?? ""} onChange={(v) => editar(e.id, { telefone: v })} />
+                  <button type="button" className="mt-1 text-[11.5px] font-bold text-primary-dark hover:underline" onClick={() => salvar(e.id)}>
+                    Salvar telefone
+                  </button>
                 </Field>
               </div>
             </div>

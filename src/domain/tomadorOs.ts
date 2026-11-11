@@ -29,6 +29,8 @@ export interface DadosTomador {
   cnpjCpf: string;
   inscricaoEstadual: string;
   inscricaoMunicipal: string;
+  /** Telefone para o contrato: o da empresa do grupo, ou o do representante do cliente. */
+  telefone?: string;
 }
 
 /** O valor de `tomador` que significa "lanço os dados à mão". */
@@ -70,6 +72,7 @@ export function dadosDoTomador(
       cnpjCpf: cliente.cnpjCpf,
       inscricaoEstadual: cliente.inscricaoEstadual,
       inscricaoMunicipal: cliente.inscricaoMunicipal,
+      telefone: cliente.representante?.telefones ?? "",
     };
   }
 
@@ -98,6 +101,7 @@ export function dadosDoTomador(
     cnpjCpf: empresa.cnpj,
     inscricaoEstadual: empresa.inscricaoEstadual,
     inscricaoMunicipal: empresa.inscricaoMunicipal,
+    telefone: empresa.telefone ?? "",
   };
 }
 

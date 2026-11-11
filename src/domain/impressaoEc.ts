@@ -44,6 +44,9 @@ function hash(texto: string): string {
   return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
 }
 
+/** A impressão de qualquer conteúdo (o contrato, por exemplo): mesmo conteúdo, mesma impressão. */
+export const impressaoDeConteudo = (valor: unknown): string => hash(estavel(valor));
+
 export function impressaoDigitalEc(ec: Ec): string {
   const {
     numero: _numero, slugPublico: _slug, versao: _versao, status: _status,

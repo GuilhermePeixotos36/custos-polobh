@@ -60,7 +60,9 @@ import { useSugestoes } from "@/hooks/useSugestoes";
 import { urlCredenciamento } from "@/lib/links";
 import { calcularAcerto } from "@/domain/acertoFinanceiro";
 import { clausulasPadrao, modeloDoContrato, type ChaveClausula, type ModeloContrato } from "@/domain/contratoModelo";
-import { baixarContrato } from "@/lib/docx";
+import { ContratoPreview } from "@/components/ContratoPreview";
+import { quantidadeDoContrato } from "@/domain/contratoDocumento";
+import { blobDoPdf, emitirContratoPdf, prepararContratoPdf, type PreparoContrato } from "@/lib/contratoPdf";
 import { dadosDoTomador, opcoesDeTomador, RETENCOES_PADRAO, TOMADOR_OUTRO } from "@/domain/tomadorOs";
 import { editaFinanceiro, vezDoBloco, type AreaOs, comValidacaoDeContrato, fasesDoCaminho, editaProducao, ESPERANDO_FASE, faseAnterior, faseDaOs, osEmitida, ROTULO_FASE, type FaseOs } from "@/domain/faseOs";
 import { RevisaoEcModal } from "@/components/RevisaoEcModal";
@@ -409,6 +411,9 @@ export function OsForm() {
 
   const [os, setOs] = useState<Os | null>(null);
   const [ecCtx, setEcCtx] = useState<Ec | null>(null);
+  /** O contrato em PDF: a prévia aberta (o que o "Emitir" enviaria) e o trabalho em andamento. */
+  const [previaContrato, setPreviaContrato] = useState<{ url: string; preparo: PreparoContrato } | null>(null);
+  const [gerandoContrato, setGerandoContrato] = useState(false);
   const [baseline, setBaseline] = useState("");
   const [cnpjMsg, setCnpjMsg] = useState("");
   const [busy, setBusy] = useState(false);
@@ -746,18 +751,88 @@ export function OsForm() {
   /** Qual dos dois modelos vale aqui: o escolhido, ou o da modalidade do projeto. */
   const modeloContrato: ModeloContrato = os.contrato.modelo || modeloDoContrato(os.projeto.modalidade);
   const clausulas = clausulasPadrao(modeloContrato);
+  /** A quantidade do contrato (sem valor gravado, 1). */
+  const quantidadeCt = quantidadeDoContrato(os.contrato);
   const updClausula = (chave: ChaveClausula, texto: string) =>
     updCt({ clausulas: { ...(os.contrato.clausulas ?? {}), [chave]: texto } });
 
   const clienteDoProjeto = ecCtx.cliente;
-  async function baixarOContrato() {
+  const numeroDaVersao = (n: number) => String(n).padStart(2, "0");
+
+  const prepararContrato = () =>
+    prepararContratoPdf({ ...os!, contrato: { ...os!.contrato, contratante: quemContrata } }, ecCtx!, {
+      cliente: clienteDoProjeto,
+      empresas,
+    });
+
+  /** VISUALIZAR: o mesmo PDF que o "Emitir" enviaria, para conferir antes — nada é salvo. */
+  async function visualizarContrato() {
+    setGerandoContrato(true);
     try {
-      await baixarContrato(
-        { ...os!, contrato: { ...os!.contrato, contratante: quemContrata } },
-        { cliente: clienteDoProjeto, empresas }
-      );
+      const preparo = await prepararContrato();
+      setPreviaContrato({ url: URL.createObjectURL(blobDoPdf(preparo.bytes)), preparo });
     } catch (e) {
       toast(`Não foi possível gerar o contrato: ${(e as Error).message}`, "danger");
+    } finally {
+      setGerandoContrato(false);
+    }
+  }
+
+  function fecharPrevia() {
+    if (previaContrato) URL.revokeObjectURL(previaContrato.url);
+    setPreviaContrato(null);
+  }
+
+  /**
+   * EMITIR CONTRATO PDF (11/11/2026): gera o PDF e o envia para a pasta do
+   * projeto — não para os downloads da máquina. Cada versão é um arquivo (o
+   * nome leva a versão): mudou o conteúdo desde a última emissão, nasce a
+   * seguinte e a anterior fica na pasta como estava. A versão emitida fica
+   * gravada na OS.
+   */
+  async function emitirContrato() {
+    if (!os!.id || editando || sujo) {
+      toast("Salve a OS antes de emitir o contrato: o PDF sai do que está gravado.", "info");
+      return;
+    }
+    setGerandoContrato(true);
+    try {
+      const preparo = await prepararContrato();
+      const r = await emitirContratoPdf(ecCtx!.projetoId, preparo);
+      const v = numeroDaVersao(preparo.versao);
+      if (r.status === "erro") {
+        toast(`O contrato não chegou ao Dropbox: ${r.erro}. Tente de novo.`, "danger");
+        return;
+      }
+      if (r.status === "sem-pasta") {
+        toast("Este projeto não tem o link da pasta Dropbox em Dados Gerais. Informe o link e tente de novo.", "warning");
+        return;
+      }
+      if (!preparo.jaEmitido) {
+        const salvo = await repo.oss.salvar({
+          ...os!,
+          contrato: {
+            ...os!.contrato,
+            versaoEmitida: preparo.versao,
+            impressaoEmitida: preparo.impressao,
+            emitidoEm: new Date().toISOString(),
+            emitidoPor: nomeUsuario || "",
+          },
+        });
+        iniciar(ecCtx ? aplicarAutoPreenchimento(salvo, ecCtx) : salvo);
+      }
+      toast(
+        preparo.jaEmitido
+          ? `O contrato (${v}) já está na pasta do projeto, sem alterações desde então.`
+          : preparo.versao > 1
+            ? `Contrato (${v}) emitido e salvo na pasta do projeto. A (${numeroDaVersao(preparo.versao - 1)}) continua lá como estava.`
+            : `Contrato (${v}) emitido e salvo na pasta do projeto.`,
+        "success"
+      );
+    } catch (e) {
+      toast(`Não foi possível emitir o contrato: ${(e as Error).message}`, "danger");
+    } finally {
+      setGerandoContrato(false);
     }
   }
 
@@ -770,7 +845,7 @@ export function OsForm() {
         ...o,
         financeiro: { ...o.financeiro, valorUnitario: v, valorTotal: v, valorAPagar: v - o.financeiro.descontoNegociado },
         contrato: espelhaCt
-          ? { ...o.contrato, valorUnitario: v, valorTotal: v, valorAPagar: v - o.contrato.descontoNegociado }
+          ? { ...o.contrato, valorUnitario: v / quantidadeDoContrato(o.contrato), valorTotal: v, valorAPagar: v - o.contrato.descontoNegociado }
           : o.contrato,
       };
     });
@@ -1214,6 +1289,24 @@ export function OsForm() {
     });
   }
 
+  /**
+   * O SEGUNDO BOTÃO da Produção (11/11/2026): a OS vai direto para a Coordenação
+   * Administrativo-Financeira (a pendência é do Tiago), sem passar pela revisão
+   * da Direção de Produção. É uma escolha de quem monta a OS, e fica registrada
+   * no contrato — para a emissão não cobrar uma revisão que ninguém foi chamada
+   * a fazer.
+   */
+  async function enviarAoFinanceiroSemDirecao() {
+    if (!(await confirmar({
+      titulo: "Enviar esta OS direto para a Coordenação Administrativo-Financeira?",
+      mensagem:
+        "A OS não passa pela revisão da Direção de Produção. Os blocos da produção passam a leitura e a OS vira pendência da Coordenação Administrativo-Financeira. Você pode receber a OS de volta, se precisar.",
+      confirmarTexto: "Enviar ao Financeiro",
+    }))) return;
+    await salvar(undefined, { fase: "financeiro", contrato: { ...os!.contrato, revisaoDirecaoDispensada: true } });
+    setEditando(false);
+  }
+
   /** A Direção de Produção valida o contrato e passa a OS ao Financeiro. */
   async function validarContrato() {
     if (!(await confirmar({
@@ -1245,8 +1338,10 @@ export function OsForm() {
     await salvar(
       undefined,
       desfazValidacao
-        ? { fase: anterior, contrato: { ...os!.contrato, validadoEm: undefined, validadoPor: undefined } }
-        : { fase: anterior },
+        ? { fase: anterior, contrato: { ...os!.contrato, validadoEm: undefined, validadoPor: undefined, revisaoDirecaoDispensada: undefined } }
+        : (anterior === "producao" || anterior === "direcao") && os!.contrato.revisaoDirecaoDispensada
+          ? { fase: anterior, contrato: { ...os!.contrato, revisaoDirecaoDispensada: undefined } }
+          : { fase: anterior },
     );
   }
 
@@ -1284,7 +1379,7 @@ export function OsForm() {
     // OS cultural com contrato que não passou pela Direção de Produção (as que já
     // estavam no Financeiro antes de 11/11/2026, por exemplo): emitir pede
     // confirmação, e o caminho certo é devolver para a validação.
-    if (contratoCultural && haContrato && !os!.contrato.validadoEm) {
+    if (contratoCultural && haContrato && !os!.contrato.validadoEm && !os!.contrato.revisaoDirecaoDispensada) {
       if (!(await confirmar({
         titulo: "Esta OS não passou pela revisão da Direção de Produção",
         mensagem:
@@ -1430,25 +1525,47 @@ export function OsForm() {
             OS PDF
           </Button>
 
-          {/* CONTRATO EM WORD (16/09/2026) — o documento que o fornecedor
-              assina, nos modelos Corporativo e Cultural da casa. Só aparece
-              quando a EC pediu contrato. */}
+          {/* CONTRATO EM PDF (11/11/2026) — o documento que o fornecedor assina,
+              nos modelos Corporativo e Cultural da casa. Só aparece quando a EC
+              pediu contrato. "Visualizar" confere antes; "Emitir" envia o PDF
+              para a pasta do projeto, na versão seguinte se algo mudou. */}
           {haContrato && (
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={<IcDoc width={15} height={15} />}
-              onClick={() => void baixarOContrato()}
-            >
-              Contrato Word
-            </Button>
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<IcDoc width={15} height={15} />}
+                disabled={gerandoContrato}
+                onClick={() => void visualizarContrato()}
+              >
+                {gerandoContrato ? "Gerando…" : "Visualizar Contrato"}
+              </Button>
+              {os.id && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={<IcDoc width={15} height={15} />}
+                  disabled={gerandoContrato}
+                  onClick={() => void emitirContrato()}
+                >
+                  Emitir Contrato PDF
+                </Button>
+              )}
+            </>
           )}
 
           {/* A PASSAGEM DE BASTÃO — o comando principal de cada fase. */}
           {podeEditar && fase === "producao" && os.id && !encerradaDoc && (
-            <Button size="sm" icon={<IcSend width={15} height={15} />} disabled={busy} onClick={() => void enviarDaProducao()}>
-              {validaContrato ? "Enviar para Direção de Produção" : "Enviar OS para Conclusão Financeiro"}
-            </Button>
+            <>
+              <Button size="sm" icon={<IcSend width={15} height={15} />} disabled={busy} onClick={() => void enviarDaProducao()}>
+                {validaContrato ? "Enviar OS para Revisão da Direção" : "Enviar OS para Conclusão Financeiro"}
+              </Button>
+              {validaContrato && (
+                <Button size="sm" variant="secondary" icon={<IcSend width={15} height={15} />} disabled={busy} onClick={() => void enviarAoFinanceiroSemDirecao()}>
+                  Enviar OS para Revisão da Coordenação Administrativo-Financeira
+                </Button>
+              )}
+            </>
           )}
           {/* DIREÇÃO DE PRODUÇÃO (11/11/2026): confere os Dados para Contrato da
               OS cultural e passa a OS ao Financeiro. */}
@@ -2180,8 +2297,33 @@ export function OsForm() {
               <Textarea value={os.contrato.informacoesComplementares} onChange={(e) => updCt({ informacoesComplementares: e.target.value })} placeholder="O que este contrato tem de particular e não está no descritivo." />
               <TextosJaUsados valor={os.contrato.informacoesComplementares} opcoes={sugestoes.valores.informacoesComplementares} onEscolher={(informacoesComplementares) => updCt({ informacoesComplementares })} />
             </LinhaOs>
+            {/* OS CAMPOS DE VALOR, na ordem do contrato (11/11/2026): valor unitário,
+                quantidade, valor total, desconto, total a pagar. O total é unitário
+                × quantidade; digitar o total direto recalcula o unitário. */}
+            <LinhaOs label="Valor unitário">
+              <NumberInput
+                value={os.contrato.valorUnitario}
+                onValue={(v) => {
+                  const total = v * quantidadeCt;
+                  updCt({ valorUnitario: v, valorTotal: total, valorAPagar: total - os.contrato.descontoNegociado });
+                }}
+              />
+            </LinhaOs>
+            <LinhaOs label="Quantidade">
+              <NumberInput
+                value={quantidadeCt}
+                onValue={(q) => {
+                  const qtd = q > 0 ? q : 1;
+                  const total = os.contrato.valorUnitario * qtd;
+                  updCt({ quantidade: qtd, valorTotal: total, valorAPagar: total - os.contrato.descontoNegociado });
+                }}
+              />
+            </LinhaOs>
             <LinhaOs label="Valor total">
-              <NumberInput value={os.contrato.valorTotal} onValue={(v) => updCt({ valorUnitario: v, valorTotal: v, valorAPagar: v - os.contrato.descontoNegociado })} />
+              <NumberInput
+                value={os.contrato.valorTotal}
+                onValue={(v) => updCt({ valorUnitario: v / quantidadeCt, valorTotal: v, valorAPagar: v - os.contrato.descontoNegociado })}
+              />
               {ctDessincronizado && (
                 <div className="mt-1.5 flex items-center gap-2 flex-wrap text-[12px] text-warning">
                   <span className="font-semibold">
@@ -2191,7 +2333,7 @@ export function OsForm() {
                     type="button"
                     onClick={() => {
                       const v = os.financeiro.valorTotal;
-                      updCt({ valorUnitario: v, valorTotal: v, valorAPagar: v - os.contrato.descontoNegociado });
+                      updCt({ valorUnitario: v / quantidadeCt, valorTotal: v, valorAPagar: v - os.contrato.descontoNegociado });
                     }}
                     className="font-bold text-primary-dark hover:underline"
                   >
@@ -2201,7 +2343,7 @@ export function OsForm() {
               )}
             </LinhaOs>
             <LinhaOs label="Desconto Especial Negociado"><NumberInput value={os.contrato.descontoNegociado} onValue={(v) => updCt({ descontoNegociado: v, valorAPagar: os.contrato.valorTotal - v })} /></LinhaOs>
-            <LinhaOs label="Valor total a pagar"><Auto v={brl(os.contrato.valorAPagar)} /></LinhaOs>
+            <LinhaOs label="Valor Total a Pagar"><Auto v={brl(os.contrato.valorAPagar)} /></LinhaOs>
             <LinhaOs label="Forma de Pagamento">
               <Input value={os.contrato.formaPagamento ?? ""} sugestoes={sugestoes.valores.formaPagamento} onChange={(e) => updCt({ formaPagamento: e.target.value })} placeholder={FORMA_PAGAMENTO_PADRAO} />
             </LinhaOs>
@@ -2210,7 +2352,8 @@ export function OsForm() {
               <TextosJaUsados valor={os.contrato.observacoesGerais ?? ""} opcoes={sugestoes.valores.observacoesContrato} onEscolher={(observacoesGerais) => updCt({ observacoesGerais })} />
             </LinhaOs>
             <LinhaOs label="Data do Contrato"><Input type="date" value={os.contrato.dataContrato} onChange={(e) => updCt({ dataContrato: e.target.value })} /></LinhaOs>
-            <LinhaOs label="Rubrica"><Input value={os.contrato.rubrica} sugestoes={sugestoes.valores.rubrica} onChange={(e) => updCt({ rubrica: e.target.value })} placeholder="Iniciais de quem responde pelo contrato" /></LinhaOs>
+            {/* Sem o texto de ajuda "Iniciais de quem responde pelo contrato" (11/11/2026). */}
+            <LinhaOs label="Rubrica"><Input value={os.contrato.rubrica} sugestoes={sugestoes.valores.rubrica} onChange={(e) => updCt({ rubrica: e.target.value })} /></LinhaOs>
 
             {/* AS SETE CLÁUSULAS. Nos dois modelos, cada uma traz à margem a
                 anotação "Manter este campo editável" — é o texto da casa, e ele
@@ -2221,6 +2364,9 @@ export function OsForm() {
                 abertura; o descritivo e os valores logo abaixo dela são montados
                 com os dados da OS, e é por isso que o rótulo diz isso. */}
             <SubSecao>Cláusulas do Contrato — modelo {modeloContrato}</SubSecao>
+            <p className="px-1 pb-2 text-[11.5px] text-ink-3">
+              Para pôr um trecho em negrito no contrato, escreva-o entre dois asteriscos: **assim**. CONTRATANTE e CONTRATADO(A) já saem em negrito sozinhos.
+            </p>
             {clausulas.map((c) => {
               const escrito = os.contrato.clausulas?.[c.chave];
               const mudou = !!escrito && escrito.trim() !== c.padrao;
@@ -2258,33 +2404,9 @@ export function OsForm() {
                 placeholder="Belo Horizonte"
               />
             </LinhaOs>
-            {/* As duas testemunhas do modelo. Ficam em branco no documento
-                quando ninguém as informa — é assim que o contrato sai hoje, para
-                ser assinado à mão, e é assim que ele continua saindo. */}
-            {([1, 2] as const).map((n) => {
-              const campo = n === 1 ? "testemunha1" : "testemunha2";
-              const t = os.contrato[campo] ?? { nome: "", cpf: "" };
-              return (
-                <LinhaOs key={campo} label={`Testemunha ${n}`}>
-                  <div className="flex gap-2 flex-wrap">
-                    <Input
-                      className="flex-1 min-w-[180px]"
-                      formato="titulo"
-                      value={t.nome}
-                      onChange={(e) => updCt({ [campo]: { ...t, nome: e.target.value } })}
-                      placeholder="Nome"
-                    />
-                    <Input
-                      className="w-[170px]"
-                      value={t.cpf}
-                      onChange={(e) => updCt({ [campo]: { ...t, cpf: maskCpfCnpjInput(e.target.value) } })}
-                      placeholder="CPF"
-                      inputMode="numeric"
-                    />
-                  </div>
-                </LinhaOs>
-              );
-            })}
+            {/* TESTEMUNHAS FIXAS (11/11/2026): o Tiago e a Viviane assinam todos
+                os contratos, e os dados deles se editam em Configurações ›
+                Contratos — não há mais o que digitar em cada OS. */}
           </CardOs>
           </fieldset>
         )}
@@ -2294,10 +2416,15 @@ export function OsForm() {
             está ali, sem voltar ao topo. Gera a pendência da Coordenação
             Administrativo-Financeira, como o do cabeçalho. */}
         {podeEditar && fase === "producao" && os.id && !encerradaDoc && (
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2 flex-wrap">
             <Button icon={<IcSend width={15} height={15} />} disabled={busy} onClick={() => void enviarDaProducao()}>
-              {validaContrato ? "Enviar para Direção de Produção" : "Enviar OS para Conclusão Financeiro"}
+              {validaContrato ? "Enviar OS para Revisão da Direção" : "Enviar OS para Conclusão Financeiro"}
             </Button>
+            {validaContrato && (
+              <Button variant="secondary" icon={<IcSend width={15} height={15} />} disabled={busy} onClick={() => void enviarAoFinanceiroSemDirecao()}>
+                Enviar OS para Revisão da Coordenação Administrativo-Financeira
+              </Button>
+            )}
           </div>
         )}
         {podeValidarContrato && fase === "direcao" && !encerradaDoc && (
@@ -2672,6 +2799,16 @@ export function OsForm() {
         )}
 
       </div>
+
+      {previaContrato && (
+        <ContratoPreview
+          url={previaContrato.url}
+          titulo={previaContrato.preparo.contrato.tituloDocumento}
+          versao={previaContrato.preparo.versao}
+          jaEmitido={previaContrato.preparo.jaEmitido}
+          onFechar={fecharPrevia}
+        />
+      )}
 
       {/* Sem a pílula flutuante de pendências nesta tela (29/09/2026): as
           pendências da OS se resolvem nos próprios blocos e na conversa do alto. */}
