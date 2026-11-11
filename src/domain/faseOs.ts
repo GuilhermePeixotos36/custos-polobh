@@ -21,13 +21,25 @@
  * `oss.editar`, quem conclui tem `financeiro`, e a fase separa os dois momentos.
  */
 import type { Os } from "@/data/types";
+import type { Recurso } from "@/store/auth";
 
-export type FaseOs = "producao" | "financeiro" | "backoffice" | "emitida";
+/**
+ * DIREÇÃO DE PRODUÇÃO (11/11/2026). Na OS CULTURAL com contrato, os Dados para
+ * Contrato são preenchidos pela Produção e VALIDADOS pela Direção de Produção
+ * antes de a OS seguir para o Financeiro:
+ *
+ *   Produção monta → Direção de Produção valida o contrato → Financeiro → Back-office
+ *
+ * Nas outras OSs (corporativa, ou cultural sem contrato) essa etapa não existe
+ * e o caminho segue o de sempre — ver `comValidacaoDeContrato`.
+ */
+export type FaseOs = "producao" | "direcao" | "financeiro" | "backoffice" | "emitida";
 
-export const FASES_OS: FaseOs[] = ["producao", "financeiro", "backoffice", "emitida"];
+export const FASES_OS: FaseOs[] = ["producao", "direcao", "financeiro", "backoffice", "emitida"];
 
 export const ROTULO_FASE: Record<FaseOs, string> = {
   producao: "Com a produção",
+  direcao: "Com a Direção de Produção",
   financeiro: "Com o financeiro",
   backoffice: "Com o back-office",
   emitida: "Emitida",
@@ -36,6 +48,7 @@ export const ROTULO_FASE: Record<FaseOs, string> = {
 /** O que cada fase está esperando — a frase que a tela mostra no topo. */
 export const ESPERANDO_FASE: Record<FaseOs, string> = {
   producao: "A produção está montando esta OS.",
+  direcao: "Aguardando a Direção de Produção validar os dados do contrato.",
   financeiro: "Aguardando a Coordenação Administrativo-Financeira concluir a emissão e o faturamento.",
   backoffice: "Aguardando o Back-office emitir a OS.",
   emitida: "OS emitida.",
@@ -73,16 +86,32 @@ export const editaFinanceiro = (os: Pick<Os, "fase" | "status">): boolean => {
 /** A OS já saiu da casa — nada nela se edita, só se gera versão nova. */
 export const osEmitida = (os: Pick<Os, "fase" | "status">): boolean => faseDaOs(os) === "emitida";
 
+/**
+ * A OS passa pela Direção de Produção? Só a CULTURAL que tem contrato: é o
+ * contrato do projeto incentivado que a Direção valida.
+ */
+export const comValidacaoDeContrato = (cultural: boolean, temContrato: boolean): boolean => cultural && temContrato;
+
+/** As fases do caminho DESTA OS — sem a da Direção quando ela não valida. */
+export const fasesDoCaminho = (comValidacao: boolean): FaseOs[] =>
+  comValidacao ? FASES_OS : FASES_OS.filter((f) => f !== "direcao");
+const caminho = fasesDoCaminho;
+
 /** A próxima fase, ou `null` quando não há para onde avançar. */
-export const proximaFase = (fase: FaseOs): FaseOs | null => {
-  const i = FASES_OS.indexOf(fase);
-  return i >= 0 && i < FASES_OS.length - 1 ? FASES_OS[i + 1] : null;
+export const proximaFase = (fase: FaseOs, comValidacao = false): FaseOs | null => {
+  const c = caminho(comValidacao);
+  const i = c.indexOf(fase);
+  return i >= 0 && i < c.length - 1 ? c[i + 1] : null;
 };
 
 /** A fase anterior, para devolver o documento a quem o montou. */
-export const faseAnterior = (fase: FaseOs): FaseOs | null => {
-  const i = FASES_OS.indexOf(fase);
-  return i > 0 ? FASES_OS[i - 1] : null;
+export const faseAnterior = (fase: FaseOs, comValidacao = false): FaseOs | null => {
+  // Uma OS que está com a Direção volta sempre para a Produção, mesmo que o
+  // contrato tenha deixado de existir no caminho.
+  if (fase === "direcao") return "producao";
+  const c = caminho(comValidacao);
+  const i = c.indexOf(fase);
+  return i > 0 ? c[i - 1] : null;
 };
 
 /**
@@ -94,7 +123,10 @@ export const faseAnterior = (fase: FaseOs): FaseOs | null => {
  * Administrativo-Financeira, Back-office…), é aqui que o endereço fica mais
  * fino — uma linha, sem tocar no resto.
  */
-export const RECURSO_DA_FASE: Partial<Record<FaseOs, "financeiro" | "oss.emitir">> = {
+export const RECURSO_DA_FASE: Partial<Record<FaseOs, Recurso>> = {
+  // A validação do contrato tem chave própria: "Bloco financeiro" a Marisa
+  // divide com o Financeiro, e a pendência é só de quem valida.
+  direcao: "oss.validarContrato",
   financeiro: "financeiro",
   // A emissão tem chave própria (`oss.emitir`) desde 16/09/2026. Antes era
   // `oss.editar`, e aí a pendência do back-office caía também em quem só monta
@@ -103,9 +135,14 @@ export const RECURSO_DA_FASE: Partial<Record<FaseOs, "financeiro" | "oss.emitir"
 };
 
 /** Quem preenche cada bloco da OS (27/10/2026). */
-export type AreaOs = "Produção" | "Financeiro" | "Back-office";
+export type AreaOs = "Produção" | "Direção de Produção" | "Financeiro" | "Back-office";
 
-const ETAPA_DA_AREA: Record<AreaOs, FaseOs> = { "Produção": "producao", "Financeiro": "financeiro", "Back-office": "backoffice" };
+const ETAPA_DA_AREA: Record<AreaOs, FaseOs> = {
+  "Produção": "producao",
+  "Direção de Produção": "direcao",
+  "Financeiro": "financeiro",
+  "Back-office": "backoffice",
+};
 
 /**
  * DESTAQUE DOS BLOCOS DA VEZ (27/10/2026). Quem abre a OS quer saber o que
@@ -121,6 +158,6 @@ export function vezDoBloco(area: AreaOs, fase: FaseOs): { vez: boolean; aviso: s
   if (fase === "backoffice") return { vez: false, aviso: "Aberto ao Back-office para revisão" };
   return FASES_OS.indexOf(etapa) < FASES_OS.indexOf(fase)
     ? { vez: false, aviso: `${area} já concluiu — em leitura` }
-    : { vez: false, aviso: `Abre na etapa do ${area}` };
+    : { vez: false, aviso: `Abre na etapa ${area === "Direção de Produção" ? "da" : "do"} ${area}` };
 }
 

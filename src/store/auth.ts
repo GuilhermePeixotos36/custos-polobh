@@ -14,6 +14,7 @@ export type Recurso =
   | "oss"
   | "oss.editar"
   | "oss.emitir"
+  | "oss.validarContrato"
   | "checklists"
   | "checklists.editar"
   | "checklists.excluir"
@@ -36,6 +37,7 @@ export const TODOS_RECURSOS: Recurso[] = [
   "oss",
   "oss.editar",
   "oss.emitir",
+  "oss.validarContrato",
   "checklists",
   "checklists.editar",
   "checklists.excluir",
@@ -117,6 +119,16 @@ export const PERMISSOES_ESPECIAIS: { key: Recurso; label: string; hint: string }
     label: "Editar a lista padrão do check-list",
     hint: "Configurações › Check-list: as tarefas que nascem em todo projeto novo — normalmente Coordenação e Direção",
   },
+  /**
+   * VALIDAR O CONTRATO da OS cultural (11/11/2026): a Produção preenche os
+   * Dados para Contrato e envia; quem tem esta chave recebe a pendência, confere
+   * e manda a OS ao Financeiro. Hoje é a Diretoria Produção (Marisa).
+   */
+  {
+    key: "oss.validarContrato",
+    label: "Validar contrato da OS cultural (Direção de Produção)",
+    hint: "Recebe a OS cultural com contrato, confere os Dados para Contrato e a envia ao Financeiro",
+  },
   { key: "configuracoes", label: "Configurações", hint: "Empresas do grupo, áreas e usuários" },
   { key: "logs", label: "Logs do sistema", hint: "Trilha de auditoria — normalmente só o Administrador" },
 ];
@@ -135,6 +147,7 @@ export const PERMISSOES: Record<Papel, Recurso[]> = {
     "ecs",
     "oss",
     "oss.emitir",
+    "oss.validarContrato",
     "checklists",
     "checklists.editar",
     "checklists.excluir",
