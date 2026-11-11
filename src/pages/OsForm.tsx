@@ -1500,8 +1500,14 @@ export function OsForm() {
           {/* Os campos que aparecem na NF, no lugar do antigo "Incentivos Fiscais"
               (29/09/2026) — automáticos dos Dados Gerais do projeto. Projeto
               anterior a eles cai no texto único de antes. */}
+          {/* PROJETO INCENTIVADO (11/11/2026): os três campos dos Dados Gerais,
+              como lá — só em OS de EC cultural. No corporativo não existem. */}
           {osIncentivada(os) && (
-            <LinhaOs label="Código do Projeto Incentivado"><Auto v={os.projeto.codigoProjetoIncentivado} /></LinhaOs>
+            <>
+              <LinhaOs label="Nome do Projeto Incentivado"><Auto v={os.projeto.projetoIncentivado || ""} /></LinhaOs>
+              <LinhaOs label="Código do Projeto Incentivado"><Auto v={os.projeto.codigoProjetoIncentivado || ""} /></LinhaOs>
+              <LinhaOs label="Lei de Incentivo à Cultura"><Auto v={os.projeto.leiIncentivo || os.projeto.incentivosFiscais || ""} /></LinhaOs>
+            </>
           )}
           {/* Plural no rótulo porque o evento de vários dias é o caso comum, e
               porque aqui saem TODAS as faixas do cronograma — não só a primeira,
@@ -2104,8 +2110,29 @@ export function OsForm() {
                 na hora de gerar o Word seria adivinhar onde a lei acaba. Então
                 o código também existe à parte, e nasce sugerido do que vier
                 depois do travessão. Só o contrato Cultural o usa. */}
-            {(modeloContrato === "Cultural" || !!os.financeiro.codigoProjetoIncentivado) && (
-              <LinhaOs label="Código do Projeto Incentivado" hint="(vai para a Cláusula Primeira do contrato)">
+            {/* NOME e LEI do projeto incentivado (11/11/2026): já vinham dos
+                Dados Gerais para a nota e para o contrato, mas não apareciam
+                aqui — não dava para conferir nem corrigir. Só em OS cultural. */}
+            {osIncentivada(os) && (
+              <LinhaOs label="Nome do Projeto Incentivado" hint="(dos Dados Gerais — vai para a nota e o contrato)">
+                <Input
+                  formato="titulo"
+                  value={os.financeiro.projetoIncentivado ?? ""}
+                  onChange={(e) => updFin({ projetoIncentivado: e.target.value })}
+                />
+              </LinhaOs>
+            )}
+            {osIncentivada(os) && (
+              <LinhaOs label="Lei de Incentivo à Cultura" hint="(dos Dados Gerais — vai para a nota e o contrato)">
+                <Input
+                  value={os.financeiro.leiIncentivo ?? ""}
+                  onChange={(e) => updFin({ leiIncentivo: e.target.value })}
+                  placeholder="Ex.: Lei Federal de Incentivo à Cultura (Rouanet)"
+                />
+              </LinhaOs>
+            )}
+            {osIncentivada(os) && (
+              <LinhaOs label="Código do Projeto Incentivado" hint="(dos Dados Gerais — vai para a nota e a Cláusula Primeira do contrato)">
                 <Input
                   value={os.financeiro.codigoProjetoIncentivado ?? ""}
                   sugestoes={sugestoes.valores.codigoProjetoIncentivado}
