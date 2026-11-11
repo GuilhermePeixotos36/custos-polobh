@@ -72,8 +72,8 @@ export function RepercutirMudancasModal({
         const nova = await repo.ecs.novaVersao(ec.id);
         const salva = { ...nova, projeto: novo.info, cliente: novo.cliente };
         await repo.ecs.salvar(salva);
-        // A nova versão também vai para a pasta do Dropbox do projeto (em segundo plano).
-        void import("@/lib/excel").then((m) => m.arquivarNovaVersaoEc(salva)).catch(() => {});
+        // A versão nova NÃO vai sozinha para a pasta (11/11/2026): a pasta recebe
+        // a EC pelo "Salvar na pasta", com as duas planilhas — ver `salvarEcNaPasta`.
         ecsSalvas += 1;
       }
 
@@ -94,7 +94,7 @@ export function RepercutirMudancasModal({
           cliente: novo.cliente,
         });
         conhecidas.push(nova);
-        void import("@/lib/excel").then((m) => m.arquivarNovaVersaoOs(nova, base)).catch(() => {});
+        // A OS vai para a pasta uma vez, ao ser EMITIDA (ver `OsForm.emitirOs`).
         ossReemitidas += 1;
       }
 

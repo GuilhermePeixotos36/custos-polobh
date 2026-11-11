@@ -594,8 +594,9 @@ export function EcDetail() {
               Gerar Nova Versão EC
             </Button>
           )}
-          {/* SALVAR NA PASTA (06/11/2026) — ver `lib/salvarEcNaPasta`. */}
-          {podeEditar && ecEditavel(ec) && (
+          {/* SALVAR NA PASTA (06/11/2026) — ver `lib/salvarEcNaPasta`. Só
+              para quem vê os valores: sem o financeiro, a planilha sairia zerada. */}
+          {podeEditar && verFinanceiro && ecEditavel(ec) && (
             <Button
               variant="secondary"
               size="sm"

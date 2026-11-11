@@ -348,6 +348,7 @@ export function OsForm() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const pode = useAuth((s) => s.pode);
+  const nomeUsuario = useAuth((s) => s.usuario?.nome);
   const verFinanceiro = pode("financeiro");
   const podeEditar = pode("oss.editar");
   const podeEmitir = pode("oss.emitir");
@@ -799,6 +800,23 @@ export function OsForm() {
   const updLog = (patch: Partial<Os["logistica"]>) => setOs((o) => (o ? { ...o, logistica: { ...o.logistica, ...patch } } : o));
   const updInfra = (patch: Partial<Os["infraestrutura"]>) => setOs((o) => (o ? { ...o, infraestrutura: { ...o.infraestrutura, ...patch } } : o));
   const updCt = (patch: Partial<Os["contrato"]>) => setOs((o) => (o ? { ...o, contrato: { ...o.contrato, ...patch } } : o));
+  /**
+   * Projeto incentivado corrigido no FATURAMENTO (11/11/2026): o contrato
+   * acompanha quando ainda espelhava o valor de antes (ou estava vazio). Se
+   * alguém já o ajustou no bloco do contrato, o ajuste fica.
+   */
+  const updIncentivoFin = (campo: "projetoIncentivado" | "codigoProjetoIncentivado" | "leiIncentivo", valor: string) =>
+    setOs((o) => {
+      if (!o) return o;
+      const antes = o.financeiro[campo] ?? "";
+      const noContrato = o.contrato[campo] ?? "";
+      const acompanha = !noContrato || noContrato === antes;
+      return {
+        ...o,
+        financeiro: { ...o.financeiro, [campo]: valor },
+        contrato: acompanha ? { ...o.contrato, [campo]: valor } : o.contrato,
+      };
+    });
 
   /**
    * Consulta do CNPJ: o CADASTRO da casa primeiro, a Receita depois.
@@ -1198,12 +1216,18 @@ export function OsForm() {
 
   /** A Direção de Produção valida o contrato e passa a OS ao Financeiro. */
   async function validarContrato() {
-    await avancarFase("financeiro", {
+    if (!(await confirmar({
       titulo: "Validar o contrato e enviar a OS ao Financeiro?",
       mensagem:
         "Os Dados para Contrato ficam validados e a OS vira pendência da Coordenação Administrativo-Financeira. Se algo precisar de ajuste da Produção, use \"Devolver à etapa anterior\".",
-      confirmar: "Validar e enviar",
+      confirmarTexto: "Validar e enviar",
+    }))) return;
+    // Fica registrado QUEM validou e QUANDO — é o que a emissão confere.
+    await salvar(undefined, {
+      fase: "financeiro",
+      contrato: { ...os!.contrato, validadoEm: new Date().toISOString(), validadoPor: nomeUsuario || "" },
     });
+    setEditando(false);
   }
 
   /** Devolve a OS para a etapa anterior — acontece, e precisa ser explícito. */
@@ -1215,7 +1239,15 @@ export function OsForm() {
       mensagem: `A OS volta para "${ROTULO_FASE[anterior]}" e a pendência passa para quem responde por aquela etapa.`,
       confirmarTexto: "Devolver",
     }))) return;
-    await salvar(undefined, { fase: anterior });
+    // Voltou para quem monta ou para quem valida: a validação anterior não vale
+    // mais — o contrato pode mudar e precisa ser validado de novo.
+    const desfazValidacao = (anterior === "producao" || anterior === "direcao") && !!os!.contrato.validadoEm;
+    await salvar(
+      undefined,
+      desfazValidacao
+        ? { fase: anterior, contrato: { ...os!.contrato, validadoEm: undefined, validadoPor: undefined } }
+        : { fase: anterior },
+    );
   }
 
   /**
@@ -1248,6 +1280,17 @@ export function OsForm() {
       destacarElemento(ID_FORMAS_PAGAMENTO, "pendencia");
       toast(`Falta fechar a contratação: ${problemasContratacao[0]}${problemasContratacao.length > 1 ? ` (+${problemasContratacao.length - 1})` : ""}`, "danger");
       return;
+    }
+    // OS cultural com contrato que não passou pela Direção de Produção (as que já
+    // estavam no Financeiro antes de 11/11/2026, por exemplo): emitir pede
+    // confirmação, e o caminho certo é devolver para a validação.
+    if (contratoCultural && haContrato && !os!.contrato.validadoEm) {
+      if (!(await confirmar({
+        titulo: "O contrato desta OS não foi validado pela Direção de Produção",
+        mensagem:
+          "Esta OS é cultural e tem contrato, mas não passou pela validação da Direção de Produção. O caminho certo é \"Devolver à etapa anterior\" até ela. Emitir assim mesmo?",
+        confirmarTexto: "Emitir sem validação",
+      }))) return;
     }
     if (!(await confirmar({
       titulo: `Emitir a OS ${os!.numero}?`,
@@ -2053,8 +2096,13 @@ export function OsForm() {
                 ninguém escolher: o seletor existe para o projeto corporativo
                 com um item incentivado, que é raro e existe. */}
             <LinhaOs label="Modelo do Contrato" hint={`(o projeto é ${os.projeto.modalidade || "sem modalidade"})`}>
+              {/* Trocar o modelo muda o caminho da OS (o Cultural passa pela
+                  Direção de Produção): só quem vê o financeiro ou valida o
+                  contrato escolhe (11/11/2026). */}
               <Select
                 value={os.contrato.modelo ?? ""}
+                disabled={!(verFinanceiro || podeValidarContrato)}
+                title={!(verFinanceiro || podeValidarContrato) ? "O modelo segue a modalidade do projeto; só o Financeiro ou a Direção de Produção trocam." : undefined}
                 onChange={(e) => updCt({ modelo: (e.target.value || undefined) as ModeloContrato | undefined })}
               >
                 <option value="">Pela modalidade do projeto — {modeloContrato}</option>
@@ -2395,7 +2443,7 @@ export function OsForm() {
                 <Input
                   formato="titulo"
                   value={os.financeiro.projetoIncentivado ?? ""}
-                  onChange={(e) => updFin({ projetoIncentivado: e.target.value })}
+                  onChange={(e) => updIncentivoFin("projetoIncentivado", e.target.value)}
                 />
               </LinhaOs>
             )}
@@ -2403,7 +2451,7 @@ export function OsForm() {
               <LinhaOs label="Lei de Incentivo à Cultura" hint="(dos Dados Gerais — vai para a nota e o contrato)">
                 <Input
                   value={os.financeiro.leiIncentivo ?? ""}
-                  onChange={(e) => updFin({ leiIncentivo: e.target.value })}
+                  onChange={(e) => updIncentivoFin("leiIncentivo", e.target.value)}
                   placeholder="Ex.: Lei Federal de Incentivo à Cultura (Rouanet)"
                 />
               </LinhaOs>
@@ -2413,13 +2461,13 @@ export function OsForm() {
                 <Input
                   value={os.financeiro.codigoProjetoIncentivado ?? ""}
                   sugestoes={sugestoes.valores.codigoProjetoIncentivado}
-                  onChange={(e) => updFin({ codigoProjetoIncentivado: e.target.value })}
+                  onChange={(e) => updIncentivoFin("codigoProjetoIncentivado", e.target.value)}
                   placeholder="Ex.: PRONAC 26 1234"
                 />
                 {!os.financeiro.codigoProjetoIncentivado && codigoSugerido && (
                   <button
                     type="button"
-                    onClick={() => updFin({ codigoProjetoIncentivado: codigoSugerido })}
+                    onClick={() => updIncentivoFin("codigoProjetoIncentivado", codigoSugerido)}
                     className="mt-1.5 text-[12px] font-bold text-primary-dark hover:underline"
                   >
                     Usar “{codigoSugerido}”, da lei acima

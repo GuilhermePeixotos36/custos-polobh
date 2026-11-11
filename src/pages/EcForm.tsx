@@ -436,7 +436,7 @@ export function EcForm() {
       });
       // Versão que já está na pasta e acabou de mudar: o aviso diz o que vai
       // acontecer, para ninguém achar que a pasta foi atualizada.
-      if (navegar && salvo.baixadaEm) {
+      if (navegar && salvo.baixadaEm && verFinanceiro) {
         toast(`EC salva. A pasta do projeto continua com a versão (${String(salvo.versao).padStart(2, "0")}) como estava; use "Salvar na pasta" para levar estas alterações como a versão (${String(salvo.versao + 1).padStart(2, "0")}).`, "info");
       }
       setEc(salvo);
@@ -552,8 +552,11 @@ export function EcForm() {
               {salvando ? "Salvando…" : mostrarSalvo ? "Salvo" : "Salvar"}
             </Button>
             {/* SALVAR NA PASTA (06/11/2026): oferece a revisão, cria a versão
-                seguinte se a da pasta já mudou e envia o Excel ao Dropbox. */}
-            {podeEditar && (
+                seguinte se a da pasta já mudou e envia o Excel ao Dropbox.
+                Só para quem VÊ os valores (11/11/2026): para os outros o banco
+                devolve os valores Pólobh e Cliente vazios, e a planilha iria
+                para a pasta zerada — e a pasta nunca substitui um arquivo. */}
+            {podeEditar && verFinanceiro && (
               <Button
                 variant="secondary"
                 size="sm"
