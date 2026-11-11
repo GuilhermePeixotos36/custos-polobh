@@ -35,8 +35,10 @@ self.addEventListener("push", (evento) => {
   evento.waitUntil(
     self.registration.showNotification(aviso.titulo || "Pólobh", {
       body: aviso.corpo || "Há novidade para você no Pólobh.",
-      icon: "/icone-192.png",
-      badge: "/icone-192.png",
+      // O "bh" da logo, legível em tamanho pequeno. (Até 11/11/2026 isto apontava
+      // para um icone-192.png que era uma imagem quebrada.)
+      icon: "/icone-aviso.png",
+      badge: "/icone-badge.png",
       tag: aviso.tag || "polobh-pendencias",
       // Mesma tag substitui o aviso anterior; `renotify` faz o novo tocar/vibrar.
       renotify: true,

@@ -90,8 +90,8 @@ export async function notificar(aviso: Aviso): Promise<boolean> {
 
   const opcoes: NotificationOptions = {
     body: aviso.corpo,
-    icon: "/icone-192.png",
-    badge: "/icone-192.png",
+    icon: "/icone-aviso.png",
+    badge: "/icone-badge.png",
     tag: aviso.tag,
     data: { url: aviso.url ? new URL(aviso.url, location.origin).href : location.origin },
   };
