@@ -119,6 +119,102 @@ export function municipioDoEndereco(endereco: string): string {
   return `${partes[i - 1]} - ${partes[i]}`;
 }
 
+/* ------------------------ a estrutura de cada cláusula ------------------------ */
+
+/**
+ * Um pedaço do corpo de uma cláusula, já com a função que ele tem na página.
+ *
+ * As cláusulas são texto corrido — campos que a casa edita —, e o Word que sai
+ * delas ficava todo igual: subtítulo, valores, obrigações e ressalva no mesmo
+ * peso, separados por linhas em branco soltas (11/11/2026, "a formatação está
+ * ruim e confusa"). Quem lê um contrato procura três coisas — o que foi
+ * contratado, quanto custa e o que cada parte deve —, e a página precisa
+ * mostrar onde cada uma está.
+ *
+ * Isto é só LEITURA do texto que já existe: nada é acrescentado, nenhuma palavra
+ * do contrato muda. O que o texto não deixa claro cai em `texto`, que é o
+ * parágrafo comum.
+ */
+export type BlocoClausula =
+  | { tipo: "texto"; texto: string }
+  /** Cabeçalho de uma parte da cláusula ("DESCRITIVO DOS SERVIÇOS…:", "São obrigações do(a) …:"). */
+  | { tipo: "subtitulo"; texto: string }
+  /** Item de lista — as obrigações de cada parte, ou a linha que começa com "- ". */
+  | { tipo: "item"; texto: string }
+  /** "Forma de pagamento: …" — rótulo em negrito, valor ao lado. */
+  | { tipo: "campo"; rotulo: string; valor: string }
+  /** Os quatro valores do objeto, em tabela. */
+  | { tipo: "valores"; linhas: { rotulo: string; valor: string }[] }
+  /** A ressalva que fecha os valores. */
+  | { tipo: "nota"; texto: string };
+
+const ROTULOS_VALORES = ["Valor unitário", "Valor Total", "Desconto Negociado", "Valor Total a Pagar"];
+const ROTULOS_CAMPO = ["Valor total a pagar", "Forma de pagamento"];
+
+const ehSubtitulo = (linha: string, chave: ChaveClausula): boolean => {
+  const t = linha.trim();
+  if (/^São obrigações d[oa]\(a\) .*:$/.test(t)) return chave === "obrigacoes";
+  // Tudo em maiúsculas e terminado em dois-pontos: "VALORES E FORMA DE PAGAMENTO:".
+  return t.length > 3 && t.endsWith(":") && t === t.toUpperCase() && /[A-ZÀ-Ý]/.test(t);
+};
+
+export function blocosDaClausula(chave: ChaveClausula, paragrafos: string[]): BlocoClausula[] {
+  const saida: BlocoClausula[] = [];
+  /** Depois de "São obrigações…:", o que vem até a linha em branco seguinte é lista. */
+  let emLista = false;
+  let listaComecou = false;
+
+  for (const bruta of paragrafos) {
+    const linha = bruta.trim();
+    if (!linha) {
+      // A primeira linha em branco logo após o cabeçalho não encerra a lista.
+      if (emLista && listaComecou) emLista = false;
+      continue;
+    }
+
+    const valor = ROTULOS_VALORES.map((r) => ({ r, m: new RegExp(`^${r}: (.+)$`).exec(linha) })).find((x) => x.m);
+    if (valor?.m) {
+      const ultimo = saida[saida.length - 1];
+      const item = { rotulo: valor.r, valor: valor.m[1] };
+      if (ultimo?.tipo === "valores") ultimo.linhas.push(item);
+      else saida.push({ tipo: "valores", linhas: [item] });
+      continue;
+    }
+
+    const campo = ROTULOS_CAMPO.map((r) => ({ r, m: new RegExp(`^${r}: (.*)$`).exec(linha) })).find((x) => x.m);
+    if (campo?.m) {
+      saida.push({ tipo: "campo", rotulo: campo.r, valor: campo.m[1] });
+      continue;
+    }
+
+    if (linha === RESSALVA_VALORES) {
+      saida.push({ tipo: "nota", texto: linha });
+      continue;
+    }
+
+    if (ehSubtitulo(linha, chave)) {
+      saida.push({ tipo: "subtitulo", texto: linha });
+      emLista = chave === "obrigacoes" && /^São obrigações/.test(linha);
+      listaComecou = false;
+      continue;
+    }
+
+    const marcado = /^[-•–]\s+(.*)$/.exec(linha);
+    if (marcado) {
+      saida.push({ tipo: "item", texto: marcado[1] });
+      continue;
+    }
+
+    if (emLista) {
+      listaComecou = true;
+      saida.push({ tipo: "item", texto: linha });
+      continue;
+    }
+    saida.push({ tipo: "texto", texto: linha });
+  }
+  return saida;
+}
+
 /* --------------------------- a Cláusula Primeira -------------------------- */
 
 /**
