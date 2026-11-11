@@ -26,6 +26,7 @@ import { useAuth } from "@/store/auth";
 import { useMinhasPendencias } from "@/store/pendencias";
 import { rotaDaPendencia } from "@/domain/pendencias";
 import { notificar, permissaoAtual } from "@/lib/notificacoes";
+import { pushAtivoNesteAparelho } from "@/lib/push";
 import { usePendencias } from "@/store/pendencias";
 import { decidirAvisos, MAX_LEMBRADAS } from "@/domain/avisosPendencias";
 
@@ -78,7 +79,9 @@ export function useAvisosPendencias(): void {
       primeiraCarga,
     });
     guardar(pessoa, memoria);
-    if (!idsNovos.length) return;
+    // Com o push ligado neste aparelho, o aviso vem pelo servidor (o próprio
+    // app aberto repassa na hora) — avisar daqui também seria aviso em dobro.
+    if (!idsNovos.length || pushAtivoNesteAparelho()) return;
 
     const ids = new Set(idsNovos);
     const novas = itens.filter((p) => ids.has(p.id));

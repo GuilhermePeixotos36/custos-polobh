@@ -18,11 +18,10 @@
  *     também funciona no computador, é ele o preferido, e o `new Notification`
  *     fica só como reserva para o navegador que não registrou o worker.
  *
- * O que este arquivo NÃO faz: notificar com o app fechado. Isso é Web Push, que
- * exige chave VAPID e um servidor guardando as inscrições — e aí o aviso sai do
- * navegador de quem está com o app aberto e passa a sair do servidor. Enquanto
- * isso não existe, o alcance é: app aberto em alguma aba (mesmo minimizado, e
- * mesmo em outra aba), que é onde a equipe passa o dia.
+ * Com o app FECHADO o aviso é Web Push (`lib/push.ts`, 11/11/2026): o servidor
+ * entrega ao service worker. Este arquivo cuida da permissão e do aviso local,
+ * que segue valendo onde o push não existe (navegador sem suporte, iPhone fora
+ * da Tela de Início).
  */
 
 export type PermissaoNotificacao = "concedida" | "negada" | "nao-pedida" | "sem-suporte";

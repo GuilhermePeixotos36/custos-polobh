@@ -130,8 +130,8 @@ export const PERMISSOES_ESPECIAIS: { key: Recurso; label: string; hint: string }
    */
   {
     key: "oss.validarContrato",
-    label: "Validar contrato da OS cultural (Direção de Produção)",
-    hint: "Recebe a OS cultural com contrato, confere os Dados para Contrato e a envia ao Financeiro",
+    label: "Revisar a OS cultural (Direção de Produção)",
+    hint: "Recebe a pendência de revisar a OS cultural com contrato (preenchida pela Produção) e a envia ao Financeiro",
   },
   /**
    * QUEM É COBRADO por cada etapa da OS (11/11/2026). Separado de quem PODE
@@ -445,6 +445,9 @@ export const useAuth = create<AuthState>((set, get) => {
         });
       }
       definirAtor(null);
+      // O aparelho para de receber os avisos de quem saiu (computador
+      // compartilhado). Antes do signOut: a função precisa da sessão.
+      await import("@/lib/push").then((m) => m.desligarNesteAparelho()).catch(() => {});
       await supabase.auth.signOut();
       set({ usuario: null, recursos: null });
     },

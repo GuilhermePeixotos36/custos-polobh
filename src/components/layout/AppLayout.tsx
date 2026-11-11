@@ -6,6 +6,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useAuth } from "@/store/auth";
 import { usePendencias } from "@/store/pendencias";
 import { useAvisosPendencias } from "@/hooks/useAvisosPendencias";
+import { usePushPendencias } from "@/hooks/usePushPendencias";
 import { useMonitorPendencias } from "@/hooks/useMonitorPendencias";
 import { useRealtimePendencias } from "@/hooks/useRealtimePendencias";
 import { useEmpresas } from "@/store/empresas";
@@ -42,6 +43,7 @@ export function AppLayout() {
 
   // Avisos do sistema operacional para pendência nova (ver o hook).
   useAvisosPendencias();
+  usePushPendencias();
 
   // Aguarda a sessão inicial resolver antes de decidir redirecionar.
   if (carregando) {

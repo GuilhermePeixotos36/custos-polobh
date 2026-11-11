@@ -14,6 +14,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { IcBell } from "@/components/icons";
 import { NotifDot } from "@/components/NotifDot";
+import { AvisosNoAparelho } from "@/components/AvisosNoAparelho";
 import { focarPendencia } from "@/lib/focoPendencia";
 import { cx } from "@/lib/format";
 import { rotaDaPendencia, type Pendencia } from "@/domain/pendencias";
@@ -151,6 +152,11 @@ export function SinoPendencias() {
               ))}
             </div>
           )}
+
+          {/* Liga os avisos do aparelho — aqui todo mundo alcança (11/11/2026). */}
+          <div className="border-t border-border-soft px-3.5 py-2.5 bg-[#FAFBFC]">
+            <AvisosNoAparelho compacto />
+          </div>
         </div>
       )}
     </div>

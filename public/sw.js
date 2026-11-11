@@ -17,6 +17,35 @@ self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (evento) => evento.waitUntil(self.clients.claim()));
 
 /**
+ * PUSH (11/11/2026): o aviso que chega com o app FECHADO.
+ *
+ * O servidor (`push-pendencias`) manda { titulo, corpo, url, tag }, cifrado para
+ * este navegador. O navegador acorda este worker só para mostrar o aviso — por
+ * isso todo push TEM de virar notificação (o Chrome cancela a inscrição de quem
+ * recebe push "silencioso").
+ */
+self.addEventListener("push", (evento) => {
+  let aviso = {};
+  try {
+    aviso = evento.data ? evento.data.json() : {};
+  } catch (_) {
+    aviso = { corpo: evento.data ? evento.data.text() : "" };
+  }
+  const url = new URL(aviso.url || "/projetos", self.location.origin).href;
+  evento.waitUntil(
+    self.registration.showNotification(aviso.titulo || "Pólobh", {
+      body: aviso.corpo || "Há novidade para você no Pólobh.",
+      icon: "/icone-192.png",
+      badge: "/icone-192.png",
+      tag: aviso.tag || "polobh-pendencias",
+      // Mesma tag substitui o aviso anterior; `renotify` faz o novo tocar/vibrar.
+      renotify: true,
+      data: { url },
+    })
+  );
+});
+
+/**
  * Clique na notificação: leva a pessoa AO LUGAR da pendência.
  *
  * Reaproveita a aba já aberta quando existe — abrir uma segunda aba do mesmo
