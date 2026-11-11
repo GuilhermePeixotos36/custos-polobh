@@ -233,11 +233,26 @@ export async function salvarEcNaPasta(ec: Ec): Promise<import("@/lib/arquivarDoc
     import("@/lib/arquivarDocumento"),
     import("@/data"),
   ]);
-  const { buffer, nome } = await criarEcExcelBuffer(ec, "completa");
-  const r = await salvarNaPasta(ec.projetoId, nome, buffer, { seExistir: "pular" });
+  /*
+   * OS DOIS MODELOS de uma vez (11/11/2026, pedido da Marisa): a Completa e a
+   * Financeira, com a MESMA versão no nome — a reduzida leva " - Financeiro"
+   * (ver `nomeEcExcel`). O botão de baixar o Excel saiu: a pasta do projeto é
+   * onde a EC fica, e as duas planilhas sempre andam juntas.
+   */
+  const resultados: import("@/lib/arquivarDocumento").ResultadoPasta[] = [];
+  const nomes: string[] = [];
+  for (const modelo of ["completa", "financeiro"] as const) {
+    const { buffer, nome } = await criarEcExcelBuffer(ec, modelo);
+    nomes.push(nome);
+    resultados.push(await salvarNaPasta(ec.projetoId, nome, buffer, { seExistir: "pular" }));
+  }
+  const erro = resultados.find((x) => x.status === "erro");
+  const semPasta = resultados.find((x) => x.status === "sem-pasta");
+  const r: import("@/lib/arquivarDocumento").ResultadoPasta =
+    erro ?? semPasta ?? (resultados.every((x) => x.status === "ja-existia") ? { status: "ja-existia" } : { status: "ok" });
   if (r.status === "ok" || r.status === "ja-existia") {
     await repo.ecs.marcarBaixada(ec.id).catch(() => {});
-    auditar({ categoria: "Exportação", acao: "ec.pasta", mensagem: `EC ${rotuloNumeroEc(ec.numero)} salva na pasta do projeto (${nome})`, alvoId: ec.id });
+    auditar({ categoria: "Exportação", acao: "ec.pasta", mensagem: `EC ${rotuloNumeroEc(ec.numero)} salva na pasta do projeto (${nomes.join(" e ")})`, alvoId: ec.id });
   }
   return r;
 }

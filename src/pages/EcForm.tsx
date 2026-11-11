@@ -36,7 +36,6 @@ import {
 import { motivoBloqueioEc, situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
 import { projetoInfoVazio } from "@/domain/projeto";
 import { gerarRentabilidadeExcel } from "@/lib/excel";
-import { ExcelEcMenu } from "@/components/ExcelEcMenu";
 import { gerarNovaVersaoEc } from "@/lib/novaVersaoEc";
 import { revisarEc, type RevisaoEc } from "@/domain/revisaoEc";
 import { RevisaoEcModal } from "@/components/RevisaoEcModal";
@@ -438,7 +437,7 @@ export function EcForm() {
       // Versão que já está na pasta e acabou de mudar: o aviso diz o que vai
       // acontecer, para ninguém achar que a pasta foi atualizada.
       if (navegar && salvo.baixadaEm) {
-        toast(`EC salva. A pasta do projeto continua com a versão ${String(salvo.versao).padStart(2, "0")} como estava; use "Salvar na pasta" para levar estas alterações como a versão ${String(salvo.versao + 1).padStart(2, "0")}.`, "info");
+        toast(`EC salva. A pasta do projeto continua com a versão (${String(salvo.versao).padStart(2, "0")}) como estava; use "Salvar na pasta" para levar estas alterações como a versão (${String(salvo.versao + 1).padStart(2, "0")}).`, "info");
       }
       setEc(salvo);
       // Registra/atualiza os fornecedores citados e acumula seus contatos — em
@@ -560,7 +559,7 @@ export function EcForm() {
                 size="sm"
                 disabled={salvando || revisando || !!enviandoPasta}
                 onClick={() => void salvarNaPasta()}
-                title="Revisa os textos, salva e envia o Excel da EC para a pasta Dropbox do projeto. Se a versão da pasta já mudou, cria a versão seguinte."
+                title="Revisa os textos, salva e envia as duas planilhas da EC (Completa e Financeiro) para a pasta Dropbox do projeto. Se a versão da pasta já mudou, cria a versão seguinte."
               >
                 Salvar na pasta
               </Button>
@@ -577,11 +576,8 @@ export function EcForm() {
                 Gerar Nova Versão EC
               </Button>
             )}
-            {/* O Excel sai da versão GRAVADA — o arquivo é o que está salvo. */}
-            <ExcelEcMenu
-              ec={sujo && baseline ? (JSON.parse(baseline) as Ec) : { ...ec, numero }}
-              onSalvarNaPasta={podeEditar ? () => void salvarNaPasta() : undefined}
-            />
+            {/* Sem "baixar Excel" (11/11/2026, pedido da Marisa): as duas planilhas
+                da EC vão juntas para a pasta do projeto pelo "Salvar na pasta". */}
             {!!ec.id && (
               <Button variant="secondary" size="sm" icon={<IcEye width={16} height={16} />} onClick={() => navigate(`/estimativas/${ec.id}/imprimir`)}>
                 EC PDF

@@ -70,7 +70,7 @@ export async function salvarEcNaPasta(
     const { salvarEcNaPasta: enviar } = await import("@/lib/excel");
     const r = await enviar(ec);
     if (r.status === "erro") toast(`Não foi possível salvar no Dropbox do projeto: ${r.erro}`, "danger");
-    else toast(`A versão ${dd(ec.versao)} já está na pasta do projeto, sem alterações desde então.`, "info");
+    else toast(`A versão (${dd(ec.versao)}) já está na pasta do projeto, sem alterações desde então.`, "info");
     return r.status === "erro" ? null : ec;
   }
 
@@ -137,8 +137,8 @@ export async function salvarEcNaPasta(
     } else {
       toast(
         precisaVersaoNova
-          ? `Versão ${dd(salva.versao)} criada e salva na pasta do projeto. A ${dd(ec.versao)} continua na pasta como estava.`
-          : `EC ${rotuloNumeroEc(salva.numero)} salva na pasta do projeto.`,
+          ? `Versão (${dd(salva.versao)}) criada e salva na pasta do projeto, nas planilhas Completa e Financeiro. A (${dd(ec.versao)}) continua na pasta como estava.`
+          : `EC ${rotuloNumeroEc(salva.numero)} salva na pasta do projeto, nas planilhas Completa e Financeiro.`,
         "success",
       );
     }
