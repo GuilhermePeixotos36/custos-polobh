@@ -926,6 +926,13 @@ export interface ContratoOs {
   codigoProjetoIncentivado?: string;
   leiIncentivo?: string;
   /**
+   * Quem validou o contrato da OS cultural e quando (11/11/2026) — preenchido
+   * pelo "Validar contrato e enviar ao Financeiro". A emissão de uma OS cultural
+   * com contrato sem isto pede confirmação.
+   */
+  validadoEm?: string;
+  validadoPor?: string;
+  /**
    * Qual dos dois modelos da casa este contrato usa (16/09/2026).
    *
    * Em branco significa "o que a modalidade do projeto disser" — Cultural para

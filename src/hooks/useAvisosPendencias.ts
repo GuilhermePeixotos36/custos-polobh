@@ -26,27 +26,26 @@ import { useAuth } from "@/store/auth";
 import { useMinhasPendencias } from "@/store/pendencias";
 import { rotaDaPendencia } from "@/domain/pendencias";
 import { notificar, permissaoAtual } from "@/lib/notificacoes";
+import { usePendencias } from "@/store/pendencias";
+import { decidirAvisos, MAX_LEMBRADAS } from "@/domain/avisosPendencias";
 
 /** Chave do que já foi avisado — uma por pessoa. */
 const chave = (pessoa: string) => `polobh:pendencias-avisadas:${pessoa}`;
 
-/** Teto do que fica guardado: evita a chave crescer para sempre. */
-const MAX_LEMBRADAS = 500;
-
-function lidas(pessoa: string): Set<string> {
+function lidas(pessoa: string): string[] {
   try {
     const cru = localStorage.getItem(chave(pessoa));
-    return new Set<string>(cru ? (JSON.parse(cru) as string[]) : []);
+    return cru ? (JSON.parse(cru) as string[]) : [];
   } catch {
     // localStorage bloqueado (janela anônima, política do navegador): o recurso
     // simplesmente não avisa, em vez de quebrar a tela.
-    return new Set();
+    return [];
   }
 }
 
-function guardar(pessoa: string, ids: Set<string>): void {
+function guardar(pessoa: string, ids: string[]): void {
   try {
-    localStorage.setItem(chave(pessoa), JSON.stringify([...ids].slice(-MAX_LEMBRADAS)));
+    localStorage.setItem(chave(pessoa), JSON.stringify(ids.slice(0, MAX_LEMBRADAS)));
   } catch {
     /* idem */
   }
@@ -54,29 +53,35 @@ function guardar(pessoa: string, ids: Set<string>): void {
 
 export function useAvisosPendencias(): void {
   const pessoa = useAuth((s) => s.usuario?.nome) ?? "";
+  /**
+   * Só decide com os dados PRONTOS (11/11/2026): as pendências carregadas e as
+   * permissões da área já lidas. Antes o marco zero era marcado no primeiro
+   * render, com a lista ainda vazia — e a primeira carga de verdade, logo depois,
+   * virava "N novas pendências". E com as permissões ainda no padrão do papel,
+   * as pendências de etapa (que dependem da área) apareciam "novas" quando a
+   * área terminava de carregar.
+   */
+  const carregado = usePendencias((s) => s.ultimoLoad > 0);
+  const autenticando = useAuth((s) => s.carregando);
   const { itens } = useMinhasPendencias();
   /** Já registramos o marco zero desta sessão para esta pessoa? */
   const iniciado = useRef("");
 
   useEffect(() => {
-    if (!pessoa || permissaoAtual() !== "concedida") return;
+    if (!pessoa || !carregado || autenticando || permissaoAtual() !== "concedida") return;
 
-    const atuais = itens.map((p) => p.id);
-    const jaAvisadas = lidas(pessoa);
+    const primeiraCarga = iniciado.current !== pessoa;
+    iniciado.current = pessoa;
+    const { novas: idsNovos, memoria } = decidirAvisos({
+      jaAvisadas: lidas(pessoa),
+      atuais: itens.map((p) => p.id),
+      primeiraCarga,
+    });
+    guardar(pessoa, memoria);
+    if (!idsNovos.length) return;
 
-    // Marco zero: primeira carga desta pessoa nesta sessão. Guarda e cala.
-    if (iniciado.current !== pessoa) {
-      iniciado.current = pessoa;
-      // Só entra no marco zero quem a carga já trouxe; a lista vazia do primeiro
-      // render (antes de o store carregar) não pode zerar a memória.
-      if (!atuais.length) return;
-      guardar(pessoa, new Set([...jaAvisadas, ...atuais]));
-      return;
-    }
-
-    const novas = itens.filter((p) => !jaAvisadas.has(p.id));
-    if (!novas.length) return;
-
+    const ids = new Set(idsNovos);
+    const novas = itens.filter((p) => ids.has(p.id));
     const primeira = novas[0];
     void notificar({
       titulo: novas.length === 1 ? "Nova pendência" : `${novas.length} novas pendências`,
@@ -88,7 +93,5 @@ export function useAvisosPendencias(): void {
       url: novas.length === 1 ? rotaDaPendencia(primeira) : "/projetos",
       tag: "polobh-pendencias",
     });
-
-    guardar(pessoa, new Set([...jaAvisadas, ...atuais]));
-  }, [pessoa, itens]);
+  }, [pessoa, itens, carregado, autenticando]);
 }

@@ -450,6 +450,10 @@ export function calcularPendencias(
    * observação (ver `agregarPendencias`).
    */
   const respDe = (projetoId?: string) => (projetoId && responsavelPorProjeto.get(projetoId)) || undefined;
+  /** Itens da EC que já estão numa OS viva (nem cancelada, nem arquivada). */
+  const linhasComOsAtiva = new Set(
+    oss.filter((o) => !OS_ENCERRADA.includes(o.status)).flatMap((o) => o.ecLinhaIds ?? []),
+  );
 
   const out: Pendencia[] = [];
 
@@ -482,15 +486,25 @@ export function calcularPendencias(
     });
   }
 
-  // OS em rascunho → o financeiro precisa emitir/disparar.
+  /*
+   * OS em rascunho COM A PRODUÇÃO → o produtor precisa concluir e enviar.
+   *
+   * Só na etapa da Produção (11/11/2026). Antes valia para toda OS em rascunho,
+   * e a Produção seguia cobrada depois de enviar — com a OS no Financeiro, na
+   * Direção ou no Back-office, onde ela não edita nem emite. Pior: para quem é
+   * produtor E emissor, a trava "não emitir com pendência aberta" contava esta
+   * pendência, que é justamente a que a emissão resolve. Nas outras etapas
+   * quem cobra é a passagem de bastão (`os.fase`), endereçada a quem responde.
+   */
   for (const os of oss) {
     if (os.status !== "Rascunho") continue;
+    if (faseDaOs(os) !== "producao") continue;
     const ec = ecPorId.get(os.ecId);
     if (!ec?.projetoId || encerrado(ec.projetoId)) continue;
     out.push({
       id: `os.emitir:${os.id}`,
       tipo: "os.emitir",
-      titulo: `Emitir OS ${os.numero}`,
+      titulo: `Concluir e enviar a OS ${os.numero}`,
       responsavelProjeto: respDe(ec.projetoId),
       recurso: "projetos",
       projetoId: ec.projetoId,
@@ -705,10 +719,14 @@ export function calcularPendencias(
           ancora: linha.id,
         });
       }
+      // O CONTRATO de um item que já tem OS é feito dentro dela, no fluxo da OS
+      // (11/11/2026): cobrar "Emitir Contrato" na EC seguia pesando sobre a
+      // Produção com a OS já no Financeiro.
+      const temOsAtiva = linhasComOsAtiva.has(linha.id);
       const faltando = [
         { campo: "os" as const, status: linha.statusOs, rotulo: "OS" },
         { campo: "contrato" as const, status: linha.contratoStatus, rotulo: "Contrato" },
-      ].filter((c) => A_EMITIR.includes(c.status));
+      ].filter((c) => A_EMITIR.includes(c.status) && !(c.campo === "contrato" && temOsAtiva));
       if (!faltando.length) continue;
       out.push({
         id: `ec.emitir:${ec.id}:${linha.id}`,

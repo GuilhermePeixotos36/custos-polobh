@@ -250,8 +250,17 @@ export async function salvarEcNaPasta(ec: Ec): Promise<import("@/lib/arquivarDoc
   const semPasta = resultados.find((x) => x.status === "sem-pasta");
   const r: import("@/lib/arquivarDocumento").ResultadoPasta =
     erro ?? semPasta ?? (resultados.every((x) => x.status === "ja-existia") ? { status: "ja-existia" } : { status: "ok" });
+  /*
+   * Chegou ALGUM arquivo à pasta = esta versão já está lá, e fica registrada
+   * (11/11/2026). Se só uma das duas falhou, a nova tentativa sem edição cai no
+   * "já está na pasta" e completa o par (o arquivo que existe é pulado, o que
+   * falta sobe); com edição, vira a versão seguinte. Antes a versão não era
+   * marcada, a pessoa editava e tentava de novo, e a pasta ficava com um par da
+   * mesma versão com conteúdos diferentes.
+   */
+  const algumNaPasta = resultados.some((x) => x.status === "ok" || x.status === "ja-existia");
+  if (algumNaPasta) await repo.ecs.marcarBaixada(ec.id).catch(() => {});
   if (r.status === "ok" || r.status === "ja-existia") {
-    await repo.ecs.marcarBaixada(ec.id).catch(() => {});
     auditar({ categoria: "Exportação", acao: "ec.pasta", mensagem: `EC ${rotuloNumeroEc(ec.numero)} salva na pasta do projeto (${nomes.join(" e ")})`, alvoId: ec.id });
   }
   return r;
