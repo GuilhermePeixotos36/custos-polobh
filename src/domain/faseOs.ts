@@ -48,7 +48,7 @@ export const ROTULO_FASE: Record<FaseOs, string> = {
 /** O que cada fase está esperando — a frase que a tela mostra no topo. */
 export const ESPERANDO_FASE: Record<FaseOs, string> = {
   producao: "A produção está montando esta OS.",
-  direcao: "Aguardando a Direção de Produção validar os dados do contrato.",
+  direcao: "Aguardando a Direção de Produção revisar esta OS cultural.",
   financeiro: "Aguardando a Coordenação Administrativo-Financeira concluir a emissão e o faturamento.",
   backoffice: "Aguardando o Back-office emitir a OS.",
   emitida: "OS emitida.",
