@@ -12,6 +12,7 @@
  *  · o REPASSE (`repassarPendencias`): este app, aberto, calcula as pendências
  *    de quem tem aparelho inscrito e manda ao servidor, que só avisa o que é novo.
  */
+import { create } from "zustand";
 import { supabase } from "@/lib/supabaseClient";
 import { registrarWorker, permissaoAtual } from "@/lib/notificacoes";
 import { avisosParaPush, chaveEnvio, type PessoaComPush } from "@/domain/pushPendencias";
@@ -58,9 +59,24 @@ async function chavePublica(): Promise<Uint8Array<ArrayBuffer>> {
 const b64url = (buf: ArrayBuffer | null) =>
   buf ? btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "") : "";
 
+/**
+ * Em que pé está o push NESTE aparelho — observável, para a tela dizer a
+ * verdade (11/11/2026). Antes a tela afirmava "avisos ligados, mesmo com o
+ * navegador fechado" assim que a permissão estava dada, e quando o registro do
+ * aparelho falhava o erro ia só para o console: a pessoa achava que estava
+ * ligado, e o aviso nunca chegava.
+ *
+ *  · inativo    — ainda não tentou (sem permissão, ou aguardando as pendências);
+ *  · verificando — registrando o aparelho agora;
+ *  · ativo      — o servidor tem este aparelho e vai entregar com o app fechado;
+ *  · falhou     — a permissão está dada, mas o registro não deu certo (`erro`).
+ */
+export type EstadoPush = "inativo" | "verificando" | "ativo" | "falhou";
+export const usePushEstado = create<{ estado: EstadoPush; erro: string }>(() => ({ estado: "inativo", erro: "" }));
+const definir = (estado: EstadoPush, erro = "") => usePushEstado.setState({ estado, erro });
+
 /** Este aparelho está recebendo push agora? (lido por quem decide o aviso local) */
-let ativoNesteAparelho = false;
-export const pushAtivoNesteAparelho = () => ativoNesteAparelho;
+export const pushAtivoNesteAparelho = () => usePushEstado.getState().estado === "ativo";
 
 /** Endpoint inscrito por último — é o que sai da base quando a pessoa sai do app. */
 let endpointAtual: string | null = null;
@@ -75,36 +91,47 @@ let endpointAtual: string | null = null;
  * enxurrada de avisos no primeiro minuto.
  */
 export async function sincronizarInscricao(idsAtuais: string[]): Promise<boolean> {
-  ativoNesteAparelho = false;
-  if (!pushSuportado() || permissaoAtual() !== "concedida") return false;
-  const registro = (await registrarWorker()) ?? (await navigator.serviceWorker.ready);
-  if (!registro?.pushManager) return false;
-  let inscricao = await registro.pushManager.getSubscription();
-  if (!inscricao) {
-    inscricao = await registro.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: await chavePublica(),
-    });
+  if (!pushSuportado() || permissaoAtual() !== "concedida") {
+    definir("inativo");
+    return false;
   }
-  await chamar({
-    acao: "inscrever",
-    inscricao: {
-      endpoint: inscricao.endpoint,
-      p256dh: b64url(inscricao.getKey("p256dh")),
-      auth: b64url(inscricao.getKey("auth")),
-    },
-    userAgent: navigator.userAgent.slice(0, 300),
-    ids: idsAtuais,
-  });
-  endpointAtual = inscricao.endpoint;
-  ativoNesteAparelho = true;
-  return true;
+  definir("verificando");
+  try {
+    const registro = (await registrarWorker()) ?? (await navigator.serviceWorker.ready);
+    if (!registro?.pushManager) {
+      definir("falhou", "este navegador não deixou registrar o serviço de avisos");
+      return false;
+    }
+    let inscricao = await registro.pushManager.getSubscription();
+    if (!inscricao) {
+      inscricao = await registro.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: await chavePublica(),
+      });
+    }
+    await chamar({
+      acao: "inscrever",
+      inscricao: {
+        endpoint: inscricao.endpoint,
+        p256dh: b64url(inscricao.getKey("p256dh")),
+        auth: b64url(inscricao.getKey("auth")),
+      },
+      userAgent: navigator.userAgent.slice(0, 300),
+      ids: idsAtuais,
+    });
+    endpointAtual = inscricao.endpoint;
+    definir("ativo");
+    return true;
+  } catch (e) {
+    definir("falhou", (e as Error).message || "erro desconhecido");
+    throw e;
+  }
 }
 
 /** Ao sair do app: o aparelho para de receber os avisos de quem saiu. */
 export async function desligarNesteAparelho(): Promise<void> {
   const endpoint = endpointAtual;
-  ativoNesteAparelho = false;
+  definir("inativo");
   endpointAtual = null;
   if (!endpoint) return;
   try {
@@ -193,4 +220,30 @@ export async function repassarPendencias(
 /** A lista de quem tem push mudou (alguém acabou de ligar): relê na próxima. */
 export function esquecerPessoasComPush(): void {
   pessoasCache = null;
+}
+
+
+/** O que aconteceu quando a pessoa clicou em "Ativar avisos". */
+export type ResultadoAtivacao = "ativo" | "negada" | "ignorada" | "sem-push" | "falhou" | "sem-suporte";
+
+/**
+ * "Ativar avisos": pede a permissão (só funciona a partir de um clique) e
+ * registra o aparelho. Devolve o que houve, para a tela NUNCA ficar muda — um
+ * pedido fechado sem escolha ou bloqueado em silêncio pelo Chrome parecia, para
+ * quem clicou, um botão que não faz nada.
+ */
+export async function ativarAvisos(idsAtuais: string[]): Promise<ResultadoAtivacao> {
+  const { pedirPermissao } = await import("@/lib/notificacoes");
+  const permissao = await pedirPermissao();
+  if (permissao === "sem-suporte") return "sem-suporte";
+  if (permissao === "negada") return "negada";
+  if (permissao !== "concedida") return "ignorada";
+  if (!pushSuportado()) return "sem-push";
+  try {
+    const ok = await sincronizarInscricao(idsAtuais);
+    if (ok) esquecerPessoasComPush();
+    return ok ? "ativo" : "falhou";
+  } catch {
+    return "falhou";
+  }
 }

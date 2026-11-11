@@ -13,6 +13,7 @@ import { useEmpresas } from "@/store/empresas";
 import { ProvedorRecolher } from "./Recolher";
 import { TourOverlay } from "@/tour/TourOverlay";
 import { PainelSuporte } from "@/components/suporte/PainelSuporte";
+import { ConviteAvisos } from "@/components/ConviteAvisos";
 import { cx } from "@/lib/format";
 import { useVersaoDoApp } from "@/hooks/useVersaoDoApp";
 
@@ -68,6 +69,7 @@ export function AppLayout() {
         </div>
       )}
       <TopNav />
+      <ConviteAvisos />
       <div className="flex-1 min-w-0 flex flex-col">
         <Suspense fallback={<div className="flex-1 grid place-items-center text-ink-3 text-sm">Carregando…</div>}>
           <Outlet />
