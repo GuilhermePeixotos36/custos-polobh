@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { Cliente, EmpresaGrupo, Os } from "@/data/types";
 import {
+  blocosDaClausula,
   dataPorExtenso,
   montarContrato,
   municipioDoEndereco,
   nomeArquivoContrato,
   partirEmDestaques,
 } from "./contratoDocumento";
-import { clausulasPadrao, modeloDoContrato } from "./contratoModelo";
+import { clausulasPadrao, modeloDoContrato, RESSALVA_VALORES } from "./contratoModelo";
 
 const cliente = (): Cliente =>
   ({
@@ -265,5 +266,82 @@ describe("a linha Municipio do modelo", () => {
     expect(municipioDoEndereco("Rua sem cidade, 10")).toBe("");
     expect(municipioDoEndereco("")).toBe("");
     expect(municipioDoEndereco("MG")).toBe("");
+  });
+});
+
+describe("a estrutura de cada cláusula (formatação do Word)", () => {
+  const blocos = (chave: Parameters<typeof blocosDaClausula>[0], linhas: string[]) => blocosDaClausula(chave, linhas);
+
+  it("os quatro valores do objeto viram uma tabela, e o resto fica à parte", () => {
+    const b = blocos("objeto", [
+      "Valor unitário: R$ 10.000,00",
+      "Valor Total: R$ 10.000,00",
+      "Desconto Negociado: R$ 500,00",
+      "Valor Total a Pagar: R$ 9.500,00",
+      "",
+      "VALORES E FORMA DE PAGAMENTO:",
+      "",
+      "Valor total a pagar: R$ 9.500,00",
+      "Forma de pagamento: À vista",
+      "",
+      RESSALVA_VALORES,
+    ]);
+    expect(b[0]).toEqual({
+      tipo: "valores",
+      linhas: [
+        { rotulo: "Valor unitário", valor: "R$ 10.000,00" },
+        { rotulo: "Valor Total", valor: "R$ 10.000,00" },
+        { rotulo: "Desconto Negociado", valor: "R$ 500,00" },
+        { rotulo: "Valor Total a Pagar", valor: "R$ 9.500,00" },
+      ],
+    });
+    expect(b[1]).toEqual({ tipo: "subtitulo", texto: "VALORES E FORMA DE PAGAMENTO:" });
+    expect(b[2]).toEqual({ tipo: "campo", rotulo: "Valor total a pagar", valor: "R$ 9.500,00" });
+    expect(b[3]).toEqual({ tipo: "campo", rotulo: "Forma de pagamento", valor: "À vista" });
+    expect(b[4]).toEqual({ tipo: "nota", texto: RESSALVA_VALORES });
+  });
+
+  it("nas obrigações, o que vem depois de 'São obrigações…:' é lista; a declaração segue parágrafo", () => {
+    const [obrigacoes] = clausulasPadrao("Corporativo").filter((c) => c.chave === "obrigacoes");
+    const b = blocos("obrigacoes", obrigacoes.padrao.split("\n"));
+    const tipos = b.map((x) => x.tipo);
+    expect(tipos).toEqual([
+      "subtitulo", "item", "item", // CONTRATADO(A): fornecer + notas
+      "texto", "texto",            // a declaração trabalhista e a autuação
+      "subtitulo", "item", "item", // CONTRATANTE: pagar + condições
+    ]);
+  });
+
+  it("o Cultural tem um item a mais nas obrigações do CONTRATANTE", () => {
+    const [obrigacoes] = clausulasPadrao("Cultural").filter((c) => c.chave === "obrigacoes");
+    const itens = blocos("obrigacoes", obrigacoes.padrao.split("\n")).filter((x) => x.tipo === "item");
+    expect(itens).toHaveLength(5);
+  });
+
+  it("nenhuma palavra do contrato se perde na classificação", () => {
+    for (const m of ["Corporativo", "Cultural"] as const) {
+      for (const c of clausulasPadrao(m)) {
+        const original = c.padrao.split("\n").filter((l) => l.trim());
+        const depois = blocos(c.chave, c.padrao.split("\n")).map((x) =>
+          x.tipo === "valores" ? x.linhas.map((l) => `${l.rotulo}: ${l.valor}`).join("\n")
+          : x.tipo === "campo" ? `${x.rotulo}: ${x.valor}`
+          : x.texto
+        );
+        expect(depois.join("\n")).toBe(original.join("\n"));
+      }
+    }
+  });
+
+  it("linha com '- ' no descritivo vira item, sem o traço", () => {
+    expect(blocos("objeto", ["Locação de som", "- Line array", "- Mesa digital"])).toEqual([
+      { tipo: "texto", texto: "Locação de som" },
+      { tipo: "item", texto: "Line array" },
+      { tipo: "item", texto: "Mesa digital" },
+    ]);
+  });
+
+  it("fora das obrigações, um texto que termina em dois-pontos não vira lista", () => {
+    const b = blocos("vigencia", ["Ficam acordadas as seguintes condições:", "A primeira condição."]);
+    expect(b.map((x) => x.tipo)).toEqual(["texto", "texto"]);
   });
 });
