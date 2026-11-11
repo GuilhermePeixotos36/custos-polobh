@@ -9,6 +9,7 @@ import { dataBR } from "@/lib/format";
 // Todas as faixas do evento: o e-mail que leva a OS ao fornecedor dizia só o
 // primeiro dia (ver `datasDoEvento`).
 import { datasDoEvento, ETAPAS_CRONOGRAMA, horariosDoEvento } from "@/domain/projeto";
+import { rotuloNumeroEc } from "@/domain/calc";
 
 export interface AnexoEmail {
   nome: string;
@@ -208,7 +209,7 @@ export function emailEcParaAprovacao(ec: Ec): MensagemEmail {
   const rep = ec.cliente.representante;
   const corpo = `
     <p>Olá, ${h(rep.nome || ec.cliente.nome)}.</p>
-    <p>Segue para aprovação a Estimativa de Custos <b>${h(ec.numero)}</b> referente ao projeto
+    <p>Segue para aprovação a Estimativa de Custos <b>${h(rotuloNumeroEc(ec.numero))}</b> referente ao projeto
        <b>${h(ec.projeto.titulo)}</b>.</p>
     <p style="font-size:14px">A aprovação pode ser feita por resposta a este e-mail e tem força contratual,
        conforme os termos da proposta. Validade: ${ec.validadeDias} dias.</p>`;

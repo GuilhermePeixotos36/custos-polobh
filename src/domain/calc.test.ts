@@ -622,3 +622,18 @@ describe("descritivoFinanceiro", () => {
     expect(txt).toBe("• Locação de som");
   });
 });
+
+describe("rotuloNumeroEc", async () => {
+  const { rotuloNumeroEc } = await import("./calc");
+  it("mostra a versão da EC entre parênteses, como na OS", () => {
+    expect(rotuloNumeroEc("EC – Banco Mercantil – BM – Premio Jornalista – 2026 – V10")).toBe(
+      "EC – Banco Mercantil – BM – Premio Jornalista – 2026 (10)",
+    );
+    expect(rotuloNumeroEc("EC – ACME – V1")).toBe("EC – ACME (01)");
+    expect(rotuloNumeroEc("EC – ACME – V123")).toBe("EC – ACME (123)");
+  });
+  it("não mexe no que não termina em versão", () => {
+    expect(rotuloNumeroEc("EC – Vendas 2026")).toBe("EC – Vendas 2026");
+    expect(rotuloNumeroEc(undefined)).toBe("");
+  });
+});

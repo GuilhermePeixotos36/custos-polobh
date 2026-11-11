@@ -5,7 +5,7 @@
  * coluna→objeto é direto. Snapshots embutidos: `ecs.cliente` e `oss.fornecedor`.
  */
 import { supabase } from "@/lib/supabaseClient";
-import { producaoPadrao, producaoZerada, linhasProducaoLegado, honorariosPadrao, encargosPadrao, normalizarTaxa, bvVazio } from "@/domain/calc";
+import { producaoPadrao, producaoZerada, linhasProducaoLegado, honorariosPadrao, encargosPadrao, normalizarTaxa, bvVazio, rotuloNumeroEc } from "@/domain/calc";
 import { normalizarProjetoInfo, sincronizarCamposLegados } from "@/domain/projeto";
 // A padronização de caixa alta/baixa mora AQUI, no caminho da gravação, e não
 // só no blur do <Input>: assim ela alcança também o que entra por código —
@@ -632,7 +632,7 @@ const ecRepo: EcRepository = {
     auditar({
       categoria: "EC",
       acao: "ec.importar",
-      mensagem: `EC ${nova.numero} criada a partir de outra EC (nova versão por importação)`,
+      mensagem: `EC ${rotuloNumeroEc(nova.numero)} criada a partir de outra EC (nova versão por importação)`,
       alvoId: novoId,
     });
     return nova;
@@ -664,7 +664,7 @@ const ecRepo: EcRepository = {
     const ec = await this.obter(id);
     if (!ec) throw new Error("EC não encontrada");
     ok(await supabase.rpc("definir_ec_ativa", { p_ec_id: id }));
-    auditar({ categoria: "EC", acao: "ec.ativar", mensagem: `EC ${ec.numero} definida como ativa`, alvoId: id });
+    auditar({ categoria: "EC", acao: "ec.ativar", mensagem: `EC ${rotuloNumeroEc(ec.numero)} definida como ativa`, alvoId: id });
     const salvo = await this.obter(id);
     if (!salvo) throw new Error("Falha ao reler a EC.");
     return salvo;

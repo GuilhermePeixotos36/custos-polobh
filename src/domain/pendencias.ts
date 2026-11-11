@@ -56,6 +56,7 @@ const ENCERRADA_OS: string[] = ["Cancelada", "Arquivada"];
 import { statusProjetoAutomatico } from "@/domain/statusProjeto";
 // `encerrado` já é o nome do teste de projeto encerrado aqui — o do item vem com alias.
 import { encerrado as itemEncerrado, situacaoPrazo } from "@/domain/checklist";
+import { rotuloNumeroEc } from "@/domain/calc";
 
 /** Chave da subguia dentro do detalhe do projeto (espelha ProjetoDetail). */
 export type AbaProjeto = "dados" | "ec" | "os" | "checklist" | "cronograma" | "credenciamento" | "fornecedores";
@@ -626,7 +627,7 @@ export function calcularPendencias(
       out.push({
         id: `ec.observacaoGeral:${ec.id}:${observacao.id || indice}`,
         tipo: "ec.observacaoGeral",
-        titulo: `Observação geral para ${vez.pessoas.join(", ")} na ${ec.numero}: ${vez.resumo}`,
+        titulo: `Observação geral para ${vez.pessoas.join(", ")} na ${rotuloNumeroEc(ec.numero)}: ${vez.resumo}`,
         pessoas: vez.pessoas,
         recurso: "projetos",
         projetoId: ec.projetoId,

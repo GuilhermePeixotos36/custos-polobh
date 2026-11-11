@@ -20,7 +20,7 @@
  */
 import { repo } from "@/data";
 import type { Ec } from "@/data/types";
-import { numeroEc } from "@/domain/calc";
+import { numeroEc, rotuloNumeroEc } from "@/domain/calc";
 import { aplicarNaEc, camposDaEc } from "@/domain/revisaoTexto";
 import { avisarFalhaRevisao, pendentesDeRevisao, revisarPendentes } from "@/lib/revisaoInterativa";
 import { confirmar } from "@/store/confirm";
@@ -138,7 +138,7 @@ export async function salvarEcNaPasta(
       toast(
         precisaVersaoNova
           ? `Versão ${dd(salva.versao)} criada e salva na pasta do projeto. A ${dd(ec.versao)} continua na pasta como estava.`
-          : `EC ${salva.numero} salva na pasta do projeto.`,
+          : `EC ${rotuloNumeroEc(salva.numero)} salva na pasta do projeto.`,
         "success",
       );
     }

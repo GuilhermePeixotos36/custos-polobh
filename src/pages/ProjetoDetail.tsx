@@ -788,7 +788,7 @@ export function ProjetoDetail() {
       };
       const salvo = await repo.ecs.importar(origem.id, nova);
       toast(
-        `Nova versão V${String(salvo.versao).padStart(2, "0")} criada a partir de "${tituloEc(origem)}" (cancela e substitui). A anterior foi para o arquivo.`,
+        `Nova versão (${String(salvo.versao).padStart(2, "0")}) criada a partir de "${tituloEc(origem)}" (cancela e substitui). A anterior foi para o arquivo.`,
         "success"
       );
       setImportOpen(false);

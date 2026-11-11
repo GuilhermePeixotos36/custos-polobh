@@ -1,7 +1,7 @@
 /** EC como documento A4 (Proposta Comercial) — visualização em tela + PDF. */
 import { Fragment } from "react";
 import type { Ec } from "@/data/types";
-import { calcularTotais } from "@/domain/calc";
+import { calcularTotais, rotuloNumeroEc } from "@/domain/calc";
 import { juntarDivisoes } from "@/domain/divisaoEc";
 import { brl, cx, dataBR } from "@/lib/format";
 import { sanitizarHtmlEditor } from "@/lib/sanitizeHtml";
@@ -60,7 +60,7 @@ export function EcDocumento({ ec }: { ec: Ec }) {
           <div className="font-display font-extrabold text-[16px] tracking-tight leading-tight">
             Estimativa de Custos | Proposta Comercial
           </div>
-          <div className="text-[11px] text-ink-2">{ec.numero}</div>
+          <div className="text-[11px] text-ink-2">{rotuloNumeroEc(ec.numero)}</div>
         </div>
       </div>
 

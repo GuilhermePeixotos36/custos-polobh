@@ -21,7 +21,7 @@ import { repo } from "@/data";
 import { useAuth } from "@/store/auth";
 import { toast } from "@/store/toast";
 import { cx } from "@/lib/format";
-import { numeroOs, versaoOs } from "@/domain/calc";
+import { numeroOs, versaoOs, rotuloNumeroEc } from "@/domain/calc";
 import {
   aplicarMudancasEvento,
   ecsAtualizaveis,
@@ -172,8 +172,8 @@ export function RepercutirMudancasModal({
               ecsAlvo.map((ec) => (
                 <LinhaDocumento
                   key={ec.id}
-                  titulo={ec.numero}
-                  detalhe={`V${String(ec.versao).padStart(2, "0")}`}
+                  titulo={rotuloNumeroEc(ec.numero)}
+                  detalhe={`(${String(ec.versao).padStart(2, "0")})`}
                   // Selo pela situação, não pela coluna `status` (ver `domain/ec`).
                   // Aqui só entra a EC que está no ar — ver `ecsAtualizaveis`.
                   badge={

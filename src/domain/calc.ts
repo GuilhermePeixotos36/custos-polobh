@@ -193,6 +193,21 @@ export function numeroEc(
 }
 
 /**
+ * O número da EC como a casa LÊ: a versão entre parênteses, "(10)", igual à OS
+ * e ao título da EC (11/11/2026, pedido do Guilherme).
+ *
+ * O número GRAVADO segue terminando em "– V10": as funções do banco que criam
+ * versões procuram esse "V" para trocar o número. Por isso a troca acontece só
+ * na hora de mostrar — tela, PDF, Excel, e-mail, avisos e registros.
+ */
+export function rotuloNumeroEc(numero: string | null | undefined): string {
+  return (numero ?? "").replace(/\s*[–-]\s*V(\d+)\s*$/, (_, n: string) => ` (${n.padStart(2, "0")})`);
+}
+
+/** A versão no padrão da casa: "(01)". */
+export const rotuloVersao = (versao: number): string => `(${String(versao).padStart(2, "0")})`;
+
+/**
  * Título automático da EC exibido em destaque no app e base do nome do arquivo
  * Excel — padrão: "EC – {Título do Projeto} ({NN}) em {DD/MM/AA}".
  */

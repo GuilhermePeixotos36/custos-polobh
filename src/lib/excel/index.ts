@@ -3,6 +3,7 @@ import type { CronogramaExcelDados } from "./cronograma";
 import { auditar } from "@/store/logs";
 import { empresaPadrao, useEmpresas } from "@/store/empresas";
 import { nomeEcExcel } from "./nomeEc";
+import { rotuloNumeroEc } from "@/domain/calc";
 
 export type ModeloEcExcel = "financeiro" | "completa";
 
@@ -67,7 +68,7 @@ export async function gerarEcExcel(
     // Antes, cada download marcava a EC como baixada e toda edição seguinte
     // virava uma versão nova — a EC da Carol foi da v3 à v8 num dia.
     const modelo = opts?.modelo === "financeiro" ? "financeiro" : "completo";
-    auditar({ categoria: "Exportação", acao: "ec.excel", mensagem: `EC ${ec.numero} exportada para Excel (${modelo})`, alvoId: ec.id });
+    auditar({ categoria: "Exportação", acao: "ec.excel", mensagem: `EC ${rotuloNumeroEc(ec.numero)} exportada para Excel (${modelo})`, alvoId: ec.id });
   }
   return r;
 }
@@ -82,7 +83,7 @@ export async function gerarRentabilidadeExcel(ec: Ec, gastoPorLinha: Record<stri
   auditar({
     categoria: "Exportação",
     acao: "ec.rentabilidade.excel",
-    mensagem: `Rentabilidade da EC ${ec.numero} exportada para Excel`,
+    mensagem: `Rentabilidade da EC ${rotuloNumeroEc(ec.numero)} exportada para Excel`,
     alvoId: ec.id,
   });
 }
@@ -236,7 +237,7 @@ export async function salvarEcNaPasta(ec: Ec): Promise<import("@/lib/arquivarDoc
   const r = await salvarNaPasta(ec.projetoId, nome, buffer, { seExistir: "pular" });
   if (r.status === "ok" || r.status === "ja-existia") {
     await repo.ecs.marcarBaixada(ec.id).catch(() => {});
-    auditar({ categoria: "Exportação", acao: "ec.pasta", mensagem: `EC ${ec.numero} salva na pasta do projeto (${nome})`, alvoId: ec.id });
+    auditar({ categoria: "Exportação", acao: "ec.pasta", mensagem: `EC ${rotuloNumeroEc(ec.numero)} salva na pasta do projeto (${nome})`, alvoId: ec.id });
   }
   return r;
 }
