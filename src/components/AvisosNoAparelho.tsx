@@ -144,9 +144,7 @@ export function AvisosNoAparelho({ compacto = false }: { compacto?: boolean }) {
     corpo =
       estado === "ativo" ? (
         <div className={cx("flex gap-2", compacto ? "items-center" : "flex-col items-start")}>
-          <p className={cx(texto, "flex-1")}>
-            <b>Avisos ligados neste aparelho</b>, mesmo com o navegador fechado.
-          </p>
+          <p className={cx(texto, "flex-1 font-bold text-success")}>Avisos ligados neste aparelho.</p>
           <Button variant="secondary" size="sm" onClick={() => void testar()} disabled={ocupado}>
             {testando ? "Enviando…" : "Testar"}
           </Button>
