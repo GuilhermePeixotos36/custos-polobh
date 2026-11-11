@@ -15,6 +15,7 @@ import ExcelJS from "exceljs";
 import type { Ec } from "@/data/types";
 import { calcularRentabilidade } from "@/domain/rentabilidade";
 import { COR, fill, thin, baixar, nomeArquivo } from "./shared";
+import { rotuloNumeroEc } from "@/domain/calc";
 
 const CINZA = "FFD9D9D9";
 const COLS = ["A", "B", "C", "D", "E"];
@@ -53,7 +54,7 @@ export async function gerarRentabilidadeExcel(
   };
 
   ws.mergeCells(`A${r1}:${COLS[4]}${r1}`);
-  linha([`RENTABILIDADE — ${ec.numero}`, "", "", "", ""], { titulo: true });
+  linha([`RENTABILIDADE — ${rotuloNumeroEc(ec.numero)}`, "", "", "", ""], { titulo: true });
   ws.mergeCells(`A${r1}:${COLS[4]}${r1}`);
   linha([`Cliente: ${ec.cliente?.razaoSocial || ec.cliente?.nome || ""} · Projeto: ${ec.projeto?.titulo || ""}`, "", "", "", ""]);
 
@@ -80,5 +81,5 @@ export async function gerarRentabilidadeExcel(
   ws.pageSetup.printArea = `A1:${COLS[4]}${r1 - 1}`;
 
   const buffer = (await wb.xlsx.writeBuffer()) as ArrayBuffer;
-  baixar(buffer, `${nomeArquivo(`Rentabilidade ${ec.numero}`)}.xlsx`);
+  baixar(buffer, `${nomeArquivo(`Rentabilidade ${rotuloNumeroEc(ec.numero)}`)}.xlsx`);
 }

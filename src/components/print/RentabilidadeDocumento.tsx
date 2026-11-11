@@ -14,6 +14,7 @@
 import type { Ec } from "@/data/types";
 import { brl, dataBR, pct, cx } from "@/lib/format";
 import { calcularRentabilidade } from "@/domain/rentabilidade";
+import { rotuloNumeroEc } from "@/domain/calc";
 
 export function RentabilidadeDocumento({
   ec,
@@ -31,7 +32,7 @@ export function RentabilidadeDocumento({
         <img src="/polobh-logo.png" alt="Pólobh" className="h-9 w-auto object-contain" />
         <div className="text-right">
           <div className="font-bold text-[13px]">Rentabilidade do Projeto</div>
-          <div className="text-[11px] text-ink-2">{ec.numero}</div>
+          <div className="text-[11px] text-ink-2">{rotuloNumeroEc(ec.numero)}</div>
           <div className="text-[11px] text-ink-2">{dataBR(new Date().toISOString())}</div>
         </div>
       </div>

@@ -12,6 +12,7 @@ import { ThItensOs, TdItensOs } from "@/components/ColunaItensOs";
 import { itensDaOs } from "@/domain/os";
 import { useMinhasPendencias } from "@/store/pendencias";
 import { useAuth } from "@/store/auth";
+import { rotuloNumeroEc } from "@/domain/calc";
 
 /** Os mesmos filtros da lista de ECs e da aba OS do projeto (29/09/2026). */
 type Filtro = "todas" | "Rascunho" | "Emitida" | "Cancelada" | "Arquivada";
@@ -34,7 +35,7 @@ export function OsList() {
       .filter((o) =>
         !q
           ? true
-          : [o.numero, o.fornecedor.razaoSocial, o.fornecedor.nomeFantasia, o.fornecedor.cnpj, o.ecNumero, o.modalidade]
+          : [o.numero, o.fornecedor.razaoSocial, o.fornecedor.nomeFantasia, o.fornecedor.cnpj, o.ecNumero, rotuloNumeroEc(o.ecNumero), o.modalidade]
               .join(" ")
               .toLowerCase()
               .includes(q)
@@ -118,7 +119,7 @@ export function OsList() {
                   <Td className="font-bold">{o.numero}</Td>
                   <TdItensOs itens={itensPorOs[o.id] ?? []} />
                   <Td>{o.fornecedor.razaoSocial}</Td>
-                  <Td className="text-[12.5px] text-ink-2">{o.ecNumero}</Td>
+                  <Td className="text-[12.5px] text-ink-2">{rotuloNumeroEc(o.ecNumero)}</Td>
                   <Td>{o.modalidade || "—"}</Td>
                   {verFinanceiro && <Td align="right" className="font-display font-bold">{valorDaContratacao(o.itens ?? []) ? brl(valorDaContratacao(o.itens ?? [])) : "a definir"}</Td>}
                   <Td align="center"><Badge tom={tomStatusOs[o.status]}>{o.status}</Badge></Td>

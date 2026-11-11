@@ -39,6 +39,7 @@ import {
   LEI_INCENTIVO_PADRAO,
   FORMA_PAGAMENTO_PADRAO,
   OBS_CONTRATO_PADRAO,
+  rotuloNumeroEc,
 } from "@/domain/calc";
 import { datasDoEvento, ETAPAS_CRONOGRAMA, horariosDoEvento } from "@/domain/projeto";
 import { bancariosDoHistorico, bancariosVazios, comPerfilPeloDocumento, doCadastro, opcoesPerfilTributario, semVazios } from "@/domain/fornecedor";
@@ -1205,7 +1206,7 @@ export function OsForm() {
     <FaseDaOsCtx.Provider value={encerradaDoc ? null : fase}>
     <PageShell
       breadcrumb={
-        <button onClick={() => navigate(`/estimativas/${ecCtx.id}`)} className="hover:text-ink">{ecCtx.numero}</button>
+        <button onClick={() => navigate(`/estimativas/${ecCtx.id}`)} className="hover:text-ink">{rotuloNumeroEc(ecCtx.numero)}</button>
       }
       // O NÚMERO é o título, como na EC. Ele aparecia três vezes no mesmo bloco
       // — na trilha, no subtítulo e implícito no título genérico "Ordem de

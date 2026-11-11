@@ -16,7 +16,7 @@ import { IcBack, IcDownload } from "@/components/icons";
 import { EcDocumento } from "@/components/print/EcDocumento";
 import { OsDocumento } from "@/components/print/OsDocumento";
 import { RentabilidadeDocumento } from "@/components/print/RentabilidadeDocumento";
-import { gastoPorLinhaViaOSs } from "@/domain/calc";
+import { gastoPorLinhaViaOSs, rotuloNumeroEc } from "@/domain/calc";
 
 export function ImprimirEc() {
   const { id = "" } = useParams();
@@ -39,10 +39,10 @@ export function ImprimirEc() {
   );
   useEffect(() => {
     if (!ec) return;
-    auditar({ categoria: "Exportação", acao: "ec.imprimir", mensagem: `EC ${ec.numero} aberta para impressão/PDF`, alvoId: ec.id });
+    auditar({ categoria: "Exportação", acao: "ec.imprimir", mensagem: `EC ${rotuloNumeroEc(ec.numero)} aberta para impressão/PDF`, alvoId: ec.id });
     // Nome do PDF salvo = código da EC + data (o navegador usa document.title).
     const anterior = document.title;
-    document.title = `${ec.numero} - ${dataBR(ec.criadoEm)}`;
+    document.title = `${rotuloNumeroEc(ec.numero)} - ${dataBR(ec.criadoEm)}`;
     return () => { document.title = anterior; };
   }, [ec]);
   if (!usuario) return <Navigate to="/login" replace />;
