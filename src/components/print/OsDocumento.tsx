@@ -1,5 +1,5 @@
 /** OS como documento A4 — visualização em tela + PDF. Espelha o modelo em Excel. */
-import { itensParaDocumento, temContrato, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, osIncentivada } from "@/domain/os";
+import { itensParaDocumento, temContrato, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, osIncentivada, incentivoDoContrato } from "@/domain/os";
 import type { Cliente, Ec, Os } from "@/data/types";
 import { brl, dataBR } from "@/lib/format";
 import { textoObjetoContrato, FORMA_PAGAMENTO_PADRAO, OBS_CONTRATO_PADRAO } from "@/domain/calc";
@@ -347,7 +347,7 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
           <LV label="CNPJ/CPF" valor={contr?.doc ?? ""} />
           <LV label="Inscrição Estadual" valor={contr?.ie ?? ""} />
           <LV label="Inscrição Municipal" valor={contr?.im ?? ""} />
-          <LV label="Objeto do Contrato" valor={textoObjetoContrato(os.financeiro, incentivada)} />
+          <LV label="Objeto do Contrato" valor={textoObjetoContrato({ ...os.financeiro, ...incentivoDoContrato(os) }, incentivada)} />
           <LV
             label="Descritivo dos Serviços e/ou Produtos"
             valor={os.contrato.descritivoServicos || os.financeiro.descritivoNf || os.descritivo}

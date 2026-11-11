@@ -44,3 +44,26 @@ describe("OS cultural com contrato: Produção → Direção de Produção → F
   });
 
 });
+
+describe("projeto incentivado no bloco Dados para Contrato", async () => {
+  const { incentivoDoContrato } = await import("./os");
+  const base = {
+    projeto: { projetoIncentivado: "Prêmio Jornalista", codigoProjetoIncentivado: "PRONAC 26 1234", leiIncentivo: "Lei Rouanet", incentivosFiscais: "" },
+    financeiro: {},
+    contrato: {},
+  } as unknown as Parameters<typeof incentivoDoContrato>[0];
+
+  it("nasce dos Dados Gerais do projeto", () => {
+    expect(incentivoDoContrato(base)).toEqual({
+      projetoIncentivado: "Prêmio Jornalista",
+      codigoProjetoIncentivado: "PRONAC 26 1234",
+      leiIncentivo: "Lei Rouanet",
+    });
+  });
+
+  it("o que a Produção corrige no contrato é o que vale", () => {
+    const corrigido = { ...base, contrato: { codigoProjetoIncentivado: "PRONAC 26 9999" } } as typeof base;
+    expect(incentivoDoContrato(corrigido).codigoProjetoIncentivado).toBe("PRONAC 26 9999");
+    expect(incentivoDoContrato(corrigido).projetoIncentivado).toBe("Prêmio Jornalista");
+  });
+});

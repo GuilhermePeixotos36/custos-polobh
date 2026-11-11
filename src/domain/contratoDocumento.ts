@@ -20,6 +20,7 @@ import type { Cliente, EmpresaGrupo, Os } from "@/data/types";
 import { brl } from "@/lib/format";
 import { MESES } from "@/domain/calendario";
 import { dadosDoTomador, type DadosTomador } from "@/domain/tomadorOs";
+import { incentivoDoContrato } from "@/domain/os";
 import {
   clausulasPadrao,
   FECHO_CONTRATO,
@@ -131,9 +132,11 @@ export function municipioDoEndereco(endereco: string): string {
 function corpoDoObjeto(os: Os, modelo: ModeloContrato, intro: string): string[] {
   const f = os.financeiro;
   const ct = os.contrato;
-  const projeto = (f.projetoIncentivado ?? "").trim();
-  const lei = (f.leiIncentivo ?? "").trim();
-  const codigo = (f.codigoProjetoIncentivado ?? "").trim();
+  // Do bloco Dados para Contrato, com o faturamento e os Dados Gerais de reserva.
+  const inc = incentivoDoContrato(os);
+  const projeto = inc.projetoIncentivado;
+  const lei = inc.leiIncentivo;
+  const codigo = inc.codigoProjetoIncentivado;
   const out: string[] = [intro, ""];
 
   if (modelo === "Cultural") {
