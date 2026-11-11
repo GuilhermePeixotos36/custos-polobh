@@ -127,11 +127,11 @@ export const RECURSO_DA_FASE: Partial<Record<FaseOs, Recurso>> = {
   // A validação do contrato tem chave própria: "Bloco financeiro" a Marisa
   // divide com o Financeiro, e a pendência é só de quem valida.
   direcao: "oss.validarContrato",
-  financeiro: "financeiro",
-  // A emissão tem chave própria (`oss.emitir`) desde 16/09/2026. Antes era
-  // `oss.editar`, e aí a pendência do back-office caía também em quem só monta
-  // a OS — justamente quem esta fase tirou do caminho.
-  backoffice: "oss.emitir",
+  // Financeiro e Back-office também ganharam chaves só de COBRANÇA (11/11/2026):
+  // antes eram "financeiro" e "oss.emitir", que a Coordenação e a Diretoria
+  // Produção também têm — e as duas recebiam a pendência de toda OS da casa.
+  financeiro: "oss.etapaFinanceiro",
+  backoffice: "oss.etapaBackoffice",
 };
 
 /** Quem preenche cada bloco da OS (27/10/2026). */

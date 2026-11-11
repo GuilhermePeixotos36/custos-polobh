@@ -83,9 +83,15 @@ export interface EcRepository {
    */
   novaVersaoComMapa(id: string): Promise<{ ec: Ec; mapa: Record<string, string> }>;
   /** Marca esta versão como baixada/arquivada (só a primeira vez conta). */
-  marcarBaixada(id: string): Promise<void>;
+  marcarBaixada(id: string, impressao?: string): Promise<void>;
   /** Só a data em que esta versão foi baixada (consulta leve, sem as linhas). */
   baixadaEm(id: string): Promise<string | null>;
+  /**
+   * Quando esta versão foi para a pasta e a impressão digital do conteúdo que
+   * foi (ver `domain/impressaoEc`) — `impressao` é null nas versões arquivadas
+   * antes de 11/11/2026.
+   */
+  naPasta(id: string): Promise<{ baixadaEm: string | null; impressao: string | null }>;
   /** Torna esta EC a ativa do projeto (arquiva as demais). Reativa arquivadas. */
   definirAtiva(id: string): Promise<Ec>;
   remover(id: string): Promise<void>;

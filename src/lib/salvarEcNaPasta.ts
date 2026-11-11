@@ -21,6 +21,7 @@
 import { repo } from "@/data";
 import type { Ec } from "@/data/types";
 import { numeroEc, rotuloNumeroEc } from "@/domain/calc";
+import { impressaoDigitalEc } from "@/domain/impressaoEc";
 import { aplicarNaEc, camposDaEc } from "@/domain/revisaoTexto";
 import { avisarFalhaRevisao, pendentesDeRevisao, revisarPendentes } from "@/lib/revisaoInterativa";
 import { confirmar } from "@/store/confirm";
@@ -60,8 +61,12 @@ export async function salvarEcNaPasta(
   }
 
   andar("Conferindo a versão…");
-  const baixadaEm = await repo.ecs.baixadaEm(ec.id);
-  const precisaVersaoNova = !!baixadaEm && mudouDesdeAPasta(ec.atualizadoEm, baixadaEm);
+  const { baixadaEm, impressao } = await repo.ecs.naPasta(ec.id);
+  // Mudou desde a pasta? Pelo CONTEÚDO (11/11/2026): a data de alteração também
+  // anda quando o banco marca a EC ativa ou arquiva documentos, sem edição — e
+  // isso gerava versão nova à toa. Versão arquivada antes da impressão digital
+  // existir segue pela data.
+  const precisaVersaoNova = !!baixadaEm && (impressao ? impressao !== impressaoDigitalEc(ec) : mudouDesdeAPasta(ec.atualizadoEm, baixadaEm));
   const proxima = ec.versao + 1;
 
   if (baixadaEm && !precisaVersaoNova) {

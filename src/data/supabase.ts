@@ -643,9 +643,16 @@ const ecRepo: EcRepository = {
     if (!nova) throw new Error("Falha ao reler a nova versão.");
     return { ec: nova, mapa: r.mapa ?? {} };
   },
-  async marcarBaixada(id) {
+  async marcarBaixada(id, impressao) {
     if (!isUuid(id)) return;
-    ok(await supabase.rpc("marcar_ec_baixada", { p_ec_id: id }));
+    ok(await supabase.rpc("marcar_ec_baixada", { p_ec_id: id, p_hash: impressao ?? null }));
+  },
+  async naPasta(id) {
+    if (!isUuid(id)) return { baixadaEm: null, impressao: null };
+    const data = ok(
+      await supabase.from("ecs").select("baixada_em, baixada_hash").eq("id", id).maybeSingle()
+    ) as { baixada_em?: string | null; baixada_hash?: string | null } | null;
+    return { baixadaEm: data?.baixada_em ?? null, impressao: data?.baixada_hash ?? null };
   },
   async baixadaEm(id) {
     if (!isUuid(id)) return null;
