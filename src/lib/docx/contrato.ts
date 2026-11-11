@@ -176,7 +176,7 @@ const tarja = (titulo: string): (Paragraph | Table)[] => [
 
 /** A qualificação de uma das partes: rótulos alinhados numa coluna, valores em outra. */
 function bloco(parte: ParteContrato): Table {
-  const COL_ROTULO = 2100;
+  const COL_ROTULO = 2100; // a mesma de `tabelaDeValores`
   const COL_VALOR = LARGURA - COL_ROTULO;
   const linha = (rotulo: string, valor: string) =>
     new TableRow({
@@ -215,13 +215,19 @@ function bloco(parte: ParteContrato): Table {
   });
 }
 
-/** Os valores do objeto numa tabela: o que se paga fica no fim, em destaque. */
+/**
+ * Os valores do objeto numa tabela: o que se paga fica no fim, em destaque.
+ *
+ * Largura inteira e a MESMA coluna de rótulos da qualificação das partes
+ * (11/11/2026): com uma tabela estreita no meio de blocos largos, a página
+ * parecia desalinhada — as linhas verticais precisam cair no mesmo lugar.
+ */
 function tabelaDeValores(linhas: { rotulo: string; valor: string }[]): Table {
-  const COL_VALOR = 2400;
-  const COL_ROTULO = 3600;
+  const COL_ROTULO = 2100;
+  const COL_VALOR = LARGURA - COL_ROTULO;
   const ultima = linhas.length - 1;
   return new Table({
-    width: { size: COL_ROTULO + COL_VALOR, type: WidthType.DXA },
+    width: { size: LARGURA, type: WidthType.DXA },
     columnWidths: [COL_ROTULO, COL_VALOR],
     layout: TableLayoutType.FIXED,
     borders: BORDAS_GRADE,
@@ -230,10 +236,10 @@ function tabelaDeValores(linhas: { rotulo: string; valor: string }[]): Table {
       return new TableRow({
         cantSplit: true,
         children: [
-          celula([p(l.rotulo, { bold: destaque, depois: 0, keepNext: i < ultima })], { largura: COL_ROTULO, fundo: destaque ? CINZA_MEDIO : CINZA }),
-          celula([p(l.valor, { bold: destaque, align: AlignmentType.RIGHT, depois: 0, keepNext: i < ultima })], {
+          celula([p(l.rotulo, { depois: 0, keepNext: i < ultima })], { largura: COL_ROTULO, fundo: destaque ? CINZA_MEDIO : CINZA }),
+          celula([p(l.valor, { bold: true, size: destaque ? 22 : CORPO, depois: 0, keepNext: i < ultima })], {
             largura: COL_VALOR,
-            fundo: destaque ? CINZA_MEDIO : undefined,
+            fundo: destaque ? CINZA : undefined,
           }),
         ],
       });
