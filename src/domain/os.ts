@@ -178,6 +178,12 @@ const CONTRATO_A_EMITIR: StatusOs[] = ["Emitir", "Emitir Nova Versão"];
  * equipe já escreveu continua mostrando o bloco mesmo que alguém mexa no
  * status da linha na EC depois.
  */
+/** Os itens DESTA OS que a EC marcou para contrato — se nenhum, todos os da OS (contrato preenchido à mão). */
+export function idsLinhasDoContrato(os: Pick<Os, "ecLinhaIds">, linhas: Pick<EcLinha, "id" | "contratoStatus">[]): string[] {
+  const marcadas = linhas.filter((l) => os.ecLinhaIds.includes(l.id) && CONTRATO_A_EMITIR.includes(l.contratoStatus)).map((l) => l.id);
+  return marcadas.length ? marcadas : os.ecLinhaIds;
+}
+
 export function temContrato(os: Pick<Os, "contrato">, linhas: Pick<EcLinha, "contratoStatus">[]): boolean {
   return linhas.some((l) => CONTRATO_A_EMITIR.includes(l.contratoStatus)) || contratoPreenchido(os.contrato);
 }

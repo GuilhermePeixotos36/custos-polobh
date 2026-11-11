@@ -57,6 +57,8 @@ export interface EmpresaGrupo {
   endereco: string;
   inscricaoEstadual: string;
   inscricaoMunicipal: string;
+  /** Telefone da empresa — entra na qualificação do CONTRATANTE no contrato (11/11/2026). */
+  telefone?: string;
   padrao: boolean;
   ordem: number;
 }
@@ -907,7 +909,10 @@ export interface ContratoOs {
   descritivoServicos: string; // parte do descritivo NF, editável
   informacoesComplementares: string;
   valorUnitario: number;
+  /** Quantidade contratada (11/11/2026). Sem valor, 1 — e o valor total é unitário × quantidade. */
+  quantidade?: number;
   valorTotal: number;
+  /** "Desconto Especial Negociado" no formulário e no contrato. */
   descontoNegociado: number;
   valorAPagar: number;
   /** Forma de pagamento (ex.: "À vista, no ato da emissão da nota fiscal"). */
@@ -932,6 +937,23 @@ export interface ContratoOs {
    */
   validadoEm?: string;
   validadoPor?: string;
+  /**
+   * O PDF DO CONTRATO emitido (11/11/2026). Cada contrato tem versões, como a EC
+   * e a OS: a primeira emissão é a (01); mudou o conteúdo e emitiu de novo, nasce
+   * a (02) — e a anterior continua na pasta do projeto, como estava.
+   * `impressaoEmitida` é a impressão digital do que foi emitido: é ela que diz se
+   * o contrato mudou desde então.
+   */
+  versaoEmitida?: number;
+  impressaoEmitida?: string;
+  emitidoEm?: string;
+  emitidoPor?: string;
+  /**
+   * A Produção mandou a OS DIRETO ao Financeiro, sem a revisão da Direção de
+   * Produção (11/11/2026). É uma escolha dela — o botão existe —, e por isso a
+   * emissão não cobra a revisão que ninguém foi chamada a fazer.
+   */
+  revisaoDirecaoDispensada?: boolean;
   /**
    * Qual dos dois modelos da casa este contrato usa (16/09/2026).
    *

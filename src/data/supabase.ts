@@ -1110,6 +1110,7 @@ function mapEmpresa(r: any): EmpresaGrupo {
     endereco: r.endereco ?? "",
     inscricaoEstadual: r.inscricao_estadual ?? "",
     inscricaoMunicipal: r.inscricao_municipal ?? "",
+    telefone: r.telefone ?? "",
     padrao: !!r.padrao,
     ordem: r.ordem ?? 0,
   };
@@ -1124,6 +1125,7 @@ function empresaRow(e: EmpresaGrupo) {
     endereco: e.endereco,
     inscricao_estadual: e.inscricaoEstadual,
     inscricao_municipal: e.inscricaoMunicipal,
+    telefone: e.telefone ?? "",
     padrao: e.padrao,
     ordem: e.ordem,
     atualizado_em: nowIso(),

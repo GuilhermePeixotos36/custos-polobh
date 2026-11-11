@@ -288,6 +288,32 @@ export function numeroOs(
   return [projeto, item, forn, fim].filter(Boolean).join(" – ");
 }
 
+/**
+ * O TÍTULO DO CONTRATO (11/11/2026): o nome do arquivo e o cabeçalho de cada
+ * página do PDF. "Nome do Projeto + Item do Contrato + Fornecedor + Contrato +
+ * Versão + Data" — o mesmo molde do título da OS, que a equipe já reconhece:
+ * "Cliente – Projeto 2026 – Item – Fornecedor – Contrato (01) em 09 11 26".
+ *
+ * `ecLinhaIds` são os itens DESTE contrato (os que a EC marcou para contrato);
+ * com mais de um, o item vira "Diversos", como na OS. A data é a do contrato.
+ */
+export function tituloContrato(
+  ec: Ec,
+  fornecedor: Pick<Fornecedor, "apelido" | "nomeFantasia" | "razaoSocial"> | string | undefined,
+  versao: number,
+  dataContrato: string,
+  ecLinhaIds: string[] = []
+): string {
+  const p = ec.projeto;
+  const cliente = (p.clienteAbreviado || ec.cliente?.apelido || ec.cliente?.nome || "").trim();
+  const nome = (p.nomeProjeto || "").trim();
+  const ano = (p.anoProjeto || (p.evento || dataContrato || "").slice(0, 4)).trim();
+  const projeto = nome ? [cliente, [nome, ano].filter(Boolean).join(" ")].filter(Boolean).join(" – ") : (p.titulo || cliente).trim();
+  const data = dataBRCurta(dataContrato);
+  const fim = `Contrato (${String(versao).padStart(2, "0")})` + (data ? ` em ${data}` : "");
+  return [projeto, itemDoTituloOs(ec, ecLinhaIds), apelidoFornecedor(fornecedor), fim].filter(Boolean).join(" – ");
+}
+
 /** O item no título da OS: o nome do único item, ou "Diversos" com mais de um. */
 export function itemDoTituloOs(ec: Pick<Ec, "linhas">, ecLinhaIds: string[]): string {
   if (ecLinhaIds.length > 1) return "Diversos";

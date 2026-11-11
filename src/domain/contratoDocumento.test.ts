@@ -4,11 +4,10 @@ import {
   blocosDaClausula,
   dataPorExtenso,
   montarContrato,
-  municipioDoEndereco,
-  nomeArquivoContrato,
   partirEmDestaques,
+  quantidadeDoContrato,
 } from "./contratoDocumento";
-import { clausulasPadrao, modeloDoContrato, RESSALVA_VALORES } from "./contratoModelo";
+import { clausulasPadrao, FECHO_CONTRATO, modeloDoContrato, RESSALVA_VALORES } from "./contratoModelo";
 
 const cliente = (): Cliente =>
   ({
@@ -24,11 +23,12 @@ const empresas = (): EmpresaGrupo[] => [
   {
     id: "polobh",
     nome: "Pólobh",
-    razaoSocial: "PÓLOBH PROMOÇÕES LTDA",
-    cnpj: "22.222.222/0001-22",
-    endereco: "Rua da Casa, 2 — Belo Horizonte/MG",
-    inscricaoEstadual: "Isenta",
+    razaoSocial: "Polobh Promoções LTDA",
+    cnpj: "07128230000180",
+    endereco: "Av. Aggeo Pio Sobrinho, 265 - Buritis, Belo Horizonte - MG, 30575-834",
+    inscricaoEstadual: "003007740.00-11",
     inscricaoMunicipal: "1234",
+    telefone: "(31) 3333-0000",
     ordem: 1,
     padrao: true,
   } as EmpresaGrupo,
@@ -43,7 +43,7 @@ const os = (p: Partial<Os> = {}): Os =>
       cnpj: "33.333.333/0001-33",
       inscricaoEstadual: "Isenta",
       telefone: "(31) 99999-0000",
-      endereco: "Rua do Fornecedor, 3 — Contagem/MG",
+      endereco: "Rua do Fornecedor, 3 - Centro - Contagem - MG",
     },
     projeto: { modalidade: "Corporativo" },
     financeiro: {
@@ -108,13 +108,39 @@ describe("as sete cláusulas", () => {
     }
   });
 
-  it("o Cultural acrescenta a administração dos recursos e o serviço novo", () => {
+  it("os títulos novos da revisão de 11/11/2026", () => {
+    const t = clausulasPadrao("Cultural").map((c) => c.titulo);
+    expect(t[2]).toBe("CLÁUSULA TERCEIRA: DA VIGÊNCIA E DA RESCISÃO");
+    expect(t[5]).toBe("CLÁUSULA SEXTA: DAS DISPOSIÇÕES GERAIS");
+  });
+
+  it("o Cultural acrescenta a gestão dos recursos e os serviços adicionais", () => {
     const cult = textoDe(montarContrato(os({ projeto: { modalidade: "Cultural" } } as Partial<Os>), ctx()));
     const corp = textoDe(montarContrato(os(), ctx()));
-    expect(cult).toContain("Receber e administrar os recursos financeiros");
-    expect(corp).not.toContain("Receber e administrar os recursos financeiros");
-    expect(cult).toContain("deverá ser objeto de novo contrato e nova remuneração");
-    expect(corp).not.toContain("deverá ser objeto de novo contrato e nova remuneração");
+    expect(cult).toContain("Receber e gerir os recursos financeiros");
+    expect(corp).not.toContain("Receber e gerir os recursos financeiros");
+    expect(cult).toContain("**Serviços Adicionais:**");
+    expect(corp).not.toContain("Serviços Adicionais");
+    // a frase do Corporativo não cita a legislação de incentivo
+    expect(cult).toContain("Legislação de Incentivo à Cultura");
+    expect(corp).not.toContain("Legislação de Incentivo à Cultura");
+  });
+
+  it("os textos novos: parágrafos nomeados e prazo de confidencialidade", () => {
+    const t = textoDe(montarContrato(os(), ctx()));
+    expect(t).toContain("**Parágrafo Único**");
+    expect(t).toContain("**Parágrafo Primeiro**");
+    expect(t).toContain("**Parágrafo Segundo**");
+    expect(t).toContain("**Parágrafo Terceiro**");
+    expect(t).toContain("pelo prazo de 5 (cinco) anos");
+    expect(t).toContain("foro da Comarca de Belo Horizonte, Estado de Minas Gerais");
+    expect(t).not.toContain("[5 (cinco)]");
+  });
+
+  it("o fecho é o da assinatura eletrônica", () => {
+    expect(montarContrato(os(), ctx()).fecho).toBe(FECHO_CONTRATO);
+    expect(FECHO_CONTRATO).toContain("por meio eletrônico");
+    expect(FECHO_CONTRATO).toContain("Lei nº 14.063/2020");
   });
 
   // O texto reescrito na OS é o que vale; o campo apagado volta ao padrão, em
@@ -127,17 +153,19 @@ describe("as sete cláusulas", () => {
     );
     const t = textoDe(c);
     expect(t).toContain("foro de São Paulo");
-    expect(t).not.toContain("foro de Belo Horizonte");
-    expect(t).toContain("A vigência do presente contrato terá início na data de sua assinatura");
+    expect(t).not.toContain("foro da Comarca de Belo Horizonte");
+    expect(t).toContain("O presente contrato entrará em vigor na data de sua assinatura");
   });
 });
 
 describe("a Cláusula Primeira", () => {
-  it("o Cultural nomeia o projeto, a lei e o código", () => {
-    const t = textoDe(montarContrato(os({ projeto: { modalidade: "Cultural" } } as Partial<Os>), ctx()));
+  const cultural = () => montarContrato(os({ projeto: { modalidade: "Cultural" } } as Partial<Os>), ctx());
+
+  it("o Cultural nomeia o projeto, a lei e o código — com vírgula depois do código e dois-pontos no fim", () => {
+    const t = textoDe(cultural());
     expect(t).toContain("viabilização do projeto Festival de Inverno");
     expect(t).toContain("no âmbito da Lei Federal de Incentivo à Cultura (Rouanet)");
-    expect(t).toContain("sob o PRONAC 26 1234");
+    expect(t).toContain("sob o PRONAC 26 1234, de autoria do(a) CONTRATANTE, sendo:");
   });
 
   it("o Corporativo não cita incentivo nenhum", () => {
@@ -146,13 +174,56 @@ describe("a Cláusula Primeira", () => {
     expect(t).not.toContain("PRONAC");
   });
 
-  it("os dois trazem o descritivo e os quatro valores", () => {
-    const t = textoDe(montarContrato(os(), ctx()));
-    expect(t).toContain("Locação de sistema de som para o palco principal.");
-    expect(t).toContain("Valor unitário: R$ 10.000,00");
-    expect(t).toContain("Desconto Negociado: R$ 500,00");
-    expect(t).toContain("Valor Total a Pagar: R$ 9.500,00");
-    expect(t).toContain("Forma de pagamento: À vista, no ato da emissão da nota fiscal");
+  it("descritivo e informações complementares, nessa ordem, com um espaço entre os dois", () => {
+    const base = os();
+    const c = montarContrato(
+      os({ contrato: { ...base.contrato, informacoesComplementares: "Pagamento após o relatório." } }),
+      ctx()
+    );
+    const linhas = c.clausulas[0].paragrafos;
+    const i = linhas.indexOf("Locação de sistema de som para o palco principal.");
+    expect(i).toBeGreaterThan(0);
+    expect(linhas[i + 1]).toBe("");
+    expect(linhas[i + 2]).toBe("Pagamento após o relatório.");
+  });
+
+  it("os valores saem em lista, na ordem do contrato, com o total a pagar em negrito", () => {
+    const base = os();
+    const t = textoDe(montarContrato(os({ contrato: { ...base.contrato, quantidade: 2 } }), ctx()));
+    const ordem = [
+      "- Valor unitário: R$ 10.000,00",
+      "- Quantidade: 02",
+      "- Valor total: R$ 10.000,00",
+      "- Desconto Especial Negociado: R$ 500,00",
+      "- **Valor Total a Pagar: R$ 9.500,00**",
+    ].map((x) => t.indexOf(x));
+    expect(ordem.every((n) => n >= 0)).toBe(true);
+    expect([...ordem].sort((a, b) => a - b)).toEqual(ordem);
+  });
+
+  it("sem quantidade gravada, é 1", () => {
+    expect(quantidadeDoContrato({})).toBe(1);
+    expect(quantidadeDoContrato({ quantidade: 0 })).toBe(1);
+    expect(quantidadeDoContrato({ quantidade: 3 })).toBe(3);
+  });
+
+  it("a identificação do incentivo: os três dados com hífen, em negrito e caixa alta, depois dos valores", () => {
+    const t = textoDe(cultural());
+    const id = "**FESTIVAL DE INVERNO - LEI FEDERAL DE INCENTIVO À CULTURA (ROUANET) - PRONAC 26 1234**";
+    expect(t).toContain(id);
+    expect(t.indexOf(id)).toBeGreaterThan(t.indexOf("- **Valor Total a Pagar"));
+  });
+
+  it("Valores e forma de pagamento: total em negrito, forma com o rótulo em negrito e as observações gerais", () => {
+    const base = os();
+    const t = textoDe(montarContrato(os({ contrato: { ...base.contrato, observacoesGerais: "" } }), ctx()));
+    expect(t).toContain("VALORES E FORMA DE PAGAMENTO:");
+    expect(t).toContain("**Valor Total a Pagar: R$ 9.500,00**");
+    expect(t).toContain("**Forma de Pagamento:** À vista, no ato da emissão da nota fiscal");
+    expect(t).toContain(RESSALVA_VALORES);
+    const outra = textoDe(montarContrato(os({ contrato: { ...base.contrato, observacoesGerais: "Texto próprio." } }), ctx()));
+    expect(outra).toContain("Texto próprio.");
+    expect(outra).not.toContain(RESSALVA_VALORES);
   });
 
   // Sem descritivo, o contrato sairia com um espaço em branco onde deveria
@@ -172,9 +243,19 @@ describe("as partes", () => {
   // é o bloco de assinaturas dele que desfaz o engano.
   it("CONTRATANTE é o tomador e CONTRATADO é o fornecedor", () => {
     const c = montarContrato(os(), ctx());
-    expect(c.contratante.razaoSocial).toBe("PÓLOBH PROMOÇÕES LTDA");
-    expect(c.contratado.razaoSocial).toBe("SOM E LUZ LTDA");
-    expect(c.assinaturas.map((a) => a.nome)).toEqual(["SOM E LUZ LTDA", "PÓLOBH PROMOÇÕES LTDA"]);
+    expect(c.contratante.razaoSocial).toBe("Polobh Promoções Ltda.");
+    expect(c.contratado.razaoSocial).toBe("SOM E LUZ Ltda.");
+    expect(c.assinaturas.map((a) => a.nome)).toEqual(["SOM E LUZ Ltda.", "Polobh Promoções Ltda."]);
+  });
+
+  it("CNPJ e Inscrição Estadual saem com a pontuação completa, e o telefone e o município são lançados", () => {
+    const { contratante, contratado } = montarContrato(os(), ctx());
+    expect(contratante.cnpjCpf).toBe("07.128.230/0001-80");
+    expect(contratante.inscricaoEstadual).toBe("003.007.740/0011");
+    expect(contratante.telefone).toBe("(31) 3333-0000");
+    expect(contratante.municipio).toBe("Belo Horizonte - MG");
+    expect(contratado.municipio).toBe("Contagem - MG");
+    expect(contratado.inscricaoEstadual).toBe("Isenta");
   });
 
   it("sem contratante escolhido, segue o tomador do faturamento", () => {
@@ -217,25 +298,41 @@ describe("cidade, data e testemunhas", () => {
     expect(c.cidadeData).toBe("São Paulo, 21 de setembro de 2026.");
   });
 
-  it("as duas testemunhas saem sempre, preenchidas ou não", () => {
+  it("as testemunhas são fixas: o Tiago e a Viviane", () => {
+    const c = montarContrato(os(), ctx());
+    expect(c.testemunhas).toEqual([
+      { nome: "Tiago Alkimim Resende", cpf: "057.704.986-09" },
+      { nome: "Viviane Barreiros dos Santos", cpf: "082.218.156-83" },
+    ]);
+  });
+
+  it("as testemunhas editadas em Configurações valem para todos os contratos", () => {
+    const c = montarContrato(os(), { ...ctx(), testemunhas: [{ nome: "Ana", cpf: "1" }, { nome: "Bia", cpf: "2" }] });
+    expect(c.testemunhas.map((t) => t.nome)).toEqual(["Ana", "Bia"]);
+  });
+
+  it("o que foi digitado numa OS antiga continua valendo para ela", () => {
     const base = os();
-    const c = montarContrato(
-      os({ contrato: { ...base.contrato, testemunha1: { nome: "Ana", cpf: "000.000.000-00" } } }),
-      ctx()
-    );
-    expect(c.testemunhas).toHaveLength(2);
-    expect(c.testemunhas[0]).toEqual({ nome: "Ana", cpf: "000.000.000-00" });
-    expect(c.testemunhas[1]).toEqual({ nome: "", cpf: "" });
+    const c = montarContrato(os({ contrato: { ...base.contrato, testemunha1: { nome: "Carlos", cpf: "9" } } }), ctx());
+    expect(c.testemunhas[0]).toEqual({ nome: "Carlos", cpf: "9" });
+    expect(c.testemunhas[1].nome).toBe("Viviane Barreiros dos Santos");
   });
 });
 
-describe("negrito das partes no corpo da cláusula", () => {
-  it("destaca CONTRATANTE e CONTRATADO(A), e só eles", () => {
+describe("o título do documento", () => {
+  it("vem do contexto e vira o cabeçalho; sem ele, o número da OS", () => {
+    expect(montarContrato(os(), { ...ctx(), titulo: "Projeto – Item – Forn – Contrato (01) em 21 09 26" }).tituloDocumento).toBe(
+      "Projeto – Item – Forn – Contrato (01) em 21 09 26"
+    );
+    expect(montarContrato(os(), ctx()).tituloDocumento).toContain("0031/26");
+  });
+});
+
+describe("negrito no corpo da cláusula", () => {
+  it("destaca CONTRATANTE e CONTRATADO(A) sozinhos", () => {
     const partes = partirEmDestaques("São obrigações do(a) CONTRATADO(A): pagar ao CONTRATANTE o devido.");
     expect(partes.filter((x) => x.forte).map((x) => x.texto)).toEqual(["CONTRATADO(A)", "CONTRATANTE"]);
-    expect(partes.map((x) => x.texto).join("")).toBe(
-      "São obrigações do(a) CONTRATADO(A): pagar ao CONTRATANTE o devido."
-    );
+    expect(partes.map((x) => x.texto).join("")).toBe("São obrigações do(a) CONTRATADO(A): pagar ao CONTRATANTE o devido.");
   });
 
   it("texto sem as partes sai inteiro, sem negrito", () => {
@@ -243,101 +340,69 @@ describe("negrito das partes no corpo da cláusula", () => {
       { texto: "Fica eleito o foro de Belo Horizonte.", forte: false },
     ]);
   });
-});
 
-describe("nome do arquivo", () => {
-  it("a barra da numeração não vai para o nome do arquivo", () => {
-    expect(nomeArquivoContrato(os())).toBe("Contrato 0031-26 Som & Luz.docx");
+  it("o que está entre dois asteriscos sai em negrito, e os asteriscos somem", () => {
+    const partes = partirEmDestaques("**Parágrafo Único**. Caso a obrigação seja cumprida.");
+    expect(partes).toEqual([
+      { texto: "Parágrafo Único", forte: true },
+      { texto: ". Caso a obrigação seja cumprida.", forte: false },
+    ]);
+  });
+
+  it("negrito marcado e partes no mesmo parágrafo", () => {
+    const partes = partirEmDestaques("**Tolerância e Novação:** A tolerância do(a) CONTRATANTE não é novação.");
+    expect(partes.filter((x) => x.forte).map((x) => x.texto)).toEqual(["Tolerância e Novação:", "CONTRATANTE"]);
+    expect(partes.map((x) => x.texto).join("")).toBe("Tolerância e Novação: A tolerância do(a) CONTRATANTE não é novação.");
+  });
+
+  // Um asterisco esquecido não pode pôr a metade do contrato em negrito.
+  it("asteriscos desbalanceados são ignorados", () => {
+    const partes = partirEmDestaques("Texto **sem fechar o negrito");
+    expect(partes.every((x) => !x.forte)).toBe(true);
+    expect(partes.map((x) => x.texto).join("")).toBe("Texto sem fechar o negrito");
   });
 });
 
-describe("a linha Municipio do modelo", () => {
-  it("sai do endereço, quando ele traz cidade e UF", () => {
-    expect(municipioDoEndereco("Rua X, 123 - Centro - Belo Horizonte - MG - CEP: 30000-000")).toBe(
-      "Belo Horizonte - MG"
-    );
-    const c = montarContrato(os(), ctx());
-    expect(c.contratado.municipio).toBe("");
-  });
-
-  // Endereço fora do formato não pode virar palpite: melhor a linha em branco,
-  // que alguém completa à mão, do que a cidade errada num documento assinado.
-  it("endereço sem UF deixa a linha em branco", () => {
-    expect(municipioDoEndereco("Rua sem cidade, 10")).toBe("");
-    expect(municipioDoEndereco("")).toBe("");
-    expect(municipioDoEndereco("MG")).toBe("");
-  });
-});
-
-describe("a estrutura de cada cláusula (formatação do Word)", () => {
+describe("a estrutura de cada cláusula", () => {
   const blocos = (chave: Parameters<typeof blocosDaClausula>[0], linhas: string[]) => blocosDaClausula(chave, linhas);
 
-  it("os quatro valores do objeto viram uma tabela, e o resto fica à parte", () => {
-    const b = blocos("objeto", [
-      "Valor unitário: R$ 10.000,00",
-      "Valor Total: R$ 10.000,00",
-      "Desconto Negociado: R$ 500,00",
-      "Valor Total a Pagar: R$ 9.500,00",
-      "",
-      "VALORES E FORMA DE PAGAMENTO:",
-      "",
-      "Valor total a pagar: R$ 9.500,00",
-      "Forma de pagamento: À vista",
-      "",
-      RESSALVA_VALORES,
-    ]);
-    expect(b[0]).toEqual({
-      tipo: "valores",
-      linhas: [
-        { rotulo: "Valor unitário", valor: "R$ 10.000,00" },
-        { rotulo: "Valor Total", valor: "R$ 10.000,00" },
-        { rotulo: "Desconto Negociado", valor: "R$ 500,00" },
-        { rotulo: "Valor Total a Pagar", valor: "R$ 9.500,00" },
-      ],
-    });
-    expect(b[1]).toEqual({ tipo: "subtitulo", texto: "VALORES E FORMA DE PAGAMENTO:" });
-    expect(b[2]).toEqual({ tipo: "campo", rotulo: "Valor total a pagar", valor: "R$ 9.500,00" });
-    expect(b[3]).toEqual({ tipo: "campo", rotulo: "Forma de pagamento", valor: "À vista" });
-    expect(b[4]).toEqual({ tipo: "nota", texto: RESSALVA_VALORES });
-  });
-
-  it("nas obrigações, o que vem depois de 'São obrigações…:' é lista; a declaração segue parágrafo", () => {
+  it("nas obrigações, o que vem depois de 'São obrigações…:' é lista", () => {
     const [obrigacoes] = clausulasPadrao("Corporativo").filter((c) => c.chave === "obrigacoes");
-    const b = blocos("obrigacoes", obrigacoes.padrao.split("\n"));
-    const tipos = b.map((x) => x.tipo);
+    const tipos = blocos("obrigacoes", obrigacoes.padrao.split("\n")).map((x) => x.tipo);
     expect(tipos).toEqual([
-      "subtitulo", "item", "item", // CONTRATADO(A): fornecer + notas
-      "texto", "texto",            // a declaração trabalhista e a autuação
-      "subtitulo", "item", "item", // CONTRATANTE: pagar + condições
+      "subtitulo", "item", "item", "item", "item", // CONTRATADO(A): fornecer, notas, trabalhista, autuação
+      "subtitulo", "item", "item",                  // CONTRATANTE: pagar + condições
     ]);
   });
 
   it("o Cultural tem um item a mais nas obrigações do CONTRATANTE", () => {
     const [obrigacoes] = clausulasPadrao("Cultural").filter((c) => c.chave === "obrigacoes");
     const itens = blocos("obrigacoes", obrigacoes.padrao.split("\n")).filter((x) => x.tipo === "item");
-    expect(itens).toHaveLength(5);
+    expect(itens).toHaveLength(7);
+  });
+
+  it("os valores do objeto são itens, e o resto do texto não vira lista", () => {
+    const b = blocos("objeto", [
+      "Locação de som",
+      "",
+      "- Valor unitário: R$ 1,00",
+      "- **Valor Total a Pagar: R$ 1,00**",
+      "",
+      "VALORES E FORMA DE PAGAMENTO:",
+      "",
+      "**Forma de Pagamento:** À vista",
+    ]);
+    expect(b.map((x) => x.tipo)).toEqual(["texto", "item", "item", "subtitulo", "texto"]);
   });
 
   it("nenhuma palavra do contrato se perde na classificação", () => {
     for (const m of ["Corporativo", "Cultural"] as const) {
       for (const c of clausulasPadrao(m)) {
         const original = c.padrao.split("\n").filter((l) => l.trim());
-        const depois = blocos(c.chave, c.padrao.split("\n")).map((x) =>
-          x.tipo === "valores" ? x.linhas.map((l) => `${l.rotulo}: ${l.valor}`).join("\n")
-          : x.tipo === "campo" ? `${x.rotulo}: ${x.valor}`
-          : x.texto
-        );
+        const depois = blocos(c.chave, c.padrao.split("\n")).map((x) => x.texto);
         expect(depois.join("\n")).toBe(original.join("\n"));
       }
     }
-  });
-
-  it("linha com '- ' no descritivo vira item, sem o traço", () => {
-    expect(blocos("objeto", ["Locação de som", "- Line array", "- Mesa digital"])).toEqual([
-      { tipo: "texto", texto: "Locação de som" },
-      { tipo: "item", texto: "Line array" },
-      { tipo: "item", texto: "Mesa digital" },
-    ]);
   });
 
   it("fora das obrigações, um texto que termina em dois-pontos não vira lista", () => {

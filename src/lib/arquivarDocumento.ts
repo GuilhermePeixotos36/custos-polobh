@@ -68,23 +68,37 @@ export type ResultadoPasta =
   | { status: "erro"; erro: string };
 
 /**
- * Envia o Excel para a pasta do projeto e ESPERA a resposta — para o botão
- * "Salvar na pasta", que precisa dizer à pessoa se deu certo. Nunca lança.
+ * Envia um arquivo qualquer (o PDF do contrato, por exemplo) para a pasta do
+ * projeto e ESPERA a resposta. Confere antes se o projeto tem o link da pasta.
+ * Nunca lança.
  */
-export async function salvarNaPasta(
+export async function salvarArquivoNaPasta(
   projetoId: string | undefined,
   nome: string,
-  buffer: ArrayBuffer,
+  conteudo: Blob,
   opts: OpcoesArquivo = {},
 ): Promise<ResultadoPasta> {
   if (!projetoId || !/^[0-9a-f-]{36}$/i.test(projetoId)) return { status: "sem-pasta" };
   try {
     const { data } = await supabase.from("projetos").select("docs_url").eq("id", projetoId).maybeSingle();
     if (!/^https?:\/\//i.test((data?.docs_url ?? "").trim())) return { status: "sem-pasta" };
-    const r = await arquivarDocumento(projetoId, nome.endsWith(".xlsx") ? nome : `${nome}.xlsx`, new Blob([buffer], { type: XLSX_MIME }), opts);
+    const r = await arquivarDocumento(projetoId, nome, conteudo, opts);
     if (!r.ok) return { status: "erro", erro: r.erro ?? "Falha ao arquivar." };
     return { status: r.jaExistia ? "ja-existia" : "ok", caminho: r.caminho };
   } catch (e) {
     return { status: "erro", erro: (e as Error).message };
   }
+}
+
+/**
+ * Envia o Excel para a pasta do projeto e ESPERA a resposta — para o botão
+ * "Salvar na pasta", que precisa dizer à pessoa se deu certo. Nunca lança.
+ */
+export function salvarNaPasta(
+  projetoId: string | undefined,
+  nome: string,
+  buffer: ArrayBuffer,
+  opts: OpcoesArquivo = {},
+): Promise<ResultadoPasta> {
+  return salvarArquivoNaPasta(projetoId, nome.endsWith(".xlsx") ? nome : `${nome}.xlsx`, new Blob([buffer], { type: XLSX_MIME }), opts);
 }
