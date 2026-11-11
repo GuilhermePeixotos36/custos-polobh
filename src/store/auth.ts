@@ -445,6 +445,9 @@ export const useAuth = create<AuthState>((set, get) => {
         });
       }
       definirAtor(null);
+      // O aparelho para de receber os avisos de quem saiu (computador
+      // compartilhado). Antes do signOut: a função precisa da sessão.
+      await import("@/lib/push").then((m) => m.desligarNesteAparelho()).catch(() => {});
       await supabase.auth.signOut();
       set({ usuario: null, recursos: null });
     },
