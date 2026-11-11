@@ -39,6 +39,16 @@ export interface AcertoFinanceiro {
 }
 
 /**
+ * O BV como percentual do valor original — 15 para R$ 300,00 sobre R$ 2.000,00.
+ * Sai entre parênteses ao lado do valor na OS impressa (09/11/2026, pedido do
+ * Tiago). Sem valor original ou sem BV não há percentual a mostrar: `null`.
+ */
+export function percentualDoBv(a: Pick<AcertoFinanceiro, "valorOriginal" | "bvSobreOriginal">): number | null {
+  if (!(a.valorOriginal > 0) || !(a.bvSobreOriginal > 0)) return null;
+  return r2((a.bvSobreOriginal / a.valorOriginal) * 100);
+}
+
+/**
  * Monta o acerto a partir do que a OS já sabe.
  *
  * `valorOriginal` é o total da forma COM BV E NF — é a única das três em que
