@@ -20,6 +20,18 @@ export function formatarCnpjCpf(valor: string): string {
   return v;
 }
 
+/** 3132715531 → (31) 3271-5531 · 31984892098 → (31) 98489-2098. O que já tem formato ou outro tamanho fica como está. */
+export function formatarTelefone(valor: string): string {
+  const v = (valor ?? "").trim();
+  if (/[^\d\s().+-]/.test(v)) return v;
+  const d = soDigitos(v);
+  // 0800 e 0300 não são DDD + número.
+  if (d.startsWith("0")) return v;
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+  return v;
+}
+
 /**
  * Inscrição Estadual de Minas Gerais: 13 dígitos, no formato 003.007.740/0011.
  * "Isento" e inscrições de outros estados (outro tamanho) ficam como vieram.

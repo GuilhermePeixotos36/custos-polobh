@@ -25,6 +25,7 @@ import {
   formatarCnpjCpf,
   formatarInscricaoEstadual,
   formatarRazaoSocial,
+  formatarTelefone,
   municipioDoEndereco,
 } from "@/domain/formatosDocumento";
 import { TESTEMUNHAS_PADRAO, type TestemunhaFixa } from "@/domain/testemunhasContrato";
@@ -203,6 +204,17 @@ export function blocosDaClausula(chave: ChaveClausula, paragrafos: string[]): Bl
 
 /* --------------------------- a Cláusula Primeira -------------------------- */
 
+/**
+ * A referência curta da OS para a caixa do título ("OS (01)"). O número da OS
+ * é, no sistema, o título inteiro ("Projeto – Item – Fornecedor – OS (01) em
+ * 09 11 26"), que não cabe numa linha: fica só a versão. Número num formato
+ * antigo ("0031/26") segue como está.
+ */
+export function referenciaDaOs(numero: string): string {
+  const m = /OS\s*\((\d+)\)/i.exec(numero ?? "");
+  return m ? `(${m[1]})` : (numero ?? "");
+}
+
 /** A quantidade do contrato; sem valor, 1. */
 export const quantidadeDoContrato = (ct: Pick<Os["contrato"], "quantidade">): number =>
   ct.quantidade && ct.quantidade > 0 ? ct.quantidade : 1;
@@ -313,7 +325,7 @@ export function montarContrato(os: Os, { cliente, empresas, testemunhas, titulo 
     razaoSocial: formatarRazaoSocial(tomador?.razaoSocial ?? ""),
     cnpjCpf: formatarCnpjCpf(tomador?.cnpjCpf ?? ""),
     inscricaoEstadual: formatarInscricaoEstadual(tomador?.inscricaoEstadual ?? ""),
-    telefone: tomador?.telefone ?? "",
+    telefone: formatarTelefone(tomador?.telefone ?? ""),
     endereco: tomador?.endereco ?? "",
     municipio: municipioDoEndereco(tomador?.endereco ?? ""),
   };
@@ -322,7 +334,7 @@ export function montarContrato(os: Os, { cliente, empresas, testemunhas, titulo 
     razaoSocial: formatarRazaoSocial(os.fornecedor.razaoSocial),
     cnpjCpf: formatarCnpjCpf(os.fornecedor.cnpj),
     inscricaoEstadual: formatarInscricaoEstadual(os.fornecedor.inscricaoEstadual),
-    telefone: os.fornecedor.telefone,
+    telefone: formatarTelefone(os.fornecedor.telefone),
     endereco: os.fornecedor.endereco,
     municipio: municipioDoEndereco(os.fornecedor.endereco),
   };
@@ -355,7 +367,7 @@ export function montarContrato(os: Os, { cliente, empresas, testemunhas, titulo 
     modelo,
     titulo: "CONTRATO DE PRESTAÇÃO DE SERVIÇOS",
     tituloDocumento: titulo || `Contrato OS ${os.numero}`,
-    os: os.numero,
+    os: referenciaDaOs(os.numero),
     data,
     contratante,
     contratado,
