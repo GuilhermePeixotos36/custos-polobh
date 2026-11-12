@@ -14,6 +14,7 @@ import { useEffect, useRef } from "react";
 import { PERMISSOES, useAuth } from "@/store/auth";
 import type { Papel } from "@/data/types";
 import { usePendencias, useMinhasPendencias } from "@/store/pendencias";
+import { chavePendencia } from "@/domain/pushPendencias";
 import { esquecerPessoasComPush, repassarPendencias, sincronizarInscricao } from "@/lib/push";
 
 const padraoDoPapel = (papel: string) => PERMISSOES[papel as Papel] ?? [];
@@ -32,7 +33,7 @@ export function usePushPendencias(): void {
   useEffect(() => {
     if (!pronto || sincronizado.current === pessoa) return;
     sincronizado.current = pessoa;
-    sincronizarInscricao(minhas.map((p) => p.id))
+    sincronizarInscricao(minhas.map(chavePendencia))
       .then((ok) => {
         if (!ok) return;
         esquecerPessoasComPush();

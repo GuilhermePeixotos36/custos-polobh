@@ -7,6 +7,7 @@ import { useAuth } from "@/store/auth";
 import { usePendencias } from "@/store/pendencias";
 import { useAvisosPendencias } from "@/hooks/useAvisosPendencias";
 import { usePushPendencias } from "@/hooks/usePushPendencias";
+import { useAbrirDoAviso } from "@/hooks/useAbrirDoAviso";
 import { useMonitorPendencias } from "@/hooks/useMonitorPendencias";
 import { useRealtimePendencias } from "@/hooks/useRealtimePendencias";
 import { useEmpresas } from "@/store/empresas";
@@ -45,6 +46,7 @@ export function AppLayout() {
   // Avisos do sistema operacional para pendência nova (ver o hook).
   useAvisosPendencias();
   usePushPendencias();
+  useAbrirDoAviso(!!usuario);
 
   // Aguarda a sessão inicial resolver antes de decidir redirecionar.
   if (carregando) {

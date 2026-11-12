@@ -11,6 +11,7 @@
  */
 import { useState } from "react";
 import { Button } from "@/components/ui";
+import { chavePendencia } from "@/domain/pushPendencias";
 import { cx } from "@/lib/format";
 import { notificar, permissaoAtual, type PermissaoNotificacao } from "@/lib/notificacoes";
 import {
@@ -60,7 +61,7 @@ export function useAtivarAvisos() {
   async function ativar(): Promise<ResultadoAtivacao> {
     setOcupado(true);
     try {
-      const r = await ativarAvisos(itens.map((p) => p.id));
+      const r = await ativarAvisos(itens.map(chavePendencia));
       setPermissao(permissaoAtual());
       if (r === "ativo") {
         toast("Avisos ligados neste aparelho.", "success");
@@ -95,7 +96,7 @@ export function AvisosNoAparelho({ compacto = false }: { compacto?: boolean }) {
   async function tentarDeNovo() {
     setTestando(true);
     try {
-      await sincronizarInscricao(itens.map((p) => p.id));
+      await sincronizarInscricao(itens.map(chavePendencia));
     } catch {
       /* o motivo fica em `erro` e aparece na tela */
     } finally {
