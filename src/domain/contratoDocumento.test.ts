@@ -178,8 +178,9 @@ describe("a Cláusula Primeira", () => {
   it("o Corporativo cita o projeto e a gestão do CONTRATANTE, sem lei de incentivo", () => {
     const base = os();
     const t = textoDe(montarContrato(os({ projeto: { modalidade: "Corporativo", nomeProjeto: "Convenção Anual" } } as Partial<Os>), ctx()));
-    expect(t).toContain("O objeto do presente é a viabilização do projeto Convenção Anual, cuja gestão é de responsabilidade do(a) CONTRATANTE, sendo:");
-    expect(t).toContain("**CONVENÇÃO ANUAL**");
+    // O nome COMPLETO — Cliente – Projeto Ano —, entre aspas e em caixa alta (Marisa, 12/11/2026).
+    expect(t).toContain("O objeto do presente é a viabilização do projeto “BANCO X – CONVENÇÃO ANUAL 2026”, cuja gestão é de responsabilidade do(a) CONTRATANTE, sendo:");
+    expect(t).toContain("**“BANCO X – CONVENÇÃO ANUAL 2026”**");
     expect(t).not.toContain("PRONAC");
     expect(t).not.toContain("inscrito e aprovado");
     expect(base.projeto.modalidade).toBe("Corporativo");
@@ -264,13 +265,13 @@ describe("as partes", () => {
     expect(c.assinaturas.map((a) => a.nome)).toEqual(["SOM E LUZ Ltda.", "Polobh Promoções Ltda."]);
   });
 
-  it("CNPJ e Inscrição Estadual saem com a pontuação completa, e o telefone e o município são lançados", () => {
+  it("CNPJ e Inscrição Estadual saem com a pontuação completa, e o telefone é lançado", () => {
     const { contratante, contratado } = montarContrato(os(), ctx());
     expect(contratante.cnpjCpf).toBe("07.128.230/0001-80");
     expect(contratante.inscricaoEstadual).toBe("003.007.740/0011");
     expect(contratante.telefone).toBe("(31) 3333-0000");
-    expect(contratante.municipio).toBe("Belo Horizonte - MG");
-    expect(contratado.municipio).toBe("Contagem - MG");
+    // A linha "Município" saiu (12/11/2026): cidade e UF já estão no endereço.
+    expect("municipio" in contratante).toBe(false);
     expect(contratado.inscricaoEstadual).toBe("Isenta");
   });
 
@@ -435,7 +436,41 @@ describe("a estrutura de cada cláusula", () => {
   });
 
   it("fora das obrigações, um texto que termina em dois-pontos não vira lista", () => {
-    const b = blocos("vigencia", ["Ficam acordadas as seguintes condições:", "A primeira condição."]);
+    const b = blocos("objeto", ["Ficam acordadas as seguintes condições:", "A primeira condição."]);
     expect(b.map((x) => x.tipo)).toEqual(["texto", "texto"]);
+  });
+});
+
+describe("as observações da Marisa de 12/11/2026", () => {
+  const corp = () => montarContrato(os({ projeto: { modalidade: "Corporativo", nomeProjeto: "Convenção Anual" } } as Partial<Os>), ctx());
+  const cult = () => montarContrato(os({ projeto: { modalidade: "Cultural" } } as Partial<Os>), ctx());
+
+  it("a Cláusula Primeira abre o objeto com o título fixo OBJETO:, nos dois modelos", () => {
+    for (const c of [corp(), cult()]) {
+      const objeto = c.clausulas.find((x) => x.chave === "objeto")!;
+      const b = blocosDaClausula("objeto", objeto.paragrafos);
+      const i = b.findIndex((x) => x.tipo === "subtitulo" && x.texto === "OBJETO:");
+      expect(i).toBeGreaterThan(-1);
+      expect(b[i + 1].texto).toMatch(/^O objeto do presente é a viabilização do projeto/);
+    }
+  });
+
+  it("a linha que identifica o projeto leva ar acima, depois da lista de valores", () => {
+    const b = blocosDaClausula("objeto", corp().clausulas.find((x) => x.chave === "objeto")!.paragrafos);
+    const i = b.findIndex((x) => x.tipo === "texto" && x.texto.startsWith("**“BANCO X"));
+    expect(b[i - 1].tipo).toBe("item");
+    expect(b[i]).toMatchObject({ tipo: "texto", antes: true });
+  });
+
+  it("nas Cláusulas Terceira a Sétima todo parágrafo é um item com bullet", () => {
+    for (const c of [corp(), cult()]) {
+      for (const chave of ["vigencia", "inexecucao", "confidencialidade", "finais", "foro"] as const) {
+        const b = blocosDaClausula(chave, c.clausulas.find((x) => x.chave === chave)!.paragrafos);
+        expect(b.length).toBeGreaterThan(0);
+        expect(b.filter((x) => x.tipo === "texto")).toEqual([]);
+      }
+    }
+    const inex = blocosDaClausula("inexecucao", corp().clausulas.find((x) => x.chave === "inexecucao")!.paragrafos);
+    expect(inex.some((x) => x.tipo === "item" && x.texto.startsWith("**Parágrafo Único**"))).toBe(true);
   });
 });

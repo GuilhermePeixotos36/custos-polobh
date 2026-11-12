@@ -2,7 +2,7 @@
  * Cálculos da EC (seção 4 do brief) e helpers de numeração/consolidação.
  * Percentuais fixos: honorários 15%, encargos 16,33%.
  */
-import type { BvItem, Ec, EcLinha, OpcaoValorDefinida, Producao, Fornecedor, Os, TaxaConfig } from "@/data/types";
+import type { BvItem, Ec, EcLinha, OpcaoValorDefinida, Producao, Fornecedor, Os, ProjetoInfo, TaxaConfig } from "@/data/types";
 import { brl, dataBRCurta, documentoCompleto } from "@/lib/format";
 import { htmlParaLinhas } from "@/lib/htmlTexto";
 import { gerarApelidoFornecedor } from "@/domain/fornecedor";
@@ -289,10 +289,27 @@ export function numeroOs(
 }
 
 /**
+ * O nome completo do projeto — "Cliente – Projeto Ano" (ex.: "BM – Convenção de
+ * Vendas 2027"). É o que abre o título do contrato e o que o contrato Corporativo
+ * cita no objeto (entre aspas e em caixa alta). Sem o nome do projeto, o título
+ * da ficha.
+ */
+export function nomeCompletoDoProjeto(
+  p: Pick<ProjetoInfo, "clienteAbreviado" | "nomeProjeto" | "anoProjeto" | "evento" | "titulo">,
+  cliente: { apelido?: string; nome?: string } | undefined,
+  dataReferencia = ""
+): string {
+  const abrev = (p.clienteAbreviado || cliente?.apelido || cliente?.nome || "").trim();
+  const nome = (p.nomeProjeto || "").trim();
+  const ano = (p.anoProjeto || (p.evento || dataReferencia || "").slice(0, 4)).trim();
+  return nome ? [abrev, [nome, ano].filter(Boolean).join(" ")].filter(Boolean).join(" – ") : (p.titulo || abrev).trim();
+}
+
+/**
  * O TÍTULO DO CONTRATO (11/11/2026): o nome do arquivo e o cabeçalho de cada
- * página do PDF. "Nome do Projeto + Item do Contrato + Fornecedor + Contrato +
- * Versão + Data" — o mesmo molde do título da OS, que a equipe já reconhece:
- * "Cliente – Projeto 2026 – Item – Fornecedor – Contrato (01) em 09 11 26".
+ * página do PDF. "Cliente – Projeto – Fornecedor – Item – Contrato (Versão) em
+ * Data" — a ordem pedida pela Marisa em 12/11/2026 (a da OS traz o item antes do
+ * fornecedor; a do contrato, não).
  *
  * `ecLinhaIds` são os itens DESTE contrato (os que a EC marcou para contrato);
  * com mais de um, o item vira "Diversos", como na OS. A data é a do contrato.
@@ -304,14 +321,10 @@ export function tituloContrato(
   dataContrato: string,
   ecLinhaIds: string[] = []
 ): string {
-  const p = ec.projeto;
-  const cliente = (p.clienteAbreviado || ec.cliente?.apelido || ec.cliente?.nome || "").trim();
-  const nome = (p.nomeProjeto || "").trim();
-  const ano = (p.anoProjeto || (p.evento || dataContrato || "").slice(0, 4)).trim();
-  const projeto = nome ? [cliente, [nome, ano].filter(Boolean).join(" ")].filter(Boolean).join(" – ") : (p.titulo || cliente).trim();
+  const projeto = nomeCompletoDoProjeto(ec.projeto, ec.cliente, dataContrato);
   const data = dataBRCurta(dataContrato);
   const fim = `Contrato (${String(versao).padStart(2, "0")})` + (data ? ` em ${data}` : "");
-  return [projeto, itemDoTituloOs(ec, ecLinhaIds), apelidoFornecedor(fornecedor), fim].filter(Boolean).join(" – ");
+  return [projeto, apelidoFornecedor(fornecedor), itemDoTituloOs(ec, ecLinhaIds), fim].filter(Boolean).join(" – ");
 }
 
 /** O item no título da OS: o nome do único item, ou "Diversos" com mais de um. */

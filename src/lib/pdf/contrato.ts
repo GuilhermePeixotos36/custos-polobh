@@ -305,7 +305,6 @@ class Escritor {
       ["Insc. Estadual", p.inscricaoEstadual],
       ["Telefone", p.telefone],
       ["Endereço", p.endereco],
-      ["Município", p.municipio],
     ];
     const larguraValor = LARGURA - COL_ROTULO;
     const medidas = linhasDaParte.map(([r, v]) => {
@@ -403,10 +402,8 @@ class Escritor {
 export async function gerarContratoPdf(c: ContratoDocumento): Promise<Uint8Array> {
   const e = await Escritor.criar(c.tituloDocumento);
 
-  e.caixa([
-    { runs: [{ t: c.titulo, b: true }], tam: 15, alinhar: "centro" },
-    { runs: [{ t: `${c.os ? `OS ${c.os}` : "OS"}   |   ${c.data ? `Data ${c.data}` : "Data"}`, b: false }], tam: 11, alinhar: "centro" },
-  ]);
+  // Só o título: a linha "OS (02) | Data …" saiu a pedido da Marisa (12/11/2026).
+  e.caixa([{ runs: [{ t: c.titulo, b: true }], tam: 15, alinhar: "centro" }]);
   e.espaco(8);
   e.parte(c.contratante);
   e.espaco(8);
@@ -426,7 +423,11 @@ export async function gerarContratoPdf(c: ContratoDocumento): Promise<Uint8Array
         // e as observações gerais ficam na mesma página.
         const dosValores = /^\*\*(Valor Total a Pagar|Forma de Pagamento)/.test(b.texto);
         const total = /^\*\*Valor Total a Pagar/.test(b.texto);
-        e.paragrafo(pedacosDe(b.texto), { depois: dosValores ? 2 : 5, manter: total ? ENTRELINHA * 3 : dosValores ? ENTRELINHA * 2 : 0 });
+        e.paragrafo(pedacosDe(b.texto), {
+          antes: b.antes ? 10 : 0,
+          depois: dosValores ? 2 : 5,
+          manter: total ? ENTRELINHA * 3 : dosValores ? ENTRELINHA * 2 : 0,
+        });
       }
     }
   }
