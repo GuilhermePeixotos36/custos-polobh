@@ -10,17 +10,17 @@ vi.mock("@/lib/supabaseClient", () => ({
   supabase: { functions: { invoke: (...a: unknown[]) => invocar(...a) }, rpc: vi.fn(), from: vi.fn() },
 }));
 
-import { ativarAvisos, pushAtivoNesteAparelho, usePushEstado } from "./push";
+import { ativarAvisos, desligarNesteAparelho, pushAtivoNesteAparelho, usePushEstado } from "./push";
 
 /** Um navegador de mentira: permissão, serviço de avisos e inscrição. */
-function navegador(o: { permissao: NotificationPermission; aoPedir?: NotificationPermission; subscribe?: () => Promise<unknown> }) {
+function navegador(o: { permissao: NotificationPermission; aoPedir?: NotificationPermission; subscribe?: () => Promise<unknown>; jaInscrito?: boolean }) {
   const inscricao = {
     endpoint: "https://push.exemplo/abc",
     getKey: () => new Uint8Array([1, 2, 3]).buffer,
   };
   const registro = {
     pushManager: {
-      getSubscription: async () => null,
+      getSubscription: async () => (o.jaInscrito ? inscricao : null),
       subscribe: o.subscribe ?? (async () => inscricao),
     },
   };
@@ -34,7 +34,7 @@ function navegador(o: { permissao: NotificationPermission; aoPedir?: Notificatio
   Object.defineProperty(window, "Notification", { value: Notif, configurable: true });
   Object.defineProperty(window, "PushManager", { value: class {}, configurable: true });
   Object.defineProperty(navigator, "serviceWorker", {
-    value: { register: async () => registro, ready: Promise.resolve(registro) },
+    value: { register: async () => registro, ready: Promise.resolve(registro), getRegistration: async () => registro },
     configurable: true,
   });
 }
@@ -86,5 +86,21 @@ describe("Ativar avisos", () => {
     expect(await ativarAvisos([])).toBe("falhou");
     expect(usePushEstado.getState().estado).toBe("falhou");
     expect(usePushEstado.getState().erro).toBe("Sem permissão");
+  });
+});
+
+describe("Sair do app", () => {
+  it("desinscreve o aparelho mesmo sem o endereço na memória desta sessão", async () => {
+    // A inscrição existe no navegador (sessão anterior), mas esta página nunca registrou.
+    navegador({ permissao: "granted", jaInscrito: true });
+    await desligarNesteAparelho();
+    const chamada = invocar.mock.calls.map((c) => c[1].body).find((b) => b.acao === "desinscrever");
+    expect(chamada).toEqual({ acao: "desinscrever", endpoint: "https://push.exemplo/abc" });
+  });
+
+  it("sem inscrição no navegador, não chama o servidor", async () => {
+    navegador({ permissao: "granted", jaInscrito: false });
+    await desligarNesteAparelho();
+    expect(invocar).not.toHaveBeenCalled();
   });
 });

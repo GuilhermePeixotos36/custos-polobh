@@ -130,9 +130,21 @@ export async function sincronizarInscricao(idsAtuais: string[]): Promise<boolean
 
 /** Ao sair do app: o aparelho para de receber os avisos de quem saiu. */
 export async function desligarNesteAparelho(): Promise<void> {
-  const endpoint = endpointAtual;
+  let endpoint = endpointAtual;
   definir("inativo");
   endpointAtual = null;
+  // Sem o endereço na memória (o registro desta sessão não chegou a acontecer, ou
+  // a página foi recarregada e saiu antes), pergunta ao próprio navegador: a
+  // inscrição pode estar na base de uma sessão anterior, e sem isto o aparelho
+  // seguiria recebendo as pendências de quem saiu (12/11/2026).
+  if (!endpoint && pushSuportado()) {
+    try {
+      const registro = await navigator.serviceWorker.getRegistration("/");
+      endpoint = (await registro?.pushManager?.getSubscription())?.endpoint ?? null;
+    } catch {
+      /* sem resposta do navegador: nada a desligar daqui */
+    }
+  }
   if (!endpoint) return;
   try {
     await chamar({ acao: "desinscrever", endpoint });

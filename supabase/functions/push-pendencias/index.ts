@@ -17,7 +17,10 @@
  *                   vira uma enxurrada de avisos. Se o aparelho era de outra
  *                   pessoa (computador compartilhado), passa a ser de quem entrou;
  *  · desinscrever → { endpoint }: ao sair do app, o aparelho para de receber;
- *  · avisar  → { avisos: [{ userId, pendencias: [{ id, titulo, url }] }] };
+ *  · avisar  → { avisos: [{ userId, pendencias: [{ id, titulo, url }] }] }. O `id`
+ *              é a CHAVE do aviso (`chavePendencia`): a pendência mais, quando é uma
+ *              conversa ou uma etapa da OS, "#" e a marca da vez — assim a thread
+ *              que volta para a pessoa, ou a OS devolvida e reenviada, avisa de novo;
  *  · teste   → um aviso de teste para os aparelhos de quem chama.
  */
 import { createClient } from "jsr:@supabase/supabase-js@2";
@@ -232,6 +235,17 @@ Deno.serve(async (req) => {
           url: novas.length === 1 ? primeira.url : "/projetos",
           tag: "polobh-pendencias",
         });
+        // Nenhum aparelho recebeu por FALHA da entrega (e não por inscrição
+        // morta): a pendência foi marcada como avisada e o aviso não saiu. Desfaz
+        // a marca para a próxima carga de qualquer app tentar de novo — senão o
+        // aviso se perde para sempre (12/11/2026).
+        if (!r.enviados && r.falhas.length) {
+          await admin
+            .from("push_enviadas")
+            .delete()
+            .eq("user_id", userId)
+            .in("pendencia_id", novas.map((p) => p.id));
+        }
         enviados += r.enviados;
         removidas += r.removidas;
         falhas.push(...r.falhas);

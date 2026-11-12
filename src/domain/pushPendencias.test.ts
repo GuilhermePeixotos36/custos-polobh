@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from "vitest";
 import type { Pendencia } from "./pendencias";
-import { avisosParaPush, chaveEnvio, podeDaPessoa, type PessoaComPush } from "./pushPendencias";
+import { avisosParaPush, chaveEnvio, chavePendencia, podeDaPessoa, type PessoaComPush } from "./pushPendencias";
 
 const PADRAO: Record<string, string[]> = {
   Direcao: ["projetos", "oss.validarContrato"],
@@ -65,7 +65,8 @@ describe("avisosParaPush", () => {
       "u-marisa": ["os.fase:os1:direcao"],
       "u-tiago": ["os.fase:os1:financeiro"],
       // o nome casa sem acento e sem diferença de maiúscula, como no sino
-      "u-barbara": ["ec.observacao:ec1:o1"],
+      // conversa: a chave leva a marca da última mensagem (ver `chavePendencia`)
+      "u-barbara": [chavePendencia(comentario)],
       "u-emanuelle": ["os.emitir:os2"],
     });
   });
@@ -93,5 +94,42 @@ describe("podeDaPessoa", () => {
     expect(podeDaPessoa({ papel: "Direcao", recursos: [] }, padrao)("oss.validarContrato")).toBe(true);
     expect(podeDaPessoa({ papel: "Producao", recursos: null }, padrao)("oss.validarContrato")).toBe(false);
     expect(podeDaPessoa({ papel: "Desconhecido", recursos: null }, padrao)("projetos")).toBe(false);
+  });
+});
+
+describe("a chave do aviso (conversa que volta, OS devolvida)", () => {
+  const thread = (resumo: string): Pendencia =>
+    ({ ...comentario, titulo: `Observação para Bárbara Souza em Palco: ${resumo}` }) as Pendencia;
+
+  it("a MESMA thread com outra última mensagem é um aviso novo", () => {
+    expect(chavePendencia(thread("pode confirmar?"))).not.toBe(chavePendencia(thread("e o prazo?")));
+    expect(chavePendencia(thread("pode confirmar?"))).toBe(chavePendencia(thread("pode confirmar?")));
+  });
+
+  it("a bola que volta para a pessoa avisa de novo; a que não mudou, não", () => {
+    const primeira = avisosParaPush([thread("pode confirmar?")], pessoas, padrao, new Set());
+    const ja = new Set(primeira.flatMap((a) => a.pendencias.map((p) => chaveEnvio(a.userId, p.id))));
+    // nada mudou na thread: silêncio
+    expect(avisosParaPush([thread("pode confirmar?")], pessoas, padrao, ja)).toEqual([]);
+    // ela respondeu, a outra perguntou de novo: a vez voltou
+    const de_novo = avisosParaPush([thread("e o prazo?")], pessoas, padrao, ja);
+    expect(de_novo.map((a) => a.userId)).toEqual(["u-barbara"]);
+  });
+
+  it("OS devolvida e reenviada para a mesma etapa avisa de novo (marca da etapa)", () => {
+    const naEtapa = (faseEm: string) => ({ ...etapa("direcao", "oss.validarContrato"), versao: faseEm }) as Pendencia;
+    expect(chavePendencia(naEtapa("2026-11-12T10:00:00Z"))).not.toBe(chavePendencia(naEtapa("2026-11-12T15:00:00Z")));
+    const ja = new Set(
+      avisosParaPush([naEtapa("2026-11-12T10:00:00Z")], pessoas, padrao, new Set()).flatMap((a) =>
+        a.pendencias.map((p) => chaveEnvio(a.userId, p.id)),
+      ),
+    );
+    expect(avisosParaPush([naEtapa("2026-11-12T10:00:00Z")], pessoas, padrao, ja)).toEqual([]);
+    expect(avisosParaPush([naEtapa("2026-11-12T15:00:00Z")], pessoas, padrao, ja).map((a) => a.userId)).toEqual(["u-marisa"]);
+  });
+
+  it("o resto das pendências segue pelo id, sem marca", () => {
+    expect(chavePendencia(doProdutor)).toBe("os.emitir:os2");
+    expect(chavePendencia(etapa("financeiro", "oss.etapaFinanceiro"))).toBe("os.fase:os1:financeiro");
   });
 });

@@ -61,7 +61,11 @@ self.addEventListener("notificationclick", (evento) => {
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((abas) => {
       for (const aba of abas) {
         if ("focus" in aba) {
-          if (destino && "navigate" in aba) aba.navigate(destino).catch(() => {});
+          // Quem navega é o PRÓPRIO app (rota do React Router), não o worker:
+          // `aba.navigate()` recarrega a página inteira, e com ela vai embora o
+          // que a pessoa digitou e ainda não salvou. Pelo app, o aviso de "há
+          // alterações não salvas" continua valendo.
+          if (destino) aba.postMessage({ tipo: "abrir-pendencia", url: destino });
           return aba.focus();
         }
       }

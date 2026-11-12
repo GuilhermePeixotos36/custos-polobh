@@ -127,6 +127,13 @@ export interface Pendencia {
   campos?: CampoPendencia[];
   /** Rota própria, para a pendência que não mora num projeto (ex.: feriados). */
   rota?: string;
+  /**
+   * Marca de "esta é a vez N desta mesma pendência" — só para o AVISO (12/11/2026).
+   * O `id` identifica a pendência; quando ela some e volta com o mesmo `id` (a OS
+   * devolvida e reenviada para a mesma etapa), o aviso precisa saber que é uma
+   * vez nova. Ver `chavePendencia`.
+   */
+  versao?: string;
 }
 
 /**
@@ -483,6 +490,9 @@ export function calcularPendencias(
       ecId: ec.id,
       osId: os.id,
       ancora: os.id,
+      // Cada vez que a OS ENTRA na etapa (inclusive ao ser devolvida e reenviada)
+      // é uma pendência nova para quem responde por ela.
+      versao: os.faseEm || undefined,
     });
   }
 

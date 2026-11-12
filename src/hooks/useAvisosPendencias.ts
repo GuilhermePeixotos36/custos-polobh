@@ -28,6 +28,7 @@ import { rotaDaPendencia } from "@/domain/pendencias";
 import { notificar, permissaoAtual } from "@/lib/notificacoes";
 import { pushAtivoNesteAparelho } from "@/lib/push";
 import { usePendencias } from "@/store/pendencias";
+import { chavePendencia } from "@/domain/pushPendencias";
 import { decidirAvisos, MAX_LEMBRADAS } from "@/domain/avisosPendencias";
 
 /** Chave do que já foi avisado — uma por pessoa. */
@@ -75,7 +76,7 @@ export function useAvisosPendencias(): void {
     iniciado.current = pessoa;
     const { novas: idsNovos, memoria } = decidirAvisos({
       jaAvisadas: lidas(pessoa),
-      atuais: itens.map((p) => p.id),
+      atuais: itens.map(chavePendencia),
       primeiraCarga,
     });
     guardar(pessoa, memoria);
@@ -84,7 +85,7 @@ export function useAvisosPendencias(): void {
     if (!idsNovos.length || pushAtivoNesteAparelho()) return;
 
     const ids = new Set(idsNovos);
-    const novas = itens.filter((p) => ids.has(p.id));
+    const novas = itens.filter((p) => ids.has(chavePendencia(p)));
     const primeira = novas[0];
     void notificar({
       titulo: novas.length === 1 ? "Nova pendência" : `${novas.length} novas pendências`,

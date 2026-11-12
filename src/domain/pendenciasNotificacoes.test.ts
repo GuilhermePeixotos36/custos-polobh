@@ -75,3 +75,18 @@ describe("Emitir Contrato: some quando a OS do item já existe", () => {
     expect(tipos([os({ status: "Cancelada" })])).toContain("ec.emitir");
   });
 });
+
+describe("OS devolvida e reenviada: a etapa é uma pendência nova (aviso)", () => {
+  const daEtapa = (faseEm: string) =>
+    calcularPendencias([projeto], [ec([linha({})])], [os({ fase: "direcao", faseEm })], ["Bruno"], [], [], "2026-11-12").find(
+      (p) => p.tipo === "os.fase",
+    )!;
+
+  it("carrega a hora em que a OS entrou na etapa", () => {
+    expect(daEtapa("2026-11-12T10:00:00Z").versao).toBe("2026-11-12T10:00:00Z");
+  });
+
+  it("OS antiga, sem a hora, segue sem marca", () => {
+    expect(daEtapa("").versao).toBeUndefined();
+  });
+});
