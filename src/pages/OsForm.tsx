@@ -1745,6 +1745,7 @@ export function OsForm() {
         <CardOs
           secao="Dados do Fornecedor"
           area="Produção"
+          acaoSoAberto
           acaoSecao={
             <Button variant="soft" size="sm" icon={<IcSearch width={15} height={15} />} onClick={consultar} disabled={busy || !flags.consultaCnpj}>
               Consultar CNPJ
@@ -2903,27 +2904,35 @@ const DESTAQUE_AREA: Record<AreaOs, { borda: string; faixa: string }> = {
 /** A etapa em que a OS está — os blocos se destacam conforme ela (ver `vezDoBloco`). */
 const FaseDaOsCtx = createContext<FaseOs | null>(null);
 
-function EtiquetaArea({ area, sufixo }: { area: AreaOs; sufixo?: string }) {
+function EtiquetaArea({ area, sufixo, alinhada = false }: { area: AreaOs; sufixo?: string; alinhada?: boolean }) {
   const fase = useContext(FaseDaOsCtx);
   const situacao = fase ? vezDoBloco(area, fase) : null;
+  // No cabeçalho dos blocos (12/11/2026) a etiqueta e o recado ficam em COLUNAS de
+  // largura fixa, iguais em todos os blocos: antes cada linha se ajustava ao que
+  // tinha à direita, e as pílulas e os avisos de um bloco para outro ficavam
+  // desencontrados. Em tela estreita volta a quebrar linha, como sempre.
   return (
-    <span className="inline-flex items-center gap-1.5 flex-wrap">
-      <span
-        title={`Bloco preenchido por: ${area}`}
-        className={cx("inline-flex items-center rounded-full border px-2 py-0.5 text-[10.5px] font-extrabold uppercase tracking-[0.04em] whitespace-nowrap", COR_AREA[area])}
-      >
-        Preenche: {area}{sufixo ? ` ${sufixo}` : ""}
+    <span className={cx("inline-flex items-center gap-1.5 flex-wrap", alinhada && "md:flex-nowrap md:gap-0")}>
+      <span className={cx(alinhada && "md:w-[14.5rem] md:shrink-0")}>
+        <span
+          title={`Bloco preenchido por: ${area}`}
+          className={cx("inline-flex items-center rounded-full border px-2 py-0.5 text-[10.5px] font-extrabold uppercase tracking-[0.04em] whitespace-nowrap", COR_AREA[area])}
+        >
+          Preenche: {area}{sufixo ? ` ${sufixo}` : ""}
+        </span>
       </span>
       {situacao && (
-        situacao.vez ? (
-          <span className="inline-flex items-center rounded-full bg-ink text-white px-2 py-0.5 text-[10.5px] font-extrabold uppercase tracking-[0.04em] whitespace-nowrap">
-            É a vez deste bloco
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-ink-2 whitespace-nowrap">
-            <IcCadeado width={12} height={12} /> {situacao.aviso}
-          </span>
-        )
+        <span className={cx(alinhada && "md:w-[18.5rem] md:shrink-0")}>
+          {situacao.vez ? (
+            <span className="inline-flex items-center rounded-full bg-ink text-white px-2 py-0.5 text-[10.5px] font-extrabold uppercase tracking-[0.04em] whitespace-nowrap">
+              É a vez deste bloco
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-ink-2 whitespace-nowrap">
+              <IcCadeado width={12} height={12} /> {situacao.aviso}
+            </span>
+          )}
+        </span>
       )}
     </span>
   );
@@ -2934,6 +2943,7 @@ function CardOs({
   secao,
   area,
   acaoSecao,
+  acaoSoAberto,
   children,
 }: {
   className?: string;
@@ -2942,6 +2952,8 @@ function CardOs({
   /** Título da faixa — é ele que identifica o bloco no recolher/expandir. */
   secao: string;
   acaoSecao?: ReactNode;
+  /** A ação só aparece com o bloco aberto (ex.: "Consultar CNPJ", que age sobre campos que o bloco fechado esconde). */
+  acaoSoAberto?: boolean;
   children: ReactNode;
 }) {
   // A OS abre só com os títulos dos blocos (28/10/2026); a seta abre cada um.
@@ -2973,8 +2985,10 @@ function CardOs({
           </span>
           <h3 className="font-display font-bold text-[12.5px] uppercase tracking-[0.05em] text-ink">{secao}</h3>
         </div>
-        {area && <EtiquetaArea area={area} />}
-        {acaoSecao && <div className="shrink-0">{acaoSecao}</div>}
+        {area && <EtiquetaArea area={area} alinhada />}
+        {/* Coluna fixa mesmo sem ação (ou com o bloco fechado): é ela que mantém
+            as etiquetas de todos os blocos na mesma vertical. */}
+        <div className="shrink-0 md:w-[10rem] flex justify-end">{acaoSecao && !(acaoSoAberto && recolhida) ? acaoSecao : null}</div>
       </div>
       {/* Fechado, o conteúdo só fica OCULTO (e não fora da tela): assim o
           "ir até a pendência" acha o campo e abre o bloco antes de rolar. */}
