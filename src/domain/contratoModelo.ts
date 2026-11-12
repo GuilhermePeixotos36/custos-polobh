@@ -64,8 +64,9 @@ export interface ClausulaContrato {
  * CONTRATADO(A) continuam em negrito sozinhos, onde quer que apareçam.
  *
  * Os textos abaixo seguem a "Solicitação de Revisão do Sistema de Geração de
- * Contratos", de 11/11/2026. O que o Corporativo tem de diferente do Cultural
- * está marcado em cada trecho.
+ * Contratos", de 11/11/2026, e o modelo Corporativo que a Marisa enviou em
+ * 12/11/2026. Os dois modelos são iguais, salvo onde o Cultural cita a lei de
+ * incentivo e o projeto incentivado: está marcado em cada trecho.
  */
 
 const OBJETO_INTRO =
@@ -82,10 +83,10 @@ const OBRIGACOES = (cultural: boolean) =>
       ? "Fornecer notas e/ou recibos fiscais válidos e devidamente preenchidos em conformidade com as " +
         "instruções da Legislação de Incentivo à Cultura, por meio da qual serão efetuados os pagamentos " +
         "do(a) CONTRATANTE, e com o que está estabelecido neste documento;"
-      : // Corporativo: a mesma frase, sem a legislação de incentivo (que ele não tem).
+      : // Corporativo (modelo da Marisa, 12/11/2026): as instruções vêm do CONTRATANTE.
         "Fornecer notas e/ou recibos fiscais válidos e devidamente preenchidos em conformidade com as " +
-        "instruções fornecidas, por meio das quais serão efetuados os pagamentos ao(à) CONTRATADO(A), " +
-        "e com o que está estabelecido neste documento;",
+        "instruções fornecidas pelo(a) CONTRATANTE, por meio das quais serão efetuados os pagamentos " +
+        "ao(à) CONTRATADO(A), e com o que está estabelecido neste documento;",
     "Assegurar, para todos os fins de direito, a regularidade de suas obrigações trabalhistas, mantendo " +
       "todos os seus funcionários devidamente contratados conforme as normas da CLT ou da Lei n.º 6.019/1974 " +
       "(que dispõe sobre o trabalho temporário). O(a) CONTRATADO(A) responderá diretamente por qualquer " +
@@ -97,12 +98,11 @@ const OBRIGACOES = (cultural: boolean) =>
     "",
     "São obrigações do(a) CONTRATANTE:",
     "",
-    ...(cultural
-      ? [
-          "Receber e gerir os recursos financeiros destinados exclusivamente ao projeto identificado na " +
-            "cláusula do **OBJETO** deste contrato, em conformidade com a legislação de incentivo à cultura aplicável;",
-        ]
-      : []),
+    // Nos dois modelos; só muda a legislação citada.
+    "Receber e gerir os recursos financeiros destinados exclusivamente ao projeto identificado na " +
+      "cláusula do **OBJETO** deste contrato, em conformidade com a legislação " +
+      (cultural ? "de incentivo à cultura " : "") +
+      "aplicável;",
     "Efetuar, nos prazos e condições acordados, os pagamentos referentes aos bens fornecidos e/ou serviços " +
       "prestados pelo(a) CONTRATADO(A), conforme estipulado neste instrumento;",
     "Assegurar ao(à) CONTRATADO(A) as condições e informações necessárias para a adequada entrega dos bens " +
@@ -155,14 +155,11 @@ const FINAIS = (cultural: boolean) =>
       "descumprimento de obrigações aqui assumidas não constituirá novação, renúncia ou alteração do " +
       "pactuado, representando mera liberalidade que não impedirá a exigência futura do cumprimento " +
       "integral deste Contrato.",
-    ...(cultural
-      ? [
-          "**Serviços Adicionais:** A execução de qualquer outro serviço relacionado ao Projeto Cultural não " +
-            "previsto expressamente no objeto deste instrumento dependerá de prévia negociação entre as Partes " +
-            "e deverá ser formalizada por meio de termo aditivo ou novo contrato, mediante remuneração " +
-            "específica a ser ajustada.",
-        ]
-      : []),
+    "**Serviços Adicionais:** A execução de qualquer outro serviço relacionado ao Projeto" +
+      (cultural ? " Cultural" : "") +
+      " não previsto expressamente no objeto deste instrumento dependerá de prévia negociação entre as " +
+      "Partes e deverá ser formalizada por meio de termo aditivo ou novo contrato, mediante remuneração " +
+      "específica a ser ajustada.",
     "**Alterações Contratuais:** As Partes concordam integralmente com os termos deste Contrato, o qual " +
       "somente poderá ser alterado, aditado ou complementado mediante instrumento escrito devidamente " +
       "assinado por ambas as Partes.",

@@ -214,9 +214,9 @@ const doisDigitos = (n: number) => (Number.isInteger(n) ? String(n).padStart(2, 
  * O corpo da Cláusula Primeira — a única que o sistema monta com dados da OS.
  *
  * A ordem é a da "Solicitação de Revisão" de 11/11/2026: a abertura (no Cultural,
- * nomeando o projeto incentivado, a lei e o código), o descritivo e as
- * informações complementares, os valores em lista, a identificação do incentivo
- * em caixa alta, e por fim "Valores e forma de pagamento".
+ * nomeando o projeto incentivado, a lei e o código; no Corporativo, o projeto),
+ * o descritivo e as informações complementares, os valores em lista, a
+ * identificação do projeto em caixa alta, e por fim "Valores e forma de pagamento".
  */
 function corpoDoObjeto(os: Os, modelo: ModeloContrato, intro: string): string[] {
   const f = os.financeiro;
@@ -227,6 +227,16 @@ function corpoDoObjeto(os: Os, modelo: ModeloContrato, intro: string): string[] 
   const lei = inc.leiIncentivo;
   const codigo = inc.codigoProjetoIncentivado;
   const out: string[] = [intro, ""];
+  // O nome do projeto, da ficha Dados Gerais — é o que o Corporativo cita no objeto.
+  const nomeProjeto = (os.projeto.nomeProjeto || os.projeto.titulo || "").trim();
+
+  if (modelo === "Corporativo") {
+    out.push(
+      `O objeto do presente é a viabilização do projeto ${nomeProjeto || "(nome do projeto não informado)"}, ` +
+        "cuja gestão é de responsabilidade do(a) CONTRATANTE, sendo:",
+      ""
+    );
+  }
 
   if (modelo === "Cultural") {
     out.push(
@@ -254,12 +264,11 @@ function corpoDoObjeto(os: Os, modelo: ModeloContrato, intro: string): string[] 
     `- **Valor Total a Pagar: ${brl(ct.valorAPagar)}**`
   );
 
-  if (modelo === "Cultural") {
-    // A linha que identifica o incentivo junto do que foi contratado: os três
-    // dados separados por hífen, em negrito e caixa alta.
-    const identificacao = [projeto, lei, codigo].filter(Boolean).join(" - ").toUpperCase();
-    if (identificacao) out.push("", `**${identificacao}**`);
-  }
+  // A linha que identifica o projeto junto do que foi contratado, em negrito e
+  // caixa alta: no Cultural, o projeto incentivado, a lei e o código separados
+  // por hífen; no Corporativo, o nome do projeto.
+  const identificacao = (modelo === "Cultural" ? [projeto, lei, codigo].filter(Boolean).join(" - ") : nomeProjeto).toUpperCase();
+  if (identificacao) out.push("", `**${identificacao}**`);
 
   out.push(
     "",
