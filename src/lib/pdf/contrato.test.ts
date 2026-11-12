@@ -72,7 +72,8 @@ describe("o PDF do contrato", () => {
 
   it("o Corporativo cita o projeto no objeto e leva o nome dele em caixa alta", async () => {
     const { texto } = await gerar("Corporativo");
-    const t = texto.replace(/\s+/g, " ");
+    // o extrator de PDF põe um espaço antes da pontuação que segue um trecho em negrito
+    const t = texto.replace(/\s+/g, " ").replace(/ ([,.;:])/g, "$1");
     expect(t).toContain("cuja gestão é de responsabilidade do(a) CONTRATANTE, sendo:");
     expect(t).not.toContain("PRONAC");
   });
