@@ -19,12 +19,17 @@
 begin;
 
 -- 1. Quem já tinha o bloco financeiro continua com tudo: as áreas que marcavam
---    `financeiro` ganham ver e editar dos blocos da OS. A Produção, que passa a
---    preencher a OS inteira, também.
+--    `financeiro` ganham ver e editar dos blocos da OS.
 update public.areas
    set recursos = array(select distinct x from unnest(recursos || array['oss.financeiro', 'oss.financeiro.editar']) as x)
- where 'financeiro' = any(recursos)
-    or nome = 'Produção';
+ where 'financeiro' = any(recursos);
+
+--    A Produção passa a preencher a OS inteira e a ver os valores e o BV da EC
+--    (pedido do Guilherme, 12/11/2026): ver e editar os blocos financeiros da OS
+--    e os valores da EC.
+update public.areas
+   set recursos = array(select distinct x from unnest(recursos || array['financeiro', 'oss.financeiro', 'oss.financeiro.editar']) as x)
+ where nome = 'Produção';
 
 -- 2. A régua única: o recurso da ÁREA; sem área marcada, o padrão do nível.
 create or replace function public.recurso_da_area(p_chave text, p_niveis_sem_area text[])
