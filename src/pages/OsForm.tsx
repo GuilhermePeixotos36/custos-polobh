@@ -2385,29 +2385,10 @@ export function OsForm() {
           </fieldset>
         )}
 
-        {/* O BOTÃO QUE PASSA O BASTÃO, logo depois das Observações Gerais
-            (29/09/2026): quem monta a OS chega ao fim do formulário e o comando
-            está ali, sem voltar ao topo. Gera a pendência da Coordenação
-            Administrativo-Financeira, como o do cabeçalho. */}
-        {podeEditar && fase === "producao" && os.id && !encerradaDoc && (
-          <div className="flex justify-end">
-            <Button icon={<IcSend width={15} height={15} />} disabled={busy} onClick={() => void enviarDaProducao()}>
-              {validaContrato ? "Enviar OS para Revisão da Direção" : "Enviar OS para Revisão da Coordenação Administrativo-Financeira"}
-            </Button>
-          </div>
-        )}
-        {podeValidarContrato && fase === "direcao" && !encerradaDoc && (
-          <div className="flex justify-end">
-            <Button icon={<IcCheck width={15} height={15} />} disabled={busy} onClick={() => void validarContrato()}>
-              Enviar OS para Revisão da Coordenação Administrativo-Financeira
-            </Button>
-          </div>
-        )}
-
         {/* RESUMO DOS CUSTOS em módulo próprio, depois da parte da produção
             (22/10/2026). É preenchido pelo Financeiro (prazo de pagamento,
             documento fiscal), então fica abaixo do botão que passa a OS a ele
-            e só abre na fase dele. Quem vê não mudou: segue aberto a quem abre
+            e abre com a Produção e na fase dele. Quem vê não mudou: segue aberto a quem abre
             a OS; só a tabela item a item é restrita ao financeiro. */}
         <fieldset disabled={!mexeFinanceiro} className="min-w-0 border-0 p-0 m-0 disabled:opacity-100">
         <CardOs secao="Resumo dos Custos" area="Financeiro">
@@ -2462,7 +2443,7 @@ export function OsForm() {
         </CardOs>
         </fieldset>
 
-        {/* OS BLOCOS DO FINANCEIRO só abrem na fase dele (e seguem abertos no
+        {/* OS BLOCOS DO FINANCEIRO abrem com a Produção (12/11/2026), na fase dele (e seguem abertos no
             back-office, que ainda corrige um código de serviço na hora de
             emitir). Emitida, nada mais se edita: o que muda vira nova versão. */}
         <fieldset disabled={!mexeFinanceiro} className="space-y-4 min-w-0 disabled:opacity-100">
@@ -2747,6 +2728,27 @@ export function OsForm() {
         </CardOs>
         </fieldset>
 
+        {/* OS BOTÕES QUE PASSAM O BASTÃO, no FIM do formulário (12/11/2026). A
+            Produção preenche a OS inteira — inclusive os blocos do Financeiro,
+            para quem os vê —, então o comando fica depois do último bloco. O
+            caminho não mudou: na OS cultural com contrato vai para a Direção de
+            Produção; nas demais, direto para a Coordenação Administrativo-
+            Financeira. Fora dos fieldsets, que travam tudo em leitura. */}
+        {podeEditar && fase === "producao" && os.id && !encerradaDoc && (
+          <div className="flex justify-end">
+            <Button icon={<IcSend width={15} height={15} />} disabled={busy} onClick={() => void enviarDaProducao()}>
+              {validaContrato ? "Enviar OS para Revisão da Direção" : "Enviar OS para Revisão da Coordenação Administrativo-Financeira"}
+            </Button>
+          </div>
+        )}
+        {podeValidarContrato && fase === "direcao" && !encerradaDoc && (
+          <div className="flex justify-end">
+            <Button icon={<IcCheck width={15} height={15} />} disabled={busy} onClick={() => void validarContrato()}>
+              Enviar OS para Revisão da Coordenação Administrativo-Financeira
+            </Button>
+          </div>
+        )}
+
         {/* O BOTÃO DO BACK-OFFICE, logo depois dos Acertos Financeiros
             (28/10/2026; antes ficava entre o Contrato e os Acertos): é o fim da
             parte do Financeiro. Fora do fieldset, que trava tudo em leitura.
@@ -2929,7 +2931,7 @@ function EtiquetaArea({ area, sufixo, alinhada = false }: { area: AreaOs; sufixo
             </span>
           ) : (
             <span className="inline-flex items-center gap-1 text-[11px] font-bold text-ink-2 whitespace-nowrap">
-              <IcCadeado width={12} height={12} /> {situacao.aviso}
+              {!situacao.aberto && <IcCadeado width={12} height={12} />} {situacao.aviso}
             </span>
           )}
         </span>
