@@ -1289,31 +1289,13 @@ export function OsForm() {
     });
   }
 
-  /**
-   * O SEGUNDO BOTÃO da Produção (11/11/2026): a OS vai direto para a Coordenação
-   * Administrativo-Financeira (a pendência é do Tiago), sem passar pela revisão
-   * da Direção de Produção. É uma escolha de quem monta a OS, e fica registrada
-   * no contrato — para a emissão não cobrar uma revisão que ninguém foi chamada
-   * a fazer.
-   */
-  async function enviarAoFinanceiroSemDirecao() {
-    if (!(await confirmar({
-      titulo: "Enviar esta OS direto para a Coordenação Administrativo-Financeira?",
-      mensagem:
-        "A OS não passa pela revisão da Direção de Produção. Os blocos da produção passam a leitura e a OS vira pendência da Coordenação Administrativo-Financeira. Você pode receber a OS de volta, se precisar.",
-      confirmarTexto: "Enviar ao Financeiro",
-    }))) return;
-    await salvar(undefined, { fase: "financeiro", contrato: { ...os!.contrato, revisaoDirecaoDispensada: true } });
-    setEditando(false);
-  }
-
   /** A Direção de Produção valida o contrato e passa a OS ao Financeiro. */
   async function validarContrato() {
     if (!(await confirmar({
-      titulo: "Concluir a revisão e enviar a OS ao Financeiro?",
+      titulo: "Enviar a OS para a Revisão da Coordenação Administrativo-Financeira?",
       mensagem:
         "A OS fica marcada como revisada pela Direção de Produção e vira pendência da Coordenação Administrativo-Financeira. Se algo precisar de ajuste da Produção, use \"Devolver à etapa anterior\".",
-      confirmarTexto: "Concluir e enviar",
+      confirmarTexto: "Enviar à Coordenação",
     }))) return;
     // Fica registrado QUEM validou e QUANDO — é o que a emissão confere.
     await salvar(undefined, {
@@ -1338,10 +1320,8 @@ export function OsForm() {
     await salvar(
       undefined,
       desfazValidacao
-        ? { fase: anterior, contrato: { ...os!.contrato, validadoEm: undefined, validadoPor: undefined, revisaoDirecaoDispensada: undefined } }
-        : (anterior === "producao" || anterior === "direcao") && os!.contrato.revisaoDirecaoDispensada
-          ? { fase: anterior, contrato: { ...os!.contrato, revisaoDirecaoDispensada: undefined } }
-          : { fase: anterior },
+        ? { fase: anterior, contrato: { ...os!.contrato, validadoEm: undefined, validadoPor: undefined } }
+        : { fase: anterior },
     );
   }
 
@@ -1379,7 +1359,7 @@ export function OsForm() {
     // OS cultural com contrato que não passou pela Direção de Produção (as que já
     // estavam no Financeiro antes de 11/11/2026, por exemplo): emitir pede
     // confirmação, e o caminho certo é devolver para a validação.
-    if (contratoCultural && haContrato && !os!.contrato.validadoEm && !os!.contrato.revisaoDirecaoDispensada) {
+    if (contratoCultural && haContrato && !os!.contrato.validadoEm) {
       if (!(await confirmar({
         titulo: "Esta OS não passou pela revisão da Direção de Produção",
         mensagem:
@@ -1556,22 +1536,15 @@ export function OsForm() {
 
           {/* A PASSAGEM DE BASTÃO — o comando principal de cada fase. */}
           {podeEditar && fase === "producao" && os.id && !encerradaDoc && (
-            <>
-              <Button size="sm" icon={<IcSend width={15} height={15} />} disabled={busy} onClick={() => void enviarDaProducao()}>
-                {validaContrato ? "Enviar OS para Revisão da Direção" : "Enviar OS para Conclusão Financeiro"}
-              </Button>
-              {validaContrato && (
-                <Button size="sm" variant="secondary" icon={<IcSend width={15} height={15} />} disabled={busy} onClick={() => void enviarAoFinanceiroSemDirecao()}>
-                  Enviar OS para Revisão da Coordenação Administrativo-Financeira
-                </Button>
-              )}
-            </>
+            <Button size="sm" icon={<IcSend width={15} height={15} />} disabled={busy} onClick={() => void enviarDaProducao()}>
+              {validaContrato ? "Enviar OS para Revisão da Direção" : "Enviar OS para Conclusão Financeiro"}
+            </Button>
           )}
           {/* DIREÇÃO DE PRODUÇÃO (11/11/2026): confere os Dados para Contrato da
               OS cultural e passa a OS ao Financeiro. */}
           {podeValidarContrato && fase === "direcao" && !encerradaDoc && (
             <Button size="sm" icon={<IcCheck width={15} height={15} />} disabled={busy} onClick={() => void validarContrato()}>
-              Concluir revisão e enviar ao Financeiro
+              Enviar OS para Revisão da Coordenação Administrativo-Financeira
             </Button>
           )}
           {verFinanceiro && fase === "financeiro" && !encerradaDoc && (
@@ -2416,21 +2389,16 @@ export function OsForm() {
             está ali, sem voltar ao topo. Gera a pendência da Coordenação
             Administrativo-Financeira, como o do cabeçalho. */}
         {podeEditar && fase === "producao" && os.id && !encerradaDoc && (
-          <div className="flex justify-end gap-2 flex-wrap">
+          <div className="flex justify-end">
             <Button icon={<IcSend width={15} height={15} />} disabled={busy} onClick={() => void enviarDaProducao()}>
               {validaContrato ? "Enviar OS para Revisão da Direção" : "Enviar OS para Conclusão Financeiro"}
             </Button>
-            {validaContrato && (
-              <Button variant="secondary" icon={<IcSend width={15} height={15} />} disabled={busy} onClick={() => void enviarAoFinanceiroSemDirecao()}>
-                Enviar OS para Revisão da Coordenação Administrativo-Financeira
-              </Button>
-            )}
           </div>
         )}
         {podeValidarContrato && fase === "direcao" && !encerradaDoc && (
           <div className="flex justify-end">
             <Button icon={<IcCheck width={15} height={15} />} disabled={busy} onClick={() => void validarContrato()}>
-              Concluir revisão e enviar ao Financeiro
+              Enviar OS para Revisão da Coordenação Administrativo-Financeira
             </Button>
           </div>
         )}

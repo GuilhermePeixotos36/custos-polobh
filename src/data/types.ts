@@ -949,12 +949,6 @@ export interface ContratoOs {
   emitidoEm?: string;
   emitidoPor?: string;
   /**
-   * A Produção mandou a OS DIRETO ao Financeiro, sem a revisão da Direção de
-   * Produção (11/11/2026). É uma escolha dela — o botão existe —, e por isso a
-   * emissão não cobra a revisão que ninguém foi chamada a fazer.
-   */
-  revisaoDirecaoDispensada?: boolean;
-  /**
    * Qual dos dois modelos da casa este contrato usa (16/09/2026).
    *
    * Em branco significa "o que a modalidade do projeto disser" — Cultural para
