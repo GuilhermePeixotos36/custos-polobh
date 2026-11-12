@@ -63,7 +63,7 @@ describe("destaque dos blocos da vez", () => {
   it("destaca os blocos da área que está com a OS", () => {
     expect(vezDoBloco("Produção", "producao").vez).toBe(true);
     // A Produção preenche a OS inteira (12/11/2026): os blocos do Financeiro estão abertos a ela.
-    expect(vezDoBloco("Financeiro", "producao")).toEqual({ vez: false, aberto: true, aviso: "Aberto à Produção nesta etapa" });
+    expect(vezDoBloco("Financeiro", "producao").vez).toBe(true);
     expect(vezDoBloco("Direção de Produção", "producao").aviso).toBe("Abre na etapa da Direção de Produção");
     expect(vezDoBloco("Produção", "financeiro").aviso).toBe("Produção já concluiu — em leitura");
     expect(vezDoBloco("Financeiro", "financeiro").vez).toBe(true);

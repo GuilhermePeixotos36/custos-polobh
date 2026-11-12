@@ -30,9 +30,9 @@ import { onlyDigits } from "@/lib/format";
 import { auditar } from "@/store/logs";
 import { useAuth } from "@/store/auth";
 
-/** O usuário atual tem acesso ao bloco financeiro? (espelha a RLS de os_financeiro) */
+/** O usuário atual pode GRAVAR os blocos financeiros da OS? (espelha a RLS de os_financeiro) */
 function podeFinanceiro(): boolean {
-  return useAuth.getState().pode("financeiro");
+  return useAuth.getState().pode("oss.financeiro.editar");
 }
 
 const financeiroVazio = () => ({

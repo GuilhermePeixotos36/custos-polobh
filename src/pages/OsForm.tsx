@@ -351,7 +351,16 @@ export function OsForm() {
   const navigate = useNavigate();
   const pode = useAuth((s) => s.pode);
   const nomeUsuario = useAuth((s) => s.usuario?.nome);
-  const verFinanceiro = pode("financeiro");
+  /**
+   * OS BLOCOS FINANCEIROS (12/11/2026): ver e editar são marcações separadas na
+   * área (`oss.financeiro` / `oss.financeiro.editar`) e independem dos valores e
+   * do BV da EC (`financeiro`) — a Produção pode preencher a OS inteira sem
+   * enxergar o BV da estimativa.
+   */
+  const verFinanceiro = pode("oss.financeiro");
+  const editaFinOs = pode("oss.financeiro.editar");
+  /** Os valores da EC item a item (a tabela do Resumo dos Custos). */
+  const verValoresEc = pode("financeiro");
   const podeEditar = pode("oss.editar");
   const podeEmitir = pode("oss.emitir");
   /** Direção de Produção: valida o contrato da OS cultural (11/11/2026). */
@@ -545,7 +554,7 @@ export function OsForm() {
   const direcaoCorrige = editando && podeValidarContrato && os != null && faseDaOs(os) === "direcao";
   const mexeProducao = (editando && podeEditar && os != null && editaProducao(os)) || backofficeCorrige || direcaoCorrige;
   const mexeFinanceiro =
-    (editando && verFinanceiro && os != null && editaFinanceiro(os)) || (backofficeCorrige && verFinanceiro) || (direcaoCorrige && verFinanceiro);
+    (editando && editaFinOs && os != null && editaFinanceiro(os)) || (backofficeCorrige && editaFinOs) || (direcaoCorrige && editaFinOs);
   const emitida = os != null && osEmitida(os);
   // Pendências desta OS — mesma lista que alimenta o badge vermelho dela.
   const { itens: pendenciasDoUsuario } = useMinhasPendencias();
@@ -1426,7 +1435,7 @@ export function OsForm() {
           {/* A ORDEM é a do menu da EC (29/09/2026): Editar OS (ou, em edição,
               Revisar + Salvar) · Gerar Nova Versão · Cancelar · Arquivar · PDF.
               Cada bloco abre e fecha pela seta do próprio cabeçalho. */}
-          {!editando && (podeEditar || verFinanceiro || podeValidarContrato) && !emitida && !encerradaDoc && (
+          {!editando && (podeEditar || editaFinOs || podeValidarContrato) && !emitida && !encerradaDoc && (
             <Button
               size="sm"
               icon={<IcPencil width={15} height={15} />}
@@ -1481,12 +1490,12 @@ export function OsForm() {
               Gerar Nova Versão OS
             </Button>
           )}
-          {os.id && (podeEditar || verFinanceiro) && !encerradaDoc && (
+          {os.id && (podeEditar || editaFinOs) && !encerradaDoc && (
             <Button variant="secondary" size="sm" disabled={busy} onClick={() => void encerrarOs("Cancelada")}>
               Cancelar OS
             </Button>
           )}
-          {os.id && (podeEditar || verFinanceiro) && os.status !== "Arquivada" && (
+          {os.id && (podeEditar || editaFinOs) && os.status !== "Arquivada" && (
             <Button variant="secondary" size="sm" disabled={busy} onClick={() => void encerrarOs("Arquivada")}>
               Arquivar OS
             </Button>
@@ -1547,7 +1556,7 @@ export function OsForm() {
               Enviar OS para Revisão da Coordenação Administrativo-Financeira
             </Button>
           )}
-          {verFinanceiro && fase === "financeiro" && !encerradaDoc && (
+          {editaFinOs && fase === "financeiro" && !encerradaDoc && (
             <Button
               size="sm"
               icon={<IcSend width={15} height={15} />}
@@ -1569,7 +1578,7 @@ export function OsForm() {
               Emitir OS
             </Button>
           )}
-          {fase !== "producao" && !emitida && !encerradaDoc && (podeEditar || verFinanceiro || podeValidarContrato) && (
+          {fase !== "producao" && !emitida && !encerradaDoc && (podeEditar || editaFinOs || podeValidarContrato) && (
             <Button variant="text" size="sm" disabled={busy} onClick={() => void devolverFase()}>
               Devolver à etapa anterior
             </Button>
@@ -1625,7 +1634,7 @@ export function OsForm() {
         <div className="mt-3 pt-2.5 border-t border-border-soft flex items-center gap-x-3 gap-y-1 flex-wrap text-[12.5px] text-ink-2">
           <span>{ESPERANDO_FASE[fase]}</span>
           {os.faseEm && <span className="text-ink-3">desde {dataBR(os.faseEm)}</span>}
-          {!editando && !emitida && !encerradaDoc && (podeEditar || verFinanceiro || podeValidarContrato) && (
+          {!editando && !emitida && !encerradaDoc && (podeEditar || editaFinOs || podeValidarContrato) && (
             <span className="ml-auto text-ink-3">Modo leitura</span>
           )}
         </div>
@@ -1859,7 +1868,7 @@ export function OsForm() {
             >
               <div id={ID_FORMAS_PAGAMENTO} className="py-1.5 space-y-2">
                 {/* Dentro do Detalhamento (da Produção), esta linha é do Financeiro. */}
-                <EtiquetaArea area="Financeiro" />
+                <EtiquetaArea area="Financeiro" tambem="Produção" />
                 {problemasContratacao.length > 0 && (
                   <div className="rounded-btn bg-warning-soft px-3 py-2 text-[12.5px] text-ink">
                     <p className="font-bold text-warning">Falta resolver antes de emitir:</p>
@@ -2193,8 +2202,8 @@ export function OsForm() {
                   contrato escolhe (11/11/2026). */}
               <Select
                 value={os.contrato.modelo ?? ""}
-                disabled={!(verFinanceiro || podeValidarContrato)}
-                title={!(verFinanceiro || podeValidarContrato) ? "O modelo segue a modalidade do projeto; só o Financeiro ou a Direção de Produção trocam." : undefined}
+                disabled={!(editaFinOs || podeValidarContrato)}
+                title={!(editaFinOs || podeValidarContrato) ? "O modelo segue a modalidade do projeto; só o Financeiro ou a Direção de Produção trocam." : undefined}
                 onChange={(e) => updCt({ modelo: (e.target.value || undefined) as ModeloContrato | undefined })}
               >
                 <option value="">Pela modalidade do projeto — {modeloContrato}</option>
@@ -2391,7 +2400,7 @@ export function OsForm() {
             e abre com a Produção e na fase dele. Quem vê não mudou: segue aberto a quem abre
             a OS; só a tabela item a item é restrita ao financeiro. */}
         <fieldset disabled={!mexeFinanceiro} className="min-w-0 border-0 p-0 m-0 disabled:opacity-100">
-        <CardOs secao="Resumo dos Custos" area="Financeiro">
+        <CardOs secao="Resumo dos Custos" area="Financeiro" tambem="Produção">
 
             {/* Sem o valor do item na EC (21/10/2026): aquele é o preço ao
                 cliente. O valor da OS é o que se paga ao fornecedor. */}
@@ -2435,7 +2444,7 @@ export function OsForm() {
                 </Select>
               </LinhaOs>
             )}
-            {verFinanceiro && (
+            {verValoresEc && (
             <LinhaOs label="Definido item a item" hint="(o que sai no PDF e na planilha)">
               <TabelaResumoCustos resumo={resumo} />
             </LinhaOs>
@@ -2454,7 +2463,7 @@ export function OsForm() {
           {/* O nome do módulo é o que ele faz (15/09/2026), e o subtítulo saiu:
               ele listava os quatro documentos possíveis — que é a pergunta do
               campo "Documento PG", não um título. */}
-          <CardOs className="border-active-border" secao="Dados Emissão Faturamento" area="Financeiro">
+          <CardOs className="border-active-border" secao="Dados Emissão Faturamento" area="Financeiro" tambem="Produção">
             <LinhaOs label="Tomador dos Serviços">
               {/* Pólobh, MF, Cliente ou Outro. As empresas do grupo vêm do
                   cadastro (Configurações › Empresas do Grupo): a MF já existia
@@ -2647,7 +2656,7 @@ export function OsForm() {
           </CardOs>
           </>
         ) : (
-          <CardOs secao="Faturamento e Contrato" area="Financeiro">
+          <CardOs secao="Faturamento e Contrato" area="Financeiro" tambem="Produção">
             <p className="p-4 text-sm text-ink-2">Os blocos de faturamento e contrato são restritos ao seu perfil.</p>
           </CardOs>
         )}
@@ -2669,6 +2678,7 @@ export function OsForm() {
         <CardOs
           secao={SECAO_ACERTOS}
           area="Financeiro"
+          tambem="Produção"
           acaoSecao={
             <button
               type="button"
@@ -2753,7 +2763,7 @@ export function OsForm() {
             (28/10/2026; antes ficava entre o Contrato e os Acertos): é o fim da
             parte do Financeiro. Fora do fieldset, que trava tudo em leitura.
             Gera a pendência do Back-office, como o do cabeçalho. */}
-        {verFinanceiro && fase === "financeiro" && (
+        {editaFinOs && fase === "financeiro" && (
           <div className="flex justify-end">
             <Button
               icon={<IcSend width={15} height={15} />}
@@ -2906,21 +2916,24 @@ const DESTAQUE_AREA: Record<AreaOs, { borda: string; faixa: string }> = {
 /** A etapa em que a OS está — os blocos se destacam conforme ela (ver `vezDoBloco`). */
 const FaseDaOsCtx = createContext<FaseOs | null>(null);
 
-function EtiquetaArea({ area, sufixo, alinhada = false }: { area: AreaOs; sufixo?: string; alinhada?: boolean }) {
+function EtiquetaArea({ area, tambem, sufixo, alinhada = false }: { area: AreaOs; tambem?: AreaOs; sufixo?: string; alinhada?: boolean }) {
   const fase = useContext(FaseDaOsCtx);
   const situacao = fase ? vezDoBloco(area, fase) : null;
+  // "Produção e Financeiro": o bloco é do Financeiro, mas a Produção também o
+  // preenche (12/11/2026).
+  const rotuloArea = [tambem, area].filter(Boolean).join(" e ");
   // No cabeçalho dos blocos (12/11/2026) a etiqueta e o recado ficam em COLUNAS de
   // largura fixa, iguais em todos os blocos: antes cada linha se ajustava ao que
   // tinha à direita, e as pílulas e os avisos de um bloco para outro ficavam
   // desencontrados. Em tela estreita volta a quebrar linha, como sempre.
   return (
     <span className={cx("inline-flex items-center gap-1.5 flex-wrap", alinhada && "md:flex-nowrap md:gap-0")}>
-      <span className={cx(alinhada && "md:w-[14.5rem] md:shrink-0")}>
+      <span className={cx(alinhada && "md:w-[17rem] md:shrink-0")}>
         <span
-          title={`Bloco preenchido por: ${area}`}
+          title={`Bloco preenchido por: ${rotuloArea}`}
           className={cx("inline-flex items-center rounded-full border px-2 py-0.5 text-[10.5px] font-extrabold uppercase tracking-[0.04em] whitespace-nowrap", COR_AREA[area])}
         >
-          Preenche: {area}{sufixo ? ` ${sufixo}` : ""}
+          Preenche: {rotuloArea}{sufixo ? ` ${sufixo}` : ""}
         </span>
       </span>
       {situacao && (
@@ -2931,7 +2944,7 @@ function EtiquetaArea({ area, sufixo, alinhada = false }: { area: AreaOs; sufixo
             </span>
           ) : (
             <span className="inline-flex items-center gap-1 text-[11px] font-bold text-ink-2 whitespace-nowrap">
-              {!situacao.aberto && <IcCadeado width={12} height={12} />} {situacao.aviso}
+              <IcCadeado width={12} height={12} /> {situacao.aviso}
             </span>
           )}
         </span>
@@ -2944,6 +2957,7 @@ function CardOs({
   className,
   secao,
   area,
+  tambem,
   acaoSecao,
   acaoSoAberto,
   children,
@@ -2951,6 +2965,8 @@ function CardOs({
   className?: string;
   /** Área que preenche o bloco — vira a etiqueta "Preenche: …" no cabeçalho. */
   area?: AreaOs;
+  /** Outra área que também o preenche ("Preenche: Produção e Financeiro"). */
+  tambem?: AreaOs;
   /** Título da faixa — é ele que identifica o bloco no recolher/expandir. */
   secao: string;
   acaoSecao?: ReactNode;
@@ -2987,7 +3003,7 @@ function CardOs({
           </span>
           <h3 className="font-display font-bold text-[12.5px] uppercase tracking-[0.05em] text-ink">{secao}</h3>
         </div>
-        {area && <EtiquetaArea area={area} alinhada />}
+        {area && <EtiquetaArea area={area} tambem={tambem} alinhada />}
         {/* Coluna fixa mesmo sem ação (ou com o bloco fechado): é ela que mantém
             as etiquetas de todos os blocos na mesma vertical. */}
         <div className="shrink-0 md:w-[10rem] flex justify-end">{acaoSecao && !(acaoSoAberto && recolhida) ? acaoSecao : null}</div>
