@@ -13,7 +13,7 @@ import { BarraConfiguracoes, useSecaoConfig } from "@/components/layout/BarraSec
 import { NAV_CONFIG } from "@/components/layout/nav";
 import { Card, CardTitle, Toggle, Badge, Field, Input, Textarea, TelefoneInput, Select, Button, Table, THead, Th, Tr, Td, EmptyState, CarregandoTela } from "@/components/ui";
 import { IcPlus, IcPencil, IcTrash, IcBloqueio, IcFechar, IcCheck } from "@/components/icons";
-import { ROTULO_PAPEL, PAPEIS_AREA, TELAS, PERMISSOES_ESPECIAIS, useAuth, type Recurso } from "@/store/auth";
+import { ROTULO_PAPEL, PAPEIS_AREA, TELAS, DADOS_FINANCEIROS, PERMISSOES_ESPECIAIS, useAuth, type Recurso } from "@/store/auth";
 import { useEmpresas } from "@/store/empresas";
 import { useConfigApp } from "@/store/configApp";
 import { useAsync } from "@/hooks/useAsync";
@@ -623,10 +623,11 @@ function AreaModal({
   function alternar(r: Recurso, v: boolean) {
     let recursos = v ? [...form.recursos, r] : form.recursos.filter((x) => x !== r);
     // Editar sem ver não existe: marcar "editar" liga o "ver"; desmarcar "ver" desliga o "editar".
-    const tela = TELAS.find((t) => t.ver === r || t.editar === r);
-    if (tela?.editar) {
-      if (v && r === tela.editar && !recursos.includes(tela.ver)) recursos.push(tela.ver);
-      if (!v && r === tela.ver) recursos = recursos.filter((x) => x !== tela.editar);
+    // Vale para as telas e para os dados financeiros (12/11/2026).
+    const par = [...TELAS, ...DADOS_FINANCEIROS].find((t) => t.ver === r || t.editar === r);
+    if (par?.editar) {
+      if (v && r === par.editar && !recursos.includes(par.ver)) recursos.push(par.ver);
+      if (!v && r === par.ver) recursos = recursos.filter((x) => x !== par.editar);
     }
     setForm({ ...form, recursos });
   }
@@ -741,6 +742,40 @@ function AreaModal({
             </table>
           </div>
 
+          {/* DADOS FINANCEIROS (12/11/2026): ver e editar de cada bloco sensível,
+              na mesma matriz das telas. Antes era uma caixa só ("Bloco financeiro"),
+              que liberava ao mesmo tempo os valores da EC, os blocos da OS e a
+              edição deles. */}
+          <div className="rounded-card border border-border overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-[#FAFAFB]">
+                  <th className="text-left px-4 py-2.5 text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Dados financeiros</th>
+                  <th className="px-4 py-2.5 w-24 text-center text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Ver</th>
+                  <th className="px-4 py-2.5 w-24 text-center text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Editar</th>
+                </tr>
+              </thead>
+              <tbody>
+                {DADOS_FINANCEIROS.map((d) => (
+                  <tr key={d.ver} className="border-b border-border-soft last:border-0">
+                    <td className="px-4 py-2.5">
+                      <span className="block font-semibold text-ink">{d.label}</span>
+                      <span className="block text-[12px] text-ink-2">{d.hint}</span>
+                    </td>
+                    <td className="px-4 py-2.5 text-center">
+                      <Marcador checked={marcado(d.ver)} editando={editando} onChange={(v) => alternar(d.ver, v)} />
+                    </td>
+                    <td className="px-4 py-2.5 text-center">
+                      {d.editar
+                        ? <Marcador checked={marcado(d.editar)} editando={editando} onChange={(v) => alternar(d.editar!, v)} />
+                        : <span className="text-ink-3" title="Ver e editar andam juntos">—</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
           <div className="rounded-card border border-border p-4 space-y-3">
             <div className="text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Permissões especiais</div>
             {PERMISSOES_ESPECIAIS.map((p) => {
@@ -767,9 +802,9 @@ function AreaModal({
           </div>
 
           <p className="text-[12.5px] text-ink-2">
-            O <b>nível de segurança</b> vale também fora da tela: mesmo que uma área marque o bloco
-            financeiro, os valores só chegam ao navegador se o nível permitir (Direção ou Financeiro).
-            Trocar o nível de uma área muda o acesso de todos os usuários dela.
+            O que a área marca aqui vale também no <b>banco de dados</b>: o que ela não vê não chega ao
+            navegador, e o que não edita o banco não grava. O <b>nível de segurança</b> só decide o padrão de
+            quem ainda não tem área marcada. Trocar as marcações de uma área muda o acesso de todos os usuários dela.
           </p>
         </div>
       </div>

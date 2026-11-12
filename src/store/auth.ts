@@ -17,6 +17,8 @@ export type Recurso =
   | "oss.validarContrato"
   | "oss.etapaFinanceiro"
   | "oss.etapaBackoffice"
+  | "oss.financeiro"
+  | "oss.financeiro.editar"
   | "checklists"
   | "checklists.editar"
   | "checklists.excluir"
@@ -42,6 +44,8 @@ export const TODOS_RECURSOS: Recurso[] = [
   "oss.validarContrato",
   "oss.etapaFinanceiro",
   "oss.etapaBackoffice",
+  "oss.financeiro",
+  "oss.financeiro.editar",
   "checklists",
   "checklists.editar",
   "checklists.excluir",
@@ -70,27 +74,41 @@ export const TELAS: { ver: Recurso; editar?: Recurso; label: string }[] = [
   { ver: "guia", label: "Guia de uso" },
 ];
 
+/**
+ * DADOS FINANCEIROS (12/11/2026): o que se VÊ e o que se EDITA dentro das telas,
+ * cada um com a sua marcação. Antes tudo vinha num "Bloco financeiro" só — quem
+ * via os blocos financeiros da OS via também os valores e o BV da EC, e ver e
+ * editar eram a mesma chave. Agora a matriz da área diz, linha a linha:
+ *
+ *  · Valores e BV da EC — o que o banco mostra (`ve_financeiro`); ver e editar
+ *    andam juntos, como sempre;
+ *  · Blocos financeiros da OS — ver e editar separados: a Produção pode preencher
+ *    todos os campos da OS (12/11/2026) sem enxergar o BV da EC;
+ *  · Rentabilidade — só ver.
+ *
+ * `editar` sem `ver` não existe: a matriz liga o `ver` junto (ver `AreaModal`).
+ */
+export const DADOS_FINANCEIROS: { ver: Recurso; editar?: Recurso; label: string; hint: string }[] = [
+  {
+    ver: "financeiro",
+    label: "Valores e BV na Estimativa de Custo",
+    hint: "Valor Pólobh, valor do cliente, BV e o resumo da EC. Ver e editar andam juntos.",
+  },
+  {
+    ver: "oss.financeiro",
+    editar: "oss.financeiro.editar",
+    label: "Blocos financeiros da OS",
+    hint: "Resumo dos Custos, Dados Emissão Faturamento, Faturamento e Contrato e Acerto Financeiro",
+  },
+  {
+    ver: "rentabilidade",
+    label: "Rentabilidade por item",
+    hint: "A margem da Pólobh item a item, na EC — separada dos valores",
+  },
+];
+
 /** Permissões que não são "telas", e sim o que se enxerga dentro delas. */
 export const PERMISSOES_ESPECIAIS: { key: Recurso; label: string; hint: string }[] = [
-  {
-    key: "financeiro",
-    label: "Bloco financeiro",
-    hint: "Valores Pólobh, valores do cliente e o financeiro da OS",
-  },
-  /**
-   * A RENTABILIDADE ganhou permissão própria (15/09/2026).
-   *
-   * Ela vinha junto do bloco financeiro — quem via valor via margem —, e a
-   * Pólobh separou as duas coisas: a aba mostra quanto a casa ganha em cada
-   * item, e o pedido é que ela fique com Diretoria e Coordenação (Produção e
-   * Administrativo-Financeiro). Quem lança custo e emite OS continua vendo
-   * valor sem ver margem.
-   */
-  {
-    key: "rentabilidade",
-    label: "Rentabilidade por item",
-    hint: "A margem da Pólobh item a item, na EC — separada do bloco financeiro",
-  },
   /**
    * EMITIR A OS é a última fase, e ganhou recurso próprio (16/09/2026).
    *
@@ -168,6 +186,8 @@ export const PERMISSOES: Record<Papel, Recurso[]> = {
     "oss",
     "oss.emitir",
     "oss.validarContrato",
+    "oss.financeiro",
+    "oss.financeiro.editar",
     "checklists",
     "checklists.editar",
     "checklists.excluir",
@@ -200,6 +220,8 @@ export const PERMISSOES: Record<Papel, Recurso[]> = {
     "oss",
     "oss.editar",
     "oss.emitir",
+    "oss.financeiro",
+    "oss.financeiro.editar",
     "checklists",
     "checklists.editar",
     "cronogramas",

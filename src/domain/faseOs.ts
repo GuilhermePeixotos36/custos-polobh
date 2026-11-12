@@ -153,13 +153,13 @@ const ETAPA_DA_AREA: Record<AreaOs, FaseOs> = {
  * dizem por que estão em leitura. No Back-office os blocos do Financeiro seguem
  * abertos para correção (`editaFinanceiro`), e a frase diz isso.
  */
-export function vezDoBloco(area: AreaOs, fase: FaseOs): { vez: boolean; aviso: string; aberto?: boolean } {
+export function vezDoBloco(area: AreaOs, fase: FaseOs): { vez: boolean; aviso: string } {
   if (fase === "emitida") return { vez: false, aviso: "OS emitida — em leitura" };
   const etapa = ETAPA_DA_AREA[area];
   if (etapa === fase) return { vez: true, aviso: "É a vez deste bloco" };
-  // Com a Produção, os blocos do Financeiro também estão abertos (12/11/2026): a
-  // Produção preenche a OS inteira antes de enviá-la. `aberto` tira o cadeado.
-  if (fase === "producao" && area === "Financeiro") return { vez: false, aberto: true, aviso: "Aberto à Produção nesta etapa" };
+  // A Produção preenche a OS inteira (12/11/2026): com a OS nas mãos dela, os
+  // blocos do Financeiro também são "da vez" — sem rótulo à parte.
+  if (fase === "producao" && area === "Financeiro") return { vez: true, aviso: "É a vez deste bloco" };
   // Com o Back-office, tudo segue aberto a ele para correção até a emissão.
   if (fase === "backoffice") return { vez: false, aviso: "Aberto ao Back-office para revisão" };
   return FASES_OS.indexOf(etapa) < FASES_OS.indexOf(fase)
