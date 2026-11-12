@@ -6,6 +6,7 @@ import {
   montarContrato,
   partirEmDestaques,
   quantidadeDoContrato,
+  referenciaDaOs,
 } from "./contratoDocumento";
 import { clausulasPadrao, FECHO_CONTRATO, modeloDoContrato, RESSALVA_VALORES } from "./contratoModelo";
 
@@ -331,6 +332,17 @@ describe("cidade, data e testemunhas", () => {
     const c = montarContrato(os({ contrato: { ...base.contrato, testemunha1: { nome: "Carlos", cpf: "9" } } }), ctx());
     expect(c.testemunhas[0]).toEqual({ nome: "Carlos", cpf: "9" });
     expect(c.testemunhas[1].nome).toBe("Viviane Barreiros dos Santos");
+  });
+});
+
+describe("a referência da OS na caixa do título", () => {
+  it("o título longo da OS vira só a versão", () => {
+    expect(referenciaDaOs("SPCD – O Quebra Nozes 2026 – Assessoria – CS – OS (01) em 09 11 26")).toBe("(01)");
+    expect(referenciaDaOs("BM – Convenção – OS (12) em 27 10 26")).toBe("(12)");
+  });
+  it("número no formato antigo fica como está", () => {
+    expect(referenciaDaOs("0031/26")).toBe("0031/26");
+    expect(referenciaDaOs("")).toBe("");
   });
 });
 

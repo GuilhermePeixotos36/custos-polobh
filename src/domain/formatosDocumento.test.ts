@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatarCnpjCpf, formatarInscricaoEstadual, formatarRazaoSocial, municipioDoEndereco } from "./formatosDocumento";
+import { formatarCnpjCpf, formatarInscricaoEstadual, formatarRazaoSocial, formatarTelefone, municipioDoEndereco } from "./formatosDocumento";
 
 describe("CNPJ e CPF com pontuação completa", () => {
   it("14 dígitos viram CNPJ, 11 viram CPF", () => {
@@ -47,5 +47,16 @@ describe("município lido do endereço", () => {
     expect(municipioDoEndereco("Rua Dom Joaquim Silverio,154 |apt 402 -Coração Eucarístico")).toBe("");
     expect(municipioDoEndereco("Rua A, 10 - MG")).toBe("");
     expect(municipioDoEndereco("")).toBe("");
+  });
+});
+
+describe("telefone", () => {
+  it("fixo e celular ganham a formatação; o resto fica como veio", () => {
+    expect(formatarTelefone("3132715531")).toBe("(31) 3271-5531");
+    expect(formatarTelefone("31984892098")).toBe("(31) 98489-2098");
+    expect(formatarTelefone("(31) 3658-0550")).toBe("(31) 3658-0550");
+    expect(formatarTelefone("0800 123 456 7")).toBe("0800 123 456 7");
+    expect(formatarTelefone("ramal 12")).toBe("ramal 12");
+    expect(formatarTelefone("")).toBe("");
   });
 });
