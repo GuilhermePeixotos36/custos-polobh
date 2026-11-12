@@ -1537,7 +1537,7 @@ export function OsForm() {
           {/* A PASSAGEM DE BASTÃO — o comando principal de cada fase. */}
           {podeEditar && fase === "producao" && os.id && !encerradaDoc && (
             <Button size="sm" icon={<IcSend width={15} height={15} />} disabled={busy} onClick={() => void enviarDaProducao()}>
-              {validaContrato ? "Enviar OS para Revisão da Direção" : "Enviar OS para Conclusão Financeiro"}
+              {validaContrato ? "Enviar OS para Revisão da Direção" : "Enviar OS para Revisão da Coordenação Administrativo-Financeira"}
             </Button>
           )}
           {/* DIREÇÃO DE PRODUÇÃO (11/11/2026): confere os Dados para Contrato da
@@ -2391,7 +2391,7 @@ export function OsForm() {
         {podeEditar && fase === "producao" && os.id && !encerradaDoc && (
           <div className="flex justify-end">
             <Button icon={<IcSend width={15} height={15} />} disabled={busy} onClick={() => void enviarDaProducao()}>
-              {validaContrato ? "Enviar OS para Revisão da Direção" : "Enviar OS para Conclusão Financeiro"}
+              {validaContrato ? "Enviar OS para Revisão da Direção" : "Enviar OS para Revisão da Coordenação Administrativo-Financeira"}
             </Button>
           </div>
         )}

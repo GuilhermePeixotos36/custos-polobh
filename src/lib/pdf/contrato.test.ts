@@ -70,6 +70,13 @@ describe("o PDF do contrato", () => {
     }
   });
 
+  it("o Corporativo cita o projeto no objeto e leva o nome dele em caixa alta", async () => {
+    const { texto } = await gerar("Corporativo");
+    const t = texto.replace(/\s+/g, " ");
+    expect(t).toContain("cuja gestão é de responsabilidade do(a) CONTRATANTE, sendo:");
+    expect(t).not.toContain("PRONAC");
+  });
+
   it("o cabeçalho com o título e 'pág X de Y' saem em todas as páginas", async () => {
     const { doc, texto } = await gerar("Corporativo");
     const n = doc.getPageCount();

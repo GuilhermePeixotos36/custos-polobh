@@ -114,16 +114,22 @@ describe("as sete cláusulas", () => {
     expect(t[5]).toBe("CLÁUSULA SEXTA: DAS DISPOSIÇÕES GERAIS");
   });
 
-  it("o Cultural acrescenta a gestão dos recursos e os serviços adicionais", () => {
+  it("Cultural e Corporativo têm as mesmas cláusulas; o Cultural só acrescenta a lei de incentivo", () => {
     const cult = textoDe(montarContrato(os({ projeto: { modalidade: "Cultural" } } as Partial<Os>), ctx()));
     const corp = textoDe(montarContrato(os(), ctx()));
-    expect(cult).toContain("Receber e gerir os recursos financeiros");
-    expect(corp).not.toContain("Receber e gerir os recursos financeiros");
-    expect(cult).toContain("**Serviços Adicionais:**");
-    expect(corp).not.toContain("Serviços Adicionais");
-    // a frase do Corporativo não cita a legislação de incentivo
+    // gestão dos recursos e serviços adicionais valem para os dois (modelo da Marisa, 12/11/2026)
+    for (const t of [cult, corp]) {
+      expect(t).toContain("Receber e gerir os recursos financeiros");
+      expect(t).toContain("**Serviços Adicionais:**");
+    }
+    expect(cult).toContain("em conformidade com a legislação de incentivo à cultura aplicável;");
+    expect(corp).toContain("em conformidade com a legislação aplicável;");
+    expect(cult).toContain("relacionado ao Projeto Cultural não previsto");
+    expect(corp).toContain("relacionado ao Projeto não previsto");
     expect(cult).toContain("Legislação de Incentivo à Cultura");
     expect(corp).not.toContain("Legislação de Incentivo à Cultura");
+    // no Corporativo, as notas seguem as instruções do CONTRATANTE
+    expect(corp).toContain("em conformidade com as instruções fornecidas pelo(a) CONTRATANTE, por meio das quais serão efetuados os pagamentos ao(à) CONTRATADO(A)");
   });
 
   it("os textos novos: parágrafos nomeados e prazo de confidencialidade", () => {
@@ -168,10 +174,19 @@ describe("a Cláusula Primeira", () => {
     expect(t).toContain("sob o PRONAC 26 1234, de autoria do(a) CONTRATANTE, sendo:");
   });
 
-  it("o Corporativo não cita incentivo nenhum", () => {
-    const t = textoDe(montarContrato(os(), ctx()));
-    expect(t).not.toContain("viabilização do projeto");
+  it("o Corporativo cita o projeto e a gestão do CONTRATANTE, sem lei de incentivo", () => {
+    const base = os();
+    const t = textoDe(montarContrato(os({ projeto: { modalidade: "Corporativo", nomeProjeto: "Convenção Anual" } } as Partial<Os>), ctx()));
+    expect(t).toContain("O objeto do presente é a viabilização do projeto Convenção Anual, cuja gestão é de responsabilidade do(a) CONTRATANTE, sendo:");
+    expect(t).toContain("**CONVENÇÃO ANUAL**");
     expect(t).not.toContain("PRONAC");
+    expect(t).not.toContain("inscrito e aprovado");
+    expect(base.projeto.modalidade).toBe("Corporativo");
+  });
+
+  it("o Corporativo sem nome de projeto avisa que falta, em vez de sair em branco", () => {
+    const t = textoDe(montarContrato(os(), ctx()));
+    expect(t).toContain("(nome do projeto não informado)");
   });
 
   it("descritivo e informações complementares, nessa ordem, com um espaço entre os dois", () => {
@@ -371,14 +386,16 @@ describe("a estrutura de cada cláusula", () => {
     const tipos = blocos("obrigacoes", obrigacoes.padrao.split("\n")).map((x) => x.tipo);
     expect(tipos).toEqual([
       "subtitulo", "item", "item", "item", "item", // CONTRATADO(A): fornecer, notas, trabalhista, autuação
-      "subtitulo", "item", "item",                  // CONTRATANTE: pagar + condições
+      "subtitulo", "item", "item", "item",          // CONTRATANTE: gerir recursos, pagar, condições
     ]);
   });
 
-  it("o Cultural tem um item a mais nas obrigações do CONTRATANTE", () => {
-    const [obrigacoes] = clausulasPadrao("Cultural").filter((c) => c.chave === "obrigacoes");
-    const itens = blocos("obrigacoes", obrigacoes.padrao.split("\n")).filter((x) => x.tipo === "item");
-    expect(itens).toHaveLength(7);
+  it("os dois modelos têm os mesmos 7 itens de obrigações", () => {
+    for (const m of ["Corporativo", "Cultural"] as const) {
+      const [obrigacoes] = clausulasPadrao(m).filter((c) => c.chave === "obrigacoes");
+      const itens = blocos("obrigacoes", obrigacoes.padrao.split("\n")).filter((x) => x.tipo === "item");
+      expect(itens).toHaveLength(7);
+    }
   });
 
   it("os valores do objeto são itens, e o resto do texto não vira lista", () => {
