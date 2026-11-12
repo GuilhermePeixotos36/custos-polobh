@@ -16,6 +16,7 @@
  * texto não guarda negrito —, quem devolve o destaque é `partirEmDestaques`,
  * na hora de escrever o documento.
  */
+import { nomeCompletoDoProjeto } from "@/domain/calc";
 import type { Cliente, EmpresaGrupo, Os } from "@/data/types";
 import { brl } from "@/lib/format";
 import { MESES } from "@/domain/calendario";
@@ -49,7 +50,6 @@ export interface ParteContrato {
   inscricaoEstadual: string;
   telefone: string;
   endereco: string;
-  municipio: string;
 }
 
 export interface ClausulaDoDocumento {
@@ -152,7 +152,8 @@ const linhas = (t: string): string[] => (t ?? "").split("\n");
  * do contrato muda. O que o texto não deixa claro cai em `texto`.
  */
 export type BlocoClausula =
-  | { tipo: "texto"; texto: string }
+  /** `antes`: ar a mais acima — o texto que vem depois de uma lista, separado dela por linha em branco. */
+  | { tipo: "texto"; texto: string; antes?: boolean }
   /** Cabeçalho de uma parte da cláusula ("DESCRITIVO DOS SERVIÇOS…:", "São obrigações do(a) …:"). */
   | { tipo: "subtitulo"; texto: string }
   /** Item de lista — as obrigações de cada parte, ou a linha que começa com "- ". */
@@ -165,19 +166,33 @@ const ehSubtitulo = (linha: string, chave: ChaveClausula): boolean => {
   return t.length > 3 && t.endsWith(":") && t === t.toUpperCase() && /[A-ZÀ-Ý]/.test(t);
 };
 
+/**
+ * Cláusulas em que TODO parágrafo é um item com bullet (12/11/2026): a Marisa
+ * marcou, uma a uma, a falta do bullet no caput e nos "Parágrafo Único/Primeiro/
+ * Segundo/Terceiro". A Primeira (o objeto) tem estrutura própria e a Segunda já
+ * é lista.
+ */
+const COM_BULLET: ChaveClausula[] = ["vigencia", "inexecucao", "confidencialidade", "finais", "foro"];
+
 export function blocosDaClausula(chave: ChaveClausula, paragrafos: string[]): BlocoClausula[] {
   const saida: BlocoClausula[] = [];
+  const tudoEmItem = COM_BULLET.includes(chave);
   /** Depois de "São obrigações…:", o que vem até a linha em branco seguinte é lista. */
   let emLista = false;
   let listaComecou = false;
+  let aposBranco = false;
 
   for (const bruta of paragrafos) {
     const linha = bruta.trim();
     if (!linha) {
       // A primeira linha em branco logo após o cabeçalho não encerra a lista.
       if (emLista && listaComecou) emLista = false;
+      aposBranco = true;
       continue;
     }
+    const anterior = saida[saida.length - 1];
+    const respiro = aposBranco && anterior?.tipo === "item";
+    aposBranco = false;
 
     if (ehSubtitulo(linha, chave)) {
       saida.push({ tipo: "subtitulo", texto: linha });
@@ -192,12 +207,12 @@ export function blocosDaClausula(chave: ChaveClausula, paragrafos: string[]): Bl
       continue;
     }
 
-    if (emLista) {
+    if (emLista || tudoEmItem) {
       listaComecou = true;
       saida.push({ tipo: "item", texto: linha });
       continue;
     }
-    saida.push({ tipo: "texto", texto: linha });
+    saida.push(respiro ? { tipo: "texto", texto: linha, antes: true } : { tipo: "texto", texto: linha });
   }
   return saida;
 }
@@ -230,7 +245,7 @@ const doisDigitos = (n: number) => (Number.isInteger(n) ? String(n).padStart(2, 
  * o descritivo e as informações complementares, os valores em lista, a
  * identificação do projeto em caixa alta, e por fim "Valores e forma de pagamento".
  */
-function corpoDoObjeto(os: Os, modelo: ModeloContrato, intro: string): string[] {
+function corpoDoObjeto(os: Os, modelo: ModeloContrato, intro: string, projetoCompleto: string): string[] {
   const f = os.financeiro;
   const ct = os.contrato;
   // Do bloco Dados para Contrato, com o faturamento e os Dados Gerais de reserva.
@@ -238,9 +253,11 @@ function corpoDoObjeto(os: Os, modelo: ModeloContrato, intro: string): string[] 
   const projeto = inc.projetoIncentivado;
   const lei = inc.leiIncentivo;
   const codigo = inc.codigoProjetoIncentivado;
-  const out: string[] = [intro, ""];
-  // O nome do projeto, da ficha Dados Gerais — é o que o Corporativo cita no objeto.
-  const nomeProjeto = (os.projeto.nomeProjeto || os.projeto.titulo || "").trim();
+  // "OBJETO:" é título fixo das duas versões (12/11/2026).
+  const out: string[] = [intro, "", "OBJETO:", ""];
+  // O nome COMPLETO do projeto — "Cliente – Projeto Ano", entre aspas e em caixa
+  // alta — é o que o Corporativo cita no objeto e na linha que o identifica.
+  const nomeProjeto = projetoCompleto ? `“${projetoCompleto.toUpperCase()}”` : "";
 
   if (modelo === "Corporativo") {
     out.push(
@@ -279,7 +296,7 @@ function corpoDoObjeto(os: Os, modelo: ModeloContrato, intro: string): string[] 
   // A linha que identifica o projeto junto do que foi contratado, em negrito e
   // caixa alta: no Cultural, o projeto incentivado, a lei e o código separados
   // por hífen; no Corporativo, o nome do projeto.
-  const identificacao = (modelo === "Cultural" ? [projeto, lei, codigo].filter(Boolean).join(" - ") : nomeProjeto).toUpperCase();
+  const identificacao = modelo === "Cultural" ? [projeto, lei, codigo].filter(Boolean).join(" - ").toUpperCase() : nomeProjeto;
   if (identificacao) out.push("", `**${identificacao}**`);
 
   out.push(
@@ -327,7 +344,6 @@ export function montarContrato(os: Os, { cliente, empresas, testemunhas, titulo 
     inscricaoEstadual: formatarInscricaoEstadual(tomador?.inscricaoEstadual ?? ""),
     telefone: formatarTelefone(tomador?.telefone ?? ""),
     endereco: tomador?.endereco ?? "",
-    municipio: municipioDoEndereco(tomador?.endereco ?? ""),
   };
   const contratado: ParteContrato = {
     papel: "CONTRATADO (A)",
@@ -336,16 +352,17 @@ export function montarContrato(os: Os, { cliente, empresas, testemunhas, titulo 
     inscricaoEstadual: formatarInscricaoEstadual(os.fornecedor.inscricaoEstadual),
     telefone: formatarTelefone(os.fornecedor.telefone),
     endereco: os.fornecedor.endereco,
-    municipio: municipioDoEndereco(os.fornecedor.endereco),
   };
 
+  const projetoCompleto =
+    os.projeto.nomeProjeto || os.projeto.titulo ? nomeCompletoDoProjeto(os.projeto, cliente, os.contrato.dataContrato) : "";
   const editados = os.contrato.clausulas;
   const clausulas = clausulasPadrao(modelo).map((c): ClausulaDoDocumento => {
     const texto = textoDaClausula(editados, c);
     return {
       chave: c.chave,
       titulo: c.titulo,
-      paragrafos: c.chave === "objeto" ? corpoDoObjeto(os, modelo, texto) : linhas(texto),
+      paragrafos: c.chave === "objeto" ? corpoDoObjeto(os, modelo, texto, projetoCompleto) : linhas(texto),
     };
   });
 
