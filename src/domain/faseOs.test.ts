@@ -29,8 +29,9 @@ describe("o que cada fase deixa aberto", () => {
   });
 
   // O back-office ainda corrige um código de serviço na hora de emitir.
-  it("o financeiro edita na fase dele e na do back-office", () => {
-    expect(editaFinanceiro(os({ fase: "producao" }))).toBe(false);
+  it("os blocos do financeiro abrem com a produção, na fase dele e na do back-office", () => {
+    expect(editaFinanceiro(os({ fase: "producao" }))).toBe(true);
+    expect(editaFinanceiro(os({ fase: "direcao" }))).toBe(false);
     expect(editaFinanceiro(os({ fase: "financeiro" }))).toBe(true);
     expect(editaFinanceiro(os({ fase: "backoffice" }))).toBe(true);
     expect(editaFinanceiro(os({ fase: "emitida" }))).toBe(false);
@@ -61,7 +62,9 @@ describe("caminho de ida e de volta", () => {
 describe("destaque dos blocos da vez", () => {
   it("destaca os blocos da área que está com a OS", () => {
     expect(vezDoBloco("Produção", "producao").vez).toBe(true);
-    expect(vezDoBloco("Financeiro", "producao").aviso).toBe("Abre na etapa do Financeiro");
+    // A Produção preenche a OS inteira (12/11/2026): os blocos do Financeiro estão abertos a ela.
+    expect(vezDoBloco("Financeiro", "producao")).toEqual({ vez: false, aberto: true, aviso: "Aberto à Produção nesta etapa" });
+    expect(vezDoBloco("Direção de Produção", "producao").aviso).toBe("Abre na etapa da Direção de Produção");
     expect(vezDoBloco("Produção", "financeiro").aviso).toBe("Produção já concluiu — em leitura");
     expect(vezDoBloco("Financeiro", "financeiro").vez).toBe(true);
   });

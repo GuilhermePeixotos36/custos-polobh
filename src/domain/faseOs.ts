@@ -74,13 +74,16 @@ export const editaProducao = (os: Pick<Os, "fase" | "status">): boolean => faseD
 /**
  * Os blocos do FINANCEIRO estão abertos?
  *
- * Da fase do financeiro em diante — inclusive no back-office, que ainda corrige
- * um código de serviço na hora de emitir. Depois de emitida, não: o documento
- * saiu, e o que muda vira nova versão.
+ * Desde 12/11/2026 a PRODUÇÃO preenche todos os campos da OS: os blocos do
+ * Financeiro também abrem enquanto a OS está com ela (para quem tem a permissão
+ * de vê-los — ver `financeiro` em Configurações › Áreas). Depois, abrem na fase
+ * do Financeiro e seguem no back-office, que ainda corrige um código de serviço
+ * na hora de emitir. Depois de emitida, não: o documento saiu, e o que muda vira
+ * nova versão.
  */
 export const editaFinanceiro = (os: Pick<Os, "fase" | "status">): boolean => {
   const fase = faseDaOs(os);
-  return fase === "financeiro" || fase === "backoffice";
+  return fase === "producao" || fase === "financeiro" || fase === "backoffice";
 };
 
 /** A OS já saiu da casa — nada nela se edita, só se gera versão nova. */
@@ -150,10 +153,13 @@ const ETAPA_DA_AREA: Record<AreaOs, FaseOs> = {
  * dizem por que estão em leitura. No Back-office os blocos do Financeiro seguem
  * abertos para correção (`editaFinanceiro`), e a frase diz isso.
  */
-export function vezDoBloco(area: AreaOs, fase: FaseOs): { vez: boolean; aviso: string } {
+export function vezDoBloco(area: AreaOs, fase: FaseOs): { vez: boolean; aviso: string; aberto?: boolean } {
   if (fase === "emitida") return { vez: false, aviso: "OS emitida — em leitura" };
   const etapa = ETAPA_DA_AREA[area];
   if (etapa === fase) return { vez: true, aviso: "É a vez deste bloco" };
+  // Com a Produção, os blocos do Financeiro também estão abertos (12/11/2026): a
+  // Produção preenche a OS inteira antes de enviá-la. `aberto` tira o cadeado.
+  if (fase === "producao" && area === "Financeiro") return { vez: false, aberto: true, aviso: "Aberto à Produção nesta etapa" };
   // Com o Back-office, tudo segue aberto a ele para correção até a emissão.
   if (fase === "backoffice") return { vez: false, aviso: "Aberto ao Back-office para revisão" };
   return FASES_OS.indexOf(etapa) < FASES_OS.indexOf(fase)
