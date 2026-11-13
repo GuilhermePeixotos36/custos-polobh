@@ -333,6 +333,14 @@ export function ContratosModelosCard() {
                 <div className="flex items-center gap-2">
                   <a
                     href={previa.url}
+                    target="_blank"
+                    rel="noopener"
+                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-btn text-[12.5px] font-bold text-ink-2 hover:bg-primary-soft hover:text-primary-dark"
+                  >
+                    Abrir em nova aba
+                  </a>
+                  <a
+                    href={previa.url}
                     download={previa.nome}
                     className="inline-flex items-center gap-1.5 h-8 px-3 rounded-btn text-[12.5px] font-bold text-ink-2 hover:bg-primary-soft hover:text-primary-dark"
                   >
