@@ -34,12 +34,15 @@ export function EnderecoCampos({
   onChange,
   onBlur,
   className,
+  mostrarErros = false,
 }: {
   value: string;
   onChange: (texto: string) => void;
   /** Para quem grava ao sair do campo (Empresas do Grupo). Recebe o texto atual. */
   onBlur?: (texto: string) => void;
   className?: string;
+  /** Depois de uma tentativa de salvar: contorna em vermelho o que falta preencher. */
+  mostrarErros?: boolean;
 }) {
   const lido = lerEndereco(value);
   const [partes, setPartes] = useState<EnderecoPartes>(lido.partes);
@@ -66,30 +69,33 @@ export function EnderecoCampos({
 
   const sair = () => onBlur?.(conhecido.current);
   const obrig = (c: keyof EnderecoPartes) => c !== "complemento";
+  /** O campo obrigatório vazio, depois de tentar salvar. */
+  const erro = (c: keyof EnderecoPartes) => mostrarErros && faltando.includes(c);
 
   return (
     <div className={cx("space-y-2", className)}>
       <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
         <Field label={ROTULO_CAMPO.tipo} obrigatorio={obrig("tipo")} className="sm:col-span-2">
-          <Select value={partes.tipo} onChange={(e) => mudar({ tipo: e.target.value })} onBlur={sair}>
+          <Select erro={erro("tipo")} value={partes.tipo} onChange={(e) => mudar({ tipo: e.target.value })} onBlur={sair}>
             <option value="">Selecione…</option>
             {TIPOS_LOGRADOURO.map((t) => <option key={t}>{t}</option>)}
           </Select>
         </Field>
         <Field label={ROTULO_CAMPO.nome} obrigatorio className="col-span-2 sm:col-span-3">
-          <Input formato="titulo" value={partes.nome} onChange={(e) => mudar({ nome: e.target.value })} onBlur={sair} />
+          <Input erro={erro("nome")} formato="titulo" value={partes.nome} onChange={(e) => mudar({ nome: e.target.value })} onBlur={sair} />
         </Field>
         <Field label={ROTULO_CAMPO.numero} obrigatorio className="sm:col-span-1">
-          <Input value={partes.numero} onChange={(e) => mudar({ numero: e.target.value })} onBlur={sair} placeholder="S/N" />
+          <Input erro={erro("numero")} value={partes.numero} onChange={(e) => mudar({ numero: e.target.value })} onBlur={sair} placeholder="S/N" />
         </Field>
         <Field label={ROTULO_CAMPO.complemento} className="col-span-2 sm:col-span-2">
           <Input formato="titulo" value={partes.complemento} onChange={(e) => mudar({ complemento: e.target.value })} onBlur={sair} />
         </Field>
         <Field label={ROTULO_CAMPO.bairro} obrigatorio className="col-span-2 sm:col-span-2">
-          <Input formato="titulo" value={partes.bairro} onChange={(e) => mudar({ bairro: e.target.value })} onBlur={sair} />
+          <Input erro={erro("bairro")} formato="titulo" value={partes.bairro} onChange={(e) => mudar({ bairro: e.target.value })} onBlur={sair} />
         </Field>
         <Field label={ROTULO_CAMPO.cep} obrigatorio className="col-span-2 sm:col-span-2">
           <Input
+            erro={erro("cep")}
             value={partes.cep}
             inputMode="numeric"
             placeholder="00000-000"
@@ -101,10 +107,10 @@ export function EnderecoCampos({
           />
         </Field>
         <Field label={ROTULO_CAMPO.cidade} obrigatorio className="col-span-2 sm:col-span-4">
-          <Input formato="titulo" value={partes.cidade} onChange={(e) => mudar({ cidade: e.target.value })} onBlur={sair} />
+          <Input erro={erro("cidade")} formato="titulo" value={partes.cidade} onChange={(e) => mudar({ cidade: e.target.value })} onBlur={sair} />
         </Field>
         <Field label={ROTULO_CAMPO.uf} obrigatorio className="col-span-2 sm:col-span-2">
-          <Select value={partes.uf} onChange={(e) => mudar({ uf: e.target.value })} onBlur={sair}>
+          <Select erro={erro("uf")} value={partes.uf} onChange={(e) => mudar({ uf: e.target.value })} onBlur={sair}>
             <option value="">Selecione…</option>
             {UFS.map((u) => <option key={u}>{u}</option>)}
           </Select>

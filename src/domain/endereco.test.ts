@@ -64,3 +64,42 @@ describe("pequenos helpers", () => {
     expect(tipoPorExtenso("Qualquer")).toBe("");
   });
 });
+
+import { planejarPadronizacao, textoDoQueFalta, validarEndereco } from "./endereco";
+
+describe("validação e padronização em lote", () => {
+  it("validarEndereco aponta o que falta", () => {
+    expect(validarEndereco("").faltando).toHaveLength(7);
+    const r = validarEndereco("Prudente de Morais, 621 - Sala 212 - Santo Antonio - Belo Horizonte - MG - CEP: 30350143");
+    expect(r.completo).toBe(false);
+    expect(r.faltando).toEqual(["tipo"]);
+    expect(textoDoQueFalta(r.faltando)).toBe("Falta tipo.");
+    expect(validarEndereco("Avenida Prudente de Morais, 621 - Santo Antônio - Belo Horizonte - MG - CEP: 30350-143").completo).toBe(true);
+  });
+
+  it("incompleto + endereço da Receita → completa, mantendo o complemento que a casa tinha", () => {
+    const r = planejarPadronizacao(
+      "Prudente de Morais, 621 - Sala 212 - Santo Antonio - Belo Horizonte - MG - CEP: 30350143",
+      "Avenida Prudente de Morais, 621 - Santo Antônio - Belo Horizonte - MG - CEP: 30350-143",
+    );
+    expect(r).toEqual({
+      tipo: "completar",
+      novo: "Avenida Prudente de Morais, 621 - Sala 212 - Santo Antônio - Belo Horizonte - MG - CEP: 30350-143",
+      completo: true,
+    });
+  });
+
+  it("completo mas fora do padrão → só reescreve, sem consultar nada", () => {
+    const r = planejarPadronizacao("Avenida Aggeo Pio Sobrinho, 265 - Buritis - Belo Horizonte - MG, 30575-834", "");
+    expect(r).toEqual({ tipo: "reescrever", novo: "Avenida Aggeo Pio Sobrinho, 265 - Buritis - Belo Horizonte - MG - CEP: 30575-834" });
+  });
+
+  it("completo e no padrão → nada a fazer", () => {
+    expect(planejarPadronizacao("Rua A, 1 - Centro - Contagem - MG - CEP: 32000-000", "").tipo).toBe("ok");
+  });
+
+  it("incompleto sem consulta possível → não inventa", () => {
+    const r = planejarPadronizacao("Rua A, 1", "");
+    expect(r).toMatchObject({ tipo: "completar", completo: false });
+  });
+});

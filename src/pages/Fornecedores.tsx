@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { PageShell } from "@/components/layout/AppLayout";
 import { EnderecoCampos } from "@/components/EnderecoCampos";
+import { PadronizarEnderecosModal } from "@/components/PadronizarEnderecosModal";
+import { planejarPadronizacao, textoDoQueFalta, validarEndereco } from "@/domain/endereco";
 import {
   Card, CardTitle, Button, Field, Input, TelefoneInput, Select, Table, THead, Tr, Td,
   Badge, EmptyState, AvisoErro, Avatar, ThOrd, useOrdenacao,
@@ -31,6 +33,9 @@ export function Fornecedores() {
     [edit?.nomeFantasia, edit?.razaoSocial]
   );
   const [msg, setMsg] = useState("");
+  /** Tentou salvar com o endereço incompleto: os campos que faltam ficam contornados. */
+  const [tentouSalvar, setTentouSalvar] = useState(false);
+  const [padronizando, setPadronizando] = useState(false);
 
   /* ------------------------------ contatos ------------------------------ */
 
@@ -80,6 +85,17 @@ export function Fornecedores() {
     );
   }, [data, busca]);
 
+  /**
+   * A PENDÊNCIA DO CADASTRO (13/11/2026): fornecedor com o endereço incompleto
+   * ou fora do padrão. Aparece na lista (marca em cada linha) e no aviso do
+   * alto, com o comando que corrige em lote.
+   */
+  const comEnderecoIncompleto = useMemo(() => (data ?? []).filter((f) => !validarEndereco(f.endereco).completo), [data]);
+  const comEnderecoForaDoPadrao = useMemo(
+    () => (data ?? []).filter((f) => planejarPadronizacao(f.endereco, "").tipo !== "ok"),
+    [data],
+  );
+
   /** Fornecedor em branco — o cadastro manual, para quem ainda não veio de uma EC. */
   const novoFornecedor = (): Fornecedor => ({
     id: "", razaoSocial: "", apelido: "", nomeFantasia: "", cnpj: "", perfilTributario: "", endereco: "",
@@ -121,10 +137,19 @@ export function Fornecedores() {
       toast("Informe ao menos a razão social ou o CNPJ/CPF do fornecedor.", "warning");
       return;
     }
+    // O endereço é obrigatório e completo (Marisa, 13/11/2026): sem ele o
+    // contrato sai com a qualificação do fornecedor pela metade.
+    const end = validarEndereco(edit.endereco);
+    if (!end.completo) {
+      setTentouSalvar(true);
+      toast(`Endereço incompleto. ${textoDoQueFalta(end.faltando)}`, "danger");
+      return;
+    }
     setSalvando(true);
     try {
       await repo.fornecedores.salvar(edit);
       toast("Fornecedor salvo.", "success");
+      setTentouSalvar(false);
       setEdit(null);
       reload();
     } catch (e) {
@@ -144,7 +169,7 @@ export function Fornecedores() {
         podeEditar && (
           // O cartão de edição já sabia dizer "Novo fornecedor", mas nada nesta
           // tela criava um: só dava para cadastrar passando por uma EC.
-          <Button size="sm" icon={<IcPlus width={15} height={15} />} onClick={() => { setEdit(novoFornecedor()); setMsg(""); }}>
+          <Button size="sm" icon={<IcPlus width={15} height={15} />} onClick={() => { setEdit(novoFornecedor()); setMsg(""); setTentouSalvar(false); }}>
             Novo fornecedor
           </Button>
         )
@@ -152,6 +177,21 @@ export function Fornecedores() {
     >
       <div className={cx(edit ? "grid lg:grid-cols-[1.5fr_1fr] gap-4 items-start" : "max-w-5xl mx-auto")}>
         <Card padded={false}>
+          {comEnderecoForaDoPadrao.length > 0 && !loading && !error && (
+            <div className="flex items-center justify-between gap-3 flex-wrap px-4 py-3 bg-warning-soft border-b border-border-soft">
+              <span className="text-[13px] font-semibold text-ink">
+                {comEnderecoIncompleto.length > 0
+                  ? `${comEnderecoIncompleto.length} fornecedor(es) com endereço incompleto`
+                  : `${comEnderecoForaDoPadrao.length} fornecedor(es) com endereço fora do padrão`}
+                {comEnderecoIncompleto.length > 0 && comEnderecoForaDoPadrao.length > comEnderecoIncompleto.length && ` e ${comEnderecoForaDoPadrao.length - comEnderecoIncompleto.length} fora do padrão`}.
+              </span>
+              {podeEditar && (
+                <Button size="sm" variant="secondary" onClick={() => setPadronizando(true)} disabled={!flags.consultaCnpj}>
+                  Padronizar pelo CNPJ
+                </Button>
+              )}
+            </div>
+          )}
           <div className="p-4 border-b border-border-soft">
             <div className="relative max-w-md">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-3"><IcSearch width={16} height={16} /></span>
@@ -170,13 +210,16 @@ export function Fornecedores() {
               </THead>
               <tbody>
                 {lista.map((f) => (
-                  <Tr key={f.id} onClick={() => { setEdit(structuredClone(f)); setMsg(""); }}>
+                  <Tr key={f.id} onClick={() => { setEdit(structuredClone(f)); setMsg(""); setTentouSalvar(false); }}>
                     <Td>
                       <div className="flex items-center gap-2.5">
                         <Avatar nome={f.razaoSocial} size={34} />
                         <div>
                           <div className="font-bold text-ink">{f.nomeFantasia || f.razaoSocial}</div>
                           <div className="text-[12px] text-ink-2">{f.razaoSocial}</div>
+                          {!validarEndereco(f.endereco).completo && (
+                            <div className="text-[11px] font-bold text-warning">Endereço incompleto — {textoDoQueFalta(validarEndereco(f.endereco).faltando).replace(/\.$/, "").toLocaleLowerCase("pt-BR")}</div>
+                          )}
                         </div>
                       </div>
                     </Td>
@@ -233,7 +276,7 @@ export function Fornecedores() {
                   <option>MEI</option><option>Simples Nacional</option><option>Lucro Presumido/Real</option>
                 </Select>
               </Field>
-              <Field label="Endereço"><EnderecoCampos value={edit.endereco} onChange={(endereco) => setEdit({ ...edit, endereco })} /></Field>
+              <Field label="Endereço" obrigatorio><EnderecoCampos value={edit.endereco} mostrarErros={tentouSalvar} onChange={(endereco) => setEdit({ ...edit, endereco })} /></Field>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Telefone"><TelefoneInput value={edit.telefone} onChange={(v) => setEdit({ ...edit, telefone: v })} /></Field>
                 <Field label="E-mail"><Input value={edit.email} onChange={(e) => setEdit({ ...edit, email: e.target.value })} /></Field>
@@ -332,6 +375,13 @@ export function Fornecedores() {
           </Card>
         )}
       </div>
+      {padronizando && (
+        <PadronizarEnderecosModal
+          fornecedores={comEnderecoForaDoPadrao}
+          onFechar={() => setPadronizando(false)}
+          onAplicado={reload}
+        />
+      )}
     </PageShell>
   );
 }

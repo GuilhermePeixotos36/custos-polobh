@@ -191,3 +191,53 @@ export function lerEndereco(texto: string): { partes: EnderecoPartes; padronizad
   const partes: EnderecoPartes = { tipo, nome: nomeComTipo, numero, complemento, bairro, cidade, uf, cep };
   return { partes, padronizado: formatarEndereco(partes) === bruto && camposFaltando(partes).length === 0 };
 }
+
+/* --------------------- validação e padronização em lote --------------------- */
+
+/**
+ * O endereço está completo? (13/11/2026: a Marisa pediu campos obrigatórios e
+ * que o salvamento seja BLOQUEADO enquanto faltar algo.) Devolve o que falta,
+ * para a tela apontar campo a campo.
+ */
+export function validarEndereco(texto: string): { completo: boolean; faltando: (keyof EnderecoPartes)[] } {
+  const faltando = camposFaltando(lerEndereco(texto).partes);
+  return { completo: faltando.length === 0, faltando };
+}
+
+/** "Falta o tipo (Rua, Avenida…), o CEP." — o que a mensagem de erro diz. */
+export function textoDoQueFalta(faltando: (keyof EnderecoPartes)[]): string {
+  if (!faltando.length) return "";
+  const nomes = faltando.map((c) => ROTULO_CAMPO[c].replace(/ \(.*\)$/, "").toLocaleLowerCase("pt-BR"));
+  return `Falta ${nomes.join(", ")}.`;
+}
+
+export type ResultadoPadronizacao =
+  /** Já está completo e no padrão: nada a fazer. */
+  | { tipo: "ok" }
+  /** Completo, mas escrito fora do padrão ("Av.", vírgulas, "CEP" solto): só reescrever. */
+  | { tipo: "reescrever"; novo: string }
+  /** Incompleto: o endereço da Receita completa o que falta. */
+  | { tipo: "completar"; novo: string; completo: boolean };
+
+/**
+ * O que fazer com um endereço já gravado, dado o que a consulta de CNPJ trouxe
+ * (`doCnpj`, ou "" quando não houve consulta).
+ *
+ *  · completo e no padrão → nada;
+ *  · completo, fora do padrão → só reescreve pelos campos (sem rede);
+ *  · incompleto → usa o endereço da Receita; o complemento que a casa já tinha
+ *    e a Receita não traz é mantido (é dado digitado, não se perde).
+ */
+export function planejarPadronizacao(atual: string, doCnpj: string): ResultadoPadronizacao {
+  const lido = lerEndereco(atual);
+  if (camposFaltando(lido.partes).length === 0) {
+    return lido.padronizado ? { tipo: "ok" } : { tipo: "reescrever", novo: formatarEndereco(lido.partes) };
+  }
+  if (!doCnpj.trim()) return { tipo: "completar", novo: formatarEndereco(lido.partes), completo: false };
+  const daReceita = lerEndereco(doCnpj).partes;
+  const mesclado: EnderecoPartes = {
+    ...daReceita,
+    complemento: daReceita.complemento || lido.partes.complemento,
+  };
+  return { tipo: "completar", novo: formatarEndereco(mesclado), completo: camposFaltando(mesclado).length === 0 };
+}
