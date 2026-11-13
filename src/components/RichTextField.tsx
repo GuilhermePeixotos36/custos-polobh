@@ -18,6 +18,12 @@ interface Props {
    * acontece com input, select e textarea.
    */
   somenteLeitura?: boolean;
+  /**
+   * Quais ferramentas a barra mostra. "negrito" é para texto que vai a um
+   * documento que só desenha parágrafo e negrito (as cláusulas do contrato):
+   * itálico, listas e recuo ficariam no editor e sumiriam do PDF.
+   */
+  ferramentas?: "completas" | "negrito";
 }
 
 /**
@@ -25,7 +31,7 @@ interface Props {
  * Guarda HTML simples. Sincroniza o value externo só quando difere do DOM e o
  * campo não está com foco (evita "pular" o cursor ao digitar).
  */
-export function RichTextField({ value, onChange, placeholder, toolbarExtra, className, somenteLeitura }: Props) {
+export function RichTextField({ value, onChange, placeholder, toolbarExtra, className, somenteLeitura, ferramentas = "completas" }: Props) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -79,6 +85,15 @@ export function RichTextField({ value, onChange, placeholder, toolbarExtra, clas
     <div className={cx("rounded-btn border-[1.5px] border-[#BFC4CE] bg-surface overflow-hidden focus-within:border-primary/60", className)}>
       {!somenteLeitura && (
       <div className="flex flex-wrap items-center gap-0.5 px-1.5 py-1 border-b border-border-soft bg-[#FAFAFB]">
+        {ferramentas === "negrito" ? (
+          <>
+            <ToolBtn title="Negrito (selecione o texto e clique)" onClick={() => cmd("bold")}><IcBold width={15} height={15} /></ToolBtn>
+            <span className="mx-0.5 h-5 w-px bg-border" />
+            <ToolBtn title="Desfazer" onClick={() => cmd("undo")}><span className="text-base leading-none">↶</span></ToolBtn>
+            <ToolBtn title="Refazer" onClick={() => cmd("redo")}><span className="text-base leading-none">↷</span></ToolBtn>
+          </>
+        ) : (
+          <>
         <ToolBtn title="Parágrafo" onClick={() => cmd("formatBlock", "p")}><span className="text-[11px] font-extrabold">¶</span></ToolBtn>
         <ToolBtn title="Negrito" onClick={() => cmd("bold")}><IcBold width={15} height={15} /></ToolBtn>
         <ToolBtn title="Itálico" onClick={() => cmd("italic")}><span className="font-serif italic font-bold">I</span></ToolBtn>
@@ -93,6 +108,8 @@ export function RichTextField({ value, onChange, placeholder, toolbarExtra, clas
         <ToolBtn title="Centralizar" onClick={() => cmd("justifyCenter")}><span className="text-[13px] font-extrabold">≣</span></ToolBtn>
         <ToolBtn title="Desfazer" onClick={() => cmd("undo")}><span className="text-base leading-none">↶</span></ToolBtn>
         <ToolBtn title="Refazer" onClick={() => cmd("redo")}><span className="text-base leading-none">↷</span></ToolBtn>
+          </>
+        )}
         <div className="ml-auto">{toolbarExtra}</div>
       </div>
       )}
