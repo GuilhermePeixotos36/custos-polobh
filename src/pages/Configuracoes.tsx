@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAvisoDeSaida } from "@/hooks/useAvisoDeSaida";
 import { EnderecoCampos } from "@/components/EnderecoCampos";
+import { textoDoQueFalta, validarEndereco } from "@/domain/endereco";
 import { ChecklistModelosCard } from "@/components/ChecklistModelosCard";
 import { ConsumoIaCard } from "@/components/ConsumoIaCard";
 import { AvisosNoAparelho } from "@/components/AvisosNoAparelho";
@@ -197,6 +198,17 @@ function EmpresasGrupoCard() {
   const { empresas, carregado, editar, persistir, definirPadrao } = useEmpresas();
 
   const salvar = async (id: string) => {
+    // O endereço da empresa, quando há, tem de estar completo (Marisa,
+    // 13/11/2026): ele vai direto para a qualificação do contrato. Empresa sem
+    // endereço nenhum (a MF, ainda sem dados) não é bloqueada.
+    const empresa = empresas.find((x) => x.id === id);
+    if (empresa?.endereco.trim()) {
+      const end = validarEndereco(empresa.endereco);
+      if (!end.completo) {
+        toast(`Endereço de ${empresa.nome} incompleto — não foi salvo. ${textoDoQueFalta(end.faltando)}`, "danger");
+        return;
+      }
+    }
     try {
       await persistir(id);
     } catch (e) {
