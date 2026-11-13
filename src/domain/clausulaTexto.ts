@@ -8,9 +8,19 @@
  * nenhuma: usa os botões de um editor de texto. Estas duas funções fazem a
  * ponte, e uma desfaz a outra — o que sai do editor é sempre o que o contrato e
  * o PDF leem, e o texto que já estava gravado abre no editor como estava.
+ *
+ * O EDITOR MOSTRA O DOCUMENTO PRONTO: o contrato faz coisas sozinho com certas
+ * cláusulas (todo parágrafo das cláusulas Terceira a Sétima vira item com
+ * bullet; na Segunda, o que vem depois de "São obrigações…:" também; os
+ * cabeçalhos saem em negrito). Por isso as duas funções recebem a `chave` da
+ * cláusula e aplicam, no editor, a mesma leitura que o PDF faz
+ * (`classificarLinhas`) — e ao gravar escrevem o que for preciso para o PDF
+ * obedecer o que a pessoa vê (um parágrafo sem bullet numa cláusula de bullets
+ * leva `[just]`). Sem `chave`, vale a leitura simples (a da Cláusula Primeira).
  */
+import { classificarLinhas, listaAutomatica, tudoEmItemNaClausula } from "@/domain/contratoDocumento";
+import type { ChaveClausula } from "@/domain/contratoModelo";
 import {
-  lerPrefixo,
   montarPrefixo,
   partirMarcas,
   type AlinhamentoClausula,
@@ -44,9 +54,10 @@ const estiloDe = (p: Pick<PrefixoDaLinha, "alinhar" | "nivel">): string => {
   return regras.length ? ` style="${regras.join("; ")}"` : "";
 };
 
-/** O texto da cláusula → o HTML que o editor mostra. */
-export function textoParaHtml(texto: string): string {
+/** O texto da cláusula → o HTML que o editor mostra, como o contrato o desenha. */
+export function textoParaHtml(texto: string, chave: ChaveClausula = "objeto"): string {
   const linhas = (texto ?? "").replace(/\r\n?/g, "\n").split("\n");
+  const lidas = classificarLinhas(chave, linhas);
   let html = "";
   /** A lista aberta (itens seguidos do mesmo tipo entram na mesma lista). */
   let lista: "ul" | "ol" | null = null;
@@ -55,25 +66,26 @@ export function textoParaHtml(texto: string): string {
     lista = null;
   };
 
-  for (const bruta of linhas) {
-    const pre = lerPrefixo(bruta);
-    if (!pre.resto.trim() && !pre.marcador) {
+  for (const l of lidas) {
+    if (l.tipo === "vazia") {
       fechar();
       html += "<p><br></p>";
-      continue;
-    }
-    if (pre.marcador) {
-      const tipo = pre.marcador === "numero" ? "ol" : "ul";
+    } else if (l.tipo === "item") {
+      const tipo = l.numero !== undefined ? "ol" : "ul";
       if (lista !== tipo) {
         fechar();
         html += `<${tipo}>`;
         lista = tipo;
       }
-      html += `<li${estiloDe(pre)}>${inlineParaHtml(pre.resto)}</li>`;
-      continue;
+      html += `<li${estiloDe({ nivel: l.nivel ?? 0 })}>${inlineParaHtml(l.texto)}</li>`;
+    } else if (l.tipo === "subtitulo") {
+      fechar();
+      // O cabeçalho sai em negrito no contrato.
+      html += `<p><strong>${inlineParaHtml(l.texto.replace(/\*\*/g, ""))}</strong></p>`;
+    } else {
+      fechar();
+      html += `<p${estiloDe({ nivel: l.nivel ?? 0, alinhar: l.alinhar === "just" ? undefined : l.alinhar })}>${inlineParaHtml(l.texto)}</p>`;
     }
-    fechar();
-    html += `<p${estiloDe(pre)}>${inlineParaHtml(pre.resto)}</p>`;
   }
   fechar();
   return html;
@@ -140,7 +152,7 @@ function inlineParaTexto(nos: Node[], f: { forte: boolean; italico: boolean; sub
 }
 
 /** O HTML do editor → o texto da cláusula. */
-export function htmlParaTexto(html: string): string {
+export function htmlParaTexto(html: string, chave: ChaveClausula = "objeto"): string {
   if (!html) return "";
   const doc = new DOMParser().parseFromString(`<div id="raiz">${html}</div>`, "text/html");
   const raiz = doc.getElementById("raiz");
@@ -163,12 +175,13 @@ export function htmlParaTexto(html: string): string {
         linhas.push("");
         return;
       }
-      const prefixo = montarPrefixo({
-        alinhar: ctx.alinhar,
-        nivel: ctx.nivel,
-        marcador: i === 0 ? comMarcador : undefined,
-        numero,
-      });
+      let marcador = i === 0 ? comMarcador : undefined;
+      let alinhar = ctx.alinhar;
+      // O que o contrato faria sozinho não precisa de marca; o que a pessoa quis
+      // diferente disso (um parágrafo sem bullet numa cláusula de bullets) precisa.
+      if (marcador === "ponto" && tudoEmItemNaClausula(chave) && !alinhar) marcador = undefined;
+      else if (!marcador && listaAutomatica(chave) && !alinhar) alinhar = "just";
+      const prefixo = montarPrefixo({ alinhar, nivel: ctx.nivel, marcador, numero });
       linhas.push(`${prefixo}${t.trim()}`);
     });
   };

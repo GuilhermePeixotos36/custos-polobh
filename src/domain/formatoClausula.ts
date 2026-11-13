@@ -10,7 +10,8 @@
  * Dentro da linha:
  *   **negrito**   __itálico__   ++sublinhado++
  * No começo da linha (nesta ordem, todos opcionais):
- *   [esq] ou [centro]   alinhamento do parágrafo (sem marca, o texto é justificado)
+ *   [esq] ou [centro]   alinhamento do parágrafo (sem marca, o texto é justificado;
+ *                       [just] é o justificado dito por escrito)
  *   >>                  um ">" por nível de recuo
  *   - ou 1.             item de lista, com marcador ou numerado
  *
@@ -55,7 +56,11 @@ export function partirMarcas(texto: string): Trecho[] {
   return saida;
 }
 
-export type AlinhamentoClausula = "esq" | "centro";
+/**
+ * "just" é o parágrafo comum, justificado — dito por escrito para valer onde o
+ * contrato, sozinho, faria um item de lista (as cláusulas só de bullets).
+ */
+export type AlinhamentoClausula = "esq" | "centro" | "just";
 
 export interface PrefixoDaLinha {
   alinhar?: AlinhamentoClausula;
@@ -72,7 +77,7 @@ export interface PrefixoDaLinha {
 export function lerPrefixo(linha: string): PrefixoDaLinha {
   let resto = linha.trim();
   const saida: PrefixoDaLinha = { nivel: 0, resto };
-  const a = /^\[(esq|centro)\]\s*/.exec(resto);
+  const a = /^\[(esq|centro|just)\]\s*/.exec(resto);
   if (a) {
     saida.alinhar = a[1] as AlinhamentoClausula;
     resto = resto.slice(a[0].length);
