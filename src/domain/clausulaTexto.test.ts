@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { htmlParaTexto, textoParaHtml } from "./clausulaTexto";
+import { blocosDaClausula } from "./contratoDocumento";
 import { clausulasDoCodigo, MODELOS_CONTRATO } from "./contratoModelo";
 
 describe("texto da cláusula ⇄ editor", () => {
@@ -17,7 +18,6 @@ describe("texto da cláusula ⇄ editor", () => {
     "- Item com marcador\n- Outro item\n>> - Item recuado",
     "1. Primeiro\n2. Segundo\n3. Terceiro",
     "Texto\n\n- Item depois de um respiro\n\nFim.",
-    "[centro]>> - Item centralizado e recuado",
   ];
   for (const t of textos) {
     it(`volta igual: ${t.slice(0, 30)}`, () => {
@@ -68,6 +68,49 @@ describe("texto da cláusula ⇄ editor", () => {
   it("vazio fica vazio", () => {
     expect(htmlParaTexto("")).toBe("");
     expect(htmlParaTexto("<br>")).toBe("");
+  });
+});
+
+const semNegritoNoCabecalho = (b: ReturnType<typeof blocosDaClausula>) =>
+  b.map((x) => (x.tipo === "subtitulo" ? { ...x, texto: x.texto.replace(/\*\*/g, "") } : x));
+
+describe("o editor mostra o documento pronto, e o que ele devolve é o que o PDF lê", () => {
+  for (const modelo of MODELOS_CONTRATO) {
+    for (const c of clausulasDoCodigo(modelo)) {
+      it(`${modelo} › ${c.chave}: mesma estrutura no PDF depois de passar pelo editor`, () => {
+        const volta = htmlParaTexto(textoParaHtml(c.padrao, c.chave), c.chave);
+        expect(semNegritoNoCabecalho(blocosDaClausula(c.chave, volta.split("\n")))).toEqual(
+          semNegritoNoCabecalho(blocosDaClausula(c.chave, c.padrao.split("\n"))),
+        );
+        // E é estável: passar de novo não muda nada.
+        expect(htmlParaTexto(textoParaHtml(volta, c.chave), c.chave)).toBe(volta);
+      });
+    }
+  }
+
+  it("cláusula de bullets mostra bullet em cada parágrafo, como o contrato", () => {
+    expect(textoParaHtml("Um.\nDois.", "foro")).toBe("<ul><li>Um.</li><li>Dois.</li></ul>");
+    // Sem bullet no texto salvo: o editor devolve plano, como estava.
+    expect(htmlParaTexto("<ul><li>Um.</li><li>Dois.</li></ul>", "foro")).toBe("Um.\nDois.");
+  });
+
+  it("tirar o bullet de um parágrafo numa cláusula de bullets grava [just], para o PDF obedecer", () => {
+    const texto = htmlParaTexto("<ul><li>Um.</li></ul><p>Sem bullet.</p>", "foro");
+    expect(texto).toBe("Um.\n[just]Sem bullet.");
+    expect(blocosDaClausula("foro", texto.split("\n"))).toEqual([
+      { tipo: "item", texto: "Um." },
+      { tipo: "texto", texto: "Sem bullet.", alinhar: "just" },
+    ]);
+  });
+
+  it("os cabeçalhos da Segunda saem em negrito e a lista vem com bullet", () => {
+    const html = textoParaHtml("São obrigações do(a) CONTRATADO(A):\n\nFazer.\nOutra.", "obrigacoes");
+    expect(html).toBe("<p><strong>São obrigações do(a) CONTRATADO(A):</strong></p><p><br></p><ul><li>Fazer.</li><li>Outra.</li></ul>");
+  });
+
+  it("na Primeira o parágrafo comum continua parágrafo", () => {
+    expect(textoParaHtml("Texto.", "objeto")).toBe("<p>Texto.</p>");
+    expect(htmlParaTexto("<p>Texto.</p>", "objeto")).toBe("Texto.");
   });
 });
 

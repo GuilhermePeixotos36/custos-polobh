@@ -157,7 +157,9 @@ export type BlocoClausula =
   | { tipo: "item"; texto: string; nivel?: number; numero?: number };
 
 const ehSubtitulo = (linha: string, chave: ChaveClausula): boolean => {
-  const t = linha.trim();
+  // O editor mostra o subtítulo em negrito (como sai no contrato), e ao gravar o
+  // devolve entre `**`: as marcas não mudam o que ele é.
+  const t = linha.replace(/\*\*/g, "").trim();
   if (/^São obrigações d[oa]\(a\) .*:$/.test(t)) return chave === "obrigacoes";
   // Tudo em maiúsculas e terminado em dois-pontos: "VALORES E FORMA DE PAGAMENTO:".
   return t.length > 3 && t.endsWith(":") && t === t.toUpperCase() && /[A-ZÀ-Ý]/.test(t);
@@ -171,13 +173,26 @@ const ehSubtitulo = (linha: string, chave: ChaveClausula): boolean => {
  */
 const COM_BULLET: ChaveClausula[] = ["vigencia", "inexecucao", "confidencialidade", "finais", "foro"];
 
-export function blocosDaClausula(chave: ChaveClausula, paragrafos: string[]): BlocoClausula[] {
+/** Nas cláusulas só de bullets, todo parágrafo comum vira item; a Segunda faz o mesmo depois do cabeçalho de cada parte. */
+export const listaAutomatica = (chave: ChaveClausula): boolean => COM_BULLET.includes(chave) || chave === "obrigacoes";
+/** Cláusula em que TODO parágrafo comum vira item (sem exceção por posição). */
+export const tudoEmItemNaClausula = (chave: ChaveClausula): boolean => COM_BULLET.includes(chave);
+
+/** O que o contrato faz com cada linha do texto da cláusula — inclusive as linhas em branco, que o editor precisa mostrar. */
+export type LinhaClassificada = BlocoClausula | { tipo: "vazia" };
+
+export function classificarLinhas(chave: ChaveClausula, paragrafos: string[]): LinhaClassificada[] {
   const saida: BlocoClausula[] = [];
+  const completo: LinhaClassificada[] = [];
   const tudoEmItem = COM_BULLET.includes(chave);
   /** Depois de "São obrigações…:", o que vem até a linha em branco seguinte é lista. */
   let emLista = false;
   let listaComecou = false;
   let aposBranco = false;
+  const empurrar = (b: BlocoClausula) => {
+    saida.push(b);
+    completo.push(b);
+  };
 
   for (const bruta of paragrafos) {
     // As marcas do começo da linha (alinhamento, recuo, lista) vêm do editor de
@@ -188,6 +203,7 @@ export function blocosDaClausula(chave: ChaveClausula, paragrafos: string[]): Bl
       // A primeira linha em branco logo após o cabeçalho não encerra a lista.
       if (emLista && listaComecou) emLista = false;
       aposBranco = true;
+      completo.push({ tipo: "vazia" });
       continue;
     }
     const anterior = saida[saida.length - 1];
@@ -195,8 +211,8 @@ export function blocosDaClausula(chave: ChaveClausula, paragrafos: string[]): Bl
     aposBranco = false;
 
     if (ehSubtitulo(linha, chave) && !pre.marcador) {
-      saida.push({ tipo: "subtitulo", texto: linha });
-      emLista = chave === "obrigacoes" && /^São obrigações/.test(linha);
+      empurrar({ tipo: "subtitulo", texto: linha });
+      emLista = chave === "obrigacoes" && /^São obrigações/.test(linha.replace(/\*\*/g, ""));
       listaComecou = false;
       continue;
     }
@@ -209,23 +225,27 @@ export function blocosDaClausula(chave: ChaveClausula, paragrafos: string[]): Bl
     };
 
     if (pre.marcador) {
-      saida.push(item());
+      empurrar(item());
       continue;
     }
 
-    // Alinhamento explícito (esquerda/centro) é parágrafo, e não item de lista.
+    // Alinhamento explícito (esquerda/centro/justificado) é parágrafo, e não item de lista.
     if ((emLista || tudoEmItem) && !pre.alinhar) {
       listaComecou = true;
-      saida.push(item());
+      empurrar(item());
       continue;
     }
     const texto: BlocoClausula = { tipo: "texto", texto: linha };
     if (respiro) texto.antes = true;
     if (pre.alinhar) texto.alinhar = pre.alinhar;
     if (pre.nivel) texto.nivel = pre.nivel;
-    saida.push(texto);
+    empurrar(texto);
   }
-  return saida;
+  return completo;
+}
+
+export function blocosDaClausula(chave: ChaveClausula, paragrafos: string[]): BlocoClausula[] {
+  return classificarLinhas(chave, paragrafos).filter((b): b is BlocoClausula => b.tipo !== "vazia");
 }
 
 /* --------------------------- a Cláusula Primeira -------------------------- */
