@@ -544,3 +544,48 @@ describe("o texto padrão editado pela casa (Configurações › Contratos)", ()
     expect(clausulasDaCasaDaConfig(undefined)).toEqual({});
   });
 });
+
+describe("as ferramentas de texto do editor de cláusulas", () => {
+  it("itálico e sublinhado entram nos trechos, junto com o negrito", () => {
+    expect(partirEmDestaques("a __b__ ++c++ **d**")).toEqual([
+      { texto: "a ", forte: false },
+      { texto: "b", forte: false, italico: true },
+      { texto: " ", forte: false },
+      { texto: "c", forte: false, sublinhado: true },
+      { texto: " ", forte: false },
+      { texto: "d", forte: true },
+    ]);
+    expect(partirEmDestaques("**__++x++__**")).toEqual([{ texto: "x", forte: true, italico: true, sublinhado: true }]);
+  });
+
+  it("marca desbalanceada é ignorada, como no negrito", () => {
+    expect(partirEmDestaques("sem fechar __o itálico")).toEqual([{ texto: "sem fechar o itálico", forte: false }]);
+    expect(partirEmDestaques("C++ e outra")).toEqual([{ texto: "C e outra", forte: false }]);
+  });
+
+  it("o nome da parte continua em negrito dentro do itálico", () => {
+    const p = partirEmDestaques("__o CONTRATANTE paga__");
+    expect(p).toEqual([
+      { texto: "o ", forte: false, italico: true },
+      { texto: "CONTRATANTE", forte: true, italico: true },
+      { texto: " paga", forte: false, italico: true },
+    ]);
+  });
+
+  it("alinhamento, recuo e lista vêm das marcas do começo da linha", () => {
+    expect(blocosDaClausula("objeto", ["[centro]Título", ">> Recuado", "1. Primeiro", "- Marcador", ">> - Recuado com marcador"])).toEqual([
+      { tipo: "texto", texto: "Título", alinhar: "centro" },
+      { tipo: "texto", texto: "Recuado", nivel: 2 },
+      { tipo: "item", texto: "Primeiro", numero: 1 },
+      { tipo: "item", texto: "Marcador" },
+      { tipo: "item", texto: "Recuado com marcador", nivel: 2 },
+    ]);
+  });
+
+  it("alinhamento explícito, numa cláusula de bullets, é parágrafo e não item", () => {
+    expect(blocosDaClausula("foro", ["[centro]Centrado", "Comum"])).toEqual([
+      { tipo: "texto", texto: "Centrado", alinhar: "centro" },
+      { tipo: "item", texto: "Comum" },
+    ]);
+  });
+});

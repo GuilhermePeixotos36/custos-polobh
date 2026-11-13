@@ -27,6 +27,8 @@ const LARGURA = PAGINA.w - MARGEM.esq - MARGEM.dir;
 const CORPO = 9;
 const ENTRELINHA = 12;
 const COL_ROTULO = 105;
+/** Quanto cada nível de recuo empurra o texto para a direita. */
+const NIVEL_RECUO = 18;
 
 const PRETO = rgb(0, 0, 0);
 const CINZA_CLARO = rgb(0.94, 0.94, 0.94);
@@ -39,6 +41,9 @@ const TEXTO_FRACO = rgb(0.35, 0.35, 0.35);
 interface Pedaco {
   t: string;
   b: boolean;
+  /** Itálico e sublinhado vêm das marcas de Configurações › Contratos. */
+  i?: boolean;
+  u?: boolean;
 }
 interface Palavra {
   pedacos: Pedaco[];
@@ -50,7 +55,7 @@ interface Linha {
   fim: boolean;
 }
 
-type Fontes = { normal: PDFFont; negrito: PDFFont };
+type Fontes = { normal: PDFFont; negrito: PDFFont; italico: PDFFont; negritoItalico: PDFFont };
 
 /**
  * Tira o que a fonte padrão do PDF não sabe escrever (ela cobre o alfabeto
@@ -83,8 +88,10 @@ function larguraSemKerning(fonte: PDFFont, t: string, tam: number): number {
   return (soma * tam) / 1000;
 }
 
-const largura = (f: Fontes, t: string, negrito: boolean, tam: number) =>
-  larguraSemKerning(negrito ? f.negrito : f.normal, t, tam);
+const fonteDe = (f: Fontes, negrito: boolean, italico = false): PDFFont =>
+  negrito ? (italico ? f.negritoItalico : f.negrito) : italico ? f.italico : f.normal;
+const largura = (f: Fontes, t: string, negrito: boolean, tam: number, italico = false) =>
+  larguraSemKerning(fonteDe(f, negrito, italico), t, tam);
 
 /** "Quebra" um texto com negrito em palavras, sem perder o grude entre pedaços ("CONTRATANTE," = bold + vírgula). */
 function palavrasDe(runs: Pedaco[], f: Fontes, tam: number): Palavra[] {
@@ -98,8 +105,10 @@ function palavrasDe(runs: Pedaco[], f: Fontes, tam: number): Palavra[] {
         atual = null;
         continue;
       }
-      const pedaco = { t: limpar(parte, f.normal), b: run.b };
-      const w = largura(f, pedaco.t, pedaco.b, tam);
+      const pedaco: Pedaco = { t: limpar(parte, f.normal), b: run.b };
+      if (run.i) pedaco.i = true;
+      if (run.u) pedaco.u = true;
+      const w = largura(f, pedaco.t, pedaco.b, tam, pedaco.i);
       if (atual) {
         atual.pedacos.push(pedaco);
         atual.w += w;
@@ -117,14 +126,14 @@ function partirPalavra(p: Palavra, max: number, f: Fontes, tam: number): Palavra
   let atual: Palavra = { pedacos: [], w: 0 };
   for (const ped of p.pedacos) {
     for (const ch of Array.from(ped.t)) {
-      const cw = largura(f, ch, ped.b, tam);
+      const cw = largura(f, ch, ped.b, tam, ped.i);
       if (atual.w + cw > max && atual.pedacos.length) {
         saida.push(atual);
         atual = { pedacos: [], w: 0 };
       }
       const ult = atual.pedacos[atual.pedacos.length - 1];
-      if (ult && ult.b === ped.b) ult.t += ch;
-      else atual.pedacos.push({ t: ch, b: ped.b });
+      if (ult && ult.b === ped.b && !!ult.i === !!ped.i && !!ult.u === !!ped.u) ult.t += ch;
+      else atual.pedacos.push({ ...ped, t: ch });
       atual.w += cw;
     }
   }
@@ -156,7 +165,12 @@ function quebrar(runs: Pedaco[], max: number, f: Fontes, tam: number): Linha[] {
 
 /** Os pedaços de um texto com `**negrito**` e com CONTRATANTE/CONTRATADO(A) destacados. */
 const pedacosDe = (texto: string, negritoTudo = false): Pedaco[] =>
-  partirEmDestaques(texto).map((x) => ({ t: x.texto, b: negritoTudo || x.forte }));
+  partirEmDestaques(texto).map((x) => {
+    const p: Pedaco = { t: x.texto, b: negritoTudo || x.forte };
+    if (x.italico) p.i = true;
+    if (x.sublinhado) p.u = true;
+    return p;
+  });
 
 /* -------------------------------- escritor -------------------------------- */
 
@@ -179,6 +193,8 @@ class Escritor {
     e.f = {
       normal: await e.doc.embedFont(StandardFonts.Helvetica),
       negrito: await e.doc.embedFont(StandardFonts.HelveticaBold),
+      italico: await e.doc.embedFont(StandardFonts.HelveticaOblique),
+      negritoItalico: await e.doc.embedFont(StandardFonts.HelveticaBoldOblique),
     };
     e.novaPagina();
     return e;
@@ -226,12 +242,33 @@ class Escritor {
     } else if (alinhar === "centro") inicio = x + (max - natural) / 2;
     else if (alinhar === "dir") inicio = x + max - natural;
     let cx = inicio;
+    /** Onde começou o sublinhado em curso (atravessa o espaço entre duas palavras sublinhadas). */
+    let sublinhadoDesde: number | null = null;
+    const fecharSublinhado = (ate: number) => {
+      if (sublinhadoDesde === null) return;
+      this.pagina.drawLine({
+        start: { x: sublinhadoDesde, y: y - tam * 0.16 },
+        end: { x: ate, y: y - tam * 0.16 },
+        thickness: 0.5,
+        color: PRETO,
+      });
+      sublinhadoDesde = null;
+    };
     l.palavras.forEach((p, i) => {
       for (const ped of p.pedacos) {
-        this.pagina.drawText(ped.t, { x: cx, y, size: tam, font: ped.b ? this.f.negrito : this.f.normal, color: PRETO });
-        cx += largura(this.f, ped.t, ped.b, tam);
+        this.pagina.drawText(ped.t, { x: cx, y, size: tam, font: fonteDe(this.f, ped.b, ped.i), color: PRETO });
+        const w = largura(this.f, ped.t, ped.b, tam, ped.i);
+        if (ped.u) sublinhadoDesde ??= cx;
+        else fecharSublinhado(cx);
+        cx += w;
       }
-      if (i < vaos) cx += espaco;
+      if (i < vaos) {
+        const proxima = l.palavras[i + 1].pedacos[0];
+        const ultimo = p.pedacos[p.pedacos.length - 1];
+        // O espaço entre duas palavras sublinhadas também é sublinhado.
+        if (!(ultimo?.u && proxima?.u)) fecharSublinhado(cx);
+        cx += espaco;
+      } else fecharSublinhado(cx);
     });
   }
 
@@ -256,16 +293,21 @@ class Escritor {
     this.espaco(o.depois ?? 5);
   }
 
-  /** Item de lista: marcador e recuo suspenso. */
-  item(runs: Pedaco[]) {
-    const recuo = 14;
-    const linhas = quebrar(runs, LARGURA - recuo, this.f, CORPO);
+  /** Item de lista: marcador (ou número) e recuo suspenso; `nivel` empurra o item para a direita. */
+  item(runs: Pedaco[], o: { nivel?: number; numero?: number } = {}) {
+    const entrada = (o.nivel ?? 0) * NIVEL_RECUO;
+    const recuo = o.numero !== undefined ? 18 : 14;
+    const x = MARGEM.esq + entrada;
+    const linhas = quebrar(runs, LARGURA - entrada - recuo, this.f, CORPO);
     this.garantir(Math.min(linhas.length, 7) * ENTRELINHA);
     linhas.forEach((l, i) => {
       this.garantir(ENTRELINHA);
       this.y -= ENTRELINHA;
-      if (i === 0) this.pagina.drawText("•", { x: MARGEM.esq + 3, y: this.y + 3.3, size: CORPO, font: this.f.normal, color: PRETO });
-      this.linha(l, MARGEM.esq + recuo, this.y + 3.3, LARGURA - recuo, CORPO, "just");
+      if (i === 0) {
+        const marcador = o.numero !== undefined ? `${o.numero}.` : "•";
+        this.pagina.drawText(marcador, { x: x + 3, y: this.y + 3.3, size: CORPO, font: this.f.normal, color: PRETO });
+      }
+      this.linha(l, x + recuo, this.y + 3.3, LARGURA - entrada - recuo, CORPO, "just");
     });
     this.espaco(3.5);
   }
@@ -417,13 +459,17 @@ export async function gerarContratoPdf(c: ContratoDocumento): Promise<Uint8Array
     e.espaco(7);
     for (const b of blocosDaClausula(cl.chave, cl.paragrafos)) {
       if (b.tipo === "subtitulo") e.subtitulo(b.texto);
-      else if (b.tipo === "item") e.item(pedacosDe(b.texto));
+      else if (b.tipo === "item") e.item(pedacosDe(b.texto), { nivel: b.nivel, numero: b.numero });
       else {
         // O fecho dos valores não se parte: "Valor Total a Pagar", "Forma de Pagamento"
         // e as observações gerais ficam na mesma página.
         const dosValores = /^\*\*(Valor Total a Pagar|Forma de Pagamento)/.test(b.texto);
         const total = /^\*\*Valor Total a Pagar/.test(b.texto);
+        const entrada = (b.nivel ?? 0) * NIVEL_RECUO;
         e.paragrafo(pedacosDe(b.texto), {
+          x: MARGEM.esq + entrada,
+          w: LARGURA - entrada,
+          alinhar: b.alinhar === "centro" ? "centro" : b.alinhar === "esq" ? "esq" : undefined,
           antes: b.antes ? 10 : 0,
           depois: dosValores ? 2 : 5,
           manter: total ? ENTRELINHA * 3 : dosValores ? ENTRELINHA * 2 : 0,
