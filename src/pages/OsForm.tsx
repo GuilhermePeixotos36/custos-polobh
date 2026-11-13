@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { EnderecoCampos } from "@/components/EnderecoCampos";
 import { comDadosAtuaisDoProjeto } from "@/lib/projetoAoVivo";
 import { LegendaProjeto } from "@/components/layout/LegendaProjeto";
 import { PageShell } from "@/components/layout/AppLayout";
@@ -326,12 +327,17 @@ function aplicarAutoPreenchimento(osOriginal: Os, ec: Ec): Os {
           // Gerais do projeto, no próprio bloco do contrato (11/11/2026).
           ...(incentivada
             ? {
-                projetoIncentivado:
-                  os.contrato.projetoIncentivado || os.financeiro.projetoIncentivado || os.projeto.projetoIncentivado || os.projeto.nomeProjeto || os.projeto.titulo,
-                codigoProjetoIncentivado:
-                  os.contrato.codigoProjetoIncentivado || os.financeiro.codigoProjetoIncentivado || os.projeto.codigoProjetoIncentivado || "",
-                leiIncentivo:
-                  os.contrato.leiIncentivo || os.financeiro.leiIncentivo || os.projeto.leiIncentivo || os.projeto.incentivosFiscais || LEI_INCENTIVO_PADRAO,
+                // Sem correção manual, os três acompanham os Dados Gerais ao vivo
+                // (13/11/2026); com ela, vale o que a Produção corrigiu.
+                projetoIncentivado: os.contrato.incentivoManual
+                  ? os.contrato.projetoIncentivado || os.financeiro.projetoIncentivado || os.projeto.projetoIncentivado || os.projeto.nomeProjeto || os.projeto.titulo
+                  : os.projeto.projetoIncentivado || os.contrato.projetoIncentivado || os.financeiro.projetoIncentivado || os.projeto.nomeProjeto || os.projeto.titulo,
+                codigoProjetoIncentivado: os.contrato.incentivoManual
+                  ? os.contrato.codigoProjetoIncentivado || os.financeiro.codigoProjetoIncentivado || os.projeto.codigoProjetoIncentivado || ""
+                  : os.projeto.codigoProjetoIncentivado || os.contrato.codigoProjetoIncentivado || os.financeiro.codigoProjetoIncentivado || "",
+                leiIncentivo: os.contrato.incentivoManual
+                  ? os.contrato.leiIncentivo || os.financeiro.leiIncentivo || os.projeto.leiIncentivo || os.projeto.incentivosFiscais || LEI_INCENTIVO_PADRAO
+                  : os.projeto.leiIncentivo || os.projeto.incentivosFiscais || os.contrato.leiIncentivo || os.financeiro.leiIncentivo || LEI_INCENTIVO_PADRAO,
               }
             : {}),
         }
@@ -1783,7 +1789,7 @@ export function OsForm() {
             </Select>
           </LinhaOs>
           <LinhaOs label="Razão Social"><Input formato="titulo-empresa" value={os.fornecedor.razaoSocial} onChange={(e) => updF({ razaoSocial: e.target.value })} /></LinhaOs>
-          <LinhaOs label="Endereço"><Input formato="titulo" value={os.fornecedor.endereco} onChange={(e) => updF({ endereco: e.target.value })} /></LinhaOs>
+          <LinhaOs label="Endereço"><EnderecoCampos value={os.fornecedor.endereco} onChange={(endereco) => updF({ endereco })} /></LinhaOs>
           <LinhaOs label="Inscrição Estadual"><Input value={os.fornecedor.inscricaoEstadual} onChange={(e) => updF({ inscricaoEstadual: e.target.value })} /></LinhaOs>
           <LinhaOs label="Inscrição Municipal">
             <InscricaoMunicipalInput
@@ -2221,21 +2227,21 @@ export function OsForm() {
                   <Input
                     formato="titulo"
                     value={os.contrato.projetoIncentivado ?? ""}
-                    onChange={(e) => updCt({ projetoIncentivado: e.target.value })}
+                    onChange={(e) => updCt({ projetoIncentivado: e.target.value, incentivoManual: true })}
                   />
                 </LinhaOs>
                 <LinhaOs label="Código do Projeto Incentivado">
                   <Input
                     value={os.contrato.codigoProjetoIncentivado ?? ""}
                     sugestoes={sugestoes.valores.codigoProjetoIncentivado}
-                    onChange={(e) => updCt({ codigoProjetoIncentivado: e.target.value })}
+                    onChange={(e) => updCt({ codigoProjetoIncentivado: e.target.value, incentivoManual: true })}
                     placeholder="Ex.: PRONAC 26 1234"
                   />
                 </LinhaOs>
                 <LinhaOs label="Lei de Incentivo à Cultura">
                   <Input
                     value={os.contrato.leiIncentivo ?? ""}
-                    onChange={(e) => updCt({ leiIncentivo: e.target.value })}
+                    onChange={(e) => updCt({ leiIncentivo: e.target.value, incentivoManual: true })}
                     placeholder="Ex.: Lei Federal de Incentivo à Cultura (Rouanet)"
                   />
                 </LinhaOs>
@@ -3138,7 +3144,7 @@ function TomadorAvulsoCampos({
         <Input formato="titulo-empresa" value={atual.razaoSocial} onChange={(e) => mudar({ razaoSocial: e.target.value })} />
       </LinhaOs>
       <LinhaOs label="Endereço">
-        <Input formato="titulo" value={atual.endereco} onChange={(e) => mudar({ endereco: e.target.value })} />
+        <EnderecoCampos value={atual.endereco} onChange={(endereco) => mudar({ endereco })} />
       </LinhaOs>
       <LinhaOs label="Inscrição Estadual">
         <Input value={atual.inscricaoEstadual} onChange={(e) => mudar({ inscricaoEstadual: e.target.value })} />

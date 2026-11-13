@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { EnderecoCampos } from "@/components/EnderecoCampos";
 import { LegendaProjeto } from "@/components/layout/LegendaProjeto";
 import { PageShell } from "@/components/layout/AppLayout";
 import { BarraProjeto } from "@/components/layout/BarraSecao";
@@ -1000,7 +1001,7 @@ export function ProjetoDetail() {
                   </div>
                 </Field>
                 <Field label="Razão Social" className="sm:col-span-2"><Input formato="titulo-empresa" sugestoes={sugestoes.valores.clienteRazaoSocial} value={p.cliente.razaoSocial} onChange={(e) => updCli({ razaoSocial: e.target.value })} /></Field>
-                <Field label="Endereço" className="sm:col-span-2"><Input formato="titulo" sugestoes={sugestoes.valores.clienteEndereco} value={p.cliente.endereco} onChange={(e) => updCli({ endereco: e.target.value })} /></Field>
+                <Field label="Endereço" className="sm:col-span-2"><EnderecoCampos value={p.cliente.endereco} onChange={(endereco) => updCli({ endereco })} /></Field>
                 <Field label="Inscrição Estadual"><Input value={p.cliente.inscricaoEstadual} onChange={(e) => updCli({ inscricaoEstadual: e.target.value })} /></Field>
                 <Field label="Inscrição Municipal">
                   <InscricaoMunicipalInput

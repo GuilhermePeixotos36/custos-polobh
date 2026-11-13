@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { EnderecoCampos } from "@/components/EnderecoCampos";
 import { LegendaProjeto } from "@/components/layout/LegendaProjeto";
 import { PageShell } from "@/components/layout/AppLayout";
 import { BarraProjeto } from "@/components/layout/BarraSecao";
@@ -632,7 +633,7 @@ export function EcForm() {
             <Field label="CNPJ/CPF"><Input value={ec.cliente.cnpjCpf} onChange={(e) => updCli({ cnpjCpf: maskCpfCnpjInput(e.target.value) })} inputMode="numeric" placeholder="00.000.000/0000-00" /></Field>
             <Field label="Cliente (nome)"><Input formato="titulo" sugestoes={sugestoes.valores.clienteNome} value={ec.cliente.nome} onChange={(e) => updCli({ nome: e.target.value })} /></Field>
             <Field label="Razão Social" className="md:col-span-2"><Input formato="titulo-empresa" sugestoes={sugestoes.valores.clienteRazaoSocial} value={ec.cliente.razaoSocial} onChange={(e) => updCli({ razaoSocial: e.target.value })} /></Field>
-            <Field label="Endereço" className="md:col-span-2"><Input formato="titulo" sugestoes={sugestoes.valores.clienteEndereco} value={ec.cliente.endereco} onChange={(e) => updCli({ endereco: e.target.value })} /></Field>
+            <Field label="Endereço" className="md:col-span-2"><EnderecoCampos value={ec.cliente.endereco} onChange={(endereco) => updCli({ endereco })} /></Field>
             <Field label="Inscrição Estadual"><Input value={ec.cliente.inscricaoEstadual} onChange={(e) => updCli({ inscricaoEstadual: e.target.value })} /></Field>
             <Field label="Inscrição Municipal"><Input value={ec.cliente.inscricaoMunicipal} onChange={(e) => updCli({ inscricaoMunicipal: e.target.value })} /></Field>
             <Field label="Representante"><Input formato="titulo" sugestoes={sugestoes.valores.representante} value={ec.cliente.representante.nome} onChange={(e) => updCli({ representante: { ...ec.cliente.representante, nome: e.target.value } })} /></Field>

@@ -5,6 +5,7 @@
  */
 import { onlyDigits, tituloProprio } from "./format";
 import { padronizarTexto } from "@/domain/textos";
+import { formatarEndereco, tipoPorExtenso } from "@/domain/endereco";
 
 export interface DadosCnpj {
   cnpj: string;
@@ -40,6 +41,8 @@ interface BrasilApiCnpj {
   razao_social: string;
   nome_fantasia: string;
   descricao_situacao_cadastral: string;
+  /** "AVENIDA", "RUA"… — a BrasilAPI manda o tipo SEPARADO do nome da rua. */
+  descricao_tipo_de_logradouro?: string;
   logradouro: string;
   numero: string;
   complemento: string;
@@ -63,16 +66,25 @@ function perfil(d: BrasilApiCnpj): string {
 }
 
 /**
- * A BrasilAPI devolve tudo em CAIXA ALTA. Aqui cada pedaço é normalizado
- * individualmente — a UF continua maiúscula e o CEP intocado, que colocar o
- * endereço inteiro no tituloProprio viraria "Mg" e "Cep:".
+ * A BrasilAPI devolve tudo em CAIXA ALTA e o tipo do logradouro SEPARADO do
+ * nome da rua ("AVENIDA" + "PRUDENTE DE MORAIS"). Até 13/11/2026 o tipo era
+ * descartado, e o contrato saía com "Prudente de Morais, 621" — sem a Avenida.
+ * Agora cada pedaço é normalizado e o endereço é escrito pelo padrão da casa
+ * (`domain/endereco`): a UF continua maiúscula e o CEP ganha o hífen.
  */
 function montarEndereco(d: BrasilApiCnpj): string {
   const t = (s?: string) => tituloProprio(s ?? "");
-  const linha1 = [t(d.logradouro), d.numero].filter(Boolean).join(", ");
-  const municipioUf = d.municipio ? `${t(d.municipio)}${d.uf ? ` - ${d.uf.toUpperCase()}` : ""}` : "";
-  const partes = [linha1, t(d.complemento), t(d.bairro), municipioUf].filter(Boolean).join(" - ");
-  return d.cep ? `${partes} - CEP: ${d.cep}` : partes;
+  const tipo = tipoPorExtenso(d.descricao_tipo_de_logradouro ?? "") || t(d.descricao_tipo_de_logradouro);
+  return formatarEndereco({
+    tipo,
+    nome: t(d.logradouro),
+    numero: (d.numero ?? "").trim(),
+    complemento: t(d.complemento),
+    bairro: t(d.bairro),
+    cidade: t(d.municipio),
+    uf: (d.uf ?? "").toUpperCase(),
+    cep: d.cep ?? "",
+  });
 }
 
 /** Validação do dígito verificador do CNPJ (evita chamada à API com lixo). */

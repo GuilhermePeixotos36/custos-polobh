@@ -170,16 +170,35 @@ describe("a Cláusula Primeira", () => {
 
   it("o Cultural nomeia o projeto, a lei e o código — com vírgula depois do código e dois-pontos no fim", () => {
     const t = textoDe(cultural());
-    expect(t).toContain("viabilização do projeto Festival de Inverno");
-    expect(t).toContain("no âmbito da Lei Federal de Incentivo à Cultura (Rouanet)");
-    expect(t).toContain("sob o PRONAC 26 1234, de autoria do(a) CONTRATANTE, sendo:");
+    // Os três dados, em negrito (Marisa, 13/11/2026).
+    expect(t).toContain("viabilização do projeto **Festival de Inverno**");
+    expect(t).toContain("no âmbito da **Lei Federal de Incentivo à Cultura (Rouanet)**");
+    expect(t).toContain("sob o **PRONAC 26 1234**, de autoria do(a) CONTRATANTE, sendo:");
+  });
+
+  it("o Cultural usa os Dados Gerais do projeto: o nome em caixa alta na linha de identificação, 'No.' preservado", () => {
+    const t = textoDe(
+      montarContrato(
+        os({
+          projeto: {
+            modalidade: "Cultural",
+            projetoIncentivado: "Temporada Pólobh 9a. Edição",
+            codigoProjetoIncentivado: "Pronac No. 25 2868",
+            leiIncentivo: "Lei Federal de Incentivo à Cultura",
+          },
+        } as Partial<Os>),
+        ctx(),
+      ),
+    );
+    expect(t).toContain("**TEMPORADA PÓLOBH 9A. EDIÇÃO - LEI FEDERAL DE INCENTIVO À CULTURA - PRONAC No. 25 2868**");
+    expect(t).toContain("projeto **Temporada Pólobh 9a. Edição**");
   });
 
   it("o Corporativo cita o projeto e a gestão do CONTRATANTE, sem lei de incentivo", () => {
     const base = os();
     const t = textoDe(montarContrato(os({ projeto: { modalidade: "Corporativo", nomeProjeto: "Convenção Anual" } } as Partial<Os>), ctx()));
     // O nome COMPLETO — Cliente – Projeto Ano —, entre aspas e em caixa alta (Marisa, 12/11/2026).
-    expect(t).toContain("O objeto do presente é a viabilização do projeto “BANCO X – CONVENÇÃO ANUAL 2026”, cuja gestão é de responsabilidade do(a) CONTRATANTE, sendo:");
+    expect(t).toContain("O objeto do presente é a viabilização do projeto **“BANCO X – CONVENÇÃO ANUAL 2026”**, cuja gestão é de responsabilidade do(a) CONTRATANTE, sendo:");
     expect(t).toContain("**“BANCO X – CONVENÇÃO ANUAL 2026”**");
     expect(t).not.toContain("PRONAC");
     expect(t).not.toContain("inscrito e aprovado");

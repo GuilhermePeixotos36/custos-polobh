@@ -261,7 +261,7 @@ function corpoDoObjeto(os: Os, modelo: ModeloContrato, intro: string, projetoCom
 
   if (modelo === "Corporativo") {
     out.push(
-      `O objeto do presente é a viabilização do projeto ${nomeProjeto || "(nome do projeto não informado)"}, ` +
+      `O objeto do presente é a viabilização do projeto ${nomeProjeto ? `**${nomeProjeto}**` : "(nome do projeto não informado)"}, ` +
         "cuja gestão é de responsabilidade do(a) CONTRATANTE, sendo:",
       ""
     );
@@ -269,9 +269,11 @@ function corpoDoObjeto(os: Os, modelo: ModeloContrato, intro: string, projetoCom
 
   if (modelo === "Cultural") {
     out.push(
-      `O objeto do presente é a viabilização do projeto ${projeto || "(projeto incentivado não informado)"}, ` +
+      // Os três dados — do projeto, da lei e do código, como estão nos Dados
+      // Gerais — saem em NEGRITO (Marisa, 13/11/2026).
+      `O objeto do presente é a viabilização do projeto **${projeto || "(projeto incentivado não informado)"}**, ` +
         "inscrito e aprovado perante as instâncias competentes da administração pública, no âmbito da " +
-        `${lei || "(lei de incentivo não informada)"}, sob o ${codigo || "(código do projeto não informado)"}, ` +
+        `**${lei || "(lei de incentivo não informada)"}**, sob o **${codigo || "(código do projeto não informado)"}**, ` +
         "de autoria do(a) CONTRATANTE, sendo:",
       ""
     );
@@ -296,7 +298,11 @@ function corpoDoObjeto(os: Os, modelo: ModeloContrato, intro: string, projetoCom
   // A linha que identifica o projeto junto do que foi contratado, em negrito e
   // caixa alta: no Cultural, o projeto incentivado, a lei e o código separados
   // por hífen; no Corporativo, o nome do projeto.
-  const identificacao = modelo === "Cultural" ? [projeto, lei, codigo].filter(Boolean).join(" - ").toUpperCase() : nomeProjeto;
+  // "No." (de "Número") não vira "NO." na caixa alta: PRONAC No. 25 2868.
+  const identificacao =
+    modelo === "Cultural"
+      ? [projeto, lei, codigo].filter(Boolean).join(" - ").toUpperCase().replace(/\bNO\./g, "No.")
+      : nomeProjeto;
   if (identificacao) out.push("", `**${identificacao}**`);
 
   out.push(
