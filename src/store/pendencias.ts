@@ -13,7 +13,7 @@ import { useMemo } from "react";
 import { create } from "zustand";
 import { repo } from "@/data";
 import { useAuth } from "@/store/auth";
-import { calcularPendencias, agregarPendencias, type Pendencia } from "@/domain/pendencias";
+import { calcularPendencias, agregarPendencias, podeParaCobranca, type Pendencia } from "@/domain/pendencias";
 import { hojeIso } from "@/domain/calendario";
 import { pendenciaDeFeriados, responsavelPadraoDosFeriados } from "@/domain/feriados";
 import { lerFeriados, lerResponsavelFeriados } from "@/lib/feriados";
@@ -121,6 +121,7 @@ export const usePendencias = create<State>((set, get) => ({
 export function useMinhasPendencias() {
   const itens = usePendencias((s) => s.itens);
   const pessoa = useAuth((s) => s.usuario?.nome);
+  const papel = useAuth((s) => s.usuario?.papel);
   const pode = useAuth((s) => s.pode);
-  return useMemo(() => agregarPendencias(itens, pessoa, pode), [itens, pessoa, pode]);
+  return useMemo(() => agregarPendencias(itens, pessoa, podeParaCobranca(papel, pode)), [itens, pessoa, papel, pode]);
 }

@@ -70,7 +70,7 @@ export const router = createBrowserRouter([
       // O fluxo do processo da Pólobh (29/09/2026) — leitura para todo perfil,
       // como o Guia; a troca da imagem exige `configuracoes` dentro da tela.
       { path: "fluxograma", element: <RequireRecurso r="guia"><Fluxograma /></RequireRecurso> },
-      { path: "configuracoes", element: <RequireRecurso r={["configuracoes", "checklists.padrao"]}><Configuracoes /></RequireRecurso> },
+      { path: "configuracoes", element: <RequireRecurso r={["configuracoes", "checklists.padrao", "contratos.clausulas"]}><Configuracoes /></RequireRecurso> },
       { path: "logs", element: <RequireRecurso r="logs"><Logs /></RequireRecurso> },
       { path: "guia", element: <RequireRecurso r="guia"><Guia /></RequireRecurso> },
       // O Help Desk usa o mesmo recurso do Guia: pedir ajuda é para todo mundo

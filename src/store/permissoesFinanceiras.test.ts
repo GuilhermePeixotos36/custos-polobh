@@ -37,3 +37,13 @@ describe("dados financeiros", () => {
     expect(PERMISSOES_ESPECIAIS.filter((p) => naMatriz.has(p.key))).toEqual([]);
   });
 });
+
+describe("cláusulas padrão dos contratos (Configurações › Contratos)", () => {
+  it("é permissão especial, do Administrador, e nenhum nível a tem por padrão", () => {
+    expect(PERMISSOES_ESPECIAIS.map((p) => p.key)).toContain("contratos.clausulas");
+    expect(TODOS_RECURSOS).toContain("contratos.clausulas");
+    for (const papel of ["Direcao", "Producao", "Administrativo"] as const) {
+      expect(PERMISSOES[papel], papel).not.toContain("contratos.clausulas");
+    }
+  });
+});

@@ -32,6 +32,7 @@ import {
 import { TESTEMUNHAS_PADRAO, type TestemunhaFixa } from "@/domain/testemunhasContrato";
 import {
   clausulasPadrao,
+  type ClausulasDaCasa,
   FECHO_CONTRATO,
   modeloDoContrato,
   RESSALVA_VALORES,
@@ -326,6 +327,8 @@ export interface ContextoContrato {
   testemunhas?: TestemunhaFixa[];
   /** O título do documento (nome do arquivo e cabeçalho). Sem isto, o número da OS. */
   titulo?: string;
+  /** Os textos padrão editados em Configurações › Contratos. Sem isto, os do código. */
+  clausulasDaCasa?: ClausulasDaCasa;
 }
 
 /**
@@ -335,7 +338,7 @@ export interface ContextoContrato {
  * quem sabe resolver "tomador" em razão social é `domain/tomadorOs` — o mesmo
  * lugar de onde a OS impressa e a tela tiram a resposta.
  */
-export function montarContrato(os: Os, { cliente, empresas, testemunhas, titulo }: ContextoContrato): ContratoDocumento {
+export function montarContrato(os: Os, { cliente, empresas, testemunhas, titulo, clausulasDaCasa }: ContextoContrato): ContratoDocumento {
   const modelo = os.contrato.modelo || modeloDoContrato(os.projeto.modalidade);
   const tomador: DadosTomador | null = dadosDoTomador(os.contrato.contratante || os.financeiro.tomador, {
     cliente,
@@ -363,7 +366,7 @@ export function montarContrato(os: Os, { cliente, empresas, testemunhas, titulo 
   const projetoCompleto =
     os.projeto.nomeProjeto || os.projeto.titulo ? nomeCompletoDoProjeto(os.projeto, cliente, os.contrato.dataContrato) : "";
   const editados = os.contrato.clausulas;
-  const clausulas = clausulasPadrao(modelo).map((c): ClausulaDoDocumento => {
+  const clausulas = clausulasPadrao(modelo, clausulasDaCasa).map((c): ClausulaDoDocumento => {
     const texto = textoDaClausula(editados, c);
     return {
       chave: c.chave,

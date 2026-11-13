@@ -917,6 +917,24 @@ function normalizarPessoa(valor: string): string {
 }
 
 /**
+ * O que a pessoa pode, PARA FINS DE COBRANÇA por etapa da OS (13/11/2026).
+ *
+ * O Administrador tem todos os recursos — inclusive as chaves de cobrança
+ * (`oss.validarContrato`, `oss.etapaFinanceiro`, `oss.etapaBackoffice`) —, e por
+ * isso `pode()` dizia que ele "responde" por toda etapa de toda OS: o sino e o
+ * aviso do navegador do Administrador enchiam de "Aguardando o Financeiro" e
+ * "Aguardando o Back-office emitir" que não eram dele. Ele continua podendo
+ * agir em tudo; só não é COBRADO por função. O que o nomeia (responsável pelo
+ * projeto, @menção, conversa) segue chegando normalmente.
+ */
+export function podeParaCobranca(
+  papel: string | undefined,
+  pode: (r: Recurso) => boolean
+): (r: Recurso) => boolean {
+  return papel === "Admin" ? () => false : pode;
+}
+
+/**
  * Filtra as pendências que são DESTA pessoa. Duas portas, e só elas:
  *
  *  1. ela foi mencionada/escolhida na observação, ou é dona da tarefa;

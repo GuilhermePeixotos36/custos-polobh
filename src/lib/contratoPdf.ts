@@ -24,7 +24,22 @@ import { salvarArquivoNaPasta, type ResultadoPasta } from "@/lib/arquivarDocumen
 import { nomeArquivo } from "@/lib/excel/shared";
 import { comDadosAtuaisDoProjeto } from "@/lib/projetoAoVivo";
 
+import { CHAVE_CLAUSULAS_DA_CASA, clausulasDaCasaDaConfig, type ClausulasDaCasa } from "@/domain/contratoModelo";
+
 const CHAVE_TESTEMUNHAS = "testemunhas_contrato";
+
+/** Os textos padrão das cláusulas editados em Configurações › Contratos (vazio = os do código). */
+export async function clausulasDaCasa(): Promise<ClausulasDaCasa> {
+  try {
+    return clausulasDaCasaDaConfig(await repo.config.ler<ClausulasDaCasa>(CHAVE_CLAUSULAS_DA_CASA));
+  } catch {
+    return {};
+  }
+}
+
+export async function gravarClausulasDaCasa(valor: ClausulasDaCasa): Promise<void> {
+  await repo.config.gravar(CHAVE_CLAUSULAS_DA_CASA, clausulasDaCasaDaConfig(valor));
+}
 
 /** As testemunhas fixas da casa — as editadas em Configurações, ou as padrão. */
 export async function testemunhasDaCasa(): Promise<TestemunhaFixa[]> {
@@ -64,14 +79,15 @@ export async function prepararContratoPdf(
   os = { ...os, projeto: viva.projeto };
   ctx = { ...ctx, cliente: viva.cliente ?? ctx.cliente };
   const testemunhas = await testemunhasDaCasa();
+  const casa = await clausulasDaCasa();
   // O conteúdo, sem o título (que leva a versão): é ele que diz se o contrato mudou.
-  const semTitulo = montarContrato(os, { ...ctx, testemunhas });
+  const semTitulo = montarContrato(os, { ...ctx, testemunhas, clausulasDaCasa: casa });
   const impressao = impressaoDeConteudo({ ...semTitulo, tituloDocumento: undefined });
   const { versao, jaEmitido } = versaoDoContrato(os.contrato, impressao);
 
   const dataContrato = os.contrato.dataContrato || new Date().toISOString().slice(0, 10);
   const titulo = tituloContrato(ec, os.fornecedor, versao, dataContrato, idsLinhasDoContrato(os, ec.linhas));
-  const contrato = montarContrato(os, { ...ctx, testemunhas, titulo });
+  const contrato = montarContrato(os, { ...ctx, testemunhas, titulo, clausulasDaCasa: casa });
 
   const { gerarContratoPdf } = await import("@/lib/pdf/contrato");
   return { contrato, bytes: await gerarContratoPdf(contrato), nome: `${nomeArquivo(titulo)}.pdf`, versao, impressao, jaEmitido };

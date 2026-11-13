@@ -8,7 +8,7 @@
  * não as de quem está com o app aberto. Senão a Viviane receberia no celular
  * uma pendência que o sino dela não mostra — a notificação fantasma.
  */
-import { agregarPendencias, rotaDaPendencia, type Pendencia } from "@/domain/pendencias";
+import { agregarPendencias, podeParaCobranca, rotaDaPendencia, type Pendencia } from "@/domain/pendencias";
 import type { Recurso } from "@/store/auth";
 
 export interface PessoaComPush {
@@ -96,7 +96,7 @@ export function avisosParaPush(
   const avisos: AvisoPush[] = [];
   for (const p of pessoas) {
     if (!p.nome?.trim()) continue;
-    const { itens: dela } = agregarPendencias(itens, p.nome, podeDaPessoa(p, padraoDoPapel));
+    const { itens: dela } = agregarPendencias(itens, p.nome, podeParaCobranca(p.papel, podeDaPessoa(p, padraoDoPapel)));
     const faltam = dela
       .map((x) => ({ id: chavePendencia(x), titulo: x.titulo, url: rotaDaPendencia(x) }))
       .filter((x) => !jaEnviadas.has(chaveEnvio(p.id, x.id)));
