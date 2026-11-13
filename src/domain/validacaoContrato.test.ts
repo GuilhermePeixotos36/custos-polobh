@@ -64,8 +64,17 @@ describe("projeto incentivado no bloco Dados para Contrato", async () => {
     });
   });
 
+  it("sem correção manual, os Dados Gerais do projeto vencem o que a OS gravou ao nascer", () => {
+    const velho = { ...base, contrato: { projetoIncentivado: "Nome provisório", leiIncentivo: "Lei padrão" } } as typeof base;
+    expect(incentivoDoContrato(velho)).toEqual({
+      projetoIncentivado: "Prêmio Jornalista",
+      codigoProjetoIncentivado: "PRONAC 26 1234",
+      leiIncentivo: "Lei Rouanet",
+    });
+  });
+
   it("o que a Produção corrige no contrato é o que vale", () => {
-    const corrigido = { ...base, contrato: { codigoProjetoIncentivado: "PRONAC 26 9999" } } as typeof base;
+    const corrigido = { ...base, contrato: { codigoProjetoIncentivado: "PRONAC 26 9999", incentivoManual: true } } as typeof base;
     expect(incentivoDoContrato(corrigido).codigoProjetoIncentivado).toBe("PRONAC 26 9999");
     expect(incentivoDoContrato(corrigido).projetoIncentivado).toBe("Prêmio Jornalista");
   });

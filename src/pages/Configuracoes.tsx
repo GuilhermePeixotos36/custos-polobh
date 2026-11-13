@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAvisoDeSaida } from "@/hooks/useAvisoDeSaida";
+import { EnderecoCampos } from "@/components/EnderecoCampos";
 import { ChecklistModelosCard } from "@/components/ChecklistModelosCard";
 import { ConsumoIaCard } from "@/components/ConsumoIaCard";
 import { AvisosNoAparelho } from "@/components/AvisosNoAparelho";
@@ -248,7 +249,7 @@ function EmpresasGrupoCard() {
                   </Field>
                 </div>
                 <Field label="Endereço">
-                  <Input value={e.endereco} onChange={(ev) => editar(e.id, { endereco: ev.target.value })} onBlur={() => salvar(e.id)} />
+                  <EnderecoCampos value={e.endereco} onChange={(endereco) => editar(e.id, { endereco })} onBlur={() => salvar(e.id)} />
                 </Field>
                 <Field label="Inscrição Municipal">
                   <Input value={e.inscricaoMunicipal} onChange={(ev) => editar(e.id, { inscricaoMunicipal: ev.target.value })} onBlur={() => salvar(e.id)} />

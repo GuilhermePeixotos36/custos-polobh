@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { PageShell } from "@/components/layout/AppLayout";
+import { EnderecoCampos } from "@/components/EnderecoCampos";
 import {
   Card, CardTitle, Button, Field, Input, TelefoneInput, Select, Table, THead, Tr, Td,
   Badge, EmptyState, AvisoErro, Avatar, ThOrd, useOrdenacao,
@@ -232,7 +233,7 @@ export function Fornecedores() {
                   <option>MEI</option><option>Simples Nacional</option><option>Lucro Presumido/Real</option>
                 </Select>
               </Field>
-              <Field label="Endereço"><Input formato="titulo" value={edit.endereco} onChange={(e) => setEdit({ ...edit, endereco: e.target.value })} /></Field>
+              <Field label="Endereço"><EnderecoCampos value={edit.endereco} onChange={(endereco) => setEdit({ ...edit, endereco })} /></Field>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Telefone"><TelefoneInput value={edit.telefone} onChange={(v) => setEdit({ ...edit, telefone: v })} /></Field>
                 <Field label="E-mail"><Input value={edit.email} onChange={(e) => setEdit({ ...edit, email: e.target.value })} /></Field>

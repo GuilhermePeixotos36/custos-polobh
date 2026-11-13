@@ -269,9 +269,16 @@ export function osIncentivada(os: Pick<Os, "projeto" | "contrato">): boolean {
 }
 
 /**
- * Os três dados do projeto incentivado como o CONTRATO os usa (11/11/2026): o
- * que estiver no bloco Dados para Contrato, senão o do faturamento, senão o dos
- * Dados Gerais do projeto.
+ * Os três dados do projeto incentivado como o CONTRATO os usa (13/11/2026,
+ * pedido da Marisa): por padrão os dos DADOS GERAIS do projeto, e só na falta
+ * deles os do bloco Dados para Contrato e os do faturamento. Quando alguém
+ * CORRIGIU um deles à mão no bloco (`incentivoManual`), o que a Produção
+ * corrigiu é o que vale — regra de 11/11/2026, mantida.
+ *
+ * Antes não havia a distinção, e o bloco ficava sempre na frente: o que a OS
+ * gravou quando foi criada (um nome provisório, a lei padrão) vencia o que a
+ * Marisa depois preencheu nos Dados Gerais — "as informações corretas já estão
+ * lançadas nos Dados Gerais, mas não estão sendo lançadas automaticamente".
  */
 export function incentivoDoContrato(
   os: Pick<Os, "projeto" | "contrato" | "financeiro">,
@@ -280,9 +287,16 @@ export function incentivoDoContrato(
   const f = os.financeiro ?? ({} as Os["financeiro"]);
   const p = os.projeto ?? ({} as Os["projeto"]);
   const primeiro = (...v: (string | undefined)[]) => (v.find((x) => x && x.trim()) ?? "").trim();
+  if (ct.incentivoManual) {
+    return {
+      projetoIncentivado: primeiro(ct.projetoIncentivado, f.projetoIncentivado, p.projetoIncentivado),
+      codigoProjetoIncentivado: primeiro(ct.codigoProjetoIncentivado, f.codigoProjetoIncentivado, p.codigoProjetoIncentivado),
+      leiIncentivo: primeiro(ct.leiIncentivo, f.leiIncentivo, p.leiIncentivo, p.incentivosFiscais),
+    };
+  }
   return {
-    projetoIncentivado: primeiro(ct.projetoIncentivado, f.projetoIncentivado, p.projetoIncentivado),
-    codigoProjetoIncentivado: primeiro(ct.codigoProjetoIncentivado, f.codigoProjetoIncentivado, p.codigoProjetoIncentivado),
-    leiIncentivo: primeiro(ct.leiIncentivo, f.leiIncentivo, p.leiIncentivo, p.incentivosFiscais),
+    projetoIncentivado: primeiro(p.projetoIncentivado, ct.projetoIncentivado, f.projetoIncentivado),
+    codigoProjetoIncentivado: primeiro(p.codigoProjetoIncentivado, ct.codigoProjetoIncentivado, f.codigoProjetoIncentivado),
+    leiIncentivo: primeiro(p.leiIncentivo, p.incentivosFiscais, ct.leiIncentivo, f.leiIncentivo),
   };
 }

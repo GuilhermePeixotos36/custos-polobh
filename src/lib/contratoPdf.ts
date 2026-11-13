@@ -22,6 +22,7 @@ import { TESTEMUNHAS_PADRAO, testemunhasDaConfig, type TestemunhaFixa } from "@/
 import { versaoDoContrato } from "@/domain/versaoContrato";
 import { salvarArquivoNaPasta, type ResultadoPasta } from "@/lib/arquivarDocumento";
 import { nomeArquivo } from "@/lib/excel/shared";
+import { comDadosAtuaisDoProjeto } from "@/lib/projetoAoVivo";
 
 const CHAVE_TESTEMUNHAS = "testemunhas_contrato";
 
@@ -55,6 +56,13 @@ export async function prepararContratoPdf(
   ec: Ec,
   ctx: { cliente: Cliente; empresas: EmpresaGrupo[] }
 ): Promise<PreparoContrato> {
+  // Os DADOS GERAIS DO PROJETO e o cadastro do cliente, como estão AGORA (13/11/2026).
+  // A OS carrega uma cópia de quando foi criada; o projeto incentivado, a lei, o
+  // código e o endereço do cliente preenchidos depois não chegavam ao contrato.
+  const viva = await comDadosAtuaisDoProjeto(ec);
+  ec = viva;
+  os = { ...os, projeto: viva.projeto };
+  ctx = { ...ctx, cliente: viva.cliente ?? ctx.cliente };
   const testemunhas = await testemunhasDaCasa();
   // O conteúdo, sem o título (que leva a versão): é ele que diz se o contrato mudou.
   const semTitulo = montarContrato(os, { ...ctx, testemunhas });

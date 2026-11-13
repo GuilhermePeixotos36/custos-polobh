@@ -931,6 +931,13 @@ export interface ContratoOs {
   codigoProjetoIncentivado?: string;
   leiIncentivo?: string;
   /**
+   * Alguém CORRIGIU à mão um dos três dados acima, neste bloco (13/11/2026). Sem
+   * esta marca eles acompanham os Dados Gerais do projeto — quem preencheu os
+   * Dados Gerais depois de a OS nascer não deve ser ignorado por uma cópia velha.
+   * Com a marca, o que a Produção corrigiu é o que vale.
+   */
+  incentivoManual?: boolean;
+  /**
    * Quem validou o contrato da OS cultural e quando (11/11/2026) — preenchido
    * pelo "Validar contrato e enviar ao Financeiro". A emissão de uma OS cultural
    * com contrato sem isto pede confirmação.
