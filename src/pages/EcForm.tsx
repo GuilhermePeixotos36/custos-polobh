@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { EnderecoCampos } from "@/components/EnderecoCampos";
+import { textoDoQueFalta, validarEndereco } from "@/domain/endereco";
 import { LegendaProjeto } from "@/components/layout/LegendaProjeto";
 import { PageShell } from "@/components/layout/AppLayout";
 import { BarraProjeto } from "@/components/layout/BarraSecao";
@@ -128,6 +129,8 @@ export function EcForm() {
   const [cnpjLoading, setCnpjLoading] = useState(false);
   const [cnpjMsg, setCnpjMsg] = useState("");
   const [salvando, setSalvando] = useState(false);
+  /** Tentou salvar com o endereço do cliente incompleto: os campos que faltam ficam contornados. */
+  const [tentouSalvar, setTentouSalvar] = useState(false);
   /** "Revisar" em andamento (a IA leva alguns segundos). */
   const [revisando, setRevisando] = useState(false);
   /** Textos já revisados nesta edição (id → texto final): o "Salvar" não pergunta de novo. */
@@ -425,6 +428,16 @@ export function EcForm() {
    */
   async function salvar(opcoes: { navegar?: boolean } = {}): Promise<Ec | null> {
     const navegar = opcoes.navegar ?? true;
+    // O endereço do cliente, quando há, tem de estar completo (Marisa, 13/11/2026).
+    // Só na EC avulsa: dentro de um Projeto o cliente é editado em Dados Gerais.
+    if (!temProjeto && ec!.cliente.endereco.trim()) {
+      const end = validarEndereco(ec!.cliente.endereco);
+      if (!end.completo) {
+        setTentouSalvar(true);
+        toast(`Endereço do cliente incompleto. ${textoDoQueFalta(end.faltando)}`, "danger");
+        return null;
+      }
+    }
     const gravada = baseline ? (JSON.parse(baseline) as Ec) : null;
     const pendentes = pendentesDeRevisao(camposDaEc(ec!.linhas), camposDaEc(gravada?.linhas ?? []), jaRevisados);
     setSalvando(true);
@@ -633,7 +646,7 @@ export function EcForm() {
             <Field label="CNPJ/CPF"><Input value={ec.cliente.cnpjCpf} onChange={(e) => updCli({ cnpjCpf: maskCpfCnpjInput(e.target.value) })} inputMode="numeric" placeholder="00.000.000/0000-00" /></Field>
             <Field label="Cliente (nome)"><Input formato="titulo" sugestoes={sugestoes.valores.clienteNome} value={ec.cliente.nome} onChange={(e) => updCli({ nome: e.target.value })} /></Field>
             <Field label="Razão Social" className="md:col-span-2"><Input formato="titulo-empresa" sugestoes={sugestoes.valores.clienteRazaoSocial} value={ec.cliente.razaoSocial} onChange={(e) => updCli({ razaoSocial: e.target.value })} /></Field>
-            <Field label="Endereço" className="md:col-span-2"><EnderecoCampos value={ec.cliente.endereco} onChange={(endereco) => updCli({ endereco })} /></Field>
+            <Field label="Endereço" className="md:col-span-2"><EnderecoCampos value={ec.cliente.endereco} mostrarErros={tentouSalvar} onChange={(endereco) => updCli({ endereco })} /></Field>
             <Field label="Inscrição Estadual"><Input value={ec.cliente.inscricaoEstadual} onChange={(e) => updCli({ inscricaoEstadual: e.target.value })} /></Field>
             <Field label="Inscrição Municipal"><Input value={ec.cliente.inscricaoMunicipal} onChange={(e) => updCli({ inscricaoMunicipal: e.target.value })} /></Field>
             <Field label="Representante"><Input formato="titulo" sugestoes={sugestoes.valores.representante} value={ec.cliente.representante.nome} onChange={(e) => updCli({ representante: { ...ec.cliente.representante, nome: e.target.value } })} /></Field>

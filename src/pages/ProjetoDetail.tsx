@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { EnderecoCampos } from "@/components/EnderecoCampos";
+import { textoDoQueFalta, validarEndereco } from "@/domain/endereco";
 import { LegendaProjeto } from "@/components/layout/LegendaProjeto";
 import { PageShell } from "@/components/layout/AppLayout";
 import { BarraProjeto } from "@/components/layout/BarraSecao";
@@ -684,6 +685,15 @@ export function ProjetoDetail() {
       toast(`Preencha os campos obrigatórios: ${faltando.map((f) => f.label).join(", ")}.`, "danger");
       return;
     }
+    // O endereço do cliente, quando há, tem de estar completo (Marisa, 13/11/2026).
+    if (p.cliente.endereco.trim()) {
+      const end = validarEndereco(p.cliente.endereco);
+      if (!end.completo) {
+        setTentouSalvar(true);
+        toast(`Endereço do cliente incompleto. ${textoDoQueFalta(end.faltando)}`, "danger");
+        return;
+      }
+    }
     setSalvando(true);
     try {
       // Foto de como o evento estava ANTES de salvar — é contra ela que se
@@ -1001,7 +1011,7 @@ export function ProjetoDetail() {
                   </div>
                 </Field>
                 <Field label="Razão Social" className="sm:col-span-2"><Input formato="titulo-empresa" sugestoes={sugestoes.valores.clienteRazaoSocial} value={p.cliente.razaoSocial} onChange={(e) => updCli({ razaoSocial: e.target.value })} /></Field>
-                <Field label="Endereço" className="sm:col-span-2"><EnderecoCampos value={p.cliente.endereco} onChange={(endereco) => updCli({ endereco })} /></Field>
+                <Field label="Endereço" className="sm:col-span-2"><EnderecoCampos value={p.cliente.endereco} mostrarErros={tentouSalvar} onChange={(endereco) => updCli({ endereco })} /></Field>
                 <Field label="Inscrição Estadual"><Input value={p.cliente.inscricaoEstadual} onChange={(e) => updCli({ inscricaoEstadual: e.target.value })} /></Field>
                 <Field label="Inscrição Municipal">
                   <InscricaoMunicipalInput
