@@ -17,6 +17,7 @@ export type Recurso =
   | "oss.validarContrato"
   | "oss.etapaFinanceiro"
   | "oss.etapaBackoffice"
+  | "contratos.clausulas"
   | "oss.financeiro"
   | "oss.financeiro.editar"
   | "checklists"
@@ -44,6 +45,7 @@ export const TODOS_RECURSOS: Recurso[] = [
   "oss.validarContrato",
   "oss.etapaFinanceiro",
   "oss.etapaBackoffice",
+  "contratos.clausulas",
   "oss.financeiro",
   "oss.financeiro.editar",
   "checklists",
@@ -166,6 +168,16 @@ export const PERMISSOES_ESPECIAIS: { key: Recurso; label: string; hint: string }
     key: "oss.etapaBackoffice",
     label: "Responde pela etapa do Back-office na OS",
     hint: "Recebe a pendência \"Aguardando o Back-office emitir\" de cada OS — hoje o Back-office",
+  },
+  /**
+   * EDITAR AS CLÁUSULAS PADRÃO dos contratos (13/11/2026): Configurações ›
+   * Contratos. Só o Administrador (que tem tudo) e a Direção de Produção — por
+   * isso a chave NÃO está no padrão do nível Direção: é marcada à mão, na área.
+   */
+  {
+    key: "contratos.clausulas",
+    label: "Editar as cláusulas padrão dos contratos",
+    hint: "Configurações › Contratos: o texto de cada cláusula dos modelos Corporativo e Cultural — normalmente só a Direção de Produção",
   },
   { key: "configuracoes", label: "Configurações", hint: "Empresas do grupo, áreas e usuários" },
   { key: "logs", label: "Logs do sistema", hint: "Trilha de auditoria — normalmente só o Administrador" },

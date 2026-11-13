@@ -8,7 +8,14 @@ import {
   quantidadeDoContrato,
   referenciaDaOs,
 } from "./contratoDocumento";
-import { clausulasPadrao, FECHO_CONTRATO, modeloDoContrato, RESSALVA_VALORES } from "./contratoModelo";
+import {
+  clausulasDaCasaDaConfig,
+  clausulasDoCodigo,
+  clausulasPadrao,
+  FECHO_CONTRATO,
+  modeloDoContrato,
+  RESSALVA_VALORES,
+} from "./contratoModelo";
 
 const cliente = (): Cliente =>
   ({
@@ -491,5 +498,49 @@ describe("as observações da Marisa de 12/11/2026", () => {
     }
     const inex = blocosDaClausula("inexecucao", corp().clausulas.find((x) => x.chave === "inexecucao")!.paragrafos);
     expect(inex.some((x) => x.tipo === "item" && x.texto.startsWith("**Parágrafo Único**"))).toBe(true);
+  });
+});
+
+describe("o texto padrão editado pela casa (Configurações › Contratos)", () => {
+  const casa = { Corporativo: { foro: "Fica eleito o foro da Comarca de Contagem." } };
+
+  it("substitui o padrão do código, só no modelo editado", () => {
+    expect(clausulasPadrao("Corporativo", casa).find((c) => c.chave === "foro")?.padrao).toBe("Fica eleito o foro da Comarca de Contagem.");
+    expect(clausulasPadrao("Cultural", casa).find((c) => c.chave === "foro")?.padrao).toContain("Comarca de Belo Horizonte");
+    // O que a casa não editou segue o código.
+    expect(clausulasPadrao("Corporativo", casa).find((c) => c.chave === "vigencia")?.padrao).toContain("entrará em vigor");
+  });
+
+  it("o contrato sai com o texto da casa", () => {
+    const t = textoDe(montarContrato(os(), { ...ctx(), clausulasDaCasa: casa }));
+    expect(t).toContain("Comarca de Contagem");
+    expect(t).not.toContain("Comarca de Belo Horizonte");
+  });
+
+  it("o que a OS escreveu por cima vence o da casa", () => {
+    const base = os();
+    const c = montarContrato(
+      os({ contrato: { ...base.contrato, clausulas: { foro: "Foro de São Paulo." } } }),
+      { ...ctx(), clausulasDaCasa: casa }
+    );
+    const t = textoDe(c);
+    expect(t).toContain("Foro de São Paulo.");
+    expect(t).not.toContain("Comarca de Contagem");
+  });
+
+  it("'voltar ao original' devolve o texto de fábrica", () => {
+    expect(clausulasDoCodigo("Corporativo").find((c) => c.chave === "foro")?.padrao).toContain("Comarca de Belo Horizonte");
+  });
+
+  it("o que foi gravado é limpo: só modelo e cláusula conhecidos, só texto não vazio", () => {
+    expect(
+      clausulasDaCasaDaConfig({
+        Corporativo: { foro: "ok", vigencia: "   ", inventada: "x", objeto: 3 },
+        Outro: { foro: "y" },
+        Cultural: "lixo",
+      })
+    ).toEqual({ Corporativo: { foro: "ok" } });
+    expect(clausulasDaCasaDaConfig(null)).toEqual({});
+    expect(clausulasDaCasaDaConfig(undefined)).toEqual({});
   });
 });

@@ -54,7 +54,7 @@ export const NAV: NavItem[] = [
   // O FLUXOGRAMA fica entre Projetos e Configurações (pedido de 29/09/2026).
   { to: "/fluxograma", label: "Fluxograma", rotuloCurto: "Fluxo", icon: <IcFluxo />, recurso: "guia" },
   // A Coordenação não administra empresas e usuários, mas edita a lista padrão do check-list — por isso o `ou`.
-  { to: "/configuracoes", label: "Configurações", rotuloCurto: "Config.", icon: <IcGear />, recurso: "configuracoes", ou: ["checklists.padrao"] },
+  { to: "/configuracoes", label: "Configurações", rotuloCurto: "Config.", icon: <IcGear />, recurso: "configuracoes", ou: ["checklists.padrao", "contratos.clausulas"] },
   { to: "/guia", label: "Guia do Aplicativo", rotuloCurto: "Guia", icon: <IcHelp />, recurso: "guia" },
   { to: "/suporte", label: "Help Desk", rotuloCurto: "Suporte", icon: <IcSuporte />, recurso: "guia", painel: "suporte" },
 ];
@@ -112,6 +112,8 @@ export const rotaAbaProjeto = (projetoId: string, aba: string) => `/projetos/${p
 export const NAV_CONFIG: (SecaoNav & { rota: string })[] = [
   { key: "geral", label: "Geral", rota: "/configuracoes?aba=geral", recurso: "configuracoes" },
   { key: "checklist", label: "Check-list", rota: "/configuracoes?aba=checklist", recurso: "configuracoes", ou: ["checklists.padrao"] },
+  // Só o Administrador e a Direção de Produção (13/11/2026): a chave é marcada à mão na área.
+  { key: "contratos", label: "Contratos", rota: "/configuracoes?aba=contratos", recurso: "contratos.clausulas" },
   { key: "areas", label: "Áreas e permissões", rota: "/configuracoes?aba=areas", recurso: "configuracoes" },
   { key: "usuarios", label: "Usuários", rota: "/configuracoes?aba=usuarios", recurso: "configuracoes" },
   { key: "backup", label: "Back-up", rota: "/configuracoes?aba=backup", recurso: "configuracoes" },

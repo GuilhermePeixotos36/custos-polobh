@@ -60,10 +60,10 @@ import { usePendencias, useMinhasPendencias } from "@/store/pendencias";
 import { useSugestoes } from "@/hooks/useSugestoes";
 import { urlCredenciamento } from "@/lib/links";
 import { calcularAcerto } from "@/domain/acertoFinanceiro";
-import { clausulasPadrao, modeloDoContrato, type ChaveClausula, type ModeloContrato } from "@/domain/contratoModelo";
+import { clausulasPadrao, modeloDoContrato, type ChaveClausula, type ClausulasDaCasa, type ModeloContrato } from "@/domain/contratoModelo";
 import { ContratoPreview } from "@/components/ContratoPreview";
 import { quantidadeDoContrato } from "@/domain/contratoDocumento";
-import { blobDoPdf, emitirContratoPdf, prepararContratoPdf, type PreparoContrato } from "@/lib/contratoPdf";
+import { blobDoPdf, clausulasDaCasa, emitirContratoPdf, prepararContratoPdf, type PreparoContrato } from "@/lib/contratoPdf";
 import { dadosDoTomador, opcoesDeTomador, RETENCOES_PADRAO, TOMADOR_OUTRO } from "@/domain/tomadorOs";
 import { editaFinanceiro, vezDoBloco, type AreaOs, comValidacaoDeContrato, fasesDoCaminho, editaProducao, ESPERANDO_FASE, faseAnterior, faseDaOs, osEmitida, ROTULO_FASE, type FaseOs } from "@/domain/faseOs";
 import { RevisaoEcModal } from "@/components/RevisaoEcModal";
@@ -357,6 +357,11 @@ export function OsForm() {
   const navigate = useNavigate();
   const pode = useAuth((s) => s.pode);
   const nomeUsuario = useAuth((s) => s.usuario?.nome);
+  /** O texto padrão das cláusulas, como a casa o editou em Configurações › Contratos. */
+  const [clausulasCasa, setClausulasCasa] = useState<ClausulasDaCasa>({});
+  useEffect(() => {
+    void clausulasDaCasa().then(setClausulasCasa);
+  }, []);
   /**
    * OS BLOCOS FINANCEIROS (12/11/2026): ver e editar são marcações separadas na
    * área (`oss.financeiro` / `oss.financeiro.editar`) e independem dos valores e
@@ -765,7 +770,7 @@ export function OsForm() {
 
   /** Qual dos dois modelos vale aqui: o escolhido, ou o da modalidade do projeto. */
   const modeloContrato: ModeloContrato = os.contrato.modelo || modeloDoContrato(os.projeto.modalidade);
-  const clausulas = clausulasPadrao(modeloContrato);
+  const clausulas = clausulasPadrao(modeloContrato, clausulasCasa);
   /** A quantidade do contrato (sem valor gravado, 1). */
   const quantidadeCt = quantidadeDoContrato(os.contrato);
   const updClausula = (chave: ChaveClausula, texto: string) =>

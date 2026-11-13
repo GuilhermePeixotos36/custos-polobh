@@ -4,7 +4,7 @@
  * nome e as permissões da pessoa avisada, nunca as de quem calculou.
  */
 import { describe, expect, it } from "vitest";
-import type { Pendencia } from "./pendencias";
+import { podeParaCobranca, type Pendencia } from "./pendencias";
 import { avisosParaPush, chaveEnvio, chavePendencia, podeDaPessoa, type PessoaComPush } from "./pushPendencias";
 
 const PADRAO: Record<string, string[]> = {
@@ -85,6 +85,41 @@ describe("avisosParaPush", () => {
 
   it("pessoa sem pendência não entra na lista", () => {
     expect(avisosParaPush([doProdutor], pessoas, padrao, new Set()).map((a) => a.userId)).toEqual(["u-emanuelle"]);
+  });
+});
+
+describe("o Administrador não é cobrado por etapa da OS (13/11/2026)", () => {
+  // O Administrador tem TODOS os recursos, inclusive as chaves de cobrança.
+  const TUDO = ["projetos", "oss.validarContrato", "oss.etapaFinanceiro", "oss.etapaBackoffice"];
+  const admin: PessoaComPush = { id: "u-admin", nome: "Guilherme", papel: "Admin", recursos: null };
+  const padraoComAdmin = (papel: string) => (papel === "Admin" ? TUDO : padrao(papel));
+
+  it("não recebe 'Aguardando o Financeiro' nem as demais etapas de toda OS", () => {
+    const avisos = avisosParaPush(itens, [admin, ...pessoas], padraoComAdmin, new Set());
+    expect(avisos.map((a) => a.userId)).not.toContain("u-admin");
+    // As demais pessoas seguem recebendo o que é delas.
+    expect(avisos.map((a) => a.userId)).toContain("u-marisa");
+    expect(avisos.map((a) => a.userId)).toContain("u-tiago");
+  });
+
+  it("o que o NOMEIA continua chegando: responsável pelo projeto e @menção", () => {
+    const doAdmin = { ...doProdutor, id: "os.emitir:os3", responsavelProjeto: "Guilherme" } as Pendencia;
+    const mencao = { ...comentario, id: "ec.observacao:ec9:o9", pessoas: ["Guilherme"] } as Pendencia;
+    const avisos = avisosParaPush([etapa("financeiro", "oss.etapaFinanceiro"), doAdmin, mencao], [admin], padraoComAdmin, new Set());
+    const ids = avisos[0].pendencias.map((p) => p.id);
+    expect(ids).toContain(doAdmin.id);
+    // A conversa leva a marca da vez depois do "#" (ver `chavePendencia`).
+    expect(ids.some((id) => id.startsWith(`${mencao.id}#`))).toBe(true);
+    expect(avisos[0].pendencias.some((p) => p.id.startsWith("os.fase"))).toBe(false);
+  });
+});
+
+describe("podeParaCobranca", () => {
+  it("Admin nunca responde por função; os demais seguem o pode()", () => {
+    const pode = () => true;
+    expect(podeParaCobranca("Admin", pode)("oss.etapaFinanceiro")).toBe(false);
+    expect(podeParaCobranca("Direcao", pode)("oss.validarContrato")).toBe(true);
+    expect(podeParaCobranca(undefined, pode)("oss.etapaBackoffice")).toBe(true);
   });
 });
 

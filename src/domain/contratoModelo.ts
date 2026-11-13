@@ -186,7 +186,58 @@ export const RESSALVA_VALORES =
 
 /* ------------------------------ a montagem ------------------------------ */
 
-export function clausulasPadrao(modelo: ModeloContrato): ClausulaContrato[] {
+/** A chave do ajuste (`config_app`) onde moram os textos padrão editados pela casa. */
+export const CHAVE_CLAUSULAS_DA_CASA = "contrato_clausulas";
+
+/**
+ * Os TEXTOS PADRÃO editados pela casa (13/11/2026): Configurações › Contratos,
+ * por modelo. Só guarda o que foi MUDADO — cláusula ausente segue o texto do
+ * código, e corrigir o código mais tarde continua valendo para ela.
+ */
+export type ClausulasDaCasa = Partial<Record<ModeloContrato, Partial<Record<ChaveClausula, string>>>>;
+
+export const MODELOS_CONTRATO: ModeloContrato[] = ["Corporativo", "Cultural"];
+export const CHAVES_CLAUSULA: ChaveClausula[] = [
+  "objeto",
+  "obrigacoes",
+  "vigencia",
+  "inexecucao",
+  "confidencialidade",
+  "finais",
+  "foro",
+];
+
+/** O que foi gravado, limpo: só modelos e cláusulas conhecidos, só texto não vazio. */
+export function clausulasDaCasaDaConfig(gravado: unknown): ClausulasDaCasa {
+  const saida: ClausulasDaCasa = {};
+  if (!gravado || typeof gravado !== "object") return saida;
+  for (const modelo of MODELOS_CONTRATO) {
+    const dele = (gravado as Record<string, unknown>)[modelo];
+    if (!dele || typeof dele !== "object") continue;
+    const limpo: Partial<Record<ChaveClausula, string>> = {};
+    for (const chave of CHAVES_CLAUSULA) {
+      const t = (dele as Record<string, unknown>)[chave];
+      if (typeof t === "string" && t.trim()) limpo[chave] = t;
+    }
+    if (Object.keys(limpo).length) saida[modelo] = limpo;
+  }
+  return saida;
+}
+
+/**
+ * As cláusulas do modelo, com o texto padrão que vale HOJE: o que a casa
+ * editou em Configurações › Contratos, ou o do código. O que uma OS escreveu
+ * por cima (`textoDaClausula`) continua vencendo os dois.
+ */
+export function clausulasPadrao(modelo: ModeloContrato, casa?: ClausulasDaCasa): ClausulaContrato[] {
+  return clausulasDoCodigo(modelo).map((c) => {
+    const editado = casa?.[modelo]?.[c.chave];
+    return editado && editado.trim() ? { ...c, padrao: editado } : c;
+  });
+}
+
+/** Os textos de fábrica — o que "Voltar ao texto original" devolve na tela de Configurações. */
+export function clausulasDoCodigo(modelo: ModeloContrato): ClausulaContrato[] {
   const cultural = modelo === "Cultural";
   return [
     {

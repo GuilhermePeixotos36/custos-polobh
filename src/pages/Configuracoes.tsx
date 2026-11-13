@@ -4,6 +4,7 @@ import { EnderecoCampos } from "@/components/EnderecoCampos";
 import { textoDoQueFalta, validarEndereco } from "@/domain/endereco";
 import { ChecklistModelosCard } from "@/components/ChecklistModelosCard";
 import { ConsumoIaCard } from "@/components/ConsumoIaCard";
+import { ContratosModelosCard } from "@/components/ContratosModelosCard";
 import { AvisosNoAparelho } from "@/components/AvisosNoAparelho";
 import { gravarTestemunhasDaCasa, testemunhasDaCasa } from "@/lib/contratoPdf";
 import { TESTEMUNHAS_PADRAO, type TestemunhaFixa } from "@/domain/testemunhasContrato";
@@ -45,7 +46,7 @@ import {
 import { baixarArquivoBase64 } from "@/lib/backup/baixar";
 import type { Area, Papel, Usuario } from "@/data/types";
 
-type AbaConfig = "geral" | "checklist" | "areas" | "usuarios" | "backup" | "ia";
+type AbaConfig = "geral" | "checklist" | "contratos" | "areas" | "usuarios" | "backup" | "ia";
 
 /**
  * A aba vem da URL (`?aba=`), e não de estado solto: a barra de Configurações
@@ -105,6 +106,7 @@ export function Configuracoes() {
 
       {aba === "checklist" && <ChecklistModelosCard />}
 
+      {aba === "contratos" && <ContratosModelosCard />}
       {aba === "areas" && <AreasCard />}
       {aba === "usuarios" && <UsuariosCard />}
       {aba === "backup" && <BackupCard />}
