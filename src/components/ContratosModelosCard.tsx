@@ -6,10 +6,14 @@
  * `contratos.clausulas`). O banco repete a regra — a gravação desta chave de
  * `config_app` só passa para quem tem o recurso na área.
  *
- * Cada cláusula é uma caixa de texto com negrito, desfazer/refazer e revisão de
- * texto. O que se grava continua sendo texto simples com `**negrito**` — a
- * ponte com o editor está em `domain/clausulaTexto` —, de modo que a OS e o PDF
- * leem exatamente o que sempre leram.
+ * Cada cláusula é uma caixa com as ferramentas de texto de sempre (negrito,
+ * itálico, sublinhado, listas, recuo, alinhamento, desfazer). O que se grava é
+ * texto simples com marcas (ver `domain/formatoClausula`), e o PDF desenha cada
+ * ferramenta de verdade; a ponte com o editor está em `domain/clausulaTexto`.
+ *
+ * A REVISÃO DE TEXTO acontece ao SALVAR, e só nas cláusulas que mudaram: o que a
+ * revisão corrigir aparece numa conferência (como escreveu × revisado) antes de
+ * gravar — é texto de contrato, e nada o reescreve sem a pessoa ver.
  *
  *  · vale para os contratos gerados daqui em diante (campo da OS e PDF);
  *  · o que uma OS escreveu por cima do padrão continua valendo para ela;
@@ -26,7 +30,7 @@ import { createPortal } from "react-dom";
 import { SubGuias } from "@/components/layout/SubGuias";
 import { RichTextField } from "@/components/RichTextField";
 import { Badge, Button, CarregandoTela, Card } from "@/components/ui";
-import { IcDownload, IcEye, IcFechar, IcSpark } from "@/components/icons";
+import { IcDownload, IcEye, IcFechar } from "@/components/icons";
 import { htmlParaTexto, textoParaHtml } from "@/domain/clausulaTexto";
 import { contratoDeExemplo } from "@/domain/contratoExemplo";
 import {
@@ -37,7 +41,7 @@ import {
   type ModeloContrato,
 } from "@/domain/contratoModelo";
 import { blobDoPdf, clausulasDaCasa, gravarClausulasDaCasa, testemunhasDaCasa } from "@/lib/contratoPdf";
-import { AVISO_REVISAO_PARCIAL, revisarCampos } from "@/lib/correcaoOrtografica";
+import { revisarCampos } from "@/lib/correcaoOrtografica";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import { useAuth } from "@/store/auth";
 import { toast } from "@/store/toast";
@@ -61,9 +65,17 @@ function soDiferencas(r: ClausulasDaCasa): ClausulasDaCasa {
   return saida;
 }
 
-interface Revisao {
-  /** O texto revisado, já no formato da cláusula. */
-  texto: string;
+/** O que a revisão de texto propõe para uma cláusula que mudou. */
+interface ItemRevisado {
+  modelo: ModeloContrato;
+  chave: ChaveClausula;
+  titulo: string;
+  original: string;
+  revisado: string;
+}
+
+interface RevisaoPendente {
+  itens: ItemRevisado[];
   /** A IA estava fora do ar: só a correção básica foi aplicada. */
   parcial: boolean;
 }
@@ -74,9 +86,9 @@ export function ContratosModelosCard() {
   const [rascunho, setRascunho] = useState<ClausulasDaCasa>({});
   const [modelo, setModelo] = useState<ModeloContrato>("Corporativo");
   const [salvando, setSalvando] = useState(false);
-  /** Revisão de texto: qual cláusula está sendo revisada, e o que a revisão devolveu. */
-  const [revisando, setRevisando] = useState<string | null>(null);
-  const [revisoes, setRevisoes] = useState<Record<string, Revisao>>({});
+  /** A revisão ao salvar: rodando, e o que ela propôs (a conferência antes de gravar). */
+  const [revisando, setRevisando] = useState(false);
+  const [pendente, setPendente] = useState<RevisaoPendente | null>(null);
   const [gerando, setGerando] = useState(false);
   const [previa, setPrevia] = useState<{ url: string; nome: string } | null>(null);
 
@@ -113,15 +125,16 @@ export function ContratosModelosCard() {
       const { [chave]: _fora, ...resto } = r[modelo] ?? {};
       return { ...r, [modelo]: resto };
     });
-  const idRevisao = (chave: ChaveClausula) => `${modelo}:${chave}`;
 
-  async function gravar() {
+  /** Grava de fato (com os textos que a pessoa decidiu). */
+  async function gravarTextos(textos: ClausulasDaCasa) {
     setSalvando(true);
     try {
-      const final = soDiferencas(rascunho);
+      const final = soDiferencas(textos);
       await gravarClausulasDaCasa(final);
       setSalvo(final);
       setRascunho(final);
+      setPendente(null);
       toast("Cláusulas padrão dos contratos salvas.", "success");
     } catch (e) {
       toast(`Não foi possível salvar: ${(e as Error).message}`, "danger");
@@ -130,40 +143,65 @@ export function ContratosModelosCard() {
     }
   }
 
-  async function descartar() {
-    if (!(await confirmar({ titulo: "Descartar as alterações?", mensagem: "O que foi digitado e não salvo será perdido.", confirmarTexto: "Descartar" }))) return;
-    setRascunho(salvo ?? {});
-    setRevisoes({});
-  }
-
-  /** A revisão de texto: devolve a proposta, que só vale se a pessoa aplicar. */
-  async function revisar(chave: ChaveClausula, atual: string) {
-    const id = idRevisao(chave);
-    setRevisando(id);
+  /**
+   * "Salvar": passa a revisão de texto nas cláusulas que MUDARAM e, se ela
+   * corrigir algo, mostra a conferência antes de gravar. Sem correção, grava.
+   */
+  async function salvar() {
+    const hoje = soDiferencas(rascunho);
+    const antes = soDiferencas(salvo ?? {});
+    const alterados: { modelo: ModeloContrato; chave: ChaveClausula; titulo: string; texto: string }[] = [];
+    for (const m of MODELOS_CONTRATO) {
+      for (const c of clausulasDoCodigo(m)) {
+        const t = hoje[m]?.[c.chave];
+        if (t && t !== antes[m]?.[c.chave]) alterados.push({ modelo: m, chave: c.chave, titulo: c.titulo, texto: t });
+      }
+    }
+    if (!alterados.length) {
+      await gravarTextos(rascunho);
+      return;
+    }
+    setRevisando(true);
     try {
-      const { textos, revisaoCompleta } = await revisarCampos([{ id, texto: textoParaHtml(atual), html: true }]);
-      const revisado = htmlParaTexto(textos.get(id) ?? "");
-      if (!revisado.trim() || revisado.trim() === atual.trim()) {
-        toast(revisaoCompleta ? "Nenhuma correção necessária neste texto." : AVISO_REVISAO_PARCIAL, revisaoCompleta ? "success" : "info");
-        setRevisoes((r) => {
-          const { [id]: _fora, ...resto } = r;
-          return resto;
-        });
+      const { textos, revisaoCompleta } = await revisarCampos(
+        alterados.map((a) => ({ id: `${a.modelo}:${a.chave}`, texto: textoParaHtml(a.texto), html: true })),
+      );
+      const itens = alterados
+        .map((a): ItemRevisado => ({
+          modelo: a.modelo,
+          chave: a.chave,
+          titulo: a.titulo,
+          original: a.texto,
+          revisado: htmlParaTexto(textos.get(`${a.modelo}:${a.chave}`) ?? a.texto),
+        }))
+        .filter((i) => i.revisado.trim() && i.revisado.trim() !== i.original.trim());
+      if (!itens.length) {
+        await gravarTextos(rascunho);
         return;
       }
-      setRevisoes((r) => ({ ...r, [id]: { texto: revisado, parcial: !revisaoCompleta } }));
+      setPendente({ itens, parcial: !revisaoCompleta });
     } catch (e) {
-      toast(`Não foi possível revisar: ${(e as Error).message}`, "danger");
+      // Sem revisão não se perde o trabalho: grava como foi escrito e avisa.
+      toast(`A revisão de texto não pôde ser feita (${(e as Error).message}). Salvando como foi escrito.`, "info");
+      await gravarTextos(rascunho);
     } finally {
-      setRevisando(null);
+      setRevisando(false);
     }
   }
 
-  const descartarRevisao = (id: string) =>
-    setRevisoes((r) => {
-      const { [id]: _fora, ...resto } = r;
-      return resto;
-    });
+  /** Da conferência: grava com as correções (ou como foi escrito). */
+  async function gravarDaConferencia(comCorrecoes: boolean) {
+    if (!pendente) return;
+    if (!comCorrecoes) return gravarTextos(rascunho);
+    const textos: ClausulasDaCasa = structuredClone(rascunho);
+    for (const i of pendente.itens) textos[i.modelo] = { ...(textos[i.modelo] ?? {}), [i.chave]: i.revisado };
+    await gravarTextos(textos);
+  }
+
+  async function descartar() {
+    if (!(await confirmar({ titulo: "Descartar as alterações?", mensagem: "O que foi digitado e não salvo será perdido.", confirmarTexto: "Descartar" }))) return;
+    setRascunho(salvo ?? {});
+  }
 
   /** O contrato pronto, com o que está na tela, para conferir antes de valer. */
   async function visualizar() {
@@ -193,8 +231,6 @@ export function ContratosModelosCard() {
       {clausulas.map((c) => {
         const atual = valor(c.chave, c.padrao);
         const mudou = atual.trim() !== c.padrao.trim();
-        const id = idRevisao(c.chave);
-        const proposta = revisoes[id];
         return (
           <Card key={c.chave}>
             <div className="flex items-center gap-2 mb-3">
@@ -203,73 +239,87 @@ export function ContratosModelosCard() {
             </div>
 
             <RichTextField
-              ferramentas="negrito"
               className="[&_[contenteditable]]:min-h-[140px] [&_[contenteditable]]:text-[14px]"
               value={textoParaHtml(atual)}
               onChange={(html) => editar(c.chave, htmlParaTexto(html))}
               toolbarExtra={
-                <div className="flex items-center gap-1">
-                  {mudou && (
-                    <button
-                      type="button"
-                      onClick={() => voltar(c.chave)}
-                      className="h-7 px-2 rounded-md text-[11.5px] font-bold text-ink-3 hover:bg-primary-soft hover:text-primary-dark"
-                    >
-                      Voltar ao texto original
-                    </button>
-                  )}
+                mudou ? (
                   <button
                     type="button"
-                    onClick={() => void revisar(c.chave, atual)}
-                    disabled={revisando !== null}
-                    className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11.5px] font-extrabold text-primary-dark bg-primary-soft hover:bg-active-border disabled:opacity-60"
+                    onClick={() => voltar(c.chave)}
+                    className="h-7 px-2 rounded-md text-[11.5px] font-bold text-ink-3 hover:bg-primary-soft hover:text-primary-dark"
                   >
-                    <IcSpark width={13} height={13} /> {revisando === id ? "Revisando…" : "Revisar texto"}
+                    Voltar ao texto original
                   </button>
-                </div>
+                ) : undefined
               }
             />
-
-            {proposta && (
-              <div className="mt-3 rounded-btn border border-primary/30 bg-primary-soft/40 p-3">
-                <div className="text-[11px] font-extrabold uppercase tracking-[0.06em] text-primary-dark mb-2">
-                  Texto revisado{proposta.parcial ? " — só a correção básica (a IA está indisponível)" : ""}
-                </div>
-                <div
-                  className="text-[13.5px] text-ink leading-relaxed [&_p]:mb-2 [&_p:last-child]:mb-0"
-                  dangerouslySetInnerHTML={{ __html: textoParaHtml(proposta.texto) }}
-                />
-                <div className="flex gap-2 mt-3">
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      editar(c.chave, proposta.texto);
-                      descartarRevisao(id);
-                    }}
-                  >
-                    Aplicar revisão
-                  </Button>
-                  <Button size="sm" variant="secondary" onClick={() => descartarRevisao(id)}>Descartar</Button>
-                </div>
-              </div>
-            )}
           </Card>
         );
       })}
 
       <div className="sticky bottom-0 z-10 -mx-1 px-1 py-3 bg-bg/90 backdrop-blur-sm border-t border-border-soft flex items-center gap-2 flex-wrap">
-        <Button size="sm" onClick={() => void gravar()} disabled={salvando || !sujo}>
-          {salvando ? "Salvando…" : "Salvar"}
+        <Button size="sm" onClick={() => void salvar()} disabled={salvando || revisando || !sujo}>
+          {revisando ? "Revisando o texto…" : salvando ? "Salvando…" : "Salvar"}
         </Button>
         <Button size="sm" variant="secondary" icon={<IcEye width={15} height={15} />} onClick={() => void visualizar()} disabled={gerando}>
           {gerando ? "Gerando…" : "Visualizar contrato"}
         </Button>
         {sujo && (
-          <Button size="sm" variant="text" onClick={() => void descartar()} disabled={salvando}>
+          <Button size="sm" variant="text" onClick={() => void descartar()} disabled={salvando || revisando}>
             Descartar alterações
           </Button>
         )}
       </div>
+
+      {pendente &&
+        createPortal(
+          <div className="no-print fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px]" />
+            <div className="relative w-full max-w-[860px] max-h-[90vh] bg-surface rounded-card-lg shadow-modal border border-border flex flex-col">
+              <div className="px-5 py-4 border-b border-border shrink-0">
+                <h3 className="font-display font-bold text-[16px] text-ink">Revisão de texto</h3>
+                <p className="text-[12.5px] text-ink-2 mt-0.5">
+                  {pendente.parcial
+                    ? "A IA está indisponível; foi aplicada só a correção básica. "
+                    : ""}
+                  Confira o que a revisão propõe antes de salvar.
+                </p>
+              </div>
+              <div className="overflow-y-auto px-5 py-4 space-y-5">
+                {pendente.itens.map((i) => (
+                  <div key={`${i.modelo}:${i.chave}`}>
+                    <div className="text-[12.5px] font-bold text-ink mb-2">
+                      {ROTULO_MODELO[i.modelo]} — {i.titulo}
+                    </div>
+                    <div className="grid md:grid-cols-2 gap-3">
+                      <div className="rounded-btn border border-border p-3">
+                        <div className="text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3 mb-1.5">Como você escreveu</div>
+                        <div className="text-[13px] text-ink leading-relaxed [&_p]:mb-1.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5" dangerouslySetInnerHTML={{ __html: textoParaHtml(i.original) }} />
+                      </div>
+                      <div className="rounded-btn border border-primary/30 bg-primary-soft/40 p-3">
+                        <div className="text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-primary-dark mb-1.5">Revisado</div>
+                        <div className="text-[13px] text-ink leading-relaxed [&_p]:mb-1.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5" dangerouslySetInnerHTML={{ __html: textoParaHtml(i.revisado) }} />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center gap-2 px-5 py-3 border-t border-border shrink-0 flex-wrap">
+                <Button size="sm" onClick={() => void gravarDaConferencia(true)} disabled={salvando}>
+                  {salvando ? "Salvando…" : "Salvar com as correções"}
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => void gravarDaConferencia(false)} disabled={salvando}>
+                  Salvar como escrevi
+                </Button>
+                <Button size="sm" variant="text" onClick={() => setPendente(null)} disabled={salvando}>
+                  Voltar a editar
+                </Button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {previa &&
         createPortal(

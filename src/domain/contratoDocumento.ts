@@ -22,6 +22,7 @@ import { brl } from "@/lib/format";
 import { MESES } from "@/domain/calendario";
 import { dadosDoTomador, type DadosTomador } from "@/domain/tomadorOs";
 import { incentivoDoContrato } from "@/domain/os";
+import { lerPrefixo, partirMarcas, type AlinhamentoClausula, type Trecho } from "@/domain/formatoClausula";
 import {
   formatarCnpjCpf,
   formatarInscricaoEstadual,
@@ -111,29 +112,24 @@ function destacarPartes(texto: string): { texto: string; forte: boolean }[] {
 }
 
 /**
- * Quebra um texto em pedaços, para o gerador dar negrito no que é negrito.
+ * Quebra um texto em pedaços, para o gerador dar negrito, itálico e sublinhado.
  *
- * Duas fontes de negrito: o que vem entre `**dois asteriscos**` no texto, e os
- * nomes das partes (CONTRATANTE, CONTRATADO(A)) em qualquer lugar. Asteriscos
- * desbalanceados — um número ímpar deles — são ignorados e removidos, para um
- * texto mal editado não sair com a metade do contrato em negrito.
+ * As marcas (`**negrito**`, `__itálico__`, `++sublinhado++`) estão em
+ * `domain/formatoClausula`; aqui se acrescentam os nomes das partes
+ * (CONTRATANTE, CONTRATADO(A)), que saem em negrito em qualquer lugar.
  *
  * A ordem das alternativas na expressão das partes importa: "CONTRATADO(A)"
  * precisa ser testado antes de "CONTRATADO", senão o "(A)" ficaria fora.
  */
-export function partirEmDestaques(texto: string): { texto: string; forte: boolean }[] {
-  const pedacos = texto.split("**");
-  if (pedacos.length % 2 === 0) {
-    const limpo = pedacos.join("");
-    const so = destacarPartes(limpo);
-    return so.length ? so : [{ texto: limpo, forte: false }];
+export function partirEmDestaques(texto: string): Trecho[] {
+  const saida: Trecho[] = [];
+  for (const t of partirMarcas(texto)) {
+    if (t.forte) {
+      saida.push(t);
+      continue;
+    }
+    for (const p of destacarPartes(t.texto)) saida.push({ ...t, texto: p.texto, forte: p.forte });
   }
-  const saida: { texto: string; forte: boolean }[] = [];
-  pedacos.forEach((trecho, i) => {
-    if (!trecho) return;
-    if (i % 2 === 1) saida.push({ texto: trecho, forte: true });
-    else saida.push(...destacarPartes(trecho));
-  });
   return saida.length ? saida : [{ texto, forte: false }];
 }
 
@@ -154,11 +150,11 @@ const linhas = (t: string): string[] => (t ?? "").split("\n");
  */
 export type BlocoClausula =
   /** `antes`: ar a mais acima — o texto que vem depois de uma lista, separado dela por linha em branco. */
-  | { tipo: "texto"; texto: string; antes?: boolean }
+  | { tipo: "texto"; texto: string; antes?: boolean; alinhar?: AlinhamentoClausula; nivel?: number }
   /** Cabeçalho de uma parte da cláusula ("DESCRITIVO DOS SERVIÇOS…:", "São obrigações do(a) …:"). */
   | { tipo: "subtitulo"; texto: string }
   /** Item de lista — as obrigações de cada parte, ou a linha que começa com "- ". */
-  | { tipo: "item"; texto: string };
+  | { tipo: "item"; texto: string; nivel?: number; numero?: number };
 
 const ehSubtitulo = (linha: string, chave: ChaveClausula): boolean => {
   const t = linha.trim();
@@ -184,7 +180,10 @@ export function blocosDaClausula(chave: ChaveClausula, paragrafos: string[]): Bl
   let aposBranco = false;
 
   for (const bruta of paragrafos) {
-    const linha = bruta.trim();
+    // As marcas do começo da linha (alinhamento, recuo, lista) vêm do editor de
+    // Configurações › Contratos; sem elas, o texto se comporta como sempre.
+    const pre = lerPrefixo(bruta);
+    const linha = pre.resto.trim();
     if (!linha) {
       // A primeira linha em branco logo após o cabeçalho não encerra a lista.
       if (emLista && listaComecou) emLista = false;
@@ -195,25 +194,36 @@ export function blocosDaClausula(chave: ChaveClausula, paragrafos: string[]): Bl
     const respiro = aposBranco && anterior?.tipo === "item";
     aposBranco = false;
 
-    if (ehSubtitulo(linha, chave)) {
+    if (ehSubtitulo(linha, chave) && !pre.marcador) {
       saida.push({ tipo: "subtitulo", texto: linha });
       emLista = chave === "obrigacoes" && /^São obrigações/.test(linha);
       listaComecou = false;
       continue;
     }
 
-    const marcado = /^[-•–]\s+(.*)$/.exec(linha);
-    if (marcado) {
-      saida.push({ tipo: "item", texto: marcado[1] });
+    const item = (): BlocoClausula => {
+      const b: BlocoClausula = { tipo: "item", texto: linha };
+      if (pre.nivel) b.nivel = pre.nivel;
+      if (pre.marcador === "numero") b.numero = pre.numero;
+      return b;
+    };
+
+    if (pre.marcador) {
+      saida.push(item());
       continue;
     }
 
-    if (emLista || tudoEmItem) {
+    // Alinhamento explícito (esquerda/centro) é parágrafo, e não item de lista.
+    if ((emLista || tudoEmItem) && !pre.alinhar) {
       listaComecou = true;
-      saida.push({ tipo: "item", texto: linha });
+      saida.push(item());
       continue;
     }
-    saida.push(respiro ? { tipo: "texto", texto: linha, antes: true } : { tipo: "texto", texto: linha });
+    const texto: BlocoClausula = { tipo: "texto", texto: linha };
+    if (respiro) texto.antes = true;
+    if (pre.alinhar) texto.alinhar = pre.alinhar;
+    if (pre.nivel) texto.nivel = pre.nivel;
+    saida.push(texto);
   }
   return saida;
 }
