@@ -11,13 +11,11 @@
  * tanto lendo quanto editando. A Cláusula Primeira mostra, abaixo do trecho
  * editável, o que o sistema monta com os dados da OS (em cinza, não editável).
  *
- * COMO SE EDITA:
- *  · "Editar" num bloco edita e salva SÓ aquele bloco;
- *  · "Editar tudo" libera todos os blocos de uma vez, e "Salvar tudo" grava tudo
- *    o que mudou.
- * Ao salvar, a pessoa é convidada a revisar o texto com IA: aceitando, vê o que
- * a revisão corrigiu (como escreveu × revisado) e decide antes de gravar. É texto
- * de contrato — nada o reescreve sem a pessoa ver.
+ * COMO SE EDITA: "Editar" abre TODAS as cláusulas de uma vez; ao terminar, "Salvar"
+ * grava tudo o que mudou. Ao salvar, a pessoa é convidada a revisar o texto com
+ * IA — a revisão simples, só ortografia, acentuação e pontuação — e vê cada
+ * correção (antes → depois) antes de gravar. É texto de contrato: nada o
+ * reescreve sem a pessoa ver.
  *
  *  · vale para os contratos gerados daqui em diante (campo da OS e PDF);
  *  · o que uma OS escreveu por cima do padrão continua valendo para ela;
@@ -37,6 +35,7 @@ import { Badge, Button, CarregandoTela, Card } from "@/components/ui";
 import { IcDownload, IcEye, IcFechar, IcPencil } from "@/components/icons";
 import { htmlParaTexto, textoParaHtml } from "@/domain/clausulaTexto";
 import { contratoDeExemplo } from "@/domain/contratoExemplo";
+import { correcoesDaRevisao, type Correcao } from "@/domain/correcoesDeTexto";
 import {
   clausulasDoCodigo,
   MODELOS_CONTRATO,
@@ -86,6 +85,8 @@ interface ItemRevisado {
   titulo: string;
   original: string;
   revisado: string;
+  /** Palavra a palavra, o que a revisão mudou. */
+  correcoes: Correcao[];
 }
 
 type Fluxo =
@@ -101,9 +102,8 @@ export function ContratosModelosCard() {
   const [rascunho, setRascunho] = useState<ClausulasDaCasa>({});
   const [modelo, setModelo] = useState<ModeloContrato>("Corporativo");
   const [salvando, setSalvando] = useState(false);
-  /** "Editar tudo" ligado, ou o bloco (`modelo:chave`) em edição — um dos dois. */
-  const [editandoTudo, setEditandoTudo] = useState(false);
-  const [blocoEmEdicao, setBlocoEmEdicao] = useState<string | null>(null);
+  /** Modo de edição: todas as cláusulas abertas de uma vez. */
+  const [editando, setEditando] = useState(false);
   const [fluxo, setFluxo] = useState<Fluxo | null>(null);
   const [gerando, setGerando] = useState(false);
   const [previa, setPrevia] = useState<{ url: string; nome: string } | null>(null);
@@ -126,7 +126,6 @@ export function ContratosModelosCard() {
   }, [modelo]);
 
   const sujo = salvo !== null && JSON.stringify(soDiferencas(rascunho)) !== JSON.stringify(soDiferencas(salvo));
-  const editando = editandoTudo || blocoEmEdicao !== null;
 
   // Sair da aba (ou fechar a janela) com texto digitado e não salvo pede confirmação.
   useUnsavedGuard(sujo);
@@ -140,7 +139,6 @@ export function ContratosModelosCard() {
   }
   if (salvo === null) return <CarregandoTela />;
 
-  const idDoBloco = (chave: ChaveClausula) => `${modelo}:${chave}`;
   const valor = (chave: ChaveClausula, padrao: string) => rascunho[modelo]?.[chave] ?? padrao;
   const editar = (chave: ChaveClausula, padrao: string, texto: string) =>
     setRascunho((r) => {
@@ -156,20 +154,10 @@ export function ContratosModelosCard() {
       return { ...r, [modelo]: resto };
     });
 
-  /** Sai da edição e leva o rascunho de volta ao que está salvo (só o escopo que estava em edição). */
+  /** Sai da edição e leva o rascunho de volta ao que está salvo. */
   function cancelarEdicao() {
-    if (blocoEmEdicao) {
-      const [m, chave] = blocoEmEdicao.split(":") as [ModeloContrato, ChaveClausula];
-      setRascunho((r) => {
-        const dele = { ...(r[m] ?? {}) };
-        const gravado = salvo?.[m]?.[chave];
-        if (gravado === undefined) delete dele[chave];
-        else dele[chave] = gravado;
-        return { ...r, [m]: dele };
-      });
-    } else setRascunho(salvo ?? {});
-    setEditandoTudo(false);
-    setBlocoEmEdicao(null);
+    setRascunho(salvo ?? {});
+    setEditando(false);
   }
 
   async function pedirCancelar() {
@@ -186,7 +174,7 @@ export function ContratosModelosCard() {
       for (const c of clausulasDoCodigo(m)) {
         const t = hoje[m]?.[c.chave] ?? c.padrao;
         const era = antes[m]?.[c.chave] ?? c.padrao;
-        if (canonico(c.chave, t) !== canonico(c.chave, era)) lista.push({ modelo: m, chave: c.chave, titulo: c.titulo, original: t, revisado: t });
+        if (canonico(c.chave, t) !== canonico(c.chave, era)) lista.push({ modelo: m, chave: c.chave, titulo: c.titulo, original: t, revisado: t, correcoes: [] });
       }
     }
     return lista;
@@ -200,8 +188,7 @@ export function ContratosModelosCard() {
       setSalvo(final);
       setRascunho(final);
       setFluxo(null);
-      setEditandoTudo(false);
-      setBlocoEmEdicao(null);
+      setEditando(false);
       toast("Cláusulas padrão dos contratos salvas.", "success");
     } catch (e) {
       toast(`Não foi possível salvar: ${(e as Error).message}`, "danger");
@@ -210,7 +197,7 @@ export function ContratosModelosCard() {
     }
   }
 
-  /** "Salvar" (do bloco ou de tudo): se algo mudou, convida a revisar com IA; senão, só sai da edição. */
+  /** "Salvar": se algo mudou, convida a revisar com IA; senão, só sai da edição. */
   function pedirSalvar() {
     if (!alteradas().length) {
       toast("Nada foi alterado.", "info");
@@ -229,11 +216,12 @@ export function ContratosModelosCard() {
         mudadas.map((a) => ({ id: `${a.modelo}:${a.chave}`, texto: textoParaHtml(a.original, a.chave), html: true })),
       );
       const itens = mudadas
-        .map((a): ItemRevisado => ({
-          ...a,
-          revisado: htmlParaTexto(textos.get(`${a.modelo}:${a.chave}`) ?? textoParaHtml(a.original, a.chave), a.chave),
-        }))
-        .filter((i) => i.revisado.trim() && canonico(i.chave, i.revisado) !== canonico(i.chave, i.original));
+        .map((a): ItemRevisado => {
+          const revisado = htmlParaTexto(textos.get(`${a.modelo}:${a.chave}`) ?? textoParaHtml(a.original, a.chave), a.chave);
+          return { ...a, revisado, correcoes: correcoesDaRevisao(a.original, revisado) };
+        })
+        // Só entra o que a revisão de fato corrigiu em palavras (mudança só de marcação não conta).
+        .filter((i) => i.revisado.trim() && i.correcoes.length > 0);
       if (!itens.length) {
         toast(revisaoCompleta ? "A revisão não encontrou nada a corrigir." : "A revisão por IA está indisponível; o texto foi salvo como escrito.", "info");
         await gravarTextos(rascunho);
@@ -273,47 +261,48 @@ export function ContratosModelosCard() {
 
   return (
     <div className="space-y-4">
-      <SubGuias
-        variante="secundaria"
-        rotulo="Modelo de contrato"
-        atual={modelo}
-        onChange={setModelo}
-        abas={MODELOS_CONTRATO.map((m) => ({ key: m, label: ROTULO_MODELO[m] }))}
-      />
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <SubGuias
+          variante="secundaria"
+          rotulo="Modelo de contrato"
+          atual={modelo}
+          onChange={setModelo}
+          abas={MODELOS_CONTRATO.map((m) => ({ key: m, label: ROTULO_MODELO[m] }))}
+        />
+        <div className="flex items-center gap-2">
+          {editando ? (
+            <>
+              <Button size="sm" onClick={pedirSalvar} disabled={salvando}>Salvar</Button>
+              <Button size="sm" variant="secondary" onClick={() => void pedirCancelar()} disabled={salvando}>Cancelar</Button>
+            </>
+          ) : (
+            <Button size="sm" icon={<IcPencil width={14} height={14} />} onClick={() => setEditando(true)}>
+              Editar
+            </Button>
+          )}
+          <Button size="sm" variant="secondary" icon={<IcEye width={15} height={15} />} onClick={() => void visualizar()} disabled={gerando}>
+            {gerando ? "Gerando…" : "Visualizar contrato"}
+          </Button>
+        </div>
+      </div>
 
       {clausulas.map((c) => {
         const atual = valor(c.chave, c.padrao);
         const mudou = canonico(c.chave, atual) !== canonico(c.chave, c.padrao);
-        const id = idDoBloco(c.chave);
-        const esteEmEdicao = editandoTudo || blocoEmEdicao === id;
         return (
           <Card key={c.chave}>
             <div className="flex items-center gap-2 mb-3 flex-wrap">
               <h3 className="font-display font-bold text-[13.5px] text-ink tracking-[-0.2px]">{c.titulo}</h3>
               {mudou && <Badge tom="warning">Alterada</Badge>}
-              <div className="ml-auto flex items-center gap-2">
-                {blocoEmEdicao === id ? (
-                  <>
-                    <Button size="sm" onClick={pedirSalvar} disabled={salvando}>Salvar</Button>
-                    <Button size="sm" variant="secondary" onClick={() => void pedirCancelar()} disabled={salvando}>Cancelar</Button>
-                  </>
-                ) : (
-                  !editando && (
-                    <Button size="sm" variant="secondary" icon={<IcPencil width={14} height={14} />} onClick={() => setBlocoEmEdicao(id)}>
-                      Editar
-                    </Button>
-                  )
-                )}
-              </div>
             </div>
 
             <RichTextField
-              somenteLeitura={!esteEmEdicao}
-              className={`${COMO_NO_DOCUMENTO_EDITOR} [&_[contenteditable]]:text-[13.5px] ${esteEmEdicao ? "[&_[contenteditable]]:min-h-[140px]" : "[&_[contenteditable]]:min-h-[48px] !border-border-soft"}`}
+              somenteLeitura={!editando}
+              className={`${COMO_NO_DOCUMENTO_EDITOR} [&_[contenteditable]]:text-[13.5px] ${editando ? "[&_[contenteditable]]:min-h-[140px]" : "[&_[contenteditable]]:min-h-[48px] !border-border-soft"}`}
               value={textoParaHtml(atual, c.chave)}
               onChange={(html) => editar(c.chave, c.padrao, htmlParaTexto(html, c.chave))}
               toolbarExtra={
-                mudou && esteEmEdicao ? (
+                mudou && editando ? (
                   <button
                     type="button"
                     onClick={() => voltarAoOriginal(c.chave)}
@@ -336,23 +325,12 @@ export function ContratosModelosCard() {
         );
       })}
 
-      <div className="sticky bottom-0 z-10 -mx-1 px-1 py-3 bg-bg/90 backdrop-blur-sm border-t border-border-soft flex items-center gap-2 flex-wrap">
-        {editandoTudo ? (
-          <>
-            <Button size="sm" onClick={pedirSalvar} disabled={salvando}>Salvar tudo</Button>
-            <Button size="sm" variant="secondary" onClick={() => void pedirCancelar()} disabled={salvando}>Cancelar</Button>
-          </>
-        ) : (
-          !blocoEmEdicao && (
-            <Button size="sm" icon={<IcPencil width={14} height={14} />} onClick={() => setEditandoTudo(true)}>
-              Editar tudo
-            </Button>
-          )
-        )}
-        <Button size="sm" variant="secondary" icon={<IcEye width={15} height={15} />} onClick={() => void visualizar()} disabled={gerando}>
-          {gerando ? "Gerando…" : "Visualizar contrato"}
-        </Button>
-      </div>
+      {editando && (
+        <div className="sticky bottom-0 z-10 -mx-1 px-1 py-3 bg-bg/90 backdrop-blur-sm border-t border-border-soft flex items-center gap-2 flex-wrap">
+          <Button size="sm" onClick={pedirSalvar} disabled={salvando}>Salvar</Button>
+          <Button size="sm" variant="secondary" onClick={() => void pedirCancelar()} disabled={salvando}>Cancelar</Button>
+        </div>
+      )}
 
       {fluxo &&
         createPortal(
@@ -361,10 +339,10 @@ export function ContratosModelosCard() {
             {fluxo.etapa === "conferencia" ? (
               <div className="relative w-full max-w-[860px] max-h-[90vh] bg-surface rounded-card-lg shadow-modal border border-border flex flex-col">
                 <div className="px-5 py-4 border-b border-border shrink-0">
-                  <h3 className="font-display font-bold text-[16px] text-ink">Revisão de texto</h3>
+                  <h3 className="font-display font-bold text-[16px] text-ink">Correções da revisão</h3>
                   <p className="text-[12.5px] text-ink-2 mt-0.5">
                     {fluxo.parcial ? "A IA está indisponível; foi aplicada só a correção básica. " : ""}
-                    Confira o que a revisão propõe antes de salvar.
+                    Confira o que foi corrigido antes de salvar.
                   </p>
                 </div>
                 <div className="overflow-y-auto px-5 py-4 space-y-5">
@@ -373,6 +351,16 @@ export function ContratosModelosCard() {
                       <div className="text-[12.5px] font-bold text-ink mb-2">
                         {ROTULO_MODELO[i.modelo]} — {i.titulo}
                       </div>
+                      <ul className="mb-3 flex flex-wrap gap-1.5">
+                        {i.correcoes.slice(0, 60).map((x, k) => (
+                          <li key={k} className="inline-flex items-center gap-1.5 rounded-pill border border-border bg-bg px-2.5 py-1 text-[12.5px]">
+                            {x.de && <span className="text-danger line-through">{x.de}</span>}
+                            {x.de && x.para && <span className="text-ink-3">→</span>}
+                            {x.para && <span className="font-bold text-success">{x.para}</span>}
+                          </li>
+                        ))}
+                        {i.correcoes.length > 60 && <li className="text-[12px] text-ink-3 self-center">e mais {i.correcoes.length - 60}…</li>}
+                      </ul>
                       <div className="grid md:grid-cols-2 gap-3">
                         <div className="rounded-btn border border-border p-3">
                           <div className="text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3 mb-1.5">Como você escreveu</div>
@@ -404,7 +392,7 @@ export function ContratosModelosCard() {
                 <p className="text-[13px] text-ink-2 mt-1.5">
                   {fluxo.etapa === "revisando"
                     ? "Revisando o que você alterou…"
-                    : "A IA revisa só o que você alterou, e você confere as correções antes de salvar."}
+                    : "A IA corrige só ortografia, acentuação e pontuação do que você alterou, e você vê cada correção antes de salvar."}
                 </p>
                 <div className="flex items-center gap-2 mt-5 flex-wrap">
                   <Button size="sm" onClick={() => void revisarComIa()} disabled={fluxo.etapa === "revisando" || salvando}>
