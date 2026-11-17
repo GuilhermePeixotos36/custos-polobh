@@ -3,7 +3,7 @@ import { itensParaDocumento, temContrato, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTUR
 import type { Cliente, Ec, Os } from "@/data/types";
 import { brl, dataBR } from "@/lib/format";
 import { textoObjetoContrato, FORMA_PAGAMENTO_PADRAO, OBS_CONTRATO_PADRAO } from "@/domain/calc";
-import { bvDaContratacao, COLUNAS_CONTRATACAO, resumoContratacao, sincronizarContratacao } from "@/domain/contratacaoOs";
+import { bvDaContratacao, COLUNAS_CONTRATACAO, resumoContratacao, sincronizarContratacao, valorDaContratacao } from "@/domain/contratacaoOs";
 import { calcularAcerto, percentualDoBv } from "@/domain/acertoFinanceiro";
 import { datasDoEvento, horariosDoEvento, resumoCronogramaProjeto } from "@/domain/projeto";
 import { useEmpresas } from "@/store/empresas";
@@ -73,7 +73,7 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
   const colunas = COLUNAS_CONTRATACAO.filter((c) => resumo.colunas[c.chave]);
   const infraestrutura = itensParaDocumento(os.infraestrutura, CAMPOS_INFRAESTRUTURA);
   const tom = fiscaisDe(os.financeiro.tomador, cli, os.financeiro.tomadorAvulso);
-  const acerto = calcularAcerto(os.financeiro, os.orcamento, bvDaContratacao(os.itens ?? []).valor);
+  const acerto = calcularAcerto(os.financeiro, os.orcamento, bvDaContratacao(os.itens ?? []).valor, valorDaContratacao(os.itens ?? []));
   /** "R$ 300,00 (15%)" — o percentual só aparece quando há BV e valor original. */
   const pctBv = percentualDoBv(acerto);
   const bvComPercentual =

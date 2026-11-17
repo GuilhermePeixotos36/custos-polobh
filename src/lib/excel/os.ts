@@ -24,7 +24,7 @@ import { dataBR } from "@/lib/format";
 import {
   textoObjetoContrato, FORMA_PAGAMENTO_PADRAO, OBS_CONTRATO_PADRAO,
 } from "@/domain/calc";
-import { bvDaContratacao, COLUNAS_CONTRATACAO, resumoContratacao, sincronizarContratacao } from "@/domain/contratacaoOs";
+import { bvDaContratacao, COLUNAS_CONTRATACAO, resumoContratacao, sincronizarContratacao, valorDaContratacao } from "@/domain/contratacaoOs";
 import { datasDoEvento, ETAPAS_CRONOGRAMA, horariosDoEvento } from "@/domain/projeto";
 import { itensParaDocumento, temContrato, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, osIncentivada, incentivoDoContrato } from "@/domain/os";
 import { calcularAcerto } from "@/domain/acertoFinanceiro";
@@ -581,7 +581,7 @@ export async function criarOsExcelBuffer(
     if (fin.acertoNaoSeAplica ?? true) {
       linha("Acerto Financeiro:", "Não se aplica");
     } else {
-      const acerto = calcularAcerto(fin, os.orcamento, bvDaContratacao(os.itens ?? []).valor);
+      const acerto = calcularAcerto(fin, os.orcamento, bvDaContratacao(os.itens ?? []).valor, valorDaContratacao(os.itens ?? []));
       linha("Valor original dos serviços:", acerto.valorOriginal, { money: true });
       linha("BV sobre o valor original:", acerto.bvSobreOriginal, { money: true });
       linha("Valor da NF:", acerto.valorNf, { money: true });

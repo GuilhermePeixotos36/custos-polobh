@@ -12,6 +12,7 @@ import {
   Textarea,
   Select,
   NumberInput,
+  CurrencyInput,
   Badge,
   tomStatusOs,
   AvisoEmailPendente,
@@ -884,7 +885,7 @@ export function OsForm() {
      quanto o fornecedor devolve à Pólobh (ver `domain/acertoFinanceiro`). */
 
   /** A conta do acerto — tudo calculado, menos o percentual de encargos. */
-  const acerto = calcularAcerto(os.financeiro, os.orcamento, bvContratado.valor);
+  const acerto = calcularAcerto(os.financeiro, os.orcamento, bvContratado.valor, valorDaContratacao(os.itens ?? []));
 
   const updF = (patch: Partial<Fornecedor>) =>
     setOs((o) => (o ? { ...o, fornecedor: comPerfilPeloDocumento({ ...o.fornecedor, ...patch }) } : o));
@@ -2706,8 +2707,25 @@ export function OsForm() {
             </LinhaOs>
           ) : (
             <>
-              <LinhaOs label="Valor original dos serviços" hint="(do Detalhamento da Contratação)">
-                <Auto v={brl(acerto.valorOriginal)} />
+              <LinhaOs label="Valor original dos serviços" hint="(do Detalhamento da Contratação; se o original for outro, digite)">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <CurrencyInput
+                    className="!w-44"
+                    value={acerto.valorOriginal}
+                    onValue={(v) => updFin({ valorOriginalServicos: v > 0 ? v : undefined })}
+                    aria-label="Valor original dos serviços"
+                  />
+                  {acerto.valorOriginalDigitado && (
+                    <button
+                      type="button"
+                      onClick={() => updFin({ valorOriginalServicos: undefined })}
+                      className="text-[11.5px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded px-1"
+                      title={`Voltar ao valor da contratação (${brl(acerto.valorOriginalAutomatico)})`}
+                    >
+                      Voltar ao automático ({brl(acerto.valorOriginalAutomatico)})
+                    </button>
+                  )}
+                </div>
               </LinhaOs>
               <LinhaOs label="BV sobre o valor original" hint="(combinado item a item)">
                 <Auto v={brl(acerto.bvSobreOriginal)} />

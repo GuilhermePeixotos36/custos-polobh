@@ -7,7 +7,7 @@
  * Pólobh, junto do BV combinado. O que não volta são os encargos que incidem
  * sobre esse acréscimo — eles ficam com quem emitiu a nota.
  *
- *   valor original dos serviços   ← o que foi contratado (automático)
+ *   valor original dos serviços   ← o que foi contratado (automático; editável)
  *   BV sobre o valor original      ← o combinado item a item (automático)
  *   valor da NF                    ← o que a nota cobra (automático)
  *   acréscimo                      = valor da NF − valor original
@@ -30,6 +30,10 @@ export const ENCARGOS_ACRESCIMO_PADRAO = 16.33;
 
 export interface AcertoFinanceiro {
   valorOriginal: number;
+  /** O que o sistema sabe do valor original — o que volta quando se desfaz a digitação. */
+  valorOriginalAutomatico: number;
+  /** O valor original foi digitado (e não é o automático). */
+  valorOriginalDigitado: boolean;
   bvSobreOriginal: number;
   valorNf: number;
   acrescimo: number;
@@ -51,8 +55,12 @@ export function percentualDoBv(a: Pick<AcertoFinanceiro, "valorOriginal" | "bvSo
 /**
  * Monta o acerto a partir do que a OS já sabe.
  *
- * `valorOriginal` é o total da forma COM BV E NF — é a única das três em que
- * existe BV, e é dela que este acerto trata. `valorNf` é o que o bloco de
+ * `valorOriginal` é, por padrão, o que a CONTRATAÇÃO fechou (`valorContratado`:
+ * a forma adotada em cada item, somada). Até 17/11/2026 era só o total da forma
+ * "com BV e NF" — numa OS cultural, que costuma fechar sem BV, dava R$ 0,00 e a
+ * nota inteira virava "acréscimo". Quando o valor de antes do acréscimo já não
+ * está na OS (a EC foi atualizada), quem preenche o digita em
+ * `valorOriginalServicos`, e esse valor vale. `valorNf` é o que o bloco de
  * emissão manda cobrar.
  *
  * O acréscimo nunca é negativo: nota menor que o serviço não é acréscimo
@@ -60,12 +68,17 @@ export function percentualDoBv(a: Pick<AcertoFinanceiro, "valorOriginal" | "bvSo
  * corte, a devolução viraria um número que ninguém sabe explicar.
  */
 export function calcularAcerto(
-  financeiro: Pick<FinanceiroOs, "valorTotal" | "encargosAcrescimoPercentual">,
+  financeiro: Pick<FinanceiroOs, "valorTotal" | "encargosAcrescimoPercentual"> & Partial<Pick<FinanceiroOs, "valorOriginalServicos">>,
   orcamento: Pick<Orcamento, "valorComBvNf">,
   /** O BV fechado item a item (`bvDaContratacao`) — a mesma fonte do Resumo. */
-  bvContratado: number
+  bvContratado: number,
+  /** O valor da contratação (`valorDaContratacao`): a forma adotada em cada item, somada. */
+  valorContratado = 0
 ): AcertoFinanceiro {
-  const valorOriginal = r2(orcamento.valorComBvNf || 0);
+  const automatico = r2(valorContratado > 0 ? valorContratado : orcamento.valorComBvNf || 0);
+  const digitado = Number(financeiro.valorOriginalServicos);
+  const valorOriginalDigitado = Number.isFinite(digitado) && digitado > 0 && r2(digitado) !== automatico;
+  const valorOriginal = valorOriginalDigitado ? r2(digitado) : automatico;
   const bvSobreOriginal = r2(bvContratado || 0);
   const valorNf = r2(financeiro.valorTotal || 0);
   const acrescimo = r2(Math.max(0, valorNf - valorOriginal));
@@ -73,6 +86,8 @@ export function calcularAcerto(
   const encargosSobreAcrescimo = r2((acrescimo * encargosPercentual) / 100);
   return {
     valorOriginal,
+    valorOriginalAutomatico: automatico,
+    valorOriginalDigitado,
     bvSobreOriginal,
     valorNf,
     acrescimo,
