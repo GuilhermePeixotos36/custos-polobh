@@ -41,3 +41,38 @@ describe("acerto financeiro — quanto o fornecedor devolve à Pólobh", () => {
     expect(a.devolucaoPolobh).toBe(0);
   });
 });
+
+describe("o valor original dos serviços (17/11/2026)", () => {
+  // O caso do Tiago: OS cultural fechada SEM BV — o total "com BV e NF" é zero.
+  const fin = { valorTotal: 2500, encargosAcrescimoPercentual: 18 };
+  const orc = { valorComBvNf: 0 };
+
+  it("por padrão é o valor da contratação, e não só o da forma com BV e NF", () => {
+    const a = calcularAcerto(fin, orc, 0, 2500);
+    expect(a.valorOriginal).toBe(2500);
+    expect(a.valorOriginalDigitado).toBe(false);
+    expect(a.acrescimo).toBe(0);
+  });
+
+  it("sem valor de contratação, cai no total da forma com BV e NF (como antes)", () => {
+    expect(calcularAcerto({ valorTotal: 1000 }, { valorComBvNf: 800 }, 0, 0).valorOriginal).toBe(800);
+  });
+
+  it("o valor digitado vale: 2.100 + 400 de acréscimo, encargos de 18% e devolução de 328", () => {
+    const a = calcularAcerto({ ...fin, valorOriginalServicos: 2100 }, orc, 0, 2500);
+    expect(a).toMatchObject({
+      valorOriginal: 2100,
+      valorOriginalAutomatico: 2500,
+      valorOriginalDigitado: true,
+      valorNf: 2500,
+      acrescimo: 400,
+      encargosSobreAcrescimo: 72,
+      devolucaoPolobh: 328,
+    });
+  });
+
+  it("digitar o mesmo valor do automático, ou zero, não conta como digitado", () => {
+    expect(calcularAcerto({ ...fin, valorOriginalServicos: 2500 }, orc, 0, 2500).valorOriginalDigitado).toBe(false);
+    expect(calcularAcerto({ ...fin, valorOriginalServicos: 0 }, orc, 0, 2500).valorOriginal).toBe(2500);
+  });
+});

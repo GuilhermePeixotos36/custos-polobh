@@ -883,6 +883,13 @@ export interface FinanceiroOs {
   acertoNaoSeAplica?: boolean;
   /** % de encargos sobre o acréscimo — o único número digitado do acerto. */
   encargosAcrescimoPercentual?: number;
+  /**
+   * O valor ORIGINAL dos serviços, quando não é o que a contratação diz
+   * (17/11/2026): a EC já foi atualizada com o acréscimo, e o valor de antes não
+   * existe mais em lugar nenhum da OS — a Produção ou o Financeiro o digita.
+   * Ausente (ou zero) = o automático. Ver `domain/acertoFinanceiro`.
+   */
+  valorOriginalServicos?: number;
 }
 
 export interface Credenciamento {
