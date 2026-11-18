@@ -15,6 +15,7 @@ import { Button } from "@/components/ui";
 import { IcBack, IcDownload } from "@/components/icons";
 import { EcDocumento } from "@/components/print/EcDocumento";
 import { OsDocumento } from "@/components/print/OsDocumento";
+import { comDadosAtuaisDoProjeto, osComDadosAtuais } from "@/lib/projetoAoVivo";
 import { RentabilidadeDocumento } from "@/components/print/RentabilidadeDocumento";
 import { gastoPorLinhaViaOSs, rotuloNumeroEc } from "@/domain/calc";
 
@@ -61,7 +62,12 @@ export function ImprimirOs() {
   const usuario = useAuth((s) => s.usuario);
   const pode = useAuth((s) => s.pode);
   const { data: os, loading } = useAsync(() => repo.oss.obter(id), [id]);
-  const { data: ec } = useAsync(() => (os ? repo.ecs.obter(os.ecId) : Promise.resolve(undefined)), [os?.ecId]);
+  // A EC com os dados do projeto de AGORA: a OS ainda não emitida sai com o
+  // cliente e o projeto do cadastro (ver `osComDadosAtuais`).
+  const { data: ec } = useAsync(
+    async () => (os ? ((e) => (e ? comDadosAtuaisDoProjeto(e) : e))(await repo.ecs.obter(os.ecId)) : undefined),
+    [os?.ecId]
+  );
   useEffect(() => {
     if (!os) return;
     auditar({ categoria: "Exportação", acao: "os.imprimir", mensagem: `OS ${os.numero} aberta para impressão/PDF`, alvoId: os.id });
@@ -74,7 +80,7 @@ export function ImprimirOs() {
   const restrito = pode("financeiro") && params.get("financeiro") !== "0";
   return (
     <Moldura voltarPara={`/ordens/${id}`} loading={loading} vazio={!os || !ec}>
-      {os && ec && <OsDocumento os={os} ec={ec} restrito={restrito} />}
+      {os && ec && <OsDocumento os={osComDadosAtuais(os, ec)} ec={ec} restrito={restrito} />}
     </Moldura>
   );
 }
