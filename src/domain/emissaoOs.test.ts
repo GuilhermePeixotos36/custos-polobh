@@ -4,7 +4,7 @@ import type { EcLinha, Os } from "@/data/types";
 
 const linha = (id: string, fornecedorRazao: string, fornecedorCnpj: string): EcLinha =>
   ({ id, item: id, fornecedorRazao, fornecedorCnpj, valorPolobh: 0 }) as EcLinha;
-const os = (id: string, ecLinhaIds: string[], status: Os["status"] = "Rascunho"): Os =>
+const os = (id: string, ecLinhaIds: string[], status: Os["status"] = "Ativa"): Os =>
   ({ id, ecLinhaIds, status }) as Os;
 
 describe("plano da emissão de OS", () => {
@@ -24,7 +24,7 @@ describe("plano da emissão de OS", () => {
   it("item que já está numa OS viva: a anterior é arquivada, mesmo com status 'Emitir'", () => {
     const p = planoDeEmissao(
       [linha("a", "Som", "11111111000111")],
-      [os("velha", ["a"]), os("cancelada", ["a"], "Cancelada"), os("outra", ["z"])]
+      [os("velha", ["a"]), os("cancelada", ["a"], "Arquivada"), os("outra", ["z"])]
     );
     expect(p.arquivar.map((o) => o.id)).toEqual(["velha"]);
     expect(p.liberar).toEqual([]);

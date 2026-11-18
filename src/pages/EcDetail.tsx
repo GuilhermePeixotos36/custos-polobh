@@ -740,7 +740,7 @@ function montarOsEmissao(
     // A contratação nasce com o que a EC levantou: valores, "não se aplica" e
     // BV de cada item. Na OS eles seguem editáveis — é aqui que se fecha.
     itens,
-    status: "Rascunho",
+    status: "Ativa",
     fornecedor,
     // Foto dos dados gerais do evento na emissão — ver `Os.projeto`.
     projeto: ecAtual.projeto,

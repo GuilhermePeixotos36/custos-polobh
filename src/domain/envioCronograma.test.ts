@@ -48,7 +48,7 @@ describe("fila de envio dos cronogramas", () => {
 
   it("OS cancelada ou arquivada sai da fila — não há cronograma a cumprir", () => {
     const fila = filaDeCronograma(
-      [os({ id: "a" }), os({ id: "b", status: "Cancelada" }), os({ id: "c", status: "Arquivada" })],
+      [os({ id: "a" }), os({ id: "b", status: "Arquivada" }), os({ id: "c", status: "Arquivada" })],
       [ec("ec1")]
     );
     expect(fila.map((f) => f.os.id)).toEqual(["a"]);

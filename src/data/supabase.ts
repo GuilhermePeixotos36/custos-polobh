@@ -724,7 +724,10 @@ function mapOs(r: any): Os {
     // OS gravada antes da contratação por item (migração `20260909160000`) vem
     // sem `itens`: a tela os monta a partir da EC ao abrir (`sincronizarContratacao`).
     itens: Array.isArray(r.itens) ? r.itens : [],
-    status: r.status,
+    // Três status desde 18/11/2026: o banco migrado não tem mais Rascunho nem
+    // Cancelada, mas uma linha antiga (ou o banco antes da migração) é lida no
+    // vocabulário novo.
+    status: r.status === "Rascunho" ? "Ativa" : r.status === "Cancelada" ? "Arquivada" : r.status,
     // OS gravada antes das fases (migração `20260916120000`) vem sem `fase`:
     // `faseDaOs` deduz pelo status, para uma OS já emitida não aparecer como
     // "a produção está montando".

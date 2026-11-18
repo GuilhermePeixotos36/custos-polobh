@@ -265,7 +265,7 @@ describe("troca de fornecedor numa OS", () => {
   it("em rascunho, trocar é corrigir — não gera versão", () => {
     // A OS nasce com o fornecedor que a EC apontou, e o primeiro ajuste de quem
     // está montando o documento costuma ser exatamente esse.
-    expect(exigeNovaVersaoPorFornecedor({ status: "Rascunho" }, som, outro)).toBe(false);
+    expect(exigeNovaVersaoPorFornecedor({ status: "Ativa" }, som, outro)).toBe(false);
   });
 
   it("emitida, trocar exige versão nova", () => {
@@ -286,7 +286,7 @@ describe("troca de fornecedor numa OS", () => {
 
   it("OS já encerrada não entra na conta", () => {
     // Cancelada/Arquivada não reemite: a própria RPC recusa.
-    expect(exigeNovaVersaoPorFornecedor({ status: "Cancelada" }, som, outro)).toBe(false);
+    expect(exigeNovaVersaoPorFornecedor({ status: "Arquivada" }, som, outro)).toBe(false);
   });
 });
 

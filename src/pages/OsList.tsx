@@ -15,7 +15,7 @@ import { useAuth } from "@/store/auth";
 import { rotuloNumeroEc } from "@/domain/calc";
 
 /** Os mesmos filtros da lista de ECs e da aba OS do projeto (29/09/2026). */
-type Filtro = "todas" | "Rascunho" | "Emitida" | "Cancelada" | "Arquivada";
+type Filtro = "todas" | "Ativa" | "Emitida" | "Arquivada";
 
 export function OsList() {
   const navigate = useNavigate();
@@ -77,7 +77,7 @@ export function OsList() {
             />
           </div>
           <div className="flex items-center gap-1 flex-wrap" role="group" aria-label="Filtrar OSs">
-            {([["todas", "Todas"], ["Rascunho", "Rascunho"], ["Emitida", "Emitida"], ["Cancelada", "Cancelada"], ["Arquivada", "Arquivada"]] as const).map(([valor, rotulo]) => (
+            {([["todas", "Todas"], ["Ativa", "Ativa"], ["Emitida", "Emitida"], ["Arquivada", "Arquivada"]] as const).map(([valor, rotulo]) => (
               <button
                 key={valor}
                 type="button"

@@ -38,7 +38,7 @@ const ec = (linhas: EcLinha[], local = ""): Ec => ({
 
 const os = (p: Partial<Os["logistica"]>): Os => ({
   id: "os", numero: "OS-01", slugCredenciamento: "", seq: 1, ecId: "ec", ecNumero: "EC",
-  ecLinhaIds: [], status: "Rascunho", itens: [],
+  ecLinhaIds: [], status: "Ativa", itens: [],
   projeto: projetoInfoVazio(),
   cliente: cliente(),
   fornecedor: {

@@ -633,7 +633,7 @@ export interface Ec {
  * estado o documento está, dizia que um e-mail saiu — virou o carimbo
  * `disparadaEm`, ao lado do status. Ver a migração `20260916130000`.
  */
-export type StatusOsDoc = "Rascunho" | "Emitida" | "Cancelada" | "Arquivada";
+export type StatusOsDoc = "Ativa" | "Emitida" | "Arquivada";
 
 export type Modalidade =
   | "Produto"

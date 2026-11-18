@@ -273,7 +273,7 @@ describe("agregação por tela", () => {
 describe("badge e pílula contam a mesma coisa", () => {
   const os = (o: Partial<Os>): Os =>
     ({
-      id: "os1", ecId: "ec1", numero: "OS 01", seq: 1, status: "Rascunho",
+      id: "os1", ecId: "ec1", numero: "OS 01", seq: 1, status: "Ativa",
       fornecedorRazao: "", fornecedorCnpj: "", ecLinhaIds: [], observacoes: [], cronograma: [],
       ...o,
     }) as unknown as Os;
@@ -372,7 +372,7 @@ describe("badge e pílula contam a mesma coisa", () => {
 describe("o que a pílula alcança sem sair da tela", () => {
   const os = (o: Partial<Os>): Os =>
     ({
-      id: "os1", ecId: "ec1", numero: "OS 01", seq: 1, status: "Rascunho",
+      id: "os1", ecId: "ec1", numero: "OS 01", seq: 1, status: "Ativa",
       fornecedorRazao: "", fornecedorCnpj: "", ecLinhaIds: [], observacoes: [], cronograma: [],
       ...o,
     }) as unknown as Os;

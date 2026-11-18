@@ -509,7 +509,7 @@ export function OsForm() {
         ecLinhaIds: linhaIds,
         // A contratação nasce com o que a EC levantou para cada item.
         itens,
-        status: "Rascunho",
+        status: "Ativa",
         fornecedor,
         // Foto dos dados gerais do evento: a partir daqui esta OS não muda mais
         // sozinha, nem se o projeto ou a EC forem editados (ver `Os.projeto`).
@@ -1162,7 +1162,7 @@ export function OsForm() {
   /* ------------------- Revisar, nova versão, cancelar, arquivar -------------------- */
 
   /** OS que já saiu de cena (cancelada ou arquivada): não se mexe mais nela. */
-  const encerradaDoc = os != null && (os.status === "Cancelada" || os.status === "Arquivada");
+  const encerradaDoc = os != null && os.status === "Arquivada";
 
   /** O nome do item da EC, para a conferência falar de "Buffet" e não de um id. */
   const nomeDoItemEc = (ecLinhaId: string) => {
@@ -1219,35 +1219,31 @@ export function OsForm() {
   }
 
   /**
-   * CANCELAR ou ARQUIVAR a OS — gestos de gente, com confirmação.
-   *
-   * Cancelada = o negócio caiu. Arquivada = saiu de cena sem o negócio ter
-   * caído (o sistema também arquiva sozinho: nova versão, projeto arquivado).
+   * ARQUIVAR a OS — gesto de gente, com confirmação. A OS tem três status
+   * (Ativa, Emitida, Arquivada — 18/11/2026); o "Cancelar OS" saiu: o que sai de
+   * cena é arquivado, e para trocar fornecedor ou condição gera-se nova versão.
    * Grava a OS COMO ESTÁ NO BANCO, só com o status trocado: edição pendente não
    * vai junto por acidente.
    */
-  async function encerrarOs(novo: "Cancelada" | "Arquivada") {
-    const cancelando = novo === "Cancelada";
+  async function arquivarOs() {
     if (!(await confirmar({
-      titulo: cancelando ? "Cancelar esta OS?" : "Arquivar esta OS?",
-      mensagem: cancelando
-        ? `A ${os!.numero} fica Cancelada — o negócio com o fornecedor não segue. Ela continua consultável, mas não pode mais ser editada nem gerar nova versão.`
-        : `A ${os!.numero} vai para o arquivo do projeto. Ela continua consultável, mas não pode mais ser editada nem gerar nova versão.`,
-      confirmarTexto: cancelando ? "Cancelar OS" : "Arquivar OS",
+      titulo: "Arquivar esta OS?",
+      mensagem: `A ${os!.numero} vai para o arquivo do projeto. Ela continua consultável, mas não pode mais ser editada nem gerar nova versão.`,
+      confirmarTexto: "Arquivar OS",
       cancelarTexto: "Voltar",
       tom: "danger",
     }))) return;
     setBusy(true);
     try {
       const gravada = baseline ? (JSON.parse(baseline) as Os) : os!;
-      await repo.oss.salvar({ ...gravada, status: novo });
-      toast(cancelando ? "OS cancelada." : "OS arquivada.", "success");
+      await repo.oss.salvar({ ...gravada, status: "Arquivada" });
+      toast("OS arquivada.", "success");
       usePendencias.getState().carregar(true);
       guard.liberar();
       navigate(`/ordens/${os!.id}`, { replace: true });
       navigate(0);
     } catch (e) {
-      toast(`Não foi possível ${cancelando ? "cancelar" : "arquivar"} a OS: ${(e as Error).message}`, "danger");
+      toast(`Não foi possível arquivar a OS: ${(e as Error).message}`, "danger");
     } finally {
       setBusy(false);
     }
@@ -1505,13 +1501,8 @@ export function OsForm() {
               Gerar Nova Versão OS
             </Button>
           )}
-          {os.id && (podeEditar || editaFinOs) && !encerradaDoc && (
-            <Button variant="secondary" size="sm" disabled={busy} onClick={() => void encerrarOs("Cancelada")}>
-              Cancelar OS
-            </Button>
-          )}
           {os.id && (podeEditar || editaFinOs) && os.status !== "Arquivada" && (
-            <Button variant="secondary" size="sm" disabled={busy} onClick={() => void encerrarOs("Arquivada")}>
+            <Button variant="secondary" size="sm" disabled={busy} onClick={() => void arquivarOs()}>
               Arquivar OS
             </Button>
           )}

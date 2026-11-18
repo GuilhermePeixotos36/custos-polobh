@@ -43,7 +43,7 @@ describe("fila de credenciamento do projeto", () => {
 
   it("OS cancelada ou arquivada sai da fila — não credencia mais ninguém", () => {
     const fila = filaDeCredenciamento(
-      [os({ id: "a" }), os({ id: "b", status: "Cancelada" }), os({ id: "c", status: "Arquivada" })],
+      [os({ id: "a" }), os({ id: "b", status: "Arquivada" }), os({ id: "c", status: "Arquivada" })],
       [ec("ec1")],
       []
     );

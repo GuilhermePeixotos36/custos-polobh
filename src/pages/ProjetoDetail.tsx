@@ -1351,13 +1351,12 @@ export function ProjetoDetail() {
           <div className="p-5"><CardTitle hint="Ordens de serviço geradas a partir das ECs deste projeto">Ordens de Serviço</CardTitle></div>
           {/* Os mesmos filtros da lista de ECs (15/09/2026): a lista de OSs de um
               projeto cresce a cada versão reemitida, e o que se procura quase
-              sempre é "as que ainda não saíram" ou "a que foi cancelada". */}
+              sempre é "as que ainda não saíram" ou "a que foi arquivada". */}
           <div className="px-5 pb-4 flex items-center gap-1 flex-wrap border-b border-border-soft" role="group" aria-label="Filtrar ordens de serviço">
             {([
               ["todas", "Todas"],
-              ["Rascunho", "Rascunho"],
+              ["Ativa", "Ativa"],
               ["Emitida", "Emitida"],
-              ["Cancelada", "Cancelada"],
               ["Arquivada", "Arquivada"],
             ] as const).map(([valor, rotulo]) => (
               <button
