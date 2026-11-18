@@ -6,6 +6,7 @@ import type { FaseOs } from "@/domain/faseOs";
 import type { CustoInterno } from "@/domain/rentabilidade";
 import type { CampoCredenciamento } from "@/domain/credenciamentoCampos";
 import type { ChaveClausula, ModeloContrato } from "@/domain/contratoModelo";
+import type { CampoAcerto } from "@/domain/acertoFinanceiro";
 
 /**
  * Nível de segurança de dados. Governa a RLS no banco (`papel_atual()`) — por
@@ -890,6 +891,13 @@ export interface FinanceiroOs {
    * Ausente (ou zero) = o automático. Ver `domain/acertoFinanceiro`.
    */
   valorOriginalServicos?: number;
+  /**
+   * Os valores do acerto DIGITADOS por quem preenche (18/11/2026, pedido da
+   * Carol): a Produção preenche e o Financeiro valida, e os dois precisam poder
+   * corrigir qualquer linha. Campo ausente = o que o sistema calcula. Ver
+   * `domain/acertoFinanceiro`.
+   */
+  acertoDigitado?: Partial<Record<CampoAcerto, number>>;
 }
 
 export interface Credenciamento {
