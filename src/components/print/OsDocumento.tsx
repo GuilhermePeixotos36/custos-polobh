@@ -1,8 +1,7 @@
 /** OS como documento A4 — visualização em tela + PDF. Espelha o modelo em Excel. */
-import { itensParaDocumento, temContrato, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, osIncentivada, incentivoDoContrato } from "@/domain/os";
+import { itensParaDocumento, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, osIncentivada } from "@/domain/os";
 import type { Cliente, Ec, Os } from "@/data/types";
 import { brl, dataBR } from "@/lib/format";
-import { textoObjetoContrato, FORMA_PAGAMENTO_PADRAO, OBS_CONTRATO_PADRAO } from "@/domain/calc";
 import { bvDaContratacao, COLUNAS_CONTRATACAO, resumoContratacao, sincronizarContratacao, valorDaContratacao } from "@/domain/contratacaoOs";
 import { calcularAcerto, percentualDoBv } from "@/domain/acertoFinanceiro";
 import { datasDoEvento, horariosDoEvento, resumoCronogramaProjeto } from "@/domain/projeto";
@@ -13,15 +12,6 @@ import { dadosDoTomador, RETENCOES_PADRAO } from "@/domain/tomadorOs";
 function Secao({ titulo }: { titulo: string }) {
   return (
     <div className="bg-[#C0C0C0] text-ink font-bold text-[12px] uppercase tracking-wide px-3 py-1.5 mt-4 doc-avoid-break">
-      {titulo}
-    </div>
-  );
-}
-
-/** Sub-cabeçalho — cinza claro das barras de grupo da planilha (COR.groupGray). */
-function SubSecao({ titulo }: { titulo: string }) {
-  return (
-    <div className="bg-[#D9D9D9] text-ink font-bold text-[11px] uppercase tracking-wide px-3 py-1.5 mt-3 doc-avoid-break">
       {titulo}
     </div>
   );
@@ -79,7 +69,6 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
   const bvComPercentual =
     brl(acerto.bvSobreOriginal) +
     (pctBv === null ? "" : ` (${pctBv.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%)`);
-  const contr = fiscaisDe(os.contrato.contratante, cli);
 
   return (
     <div className="doc-sheet p-[14mm] text-ink">
@@ -315,33 +304,8 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
             </div>
           </div>
 
-          {/* Contrato só sai quando a EC pediu contrato para algum item desta
-              OS — ver `temContrato`. */}
-          {temContrato(os, consolidadas) && (
-          <>
-          <SubSecao titulo="Dados para Contrato" />
-          <LV label="Contratante" valor={contr?.rotulo ?? ""} />
-          <LV label="Razão Social" valor={contr?.razao ?? ""} />
-          <LV label="Endereço" valor={contr?.end ?? ""} />
-          <LV label="CNPJ/CPF" valor={contr?.doc ?? ""} />
-          <LV label="Inscrição Estadual" valor={contr?.ie ?? ""} />
-          <LV label="Inscrição Municipal" valor={contr?.im ?? ""} />
-          <LV label="Objeto do Contrato" valor={textoObjetoContrato({ ...os.financeiro, ...incentivoDoContrato(os) }, incentivada)} />
-          <LV
-            label="Descritivo dos Serviços e/ou Produtos"
-            valor={os.contrato.descritivoServicos || os.financeiro.descritivoNf || os.descritivo}
-          />
-          <LV label="Informações Complementares" valor={os.contrato.informacoesComplementares} />
-          <LV label="Valor unitário" valor={brl(os.contrato.valorUnitario)} />
-          <LV label="Valor total" valor={brl(os.contrato.valorTotal)} />
-          <LV label="Desconto Especial Negociado" valor={brl(os.contrato.descontoNegociado)} />
-          <LV label="Valor total a pagar" valor={brl(os.contrato.valorAPagar)} />
-          <LV label="Forma de Pagamento" valor={os.contrato.formaPagamento || FORMA_PAGAMENTO_PADRAO} />
-          <LV label="Observações Gerais" valor={os.contrato.observacoesGerais || OBS_CONTRATO_PADRAO} />
-          <LV label="Data do Contrato" valor={dataBR(os.contrato.dataContrato)} />
-          <LV label="Rubrica" valor={os.contrato.rubrica} />
-          </>
-          )}
+          {/* "Dados para Contrato" saiu do PDF da OS (18/11/2026): o contrato tem
+              documento próprio ("Emitir Contrato PDF"). */}
 
           {/* ACERTOS FINANCEIROS (15/09/2026): saíram os dois campos de BV —
               ele é combinado item a item, no Detalhamento — e entrou a conta de
