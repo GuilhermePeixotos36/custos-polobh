@@ -507,7 +507,7 @@ export function calcularPendencias(
    * quem cobra é a passagem de bastão (`os.fase`), endereçada a quem responde.
    */
   for (const os of oss) {
-    if (os.status !== "Rascunho") continue;
+    if (os.status !== "Ativa") continue;
     if (faseDaOs(os) !== "producao") continue;
     const ec = ecPorId.get(os.ecId);
     if (!ec?.projetoId || encerrado(ec.projetoId)) continue;

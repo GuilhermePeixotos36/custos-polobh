@@ -26,7 +26,7 @@ export interface PlanoEmissao {
   liberar: string[];
 }
 
-const viva = (o: Os) => o.status !== "Cancelada" && o.status !== "Arquivada";
+const viva = (o: Os) => o.status !== "Arquivada";
 
 export function planoDeEmissao(prontos: EcLinha[], oss: Os[]): PlanoEmissao {
   const grupos = agruparPorFornecedor(prontos);

@@ -41,7 +41,7 @@ const ec = (linhas: EcLinha[]): Ec => ({
 });
 const os = (p: Partial<Os>): Os =>
   ({
-    id: "os1", numero: "OS (01)", ecId: "ec1", ecLinhaIds: ["l1"], status: "Rascunho", fase: "producao",
+    id: "os1", numero: "OS (01)", ecId: "ec1", ecLinhaIds: ["l1"], status: "Ativa", fase: "producao",
     fornecedor: { razaoSocial: "Som & Luz", cnpj: "12.345.678/0001-95" }, observacoes: [], cronograma: [],
     credenciamento: { prazoLimite: "", linkFormulario: "" }, ...p,
   }) as unknown as Os;
@@ -72,7 +72,7 @@ describe("Emitir Contrato: some quando a OS do item já existe", () => {
   });
 
   it("OS cancelada não conta: o contrato volta a ser cobrado", () => {
-    expect(tipos([os({ status: "Cancelada" })])).toContain("ec.emitir");
+    expect(tipos([os({ status: "Arquivada" })])).toContain("ec.emitir");
   });
 });
 

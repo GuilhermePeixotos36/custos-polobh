@@ -92,7 +92,7 @@ describe("folha de Dados Úteis do projeto", () => {
     const folha = dadosUteisDosFornecedores(
       [
         os({ id: "a", fornecedor: { apelido: "Som & Luz", cnpj: "1" } }),
-        os({ id: "b", status: "Cancelada", fornecedor: { apelido: "Fora", cnpj: "2" } }),
+        os({ id: "b", status: "Arquivada", fornecedor: { apelido: "Fora", cnpj: "2" } }),
         os({ id: "c", status: "Arquivada", fornecedor: { apelido: "Fora 2", cnpj: "3" } }),
       ],
       [ec(linhas)]
