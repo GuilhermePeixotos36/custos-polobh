@@ -637,3 +637,10 @@ describe("rotuloNumeroEc", async () => {
     expect(rotuloNumeroEc(undefined)).toBe("");
   });
 });
+
+describe("o fornecedor no título da OS sai formatado (18/11/2026)", () => {
+  it("apelido com Caps Lock ligado vira nome escrito direito", () => {
+    expect(apelidoFornecedor({ apelido: "eLISSANDRA fLAVIA", nomeFantasia: "", razaoSocial: "" })).toBe("Elissandra Flavia");
+    expect(apelidoFornecedor({ apelido: "", nomeFantasia: "eLISSANDRA fLAVIA", razaoSocial: "" })).toBe("Elissandra Flavia");
+  });
+});

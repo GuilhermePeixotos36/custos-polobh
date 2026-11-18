@@ -20,6 +20,7 @@
  * traz "Som & Luz Produções Ltda" no campo de fantasia também.
  */
 import type { ContatoFornecedor, Fornecedor, Os } from "@/data/types";
+import { corrigirCapsLock } from "@/domain/textos";
 
 /** Forma jurídica: sai sempre, esteja onde estiver. */
 const JURIDICO = new Set([
@@ -119,7 +120,8 @@ function ajustarCaixa(tokens: string[], fonteEmCaixaAlta: boolean): string[] {
  * identificação.
  */
 export function gerarApelidoFornecedor(nomeFantasia?: string, razaoSocial?: string): string {
-  const fonte = (nomeFantasia || "").trim() || (razaoSocial || "").trim();
+  // Caps Lock ligado no cadastro ("eLISSANDRA fLAVIA") é desinvertido antes (18/11/2026).
+  const fonte = corrigirCapsLock((nomeFantasia || "").trim() || (razaoSocial || "").trim());
   if (!fonte) return "";
   const emCaixaAlta = fonte === fonte.toLocaleUpperCase("pt-BR");
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  corrigirCapsLock,
   padronizarCliente,
   padronizarEcLinha,
   padronizarFornecedor,
@@ -193,5 +194,23 @@ describe("linha da EC", () => {
     expect(l.item).toBe("ECAD");
     expect(l.fornecedorRazao).toBe("Som & Luz Produções LTDA");
     expect(l.fornecedorContato).toBe("Carlos Alberto");
+  });
+});
+
+describe("Caps Lock ligado (18/11/2026)", () => {
+  it("desinverte o nome digitado com Caps Lock", () => {
+    expect(corrigirCapsLock("eLISSANDRA fLAVIA")).toBe("Elissandra Flavia");
+    expect(corrigirCapsLock("cS cOMUNICAÇÃO e aRTE")).toBe("Cs Comunicação E Arte");
+  });
+
+  it("não mexe em caixa mista de verdade nem em sigla", () => {
+    for (const t of ["Elissandra Flavia", "iPhone Locações", "LSPRO", "CS Comunicação", "eSocial", "BM"]) {
+      expect(corrigirCapsLock(t)).toBe(t);
+    }
+  });
+
+  it("vale na padronização dos cadastros", () => {
+    expect(padronizarTexto("eLISSANDRA fLAVIA", "titulo")).toBe("Elissandra Flavia");
+    expect(padronizarFornecedor({ apelido: "eLISSANDRA fLAVIA" } as never).apelido).toBe("Elissandra Flavia");
   });
 });
