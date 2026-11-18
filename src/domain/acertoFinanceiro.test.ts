@@ -76,3 +76,37 @@ describe("o valor original dos serviços (17/11/2026)", () => {
     expect(calcularAcerto({ ...fin, valorOriginalServicos: 0 }, orc, 0, 2500).valorOriginal).toBe(2500);
   });
 });
+
+describe("todas as linhas do acerto se digitam (18/11/2026)", () => {
+  const fin = { valorTotal: 2500, encargosAcrescimoPercentual: 18 };
+  const orc = { valorComBvNf: 0 };
+
+  it("o digitado vale e as linhas de baixo recalculam a partir dele", () => {
+    const a = calcularAcerto({ ...fin, acertoDigitado: { valorOriginal: 2100 } }, orc, 0, 2500);
+    expect(a).toMatchObject({ valorOriginal: 2100, acrescimo: 400, encargosSobreAcrescimo: 72, devolucaoPolobh: 328 });
+    expect(a.digitado.valorOriginal).toBe(true);
+    expect(a.digitado.acrescimo).toBe(false);
+  });
+
+  it("BV, NF, acréscimo, encargos e devolução também aceitam valor digitado", () => {
+    const a = calcularAcerto(
+      { ...fin, acertoDigitado: { bvSobreOriginal: 100, valorNf: 3000, acrescimo: 500 } },
+      orc,
+      0,
+      2500
+    );
+    expect(a).toMatchObject({ bvSobreOriginal: 100, valorNf: 3000, acrescimo: 500, encargosSobreAcrescimo: 90, devolucaoPolobh: 510 });
+    // O "voltar ao automático" do acréscimo mostra o cálculo com o que está acima: 3000 − 2500.
+    expect(a.automatico.acrescimo).toBe(500);
+    const b = calcularAcerto({ ...fin, acertoDigitado: { devolucaoPolobh: 300, encargosSobreAcrescimo: 80 } }, orc, 0, 2500);
+    expect(b).toMatchObject({ encargosSobreAcrescimo: 80, devolucaoPolobh: 300 });
+  });
+
+  it("o campo antigo do valor original (17/11) continua valendo", () => {
+    expect(calcularAcerto({ ...fin, valorOriginalServicos: 2100 }, orc, 0, 2500).acrescimo).toBe(400);
+  });
+
+  it("digitado igual ao cálculo não fica marcado como digitado", () => {
+    expect(calcularAcerto({ ...fin, acertoDigitado: { valorNf: 2500 } }, orc, 0, 2500).digitado.valorNf).toBe(false);
+  });
+});

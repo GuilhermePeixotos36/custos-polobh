@@ -60,7 +60,7 @@ import { confirmar } from "@/store/confirm";
 import { usePendencias, useMinhasPendencias } from "@/store/pendencias";
 import { useSugestoes } from "@/hooks/useSugestoes";
 import { urlCredenciamento } from "@/lib/links";
-import { calcularAcerto } from "@/domain/acertoFinanceiro";
+import { calcularAcerto, type CampoAcerto } from "@/domain/acertoFinanceiro";
 import { clausulasPadrao, modeloDoContrato, type ChaveClausula, type ClausulasDaCasa, type ModeloContrato } from "@/domain/contratoModelo";
 import { ContratoPreview } from "@/components/ContratoPreview";
 import { quantidadeDoContrato } from "@/domain/contratoDocumento";
@@ -2707,36 +2707,22 @@ export function OsForm() {
             </LinhaOs>
           ) : (
             <>
-              <LinhaOs label="Valor original dos serviços" hint="(do Detalhamento da Contratação; se o original for outro, digite)">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <CurrencyInput
-                    className="!w-44"
-                    value={acerto.valorOriginal}
-                    onValue={(v) => updFin({ valorOriginalServicos: v > 0 ? v : undefined })}
-                    aria-label="Valor original dos serviços"
-                  />
-                  {acerto.valorOriginalDigitado && (
-                    <button
-                      type="button"
-                      onClick={() => updFin({ valorOriginalServicos: undefined })}
-                      className="text-[11.5px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded px-1"
-                      title={`Voltar ao valor da contratação (${brl(acerto.valorOriginalAutomatico)})`}
-                    >
-                      Voltar ao automático ({brl(acerto.valorOriginalAutomatico)})
-                    </button>
-                  )}
-                </div>
+              {/* TODAS as linhas se digitam (18/11/2026, pedido da Carol): a Produção
+                  preenche e o Financeiro valida. Cada uma nasce com o cálculo, e o
+                  digitado vale até "Voltar ao automático". */}
+              <LinhaOs label="Valor original dos serviços" hint="(do Detalhamento da Contratação)">
+                <ValorDoAcerto campo="valorOriginal" acerto={acerto} financeiro={os.financeiro} onFin={updFin} />
               </LinhaOs>
               <LinhaOs label="BV sobre o valor original" hint="(combinado item a item)">
-                <Auto v={brl(acerto.bvSobreOriginal)} />
+                <ValorDoAcerto campo="bvSobreOriginal" acerto={acerto} financeiro={os.financeiro} onFin={updFin} />
               </LinhaOs>
               <LinhaOs label="Valor da NF" hint="(do bloco de emissão)">
-                <Auto v={brl(acerto.valorNf)} />
+                <ValorDoAcerto campo="valorNf" acerto={acerto} financeiro={os.financeiro} onFin={updFin} />
               </LinhaOs>
               <LinhaOs label="Valor do acréscimo" hint="(valor da NF menos o valor original)">
-                <Auto v={brl(acerto.acrescimo)} />
+                <ValorDoAcerto campo="acrescimo" acerto={acerto} financeiro={os.financeiro} onFin={updFin} />
               </LinhaOs>
-              <LinhaOs label="Encargos sobre o acréscimo" hint="(percentual editável)">
+              <LinhaOs label="Encargos sobre o acréscimo" hint="(percentual × acréscimo)">
                 <div className="flex items-center gap-2 flex-wrap">
                   <NumberInput
                     className="!w-24"
@@ -2744,15 +2730,12 @@ export function OsForm() {
                     onValue={(v) => updFin({ encargosAcrescimoPercentual: v })}
                     aria-label="Percentual de encargos sobre o acréscimo"
                   />
-                  <span className="text-[12.5px] text-ink-3">% ·</span>
-                  <span className="font-display font-bold text-ink">{brl(acerto.encargosSobreAcrescimo)}</span>
+                  <span className="text-[12.5px] text-ink-3">%</span>
+                  <ValorDoAcerto campo="encargosSobreAcrescimo" acerto={acerto} financeiro={os.financeiro} onFin={updFin} />
                 </div>
               </LinhaOs>
-              <LinhaOs
-                label="Valor devolução Pólobh"
-                hint="(BV + acréscimo − encargos sobre o acréscimo)"
-              >
-                <div className="py-1 font-display font-bold text-[15px] text-ink">{brl(acerto.devolucaoPolobh)}</div>
+              <LinhaOs label="Valor devolução Pólobh" hint="(BV + acréscimo − encargos sobre o acréscimo)">
+                <ValorDoAcerto campo="devolucaoPolobh" acerto={acerto} financeiro={os.financeiro} onFin={updFin} destaque />
               </LinhaOs>
             </>
           )}
@@ -2887,6 +2870,52 @@ const DESCRICAO_ETAPA_OS: Record<FaseOs, string> = {
   emitida: "OS concluída",
 };
 const SECAO_ACERTOS = "Acertos Financeiros";
+
+/**
+ * Uma linha do Acerto Financeiro: o valor calculado, que se pode digitar por
+ * cima (18/11/2026). Digitado diferente do cálculo, aparece "Voltar ao
+ * automático" com o valor que o sistema calcularia.
+ */
+function ValorDoAcerto({
+  campo,
+  acerto,
+  financeiro,
+  onFin,
+  destaque,
+}: {
+  campo: CampoAcerto;
+  acerto: ReturnType<typeof calcularAcerto>;
+  financeiro: Os["financeiro"];
+  onFin: (patch: Partial<Os["financeiro"]>) => void;
+  destaque?: boolean;
+}) {
+  const gravar = (valor: number | undefined) => {
+    const dig = { ...(financeiro.acertoDigitado ?? {}) };
+    if (valor === undefined) delete dig[campo];
+    else dig[campo] = valor;
+    // O campo antigo do valor original (17/11/2026) passa a morar aqui.
+    onFin(campo === "valorOriginal" ? { acertoDigitado: dig, valorOriginalServicos: undefined } : { acertoDigitado: dig });
+  };
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      <CurrencyInput
+        className={cx("!w-44", destaque && "font-display font-bold")}
+        value={acerto[campo]}
+        onValue={(v) => gravar(v)}
+        aria-label={campo}
+      />
+      {acerto.digitado[campo] && (
+        <button
+          type="button"
+          onClick={() => gravar(undefined)}
+          className="text-[11.5px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded px-1"
+        >
+          Voltar ao automático ({brl(acerto.automatico[campo])})
+        </button>
+      )}
+    </div>
+  );
+}
 
 /** Colunas do cronograma do fornecedor — cabeçalho e linhas usam a MESMA grade. */
 /**

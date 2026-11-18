@@ -28,7 +28,20 @@ const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 /** O percentual de encargos que a casa usa quando ninguém informa outro. */
 export const ENCARGOS_ACRESCIMO_PADRAO = 16.33;
 
+/** As linhas do acerto que se podem digitar por cima do cálculo (18/11/2026). */
+export type CampoAcerto =
+  | "valorOriginal"
+  | "bvSobreOriginal"
+  | "valorNf"
+  | "acrescimo"
+  | "encargosSobreAcrescimo"
+  | "devolucaoPolobh";
+
 export interface AcertoFinanceiro {
+  /** O que o sistema calcularia em cada linha (com o que está acima dela) — o "voltar ao automático". */
+  automatico: Record<CampoAcerto, number>;
+  /** As linhas que estão com valor digitado (diferente do automático). */
+  digitado: Record<CampoAcerto, boolean>;
   valorOriginal: number;
   /** O que o sistema sabe do valor original — o que volta quando se desfaz a digitação. */
   valorOriginalAutomatico: number;
@@ -68,31 +81,48 @@ export function percentualDoBv(a: Pick<AcertoFinanceiro, "valorOriginal" | "bvSo
  * corte, a devolução viraria um número que ninguém sabe explicar.
  */
 export function calcularAcerto(
-  financeiro: Pick<FinanceiroOs, "valorTotal" | "encargosAcrescimoPercentual"> & Partial<Pick<FinanceiroOs, "valorOriginalServicos">>,
+  financeiro: Pick<FinanceiroOs, "valorTotal" | "encargosAcrescimoPercentual"> &
+    Partial<Pick<FinanceiroOs, "valorOriginalServicos" | "acertoDigitado">>,
   orcamento: Pick<Orcamento, "valorComBvNf">,
   /** O BV fechado item a item (`bvDaContratacao`) — a mesma fonte do Resumo. */
   bvContratado: number,
   /** O valor da contratação (`valorDaContratacao`): a forma adotada em cada item, somada. */
   valorContratado = 0
 ): AcertoFinanceiro {
-  const automatico = r2(valorContratado > 0 ? valorContratado : orcamento.valorComBvNf || 0);
-  const digitado = Number(financeiro.valorOriginalServicos);
-  const valorOriginalDigitado = Number.isFinite(digitado) && digitado > 0 && r2(digitado) !== automatico;
-  const valorOriginal = valorOriginalDigitado ? r2(digitado) : automatico;
-  const bvSobreOriginal = r2(bvContratado || 0);
-  const valorNf = r2(financeiro.valorTotal || 0);
-  const acrescimo = r2(Math.max(0, valorNf - valorOriginal));
+  const dig = { ...(financeiro.acertoDigitado ?? {}) };
+  // O primeiro campo digitável (17/11/2026) morava à parte; continua valendo.
+  if (dig.valorOriginal === undefined && Number(financeiro.valorOriginalServicos) > 0) {
+    dig.valorOriginal = Number(financeiro.valorOriginalServicos);
+  }
+  const automatico = {} as Record<CampoAcerto, number>;
+  const digitado = {} as Record<CampoAcerto, boolean>;
+  /** O valor de uma linha: o digitado, quando há e difere do calculado; senão, o calculado. */
+  const linha = (campo: CampoAcerto, calculado: number): number => {
+    const auto = r2(calculado);
+    automatico[campo] = auto;
+    const d = Number(dig[campo]);
+    digitado[campo] = dig[campo] !== undefined && Number.isFinite(d) && r2(d) !== auto;
+    return digitado[campo] ? r2(d) : auto;
+  };
+
+  const valorOriginal = linha("valorOriginal", valorContratado > 0 ? valorContratado : orcamento.valorComBvNf || 0);
+  const bvSobreOriginal = linha("bvSobreOriginal", bvContratado || 0);
+  const valorNf = linha("valorNf", financeiro.valorTotal || 0);
+  const acrescimo = linha("acrescimo", Math.max(0, valorNf - valorOriginal));
   const encargosPercentual = financeiro.encargosAcrescimoPercentual ?? ENCARGOS_ACRESCIMO_PADRAO;
-  const encargosSobreAcrescimo = r2((acrescimo * encargosPercentual) / 100);
+  const encargosSobreAcrescimo = linha("encargosSobreAcrescimo", (acrescimo * encargosPercentual) / 100);
+  const devolucaoPolobh = linha("devolucaoPolobh", bvSobreOriginal + acrescimo - encargosSobreAcrescimo);
   return {
+    automatico,
+    digitado,
     valorOriginal,
-    valorOriginalAutomatico: automatico,
-    valorOriginalDigitado,
+    valorOriginalAutomatico: automatico.valorOriginal,
+    valorOriginalDigitado: digitado.valorOriginal,
     bvSobreOriginal,
     valorNf,
     acrescimo,
     encargosPercentual,
     encargosSobreAcrescimo,
-    devolucaoPolobh: r2(bvSobreOriginal + acrescimo - encargosSobreAcrescimo),
+    devolucaoPolobh,
   };
 }
