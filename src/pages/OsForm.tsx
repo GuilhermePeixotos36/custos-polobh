@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { EnderecoCampos } from "@/components/EnderecoCampos";
-import { comDadosAtuaisDoProjeto } from "@/lib/projetoAoVivo";
+import { comDadosAtuaisDoProjeto, osComDadosAtuais } from "@/lib/projetoAoVivo";
 import { LegendaProjeto } from "@/components/layout/LegendaProjeto";
 import { PageShell } from "@/components/layout/AppLayout";
 import { BarraProjeto } from "@/components/layout/BarraSecao";
@@ -462,10 +462,13 @@ export function OsForm() {
   // no baseline (a OS abre preenchida sem ficar marcada como alterada).
   useEffect(() => {
     if (id && osExistente) {
-      repo.ecs.obter(osExistente.ecId).then((e) => {
-        if (!e) return;
+      repo.ecs.obter(osExistente.ecId).then(async (bruta) => {
+        if (!bruta) return;
+        // Os dados do projeto de AGORA: a OS não emitida acompanha o cadastro do
+        // cliente e os Dados Gerais (18/11/2026); a emitida fica com a foto.
+        const e = await comDadosAtuaisDoProjeto(bruta);
         setEcCtx(e);
-        iniciar(aplicarAutoPreenchimento(structuredClone(osExistente), e));
+        iniciar(aplicarAutoPreenchimento(osComDadosAtuais(structuredClone(osExistente), e), e));
       });
     }
   }, [id, osExistente]);
