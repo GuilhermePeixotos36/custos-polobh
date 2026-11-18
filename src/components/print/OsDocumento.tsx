@@ -51,9 +51,9 @@ function fiscaisDe(quem: string, cliente: Cliente, avulso?: Os["financeiro"]["to
 }
 
 export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; restrito?: boolean }) {
-  // Cliente e dados do evento saem do SNAPSHOT da OS, não da EC: o que o
-  // fornecedor recebeu impresso não muda depois (ver `Os.projeto`). Da EC vêm
-  // só os itens consolidados, que são dela mesmo.
+  // Cliente e dados do evento saem da OS: a foto da emissão, ou — enquanto ela
+  // não é emitida — o cadastro de agora (ver `osComDadosAtuais`). Da EC vêm só
+  // os itens consolidados, para o Detalhamento da Contratação.
   const cli = os.cliente;
   const p = os.projeto;
   const incentivada = osIncentivada(os);
@@ -134,28 +134,8 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
       <LV label="Telefone" valor={f.telefone} />
       <LV label="E-mail" valor={f.email} />
 
-      {/* Só item e descrição (21/10/2026): os valores da EC são o preço ao
-          cliente, e não vão no documento do fornecedor. */}
-      <Secao titulo="Itens Consolidados da EC" />
-      <table className="w-full text-[11px] border-collapse">
-        <thead>
-          <tr className="bg-[#595959] text-white">
-            <th className="text-left px-2 py-1.5 w-[22%]">Grupo</th>
-            <th className="text-left px-2 py-1.5">Item / Descrição</th>
-          </tr>
-        </thead>
-        <tbody>
-          {consolidadas.map((l) => (
-            <tr key={l.id} className="border-b border-border-soft doc-avoid-break">
-              <td className="px-2 py-1.5 align-top text-ink-2">{l.grupo}</td>
-              <td className="px-2 py-1.5 align-top">
-                <b>{l.item}</b>
-                {l.descricao ? <span className="text-ink-2"> — {l.descricao}</span> : null}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {/* O bloco "Itens Consolidados da EC" saiu do PDF (18/11/2026): o
+          Detalhamento da Contratação, logo abaixo, já diz o que foi contratado. */}
 
       <Secao titulo="Detalhamento da Contratação" />
       <LV label="Modalidade" valor={os.modalidade} />
