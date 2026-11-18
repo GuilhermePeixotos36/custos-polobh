@@ -127,8 +127,24 @@ const tituloComSiglas = (texto: string, opts: { preservarSiglas?: boolean } = {}
 const emCaixaAlta = (texto: string): boolean =>
   /\p{L}/u.test(texto) && texto === texto.toLocaleUpperCase("pt-BR");
 
+/**
+ * CAPS LOCK LIGADO (18/11/2026): "eLISSANDRA fLAVIA" é "Elissandra Flavia"
+ * digitado com o Caps Lock ativo — a primeira letra de cada palavra sai
+ * minúscula e o resto maiúsculo. Não é caixa mista escolhida por ninguém, então
+ * se desinverte. Só quando TODA palavra de duas ou mais letras tem esse
+ * desenho: "iPhone" ou "eSocial" sozinhos não bastam para mexer num texto.
+ */
+export function corrigirCapsLock(texto: string): string {
+  const palavras = texto.split(/\s+/).map((w) => w.replace(/[^\p{L}]/gu, "")).filter((w) => w.length >= 2);
+  const invertida = (w: string) => /^\p{Ll}\p{Lu}+$/u.test(w);
+  if (!palavras.length || !palavras.every(invertida)) return texto;
+  return Array.from(texto)
+    .map((c) => (c === c.toLocaleUpperCase("pt-BR") ? c.toLocaleLowerCase("pt-BR") : c.toLocaleUpperCase("pt-BR")))
+    .join("");
+}
+
 export function padronizarTexto(valor: string | undefined | null, formato: FormatoTexto): string {
-  const limpo = colapsarEspacos(valor ?? "");
+  const limpo = corrigirCapsLock(colapsarEspacos(valor ?? ""));
   if (!limpo) return "";
   // Caixa mista já é escolha de gente: só apara os espaços e devolve.
   if (formato === "livre" || !emCaixaAlta(limpo)) return limpo;
@@ -274,8 +290,9 @@ export function padronizarFornecedor(f: Fornecedor): Fornecedor {
   return {
     ...f,
     razaoSocial: padronizarTexto(f.razaoSocial, "titulo-empresa"),
-    // O apelido é escolha da casa e entra no título da OS: fica como escreveram.
-    apelido: f.apelido,
+    // O apelido é escolha da casa e entra no título da OS: fica como escreveram —
+    // menos o Caps Lock ligado ("eLISSANDRA fLAVIA"), que se desinverte.
+    apelido: f.apelido ? corrigirCapsLock(f.apelido) : f.apelido,
     nomeFantasia: padronizarTexto(f.nomeFantasia, "titulo"),
     endereco: padronizarTexto(f.endereco, "endereco"),
     inscricaoEstadual: padronizarTexto(f.inscricaoEstadual, "inscricao"),

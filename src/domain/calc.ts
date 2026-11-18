@@ -6,6 +6,7 @@ import type { BvItem, Ec, EcLinha, OpcaoValorDefinida, Producao, Fornecedor, Os,
 import { brl, dataBRCurta, documentoCompleto } from "@/lib/format";
 import { htmlParaLinhas } from "@/lib/htmlTexto";
 import { gerarApelidoFornecedor } from "@/domain/fornecedor";
+import { corrigirCapsLock } from "@/domain/textos";
 
 export const HONORARIOS = 0.15;
 export const ENCARGOS = 0.1633;
@@ -232,7 +233,8 @@ export function apelidoFornecedor(
   f: Pick<Fornecedor, "apelido" | "nomeFantasia" | "razaoSocial"> | string | undefined
 ): string {
   if (typeof f === "string") return gerarApelidoFornecedor(f);
-  return (f?.apelido || "").trim() || gerarApelidoFornecedor(f?.nomeFantasia, f?.razaoSocial);
+  // Caps Lock ligado ("eLISSANDRA fLAVIA") sai desinvertido no título (18/11/2026).
+  return corrigirCapsLock((f?.apelido || "").trim()) || gerarApelidoFornecedor(f?.nomeFantasia, f?.razaoSocial);
 }
 
 /**
