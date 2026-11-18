@@ -88,14 +88,13 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
         <img src="/polobh-logo.png" alt="Pólobh" className="h-9 w-auto object-contain" />
         <div className="text-right">
           <div className="font-display font-extrabold text-[16px] tracking-tight leading-tight">Ordem de Serviço</div>
-          <div className="text-[11px] text-ink-2">{os.numero}</div>
         </div>
       </div>
 
-      <LV label="Número da OS" valor={os.numero} />
+      {/* Só "OS" (18/11/2026): o número completo já diz o que é, e saiu de baixo do título. */}
+      <LV label="OS" valor={os.numero} />
       <LV label="Projeto" valor={p.titulo} />
       <LV label="Data de emissão" valor={dataBR(os.criadoEm)} />
-      <LV label="Status da OS" valor={os.status} />
 
       <Secao titulo="Dados do Cliente" />
       <LV label="Cliente" valor={cli.nome} />
