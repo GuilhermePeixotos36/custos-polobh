@@ -27,7 +27,7 @@ import {
 import { bvDaContratacao, COLUNAS_CONTRATACAO, resumoContratacao, sincronizarContratacao, valorDaContratacao } from "@/domain/contratacaoOs";
 import { datasDoEvento, ETAPAS_CRONOGRAMA, horariosDoEvento } from "@/domain/projeto";
 import { itensParaDocumento, temContrato, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, osIncentivada, incentivoDoContrato, incentivoDaNota } from "@/domain/os";
-import { calcularAcerto } from "@/domain/acertoFinanceiro";
+import { acertoNaoSeAplica, calcularAcerto } from "@/domain/acertoFinanceiro";
 import { dadosDoTomador, RETENCOES_PADRAO } from "@/domain/tomadorOs";
 import { COR, fill, FONT_LIGHT, baixar, nomeArquivo, carregarLogo, encaixarLogo, linhasVisuais, alturaParaLinhas } from "./shared";
 
@@ -579,7 +579,7 @@ export async function criarOsExcelBuffer(
     secao("ACERTOS FINANCEIROS");
     // Os dois campos de BV saíram em 15/09/2026 (ele é combinado item a item, no
     // Detalhamento) e entrou a conta da devolução — ver `domain/acertoFinanceiro`.
-    if (fin.acertoNaoSeAplica ?? true) {
+    if (acertoNaoSeAplica(os)) {
       linha("Acerto Financeiro:", "Não se aplica");
     } else {
       const acerto = calcularAcerto(fin, os.orcamento, bvDaContratacao(os.itens ?? []).valor, valorDaContratacao(os.itens ?? []));
