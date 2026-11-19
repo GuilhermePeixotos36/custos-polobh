@@ -18,7 +18,7 @@ import {
   padronizarProjetoInfo,
   padronizarTexto,
 } from "@/domain/textos";
-import { limparContatos, normalizarContatos } from "@/domain/fornecedor";
+import { completarCadastro, limparContatos, normalizarContatos } from "@/domain/fornecedor";
 import {
   caminhoAnexo,
   motivoRecusaAnexo,
@@ -298,11 +298,25 @@ const fornecedorRepo: FornecedorRepository = {
     const todos = await this.listar();
     return todos.find((f) => onlyDigits(f.cnpj) === onlyDigits(cnpj));
   },
-  async salvar(f) {
+  async salvar(f): Promise<Fornecedor> {
     const atualizando = isUuid(f.id);
-    const data = atualizando
-      ? ok(await supabase.from("fornecedores").update(fornecedorRow(f)).eq("id", f.id).select("*").single())!
-      : ok(await supabase.from("fornecedores").insert(fornecedorRow(f)).select("*").single())!;
+    const r = atualizando
+      ? await supabase.from("fornecedores").update(fornecedorRow(f)).eq("id", f.id).select("*").single()
+      : await supabase.from("fornecedores").insert(fornecedorRow(f)).select("*").single();
+    /*
+     * UM FORNECEDOR POR CPF/CNPJ (19/11/2026): o banco recusa o segundo
+     * (`23505`, índice `fornecedores_documento_unico`). Novo que colidiu é outro
+     * caminho do app que acabou de gravar o mesmo fornecedor — este completa o
+     * cadastro que nasceu (`completarCadastro`) em vez de duplicar ou falhar.
+     */
+    if ((r.error as { code?: string } | null)?.code === "23505") {
+      if (!atualizando) {
+        const existente = await this.porCnpj(f.cnpj);
+        if (existente) return this.salvar(completarCadastro(existente, f));
+      }
+      throw new Error("Já existe outro fornecedor com este CPF/CNPJ no cadastro.");
+    }
+    const data = ok(r)!;
     const forn = mapFornecedor(data);
     auditar({
       categoria: "Fornecedor",

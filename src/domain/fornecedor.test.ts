@@ -3,7 +3,7 @@ import {
   contatoDeTexto, doCadastro, gerarApelidoFornecedor, limparContatos, mesclarContatos,
   normalizarContatos, opcoesPerfilTributario, semVazios, textoDoContato,
 } from "./fornecedor";
-import { cadastroAtualizadoPelaOs, comPerfilPeloDocumento } from "./fornecedor";
+import { cadastroAtualizadoPelaOs, comPerfilPeloDocumento, completarCadastro } from "./fornecedor";
 import type { Fornecedor } from "@/data/types";
 
 /**
@@ -312,5 +312,26 @@ describe("o que a OS corrige no fornecedor volta para o cadastro (18/11/2026)", 
     const novo = cadastroAtualizadoPelaOs(cadastroNovo, daOs, antes)!;
     expect(novo.inscricaoMunicipal).toBe("789");
     expect(novo.dadosBancarios.banco).toBe("Itaú");
+  });
+});
+
+describe("dois salvamentos do mesmo fornecedor novo: o segundo completa o primeiro (19/11/2026)", () => {
+  const vazio = { tipoConta: "", banco: "", agencia: "", conta: "", chavePix: "" } as Fornecedor["dadosBancarios"];
+  const base = (p: Partial<Fornecedor>): Fornecedor => ({
+    id: "", razaoSocial: "", nomeFantasia: "", cnpj: "33.333.333/0001-33", perfilTributario: "", endereco: "",
+    inscricaoEstadual: "", inscricaoMunicipal: "", dadosBancarios: { ...vazio }, representante: "", telefone: "", email: "", ...p,
+  });
+
+  it("o que já está gravado fica; o vazio recebe o que veio agora; contatos se juntam", () => {
+    const existente = base({ id: "f1", razaoSocial: "Som e Luz Ltda", contatos: [{ nome: "Maria" }] });
+    const novo = base({ razaoSocial: "SOM E LUZ", endereco: "Rua A, 1 - Centro - Contagem - MG", cnaes: ["9001-9/02"],
+      dadosBancarios: { ...vazio, chavePix: "pix@som.com" }, contatos: [{ nome: "Maria", telefone: "(31) 99999-0000" }, { nome: "João" }] });
+    const r = completarCadastro(existente, novo);
+    expect(r.id).toBe("f1");
+    expect(r.razaoSocial).toBe("Som e Luz Ltda");
+    expect(r.endereco).toBe("Rua A, 1 - Centro - Contagem - MG");
+    expect(r.cnaes).toEqual(["9001-9/02"]);
+    expect(r.dadosBancarios.chavePix).toBe("pix@som.com");
+    expect(r.contatos).toEqual([{ nome: "Maria", telefone: "(31) 99999-0000" }, { nome: "João" }]);
   });
 });

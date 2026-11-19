@@ -348,6 +348,31 @@ export function cadastroAtualizadoPelaOs(
   return JSON.stringify(doCadastro(atualizado)) === JSON.stringify(doCadastro(cadastro)) ? null : atualizado;
 }
 
+/**
+ * Dois salvamentos do MESMO fornecedor novo ao mesmo tempo (19/11/2026).
+ *
+ * O cadastro guarda um fornecedor por CPF/CNPJ — o banco recusa o segundo
+ * (índice `fornecedores_documento_unico`). Quando isso acontece, quem chegou
+ * depois não perde o que trazia: ele COMPLETA o cadastro que acabou de nascer.
+ * O que já está lá fica (foi gravado primeiro); campo vazio recebe o que veio
+ * agora; contatos se juntam pela regra de sempre (`mesclarContatos`).
+ */
+export function completarCadastro(existente: Fornecedor, novo: Fornecedor): Fornecedor {
+  const preenchidoNovo = doCadastro(novo);
+  const preenchidoExistente = doCadastro(existente);
+  return {
+    ...existente,
+    ...preenchidoNovo,
+    ...preenchidoExistente,
+    id: existente.id,
+    dadosBancarios: {
+      ...(preenchidoNovo.dadosBancarios ?? {}),
+      ...semVazios({ ...(existente.dadosBancarios ?? {}) } as Record<string, string | undefined>),
+    } as Fornecedor["dadosBancarios"],
+    contatos: mesclarContatos(existente.contatos ?? [], novo.contatos ?? []),
+  };
+}
+
 /* ------------------------- Contatos do fornecedor ----------------------- */
 
 /**
