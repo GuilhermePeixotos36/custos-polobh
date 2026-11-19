@@ -704,14 +704,16 @@ const ecRepo: EcRepository = {
 const logisticaVazia = () => ({ transporteMaterial: "", transporteEquipe: "", hospedagem: "", alimentacao: "", estacionamentoCarga: "", estacionamentoEquipe: "", uniformizacao: "" });
 /** Separa `gruposExtras` do jsonb de logística (ver `osRow`). */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function separarGruposExtras(bruto: any): { logistica: Os["logistica"]; gruposExtras: GrupoExtraOs[]; cronogramaNaoSeAplica?: boolean } {
-  // O "não se aplica" do cronograma também viaja no jsonb de logística
-  // (18/11/2026): não tinha coluna, e se perdia a cada salvamento.
-  const { gruposExtras, cronogramaNaoSeAplica, ...logistica } = bruto ?? {};
+function separarGruposExtras(bruto: any): { logistica: Os["logistica"]; gruposExtras: GrupoExtraOs[]; cronogramaNaoSeAplica?: boolean; observacoesGeraisNaoSeAplica?: boolean } {
+  // Os "não se aplica" do cronograma (18/11/2026) e das Observações Gerais
+  // (19/11/2026) também viajam no jsonb de logística: não tinham coluna, e se
+  // perdiam a cada salvamento — o bloco voltava no PDF.
+  const { gruposExtras, cronogramaNaoSeAplica, observacoesGeraisNaoSeAplica, ...logistica } = bruto ?? {};
   return {
     logistica: bruto ? (logistica as Os["logistica"]) : logisticaVazia(),
     gruposExtras: Array.isArray(gruposExtras) ? gruposExtras : [],
     ...(cronogramaNaoSeAplica === true ? { cronogramaNaoSeAplica: true } : {}),
+    ...(observacoesGeraisNaoSeAplica === true ? { observacoesGeraisNaoSeAplica: true } : {}),
   };
 }
 
@@ -719,7 +721,7 @@ const infraVazia = () => ({ energia: "", internet: "", pontosEletricos: "", estr
 const contratoVazio = () => ({ contratante: "" as const, descritivoServicos: "", informacoesComplementares: "", valorUnitario: 0, valorTotal: 0, descontoNegociado: 0, valorAPagar: 0, dataContrato: "", rubrica: "" });
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapOs(r: any): Os {
+export function mapOs(r: any): Os {
   // os_financeiro é 1:1 e protegido por RLS — vem null/[] para quem não pode ver.
   const finRow = Array.isArray(r.os_financeiro) ? r.os_financeiro[0] : r.os_financeiro;
   // BV mora na própria OS (editável pela Produção); o resto do financeiro é restrito.
@@ -774,7 +776,7 @@ function mapOs(r: any): Os {
   };
 }
 
-function osRow(os: Os) {
+export function osRow(os: Os) {
   const blocosOs = padronizarBlocosDaOs(os);
   return {
     numero: os.numero,
@@ -795,6 +797,7 @@ function osRow(os: Os) {
       ...blocosOs.logistica,
       gruposExtras: blocosOs.gruposExtras ?? [],
       ...(os.cronogramaNaoSeAplica ? { cronogramaNaoSeAplica: true } : {}),
+      ...(os.observacoesGeraisNaoSeAplica ? { observacoesGeraisNaoSeAplica: true } : {}),
     },
     infraestrutura: blocosOs.infraestrutura,
     credenciamento: os.credenciamento,
