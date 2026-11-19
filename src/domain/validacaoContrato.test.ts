@@ -73,9 +73,41 @@ describe("projeto incentivado no bloco Dados para Contrato", async () => {
     });
   });
 
-  it("o que a Produção corrige no contrato é o que vale", () => {
+  it("OS não emitida: a correção à mão no contrato não vale mais — só os Dados Gerais (18/11/2026)", () => {
     const corrigido = { ...base, contrato: { codigoProjetoIncentivado: "PRONAC 26 9999", incentivoManual: true } } as typeof base;
-    expect(incentivoDoContrato(corrigido).codigoProjetoIncentivado).toBe("PRONAC 26 9999");
+    expect(incentivoDoContrato(corrigido).codigoProjetoIncentivado).toBe("PRONAC 26 1234");
     expect(incentivoDoContrato(corrigido).projetoIncentivado).toBe("Prêmio Jornalista");
+  });
+
+  it("OS emitida: segue como saiu, com a correção à mão de antes", () => {
+    const emitida = { ...base, status: "Emitida", fase: "emitida", contrato: { codigoProjetoIncentivado: "PRONAC 26 9999", incentivoManual: true } } as typeof base;
+    expect(incentivoDoContrato(emitida).codigoProjetoIncentivado).toBe("PRONAC 26 9999");
+  });
+});
+
+describe("projeto incentivado na nota (Faturamento, PDF e planilha)", async () => {
+  const { incentivoDaNota, incentivoFaltando, incentivoDosDadosGerais } = await import("./os");
+  const projeto = { projetoIncentivado: "Festival", codigoProjetoIncentivado: "PRONAC 26 1234", leiIncentivo: "Lei Rouanet", incentivosFiscais: "" };
+  const gravado = { projetoIncentivado: "Nome antigo", codigoProjetoIncentivado: "PRONAC 00 0000", leiIncentivo: "Lei padrão" };
+
+  it("OS não emitida: o que está nos Dados Gerais, e não o que a OS gravou ao nascer", () => {
+    const os = { projeto, financeiro: gravado, status: "Ativa", fase: "financeiro" } as unknown as Parameters<typeof incentivoDaNota>[0];
+    expect(incentivoDaNota(os)).toEqual({ projetoIncentivado: "Festival", codigoProjetoIncentivado: "PRONAC 26 1234", leiIncentivo: "Lei Rouanet" });
+  });
+
+  it("OS emitida: o que saiu nela", () => {
+    const os = { projeto, financeiro: gravado, status: "Emitida", fase: "emitida" } as unknown as Parameters<typeof incentivoDaNota>[0];
+    expect(incentivoDaNota(os)).toEqual(gravado);
+  });
+
+  it("OS emitida sem o faturamento gravado: a foto do projeto na emissão", () => {
+    const os = { projeto, financeiro: {}, status: "Emitida", fase: "emitida" } as unknown as Parameters<typeof incentivoDaNota>[0];
+    expect(incentivoDaNota(os)).toEqual({ projetoIncentivado: "Festival", codigoProjetoIncentivado: "PRONAC 26 1234", leiIncentivo: "Lei Rouanet" });
+  });
+
+  it("projeto antigo cai no texto único na Lei e aponta o que falta", () => {
+    const d = incentivoDosDadosGerais({ projetoIncentivado: "", codigoProjetoIncentivado: "", leiIncentivo: "", incentivosFiscais: "Rouanet — PRONAC 1" });
+    expect(d.leiIncentivo).toBe("Rouanet — PRONAC 1");
+    expect(incentivoFaltando(d)).toEqual(["Nome do Projeto Incentivado", "Código do Projeto Incentivado"]);
   });
 });

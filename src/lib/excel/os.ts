@@ -26,7 +26,7 @@ import {
 } from "@/domain/calc";
 import { bvDaContratacao, COLUNAS_CONTRATACAO, resumoContratacao, sincronizarContratacao, valorDaContratacao } from "@/domain/contratacaoOs";
 import { datasDoEvento, ETAPAS_CRONOGRAMA, horariosDoEvento } from "@/domain/projeto";
-import { itensParaDocumento, temContrato, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, osIncentivada, incentivoDoContrato } from "@/domain/os";
+import { itensParaDocumento, temContrato, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, osIncentivada, incentivoDoContrato, incentivoDaNota } from "@/domain/os";
 import { calcularAcerto } from "@/domain/acertoFinanceiro";
 import { dadosDoTomador, RETENCOES_PADRAO } from "@/domain/tomadorOs";
 import { COR, fill, FONT_LIGHT, baixar, nomeArquivo, carregarLogo, encaixarLogo, linhasVisuais, alturaParaLinhas } from "./shared";
@@ -495,9 +495,10 @@ export async function criarOsExcelBuffer(
     // Projeto incentivado: campos próprios da OS; OSs antigas caem no texto único da EC.
     // Só em projeto incentivado (cultural): corporativo não tem lei de incentivo.
     if (incentivada) {
-      linha("", `Nome Projeto Incentivado: ${fin.projetoIncentivado || (p.incentivosFiscais ? p.incentivosFiscais : "")}`, { semRotulo: true });
+      // Dos Dados Gerais enquanto não emitida (18/11/2026); a emitida, como saiu.
+      linha("", `Nome Projeto Incentivado: ${incentivoDaNota(os).projetoIncentivado}`, { semRotulo: true });
       // A lei já vem com o número do projeto na mesma string — uma linha só.
-      linha("", `Lei de Incentivo à Cultura: ${fin.leiIncentivo || p.incentivosFiscais || ""}`, { semRotulo: true });
+      linha("", `Lei de Incentivo à Cultura: ${incentivoDaNota(os).leiIncentivo}`, { semRotulo: true });
     }
     const ultimaNf = linha("", `CNAE: ${fin.cnae || ""}`, { semRotulo: true });
     agruparRotulo(primeiraNf, ultimaNf);

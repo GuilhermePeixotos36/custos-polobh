@@ -398,7 +398,7 @@ const MODULOS: Modulo[] = [
           <Campos
             bloco="Dados do Fornecedor"
             itens={[
-              ["CNPJ + Consultar CNPJ", "equipe", "O botão busca o cadastro da casa primeiro e a Receita depois. Traz razão social, endereço, perfil e as atividades (CNAE)."],
+              ["CNPJ + Consultar CNPJ", "auto", "Ao digitar o CPF/CNPJ completo, a OS busca sozinha o cadastro da casa e depois a Receita (o botão busca de novo). O que for corrigido aqui volta para o cadastro do fornecedor ao salvar."],
               ["Perfil (regime tributário)", "escolha", "MEI, Simples, Lucro Presumido, Lucro Real, Imune/Isenta, Pessoa Física (Recibo Simples), Pessoa Física (RPA). Com CPF, o sistema já marca Pessoa Física (Recibo Simples). Decide retenção e o que a nota precisa trazer."],
               ["Inscrição Municipal", "equipe", "Tem botão de busca, como o do cliente."],
               ["Dados bancários / Pix", "equipe", "Nenhuma fonte pública tem isso: é memória da casa, e a consulta de CNPJ nunca apaga."],
@@ -435,8 +435,8 @@ const MODULOS: Modulo[] = [
             itens={[
               ["Tomador dos Serviços", "auto", "Nasce “Pólobh” e traz razão social, endereço, CNPJ e inscrições. Troque para Cliente quando o faturamento for direto."],
               ["Descritivo Nota Fiscal", "auto", "Vem do descritivo da EC."],
-              ["Nome do Projeto Incentivado", "auto", "Do projeto."],
-              ["Lei de Incentivo à Cultura", "auto", "Lei e número na MESMA linha, como o Projeto guarda. Avisa quando fica diferente do Projeto."],
+              ["Nome do Projeto Incentivado", "auto", "Dos Dados Gerais do projeto, só leitura. Corrige-se lá."],
+              ["Lei de Incentivo à Cultura", "auto", "Dos Dados Gerais do projeto, só leitura, com o Código ao lado. Faltando algum dos três, a OS avisa e não emite."],
               ["CNAE", "escolha", "As atividades daquele CNPJ, vindas do cartão. Tem escape para digitar quando o cartão está desatualizado."],
               ["Valor total a pagar", "calculado", "Fecha o bloco de emissão, junto da forma de pagamento."],
               ["Forma de Pagamento", "auto", "Como o fornecedor recebe o que a nota cobra. Nasce com o padrão do modelo e é editável. É outra coisa que a forma de pagamento do CONTRATO: aquela é cláusula contratual, e só existe quando há contrato."],
@@ -692,7 +692,7 @@ const MODULOS: Modulo[] = [
         <Secao titulo="Criar uma EC">
           <Passos>
             <span>Vá em <b>Estimativas (EC)</b> e clique em <b>Nova EC</b>.</span>
-            <span>Preencha o <b>Cliente</b>. Dica: digite o CNPJ e clique em <b>Consultar CNPJ</b> para puxar razão social e endereço automaticamente.</span>
+            <span>Preencha o <b>Cliente</b>. Dica: digite o CNPJ completo e a razão social e o endereço entram sozinhos (cadastro da casa primeiro, Receita depois).</span>
             <span>Preencha o <b>Projeto</b> (título, local, datas, participantes).</span>
             <span>Na tabela <b>Estimativa de custos</b>, adicione as linhas: grupo, item, descrição, fornecedor e valores.</span>
             <span>Ajuste o bloco <b>Produção</b> (diárias, transporte, alimentação) informando as quantidades.</span>
@@ -855,7 +855,7 @@ const MODULOS: Modulo[] = [
           <Passos>
             <span>Datas repetidas contam uma vez: duas faixas no mesmo dia (manhã e noite) são <b>um dia</b> na lista.</span>
             <span>Horários iguais também: três dias das 9h às 18h leem <b>09:00 às 18:00</b>, e não a mesma faixa três vezes. Diferentes entre si, aparecem todos.</span>
-            <span>O <b>Cronograma do Fornecedor</b> já nasce com todas as faixas de todas as etapas do projeto — é só ajustar o que for dele.</span>
+            <span>O <b>Cronograma do Fornecedor</b> já nasce com todas as faixas de todas as etapas do projeto — é só ajustar o que for dele. Ele fica aberto em qualquer etapa da OS; depois de emitida, use <b>Editar cronograma</b> (não gera nova versão).</span>
           </Passos>
           <Dica>
             Vale nos três lugares em que a OS aparece — tela, PDF e Excel — e no e-mail que a dispara ao fornecedor.
@@ -1155,7 +1155,7 @@ const MODULOS: Modulo[] = [
         <Secao titulo="Cadastrar e consultar">
           <Passos>
             <span>Em <b>Fornecedores</b>, clique em <b>Novo fornecedor</b>.</span>
-            <span>Digite o <b>CNPJ</b> e clique em <b>Consultar CNPJ</b> — razão social, perfil tributário e endereço vêm da base pública.</span>
+            <span>Digite o <b>CNPJ</b> completo — razão social, perfil tributário e endereço vêm sozinhos da base pública.</span>
             <span>Complete contato e dados bancários e <b>Salve</b>.</span>
           </Passos>
           <Dica>Use a busca no topo da lista para achar um fornecedor por nome, CNPJ, perfil tributário — ou pelo

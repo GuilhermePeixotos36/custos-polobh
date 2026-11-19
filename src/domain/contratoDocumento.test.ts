@@ -53,7 +53,6 @@ const os = (p: Partial<Os> = {}): Os =>
       telefone: "(31) 99999-0000",
       endereco: "Rua do Fornecedor, 3 - Centro - Contagem - MG",
     },
-    projeto: { modalidade: "Corporativo" },
     financeiro: {
       tomador: "polobh",
       descritivoNf: "Sonorização do evento",
@@ -74,6 +73,16 @@ const os = (p: Partial<Os> = {}): Os =>
       rubrica: "",
     },
     ...p,
+    // O contrato lê os três dados do projeto incentivado dos DADOS GERAIS
+    // (18/11/2026): o que o teste não disser, vem daqui.
+    projeto: Object.assign(
+      {
+        projetoIncentivado: "Festival de Inverno",
+        leiIncentivo: "Lei Federal de Incentivo à Cultura (Rouanet)",
+        codigoProjetoIncentivado: "PRONAC 26 1234",
+      },
+      p.projeto ?? { modalidade: "Corporativo" },
+    ),
   }) as Os;
 
 const ctx = () => ({ cliente: cliente(), empresas: empresas() });

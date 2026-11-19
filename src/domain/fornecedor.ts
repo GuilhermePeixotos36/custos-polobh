@@ -273,6 +273,81 @@ export function doCadastro(f: Fornecedor): Partial<Fornecedor> {
   };
 }
 
+/** Os campos de texto que a OS e o cadastro do fornecedor têm em comum. */
+const CAMPOS_TEXTO_CADASTRO = [
+  "razaoSocial", "nomeFantasia", "perfilTributario", "endereco", "inscricaoEstadual",
+  "inscricaoMunicipal", "representante", "telefone", "email",
+] as const;
+const CAMPOS_BANCARIOS = ["tipoConta", "banco", "agencia", "conta", "chavePix"] as const;
+
+
+/**
+ * O que MUDOU no fornecedor entre `antes` (como a OS abriu) e `depois` (como
+ * foi salva) — só o que ficou preenchido. Campo apagado não entra: apagar na
+ * OS não é motivo para apagar no cadastro.
+ */
+function alteradosNaOs(antes: Fornecedor, depois: Fornecedor): Partial<Fornecedor> {
+  const patch: Record<string, unknown> = {};
+  for (const k of CAMPOS_TEXTO_CADASTRO) {
+    const v = (depois[k] ?? "").trim();
+    if (v && v !== (antes[k] ?? "").trim()) patch[k] = depois[k];
+  }
+  const bancarios: Record<string, string> = {};
+  for (const k of CAMPOS_BANCARIOS) {
+    const v = (depois.dadosBancarios?.[k] ?? "").trim();
+    if (v && v !== (antes.dadosBancarios?.[k] ?? "").trim()) bancarios[k] = depois.dadosBancarios[k];
+  }
+  if (Object.keys(bancarios).length) patch.dadosBancarios = bancarios;
+  if (depois.cnaes?.length && JSON.stringify(depois.cnaes) !== JSON.stringify(antes.cnaes ?? [])) patch.cnaes = depois.cnaes;
+  return patch as Partial<Fornecedor>;
+}
+
+/**
+ * O cadastro do fornecedor depois de receber o que a OS corrigiu (18/11/2026,
+ * pedido da Marisa: os dados do fornecedor, a partir do CNPJ, "deverão ser
+ * sempre lançados automaticamente pelo sistema").
+ *
+ * A OS puxa o cadastro; para a PRÓXIMA OS já nascer certa, o que se acertou
+ * nesta precisa voltar para ele. Mas só o que mudou NESTA edição (`antes` é o
+ * fornecedor como a OS abriu): devolver a OS inteira levaria de volta ao
+ * cadastro o que ela tinha de velho — a conta antiga, um endereço que alguém já
+ * corrigiu em Fornecedores depois que a OS foi aberta.
+ *
+ * Quando o documento mudou (outro fornecedor), tudo o que a OS tem preenchido
+ * é dele e vai para o cadastro dele. Fornecedor sem cadastro entra no cadastro
+ * só com CPF/CNPJ válido e razão social. Apelido e contatos são do cadastro e
+ * ficam como estão. Devolve `null` quando não há o que gravar.
+ */
+export function cadastroAtualizadoPelaOs(
+  cadastro: Fornecedor | undefined,
+  daOs: Fornecedor,
+  antes?: Fornecedor,
+  documentoValido: (digitos: string) => boolean = (d) => d.length === 11 || d.length === 14,
+): Fornecedor | null {
+  const digitos = soDigitos(daOs.cnpj);
+  if (!documentoValido(digitos)) return null;
+  if (!cadastro) {
+    if (!(daOs.razaoSocial ?? "").trim()) return null;
+    return {
+      ...daOs,
+      id: "",
+      dadosBancarios: daOs.dadosBancarios ?? { tipoConta: "", banco: "", agencia: "", conta: "", chavePix: "" },
+      contatos: [],
+    };
+  }
+  const mesmoDocumento = !!antes && soDigitos(antes.cnpj) === digitos;
+  const patch = mesmoDocumento ? alteradosNaOs(antes!, daOs) : alteradosNaOs({ cnpj: "" } as Fornecedor, daOs);
+  if (!Object.keys(patch).length) return null;
+  const atualizado: Fornecedor = {
+    ...cadastro,
+    ...patch,
+    // Os bancários se juntam campo a campo: o cadastro pode ter a chave Pix
+    // que a OS não mexeu.
+    dadosBancarios: { ...cadastro.dadosBancarios, ...(patch.dadosBancarios ?? {}) } as Fornecedor["dadosBancarios"],
+  };
+  return JSON.stringify(doCadastro(atualizado)) === JSON.stringify(doCadastro(cadastro)) ? null : atualizado;
+}
+
 /* ------------------------- Contatos do fornecedor ----------------------- */
 
 /**
