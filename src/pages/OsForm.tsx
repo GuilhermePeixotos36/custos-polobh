@@ -60,7 +60,7 @@ import { confirmar } from "@/store/confirm";
 import { usePendencias, useMinhasPendencias } from "@/store/pendencias";
 import { useSugestoes } from "@/hooks/useSugestoes";
 import { urlCredenciamento } from "@/lib/links";
-import { calcularAcerto, type CampoAcerto } from "@/domain/acertoFinanceiro";
+import { acertoNaoSeAplica, calcularAcerto, type CampoAcerto } from "@/domain/acertoFinanceiro";
 import { clausulasPadrao, modeloDoContrato, type ChaveClausula, type ClausulasDaCasa, type ModeloContrato } from "@/domain/contratoModelo";
 import { ContratoPreview } from "@/components/ContratoPreview";
 import { quantidadeDoContrato } from "@/domain/contratoDocumento";
@@ -2319,6 +2319,84 @@ export function OsForm() {
             "Resumo dos Custos" — hoje um módulo próprio, logo abaixo. */}
         </fieldset>
 
+        <fieldset disabled={!mexeFinanceiro} className="space-y-4 min-w-0 disabled:opacity-100">
+
+        {/* ACERTOS FINANCEIROS — o que a Pólobh acerta por dentro.
+            Fica FORA do bloco restrito de propósito: quem negocia o BV com o
+            fornecedor é a Produção, então este grupo aparece para todo perfil.
+            O salvamento continua exigindo a justificativa quando o BV foge do
+            padrão, para qualquer um. */}
+        {/* LOGO DEPOIS DAS OBSERVAÇÕES GERAIS (19/11/2026, pedido da Carol): o
+            acerto é item da OS, não do contrato — e a Produção o preenche.
+            ACERTOS FINANCEIROS, redesenhado em 15/09/2026.
+            Saíram os dois campos de BV — ele é combinado item a item, no
+            Detalhamento, e aqui era só a soma repetida — e entrou a conta que
+            se fazia na calculadora, por OS, sem ficar registrada em lugar
+            nenhum: quanto o fornecedor devolve à Pólobh. Ver
+            `domain/acertoFinanceiro`; "Não se aplica" é o padrão, e é resposta. */}
+        <CardOs
+          secao={SECAO_ACERTOS}
+          area="Financeiro"
+          tambem="Produção"
+          acaoSecao={
+            <button
+              type="button"
+              onClick={() => updFin({ acertoNaoSeAplica: !acertoNaoSeAplica(os) })}
+              className="text-[10.5px] font-bold text-ink-2 hover:text-primary-dark input-focus rounded px-1"
+            >
+              {acertoNaoSeAplica(os) ? "Lançar acerto" : "Não se aplica"}
+            </button>
+          }
+        >
+          {acertoNaoSeAplica(os) ? (
+            <LinhaOs label="Acerto Financeiro">
+              <div className="py-2 text-[12.5px] font-bold text-ink-3">Não se aplica</div>
+            </LinhaOs>
+          ) : (
+            <>
+              {/* TODAS as linhas se digitam (18/11/2026, pedido da Carol): a Produção
+                  preenche e o Financeiro valida. Cada uma nasce com o cálculo, e o
+                  digitado vale até "Voltar ao automático". */}
+              <LinhaOs label="Valor original dos serviços" hint="(do Detalhamento da Contratação)">
+                <ValorDoAcerto campo="valorOriginal" acerto={acerto} financeiro={os.financeiro} onFin={updFin} />
+              </LinhaOs>
+              <LinhaOs label="BV sobre o valor original" hint="(combinado item a item)">
+                <ValorDoAcerto campo="bvSobreOriginal" acerto={acerto} financeiro={os.financeiro} onFin={updFin} />
+              </LinhaOs>
+              <LinhaOs label="Valor da NF" hint="(do bloco de emissão)">
+                <ValorDoAcerto campo="valorNf" acerto={acerto} financeiro={os.financeiro} onFin={updFin} />
+              </LinhaOs>
+              <LinhaOs label="Valor do acréscimo" hint="(valor da NF menos o valor original)">
+                <ValorDoAcerto campo="acrescimo" acerto={acerto} financeiro={os.financeiro} onFin={updFin} />
+              </LinhaOs>
+              <LinhaOs label="Encargos sobre o acréscimo" hint="(percentual × acréscimo)">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <NumberInput
+                    className="!w-24"
+                    value={acerto.encargosPercentual}
+                    onValue={(v) => updFin({ encargosAcrescimoPercentual: v })}
+                    aria-label="Percentual de encargos sobre o acréscimo"
+                  />
+                  <span className="text-[12.5px] text-ink-3">%</span>
+                  <ValorDoAcerto campo="encargosSobreAcrescimo" acerto={acerto} financeiro={os.financeiro} onFin={updFin} />
+                </div>
+              </LinhaOs>
+              <LinhaOs label="Valor devolução Pólobh" hint="(BV + acréscimo − encargos sobre o acréscimo)">
+                <ValorDoAcerto campo="devolucaoPolobh" acerto={acerto} financeiro={os.financeiro} onFin={updFin} destaque />
+              </LinhaOs>
+            </>
+          )}
+          <LinhaOs label="Observações">
+            <Textarea
+              value={os.financeiro.acertoFinanceiro}
+              onChange={(e) => updFin({ acertoFinanceiro: e.target.value })}
+              placeholder="O que ficou combinado no acerto (compensações, adiantamentos, retenções…)."
+            />
+            <TextosJaUsados valor={os.financeiro.acertoFinanceiro} opcoes={sugestoes.valores.acertoFinanceiro} onEscolher={(acertoFinanceiro) => updFin({ acertoFinanceiro })} />
+          </LinhaOs>
+        </CardOs>
+        </fieldset>
+
         {/* DADOS PARA CONTRATO em bloco PRÓPRIO, abaixo das Observações Gerais
             (11/11/2026). Só existe quando a EC pediu contrato ("Emitir" ou
             "Emitir Nova Versão" na coluna Contrato de algum item) — sem contrato,
@@ -2754,81 +2832,6 @@ export function OsForm() {
         )}
         </fieldset>
 
-        <fieldset disabled={!mexeFinanceiro} className="space-y-4 min-w-0 disabled:opacity-100">
-
-        {/* ACERTOS FINANCEIROS — o que a Pólobh acerta por dentro.
-            Fica FORA do bloco restrito de propósito: quem negocia o BV com o
-            fornecedor é a Produção, então este grupo aparece para todo perfil.
-            O salvamento continua exigindo a justificativa quando o BV foge do
-            padrão, para qualquer um. */}
-        {/* ACERTOS FINANCEIROS, redesenhado em 15/09/2026.
-            Saíram os dois campos de BV — ele é combinado item a item, no
-            Detalhamento, e aqui era só a soma repetida — e entrou a conta que
-            se fazia na calculadora, por OS, sem ficar registrada em lugar
-            nenhum: quanto o fornecedor devolve à Pólobh. Ver
-            `domain/acertoFinanceiro`; "Não se aplica" é o padrão, e é resposta. */}
-        <CardOs
-          secao={SECAO_ACERTOS}
-          area="Financeiro"
-          tambem="Produção"
-          acaoSecao={
-            <button
-              type="button"
-              onClick={() => updFin({ acertoNaoSeAplica: !(os.financeiro.acertoNaoSeAplica ?? true) })}
-              className="text-[10.5px] font-bold text-ink-2 hover:text-primary-dark input-focus rounded px-1"
-            >
-              {(os.financeiro.acertoNaoSeAplica ?? true) ? "Lançar acerto" : "Não se aplica"}
-            </button>
-          }
-        >
-          {(os.financeiro.acertoNaoSeAplica ?? true) ? (
-            <LinhaOs label="Acerto Financeiro">
-              <div className="py-2 text-[12.5px] font-bold text-ink-3">Não se aplica</div>
-            </LinhaOs>
-          ) : (
-            <>
-              {/* TODAS as linhas se digitam (18/11/2026, pedido da Carol): a Produção
-                  preenche e o Financeiro valida. Cada uma nasce com o cálculo, e o
-                  digitado vale até "Voltar ao automático". */}
-              <LinhaOs label="Valor original dos serviços" hint="(do Detalhamento da Contratação)">
-                <ValorDoAcerto campo="valorOriginal" acerto={acerto} financeiro={os.financeiro} onFin={updFin} />
-              </LinhaOs>
-              <LinhaOs label="BV sobre o valor original" hint="(combinado item a item)">
-                <ValorDoAcerto campo="bvSobreOriginal" acerto={acerto} financeiro={os.financeiro} onFin={updFin} />
-              </LinhaOs>
-              <LinhaOs label="Valor da NF" hint="(do bloco de emissão)">
-                <ValorDoAcerto campo="valorNf" acerto={acerto} financeiro={os.financeiro} onFin={updFin} />
-              </LinhaOs>
-              <LinhaOs label="Valor do acréscimo" hint="(valor da NF menos o valor original)">
-                <ValorDoAcerto campo="acrescimo" acerto={acerto} financeiro={os.financeiro} onFin={updFin} />
-              </LinhaOs>
-              <LinhaOs label="Encargos sobre o acréscimo" hint="(percentual × acréscimo)">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <NumberInput
-                    className="!w-24"
-                    value={acerto.encargosPercentual}
-                    onValue={(v) => updFin({ encargosAcrescimoPercentual: v })}
-                    aria-label="Percentual de encargos sobre o acréscimo"
-                  />
-                  <span className="text-[12.5px] text-ink-3">%</span>
-                  <ValorDoAcerto campo="encargosSobreAcrescimo" acerto={acerto} financeiro={os.financeiro} onFin={updFin} />
-                </div>
-              </LinhaOs>
-              <LinhaOs label="Valor devolução Pólobh" hint="(BV + acréscimo − encargos sobre o acréscimo)">
-                <ValorDoAcerto campo="devolucaoPolobh" acerto={acerto} financeiro={os.financeiro} onFin={updFin} destaque />
-              </LinhaOs>
-            </>
-          )}
-          <LinhaOs label="Observações">
-            <Textarea
-              value={os.financeiro.acertoFinanceiro}
-              onChange={(e) => updFin({ acertoFinanceiro: e.target.value })}
-              placeholder="O que ficou combinado no acerto (compensações, adiantamentos, retenções…)."
-            />
-            <TextosJaUsados valor={os.financeiro.acertoFinanceiro} opcoes={sugestoes.valores.acertoFinanceiro} onEscolher={(acertoFinanceiro) => updFin({ acertoFinanceiro })} />
-          </LinhaOs>
-        </CardOs>
-        </fieldset>
 
         {/* OS BOTÕES QUE PASSAM O BASTÃO, no FIM do formulário (12/11/2026). A
             Produção preenche a OS inteira — inclusive os blocos do Financeiro,

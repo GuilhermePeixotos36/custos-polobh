@@ -3,7 +3,7 @@ import { itensParaDocumento, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, osIncentiv
 import type { Cliente, Ec, Os } from "@/data/types";
 import { brl, dataBR } from "@/lib/format";
 import { bvDaContratacao, COLUNAS_CONTRATACAO, resumoContratacao, sincronizarContratacao, valorDaContratacao } from "@/domain/contratacaoOs";
-import { calcularAcerto, percentualDoBv } from "@/domain/acertoFinanceiro";
+import { acertoNaoSeAplica, calcularAcerto, percentualDoBv } from "@/domain/acertoFinanceiro";
 import { datasDoEvento, horariosDoEvento, resumoCronogramaProjeto } from "@/domain/projeto";
 import { useEmpresas } from "@/store/empresas";
 import { dadosDoTomador, RETENCOES_PADRAO } from "@/domain/tomadorOs";
@@ -312,7 +312,7 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
               ele é combinado item a item, no Detalhamento — e entrou a conta de
               quanto o fornecedor devolve à Pólobh. "Não se aplica" é o padrão. */}
           <Secao titulo="Acertos Financeiros" />
-          {os.financeiro.acertoNaoSeAplica ?? true ? (
+          {acertoNaoSeAplica(os) ? (
             <LV label="Acerto Financeiro" valor="Não se aplica" />
           ) : (
             <>
