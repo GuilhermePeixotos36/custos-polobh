@@ -3,7 +3,7 @@ import {
   contatoDeTexto, doCadastro, gerarApelidoFornecedor, limparContatos, mesclarContatos,
   normalizarContatos, opcoesPerfilTributario, semVazios, textoDoContato,
 } from "./fornecedor";
-import { comPerfilPeloDocumento } from "./fornecedor";
+import { cadastroAtualizadoPelaOs, comPerfilPeloDocumento, completarCadastro } from "./fornecedor";
 import type { Fornecedor } from "@/data/types";
 
 /**
@@ -256,5 +256,82 @@ describe("perfil do fornecedor com CPF", () => {
   it("CNPJ, ou perfil já escolhido, fica como está", () => {
     expect(comPerfilPeloDocumento(f("11.111.111/0001-11")).perfilTributario).toBe("");
     expect(comPerfilPeloDocumento(f("055.650.834-35", "MEI")).perfilTributario).toBe("MEI");
+  });
+});
+
+describe("o que a OS corrige no fornecedor volta para o cadastro (18/11/2026)", () => {
+  const banc: Fornecedor["dadosBancarios"] = { tipoConta: "PJ", banco: "Itaú", agencia: "0001", conta: "123-4", chavePix: "pix@som.com" };
+  const forn = (p: Partial<Fornecedor> = {}): Fornecedor => ({
+    id: "f1", razaoSocial: "Som e Luz Ltda", nomeFantasia: "Som & Luz", cnpj: "33.333.333/0001-33",
+    perfilTributario: "Simples Nacional", endereco: "Rua A, 1 - Centro - Contagem - MG",
+    inscricaoEstadual: "Isenta", inscricaoMunicipal: "", dadosBancarios: { ...banc },
+    representante: "", telefone: "", email: "", apelido: "SomLuz", contatos: [{ nome: "Maria" }], ...p,
+  });
+
+  it("o valor corrigido na OS vence, e o campo vazio na OS não apaga o cadastro", () => {
+    const daOs = forn({ id: "", endereco: "Rua B, 2 - Centro - Contagem - MG", inscricaoMunicipal: "123", inscricaoEstadual: "", apelido: undefined, contatos: undefined,
+      dadosBancarios: { ...banc, chavePix: "" } });
+    const novo = cadastroAtualizadoPelaOs(forn(), daOs)!;
+    expect(novo.id).toBe("f1");
+    expect(novo.endereco).toBe("Rua B, 2 - Centro - Contagem - MG");
+    expect(novo.inscricaoMunicipal).toBe("123");
+    expect(novo.inscricaoEstadual).toBe("Isenta");
+    expect(novo.dadosBancarios.chavePix).toBe("pix@som.com");
+    expect(novo.apelido).toBe("SomLuz");
+    expect(novo.contatos).toEqual([{ nome: "Maria" }]);
+  });
+
+  it("nada diferente: não grava", () => {
+    expect(cadastroAtualizadoPelaOs(forn(), forn({ id: "", contatos: undefined }))).toBeNull();
+  });
+
+  it("fornecedor sem cadastro entra no cadastro; sem documento completo ou sem razão social, não", () => {
+    expect(cadastroAtualizadoPelaOs(undefined, forn({ id: "x" }))?.id).toBe("");
+    expect(cadastroAtualizadoPelaOs(undefined, forn({ cnpj: "33.333" }))).toBeNull();
+    expect(cadastroAtualizadoPelaOs(undefined, forn({ razaoSocial: "" }))).toBeNull();
+    // Documento que não passa no validador (dígito verificador errado) não cria cadastro.
+    expect(cadastroAtualizadoPelaOs(undefined, forn({ id: "x" }), undefined, () => false)).toBeNull();
+  });
+
+  it("só o que mudou NESTA edição volta: a foto velha da OS não desfaz o cadastro", () => {
+    // O cadastro já está na conta B; a OS abriu com a conta A e ninguém mexeu nela.
+    const cadastro = forn({ dadosBancarios: { ...banc, conta: "999-B" }, endereco: "Rua Nova, 9 - Centro - Contagem - MG" });
+    const comoAbriu = forn({ id: "", contatos: undefined });
+    expect(cadastroAtualizadoPelaOs(cadastro, comoAbriu, comoAbriu)).toBeNull();
+    // Agora a pessoa corrigiu só a IM: só a IM vai — banco e endereço do cadastro ficam.
+    const novo = cadastroAtualizadoPelaOs(cadastro, { ...comoAbriu, inscricaoMunicipal: "456" }, comoAbriu)!;
+    expect(novo.inscricaoMunicipal).toBe("456");
+    expect(novo.dadosBancarios.conta).toBe("999-B");
+    expect(novo.endereco).toBe("Rua Nova, 9 - Centro - Contagem - MG");
+  });
+
+  it("documento trocado na OS: o que ela tem preenchido é do fornecedor novo e vai para o cadastro dele", () => {
+    const antes = forn({ cnpj: "11.111.111/0001-11" });
+    const cadastroNovo = forn({ razaoSocial: "Outra Ltda", inscricaoMunicipal: "", dadosBancarios: { tipoConta: "", banco: "", agencia: "", conta: "", chavePix: "" } });
+    const daOs = forn({ razaoSocial: "Outra Ltda", inscricaoMunicipal: "789" });
+    const novo = cadastroAtualizadoPelaOs(cadastroNovo, daOs, antes)!;
+    expect(novo.inscricaoMunicipal).toBe("789");
+    expect(novo.dadosBancarios.banco).toBe("Itaú");
+  });
+});
+
+describe("dois salvamentos do mesmo fornecedor novo: o segundo completa o primeiro (19/11/2026)", () => {
+  const vazio = { tipoConta: "", banco: "", agencia: "", conta: "", chavePix: "" } as Fornecedor["dadosBancarios"];
+  const base = (p: Partial<Fornecedor>): Fornecedor => ({
+    id: "", razaoSocial: "", nomeFantasia: "", cnpj: "33.333.333/0001-33", perfilTributario: "", endereco: "",
+    inscricaoEstadual: "", inscricaoMunicipal: "", dadosBancarios: { ...vazio }, representante: "", telefone: "", email: "", ...p,
+  });
+
+  it("o que já está gravado fica; o vazio recebe o que veio agora; contatos se juntam", () => {
+    const existente = base({ id: "f1", razaoSocial: "Som e Luz Ltda", contatos: [{ nome: "Maria" }] });
+    const novo = base({ razaoSocial: "SOM E LUZ", endereco: "Rua A, 1 - Centro - Contagem - MG", cnaes: ["9001-9/02"],
+      dadosBancarios: { ...vazio, chavePix: "pix@som.com" }, contatos: [{ nome: "Maria", telefone: "(31) 99999-0000" }, { nome: "João" }] });
+    const r = completarCadastro(existente, novo);
+    expect(r.id).toBe("f1");
+    expect(r.razaoSocial).toBe("Som e Luz Ltda");
+    expect(r.endereco).toBe("Rua A, 1 - Centro - Contagem - MG");
+    expect(r.cnaes).toEqual(["9001-9/02"]);
+    expect(r.dadosBancarios.chavePix).toBe("pix@som.com");
+    expect(r.contatos).toEqual([{ nome: "Maria", telefone: "(31) 99999-0000" }, { nome: "João" }]);
   });
 });

@@ -3,6 +3,8 @@ import { Input } from "@/components/ui";
 import { IcCheck } from "@/components/icons";
 import { onlyDigits, maskCpfCnpjInput, maskDoc } from "@/lib/format";
 import { cnpjValido } from "@/lib/cnpj";
+import { flags } from "@/lib/flags";
+import { useAoCompletarDocumento } from "@/lib/buscaPorDocumento";
 import type { Fornecedor } from "@/data/types";
 
 interface Props {
@@ -69,18 +71,28 @@ export function FornecedorField({ razao, cnpj, fornecedores, onChange, onValidar
     onChange({ fornecedorCnpj: maskDoc(f.cnpj), fornecedorRazao: nomeDe(f) });
   }
 
-  async function validar() {
+  async function validar(doc = cnpj) {
     setValidando(true);
     try {
-      const nome = await onValidar(cnpj);
+      const nome = await onValidar(doc);
       if (nome) {
-        ultimoAplicado.current = digits;
+        ultimoAplicado.current = onlyDigits(doc);
         onChange({ fornecedorRazao: nome });
       }
     } finally {
       setValidando(false);
     }
   }
+
+  /**
+   * CNPJ SEM CADASTRO digitado na linha (18/11/2026, Marisa): a validação na
+   * Receita e o registro do fornecedor rodam sozinhos, sem clicar em "Validar".
+   * Quem já está no cadastro é preenchido pelo efeito acima; CPF não tem fonte
+   * pública. O botão continua para tentar de novo.
+   */
+  useAoCompletarDocumento(cnpj, true, (d) => {
+    if (d.length === 14 && !registrado && flags.consultaCnpj) void validar(d);
+  });
 
   return (
     <div className="flex items-center gap-1.5">
@@ -103,7 +115,7 @@ export function FornecedorField({ razao, cnpj, fornecedores, onChange, onValidar
         {podeValidar && (
           <button
             type="button"
-            onClick={validar}
+            onClick={() => void validar()}
             disabled={validando}
             title="Validar CNPJ na Receita e registrar o fornecedor no sistema"
             className="shrink-0 h-9 px-2 rounded-btn bg-primary-soft text-primary-dark text-[11px] font-extrabold hover:bg-active-border disabled:opacity-50 whitespace-nowrap"

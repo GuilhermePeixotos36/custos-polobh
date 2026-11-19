@@ -1,5 +1,5 @@
 /** OS como documento A4 — visualização em tela + PDF. Espelha o modelo em Excel. */
-import { itensParaDocumento, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, osIncentivada } from "@/domain/os";
+import { itensParaDocumento, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, osIncentivada, incentivoDaNota } from "@/domain/os";
 import type { Cliente, Ec, Os } from "@/data/types";
 import { brl, dataBR } from "@/lib/format";
 import { bvDaContratacao, COLUNAS_CONTRATACAO, resumoContratacao, sincronizarContratacao, valorDaContratacao } from "@/domain/contratacaoOs";
@@ -277,9 +277,10 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
           {/* Só em projeto incentivado (cultural): corporativo não tem lei de incentivo. */}
           {incentivada && (
             <>
-              <LV label="Nome do Projeto Incentivado" valor={os.financeiro.projetoIncentivado || p.incentivosFiscais} />
+              {/* Dos Dados Gerais enquanto não emitida (18/11/2026); a emitida, como saiu. */}
+              <LV label="Nome do Projeto Incentivado" valor={incentivoDaNota(os).projetoIncentivado} />
               {/* A lei já traz o número do projeto na mesma linha ("… — PRONAC 26 1234"). */}
-              <LV label="Lei de Incentivo à Cultura" valor={os.financeiro.leiIncentivo || p.incentivosFiscais} />
+              <LV label="Lei de Incentivo à Cultura" valor={incentivoDaNota(os).leiIncentivo} />
             </>
           )}
           <LV label="CNAE" valor={os.financeiro.cnae} />

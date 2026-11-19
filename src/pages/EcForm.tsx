@@ -42,6 +42,7 @@ import { gerarNovaVersaoEc } from "@/lib/novaVersaoEc";
 import { revisarEc, type RevisaoEc } from "@/domain/revisaoEc";
 import { RevisaoEcModal } from "@/components/RevisaoEcModal";
 import { consultarCnpj } from "@/lib/cnpj";
+import { AVISO_ORIGEM, buscarPorDocumento, ieDaBusca, useAoCompletarDocumento } from "@/lib/buscaPorDocumento";
 import {
   avisarFalhaRevisao, lembrarRevisados, pendentesDeRevisao, revisarPendentes, somenteMaiusculas,
 } from "@/lib/revisaoInterativa";
@@ -55,7 +56,7 @@ import { EcGrupos } from "@/components/EcGrupos";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
 import { ObservacoesGeraisEc } from "@/components/ObservacoesGeraisEc";
 import { pendenciasDaTela } from "@/domain/pendencias";
-import { comPerfilPeloDocumento, contatoDeTexto, mesclarContatos } from "@/domain/fornecedor";
+import { comPerfilPeloDocumento, contatoDeTexto, mesclarContatos, semVazios } from "@/domain/fornecedor";
 import { useMinhasPendencias } from "@/store/pendencias";
 import { useSugestoes } from "@/hooks/useSugestoes";
 import { EcSubGuias, type SubGuiaEc } from "@/components/EcSubGuias";
@@ -253,6 +254,14 @@ export function EcForm() {
    */
   const trava = useTravaEdicao(id ? chaveDocumento("ec", id) : "", editando);
 
+  /**
+   * EC SEM PROJETO: o cliente pelo CPF/CNPJ, sozinho (18/11/2026) — o cadastro
+   * de clientes primeiro, a Receita depois, assim que o documento fica completo.
+   * Também antes do "Carregando…", pela mesma regra dos hooks.
+   */
+  const formularioAberto = !!ec && !(editando && (!!motivoBloqueioEc(ec) || trava.travado));
+  useAoCompletarDocumento(ec?.cliente.cnpjCpf ?? "", formularioAberto && !ec?.projetoId, () => void consultar());
+
   if (!ec || !t) {
     return <PageShell title="Carregando…">{null}</PageShell>;
   }
@@ -322,6 +331,14 @@ export function EcForm() {
   /** Valida o CNPJ na Receita e registra o fornecedor no sistema (chamado pela tabela de custos). */
   async function validarFornecedor(cnpj: string): Promise<string | null> {
     try {
+      // A validação agora também roda sozinha (18/11/2026), e pode chegar antes
+      // de a lista de fornecedores carregar: quem já está no cadastro não é
+      // registrado de novo.
+      const existente = await repo.fornecedores.porCnpj(cnpj).catch(() => undefined);
+      if (existente) {
+        await reloadForn();
+        return existente.nomeFantasia || existente.razaoSocial || null;
+      }
       const d = await consultarCnpj(cnpj);
       await repo.fornecedores.salvar(fornecedorNovo({ cnpj: d.cnpj, razaoSocial: d.razaoSocial, nomeFantasia: d.nomeFantasia, endereco: d.endereco, perfilTributario: d.perfilTributario, telefone: d.telefone, email: d.email, inscricaoEstadual: d.inscricaoEstadual || "Isenta", inscricaoMunicipal: d.inscricaoMunicipal, cnaes: d.cnaes }));
       await reloadForn();
@@ -378,15 +395,33 @@ export function EcForm() {
     setCnpjMsg("");
     setCnpjLoading(true);
     try {
-      const d = await consultarCnpj(ec!.cliente.cnpjCpf);
-      updCli({
-        nome: d.nomeFantasia || d.razaoSocial,
-        razaoSocial: d.razaoSocial,
-        endereco: d.endereco,
-        inscricaoEstadual: d.inscricaoEstadual || ec!.cliente.inscricaoEstadual,
-        inscricaoMunicipal: d.inscricaoMunicipal || ec!.cliente.inscricaoMunicipal,
-      });
-      setCnpjMsg("Dados preenchidos pelas fontes cadastrais e fiscais integradas.");
+      // O cadastro de clientes primeiro (18/11/2026): é a memória da casa.
+      const digitos = onlyDigits(ec!.cliente.cnpjCpf);
+      const d = await buscarPorDocumento(digitos, { clientes: true });
+      if (!d) {
+        setCnpjMsg("Documento sem cadastro: preencha os dados do cliente.");
+        return;
+      }
+      // Valor vazio na fonte não apaga o que está na tela; e a resposta que
+      // chega depois de o documento mudar de novo é descartada.
+      setEc((e) =>
+        e && onlyDigits(e.cliente.cnpjCpf) === digitos
+          ? {
+              ...e,
+              cliente: {
+                ...e.cliente,
+                ...semVazios({
+                  nome: d.nomeFantasia || d.razaoSocial,
+                  razaoSocial: d.razaoSocial,
+                  endereco: d.endereco,
+                  inscricaoMunicipal: d.inscricaoMunicipal,
+                }),
+                inscricaoEstadual: ieDaBusca(d, e.cliente.inscricaoEstadual),
+              },
+            }
+          : e,
+      );
+      setCnpjMsg(AVISO_ORIGEM[d.origem]);
     } catch (e) {
       setCnpjMsg((e as Error).message);
     } finally {

@@ -10,6 +10,7 @@
  * quem lê os dois lados não precisar reconciliar nada.
  */
 import { modeloDoContrato } from "@/domain/contratoModelo";
+import { osEmitida } from "@/domain/faseOs";
 import type { CampoInfraestrutura, CampoLogistica, Ec, EcLinha, Fornecedor, ItemExtraOs, Os, StatusOs } from "@/data/types";
 
 export interface ItemDaOs {
@@ -268,25 +269,82 @@ export function osIncentivada(os: Pick<Os, "projeto" | "contrato">): boolean {
   return (os.contrato?.modelo || modeloDoContrato(os.projeto?.modalidade ?? "")) === "Cultural";
 }
 
+/** Os três dados do projeto incentivado (Nome, Código e Lei). */
+export interface DadosIncentivo {
+  projetoIncentivado: string;
+  codigoProjetoIncentivado: string;
+  leiIncentivo: string;
+}
+
+const primeiroPreenchido = (...v: (string | undefined)[]) => (v.find((x) => x && x.trim()) ?? "").trim();
+
 /**
- * Os três dados do projeto incentivado como o CONTRATO os usa (13/11/2026,
- * pedido da Marisa): por padrão os dos DADOS GERAIS do projeto, e só na falta
- * deles os do bloco Dados para Contrato e os do faturamento. Quando alguém
- * CORRIGIU um deles à mão no bloco (`incentivoManual`), o que a Produção
- * corrigiu é o que vale — regra de 11/11/2026, mantida.
+ * Os três dados do projeto incentivado COMO ESTÃO NOS DADOS GERAIS — e só lá
+ * (18/11/2026, pedido da Marisa): "devem ser sempre lançados automaticamente
+ * pelo sistema em todas as oportunidades em que forem necessários. Estes campos
+ * não deverão ficar abertos para edição, só no Dados Gerais".
  *
- * Antes não havia a distinção, e o bloco ficava sempre na frente: o que a OS
- * gravou quando foi criada (um nome provisório, a lei padrão) vencia o que a
- * Marisa depois preencheu nos Dados Gerais — "as informações corretas já estão
- * lançadas nos Dados Gerais, mas não estão sendo lançadas automaticamente".
+ * Projeto anterior aos três campos cai no texto único de antes
+ * (`incentivosFiscais`) na Lei, como sempre caiu.
+ */
+export function incentivoDosDadosGerais(p: Partial<Pick<Os["projeto"], "projetoIncentivado" | "codigoProjetoIncentivado" | "leiIncentivo" | "incentivosFiscais">> | undefined): DadosIncentivo {
+  return {
+    projetoIncentivado: primeiroPreenchido(p?.projetoIncentivado),
+    codigoProjetoIncentivado: primeiroPreenchido(p?.codigoProjetoIncentivado),
+    leiIncentivo: primeiroPreenchido(p?.leiIncentivo, p?.incentivosFiscais),
+  };
+}
+
+/** Os rótulos dos três campos, na ordem dos Dados Gerais — para o aviso do que falta. */
+export const ROTULOS_INCENTIVO: Record<keyof DadosIncentivo, string> = {
+  projetoIncentivado: "Nome do Projeto Incentivado",
+  codigoProjetoIncentivado: "Código do Projeto Incentivado",
+  leiIncentivo: "Lei de Incentivo à Cultura",
+};
+
+/** O que falta preencher nos Dados Gerais para a OS incentivada sair completa. */
+export function incentivoFaltando(d: DadosIncentivo): string[] {
+  return (Object.keys(ROTULOS_INCENTIVO) as (keyof DadosIncentivo)[]).filter((k) => !d[k]).map((k) => ROTULOS_INCENTIVO[k]);
+}
+
+/**
+ * Os três dados como a NOTA (bloco de Faturamento, PDF e planilha da OS) os usa.
+ *
+ * OS não emitida: os Dados Gerais, sempre. Emitida: o que ela gravou quando saiu
+ * — o documento já está com o fornecedor e não muda sozinho.
+ */
+export function incentivoDaNota(os: Pick<Os, "projeto" | "financeiro" | "fase" | "status">): DadosIncentivo {
+  if (!osEmitida(os)) return incentivoDosDadosGerais(os.projeto);
+  const f = os.financeiro ?? ({} as Os["financeiro"]);
+  const p = os.projeto ?? ({} as Os["projeto"]);
+  // Na falta do que o faturamento gravou, a foto do projeto na emissão.
+  const foto = incentivoDosDadosGerais(p);
+  return {
+    projetoIncentivado: primeiroPreenchido(f.projetoIncentivado, foto.projetoIncentivado, p.incentivosFiscais),
+    codigoProjetoIncentivado: primeiroPreenchido(f.codigoProjetoIncentivado, foto.codigoProjetoIncentivado),
+    leiIncentivo: primeiroPreenchido(f.leiIncentivo, foto.leiIncentivo),
+  };
+}
+
+/**
+ * Os três dados do projeto incentivado como o CONTRATO os usa.
+ *
+ * OS NÃO EMITIDA (18/11/2026): os Dados Gerais, sempre — a correção à mão no
+ * bloco Dados para Contrato (`incentivoManual`) deixou de existir junto com os
+ * campos editáveis. É a Marisa: "só no Dados Gerais".
+ *
+ * OS EMITIDA segue a regra de quando saiu (13/11/2026): os Dados Gerais na
+ * frente, e a correção manual, se houve, vencendo — para o contrato dela não
+ * mudar de versão sozinho.
  */
 export function incentivoDoContrato(
-  os: Pick<Os, "projeto" | "contrato" | "financeiro">,
-): { projetoIncentivado: string; codigoProjetoIncentivado: string; leiIncentivo: string } {
+  os: Pick<Os, "projeto" | "contrato" | "financeiro"> & Partial<Pick<Os, "fase" | "status">>,
+): DadosIncentivo {
+  if (!osEmitida({ fase: os.fase, status: os.status ?? "Ativa" })) return incentivoDosDadosGerais(os.projeto);
   const ct = os.contrato ?? ({} as Os["contrato"]);
   const f = os.financeiro ?? ({} as Os["financeiro"]);
   const p = os.projeto ?? ({} as Os["projeto"]);
-  const primeiro = (...v: (string | undefined)[]) => (v.find((x) => x && x.trim()) ?? "").trim();
+  const primeiro = primeiroPreenchido;
   if (ct.incentivoManual) {
     return {
       projetoIncentivado: primeiro(ct.projetoIncentivado, f.projetoIncentivado, p.projetoIncentivado),
