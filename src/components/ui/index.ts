@@ -3,7 +3,7 @@ export { Badge, tomStatusEc, tomStatusOs, tomAprovacao, tomDoStatus, classeCampo
 export type { Tom } from "./Badge";
 export { Card, CardTitle, Eyebrow } from "./Card";
 export { Field, Label, MarcaObrigatorio, Input, Textarea, AutoTextarea, Select, NumberInput, CurrencyInput, TelefoneInput } from "./Field";
-export { Toggle, Avatar, ProgressBar, EmptyState, AvisoErro, AvisoEmailPendente } from "./Misc";
+export { Toggle, ChaveNaoSeAplica, AvisoNaoSeAplica, Avatar, ProgressBar, EmptyState, AvisoErro, AvisoEmailPendente } from "./Misc";
 export { Table, THead, Th, Tr, Td } from "./Table";
 export { CarregandoTela } from "./CarregandoTela";
 export { useOrdenacao, ThOrd, compararValores } from "./Ordenacao";
