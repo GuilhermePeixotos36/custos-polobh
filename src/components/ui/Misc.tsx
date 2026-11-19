@@ -135,3 +135,66 @@ export function EmptyState({
     </div>
   );
 }
+
+/**
+ * "NÃO SE APLICA" (19/11/2026) — UM controle só para todo bloco ou item da OS
+ * que pode não se aplicar (cronograma, observações, acerto, retenções, itens de
+ * logística e infraestrutura).
+ *
+ * Antes cada lugar tinha o seu link de texto miúdo, com um cinza diferente e um
+ * nome diferente para o mesmo gesto ("Lançar acerto", "Informar", "Usar o texto
+ * padrão"…) — parecia apagado e não conversava com o resto do app. Agora é o
+ * mesmo interruptor (a mesma peça de `Toggle`, em tamanho de faixa) com o mesmo
+ * rótulo em todo lugar: ligado = não se aplica.
+ *
+ * Dentro de um `<fieldset disabled>` ele trava junto, como qualquer campo.
+ */
+export function ChaveNaoSeAplica({
+  ativo,
+  onChange,
+  title,
+}: {
+  /** true = não se aplica. */
+  ativo: boolean;
+  onChange: (v: boolean) => void;
+  title?: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={ativo}
+      title={title}
+      onClick={() => onChange(!ativo)}
+      className={cx(
+        "group inline-flex items-center gap-2 h-7 pl-1.5 pr-2.5 rounded-pill border text-[11.5px] font-bold whitespace-nowrap transition-colors input-focus",
+        "disabled:cursor-not-allowed disabled:opacity-60",
+        ativo ? "border-primary/40 bg-primary-soft text-primary-dark" : "border-border bg-surface text-ink-2 hover:border-primary/40 hover:text-ink"
+      )}
+    >
+      <span className={cx("relative w-[28px] h-[16px] rounded-pill transition-colors", ativo ? "bg-primary" : "bg-[#CDD0D6]")}>
+        <span
+          className={cx(
+            "absolute top-[2px] h-[12px] w-[12px] rounded-full bg-white shadow transition-all",
+            ativo ? "left-[14px]" : "left-[2px]"
+          )}
+        />
+      </span>
+      Não se aplica
+    </button>
+  );
+}
+
+/** O que aparece no lugar do conteúdo quando o bloco ou o item não se aplica. */
+export function AvisoNaoSeAplica({ children = "Não se aplica nesta OS.", compacto }: { children?: ReactNode; compacto?: boolean }) {
+  return (
+    <div
+      className={cx(
+        "flex items-center rounded-btn border border-dashed border-border bg-[#F7F8FA] px-3 text-[12.5px] font-semibold text-ink-3",
+        compacto ? "h-9" : "py-2.5 my-1"
+      )}
+    >
+      {children}
+    </div>
+  );
+}

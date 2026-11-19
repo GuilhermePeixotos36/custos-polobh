@@ -17,6 +17,8 @@ import {
   tomStatusOs,
   AvisoEmailPendente,
   CarregandoTela,
+  ChaveNaoSeAplica,
+  AvisoNaoSeAplica,
   MarcaObrigatorio,
   Stepper,
   StepperItem,
@@ -2144,14 +2146,11 @@ export function OsForm() {
                 {/* O cronograma inteiro pode não se aplicar (15/09/2026): numa OS
                     de locação sem montagem no local, a tabela vazia fazia o
                     fornecedor procurar o que preencher. É resposta, não ausência. */}
-                <button
-                  type="button"
-                  onClick={() => setOs((o) => (o ? { ...o, cronogramaNaoSeAplica: !o.cronogramaNaoSeAplica } : o))}
-                  className="text-[10.5px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded px-1"
-                  title={os.cronogramaNaoSeAplica ? "Voltar a preencher o cronograma" : "Esta OS não tem cronograma — o bloco some do documento"}
-                >
-                  {os.cronogramaNaoSeAplica ? "Informar cronograma" : "Não se aplica"}
-                </button>
+                <ChaveNaoSeAplica
+                  ativo={!!os.cronogramaNaoSeAplica}
+                  onChange={(v) => setOs((o) => (o ? { ...o, cronogramaNaoSeAplica: v } : o))}
+                  title="Esta OS não tem cronograma — o bloco some do documento"
+                />
                 {!os.cronogramaNaoSeAplica && (
                   <Button variant="secondary" size="sm" onClick={() => setOs((o) => (o ? { ...o, cronograma: [...o.cronograma, { id: novoId(), etapa: "", data: "", horario: "", atividades: "" }] } : o))}>+ Etapa</Button>
                 )}
@@ -2162,7 +2161,7 @@ export function OsForm() {
                 colunas; `overflow-x-auto` só abaixo de md, para não criar
                 container de rolagem onde não precisa (ver ui/Table). */}
             {os.cronogramaNaoSeAplica ? (
-              <div className="py-2 text-[12.5px] font-bold text-ink-3">Não se aplica — o cronograma não sai nesta OS.</div>
+              <AvisoNaoSeAplica>Não se aplica — o cronograma não sai nesta OS.</AvisoNaoSeAplica>
             ) : (
             <div className="py-1.5 overflow-x-auto md:overflow-visible">
               {/* Duas colunas vazias na frente: a alça de arraste e as setas. */}
@@ -2287,19 +2286,16 @@ export function OsForm() {
           secao="Observações Gerais"
           area="Produção"
           acaoSecao={
-            <button
-              type="button"
-              onClick={() => setOs((o) => (o ? { ...o, observacoesGeraisNaoSeAplica: !o.observacoesGeraisNaoSeAplica } : o))}
-              className="text-[10.5px] font-bold text-ink-2 hover:text-primary-dark input-focus rounded px-1"
-              title={os.observacoesGeraisNaoSeAplica ? "Voltar a escrever observações" : "Esta OS não tem observações — o bloco some do documento"}
-            >
-              {os.observacoesGeraisNaoSeAplica ? "Informar" : "Não se aplica"}
-            </button>
+            <ChaveNaoSeAplica
+              ativo={!!os.observacoesGeraisNaoSeAplica}
+              onChange={(v) => setOs((o) => (o ? { ...o, observacoesGeraisNaoSeAplica: v } : o))}
+              title="Esta OS não tem observações — o bloco some do documento"
+            />
           }
         >
           <LinhaOs label="Observações Gerais" hint="(sai no documento e na planilha)">
             {os.observacoesGeraisNaoSeAplica ? (
-              <div className="py-2 text-[12.5px] font-bold text-ink-3">Não se aplica — não saem nesta OS.</div>
+              <AvisoNaoSeAplica>Não se aplica — as observações não saem nesta OS.</AvisoNaoSeAplica>
             ) : (
               <Textarea
                 className="min-h-[90px]"
@@ -2339,18 +2335,16 @@ export function OsForm() {
           area="Financeiro"
           tambem="Produção"
           acaoSecao={
-            <button
-              type="button"
-              onClick={() => updFin({ acertoNaoSeAplica: !acertoNaoSeAplica(os) })}
-              className="text-[10.5px] font-bold text-ink-2 hover:text-primary-dark input-focus rounded px-1"
-            >
-              {acertoNaoSeAplica(os) ? "Lançar acerto" : "Não se aplica"}
-            </button>
+            <ChaveNaoSeAplica
+              ativo={acertoNaoSeAplica(os)}
+              onChange={(v) => updFin({ acertoNaoSeAplica: v })}
+              title="Esta OS não tem acerto com o fornecedor"
+            />
           }
         >
           {acertoNaoSeAplica(os) ? (
             <LinhaOs label="Acerto Financeiro">
-              <div className="py-2 text-[12.5px] font-bold text-ink-3">Não se aplica</div>
+              <AvisoNaoSeAplica>Não se aplica — esta OS não tem acerto com o fornecedor.</AvisoNaoSeAplica>
             </LinhaOs>
           ) : (
             <>
@@ -2792,17 +2786,15 @@ export function OsForm() {
             <LinhaOs
               label="Retenções Fiscais"
               acao={
-                <button
-                  type="button"
-                  onClick={() => updFin({ retencoesNaoSeAplica: !os.financeiro.retencoesNaoSeAplica })}
-                  className="text-[10.5px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded px-1"
-                >
-                  {os.financeiro.retencoesNaoSeAplica ? "Usar o texto padrão" : "Não se aplica"}
-                </button>
+                <ChaveNaoSeAplica
+                  ativo={!!os.financeiro.retencoesNaoSeAplica}
+                  onChange={(v) => updFin({ retencoesNaoSeAplica: v })}
+                  title="Esta OS não tem retenções fiscais"
+                />
               }
             >
               {os.financeiro.retencoesNaoSeAplica ? (
-                <div className="py-2 text-[12.5px] font-bold text-ink-3">Não se aplica</div>
+                <AvisoNaoSeAplica />
               ) : (
                 <>
                   <Textarea
@@ -3469,9 +3461,7 @@ function BlocoDeItens<C extends string>({
                 </span>
               )}
               {item.naoSeAplica ? (
-                <div className="h-9 flex items-center rounded-btn border border-border-soft bg-[#F1F2F5] px-2.5 text-[12.5px] font-bold text-ink-3">
-                  Não se aplica
-                </div>
+                <AvisoNaoSeAplica compacto>Não se aplica</AvisoNaoSeAplica>
               ) : (
                 <Input
                   className="!h-9"
@@ -3482,14 +3472,11 @@ function BlocoDeItens<C extends string>({
                 />
               )}
               <div className="flex items-center gap-1 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => alternar(item.chave as C, item.extra)}
-                  className="text-[10.5px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded px-1"
-                  title={item.naoSeAplica ? "Voltar a informar este item" : "Este item não se aplica — some do documento e da planilha"}
-                >
-                  {item.naoSeAplica ? "Informar" : "Não se aplica"}
-                </button>
+                <ChaveNaoSeAplica
+                  ativo={!!item.naoSeAplica}
+                  onChange={() => alternar(item.chave as C, item.extra)}
+                  title="Este item não se aplica — some do documento e da planilha"
+                />
                 {item.extra && (
                   <button
                     type="button"
