@@ -690,11 +690,14 @@ const ecRepo: EcRepository = {
 const logisticaVazia = () => ({ transporteMaterial: "", transporteEquipe: "", hospedagem: "", alimentacao: "", estacionamentoCarga: "", estacionamentoEquipe: "", uniformizacao: "" });
 /** Separa `gruposExtras` do jsonb de logística (ver `osRow`). */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function separarGruposExtras(bruto: any): { logistica: Os["logistica"]; gruposExtras: GrupoExtraOs[] } {
-  const { gruposExtras, ...logistica } = bruto ?? {};
+function separarGruposExtras(bruto: any): { logistica: Os["logistica"]; gruposExtras: GrupoExtraOs[]; cronogramaNaoSeAplica?: boolean } {
+  // O "não se aplica" do cronograma também viaja no jsonb de logística
+  // (18/11/2026): não tinha coluna, e se perdia a cada salvamento.
+  const { gruposExtras, cronogramaNaoSeAplica, ...logistica } = bruto ?? {};
   return {
     logistica: bruto ? (logistica as Os["logistica"]) : logisticaVazia(),
     gruposExtras: Array.isArray(gruposExtras) ? gruposExtras : [],
+    ...(cronogramaNaoSeAplica === true ? { cronogramaNaoSeAplica: true } : {}),
   };
 }
 
@@ -774,7 +777,11 @@ function osRow(os: Os) {
     cronograma: os.cronograma,
     // Grupos extras em CAIXA ALTA e itens extras em frase (ver `domain/textos`).
     // Os grupos extras viajam dentro do jsonb de logística (ver `separarGruposExtras`).
-    logistica: { ...blocosOs.logistica, gruposExtras: blocosOs.gruposExtras ?? [] },
+    logistica: {
+      ...blocosOs.logistica,
+      gruposExtras: blocosOs.gruposExtras ?? [],
+      ...(os.cronogramaNaoSeAplica ? { cronogramaNaoSeAplica: true } : {}),
+    },
     infraestrutura: blocosOs.infraestrutura,
     credenciamento: os.credenciamento,
     orcamento: os.orcamento,
@@ -860,6 +867,25 @@ const osRepo: OsRepository = {
       acao: atualizando ? "os.atualizar" : "os.criar",
       mensagem: `OS ${salvo.numero} ${atualizando ? "atualizada" : "criada"} (status: ${salvo.status})`,
       alvoId: id,
+    });
+    return salvo;
+  },
+  async salvarCronograma(os) {
+    const linha = osRow(os);
+    await atualizarSeIntacto(
+      "oss",
+      os.id,
+      { cronograma: linha.cronograma, logistica: linha.logistica, atualizado_em: linha.atualizado_em },
+      os.atualizadoEm,
+      "Esta OS",
+    );
+    const salvo = await this.obter(os.id);
+    if (!salvo) throw new Error("Falha ao reler a OS salva.");
+    auditar({
+      categoria: "OS",
+      acao: "os.cronograma",
+      mensagem: `Cronograma da OS ${salvo.numero} alterado (status: ${salvo.status})`,
+      alvoId: os.id,
     });
     return salvo;
   },

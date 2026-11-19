@@ -38,22 +38,22 @@ import {
   numeroOs,
   versaoOs,
   textoObjetoContrato,
-  LEI_INCENTIVO_PADRAO,
   FORMA_PAGAMENTO_PADRAO,
   OBS_CONTRATO_PADRAO,
   rotuloNumeroEc,
 } from "@/domain/calc";
 import { datasDoEvento, ETAPAS_CRONOGRAMA, horariosDoEvento } from "@/domain/projeto";
-import { bancariosDoHistorico, bancariosVazios, comPerfilPeloDocumento, doCadastro, opcoesPerfilTributario, semVazios } from "@/domain/fornecedor";
+import { bancariosDoHistorico, bancariosVazios, cadastroAtualizadoPelaOs, comPerfilPeloDocumento, doCadastro, opcoesPerfilTributario, semVazios } from "@/domain/fornecedor";
 import { listarBancos } from "@/lib/bancos";
 import { useEmpresas } from "@/store/empresas";
 import { consultarCnpj } from "@/lib/cnpj";
+import { AVISO_ORIGEM, buscarPorDocumento, documentoCompleto, ieDaBusca, useAoCompletarDocumento } from "@/lib/buscaPorDocumento";
 import { gerarDescritivo } from "@/lib/ai";
 import { dispararOsPorEmail } from "@/lib/email";
 import { disparoBloqueado, notaCaixaDeTeste } from "@/lib/avisoHomologacao";
 import { arquivarOsNoProjeto } from "@/lib/excel";
 import { flags } from "@/lib/flags";
-import { brl, cx, dataBR, maskCpfCnpjInput } from "@/lib/format";
+import { brl, cx, dataBR, maskCpfCnpjInput, onlyDigits } from "@/lib/format";
 import { useAuth } from "@/store/auth";
 import { toast } from "@/store/toast";
 import { confirmar } from "@/store/confirm";
@@ -92,6 +92,7 @@ import {
 } from "@/domain/contratacaoOs";
 import {
   CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, exigeNovaVersaoPorFornecedor, osIncentivada, incentivoDoContrato,
+  incentivoDaNota, incentivoDosDadosGerais, incentivoFaltando,
   itensDoBloco, temContrato,
 } from "@/domain/os";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
@@ -202,6 +203,8 @@ function aplicarAutoPreenchimento(osOriginal: Os, ec: Ec): Os {
   // Fornecedor com CPF: perfil "Pessoa Física (Recibo Simples)" quando ainda está vazio.
   const os = { ...osOriginal, fornecedor: comPerfilPeloDocumento(osOriginal.fornecedor) };
   const incentivada = osIncentivada(os);
+  /** Os dados do projeto incentivado acompanham os Dados Gerais: cultural e ainda não emitida. */
+  const incentivoAoVivo = incentivada && !osEmitida(os);
   const linhas = ec.linhas.filter((l) => os.ecLinhaIds.includes(l.id));
   const descritivo = os.descritivo || descritivoConsolidado(linhas);
 
@@ -284,19 +287,10 @@ function aplicarAutoPreenchimento(osOriginal: Os, ec: Ec): Os {
       codigoServico: os.financeiro.codigoServico || codigoServico,
       cnae: os.financeiro.cnae || cnaeUnico,
       // Projeto incentivado só em OS de projeto cultural (27/10/2026): no
-      // corporativo esses campos não são preenchidos nem aparecem.
-      projetoIncentivado: incentivada
-        ? os.financeiro.projetoIncentivado || os.projeto.projetoIncentivado || os.projeto.nomeProjeto || os.projeto.titulo
-        : os.financeiro.projetoIncentivado,
-      // O código vem do Projeto (Dados Gerais) quando a OS ainda não tem o seu.
-      codigoProjetoIncentivado: incentivada
-        ? os.financeiro.codigoProjetoIncentivado || os.projeto.codigoProjetoIncentivado || ""
-        : os.financeiro.codigoProjetoIncentivado,
-      // Lei COM o número do projeto: é assim que o Projeto já guarda
-      // ("Lei Federal de Incentivo à Cultura (Rouanet) — PRONAC 26 1234").
-      leiIncentivo: incentivada
-        ? os.financeiro.leiIncentivo || os.projeto.leiIncentivo || os.projeto.incentivosFiscais || LEI_INCENTIVO_PADRAO
-        : os.financeiro.leiIncentivo,
+      // corporativo esses campos não são preenchidos nem aparecem. Na OS não
+      // emitida os três ESPELHAM os Dados Gerais (18/11/2026) — não se editam
+      // mais na OS; a emitida guarda o que saiu nela.
+      ...(incentivoAoVivo ? incentivoDosDadosGerais(os.projeto) : {}),
       // Como o fornecedor recebe: o mesmo padrão do modelo que o contrato usa.
       // O bloco de emissão fecha neste par (valor a pagar + forma), e nascer
       // vazio obrigava a redigitar em toda OS a resposta de sempre.
@@ -324,23 +318,10 @@ function aplicarAutoPreenchimento(osOriginal: Os, ec: Ec): Os {
           // A data do contrato é a da emissão da OS, não a de hoje: abrir a OS
           // três meses depois não pode reescrever quando ela foi feita.
           dataContrato: os.contrato.dataContrato || (os.criadoEm || new Date().toISOString()).slice(0, 10),
-          // OS cultural: os três dados do projeto incentivado nascem dos Dados
-          // Gerais do projeto, no próprio bloco do contrato (11/11/2026).
-          ...(incentivada
-            ? {
-                // Sem correção manual, os três acompanham os Dados Gerais ao vivo
-                // (13/11/2026); com ela, vale o que a Produção corrigiu.
-                projetoIncentivado: os.contrato.incentivoManual
-                  ? os.contrato.projetoIncentivado || os.financeiro.projetoIncentivado || os.projeto.projetoIncentivado || os.projeto.nomeProjeto || os.projeto.titulo
-                  : os.projeto.projetoIncentivado || os.contrato.projetoIncentivado || os.financeiro.projetoIncentivado || os.projeto.nomeProjeto || os.projeto.titulo,
-                codigoProjetoIncentivado: os.contrato.incentivoManual
-                  ? os.contrato.codigoProjetoIncentivado || os.financeiro.codigoProjetoIncentivado || os.projeto.codigoProjetoIncentivado || ""
-                  : os.projeto.codigoProjetoIncentivado || os.contrato.codigoProjetoIncentivado || os.financeiro.codigoProjetoIncentivado || "",
-                leiIncentivo: os.contrato.incentivoManual
-                  ? os.contrato.leiIncentivo || os.financeiro.leiIncentivo || os.projeto.leiIncentivo || os.projeto.incentivosFiscais || LEI_INCENTIVO_PADRAO
-                  : os.projeto.leiIncentivo || os.projeto.incentivosFiscais || os.contrato.leiIncentivo || os.financeiro.leiIncentivo || LEI_INCENTIVO_PADRAO,
-              }
-            : {}),
+          // OS cultural não emitida: os três dados do projeto incentivado são
+          // os dos Dados Gerais, sem correção à mão (18/11/2026 — antes valia
+          // a correção do bloco, `incentivoManual`, que deixa de existir).
+          ...(incentivoAoVivo ? { ...incentivoDosDadosGerais(os.projeto), incentivoManual: undefined } : {}),
         }
       : os.contrato,
   };
@@ -386,6 +367,12 @@ export function OsForm() {
    * OS nova nasce em edição: não há o que conferir num documento em branco.
    */
   const [editando, setEditando] = useState(!id);
+  /**
+   * EDITAR CRONOGRAMA da OS já EMITIDA (18/11/2026, Marisa: "o cronograma do
+   * fornecedor precisa ser editável na OS"). Só o cronograma abre; o resto da OS
+   * emitida segue em leitura, e salvar grava só ele (`salvarCronograma`).
+   */
+  const [editandoCronograma, setEditandoCronograma] = useState(false);
   /** O comparativo do "Revisar" (aberto no modal). */
   const [revisao, setRevisao] = useState<RevisaoEc | null>(null);
 
@@ -401,7 +388,7 @@ export function OsForm() {
    * que caducou por engano, a edição por outro caminho), mas só avisa DEPOIS do
    * trabalho feito. Esta avisa antes da primeira letra.
    */
-  const trava = useTravaEdicao(id ? chaveDocumento("os", id) : "", editando);
+  const trava = useTravaEdicao(id ? chaveDocumento("os", id) : "", editando || editandoCronograma);
 
   /*
    * Perdeu a disputa: a tela volta para leitura sozinha. Sem isto, a pessoa
@@ -409,11 +396,12 @@ export function OsForm() {
    * exatamente o trabalho perdido que a trava existe para evitar.
    */
   useEffect(() => {
-    if (trava.travado && editando) {
+    if (trava.travado && (editando || editandoCronograma)) {
       setEditando(false);
+      setEditandoCronograma(false);
       toast(trava.aviso, "warning");
     }
-  }, [trava.travado, trava.aviso, editando]);
+  }, [trava.travado, trava.aviso, editando, editandoCronograma]);
   // Empresas do grupo (carregadas no boot) — dados fiscais quando o tomador/contratante é a Pólobh.
   const empresas = useEmpresas((s) => s.empresas);
   const empresaPolobh = empresas.find((e) => e.padrao) ?? empresas[0];
@@ -438,6 +426,8 @@ export function OsForm() {
   const [baseline, setBaseline] = useState("");
   const [cnpjMsg, setCnpjMsg] = useState("");
   const [busy, setBusy] = useState(false);
+  /** Busca do fornecedor pelo CPF/CNPJ em andamento — em segundo plano, sem a tela cheia do "Salvando…". */
+  const [consultandoCnpj, setConsultandoCnpj] = useState(false);
   /** "Revisar" em andamento (a IA leva alguns segundos). */
   const [revisando, setRevisando] = useState(false);
   /** Textos já revisados nesta edição (id → texto final): o "Salvar" não pergunta de novo. */
@@ -452,10 +442,14 @@ export function OsForm() {
    */
   const fornecedorGravado = useRef<Fornecedor | undefined>(undefined);
 
+  /** O CPF/CNPJ do fornecedor que já foi buscado — a busca automática roda uma vez por documento. */
+  const cnpjBuscado = useRef("");
+
   const iniciar = (o: Os) => {
     setOs(o);
     setBaseline(JSON.stringify(o));
     fornecedorGravado.current = structuredClone(o.fornecedor);
+    cnpjBuscado.current = (o.fornecedor.cnpj ?? "").replace(/\D/g, "");
   };
 
   // edição de OS existente — a EC vem primeiro para o auto-preenchimento já entrar
@@ -467,8 +461,17 @@ export function OsForm() {
         // Os dados do projeto de AGORA: a OS não emitida acompanha o cadastro do
         // cliente e os Dados Gerais (18/11/2026); a emitida fica com a foto.
         const e = await comDadosAtuaisDoProjeto(bruta);
+        const aoVivo = osComDadosAtuais(structuredClone(osExistente), e);
+        // O FORNECEDOR também vem do cadastro (18/11/2026, Marisa): a OS não
+        // emitida abre com o que o cadastro diz hoje pelo CNPJ — endereço,
+        // inscrições, banco —, e não com a cópia do dia em que nasceu. Campo
+        // vazio no cadastro não apaga o que a OS tem. Emitida, segue a foto.
+        const cadastro = osEmitida(aoVivo) || !aoVivo.fornecedor.cnpj
+          ? undefined
+          : await repo.fornecedores.porCnpj(aoVivo.fornecedor.cnpj).catch(() => undefined);
+        const comCadastro = cadastro ? { ...aoVivo, fornecedor: { ...aoVivo.fornecedor, ...doCadastro(cadastro) } } : aoVivo;
         setEcCtx(e);
-        iniciar(aplicarAutoPreenchimento(osComDadosAtuais(structuredClone(osExistente), e), e));
+        iniciar(aplicarAutoPreenchimento(comCadastro, e));
       });
     }
   }, [id, osExistente]);
@@ -571,6 +574,15 @@ export function OsForm() {
   const mexeFinanceiro =
     (editando && editaFinOs && os != null && editaFinanceiro(os)) || (backofficeCorrige && editaFinOs) || (direcaoCorrige && editaFinOs);
   const emitida = os != null && osEmitida(os);
+  /**
+   * O CRONOGRAMA DO FORNECEDOR abre em QUALQUER etapa (18/11/2026): muda até o
+   * evento e não mexe em valor nem na nota — por isso não trava quando a OS
+   * passa ao Financeiro, nem quando é emitida (aí pelo "Editar cronograma").
+   * Arquivada, não.
+   */
+  const mexeCronograma =
+    mexeProducao ||
+    ((editando || editandoCronograma) && (podeEditar || podeEmitir) && os != null && os.status !== "Arquivada");
   // Pendências desta OS — mesma lista que alimenta o badge vermelho dela.
   const { itens: pendenciasDoUsuario } = useMinhasPendencias();
   /** O que se resolve DENTRO desta OS — a mesma lista da pílula do canto. */
@@ -609,6 +621,19 @@ export function OsForm() {
     setBancoDaOs(h.deOs);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editando, cnpjDaOs, ossDoHistorico]);
+
+  /**
+   * CPF/CNPJ DIGITADO no bloco do fornecedor (18/11/2026, Marisa): completo, a
+   * busca roda sozinha — o cadastro da casa primeiro, a Receita para o que
+   * faltar —, sem precisar clicar em "Consultar CNPJ". Uma vez por documento:
+   * depois disso os campos ficam livres para corrigir.
+   */
+  const digitosFornecedor = cnpjDaOs.replace(/\D/g, "");
+  useEffect(() => {
+    if (!editando || !os || digitosFornecedor === cnpjBuscado.current) return;
+    if (documentoCompleto(digitosFornecedor)) void consultar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editando, digitosFornecedor]);
 
   if (!os || !ecCtx) return <PageShell title="Carregando…">{null}</PageShell>;
 
@@ -764,13 +789,14 @@ export function OsForm() {
   });
 
   /**
-   * O código do projeto sugerido a partir da lei — o que vem depois do travessão
-   * em "Lei Federal de Incentivo à Cultura (Rouanet) — PRONAC 26 1234". É
-   * sugestão, com um clique para aceitar, e não preenchimento automático: um
-   * texto sem travessão daria um código errado, e código de incentivo errado
-   * num contrato é prestação de contas rejeitada.
+   * PROJETO INCENTIVADO (18/11/2026, Marisa): os três dados vêm SEMPRE dos Dados
+   * Gerais e não se editam na OS. A nota e o contrato leem cada um a sua regra
+   * (a emitida guarda o que saiu nela); o aviso diz o que falta lá.
    */
-  const codigoSugerido = (os.financeiro.leiIncentivo ?? "").split(/\s[—–-]\s/).slice(1).join(" - ").trim();
+  const incentivoNota = incentivoDaNota(os);
+  const incentivoCt = incentivoDoContrato(os);
+  const faltaIncentivo = osIncentivada(os) && !osEmitida(os) ? incentivoFaltando(incentivoDosDadosGerais(os.projeto)) : [];
+  const linkDadosGerais = ecCtx.projetoId ? `/projetos/${ecCtx.projetoId}?aba=dados` : "";
 
   /** Qual dos dois modelos vale aqui: o escolhido, ou o da modalidade do projeto. */
   const modeloContrato: ModeloContrato = os.contrato.modelo || modeloDoContrato(os.projeto.modalidade);
@@ -899,23 +925,6 @@ export function OsForm() {
   const updLog = (patch: Partial<Os["logistica"]>) => setOs((o) => (o ? { ...o, logistica: { ...o.logistica, ...patch } } : o));
   const updInfra = (patch: Partial<Os["infraestrutura"]>) => setOs((o) => (o ? { ...o, infraestrutura: { ...o.infraestrutura, ...patch } } : o));
   const updCt = (patch: Partial<Os["contrato"]>) => setOs((o) => (o ? { ...o, contrato: { ...o.contrato, ...patch } } : o));
-  /**
-   * Projeto incentivado corrigido no FATURAMENTO (11/11/2026): o contrato
-   * acompanha quando ainda espelhava o valor de antes (ou estava vazio). Se
-   * alguém já o ajustou no bloco do contrato, o ajuste fica.
-   */
-  const updIncentivoFin = (campo: "projetoIncentivado" | "codigoProjetoIncentivado" | "leiIncentivo", valor: string) =>
-    setOs((o) => {
-      if (!o) return o;
-      const antes = o.financeiro[campo] ?? "";
-      const noContrato = o.contrato[campo] ?? "";
-      const acompanha = !noContrato || noContrato === antes;
-      return {
-        ...o,
-        financeiro: { ...o.financeiro, [campo]: valor },
-        contrato: acompanha ? { ...o.contrato, [campo]: valor } : o.contrato,
-      };
-    });
 
   /**
    * Consulta do CNPJ: o CADASTRO da casa primeiro, a Receita depois.
@@ -929,12 +938,31 @@ export function OsForm() {
    * Nenhum dos dois apaga campo: valor vazio na fonte deixa o que está na tela.
    */
   async function consultar() {
+    const cnpj = os!.fornecedor.cnpj;
+    const digitos = onlyDigits(cnpj);
+    /*
+     * OUTRO DOCUMENTO = outro fornecedor (18/11/2026). O que está na tela é do
+     * anterior — banco, inscrições, representante — e não pode ficar nesta OS
+     * nem ir para o cadastro do novo ao salvar. Zera antes de buscar.
+     */
+    const outroDocumento = !!cnpjBuscado.current && cnpjBuscado.current !== digitos;
+    cnpjBuscado.current = digitos;
+    /** A resposta que chega depois de o documento mudar de novo é descartada. */
+    const aindaEste = () => cnpjBuscado.current === digitos;
+    if (outroDocumento) setOs((o) => (o ? { ...o, fornecedor: fornecedorVazio("", o.fornecedor.cnpj) } : o));
+    const ieAntes = outroDocumento ? "" : os!.fornecedor.inscricaoEstadual;
     setCnpjMsg("");
-    setBusy(true);
+    setConsultandoCnpj(true);
     try {
-      const cnpj = os!.fornecedor.cnpj;
       const cadastrado = await repo.fornecedores.porCnpj(cnpj).catch(() => undefined);
+      if (!aindaEste()) return;
       if (cadastrado) updF(doCadastro(cadastrado));
+      // CPF não tem fonte pública: sem cadastro, os dados são digitados aqui (e
+      // vão para o cadastro ao salvar a OS).
+      if (digitos.length === 11) {
+        setCnpjMsg(cadastrado ? `Dados vindos do cadastro do fornecedor (${cadastrado.razaoSocial || cadastrado.nomeFantasia}).` : "CPF sem cadastro: preencha os dados abaixo — eles vão para o cadastro ao salvar a OS.");
+        return;
+      }
 
       // Já cadastrado E com o essencial preenchido: não há o que buscar fora.
       //
@@ -952,13 +980,18 @@ export function OsForm() {
         setCnpjMsg(`Dados vindos do cadastro do fornecedor (${cadastrado.razaoSocial}). Perfil: ${cadastrado.perfilTributario}.`);
         return;
       }
+      if (!flags.consultaCnpj) {
+        setCnpjMsg(cadastrado ? "Dados vindos do cadastro do fornecedor." : "Fornecedor sem cadastro: preencha os dados abaixo.");
+        return;
+      }
 
       const d = await consultarCnpj(cnpj);
+      if (!aindaEste()) return;
       updF(semVazios({
         razaoSocial: d.razaoSocial, nomeFantasia: d.nomeFantasia, endereco: d.endereco,
         perfilTributario: d.perfilTributario, email: d.email, telefone: d.telefone,
         // A pesquisa não achou IE: "Isenta" (29/09/2026); o que já estava escrito vence.
-        inscricaoEstadual: d.inscricaoEstadual || os!.fornecedor.inscricaoEstadual || "Isenta",
+        inscricaoEstadual: d.inscricaoEstadual || ieAntes || "Isenta",
       }));
       if (d.cnaes?.length) {
         updF({ cnaes: d.cnaes });
@@ -974,9 +1007,9 @@ export function OsForm() {
           : `Perfil: ${d.perfilTributario}. Dados preenchidos pela BrasilAPI.`
       );
     } catch (e) {
-      setCnpjMsg((e as Error).message);
+      if (aindaEste()) setCnpjMsg((e as Error).message);
     } finally {
-      setBusy(false);
+      setConsultandoCnpj(false);
     }
   }
 
@@ -1051,6 +1084,53 @@ export function OsForm() {
    * troca de fornecedor de uma OS já emitida, que não bloqueia — desvia para
    * uma nova versão.
    */
+  /**
+   * Grava só o cronograma da OS emitida (18/11/2026). Parte da OS COMO ESTÁ
+   * GRAVADA — nada do que a tela recalcula entra junto — e troca só o
+   * cronograma e o "não se aplica" dele.
+   */
+  async function salvarCronograma() {
+    const gravada = baseline ? (JSON.parse(baseline) as Os) : os!;
+    setBusy(true);
+    try {
+      const salvo = await repo.oss.salvarCronograma({
+        ...gravada,
+        cronograma: os!.cronograma,
+        cronogramaNaoSeAplica: os!.cronogramaNaoSeAplica,
+      });
+      iniciar(ecCtx ? aplicarAutoPreenchimento(salvo, ecCtx) : salvo);
+      setEditandoCronograma(false);
+      guard.liberar();
+      usePendencias.getState().carregar(true); // o cronograma resolve/abre pendências
+      toast(
+        salvo.disparadaEm
+          ? "Cronograma salvo. O fornecedor já recebeu a OS: reenvie o cronograma pela aba Cronograma do projeto."
+          : "Cronograma salvo.",
+        "success",
+      );
+    } catch (e) {
+      toast(`Erro ao salvar o cronograma: ${(e as Error).message}`, "danger");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
+   * O que a OS completou ou corrigiu no fornecedor VOLTA para o cadastro
+   * (18/11/2026): é assim que a próxima OS dele já nasce certa. Falhar aqui não
+   * desfaz a OS salva — só avisa.
+   */
+  async function devolverAoCadastro(fornecedor: Fornecedor, antes: Fornecedor | undefined) {
+    try {
+      const cadastro = fornecedor.cnpj ? await repo.fornecedores.porCnpj(fornecedor.cnpj) : undefined;
+      // Só o que mudou nesta edição (ver `cadastroAtualizadoPelaOs`).
+      const atualizado = cadastroAtualizadoPelaOs(cadastro, fornecedor, antes, documentoCompleto);
+      if (atualizado) await repo.fornecedores.salvar(atualizado);
+    } catch (e) {
+      toast(`OS salva, mas o cadastro do fornecedor não foi atualizado: ${(e as Error).message}`, "warning");
+    }
+  }
+
   async function salvar(status?: Os["status"], patch?: Partial<Os>, opcoes?: { disparar?: boolean }): Promise<Os | undefined> {
     /**
      * TROCA DE FORNECEDOR numa OS que já saiu da casa: não é edição, é outro
@@ -1115,6 +1195,10 @@ export function OsForm() {
         revisada = aplicarNaOs(comPatchParaRevisao, somenteMaiusculas(pendentes));
       }
 
+      // Para devolver ao cadastro só o que esta edição mudou no fornecedor — e
+      // nada quando a OS já estava emitida (a foto dela é de outro dia).
+      const fornecedorAntes = fornecedorGravado.current;
+      const jaEmitida = osEmitida(os!);
       let salvo = await repo.oss.salvar({
         ...revisada,
         // A fase muda junto com o carimbo de quando ela mudou — é o que a tela
@@ -1125,6 +1209,7 @@ export function OsForm() {
         financeiro: { ...os!.financeiro, bvValor },
       });
       iniciar(ecCtx ? aplicarAutoPreenchimento(salvo, ecCtx) : salvo);
+      if (!jaEmitida) await devolverAoCadastro(salvo.fornecedor, fornecedorAntes);
       if (opcoes?.disparar) {
         const r = await dispararOsPorEmail(salvo, ecCtx!);
         if (!r.ok) toast(`OS salva; o e-mail não saiu: ${r.motivo}`, "warning");
@@ -1376,6 +1461,14 @@ export function OsForm() {
       toast(`Falta fechar a contratação: ${problemasContratacao[0]}${problemasContratacao.length > 1 ? ` (+${problemasContratacao.length - 1})` : ""}`, "danger");
       return;
     }
+    // PROJETO INCENTIVADO incompleto nos Dados Gerais (18/11/2026): a OS só lê
+    // esses dados de lá, e emitir sem eles mandaria a nota (e o contrato) sem o
+    // projeto, a lei ou o código. Antes havia um nome provisório e a lei
+    // padrão no lugar — agora o que falta é dito, e se completa lá.
+    if (faltaIncentivo.length) {
+      toast(`Antes de emitir, preencha nos Dados Gerais do projeto: ${faltaIncentivo.join(", ")}.`, "danger");
+      return;
+    }
     // OS cultural com contrato que não passou pela Direção de Produção (as que já
     // estavam no Financeiro antes de 11/11/2026, por exemplo): emitir pede
     // confirmação, e o caminho certo é devolver para a validação.
@@ -1460,6 +1553,38 @@ export function OsForm() {
             </Button>
           )}
 
+          {/* OS EMITIDA: só o cronograma se edita (18/11/2026). */}
+          {!editando && !editandoCronograma && emitida && !encerradaDoc && (podeEditar || podeEmitir) && (
+            <Button
+              size="sm"
+              icon={<IcPencil width={15} height={15} />}
+              disabled={trava.travado}
+              title={trava.travado ? trava.aviso : "Ajusta datas, horários e etapas do fornecedor sem gerar nova versão da OS"}
+              onClick={() => setEditandoCronograma(true)}
+            >
+              Editar cronograma
+            </Button>
+          )}
+          {editandoCronograma && (
+            <>
+              <Button
+                variant="text"
+                size="sm"
+                disabled={busy}
+                onClick={async () => {
+                  if (!(await podeDescartar(sujo))) return;
+                  if (baseline) setOs(JSON.parse(baseline));
+                  setEditandoCronograma(false);
+                }}
+              >
+                Cancelar edição
+              </Button>
+              <Button size="sm" onClick={() => void salvarCronograma()} disabled={busy}>
+                {busy ? "Salvando…" : "Salvar cronograma"}
+              </Button>
+            </>
+          )}
+
           {/* Aguarde no meio da tela enquanto salva, revisa ou muda de etapa. */}
           {busy && <CarregandoTela texto="Salvando…" />}
           {revisando && <CarregandoTela texto="Revisando os textos…" />}
@@ -1481,7 +1606,13 @@ export function OsForm() {
                     navigate(`/estimativas/${ecCtx.id}`);
                     return;
                   }
-                  if (baseline) setOs(JSON.parse(baseline));
+                  if (baseline) {
+                    const gravada = JSON.parse(baseline) as Os;
+                    setOs(gravada);
+                    // A busca automática volta a partir do fornecedor gravado.
+                    cnpjBuscado.current = onlyDigits(gravada.fornecedor.cnpj);
+                    setCnpjMsg("");
+                  }
                   setEditando(false);
                 }}
               >
@@ -1591,7 +1722,7 @@ export function OsForm() {
           )}
 
           {/* O e-mail ao fornecedor é o último passo, e só do que já saiu. */}
-          {emitida && podeEditar && (
+          {emitida && podeEditar && !editandoCronograma && (
             <Button
               variant="secondary"
               size="sm"
@@ -1715,9 +1846,10 @@ export function OsForm() {
               como lá — só em OS de EC cultural. No corporativo não existem. */}
           {osIncentivada(os) && (
             <>
-              <LinhaOs label="Nome do Projeto Incentivado"><Auto v={os.projeto.projetoIncentivado || ""} /></LinhaOs>
-              <LinhaOs label="Código do Projeto Incentivado"><Auto v={os.projeto.codigoProjetoIncentivado || ""} /></LinhaOs>
-              <LinhaOs label="Lei de Incentivo à Cultura"><Auto v={os.projeto.leiIncentivo || os.projeto.incentivosFiscais || ""} /></LinhaOs>
+              <LinhaOs label="Nome do Projeto Incentivado"><Auto v={incentivoNota.projetoIncentivado} /></LinhaOs>
+              <LinhaOs label="Código do Projeto Incentivado"><Auto v={incentivoNota.codigoProjetoIncentivado} /></LinhaOs>
+              <LinhaOs label="Lei de Incentivo à Cultura"><Auto v={incentivoNota.leiIncentivo} /></LinhaOs>
+              <AvisoIncentivo faltando={faltaIncentivo} link={linkDadosGerais} />
             </>
           )}
           {/* Plural no rótulo porque o evento de vários dias é o caso comum, e
@@ -1762,8 +1894,8 @@ export function OsForm() {
           area="Produção"
           acaoSoAberto
           acaoSecao={
-            <Button variant="soft" size="sm" icon={<IcSearch width={15} height={15} />} onClick={consultar} disabled={busy || !flags.consultaCnpj}>
-              Consultar CNPJ
+            <Button variant="soft" size="sm" icon={<IcSearch width={15} height={15} />} onClick={() => void consultar()} disabled={busy || consultandoCnpj || !flags.consultaCnpj}>
+              {consultandoCnpj ? "Consultando…" : "Consultar CNPJ"}
             </Button>
           }
         >
@@ -1985,8 +2117,6 @@ export function OsForm() {
           </fieldset>
         </CardOs>
 
-        <fieldset disabled={!mexeProducao} className="space-y-4 min-w-0 disabled:opacity-100">
-
         {/* RESUMO DA CONTRATAÇÃO — o que o fornecedor precisa fazer e receber:
             entrega, cronograma, logística, infraestrutura, recados e, no fim, a
             tabela do que foi definido no bloco de cima. Estava tudo num card só
@@ -1998,6 +2128,9 @@ export function OsForm() {
             A "Entrega" saiu junto: era um campo de texto livre que repetia o
             que o cronograma já diz, linha a linha e com data. */}
         <CardOs secao="Cronograma | Logística | Infraestrutura" area="Produção">
+          {/* O cronograma tem a SUA trava (18/11/2026): abre em qualquer etapa,
+              mesmo com a OS emitida. Logística e infraestrutura seguem a fase. */}
+          <fieldset disabled={!mexeCronograma} className="min-w-0 border-0 p-0 m-0 disabled:opacity-100">
           {/* Cronograma específico do fornecedor — já vem do cronograma do projeto.
               O `id` é o endereço da pendência "cronograma não preenchido": ela é
               cobrada na etapa da OS e se resolve aqui, então a pílula pisca este
@@ -2005,6 +2138,7 @@ export function OsForm() {
           <LinhaOs
             id={idAncoraPendencia(ancoraCronogramaOs(os.id))}
             label="Cronograma do Fornecedor"
+            hint={mexeCronograma && !mexeProducao ? "(aberto em qualquer etapa)" : undefined}
             acao={
               <div className="flex items-center gap-2">
                 {/* O cronograma inteiro pode não se aplicar (15/09/2026): numa OS
@@ -2076,7 +2210,9 @@ export function OsForm() {
             </div>
             )}
           </LinhaOs>
+          </fieldset>
 
+          <fieldset disabled={!mexeProducao} className="min-w-0 border-0 p-0 m-0 disabled:opacity-100">
           {/* LOGÍSTICA e INFRAESTRUTURA, um item por linha (15/09/2026).
               Lado a lado, o rótulo e o campo disputavam a mesma largura e os
               itens de nome longo quebravam em duas linhas, desalinhando a
@@ -2136,9 +2272,11 @@ export function OsForm() {
               + Novo grupo (além de Logística e Infraestrutura)
             </button>
           </LinhaOs>
+          </fieldset>
 
         </CardOs>
 
+        <fieldset disabled={!mexeProducao} className="space-y-4 min-w-0 disabled:opacity-100">
         {/* OBSERVAÇÕES GERAIS em módulo PRÓPRIO (15/09/2026).
             Elas moravam dentro do bloco de cronograma e logística, e ali pareciam
             observação daquelas listas — quando são o recado da OS inteira, o
@@ -2221,30 +2359,13 @@ export function OsForm() {
             {/* PROJETO INCENTIVADO no próprio contrato (11/11/2026): os mesmos
                 três campos dos Dados Gerais, já preenchidos de lá. É daqui que
                 sai a Cláusula Primeira do contrato Cultural. */}
+            {/* Só leitura desde 18/11/2026: corrige-se nos Dados Gerais. */}
             {modeloContrato === "Cultural" && (
               <>
-                <LinhaOs label="Nome do Projeto Incentivado">
-                  <Input
-                    formato="titulo"
-                    value={os.contrato.projetoIncentivado ?? ""}
-                    onChange={(e) => updCt({ projetoIncentivado: e.target.value, incentivoManual: true })}
-                  />
-                </LinhaOs>
-                <LinhaOs label="Código do Projeto Incentivado">
-                  <Input
-                    value={os.contrato.codigoProjetoIncentivado ?? ""}
-                    sugestoes={sugestoes.valores.codigoProjetoIncentivado}
-                    onChange={(e) => updCt({ codigoProjetoIncentivado: e.target.value, incentivoManual: true })}
-                    placeholder="Ex.: PRONAC 26 1234"
-                  />
-                </LinhaOs>
-                <LinhaOs label="Lei de Incentivo à Cultura">
-                  <Input
-                    value={os.contrato.leiIncentivo ?? ""}
-                    onChange={(e) => updCt({ leiIncentivo: e.target.value, incentivoManual: true })}
-                    placeholder="Ex.: Lei Federal de Incentivo à Cultura (Rouanet)"
-                  />
-                </LinhaOs>
+                <LinhaOs label="Nome do Projeto Incentivado" hint="(dos Dados Gerais)"><Auto v={incentivoCt.projetoIncentivado} /></LinhaOs>
+                <LinhaOs label="Código do Projeto Incentivado" hint="(dos Dados Gerais)"><Auto v={incentivoCt.codigoProjetoIncentivado} /></LinhaOs>
+                <LinhaOs label="Lei de Incentivo à Cultura" hint="(dos Dados Gerais)"><Auto v={incentivoCt.leiIncentivo} /></LinhaOs>
+                <AvisoIncentivo faltando={faltaIncentivo} link={linkDadosGerais} />
               </>
             )}
 
@@ -2485,6 +2606,7 @@ export function OsForm() {
             {os.financeiro.tomador === TOMADOR_OUTRO ? (
               <TomadorAvulsoCampos
                 dados={os.financeiro.tomadorAvulso}
+                editavel={mexeFinanceiro}
                 onDados={(tomadorAvulso) => updFin({ tomadorAvulso })}
               />
             ) : dadosTomador ? (
@@ -2513,53 +2635,17 @@ export function OsForm() {
             <LinhaOs label="Descritivo Nota Fiscal" hint="(auto do descritivo da EC)">
               <Textarea value={os.financeiro.descritivoNf} onChange={(e) => updFin({ descritivoNf: e.target.value })} />
             </LinhaOs>
-            {/* CÓDIGO DO PROJETO INCENTIVADO, sozinho (16/09/2026).
-                O campo acima guarda a lei E o número juntos, porque é assim que
-                eles aparecem na nota e é assim que o Projeto os guarda. Mas o
-                contrato Cultural cita os dois em lugares diferentes da Cláusula
-                Primeira — "no âmbito da LEI, sob o CÓDIGO" —, e partir a string
-                na hora de gerar o Word seria adivinhar onde a lei acaba. Então
-                o código também existe à parte, e nasce sugerido do que vier
-                depois do travessão. Só o contrato Cultural o usa. */}
-            {/* NOME e LEI do projeto incentivado (11/11/2026): já vinham dos
-                Dados Gerais para a nota e para o contrato, mas não apareciam
-                aqui — não dava para conferir nem corrigir. Só em OS cultural. */}
+            {/* PROJETO INCENTIVADO na nota: os três dados dos Dados Gerais, só
+                leitura (18/11/2026 — "não deverão ficar abertos para edição, só
+                no Dados Gerais"). Antes eram campos daqui, gravados quando a OS
+                nascia: corrigir os Dados Gerais depois não chegava à nota. */}
             {osIncentivada(os) && (
-              <LinhaOs label="Nome do Projeto Incentivado" hint="(dos Dados Gerais — vai para a nota e o contrato)">
-                <Input
-                  formato="titulo"
-                  value={os.financeiro.projetoIncentivado ?? ""}
-                  onChange={(e) => updIncentivoFin("projetoIncentivado", e.target.value)}
-                />
-              </LinhaOs>
-            )}
-            {osIncentivada(os) && (
-              <LinhaOs label="Lei de Incentivo à Cultura" hint="(dos Dados Gerais — vai para a nota e o contrato)">
-                <Input
-                  value={os.financeiro.leiIncentivo ?? ""}
-                  onChange={(e) => updIncentivoFin("leiIncentivo", e.target.value)}
-                  placeholder="Ex.: Lei Federal de Incentivo à Cultura (Rouanet)"
-                />
-              </LinhaOs>
-            )}
-            {osIncentivada(os) && (
-              <LinhaOs label="Código do Projeto Incentivado" hint="(dos Dados Gerais — vai para a nota e a Cláusula Primeira do contrato)">
-                <Input
-                  value={os.financeiro.codigoProjetoIncentivado ?? ""}
-                  sugestoes={sugestoes.valores.codigoProjetoIncentivado}
-                  onChange={(e) => updIncentivoFin("codigoProjetoIncentivado", e.target.value)}
-                  placeholder="Ex.: PRONAC 26 1234"
-                />
-                {!os.financeiro.codigoProjetoIncentivado && codigoSugerido && (
-                  <button
-                    type="button"
-                    onClick={() => updIncentivoFin("codigoProjetoIncentivado", codigoSugerido)}
-                    className="mt-1.5 text-[12px] font-bold text-primary-dark hover:underline"
-                  >
-                    Usar “{codigoSugerido}”, da lei acima
-                  </button>
-                )}
-              </LinhaOs>
+              <>
+                <LinhaOs label="Nome do Projeto Incentivado" hint="(dos Dados Gerais)"><Auto v={incentivoNota.projetoIncentivado} /></LinhaOs>
+                <LinhaOs label="Lei de Incentivo à Cultura" hint="(dos Dados Gerais)"><Auto v={incentivoNota.leiIncentivo} /></LinhaOs>
+                <LinhaOs label="Código do Projeto Incentivado" hint="(dos Dados Gerais)"><Auto v={incentivoNota.codigoProjetoIncentivado} /></LinhaOs>
+                <AvisoIncentivo faltando={faltaIncentivo} link={linkDadosGerais} />
+              </>
             )}
             <LinhaOs
               label="CNAE"
@@ -3137,9 +3223,12 @@ function LinhaOs({
  */
 function TomadorAvulsoCampos({
   dados,
+  editavel,
   onDados,
 }: {
   dados: TomadorAvulso | undefined;
+  /** O bloco está aberto para edição — só aí a busca automática roda. */
+  editavel: boolean;
   onDados: (d: TomadorAvulso) => void;
 }) {
   const [buscando, setBuscando] = useState(false);
@@ -3147,31 +3236,60 @@ function TomadorAvulsoCampos({
   const atual: TomadorAvulso = dados ?? {
     razaoSocial: "", endereco: "", cnpjCpf: "", inscricaoEstadual: "", inscricaoMunicipal: "",
   };
-  const mudar = (patch: Partial<TomadorAvulso>) => onDados({ ...atual, ...patch });
+  /** O que está na tela AGORA — a resposta da busca chega depois e não pode usar a foto velha. */
+  const ultimo = useRef(atual);
+  ultimo.current = atual;
+  /** O documento cujos dados estão na tela (o que estava gravado, ou o último buscado). */
+  const docDosDados = useRef(onlyDigits(atual.cnpjCpf));
+  const mudar = (patch: Partial<TomadorAvulso>) => onDados({ ...ultimo.current, ...patch });
 
+  /**
+   * Os dados do tomador pelo CPF/CNPJ (18/11/2026): os cadastros de clientes e
+   * de fornecedores primeiro, a Receita depois — e sozinha, assim que o
+   * documento fica completo. O botão continua para buscar de novo.
+   */
   async function consultar() {
-    const cnpj = atual.cnpjCpf.replace(/\D/g, "");
-    if (cnpj.length !== 14) {
-      setAviso("Informe o CNPJ completo para consultar.");
+    const doc = onlyDigits(atual.cnpjCpf);
+    if (!documentoCompleto(doc)) {
+      setAviso("Informe um CPF ou CNPJ válido para consultar.");
       return;
     }
+    /*
+     * Mesmo documento: a busca só COMPLETA o que está vazio — quem corrigiu um
+     * endereço à mão não o perde. Outro documento (outra empresa): os dados da
+     * tela são da anterior e dão lugar aos da nova.
+     */
+    const outroDocumento = !!docDosDados.current && docDosDados.current !== doc;
+    docDosDados.current = doc;
     setBuscando(true);
     setAviso("");
     try {
-      const d = await consultarCnpj(cnpj);
+      const d = await buscarPorDocumento(doc, { clientes: true, fornecedores: true });
+      // O documento mudou enquanto a busca corria: esta resposta é de outro.
+      if (onlyDigits(ultimo.current.cnpjCpf) !== doc) return;
+      if (!d) {
+        setAviso("Documento sem cadastro na casa: preencha os dados abaixo.");
+        if (outroDocumento) mudar({ razaoSocial: "", endereco: "", inscricaoEstadual: "", inscricaoMunicipal: "" });
+        return;
+      }
+      const na = ultimo.current;
+      const manter = (campo: string) => (outroDocumento ? "" : campo);
       mudar({
-        razaoSocial: atual.razaoSocial || d.razaoSocial,
-        endereco: atual.endereco || d.endereco,
-        inscricaoEstadual: atual.inscricaoEstadual || d.inscricaoEstadual || "Isenta",
-        inscricaoMunicipal: atual.inscricaoMunicipal || d.inscricaoMunicipal,
+        razaoSocial: manter(na.razaoSocial) || d.razaoSocial,
+        endereco: manter(na.endereco) || d.endereco,
+        inscricaoEstadual: ieDaBusca(d, manter(na.inscricaoEstadual)),
+        inscricaoMunicipal: manter(na.inscricaoMunicipal) || d.inscricaoMunicipal,
       });
-      setAviso("Dados preenchidos pelas fontes cadastrais e fiscais integradas.");
+      setAviso(AVISO_ORIGEM[d.origem]);
     } catch (e) {
       setAviso((e as Error).message);
     } finally {
       setBuscando(false);
     }
   }
+  // Só quando o bloco está aberto: em leitura, "Cancelar edição" que troca o
+  // documento na tela não pode disparar busca nem mexer na OS.
+  useAoCompletarDocumento(atual.cnpjCpf, editavel, () => void consultar());
 
   return (
     <>
@@ -3626,6 +3744,26 @@ function CnaeDoFornecedor({
       ))}
       <option value={OUTRO}>Outro (digitar)…</option>
     </Select>
+  );
+}
+
+/**
+ * O que falta nos Dados Gerais para a OS incentivada sair completa, com o
+ * caminho até lá — é o único lugar onde esses dados se corrigem (18/11/2026).
+ */
+function AvisoIncentivo({ faltando, link }: { faltando: string[]; link: string }) {
+  if (!faltando.length) return null;
+  return (
+    <LinhaOs label="">
+      <p className="py-2 text-[12.5px] font-semibold text-danger">
+        Falta preencher nos Dados Gerais do projeto: {faltando.join(", ")}.{" "}
+        {link && (
+          <Link to={link} className="underline text-primary-dark">
+            Abrir Dados Gerais
+          </Link>
+        )}
+      </p>
+    </LinhaOs>
   );
 }
 

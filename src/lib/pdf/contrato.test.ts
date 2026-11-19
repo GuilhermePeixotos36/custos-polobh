@@ -20,11 +20,12 @@ const os = (modalidade: string, descritivo = "Locação de som.\n- Line array\n-
   ({
     numero: "0031/26",
     fornecedor: { razaoSocial: "CS Comunicação e Arte Ltda", nomeFantasia: "CS", cnpj: "51.411.303/0001-38", inscricaoEstadual: "Isento", telefone: "(31) 98489-2098", endereco: "Rua A, 1 - Centro - Contagem - MG" },
-    projeto: { modalidade }, financeiro: { tomador: "polobh", descritivoNf: "Som" },
+    // O projeto incentivado vem dos Dados Gerais (18/11/2026).
+    projeto: { modalidade, projetoIncentivado: "Festival de Inverno", leiIncentivo: "Rouanet", codigoProjetoIncentivado: "PRONAC 26 1234" },
+    financeiro: { tomador: "polobh", descritivoNf: "Som" },
     contrato: {
       contratante: "", descritivoServicos: descritivo, informacoesComplementares: "", valorUnitario: 2500, quantidade: 1, valorTotal: 2500,
       descontoNegociado: 0, valorAPagar: 2500, formaPagamento: "À vista", observacoesGerais: "", dataContrato: "2026-11-09", rubrica: "",
-      projetoIncentivado: "Festival de Inverno", leiIncentivo: "Rouanet", codigoProjetoIncentivado: "PRONAC 26 1234",
     },
   }) as unknown as Os;
 

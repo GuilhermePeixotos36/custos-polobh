@@ -110,6 +110,13 @@ export interface OsRepository {
   obter(id: string): Promise<Os | undefined>;
   salvar(os: Os): Promise<Os>;
   /**
+   * Grava SÓ o cronograma do fornecedor (e o "não se aplica" dele) — inclusive
+   * na OS já emitida (18/11/2026): o cronograma muda até o evento e não mexe em
+   * valor nem na nota, então não exige nova versão. Nenhum outro campo da OS é
+   * tocado.
+   */
+  salvarCronograma(os: Os): Promise<Os>;
+  /**
    * Reemite a OS: cria a versão seguinte (rascunho, com o mesmo conteúdo,
    * inclusive a contratação item a item) e cancela esta. A anterior fica no
    * histórico exatamente como o fornecedor a recebeu.

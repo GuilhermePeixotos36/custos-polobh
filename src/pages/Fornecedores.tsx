@@ -12,9 +12,10 @@ import { repo } from "@/data";
 import { useAvisoDeSaida } from "@/hooks/useAvisoDeSaida";
 import { useAsync } from "@/hooks/useAsync";
 import { consultarCnpj } from "@/lib/cnpj";
+import { useAoCompletarDocumento } from "@/lib/buscaPorDocumento";
 import { flags } from "@/lib/flags";
-import { comPerfilPeloDocumento, gerarApelidoFornecedor, textoDoContato } from "@/domain/fornecedor";
-import { cx, maskCpfCnpjInput } from "@/lib/format";
+import { comPerfilPeloDocumento, gerarApelidoFornecedor, semVazios, textoDoContato } from "@/domain/fornecedor";
+import { cx, maskCpfCnpjInput, onlyDigits } from "@/lib/format";
 import { toast } from "@/store/toast";
 import { useAuth } from "@/store/auth";
 import type { ContatoFornecedor, Fornecedor } from "@/data/types";
@@ -103,12 +104,43 @@ export function Fornecedores() {
     { col: "fornecedor", dir: "asc" }
   );
 
+  /**
+   * CPF/CNPJ digitado no cadastro (18/11/2026, Marisa): já cadastrado, avisa e
+   * não duplica; CNPJ novo, os dados da Receita entram sozinhos — sem clicar em
+   * "Consultar CNPJ" (que continua, para buscar de novo).
+   */
+  // A chave é o cadastro aberto: trocar de linha (ou de "Novo" para uma linha)
+  // muda o documento na tela sem ninguém digitar — isso não dispara busca.
+  useAoCompletarDocumento(edit?.cnpj ?? "", !!edit, (digitos) => {
+    const outro = (data ?? []).find((f) => f.id !== edit?.id && onlyDigits(f.cnpj) === digitos);
+    if (outro) {
+      setMsg(`Este CPF/CNPJ já está cadastrado: ${outro.nomeFantasia || outro.razaoSocial}.`);
+      return;
+    }
+    if (digitos.length === 14 && flags.consultaCnpj) void consultar();
+  }, edit ? edit.id || "novo" : undefined);
+
   async function consultar() {
     if (!edit) return;
     setMsg("");
     try {
+      const digitos = onlyDigits(edit.cnpj);
       const d = await consultarCnpj(edit.cnpj);
-      setEdit({ ...edit, razaoSocial: d.razaoSocial, nomeFantasia: d.nomeFantasia, endereco: d.endereco, perfilTributario: d.perfilTributario, email: d.email, telefone: d.telefone, cnaes: d.cnaes, inscricaoEstadual: d.inscricaoEstadual || edit.inscricaoEstadual || "Isenta" });
+      // Valor vazio na Receita (e-mail, telefone…) não apaga o que foi digitado;
+      // e a resposta que chega depois de o documento mudar é descartada.
+      setEdit((atual) =>
+        atual && onlyDigits(atual.cnpj) === digitos
+          ? {
+              ...atual,
+              ...semVazios({
+                razaoSocial: d.razaoSocial, nomeFantasia: d.nomeFantasia, endereco: d.endereco,
+                perfilTributario: d.perfilTributario, email: d.email, telefone: d.telefone,
+              }),
+              ...(d.cnaes?.length ? { cnaes: d.cnaes } : {}),
+              inscricaoEstadual: d.inscricaoEstadual || atual.inscricaoEstadual || "Isenta",
+            }
+          : atual,
+      );
       setMsg("Dados preenchidos pela BrasilAPI.");
     } catch (e) {
       setMsg((e as Error).message);

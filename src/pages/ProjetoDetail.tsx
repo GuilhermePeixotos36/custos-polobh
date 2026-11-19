@@ -61,7 +61,7 @@ import { ancoraConversaAba, ancoraProjetoSemEc, ancoraProjetoSemPastaDropbox, pe
 import { CardConversa } from "@/components/CardConversa";
 import { ancoraFornecedorUtil } from "@/domain/dadosUteis";
 import { situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
-import { itensDaOs } from "@/domain/os";
+import { itensDaOs, osIncentivada } from "@/domain/os";
 import { ThItensOs, TdItensOs } from "@/components/ColunaItensOs";
 import { CredenciamentoProjeto } from "@/components/CredenciamentoProjeto";
 import { dadosUteisDosFornecedores } from "@/domain/dadosUteis";
@@ -239,6 +239,17 @@ export function ProjetoDetail() {
 
   const ecIds = useMemo(() => new Set(ecsDoProjeto.map((e) => e.id)), [ecsDoProjeto]);
   const ossDoProjeto = useMemo(() => (ossAll ?? []).filter((o) => ecIds.has(o.ecId)), [ossAll, ecIds]);
+  /**
+   * Os três dados do PROJETO INCENTIVADO aparecem aqui no Cultural — e também no
+   * Corporativo que tem OS no modelo Cultural (o seletor da OS existe para isso)
+   * ou que já os tem preenchidos (18/11/2026). Desde que a OS só LÊ esses dados
+   * daqui, este é o único lugar onde se preenchem; escondê-los deixava a OS
+   * desse caso sem saída.
+   */
+  const mostraIncentivo =
+    p.info.modalidade === "Cultural" ||
+    ossDoProjeto.some((o) => o.status !== "Arquivada" && osIncentivada(o)) ||
+    !!(p.info.projetoIncentivado || p.info.codigoProjetoIncentivado || p.info.leiIncentivo);
   const ossFiltradas = useMemo(
     () => ossDoProjeto.filter((os) => filtroOs === "todas" || os.status === filtroOs),
     [ossDoProjeto, filtroOs]
@@ -1088,7 +1099,7 @@ export function ProjetoDetail() {
                   Os documentos gerados por este projeto (EC, OS, cronograma) serão salvos nesta pasta. Sem o link, nada é arquivado no Dropbox e o Produtor Responsável recebe uma pendência.
                 </p>
               </Field>
-              {p.info.modalidade === "Cultural" && (
+              {mostraIncentivo && (
                 <>
                   {/* Os três campos que saem na NF (29/09/2026), no lugar do
                       antigo campo único "Incentivos Fiscais". */}
