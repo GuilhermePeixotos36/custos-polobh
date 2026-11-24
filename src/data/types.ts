@@ -877,9 +877,8 @@ export interface FinanceiroOs {
   bvJustificativa: string;
   acertoFinanceiro: string;
   /**
-   * O acerto financeiro não se aplica a esta OS — é o PADRÃO (15/09/2026).
-   * A maioria das contratações não tem acerto nenhum, e seis campos zerados em
-   * todas elas seriam ruído. Ver `domain/acertoFinanceiro`.
+   * @deprecated Ignorado desde 24/11/2026: o acerto financeiro não tem mais "Não se aplica" e o
+   * cálculo aparece sempre. Fica no tipo só porque OSs antigas o têm gravado.
    */
   acertoNaoSeAplica?: boolean;
   /** % de encargos sobre o acréscimo — o único número digitado do acerto. */

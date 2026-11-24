@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { acertoNaoSeAplica, calcularAcerto, ENCARGOS_ACRESCIMO_PADRAO } from "./acertoFinanceiro";
+import { calcularAcerto, ENCARGOS_ACRESCIMO_PADRAO } from "./acertoFinanceiro";
 
 const orcamento = (valorComBvNf: number) => ({ valorComBvNf });
 
@@ -108,19 +108,5 @@ describe("todas as linhas do acerto se digitam (18/11/2026)", () => {
 
   it("digitado igual ao cálculo não fica marcado como digitado", () => {
     expect(calcularAcerto({ ...fin, acertoDigitado: { valorNf: 2500 } }, orc, 0, 2500).digitado.valorNf).toBe(false);
-  });
-});
-
-describe("o acerto abre com os campos na OS não emitida (19/11/2026)", () => {
-  const os = (p: Record<string, unknown>) => ({ financeiro: {}, status: "Ativa", fase: "producao", ...p }) as never;
-  it("OS não emitida, sem escolha gravada: os campos aparecem", () => {
-    expect(acertoNaoSeAplica(os({}))).toBe(false);
-  });
-  it("'Não se aplica' escolhido continua valendo", () => {
-    expect(acertoNaoSeAplica(os({ financeiro: { acertoNaoSeAplica: true } }))).toBe(true);
-  });
-  it("OS já emitida sem escolha gravada segue como saiu (sem acerto)", () => {
-    expect(acertoNaoSeAplica(os({ status: "Emitida", fase: "emitida" }))).toBe(true);
-    expect(acertoNaoSeAplica(os({ status: "Emitida", fase: "emitida", financeiro: { acertoNaoSeAplica: false } }))).toBe(false);
   });
 });

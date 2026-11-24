@@ -17,23 +17,16 @@
  * Tudo calculado, e nada digitado a não ser o percentual: era esta conta que se
  * fazia na calculadora, por OS, e que não ficava registrada em lugar nenhum.
  *
- * "Não se aplica" é o padrão, e é resposta — a maioria das OS não tem acerto
- * nenhum, e um bloco de seis campos zerados em todas elas seria ruído.
+ * O cálculo aparece sempre (24/11/2026): saiu a opção "Não se aplica".
  */
-import type { FinanceiroOs, Orcamento, Os } from "@/data/types";
-import { osEmitida } from "@/domain/faseOs";
+import type { FinanceiroOs, Orcamento } from "@/data/types";
 
-/**
- * O acerto NÃO se aplica a esta OS?
- *
- * Até 19/11/2026 o padrão era "não se aplica", e os campos só apareciam depois
- * do link "Lançar acerto" — a Produção, que preenche o bloco, achava que eles
- * tinham sumido. Agora a OS ainda não emitida abre com os campos, e "Não se
- * aplica" é escolha. A OS JÁ EMITIDA sem escolha gravada segue como saiu (sem
- * acerto): o documento dela não muda.
+/*
+ * "Não se aplica" SAIU do acerto (24/11/2026, pedido da Pólobh): o cálculo do acerto financeiro
+ * aparece SEMPRE, na OS em rascunho e na emitida. Antes, a OS emitida sem escolha gravada caía em
+ * "não se aplica" sozinha (`acertoNaoSeAplica ?? osEmitida`) e o cálculo sumia na emissão. A marca
+ * `financeiro.acertoNaoSeAplica` que ficou gravada em OSs antigas é ignorada.
  */
-export const acertoNaoSeAplica = (os: Pick<Os, "financeiro" | "fase" | "status">): boolean =>
-  os.financeiro.acertoNaoSeAplica ?? osEmitida(os);
 
 /** Duas casas — a mesma régua de arredondamento do resto do sistema. */
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;

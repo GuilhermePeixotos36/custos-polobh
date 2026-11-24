@@ -3,7 +3,7 @@ import { itensParaDocumento, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, osIncentiv
 import type { Cliente, Ec, Os } from "@/data/types";
 import { brl, dataBR } from "@/lib/format";
 import { bvDaContratacao, COLUNAS_CONTRATACAO, resumoContratacao, sincronizarContratacao, valorDaContratacao } from "@/domain/contratacaoOs";
-import { acertoNaoSeAplica, calcularAcerto, percentualDoBv } from "@/domain/acertoFinanceiro";
+import { calcularAcerto, percentualDoBv } from "@/domain/acertoFinanceiro";
 import { datasDoEvento, horariosDoEvento, resumoCronogramaProjeto } from "@/domain/projeto";
 import { useEmpresas } from "@/store/empresas";
 import { dadosDoTomador, RETENCOES_PADRAO } from "@/domain/tomadorOs";
@@ -319,11 +319,8 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
 
           {/* ACERTOS FINANCEIROS (15/09/2026): saíram os dois campos de BV —
               ele é combinado item a item, no Detalhamento — e entrou a conta de
-              quanto o fornecedor devolve à Pólobh. "Não se aplica" é o padrão. */}
+              quanto o fornecedor devolve à Pólobh. Sem "Não se aplica" (24/11/2026): sai sempre. */}
           <Secao titulo="Acertos Financeiros" />
-          {acertoNaoSeAplica(os) ? (
-            <LV label="Acerto Financeiro" valor="Não se aplica" />
-          ) : (
             <>
               <LV label="Valor original dos serviços" valor={brl(acerto.valorOriginal)} />
               <LV label="BV sobre o valor original" valor={bvComPercentual} />
@@ -332,7 +329,6 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
               <LV label={`Encargos sobre o acréscimo (${acerto.encargosPercentual}%)`} valor={brl(acerto.encargosSobreAcrescimo)} />
               <LV label="Valor devolução Pólobh" valor={brl(acerto.devolucaoPolobh)} />
             </>
-          )}
           <LV label="Observações" valor={os.financeiro.acertoFinanceiro} />
         </>
       )}

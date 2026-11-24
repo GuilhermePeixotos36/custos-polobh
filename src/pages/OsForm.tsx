@@ -58,7 +58,7 @@ import { confirmar } from "@/store/confirm";
 import { usePendencias, useMinhasPendencias } from "@/store/pendencias";
 import { useSugestoes } from "@/hooks/useSugestoes";
 import { urlCredenciamento } from "@/lib/links";
-import { acertoNaoSeAplica, calcularAcerto, type CampoAcerto } from "@/domain/acertoFinanceiro";
+import { calcularAcerto, type CampoAcerto } from "@/domain/acertoFinanceiro";
 import { clausulasPadrao, modeloDoContrato, type ChaveClausula, type ClausulasDaCasa, type ModeloContrato } from "@/domain/contratoModelo";
 import { ContratoPreview } from "@/components/ContratoPreview";
 import { quantidadeDoContrato } from "@/domain/contratoDocumento";
@@ -2283,24 +2283,13 @@ export function OsForm() {
             Detalhamento, e aqui era só a soma repetida — e entrou a conta que
             se fazia na calculadora, por OS, sem ficar registrada em lugar
             nenhum: quanto o fornecedor devolve à Pólobh. Ver
-            `domain/acertoFinanceiro`; "Não se aplica" é o padrão, e é resposta. */}
+            `domain/acertoFinanceiro`. Sem "Não se aplica" desde 24/11/2026: o cálculo aparece
+            sempre, inclusive na OS emitida. */}
         <CardOs
           secao={SECAO_ACERTOS}
           area="Financeiro"
           tambem="Produção"
-          acaoSecao={
-            <ChaveNaoSeAplica
-              ativo={acertoNaoSeAplica(os)}
-              onChange={(v) => updFin({ acertoNaoSeAplica: v })}
-              title="Esta OS não tem acerto com o fornecedor"
-            />
-          }
         >
-          {acertoNaoSeAplica(os) ? (
-            <LinhaOs label="Acerto Financeiro">
-              <AvisoNaoSeAplica>Não se aplica — esta OS não tem acerto com o fornecedor.</AvisoNaoSeAplica>
-            </LinhaOs>
-          ) : (
             <>
               {/* TODAS as linhas se digitam (18/11/2026, pedido da Carol): a Produção
                   preenche e o Financeiro valida. Cada uma nasce com o cálculo, e o
@@ -2333,7 +2322,6 @@ export function OsForm() {
                 <ValorDoAcerto campo="devolucaoPolobh" acerto={acerto} financeiro={os.financeiro} onFin={updFin} destaque />
               </LinhaOs>
             </>
-          )}
           <LinhaOs label="Observações">
             <Textarea
               value={os.financeiro.acertoFinanceiro}
