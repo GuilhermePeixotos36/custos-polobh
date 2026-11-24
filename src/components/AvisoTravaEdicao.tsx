@@ -16,7 +16,7 @@ export function AvisoTravaEdicao({ trava }: { trava: TravaEdicao }) {
   if (!trava.aviso) return null;
   return (
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-btn bg-warning-soft px-4 py-3">
-      <p className="text-[13px] font-semibold text-warning">{trava.aviso}</p>
+      <p className="text-sm font-semibold text-warning">{trava.aviso}</p>
       {trava.podeAssumir && (
         <Button size="sm" variant="secondary" onClick={trava.tentarDeNovo}>
           Assumir a edição

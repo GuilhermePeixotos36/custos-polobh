@@ -69,27 +69,27 @@ export function NovaSenha() {
       <div className="w-full max-w-[400px]">
         <div className="flex flex-col items-center gap-3 mb-6">
           <img src="/polobh-logo.png" alt="Pólobh" className="h-16 w-auto object-contain" />
-          <div className="text-[12px] text-ink-3 font-semibold">Aplicativo Gestão</div>
+          <div className="text-xs text-ink-3 font-semibold">Aplicativo Gestão</div>
         </div>
 
         <div className="bg-surface border border-border rounded-card-lg shadow-card p-7">
-          <h2 className="font-display font-bold text-xl tracking-[-0.4px]">Criar nova senha</h2>
+          <h2 className="font-bold text-xl tracking-[-0.4px]">Criar nova senha</h2>
 
           {temSessao === false ? (
             <>
-              <p className="text-ink-2 text-[13.5px] mt-2 mb-5">
+              <p className="text-ink-2 text-sm mt-2 mb-5">
                 Este link não vale mais — ele expira depois de um tempo e só pode ser usado uma vez.
                 Peça outro na tela de entrada.
               </p>
               <Button block onClick={() => navigate("/login")}>Voltar para a entrada</Button>
             </>
           ) : pronto ? (
-            <p className="text-[13.5px] font-semibold text-success bg-success-soft rounded-btn px-3 py-2 mt-4">
+            <p className="text-sm font-semibold text-success bg-success-soft rounded-btn px-3 py-2 mt-4">
               Senha alterada. Levando você para o aplicativo…
             </p>
           ) : (
             <form onSubmit={submeter}>
-              <p className="text-ink-2 text-[13.5px] mt-0.5 mb-5">
+              <p className="text-ink-2 text-sm mt-0.5 mb-5">
                 Escolha uma frase que só você saiba — ela vale mais que uma senha curta cheia de símbolos.
               </p>
               <Field label="Nova senha" className="mb-4" obrigatorio>
@@ -100,7 +100,7 @@ export function NovaSenha() {
               </Field>
 
               {erro && (
-                <p className="mb-4 text-[12.5px] font-semibold text-danger bg-danger-soft rounded-btn px-3 py-2">{erro}</p>
+                <p className="mb-4 text-xs font-semibold text-danger bg-danger-soft rounded-btn px-3 py-2">{erro}</p>
               )}
 
               {salvando && <CarregandoTela />}
@@ -112,7 +112,7 @@ export function NovaSenha() {
           )}
         </div>
 
-        <p className="text-center text-ink-3 text-[11.5px] mt-6">© Pólobh Promoções</p>
+        <p className="text-center text-ink-3 text-2xs mt-6">© Pólobh Promoções</p>
       </div>
     </div>
   );

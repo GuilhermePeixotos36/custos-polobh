@@ -122,10 +122,10 @@ export function StepperIndicator({ className, children, ...props }: React.HTMLAt
   return (
     <div
       className={cx(
-        "relative flex size-8 shrink-0 items-center justify-center rounded-full text-[12.5px] font-extrabold transition-colors",
+        "relative flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-colors",
         state === "active" && "aura-etapa bg-primary text-white",
         state === "completed" && "bg-success text-white",
-        state === "inactive" && "bg-[#EEF0F3] text-ink-3",
+        state === "inactive" && "bg-muted text-ink-3",
         className,
       )}
       data-state={state}
@@ -137,18 +137,18 @@ export function StepperIndicator({ className, children, ...props }: React.HTMLAt
 }
 
 export function StepperTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
-  return <h3 className={cx("text-[12.5px] font-extrabold text-ink group-data-[state=inactive]/step:text-ink-3", className)} {...props} />;
+  return <h3 className={cx("text-xs font-bold text-ink group-data-[state=inactive]/step:text-ink-3", className)} {...props} />;
 }
 
 export function StepperDescription({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cx("text-[11.5px] text-ink-3", className)} {...props} />;
+  return <p className={cx("text-2xs text-ink-3", className)} {...props} />;
 }
 
 export function StepperSeparator({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cx(
-        "m-0.5 rounded-full bg-[#E3E6EB] group-data-[orientation=horizontal]/stepper:h-[3px] group-data-[orientation=vertical]/stepper:h-12 group-data-[orientation=horizontal]/stepper:w-full group-data-[orientation=vertical]/stepper:w-[3px] group-data-[orientation=horizontal]/stepper:flex-1 group-data-[state=completed]/step:bg-success",
+        "m-0.5 rounded-full bg-border group-data-[orientation=horizontal]/stepper:h-[3px] group-data-[orientation=vertical]/stepper:h-12 group-data-[orientation=horizontal]/stepper:w-full group-data-[orientation=vertical]/stepper:w-[3px] group-data-[orientation=horizontal]/stepper:flex-1 group-data-[state=completed]/step:bg-success",
         className,
       )}
       {...props}

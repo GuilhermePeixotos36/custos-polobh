@@ -122,13 +122,13 @@ export function NavegadorPendencias({ pendencias }: { pendencias: Pendencia[] })
         <IcComment width={14} height={14} />
       </span>
       <div className="leading-tight min-w-0">
-        <div className="text-[12.5px] font-extrabold text-ink whitespace-nowrap">
+        <div className="text-xs font-bold text-ink whitespace-nowrap">
           {pendencias.length} {pendencias.length === 1 ? "pendência" : "pendências"}
           <span className="font-bold text-ink-3"> · {posicao + 1} de {pendencias.length}</span>
         </div>
         {/* O título vem junto: diz o que a próxima seta vai mostrar, em vez de
             deixar a pessoa saltar às cegas para descobrir. */}
-        <div className="text-[11px] text-ink-2 truncate" title={atual.titulo}>
+        <div className="text-2xs text-ink-2 truncate" title={atual.titulo}>
           {atual.titulo}
         </div>
       </div>

@@ -37,7 +37,7 @@ export function LegendaProjeto({ info, projetoId }: { info?: ProjetoInfo; projet
   if (produtora) partes.push({ rotulo: "Produtor(a) Responsável", valor: produtora });
   if (!partes.length) return null;
   return (
-    <p className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-[12.5px] text-ink-2">
+    <p className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-xs text-ink-2">
       {partes.map((p) => (
         <span key={p.rotulo}>
           <span className="text-ink-3">{p.rotulo}:</span> <span className="font-semibold text-ink">{p.valor}</span>

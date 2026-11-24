@@ -188,7 +188,7 @@ export function TourOverlay() {
       <div
         ref={balaoRef}
         className={cx(
-          "absolute bg-surface rounded-card shadow-[0_18px_50px_rgba(11,11,13,0.35)] border border-border",
+          "absolute bg-surface rounded-card shadow-(--sombra-flutuante) border border-border",
           "flex flex-col"
         )}
         style={{
@@ -205,23 +205,23 @@ export function TourOverlay() {
 
         <div className="px-4 pt-3.5 pb-2 border-b border-border-soft">
           <div className="flex items-center justify-between gap-3">
-            <span className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-primary-dark">
+            <span className="text-xs font-semibold text-brand-forte">
               {atual.capitulo}
             </span>
-            <span className="text-[11px] text-ink-3 tabular-nums">
+            <span className="text-2xs text-ink-3 tabular-nums">
               {indice + 1} / {total}
             </span>
           </div>
-          <h2 className="font-display font-bold text-ink text-[17px] leading-tight mt-1">{atual.titulo}</h2>
+          <h2 className="font-bold text-ink text-lg leading-tight mt-1">{atual.titulo}</h2>
         </div>
 
         <div className="px-4 py-3 space-y-2.5 overflow-y-auto">
           {atual.corpo}
-          {procurando && <p className="text-[11.5px] text-ink-3">Abrindo a tela…</p>}
+          {procurando && <p className="text-2xs text-ink-3">Abrindo a tela…</p>}
         </div>
 
         <div className="px-4 pb-3.5 pt-1 space-y-2.5">
-          <div className="h-1 rounded-pill bg-[#EDEFF3] overflow-hidden">
+          <div className="h-1 rounded-pill bg-muted overflow-hidden">
             <div
               className="h-full bg-primary rounded-pill transition-[width] duration-300"
               style={{ width: `${((indice + 1) / total) * 100}%` }}

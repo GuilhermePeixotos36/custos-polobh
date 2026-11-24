@@ -120,7 +120,7 @@ export function AvisosNoAparelho({ compacto = false }: { compacto?: boolean }) {
     }
   }
 
-  const texto = cx(compacto ? "text-[11.5px] leading-snug" : "text-[12.5px]", "text-ink-2");
+  const texto = cx(compacto ? "text-2xs leading-snug" : "text-xs", "text-ink-2");
 
   let corpo: React.ReactNode;
   if (ios) {
@@ -191,7 +191,7 @@ export function AvisosNoAparelho({ compacto = false }: { compacto?: boolean }) {
     <div className="space-y-2">
       {corpo}
       {!compacto && (
-        <p className="text-[11.5px] text-ink-3">
+        <p className="text-2xs text-ink-3">
           A autorização é <b>por aparelho</b>: quem usa no computador e no celular autoriza nos dois. No Windows, o aviso
           com o navegador fechado chega enquanto o Chrome/Edge segue rodando em segundo plano (o padrão). No celular,
           adicione o Pólobh à tela de início pelo menu do navegador ("Instalar aplicativo" ou "Adicionar à tela inicial").

@@ -96,13 +96,13 @@ export function ThOrd<C extends string>({
         onClick={() => onSort(col)}
         title={`Ordenar por ${typeof children === "string" ? children : "esta coluna"}`}
         className={cx(
-          "inline-flex items-center gap-1 uppercase tracking-[0.08em] hover:text-ink-2 transition-colors",
+          "inline-flex items-center gap-1 hover:text-ink-2 transition-colors",
           align === "center" && "justify-center w-full",
           align === "right" && "justify-end w-full"
         )}
       >
         {children}
-        <span className={cx("text-[9px] leading-none", ativo ? "text-ink-2" : "text-ink-3/40")}>
+        <span className={cx("text-2xs leading-none", ativo ? "text-ink-2" : "text-ink-3/40")}>
           {ativo ? (ordem.dir === "asc" ? "▲" : "▼") : "▲"}
         </span>
       </button>

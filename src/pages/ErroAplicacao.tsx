@@ -50,7 +50,7 @@ export function ErroAplicacao() {
     <main className="min-h-screen grid place-items-center bg-page p-5">
       <div className="w-full max-w-lg rounded-card-lg border border-border bg-white p-7 text-center shadow-card">
         <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-full bg-danger-soft text-xl font-bold text-danger">!</div>
-        <h1 className="font-display text-xl font-bold text-ink">
+        <h1 className="text-xl font-bold text-ink">
           {erroDeAtualizacao ? "O aplicativo foi atualizado" : "Não foi possível abrir esta tela"}
         </h1>
         <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-ink-2">
@@ -67,11 +67,11 @@ export function ErroAplicacao() {
             <button
               type="button"
               onClick={() => void sairEEntrarDeNovo()}
-              className="mt-3 text-[13px] font-bold text-primary-dark hover:underline"
+              className="mt-3 text-sm font-bold text-primary-dark hover:underline"
             >
               Sair e entrar de novo
             </button>
-            <p className="mt-4 wrap-break-word rounded-btn bg-[#F5F6F8] px-3 py-2 text-left text-[11px] leading-snug text-ink-3">
+            <p className="mt-4 wrap-break-word rounded-btn bg-muted/60 px-3 py-2 text-left text-2xs leading-snug text-ink-3">
               Detalhe técnico (envie este texto ao suporte): {motivoTecnico(erro)} · {window.location.pathname}
             </p>
           </>

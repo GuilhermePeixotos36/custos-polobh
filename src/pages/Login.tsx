@@ -60,12 +60,12 @@ export function Login() {
             aplicativo logo abaixo. Sem esse peso, a marca pode crescer. */}
         <div className="flex flex-col items-center gap-3 mb-6">
           <img src="/polobh-logo.png" alt="Pólobh" className="h-16 w-auto object-contain" />
-          <div className="text-[12px] text-ink-3 font-semibold">Aplicativo Gestão</div>
+          <div className="text-xs text-ink-3 font-semibold">Aplicativo Gestão</div>
         </div>
 
         {/* Bloco de login */}
         <form onSubmit={submeter} className="bg-surface border border-border rounded-card-lg shadow-card p-7">
-          <h2 className="font-display font-bold text-xl tracking-[-0.4px] mb-6">Entrar</h2>
+          <h2 className="font-bold text-xl tracking-[-0.4px] mb-6">Entrar</h2>
 
           <Field label="E-mail" className="mb-4" obrigatorio>
             <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="voce@polobh.com.br" autoComplete="username" required />
@@ -75,11 +75,11 @@ export function Login() {
           </Field>
 
           {erro && (
-            <p className="mb-4 text-[12.5px] font-semibold text-danger bg-danger-soft rounded-btn px-3 py-2">{erro}</p>
+            <p className="mb-4 text-xs font-semibold text-danger bg-danger-soft rounded-btn px-3 py-2">{erro}</p>
           )}
 
           {avisoLink && (
-            <p className="mb-4 text-[12.5px] font-semibold text-info bg-info-soft rounded-btn px-3 py-2">{avisoLink}</p>
+            <p className="mb-4 text-xs font-semibold text-info bg-info-soft rounded-btn px-3 py-2">{avisoLink}</p>
           )}
 
           <Button type="submit" block disabled={entrando}>
@@ -90,13 +90,13 @@ export function Login() {
             type="button"
             onClick={() => void esqueciSenha()}
             disabled={enviandoLink}
-            className="mt-4 block w-full text-center text-[12.5px] font-bold text-ink-2 hover:text-primary-dark input-focus rounded-sm"
+            className="mt-4 block w-full text-center text-xs font-bold text-ink-2 hover:text-primary-dark input-focus rounded-sm"
           >
             {enviandoLink ? "Enviando…" : "Esqueceu a sua senha?"}
           </button>
         </form>
 
-        <p className="text-center text-ink-3 text-[11.5px] mt-6">
+        <p className="text-center text-ink-3 text-2xs mt-6">
           © Pólobh Promoções ·{" "}
           <a href="/privacidade" target="_blank" rel="noreferrer" className="underline hover:text-primary-dark">Política de privacidade</a>
         </p>

@@ -161,18 +161,18 @@ export function PainelSuporte() {
         type="button"
         aria-label="Fechar o Help Desk"
         onClick={fechar}
-        className="absolute inset-0 bg-[#0B0C0E]/30"
+        className="absolute inset-0 bg-foreground/30"
       />
 
-      <aside className="painel-suporte relative h-full w-full sm:w-[540px] bg-bg border-l border-border shadow-2xl flex flex-col">
+      <aside className="painel-suporte relative h-full w-full sm:w-[540px] bg-bg border-l border-border shadow-(--sombra-flutuante) flex flex-col">
         <header className="shrink-0 px-4 pt-3 pb-0 bg-surface border-b border-border">
           <div className="flex items-start gap-3">
             <span className="mt-0.5 text-primary-dark shrink-0">
               <IcSuporte width={20} height={20} />
             </span>
             <div className="min-w-0 flex-1">
-              <h2 className="text-[16px] font-bold text-ink leading-tight">Help Desk</h2>
-              <p className="text-[12px] text-ink-3 truncate">
+              <h2 className="text-base font-bold text-ink leading-tight">Help Desk</h2>
+              <p className="text-xs text-ink-3 truncate">
                 {souSuporte
                   ? "A fila do sistema — responda por aqui."
                   : telaOrigem
@@ -184,7 +184,7 @@ export function PainelSuporte() {
               type="button"
               onClick={fechar}
               title="Fechar (Esc)"
-              className="shrink-0 rounded-btn p-1.5 text-ink-3 hover:bg-[#F1F2F5] hover:text-ink"
+              className="shrink-0 rounded-btn p-1.5 text-ink-3 hover:bg-muted hover:text-ink"
             >
               <IcFechar width={18} height={18} />
             </button>
@@ -197,7 +197,7 @@ export function PainelSuporte() {
                 type="button"
                 onClick={() => irPara(a.key)}
                 className={cx(
-                  "px-2.5 h-8 text-[12.5px] font-bold border-b-2 -mb-px transition-colors inline-flex items-center gap-1.5",
+                  "px-2.5 h-8 text-xs font-bold border-b-2 -mb-px transition-colors inline-flex items-center gap-1.5",
                   aba === a.key
                     ? "border-primary text-primary-dark"
                     : "border-transparent text-ink-2 hover:text-ink"
@@ -205,7 +205,7 @@ export function PainelSuporte() {
               >
                 {a.label}
                 {!!a.n && (
-                  <span className="min-w-[18px] h-[18px] px-1 grid place-items-center rounded-full bg-danger text-white text-[10.5px] font-extrabold tabular-nums">
+                  <span className="min-w-[18px] h-[18px] px-1 grid place-items-center rounded-full bg-danger text-white text-2xs font-bold tabular-nums">
                     {a.n}
                   </span>
                 )}
@@ -216,7 +216,7 @@ export function PainelSuporte() {
 
         <div className="flex-1 overflow-y-auto p-4">
           {erro && (
-            <div className="mb-3 rounded-btn border border-danger bg-danger-soft px-3 py-2 text-[12.5px] font-semibold text-danger">
+            <div className="mb-3 rounded-btn border border-danger bg-danger-soft px-3 py-2 text-xs font-semibold text-danger">
               Não foi possível carregar os chamados: {erro}{" "}
               <button type="button" onClick={() => void recarregar()} className="underline font-bold">
                 tentar de novo
@@ -396,7 +396,7 @@ function NovoChamado({
       </Field>
 
       <div className="flex items-center justify-between gap-3 flex-wrap pt-1">
-        <p className="text-[11.5px] text-ink-3 flex-1 min-w-[180px]">
+        <p className="text-2xs text-ink-3 flex-1 min-w-[180px]">
           Fica registrado aqui e avisa <b className="text-ink-2">{emailSuporte}</b>. A resposta aparece em{" "}
           <b className="text-ink-2">Meus chamados</b>.
         </p>
@@ -514,13 +514,13 @@ function CaixaDeAnexos({ arquivos, onMudar }: { arquivos: File[]; onMudar: (a: F
             e.target.value = "";
           }}
         />
-        <span className="ml-auto text-[11px] font-bold text-ink-3">
+        <span className="ml-auto text-2xs font-bold text-ink-3">
           {arquivos.length}/{MAXIMO_ANEXOS_CHAMADO}
         </span>
       </div>
 
       {!arquivos.length && (
-        <p className="mt-2 text-[11.5px] text-ink-3">
+        <p className="mt-2 text-2xs text-ink-3">
           O print vale mais que a descrição. O painel some enquanto a foto é tirada — ou cole com <b>Ctrl+V</b>.
         </p>
       )}
@@ -533,10 +533,10 @@ function CaixaDeAnexos({ arquivos, onMudar }: { arquivos: File[]; onMudar: (a: F
                 <img
                   src={url}
                   alt={arquivo.name}
-                  className="h-20 w-28 object-cover rounded-btn border border-border-soft bg-[#F1F2F5]"
+                  className="h-20 w-28 object-cover rounded-btn border border-border-soft bg-muted"
                 />
               ) : (
-                <div className="h-20 w-28 rounded-btn border border-border-soft bg-[#F1F2F5] grid place-items-center text-[11px] font-bold text-ink-3 px-2 text-center">
+                <div className="h-20 w-28 rounded-btn border border-border-soft bg-muted grid place-items-center text-2xs font-bold text-ink-3 px-2 text-center">
                   {arquivo.name}
                 </div>
               )}
@@ -548,7 +548,7 @@ function CaixaDeAnexos({ arquivos, onMudar }: { arquivos: File[]; onMudar: (a: F
               >
                 <IcFechar width={13} height={13} />
               </button>
-              <span className="block mt-0.5 text-[10px] text-ink-3 w-28 truncate" title={arquivo.name}>
+              <span className="block mt-0.5 text-2xs text-ink-3 w-28 truncate" title={arquivo.name}>
                 {tamanhoLegivel(arquivo.size)}
               </span>
             </li>
@@ -587,7 +587,7 @@ function AnexosGravados({ anexos }: { anexos?: AnexoObservacao[] }) {
             type="button"
             onClick={() => abrir(a)}
             title={`${a.nome} · ${tamanhoLegivel(a.tamanho)}`}
-            className="inline-flex items-center gap-1 max-w-[200px] rounded-pill border border-border-soft bg-surface px-2 h-6 text-[11px] font-bold text-ink-2 hover:text-primary-dark hover:border-primary"
+            className="inline-flex items-center gap-1 max-w-[200px] rounded-pill border border-border-soft bg-surface px-2 h-6 text-2xs font-bold text-ink-2 hover:text-primary-dark hover:border-primary"
           >
             <IcClipe width={12} height={12} className="shrink-0" />
             <span className="truncate">{a.nome}</span>
@@ -626,7 +626,7 @@ function FilaDoSuporte({
               type="button"
               onClick={() => setSituacao(s)}
               className={cx(
-                "h-8 px-2.5 rounded-pill text-[12px] font-bold border transition-colors",
+                "h-8 px-2.5 rounded-pill text-xs font-bold border transition-colors",
                 situacao === s
                   ? "bg-primary-soft border-primary text-primary-dark"
                   : "bg-surface border-border-soft text-ink-2 hover:text-ink"
@@ -670,7 +670,7 @@ function ListaChamados({
   const [aberto, setAberto] = useState("");
 
   if (carregando && !chamados.length) {
-    return <p className="text-[13px] text-ink-3 py-6 text-center">Carregando…</p>;
+    return <p className="text-sm text-ink-3 py-6 text-center">Carregando…</p>;
   }
   if (!chamados.length) return <EmptyState title={vazio} hint={dica} />;
 
@@ -775,7 +775,7 @@ function CartaoChamado({
       <button
         type="button"
         onClick={onAlternar}
-        className="w-full text-left px-3 py-2.5 flex items-start gap-2 hover:bg-[#FCFCFD] transition-colors"
+        className="w-full text-left px-3 py-2.5 flex items-start gap-2 hover:bg-muted/40 transition-colors"
       >
         <IcChevron
           width={15}
@@ -784,12 +784,12 @@ function CartaoChamado({
         />
         <div className="min-w-0 flex-1">
           <div className="flex items-start gap-1.5 flex-wrap">
-            <span className={cx("text-[13.5px] font-bold text-ink", resolvido && "line-through text-ink-3")}>
+            <span className={cx("text-sm font-bold text-ink", resolvido && "line-through text-ink-3")}>
               {chamado.assunto}
             </span>
             <Badge tom={TOM_STATUS[chamado.status]}>{chamado.status}</Badge>
           </div>
-          <div className="mt-0.5 text-[11.5px] text-ink-3">
+          <div className="mt-0.5 text-2xs text-ink-3">
             {souSuporte && <b className="text-ink-2">{chamado.autorNome || chamado.autorEmail} · </b>}
             {dataHoraBR(chamado.criadoEm)}
             {chamado.mensagens.length > 0 &&
@@ -803,10 +803,10 @@ function CartaoChamado({
       {aberto && (
         <div className="px-3 pb-3 border-t border-border-soft pt-2.5 space-y-2.5">
           {/* O relato original, e o que o sistema soube dizer sozinho. */}
-          <div className="rounded-btn bg-[#FAFAFB] border border-border-soft px-2.5 py-2">
-            <p className="text-[12.5px] text-ink whitespace-pre-line">{chamado.descricao}</p>
+          <div className="rounded-btn bg-muted/40 border border-border-soft px-2.5 py-2">
+            <p className="text-xs text-ink whitespace-pre-line">{chamado.descricao}</p>
             <AnexosGravados anexos={chamado.anexos} />
-            <p className="mt-1.5 text-[11px] text-ink-3">
+            <p className="mt-1.5 text-2xs text-ink-3">
               {chamado.tipo} · Tela: <b>{chamado.tela || "—"}</b>
               {souSuporte && chamado.ambiente ? ` · ${chamado.ambiente}` : ""}
             </p>
@@ -816,13 +816,13 @@ function CartaoChamado({
           {chamado.mensagens.map((m) => (
             <div key={m.id} className={cx("flex", m.suporte ? "justify-start" : "justify-end")}>
               <div
-                className={cx("max-w-[88%] rounded-card px-2.5 py-2", m.suporte ? "bg-primary-soft" : "bg-[#F1F2F5]")}
+                className={cx("max-w-[88%] rounded-card px-2.5 py-2", m.suporte ? "bg-primary-soft" : "bg-muted")}
               >
-                <div className="text-[10.5px] font-bold text-ink-2">
+                <div className="text-2xs font-bold text-ink-2">
                   {m.suporte ? `${m.autorNome || "Suporte"} · suporte` : m.autorNome || "—"}
                   <span className="font-semibold text-ink-3"> · {dataHoraBR(m.criadoEm)}</span>
                 </div>
-                {m.texto && <p className="text-[12.5px] text-ink whitespace-pre-line mt-0.5">{m.texto}</p>}
+                {m.texto && <p className="text-xs text-ink whitespace-pre-line mt-0.5">{m.texto}</p>}
                 <AnexosGravados anexos={m.anexos} />
               </div>
             </div>

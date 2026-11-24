@@ -171,8 +171,8 @@ export function BotaoRecolherTudo({ className }: { className?: string }) {
       onClick={tudoRecolhido ? acoes.expandirTudo : acoes.recolherTudo}
       title={tudoRecolhido ? "Abrir todos os blocos desta tela" : "Fechar todos os blocos e ver só os títulos"}
       className={cx(
-        "inline-flex items-center gap-1.5 h-9 px-2.5 rounded-btn text-[12.5px] font-bold",
-        "text-ink-2 hover:text-ink hover:bg-[#EDEEF1] transition-colors",
+        "inline-flex items-center gap-1.5 h-9 px-2.5 rounded-btn text-xs font-bold",
+        "text-ink-2 hover:text-ink hover:bg-muted transition-colors",
         className
       )}
     >

@@ -21,7 +21,7 @@ export function NotifDot({
     <span
       title={title}
       className={cx(
-        "inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-danger text-white text-[11px] font-extrabold leading-none ring-2 ring-white select-none",
+        "inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-danger text-white text-2xs font-bold leading-none ring-2 ring-white select-none",
         !inline && "absolute -top-1.5 -left-1.5 z-10",
         className
       )}

@@ -20,7 +20,7 @@ export function Toggle({
         onClick={() => onChange(!checked)}
         className={cx(
           "relative w-[46px] h-[27px] rounded-pill transition-colors",
-          checked ? "bg-primary" : "bg-[#CDD0D6]"
+          checked ? "bg-primary" : "bg-input/70"
         )}
       >
         <span
@@ -48,7 +48,7 @@ export function Avatar({
       style={{ width: size, height: size }}
     >
       <span
-        className="font-display font-extrabold text-amber"
+        className="font-bold text-amber"
         style={{ fontSize: size * 0.36 }}
       >
         {iniciais(nome)}
@@ -59,7 +59,7 @@ export function Avatar({
 
 export function ProgressBar({ value }: { value: number }) {
   return (
-    <div className="h-2 w-full rounded-pill bg-[#EDEEF2] overflow-hidden">
+    <div className="h-2 w-full rounded-pill bg-muted overflow-hidden">
       <div
         className="h-full rounded-pill bg-progress-grad"
         style={{ width: `${Math.max(0, Math.min(100, value))}%` }}
@@ -76,7 +76,7 @@ export function ProgressBar({ value }: { value: number }) {
 export function AvisoEmailPendente({ className }: { className?: string }) {
   if (flags.email) return null;
   return (
-    <div className={cx("flex items-start gap-2 rounded-btn bg-warning-soft text-warning px-3 py-2 text-[12.5px]", className)}>
+    <div className={cx("flex items-start gap-2 rounded-btn bg-warning-soft text-warning px-3 py-2 text-xs", className)}>
       <span className="mt-0.5 shrink-0" aria-hidden>✉️</span>
       <span>
         <b>Envio de e-mail aguardando conexão</b> com o e-mail da Pólobh (Brevo). Até a
@@ -104,13 +104,13 @@ export function AvisoErro({
   return (
     <div className="m-5 rounded-btn bg-danger-soft text-danger px-4 py-3 flex items-start justify-between gap-4">
       <div className="min-w-0">
-        <p className="font-bold text-[13.5px]">
+        <p className="font-bold text-sm">
           Não foi possível carregar {oQue ?? "os dados"}.
         </p>
-        <p className="text-[12.5px] opacity-90 wrap-break-word">{erro}</p>
+        <p className="text-xs opacity-90 wrap-break-word">{erro}</p>
       </div>
       {onTentarDeNovo && (
-        <button onClick={onTentarDeNovo} className="shrink-0 font-bold underline text-[13px]">
+        <button onClick={onTentarDeNovo} className="shrink-0 font-bold underline text-sm">
           Tentar de novo
         </button>
       )}
@@ -129,7 +129,7 @@ export function EmptyState({
 }) {
   return (
     <div className="text-center py-14 px-6">
-      <p className="font-display font-bold text-ink text-[15px]">{title}</p>
+      <p className="font-bold text-ink text-base">{title}</p>
       {hint && <p className="text-ink-2 text-sm mt-1 max-w-md mx-auto">{hint}</p>}
       {action && <div className="mt-4 flex justify-center">{action}</div>}
     </div>
@@ -167,12 +167,12 @@ export function ChaveNaoSeAplica({
       title={title}
       onClick={() => onChange(!ativo)}
       className={cx(
-        "group inline-flex items-center gap-2 h-7 pl-1.5 pr-2.5 rounded-pill border text-[11.5px] font-bold whitespace-nowrap transition-colors input-focus",
+        "group inline-flex items-center gap-2 h-7 pl-1.5 pr-2.5 rounded-pill border text-2xs font-bold whitespace-nowrap transition-colors input-focus",
         "disabled:cursor-not-allowed disabled:opacity-60",
         ativo ? "border-primary/40 bg-primary-soft text-primary-dark" : "border-border bg-surface text-ink-2 hover:border-primary/40 hover:text-ink"
       )}
     >
-      <span className={cx("relative w-[28px] h-[16px] rounded-pill transition-colors", ativo ? "bg-primary" : "bg-[#CDD0D6]")}>
+      <span className={cx("relative w-[28px] h-[16px] rounded-pill transition-colors", ativo ? "bg-primary" : "bg-input/70")}>
         <span
           className={cx(
             "absolute top-[2px] h-[12px] w-[12px] rounded-full bg-white shadow-sm transition-all",
@@ -190,7 +190,7 @@ export function AvisoNaoSeAplica({ children = "Não se aplica nesta OS.", compac
   return (
     <div
       className={cx(
-        "flex items-center rounded-btn border border-dashed border-border bg-[#F7F8FA] px-3 text-[12.5px] font-semibold text-ink-3",
+        "flex items-center rounded-btn border border-dashed border-border bg-muted/60 px-3 text-xs font-semibold text-ink-3",
         compacto ? "h-9" : "py-2.5 my-1"
       )}
     >

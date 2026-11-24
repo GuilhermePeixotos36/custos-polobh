@@ -25,7 +25,7 @@ export function Toaster() {
           key={t.id}
           onClick={() => dismiss(t.id)}
           className={cx(
-            "max-w-sm text-left text-[13px] font-semibold px-4 py-3 rounded-card border shadow-card animate-[fadein_.15s_ease]",
+            "max-w-sm text-left text-sm font-semibold px-4 py-3 rounded-card border shadow-card animate-[fadein_.15s_ease]",
             tons[t.tom]
           )}
         >

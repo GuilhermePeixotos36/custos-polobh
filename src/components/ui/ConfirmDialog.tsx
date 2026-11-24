@@ -30,16 +30,16 @@ export function ConfirmDialog() {
         onClick={() => responder(false)}
       />
       <div className="relative w-full max-w-[420px] bg-surface rounded-card-lg shadow-modal border border-border p-6 animate-[fadein_.12s_ease]">
-        <h3 className="font-display font-bold text-[17px] text-ink tracking-[-0.3px]">{opts.titulo}</h3>
+        <h3 className="font-bold text-lg text-ink tracking-[-0.3px]">{opts.titulo}</h3>
         {/* `whitespace-pre-line`: a mensagem às vezes traz um parágrafo extra
             (ex.: os itens que ficaram de fora da emissão de OS). */}
-        {opts.mensagem && <p className="text-ink-2 text-[13.5px] mt-2 leading-relaxed whitespace-pre-line">{opts.mensagem}</p>}
+        {opts.mensagem && <p className="text-ink-2 text-sm mt-2 leading-relaxed whitespace-pre-line">{opts.mensagem}</p>}
 
         <div className="flex justify-end gap-2 mt-6">
           {!opts.somenteOk && (
             <button
               onClick={() => responder(false)}
-              className="h-10 px-4 rounded-btn font-bold text-sm bg-surface text-ink border-[1.5px] border-border hover:bg-[#FAFAFB]"
+              className="h-10 px-4 rounded-btn font-bold text-sm bg-surface text-ink border-[1.5px] border-border hover:bg-muted/40"
             >
               {opts.cancelarTexto ?? "Cancelar"}
             </button>
@@ -49,7 +49,7 @@ export function ConfirmDialog() {
             onClick={() => responder(true)}
             className={cx(
               "h-10 px-4 rounded-btn font-bold text-sm text-white transition-colors",
-              danger ? "bg-danger hover:brightness-95" : "bg-primary-grad text-[#2A1602] shadow-btn"
+              danger ? "bg-danger hover:brightness-95" : "bg-primary-grad text-primary-foreground shadow-btn"
             )}
           >
             {opts.confirmarTexto ?? "Confirmar"}

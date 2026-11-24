@@ -68,7 +68,7 @@ export function MinhaContaModal({ onClose }: { onClose: () => void }) {
           type="button"
           onClick={onClose}
           title="Fechar"
-          className="absolute right-3 top-3 rounded-btn p-1.5 text-ink-3 hover:bg-[#F1F2F5] hover:text-ink"
+          className="absolute right-3 top-3 rounded-btn p-1.5 text-ink-3 hover:bg-muted hover:text-ink"
         >
           <IcFechar width={18} height={18} />
         </button>
@@ -77,12 +77,12 @@ export function MinhaContaModal({ onClose }: { onClose: () => void }) {
         <div className="flex items-center gap-3">
           <Avatar nome={usuario.nome} size={44} />
           <div className="min-w-0">
-            <div className="text-[15px] font-bold text-ink leading-tight truncate">{usuario.nome}</div>
-            <div className="text-[12.5px] text-ink-2 truncate">{usuario.email}</div>
+            <div className="text-base font-bold text-ink leading-tight truncate">{usuario.nome}</div>
+            <div className="text-xs text-ink-2 truncate">{usuario.email}</div>
             {/* Área e papel costumam ser coisas diferentes ("Produção" na área
                 "Operações"), mas às vezes têm o mesmo nome — e aí a linha lia
                 "Direção · Direção". Repetir não informa. */}
-            <div className="text-[11.5px] text-ink-3">
+            <div className="text-2xs text-ink-3">
               {usuario.areaNome && usuario.areaNome !== ROTULO_PAPEL[usuario.papel]
                 ? `${usuario.areaNome} · ${ROTULO_PAPEL[usuario.papel]}`
                 : ROTULO_PAPEL[usuario.papel]}
@@ -92,8 +92,8 @@ export function MinhaContaModal({ onClose }: { onClose: () => void }) {
 
         <hr className="my-5 border-border-soft" />
 
-        <h3 className="text-[14px] font-bold text-ink">Trocar senha</h3>
-        <p className="text-[12.5px] text-ink-2 mt-0.5 mb-4">
+        <h3 className="text-sm font-bold text-ink">Trocar senha</h3>
+        <p className="text-xs text-ink-2 mt-0.5 mb-4">
           Pelo menos {TAMANHO_MINIMO_SENHA} caracteres. Uma frase que só você sabe vale mais que uma palavra curta
           cheia de símbolos.
         </p>
@@ -132,7 +132,7 @@ export function MinhaContaModal({ onClose }: { onClose: () => void }) {
           </Field>
 
           {erro && (
-            <p className="mb-4 text-[12.5px] font-semibold text-danger bg-danger-soft rounded-btn px-3 py-2">{erro}</p>
+            <p className="mb-4 text-xs font-semibold text-danger bg-danger-soft rounded-btn px-3 py-2">{erro}</p>
           )}
 
           <div className="flex gap-2">
@@ -145,7 +145,7 @@ export function MinhaContaModal({ onClose }: { onClose: () => void }) {
           </div>
         </form>
 
-        <p className="text-[11.5px] text-ink-3 mt-4">
+        <p className="text-2xs text-ink-3 mt-4">
           Você continua conectado depois da troca. A senha nova vale a partir do próximo login, aqui e no celular.
         </p>
       </div>

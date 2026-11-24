@@ -77,15 +77,15 @@ export function SubGuias<K extends string>({
           className={cx(
             "whitespace-nowrap font-bold transition-colors inline-flex items-center gap-1.5",
             secundaria
-              ? "px-3 h-7 text-[12.5px] rounded-pill"
-              : "px-4 h-10 text-[13.5px] border-b-2 -mb-px",
+              ? "px-3 h-7 text-xs rounded-pill"
+              : "px-4 h-10 text-sm border-b-2 -mb-px",
             a.desabilitada
               ? cx("text-ink-3/40 cursor-not-allowed", !secundaria && "border-transparent")
               : atual === a.key
                 ? secundaria
                   ? "bg-primary-soft text-primary-dark"
                   : "text-primary-dark border-primary"
-                : cx("text-ink-2 hover:text-ink", secundaria ? "hover:bg-[#F1F2F5]" : "border-transparent")
+                : cx("text-ink-2 hover:text-ink", secundaria ? "hover:bg-muted" : "border-transparent")
           )}
         >
           {a.label}

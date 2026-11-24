@@ -23,7 +23,7 @@ function AvisoErroInesperado({ recarregar }: { recarregar: () => void }) {
   return (
     <main className="min-h-screen grid place-items-center bg-page p-5">
       <div role="alert" className="w-full max-w-lg rounded-card-lg border border-border bg-white p-7 text-center shadow-card">
-        <h1 className="font-display text-xl font-bold text-ink">{TEXTOS_ERRO_INESPERADO.titulo}</h1>
+        <h1 className="text-xl font-bold text-ink">{TEXTOS_ERRO_INESPERADO.titulo}</h1>
         <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-ink-2">{TEXTOS_ERRO_INESPERADO.mensagem}</p>
         <div className="mt-5 flex justify-center">
           <Button onClick={recarregar}>{TEXTOS_ERRO_INESPERADO.botao}</Button>

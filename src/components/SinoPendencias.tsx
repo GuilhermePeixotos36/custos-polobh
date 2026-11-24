@@ -101,7 +101,7 @@ export function SinoPendencias() {
         title={itens.length ? `${itens.length} pendência(s)` : "Nenhuma pendência"}
         className={cx(
           "relative inline-flex h-9 w-9 items-center justify-center rounded-btn transition-colors",
-          aberto ? "bg-primary-soft text-primary-dark" : "text-ink-2 hover:text-ink hover:bg-[#F5F6F8]"
+          aberto ? "bg-primary-soft text-primary-dark" : "text-ink-2 hover:text-ink hover:bg-muted/60"
         )}
       >
         <IcBell width={18} height={18} />
@@ -115,19 +115,19 @@ export function SinoPendencias() {
           className="absolute right-0 top-[calc(100%+8px)] z-50 w-[min(24rem,calc(100vw-1.5rem))] rounded-card border border-border bg-white shadow-modal overflow-hidden"
         >
           <div className="flex items-baseline gap-2 px-3.5 py-2.5 border-b border-border-soft">
-            <span className="text-[13px] font-extrabold text-ink">Minhas pendências</span>
-            <span className="text-[11.5px] font-bold text-ink-3 ml-auto">{itens.length}</span>
+            <span className="text-sm font-bold text-ink">Minhas pendências</span>
+            <span className="text-2xs font-bold text-ink-3 ml-auto">{itens.length}</span>
           </div>
 
           {itens.length === 0 ? (
-            <p className="px-3.5 py-6 text-[12.5px] text-ink-3 text-center">
+            <p className="px-3.5 py-6 text-xs text-ink-3 text-center">
               Nada pendente por aqui. O que for cobrado de você aparece neste sino.
             </p>
           ) : (
             <div className="max-h-[min(28rem,70vh)] overflow-y-auto py-1.5">
               {grupos.map((g) => (
                 <div key={g.titulo} className="px-1.5 pb-1.5">
-                  <div className="px-2 pt-1.5 pb-1 text-[10.5px] font-extrabold uppercase tracking-wider text-ink-3 truncate">
+                  <div className="px-2 pt-1.5 pb-1 text-xs font-semibold text-muted-foreground truncate">
                     {g.titulo}
                   </div>
                   {g.itens.map((p) => (
@@ -135,17 +135,17 @@ export function SinoPendencias() {
                       key={p.id}
                       type="button"
                       onClick={() => irPara(p)}
-                      className="w-full text-left rounded-btn px-2 py-2 hover:bg-[#F5F6F8] transition-colors"
+                      className="w-full text-left rounded-btn px-2 py-2 hover:bg-muted/60 transition-colors"
                     >
                       <span
                         className={cx(
-                          "inline-block text-[10px] font-extrabold uppercase tracking-[0.04em] rounded-full px-1.5 py-0.5 mb-1",
+                          "inline-block text-2xs font-semibold rounded-full px-1.5 py-0.5 mb-1",
                           urgente(p.tipo) ? "bg-danger-soft text-danger" : "bg-primary-soft text-primary-dark"
                         )}
                       >
                         {ETIQUETA[p.tipo] ?? "Pendência"}
                       </span>
-                      <span className="block text-[12.5px] leading-snug text-ink-2 line-clamp-2">{p.titulo}</span>
+                      <span className="block text-xs leading-snug text-ink-2 line-clamp-2">{p.titulo}</span>
                     </button>
                   ))}
                 </div>
@@ -154,7 +154,7 @@ export function SinoPendencias() {
           )}
 
           {/* Liga os avisos do aparelho — aqui todo mundo alcança (11/11/2026). */}
-          <div className="border-t border-border-soft px-3.5 py-2.5 bg-[#FAFBFC]">
+          <div className="border-t border-border-soft px-3.5 py-2.5 bg-muted/40">
             <AvisosNoAparelho compacto />
           </div>
         </div>

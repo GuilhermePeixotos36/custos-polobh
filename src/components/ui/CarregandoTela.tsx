@@ -32,7 +32,7 @@ export function CarregandoTela({ texto = "Salvando…" }: { texto?: string }) {
           <path d="M21 12a9 9 0 1 1-2.64-6.36" />
           <path d="M21 3v6h-6" />
         </svg>
-        <span className="font-display font-bold text-[14px] text-ink">{texto}</span>
+        <span className="font-bold text-sm text-ink">{texto}</span>
       </div>
     </div>,
     document.body,
