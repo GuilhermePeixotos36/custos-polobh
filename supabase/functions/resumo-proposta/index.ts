@@ -2,6 +2,8 @@ import { autorizar, respostaAutorizacao } from "../_shared/auth.ts";
 import { base64, buscarPublico } from "../_shared/fetch-publico.ts";
 import { completarGratis } from "../_shared/openrouter.ts";
 import { registrarUsoIa } from "../_shared/ia-uso.ts";
+// Todo erro da função (exceção solta ou resposta >= 500) vai para a aba Erros da tela Logs.
+import { comRegistroDeErros } from "../_shared/log.ts";
 
 /**
  * Edge Function: resumo-proposta
@@ -51,7 +53,7 @@ interface Payload {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Parte = Record<string, any>;
 
-Deno.serve(async (req) => {
+Deno.serve(comRegistroDeErros("resumo-proposta", async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST")
     return new Response("Method not allowed", { status: 405, headers: cors });
@@ -119,4 +121,4 @@ Deno.serve(async (req) => {
     if (resposta) return resposta;
     return json({ ok: false, erro: String((e as Error).message) }, 500);
   }
-});
+}));

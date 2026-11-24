@@ -7,6 +7,8 @@
  * cabeçalho (gateway do Supabase).
  */
 import { createClient } from "jsr:@supabase/supabase-js@2";
+// Todo erro da função (exceção solta ou resposta >= 500) vai para a aba Erros da tela Logs.
+import { comRegistroDeErros } from "../_shared/log.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -21,7 +23,7 @@ function json(body: unknown, status = 200) {
   });
 }
 
-Deno.serve(async (req) => {
+Deno.serve(comRegistroDeErros("cronograma-publico", async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
   try {
@@ -84,4 +86,4 @@ Deno.serve(async (req) => {
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);
   }
-});
+}));

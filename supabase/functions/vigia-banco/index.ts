@@ -10,6 +10,8 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { enviarPeloBrevo } from "../_shared/brevo.ts";
+// Todo erro da função (exceção solta ou resposta >= 500) vai para a aba Erros da tela Logs.
+import { comRegistroDeErros } from "../_shared/log.ts";
 
 interface Anomalia {
   chave: string;
@@ -48,7 +50,7 @@ function montarEmail(lista: Anomalia[]): { assunto: string; html: string } {
   return { assunto, html };
 }
 
-Deno.serve(async (req) => {
+Deno.serve(comRegistroDeErros("vigia-banco", async (req) => {
   if (req.method !== "POST") return json({ erro: "Method not allowed" }, 405);
   const segredo = Deno.env.get("CRON_SECRET") ?? "";
   if (!segredo || req.headers.get("x-cron-secret") !== segredo) return json({ erro: "Não autorizado" }, 401);
@@ -78,4 +80,4 @@ Deno.serve(async (req) => {
   const { assunto, html } = montarEmail(lista);
   await enviarPeloBrevo({ para: [{ email: para }], assunto, html });
   return json({ ok: true, anomalias: lista.length });
-});
+}, { rotina: true }));

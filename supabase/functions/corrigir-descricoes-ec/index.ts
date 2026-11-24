@@ -1,6 +1,8 @@
 import { autorizar, respostaAutorizacao } from "../_shared/auth.ts";
 import { completarGratis, extrairJson, ordemGratuitos } from "../_shared/openrouter.ts";
 import { registrarUsoIa } from "../_shared/ia-uso.ts";
+// Todo erro da função (exceção solta ou resposta >= 500) vai para a aba Erros da tela Logs.
+import { comRegistroDeErros } from "../_shared/log.ts";
 
 /**
  * O revisor de português do sistema.
@@ -39,7 +41,7 @@ interface DescricaoEntrada {
   descricao: string;
 }
 
-Deno.serve(async (req) => {
+Deno.serve(comRegistroDeErros("corrigir-descricoes-ec", async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   // DIAGNÓSTICO (28/10/2026): GET ?diagnostico=1 mostra a chave, o saldo e a
   // ordem dos modelos gratuitos que serão tentados — sem gastar nada.
@@ -130,4 +132,4 @@ Deno.serve(async (req) => {
     if (resposta) return resposta;
     return json({ ok: false, erro: String((erro as Error).message) }, 500);
   }
-});
+}));

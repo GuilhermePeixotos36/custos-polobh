@@ -1,7 +1,8 @@
 import { useEffect, type ReactNode } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth, type Recurso } from "@/store/auth";
 import { auditar } from "@/store/logs";
+import { registrarRotaNegada } from "@/lib/logs/registrarLog";
 
 /**
  * Bloqueia rota se o perfil não tem o recurso (e registra a tentativa).
@@ -11,6 +12,7 @@ import { auditar } from "@/store/logs";
 export function RequireRecurso({ r, children }: { r: Recurso | Recurso[]; children: ReactNode }) {
   const pode = useAuth((s) => s.pode);
   const usuario = useAuth((s) => s.usuario);
+  const { pathname } = useLocation();
   const permitido = (Array.isArray(r) ? r : [r]).some(pode);
 
   useEffect(() => {
@@ -23,8 +25,10 @@ export function RequireRecurso({ r, children }: { r: Recurso | Recurso[]; childr
         usuario: usuario.nome,
         papel: usuario.papel,
       });
+      // Tela Logs › Acessos: uma vez por rota por sessão do navegador.
+      registrarRotaNegada(pathname);
     }
-  }, [permitido, r, usuario]);
+  }, [permitido, r, usuario, pathname]);
 
   if (!permitido) return <Navigate to="/" replace />;
   return <>{children}</>;

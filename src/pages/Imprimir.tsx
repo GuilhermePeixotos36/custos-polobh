@@ -10,6 +10,7 @@ import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import { useAuth } from "@/store/auth";
 import { auditar } from "@/store/logs";
+import { registrarExportacao } from "@/lib/logs/registrarLog";
 import { dataBR } from "@/lib/format";
 import { Button } from "@/components/ui";
 import { IcBack, IcDownload } from "@/components/icons";
@@ -106,11 +107,19 @@ function Moldura({
 }) {
   const navigate = useNavigate();
 
+  // O PDF da EC e da OS sai pela impressão do navegador: não há download para o helper único
+  // registrar, então a exportação vai para a tela Logs aqui (a tela é o caminho da rota, que diz
+  // qual documento era).
+  function imprimir() {
+    registrarExportacao(undefined, "PDF pela impressão do navegador");
+    window.print();
+  }
+
   // dispara a impressão se vier com ?auto=1
   const [params] = useSearchParams();
   useEffect(() => {
     if (!loading && !vazio && params.get("auto") === "1") {
-      const t = setTimeout(() => window.print(), 400);
+      const t = setTimeout(imprimir, 400);
       return () => clearTimeout(t);
     }
   }, [loading, vazio, params]);
@@ -124,7 +133,7 @@ function Moldura({
         </button>
         {/* A OS chega aqui com ?auto=1 e a janela de salvar já abre sozinha;
             este botão é para reabrir sem voltar e clicar de novo. */}
-        <Button size="sm" icon={<IcDownload width={16} height={16} />} onClick={() => window.print()}>
+        <Button size="sm" icon={<IcDownload width={16} height={16} />} onClick={imprimir}>
           Baixar PDF
         </Button>
       </div>

@@ -26,6 +26,8 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
 import { autorizar, respostaAutorizacao } from "../_shared/auth.ts";
+// Todo erro da função (exceção solta ou resposta >= 500) vai para a aba Erros da tela Logs.
+import { comRegistroDeErros } from "../_shared/log.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -140,7 +142,7 @@ async function registrar(userId: string, ids: string[]): Promise<Set<string>> {
   return new Set(((data ?? []) as unknown[]).map((x) => (typeof x === "string" ? x : String(Object.values(x as object)[0]))));
 }
 
-Deno.serve(async (req) => {
+Deno.serve(comRegistroDeErros("push-pendencias", async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   let quem;
   try {
@@ -259,4 +261,4 @@ Deno.serve(async (req) => {
     console.error("[push-pendencias]", e);
     return json({ ok: false, erro: (e as Error).message ?? String(e) }, 500);
   }
-});
+}));

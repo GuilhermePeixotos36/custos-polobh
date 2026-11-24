@@ -20,6 +20,8 @@
  * mesmo dia sobrescreve o do dia — o backup é idempotente.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+// Todo erro da função (exceção solta ou resposta >= 500) vai para a aba Erros da tela Logs.
+import { comRegistroDeErros } from "../_shared/log.ts";
 
 const PASTA_PADRAO = "/Pólobh (HGM)/Internos (Novo)/05 - TI/App Pólobh/Back-Up";
 
@@ -52,7 +54,7 @@ async function tokenDropbox(): Promise<string> {
   return (await r.json()).access_token as string;
 }
 
-Deno.serve(async (req) => {
+Deno.serve(comRegistroDeErros("backup-diario", async (req) => {
   if (req.method !== "POST") return json({ erro: "Method not allowed" }, 405);
   const segredo = Deno.env.get("CRON_SECRET") ?? "";
   if (!segredo || req.headers.get("x-cron-secret") !== segredo) return json({ erro: "Não autorizado" }, 401);
@@ -105,4 +107,4 @@ Deno.serve(async (req) => {
     mensagem: `Backup de ${dia} enviado ao Dropbox (${Object.values(contagem).reduce((a, b) => a + b, 0)} registros)`,
   });
   return json({ ok: true, caminho, contagem });
-});
+}, { rotina: true }));

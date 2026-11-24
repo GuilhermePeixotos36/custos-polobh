@@ -28,6 +28,7 @@ import {
 } from "@/domain/anexos";
 import { onlyDigits } from "@/lib/format";
 import { auditar } from "@/store/logs";
+import { registrarErroDeRequisicao } from "@/lib/logs/registrarLog";
 import { useAuth } from "@/store/auth";
 
 /** O usuário atual pode GRAVAR os blocos financeiros da OS? (espelha a RLS de os_financeiro) */
@@ -91,7 +92,14 @@ const UUID_RE =
 const isUuid = (v: unknown): v is string => typeof v === "string" && UUID_RE.test(v);
 
 function ok<T>({ data, error }: { data: T; error: { message: string } | null }): T {
-  if (error) throw new Error(error.message);
+  if (error) {
+    // LOGS (24/11/2026): este é o ponto por onde os erros do banco viram exceção no app, então é
+    // aqui que eles vão para a tela Logs (42501, a recusa da RLS, vai como acesso negado). Só a
+    // mensagem e o código — nunca `details`/`hint`, onde o Postgres põe o valor da linha. Sem
+    // `await`: o registro nunca atrasa nem derruba a operação.
+    registrarErroDeRequisicao(error.message, (error as { code?: string }).code);
+    throw new Error(error.message);
+  }
   return data;
 }
 

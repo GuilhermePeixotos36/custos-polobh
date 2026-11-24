@@ -9,6 +9,8 @@
  * Deploy com verify_jwt = false (público). Exige a anon key no cabeçalho.
  */
 import { createClient } from "jsr:@supabase/supabase-js@2";
+// Todo erro da função (exceção solta ou resposta >= 500) vai para a aba Erros da tela Logs.
+import { comRegistroDeErros } from "../_shared/log.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -28,7 +30,7 @@ const str = (v: unknown, max = 200) => (typeof v === "string" ? v.slice(0, max) 
 /** Teto de envios por OS — o fornecedor pode reenviar corrigindo, mas não inundar. */
 const MAX_ENVIOS_POR_OS = 20;
 
-Deno.serve(async (req) => {
+Deno.serve(comRegistroDeErros("credenciamento", async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
   const supabase = createClient(
@@ -154,4 +156,4 @@ Deno.serve(async (req) => {
     console.error("[credenciamento]", e instanceof Error ? e.message : String(e));
     return json({ error: "Não foi possível concluir. Tente novamente em instantes." }, 500);
   }
-});
+}));

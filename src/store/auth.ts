@@ -3,6 +3,7 @@ import { create } from "zustand";
 import type { Papel, Usuario } from "@/data/types";
 import { supabase } from "@/lib/supabaseClient";
 import { auditar, definirAtor } from "@/store/logs";
+import { registrarFalhaDeLogin, registrarLoginUmaVez, registrarLogoutAntesDeSair } from "@/lib/logs/registrarLog";
 import { traduzirErroDeSenha } from "@/domain/senha";
 import type { User } from "@supabase/supabase-js";
 
@@ -354,6 +355,7 @@ export const useAuth = create<AuthState>((set, get) => {
         password: senha,
       });
       if (error || !data.user) {
+        registrarFalhaDeLogin(email); // tela Logs: o banco mascara o e-mail; a senha não vai
         return { ok: false, erro: "E-mail ou senha inválidos." };
       }
       const u = await carregarPerfil(data.user);
@@ -375,6 +377,7 @@ export const useAuth = create<AuthState>((set, get) => {
         usuario: u.nome,
         papel: u.papel,
       });
+      registrarLoginUmaVez("senha"); // tela Logs › Acessos (só depois do perfil ativo)
       return { ok: true };
     },
 
@@ -479,6 +482,7 @@ export const useAuth = create<AuthState>((set, get) => {
         });
       }
       definirAtor(null);
+      await registrarLogoutAntesDeSair(); // tela Logs: antes do signOut, no máximo 1,5 s
       // O aparelho para de receber os avisos de quem saiu (computador
       // compartilhado). Antes do signOut: a função precisa da sessão.
       await import("@/lib/push").then((m) => m.desligarNesteAparelho()).catch(() => {});

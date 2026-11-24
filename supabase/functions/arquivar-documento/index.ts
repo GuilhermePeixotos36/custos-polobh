@@ -22,6 +22,8 @@
  */
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { autorizar, respostaAutorizacao } from "../_shared/auth.ts";
+// Todo erro da função (exceção solta ou resposta >= 500) vai para a aba Erros da tela Logs.
+import { comRegistroDeErros } from "../_shared/log.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -51,7 +53,7 @@ async function tokenDropbox(): Promise<string> {
   return (await r.json()).access_token as string;
 }
 
-Deno.serve(async (req) => {
+Deno.serve(comRegistroDeErros("arquivar-documento", async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ ok: false, erro: "Method not allowed" }, 405);
   try {
@@ -119,4 +121,4 @@ Deno.serve(async (req) => {
   } catch (e) {
     return json({ ok: false, erro: (e as Error).message }, 502);
   }
-});
+}));
