@@ -279,7 +279,8 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
             <>
               {/* Dos Dados Gerais enquanto não emitida (18/11/2026); a emitida, como saiu. */}
               <LV label="Nome do Projeto Incentivado" valor={incentivoDaNota(os).projetoIncentivado} />
-              {/* A lei já traz o número do projeto na mesma linha ("… — PRONAC 26 1234"). */}
+              {/* O código é campo próprio dos Dados Gerais: a lei não traz mais o número (23/11/2026). */}
+              <LV label="Código do Projeto Incentivado" valor={incentivoDaNota(os).codigoProjetoIncentivado} />
               <LV label="Lei de Incentivo à Cultura" valor={incentivoDaNota(os).leiIncentivo} />
             </>
           )}

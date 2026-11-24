@@ -496,9 +496,11 @@ export async function criarOsExcelBuffer(
     // Só em projeto incentivado (cultural): corporativo não tem lei de incentivo.
     if (incentivada) {
       // Dos Dados Gerais enquanto não emitida (18/11/2026); a emitida, como saiu.
-      linha("", `Nome Projeto Incentivado: ${incentivoDaNota(os).projetoIncentivado}`, { semRotulo: true });
-      // A lei já vem com o número do projeto na mesma string — uma linha só.
-      linha("", `Lei de Incentivo à Cultura: ${incentivoDaNota(os).leiIncentivo}`, { semRotulo: true });
+      const inc = incentivoDaNota(os);
+      linha("", `Nome Projeto Incentivado: ${inc.projetoIncentivado}`, { semRotulo: true });
+      // O código é campo próprio dos Dados Gerais: a lei não traz mais o número (23/11/2026).
+      linha("", `Código do Projeto Incentivado: ${inc.codigoProjetoIncentivado}`, { semRotulo: true });
+      linha("", `Lei de Incentivo à Cultura: ${inc.leiIncentivo}`, { semRotulo: true });
     }
     const ultimaNf = linha("", `CNAE: ${fin.cnae || ""}`, { semRotulo: true });
     agruparRotulo(primeiraNf, ultimaNf);

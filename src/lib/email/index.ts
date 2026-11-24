@@ -16,6 +16,8 @@ import { supabase } from "@/lib/supabaseClient";
 import { criarOsExcelBuffer } from "@/lib/excel/os";
 import { criarEcExcelBuffer } from "@/lib/excel/ec";
 import type { Ec, Os } from "@/data/types";
+import { comDadosAtuaisDoProjeto, osComDadosAtuais } from "@/lib/projetoAoVivo";
+import { osEmitida } from "@/domain/faseOs";
 import {
   emailCredenciamento,
   emailDispararOs,
@@ -149,7 +151,23 @@ async function anexoEc(ec: Ec): Promise<AnexoEmail | undefined> {
   }
 }
 
-export async function dispararOsPorEmail(os: Os, ec: Ec) {
+/**
+ * A OS e a EC com os Dados Gerais e o cliente de AGORA, enquanto a OS não foi
+ * emitida (23/11/2026) — a mesma regra da tela e do PDF (ver `osComDadosAtuais`).
+ *
+ * As abas Cronograma e Credenciamento mandam a OS como ela está gravada no
+ * banco, e a foto gravada só se atualiza quando alguém abre e salva a OS: o
+ * fornecedor recebia a planilha com o projeto incentivado, o local ou o cliente
+ * de antes da edição nos Dados Gerais. Emitida segue a foto, como sempre.
+ */
+async function comDadosDeAgora(os: Os, ec: Ec): Promise<{ os: Os; ec: Ec }> {
+  if (osEmitida(os)) return { os, ec };
+  const viva = await comDadosAtuaisDoProjeto(ec);
+  return { os: osComDadosAtuais(os, viva), ec: viva };
+}
+
+export async function dispararOsPorEmail(osGravada: Os, ecGravada: Ec) {
+  const { os, ec } = await comDadosDeAgora(osGravada, ecGravada);
   const msg = emailDispararOs(os, ec);
   const anexo = await anexoOs(os, ec);
   if (anexo) msg.anexos = [anexo];
@@ -157,7 +175,10 @@ export async function dispararOsPorEmail(os: Os, ec: Ec) {
 }
 
 /** Credenciamento é só um link de formulário — sem planilha associada a este disparo. */
-export const enviarCredenciamento = (os: Os, ec: Ec) => enviarEmail(emailCredenciamento(os, ec));
+export async function enviarCredenciamento(osGravada: Os, ecGravada: Ec) {
+  const { os, ec } = await comDadosDeAgora(osGravada, ecGravada);
+  return enviarEmail(emailCredenciamento(os, ec));
+}
 
 /** Chamado do Help Desk para o endereço de suporte configurado. */
 export const enviarChamado = (chamado: Chamado, para: string, anexos: AnexoEmail[] = []) =>
@@ -189,7 +210,8 @@ export const enviarRespostaChamado = (opcoes: Parameters<typeof emailRespostaCha
  * Um só caminho para os dois usos — o envio da aba Cronograma e o lembrete de
  * véspera: é a mesma informação, e dois textos fariam um deles envelhecer.
  */
-export async function enviarCronogramaAoFornecedor(os: Os, ec: Ec) {
+export async function enviarCronogramaAoFornecedor(osGravada: Os, ecGravada: Ec) {
+  const { os, ec } = await comDadosDeAgora(osGravada, ecGravada);
   const msg = emailCronogramaDoFornecedor(os, ec);
   const anexo = await anexoOs(os, ec);
   if (anexo) msg.anexos = [anexo];

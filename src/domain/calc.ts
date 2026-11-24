@@ -783,8 +783,15 @@ export function textoObjetoContrato(fin: Os["financeiro"], incentivada = true): 
   // Projeto corporativo não tem projeto incentivado nem lei a citar (27/10/2026).
   if (!incentivada) return "O objeto do presente é a prestação dos serviços e/ou o fornecimento dos produtos descritos a seguir:";
   const projeto = fin.projetoIncentivado?.trim() || "[projeto incentivado]";
-  // `leiIncentivo` já traz a lei COM o número ("… (Rouanet) — PRONAC 26 1234"),
-  // então não há mais um "sob o número" a costurar aqui: o campo é a frase.
   const lei = fin.leiIncentivo?.trim() || LEI_INCENTIVO_PADRAO;
-  return `O objeto do presente é a viabilização do projeto ${projeto}, idealizado pela CONTRATANTE e aprovado pela ${lei}, sendo:`;
+  // O CÓDIGO é campo próprio dos Dados Gerais desde 29/09/2026 — a lei não traz
+  // mais o número junto. Ficava de fora daqui, e a OS (tela e planilha) saía sem
+  // ele (23/11/2026). A frase é a mesma da Cláusula Primeira do contrato em PDF
+  // (ver `corpoDoObjeto`), para a OS e o contrato não dizerem coisas diferentes.
+  const codigo = fin.codigoProjetoIncentivado?.trim() || "[código do projeto incentivado]";
+  return (
+    `O objeto do presente é a viabilização do projeto ${projeto}, inscrito e aprovado perante as ` +
+    `instâncias competentes da administração pública, no âmbito da ${lei}, sob o ${codigo}, ` +
+    "de autoria do(a) CONTRATANTE, sendo:"
+  );
 }

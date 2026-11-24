@@ -285,21 +285,29 @@ describe("textoObjetoContrato", () => {
     const txt = textoObjetoContrato({
       ...base,
       projetoIncentivado: "Festival X",
-      leiIncentivo: "Lei Federal de Incentivo à Cultura (Rouanet) — PRONAC 26 1234",
+      leiIncentivo: "Lei Federal de Incentivo à Cultura (Rouanet)",
+      codigoProjetoIncentivado: "PRONAC No. 26 1234",
     });
     expect(txt).toContain("projeto Festival X");
-    // A lei e o número saem juntos, do jeito que foram digitados: um campo só.
-    expect(txt).toContain("aprovado pela Lei Federal de Incentivo à Cultura (Rouanet) — PRONAC 26 1234");
+    expect(txt).toContain("no âmbito da Lei Federal de Incentivo à Cultura (Rouanet)");
+    // O código é campo próprio e precisa aparecer na frase (23/11/2026).
+    expect(txt).toContain("sob o PRONAC No. 26 1234");
     expect(txt).toContain("CONTRATANTE");
   });
 
   it("marca visivelmente o que falta em vez de mentir", () => {
     const txt = textoObjetoContrato(base);
     expect(txt).toContain("[projeto incentivado]");
+    expect(txt).toContain("[código do projeto incentivado]");
   });
 
   it("sem lei preenchida, cai no texto padrão em vez de deixar buraco na frase", () => {
-    expect(textoObjetoContrato(base)).toContain("aprovado pela Lei de Incentivo à Cultura");
+    expect(textoObjetoContrato(base)).toContain("no âmbito da Lei de Incentivo à Cultura");
+  });
+
+  it("corporativo não cita projeto, lei nem código", () => {
+    const txt = textoObjetoContrato({ ...base, codigoProjetoIncentivado: "PRONAC 1" }, false);
+    expect(txt).not.toContain("PRONAC");
   });
 });
 
