@@ -184,6 +184,7 @@ export function PageShell({
   subabas,
   subabasDoPainel,
   painelSemRecuo = false,
+  painel = false,
   children,
 }: {
   breadcrumb?: ReactNode;
@@ -201,9 +202,16 @@ export function PageShell({
   subabasDoPainel?: ReactNode;
   /** O conteúdo das abas já traz o próprio respiro (seções com tabela de ponta a ponta). */
   painelSemRecuo?: boolean;
+  /**
+   * O conteúdo mora num painel branco mesmo sem nenhuma aba — a EC avulsa (sem
+   * projeto e sem as vistas do financeiro) usa as mesmas seções da EC de projeto,
+   * e seções soltas no cinza da página não teriam superfície.
+   */
+  painel?: boolean;
   children: ReactNode;
 }) {
-  const emPasta = !!(subabas || subabasDoPainel);
+  const comAbas = !!(subabas || subabasDoPainel);
+  const emPasta = comAbas || painel;
   const medirCabecalho = useCallback((node: HTMLDivElement | null) => {
     observadorCabecalho?.disconnect();
     observadorCabecalho = null;
@@ -240,7 +248,7 @@ export function PageShell({
           "bg-background/95 backdrop-blur-[6px]",
           // Com sub-abas, quem fecha o bloco embaixo é a própria pasta (a aba
           // emenda no painel): sem fio e sem margem. Sem elas, o fio de sempre.
-          emPasta ? "pb-0 mb-0" : "pb-3 mb-4 border-b border-border"
+          comAbas ? "pb-0 mb-0" : "pb-3 mb-4 border-b border-border"
         )}
       >
         {breadcrumb && (
@@ -269,7 +277,7 @@ export function PageShell({
         {/* A pasta: a barra de abas e, logo abaixo, o alto do painel com as
             vistas do documento. A rolagem horizontal das abas é da própria
             fileira (setas `<` `>`), não deste contêiner. */}
-        {emPasta && (
+        {comAbas && (
           <div data-tour="subguias" className="mt-3">
             {subabas}
             {subabasDoPainel && (
@@ -281,7 +289,10 @@ export function PageShell({
         )}
       </div>
       {emPasta ? (
-        <FolderPanel semRecuo={painelSemRecuo} className={cx(!!subabasDoPainel && "rounded-t-none", painelSemRecuo && "overflow-visible")}>
+        <FolderPanel
+          semRecuo={painelSemRecuo}
+          className={cx(!!subabasDoPainel && "rounded-t-none", !comAbas && "rounded-t-xl border-t", painelSemRecuo && "overflow-visible")}
+        >
           {children}
         </FolderPanel>
       ) : (

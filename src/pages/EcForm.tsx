@@ -54,6 +54,8 @@ import { RentabilidadeItens } from "@/components/RentabilidadeItens";
 import { EcGrupos } from "@/components/EcGrupos";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
 import { ObservacoesGeraisEc } from "@/components/ObservacoesGeraisEc";
+import { SecaoPainel } from "@/components/padrao/SecaoPainel";
+import { AvisoEmLinha } from "@/components/padrao/AvisoEmLinha";
 import { pendenciasDaTela } from "@/domain/pendencias";
 import { contatoDeTexto, mesclarContatos, semVazios } from "@/domain/fornecedor";
 import { useMinhasPendencias } from "@/store/pendencias";
@@ -484,9 +486,9 @@ export function EcForm() {
     }
   }
 
+  // As vistas da EC são SEÇÕES do painel da aba (24/11/2026), não cartões dentro dele.
   const rentabilidadeCard = verFinanceiro ? (
-    <Card padded={false}>
-      <div className="p-5"><CardTitle>Rentabilidade por item</CardTitle></div>
+    <SecaoPainel sangrado titulo="Rentabilidade por item">
       <RentabilidadeItens
         ec={ec}
         gastoPorLinha={gastoPorLinha}
@@ -494,12 +496,11 @@ export function EcForm() {
         onCustosInternos={(custosInternos) => setEc((e) => (e ? { ...e, custosInternos } : e))}
         onExportar={() => void gerarRentabilidadeExcel(ec, gastoPorLinha)}
       />
-    </Card>
+    </SecaoPainel>
   ) : null;
 
   const resumoCard = (
-    <Card padded={false}>
-      <div className="p-5 pb-3"><CardTitle>Resumo dos Custos</CardTitle></div>
+    <SecaoPainel sangrado titulo="Resumo dos Custos">
       <ResumoCustos
         t={t}
         honorarios={ec.honorarios}
@@ -511,7 +512,7 @@ export function EcForm() {
         onHonorariosRotulo={(honorariosRotulo) => upd({ honorariosRotulo })}
         onEncargosRotulo={(encargosRotulo) => upd({ encargosRotulo })}
       />
-    </Card>
+    </SecaoPainel>
   );
 
   const voltarUrl = ec.projetoId ? `/projetos/${ec.projetoId}?aba=ec` : "/projetos";
@@ -599,42 +600,37 @@ export function EcForm() {
       // Grudam com o cabeçalho: trocar de subaba no meio da lista de itens não
       // pode obrigar a voltar ao topo.
       // O segundo cabeçalho do projeto por cima das vistas da EC — ver EcDetail.
-      subabas={
-        <>
-          {ec.projetoId && <BarraProjeto projetoId={ec.projetoId} atual="ec" />}
-          <EcSubGuias atual={subaba} onChange={setSubaba} temResumo={verFinanceiro} temRentabilidade={verRentabilidade} />
-        </>
-      }
+      subabas={ec.projetoId ? <BarraProjeto projetoId={ec.projetoId} atual="ec" /> : undefined}
+      subabasDoPainel={<EcSubGuias atual={subaba} onChange={setSubaba} temResumo={verFinanceiro} temRentabilidade={verRentabilidade} />}
+      painelSemRecuo
+      // A conversa geral grava sozinha, fora do formulário — por isso só aparece
+      // depois que a EC existe, quando já há onde gravar. Vale para todas as
+      // vistas (custos, resumo, rentabilidade): o balão no canto do cabeçalho,
+      // como na leitura da EC (24/11/2026).
+      topAction={ec.id ? <ObservacoesGeraisEc ecId={ec.id} observacoes={ec.observacoes ?? []} usuarios={usuarios} /> : undefined}
     >
       {/* Pílula flutuante que salta entre as pendências desta EC. */}
       {subaba === "ec" && <NavegadorPendencias pendencias={pendenciasDaEc} />}
 
-      {/* A conversa geral grava sozinha, fora do formulário — por isso só
-          aparece depois que a EC existe, quando já há onde gravar. Fica no alto
-          de todas as vistas (custos, resumo, rentabilidade), como conversa única. */}
-      {!!ec.id && (
-        <div className="mb-4">
-          <ObservacoesGeraisEc ecId={ec.id} observacoes={ec.observacoes ?? []} usuarios={usuarios} />
-        </div>
-      )}
-
-      {verFinanceiro && subaba === "resumo" && <div className="space-y-4">{resumoCard}</div>}
-      {verRentabilidade && subaba === "rentabilidade" && <div className="space-y-4">{rentabilidadeCard}</div>}
+      {verFinanceiro && subaba === "resumo" && <div>{resumoCard}</div>}
+      {verRentabilidade && subaba === "rentabilidade" && <div>{rentabilidadeCard}</div>}
 
       {subaba === "ec" && (
-      <div className="space-y-4">
+      <div>
         {/* Cliente e Projeto só aparecem em EC avulsa; dentro de um Projeto os dados
             ficam na aba "Dados Gerais" e não são reeditados aqui. */}
         {!temProjeto && (
         <>
         {/* Cliente */}
-        <Card>
-          <CardTitle action={
-            <Button variant="soft" size="sm" icon={<IcSearch width={15} height={15} />} onClick={consultar} disabled={cnpjLoading || !flags.consultaCnpj}>
+        <SecaoPainel
+          titulo="Cliente"
+          acoes={
+            <Button variant="secondary" size="sm" icon={<IcSearch width={15} height={15} />} onClick={consultar} disabled={cnpjLoading || !flags.consultaCnpj}>
               {cnpjLoading ? "Consultando…" : "Consultar CNPJ"}
             </Button>
-          }>Cliente</CardTitle>
-          {cnpjMsg && <div className="mb-3 text-xs text-info bg-info-soft rounded-btn px-3 py-2">{cnpjMsg}</div>}
+          }
+        >
+          {cnpjMsg && <AvisoEmLinha tom="info" className="mb-3">{cnpjMsg}</AvisoEmLinha>}
           <div className="grid md:grid-cols-2 gap-4">
             <Field label="CNPJ/CPF"><Input value={ec.cliente.cnpjCpf} onChange={(e) => updCli({ cnpjCpf: maskCpfCnpjInput(e.target.value) })} inputMode="numeric" placeholder="00.000.000/0000-00" /></Field>
             <Field label="Cliente (nome)"><Input formato="titulo" sugestoes={sugestoes.valores.clienteNome} value={ec.cliente.nome} onChange={(e) => updCli({ nome: e.target.value })} /></Field>
@@ -645,11 +641,10 @@ export function EcForm() {
             <Field label="Representante"><Input formato="titulo" sugestoes={sugestoes.valores.representante} value={ec.cliente.representante.nome} onChange={(e) => updCli({ representante: { ...ec.cliente.representante, nome: e.target.value } })} /></Field>
             <Field label="E-mail do representante"><Input sugestoes={sugestoes.valores.representanteEmail} value={ec.cliente.representante.email} onChange={(e) => updCli({ representante: { ...ec.cliente.representante, email: e.target.value } })} /></Field>
           </div>
-        </Card>
+        </SecaoPainel>
 
         {/* Projeto */}
-        <Card>
-          <CardTitle>Projeto</CardTitle>
+        <SecaoPainel titulo="Projeto">
           <div className="grid md:grid-cols-2 gap-4">
             <Field label="Título do evento" className="md:col-span-2"><Input sugestoes={sugestoes.valores.nomeProjeto} value={ec.projeto.titulo} onChange={(e) => updProj({ titulo: e.target.value })} /></Field>
             <Field label="Local"><Input formato="titulo" sugestoes={sugestoes.valores.local} value={ec.projeto.local} onChange={(e) => updProj({ local: e.target.value })} /></Field>
@@ -668,17 +663,16 @@ export function EcForm() {
             <Field label="Horário"><Input sugestoes={sugestoes.valores.horario} value={ec.projeto.horario} onChange={(e) => updProj({ horario: e.target.value })} placeholder="08h às 18h" /></Field>
             <Field label="Roteiro" className="md:col-span-2"><Textarea value={ec.projeto.roteiro} onChange={(e) => updProj({ roteiro: e.target.value })} /></Field>
           </div>
-        </Card>
+        </SecaoPainel>
         </>
         )}
 
         {/* Estimativa de custos — grupos e itens com arrastar/soltar e colapso */}
-        <Card padded={false}>
-          <div className="p-5 pb-3">
-            <CardTitle hint="Arraste pela alça para reordenar grupos e itens (inclusive entre grupos). Clique na seta para expandir/retrair.">
-              Estimativa de custos
-            </CardTitle>
-          </div>
+        <SecaoPainel
+          sangrado
+          titulo="Estimativa de custos"
+          descricao="Arraste pela alça para reordenar grupos e itens (inclusive entre grupos). Clique na seta para expandir/retrair."
+        >
           <div data-tour="ec-grupos" className="px-5 pb-5">
             <EcGrupos
               linhas={ec.linhas}
@@ -692,7 +686,7 @@ export function EcForm() {
               modalidade={modalidadeAtual}
             />
           </div>
-        </Card>
+        </SecaoPainel>
 
         {/* Totais (Resumo dos Custos) permanece como último bloco da guia geral da EC — só financeiro */}
         {verFinanceiro && resumoCard}
