@@ -5,6 +5,8 @@ import { supabase } from "@/lib/supabaseClient";
 import { auditar, definirAtor } from "@/store/logs";
 import { traduzirErroDeSenha } from "@/domain/senha";
 import type { User } from "@supabase/supabase-js";
+import { carregarMinhasPermissoes, MigracaoAusente } from "@/lib/acessos/acessosStore";
+import { permissoesDosRecursos, recursosDasPermissoes, type Permissao } from "@/lib/acessos/permissoes";
 
 export type Recurso =
   | "projetos"
@@ -31,7 +33,11 @@ export type Recurso =
   | "rentabilidade"
   | "configuracoes"
   | "logs"
-  | "guia";
+  | "guia"
+  // Telas de Acessos (padrão de Acessos LSPRO, 24/11/2026): o "ver" de cada sub-aba, para o
+  // menu e a rota /acessos. Criar, editar e inativar ficam só no grupo (`usePermissoes().pode`).
+  | "acessos.usuarios"
+  | "acessos.grupos";
 
 /** Todos os recursos — usado pelo perfil Administrador (acesso total). */
 export const TODOS_RECURSOS: Recurso[] = [
@@ -60,6 +66,8 @@ export const TODOS_RECURSOS: Recurso[] = [
   "configuracoes",
   "logs",
   "guia",
+  "acessos.usuarios",
+  "acessos.grupos",
 ];
 
 /**
@@ -261,10 +269,31 @@ export const ROTULO_PAPEL: Record<Papel, string> = {
  */
 export const PAPEIS_AREA: Papel[] = ["Direcao", "Producao", "Administrativo"];
 
+/** O grupo de permissão de quem está logado (padrão de Acessos). */
+export interface GrupoDoUsuario {
+  id: string;
+  nome: string;
+  sistema: boolean;
+}
+
 interface AuthState {
   usuario: Usuario | null;
-  /** Recursos liberados pela área do usuário. null = sem área (cai no padrão do papel). */
+  /**
+   * Recursos liberados. Com os grupos de permissão no banco, são os que o GRUPO libera (traduzidos
+   * pelo mapa do catálogo); no modo de compatibilidade, os da área (sem área, o padrão do papel).
+   */
   recursos: Recurso[] | null;
+  /** Permissões tela × ação do grupo (no modo de compatibilidade, as equivalentes aos recursos). */
+  permissoes: Permissao[];
+  /** Permissões específicas do usuário (catálogo `PERMISSOES_ESPECIAIS`; a Pólobh não tem nenhuma). */
+  especiais: string[];
+  grupo: GrupoDoUsuario | null;
+  /**
+   * MODO DE COMPATIBILIDADE: o banco ainda não tem a migration dos grupos (20261124150000). Vale o
+   * comportamento de antes (área + papel) e a tela de Acessos mostra um aviso em vez de abrir.
+   * Falha de rede NÃO é modo de compatibilidade: vira "sem permissão" até recarregar.
+   */
+  legado: boolean;
   /** true até a sessão inicial ser resolvida (evita redirect prematuro). */
   carregando: boolean;
   pode: (r: Recurso) => boolean;
@@ -278,6 +307,18 @@ interface AuthState {
   sair: () => Promise<void>;
   /** Inicializa a sessão a partir do Supabase (chamado uma vez no boot). */
   bootstrap: () => Promise<void>;
+  /** Relê perfil e permissões (depois de mexer em Acessos, o próprio grupo pode ter mudado). */
+  recarregarPermissoes: () => Promise<void>;
+}
+
+/** As permissões do modo de compatibilidade: as da área, ou o padrão do papel sem área. */
+function recursosLegados(papel: Papel, daArea: Recurso[] | null): Recurso[] {
+  // Papel que não está na matriz (dado torto) devolvia `undefined` e derrubava a tela inteira
+  // num `.includes` de nada. Sem permissão é uma resposta; tela branca não é.
+  const base = daArea && daArea.length ? daArea : (PERMISSOES[papel] ?? []);
+  // Quem administrava usuários e áreas (`configuracoes`) é quem vê o menu "Acessos" — que, sem
+  // o banco novo, só mostra o aviso de atualização pendente.
+  return base.includes("configuracoes") ? [...base, "acessos.usuarios", "acessos.grupos"] : base;
 }
 
 /** Formato da área trazida no join de `perfis`. */
@@ -298,7 +339,7 @@ export const useAuth = create<AuthState>((set, get) => {
     if (error || !data) {
       // Usuário sem perfil cadastrado: não tem acesso a nada.
       definirAtor(null);
-      set({ usuario: null, recursos: null, carregando: false });
+      set({ usuario: null, recursos: null, permissoes: [], especiais: [], grupo: null, carregando: false });
       return null;
     }
     // CONTA INATIVA (24/09/2026). A RLS já recusa tudo — o que falta é dizer o
@@ -308,13 +349,36 @@ export const useAuth = create<AuthState>((set, get) => {
     // pessoa abriria chamado de um defeito que não existe.
     if ((data as { ativo?: boolean }).ativo === false) {
       definirAtor(null);
-      set({ usuario: null, recursos: null, carregando: false });
-      return "inativo" as const;
+      set({ usuario: null, recursos: null, permissoes: [], especiais: [], grupo: null, carregando: false });
+      // PENDENTE (padrão de Acessos): a conta existe no Auth mas ninguém a liberou na tela de
+      // Acessos. A coluna `status` só existe depois da migration; antes dela, todo `ativo = false`
+      // é inativo, como sempre foi.
+      const { data: comStatus } = await supabase.from("perfis").select("status").eq("id", user.id).maybeSingle();
+      return (comStatus as { status?: string } | null)?.status === "pendente" ? ("pendente" as const) : ("inativo" as const);
     }
     // O join volta como objeto (relação 1:1) — o tipo gerado do supabase-js
     // descreve como array, daí o normalize abaixo.
     const bruto = (data as { areas?: AreaJoin | AreaJoin[] | null }).areas;
     const area = (Array.isArray(bruto) ? bruto[0] : bruto) ?? null;
+
+    // As permissões do GRUPO (padrão de Acessos). Sem a RPC no banco, o modo de compatibilidade.
+    let legado = false;
+    let grupo: GrupoDoUsuario | null = null;
+    let permissoes: Permissao[] = [];
+    let especiais: string[] = [];
+    try {
+      const minhas = await carregarMinhasPermissoes();
+      grupo = minhas?.grupo ?? null;
+      permissoes = minhas?.permissoes ?? [];
+      especiais = minhas?.especiais ?? [];
+    } catch (erro) {
+      if (erro instanceof MigracaoAusente) {
+        legado = true;
+      } else {
+        // Falha de rede não pode virar acesso: sem permissão até a próxima carga.
+        console.error("Falha ao carregar as permissões do grupo", erro);
+      }
+    }
 
     const usuario: Usuario = {
       id: user.id,
@@ -323,29 +387,41 @@ export const useAuth = create<AuthState>((set, get) => {
       telefone: data.telefone ?? "",
       papel: data.papel as Papel,
       areaId: data.area_id ?? undefined,
-      areaNome: area?.nome ?? undefined,
+      // Sob o nome, na casca: o nome do grupo (o de sistema não tem área espelhada).
+      areaNome: grupo?.nome ?? area?.nome ?? undefined,
     };
+    const recursos: Recurso[] = legado
+      ? recursosLegados(usuario.papel, (area?.recursos as Recurso[] | undefined) ?? null)
+      : (recursosDasPermissoes(permissoes) as Recurso[]);
     definirAtor({ id: user.id, nome: usuario.nome, papel: usuario.papel });
-    set({ usuario, recursos: (area?.recursos as Recurso[] | undefined) ?? null, carregando: false });
+    set({
+      usuario,
+      recursos,
+      permissoes: legado ? permissoesDosRecursos(recursos) : permissoes,
+      especiais,
+      grupo,
+      legado,
+      carregando: false,
+    });
     return usuario;
   }
 
   return {
     usuario: null,
     recursos: null,
+    permissoes: [],
+    especiais: [],
+    grupo: null,
+    legado: false,
     carregando: true,
 
     pode: (r) => {
       const u = get().usuario;
       if (!u) return false;
-      // A área do usuário é a fonte de verdade; sem área (ou área sem nenhum
-      // recurso marcado), vale a matriz padrão do papel.
-      const daArea = get().recursos;
-      if (daArea && daArea.length) return daArea.includes(r);
-      // Papel que não está na matriz (cadastro novo, dado torto) devolvia
-      // `undefined` e derrubava a tela inteira num `.includes` de nada.
-      // Sem permissão é uma resposta; tela branca não é.
-      return (PERMISSOES[u.papel] ?? []).includes(r);
+      // `recursos` já vem resolvido no carregamento: do grupo (padrão de Acessos) ou, no modo de
+      // compatibilidade, da área com o padrão do papel por baixo (`recursosLegados`). Grupo sem
+      // nenhuma permissão não cai no padrão do papel: não pode nada, como no banco.
+      return (get().recursos ?? []).includes(r);
     },
 
     entrarComEmail: async (email, senha) => {
@@ -357,6 +433,13 @@ export const useAuth = create<AuthState>((set, get) => {
         return { ok: false, erro: "E-mail ou senha inválidos." };
       }
       const u = await carregarPerfil(data.user);
+      if (u === "pendente") {
+        await supabase.auth.signOut();
+        return {
+          ok: false,
+          erro: "Sua conta foi criada, mas ainda precisa ser ativada por um administrador na tela de Acessos.",
+        };
+      }
       if (u === "inativo") {
         await supabase.auth.signOut();
         return {
@@ -483,7 +566,12 @@ export const useAuth = create<AuthState>((set, get) => {
       // compartilhado). Antes do signOut: a função precisa da sessão.
       await import("@/lib/push").then((m) => m.desligarNesteAparelho()).catch(() => {});
       await supabase.auth.signOut();
-      set({ usuario: null, recursos: null });
+      set({ usuario: null, recursos: null, permissoes: [], especiais: [], grupo: null });
+    },
+
+    recarregarPermissoes: async () => {
+      const { data } = await supabase.auth.getUser();
+      if (data.user) await carregarPerfil(data.user);
     },
 
     bootstrap: async () => {
@@ -499,7 +587,7 @@ export const useAuth = create<AuthState>((set, get) => {
           carregarPerfil(session.user);
         } else {
           definirAtor(null);
-          set({ usuario: null, recursos: null, carregando: false });
+          set({ usuario: null, recursos: null, permissoes: [], especiais: [], grupo: null, carregando: false });
         }
       });
     },

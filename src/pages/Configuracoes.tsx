@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAvisoDeSaida } from "@/hooks/useAvisoDeSaida";
 import { EnderecoCampos } from "@/components/EnderecoCampos";
 import { textoDoQueFalta, validarEndereco } from "@/domain/endereco";
@@ -10,13 +11,12 @@ import { gravarTestemunhasDaCasa, testemunhasDaCasa } from "@/lib/contratoPdf";
 import { TESTEMUNHAS_PADRAO, type TestemunhaFixa } from "@/domain/testemunhasContrato";
 import { maskCpfCnpjInput } from "@/lib/format";
 import { ManutencaoDevCard } from "@/components/ManutencaoDevCard";
-import { createPortal } from "react-dom";
 import { PageShell } from "@/components/layout/AppLayout";
 import { BarraConfiguracoes, useSecaoConfig } from "@/components/layout/BarraSecao";
 import { NAV_CONFIG } from "@/components/layout/nav";
-import { Card, CardTitle, Toggle, Badge, Field, Input, Textarea, TelefoneInput, Select, Button, Table, THead, Th, Tr, Td, EmptyState, CarregandoTela } from "@/components/ui";
-import { IcPlus, IcPencil, IcTrash, IcBloqueio, IcFechar, IcCheck } from "@/components/icons";
-import { ROTULO_PAPEL, PAPEIS_AREA, TELAS, DADOS_FINANCEIROS, PERMISSOES_ESPECIAIS, useAuth, type Recurso } from "@/store/auth";
+import { Card, CardTitle, Toggle, Badge, Field, Input, Textarea, TelefoneInput, Select, Button, Table, THead, Th, Tr, Td, EmptyState } from "@/components/ui";
+import { IcPlus } from "@/components/icons";
+import { useAuth } from "@/store/auth";
 import { useEmpresas } from "@/store/empresas";
 import { useConfigApp } from "@/store/configApp";
 import { useAsync } from "@/hooks/useAsync";
@@ -25,13 +25,7 @@ import { gravarResponsavelFeriados, lerFeriados, lerResponsavelFeriados, salvarF
 import { idAncoraPendencia } from "@/lib/destaque";
 import { feriadosVazios, responsavelPadraoDosFeriados, type Feriado } from "@/domain/feriados";
 import { toast } from "@/store/toast";
-import { confirmar } from "@/store/confirm";
 import { cx } from "@/lib/format";
-import {
-  motivoParaNaoMudar,
-  podeAtivarUsuarios,
-  quantosPodemAtivar,
-} from "@/domain/usuarioAtivo";
 import {
   CONFIG_BACKUP_PADRAO,
   OPCOES_FREQUENCIA,
@@ -44,9 +38,9 @@ import {
   type Frequencia,
 } from "@/domain/backup";
 import { baixarArquivoBase64 } from "@/lib/backup/baixar";
-import type { Area, Papel, Usuario } from "@/data/types";
+import type { Usuario } from "@/data/types";
 
-type AbaConfig = "geral" | "checklist" | "contratos" | "areas" | "usuarios" | "backup" | "ia";
+type AbaConfig = "geral" | "checklist" | "contratos" | "backup" | "ia";
 
 /**
  * A aba vem da URL (`?aba=`), e não de estado solto: a barra de Configurações
@@ -56,19 +50,25 @@ type AbaConfig = "geral" | "checklist" | "contratos" | "areas" | "usuarios" | "b
  */
 export function Configuracoes() {
   const pode = useAuth((s) => s.pode);
-  const pedida = useSecaoConfig() as AbaConfig;
+  const pedida = useSecaoConfig() as AbaConfig | "areas" | "usuarios";
   // A rota abre para quem tem `configuracoes` OU só a lista padrão do check-list
   // (a Coordenação). Quem não pode ver a seção pedida na URL cai na primeira que
   // pode — sem isto, abrir ?aba=usuarios à mão mostraria a seção inteira.
   const permitidas = NAV_CONFIG.filter((s) => s.rota.startsWith("/configuracoes") && (!s.recurso || pode(s.recurso) || !!s.ou?.some(pode)));
   const aba = (permitidas.some((s) => s.key === pedida) ? pedida : permitidas[0]?.key ?? "geral") as AbaConfig;
   const [retencao, setRetencao] = useState(24);
+  const navigate = useNavigate();
+  // As antigas abas de áreas e usuários moram agora em /acessos (link antigo continua levando lá).
+  const mudouParaAcessos = pedida === "areas" || pedida === "usuarios";
+  useEffect(() => {
+    if (mudouParaAcessos) navigate(pedida === "areas" ? "/acessos?aba=grupos" : "/acessos?aba=usuarios", { replace: true });
+  }, [mudouParaAcessos, pedida, navigate]);
   const [arquivamentoAuto, setArquivamentoAuto] = useState(true);
 
   return (
     <PageShell
       title="Configurações"
-      subtitle="Empresas de emissão, áreas de acesso, usuários, agenda, fornecedores e logs."
+      subtitle="Empresas de emissão, check-list, contratos, back-up e consumo de IA."
       // Gruda com o cabeçalho, como nas demais telas com subabas.
       subabas={<BarraConfiguracoes atual={aba} />}
     >
@@ -107,8 +107,6 @@ export function Configuracoes() {
       {aba === "checklist" && <ChecklistModelosCard />}
 
       {aba === "contratos" && <ContratosModelosCard />}
-      {aba === "areas" && <AreasCard />}
-      {aba === "usuarios" && <UsuariosCard />}
       {aba === "backup" && <BackupCard />}
       {aba === "ia" && <ConsumoIaCard />}
     </PageShell>
@@ -428,585 +426,11 @@ function FeriadosCard() {
   );
 }
 
-/* --------------------------------- Áreas --------------------------------- */
+/* ------------------------- Áreas e Usuários (mudaram) ----------------------- */
 
-const areaVazia = (): Area => ({ id: "", nome: "", papelBase: "Producao", recursos: ["projetos", "guia"], ativa: true });
-
-/**
- * Marcador de permissão. Em edição é um checkbox; em leitura vira check/traço —
- * checkbox desabilitado fica cinza demais para se distinguir do desmarcado.
- */
-function Marcador({
-  checked,
-  onChange,
-  editando = true,
-  travado,
-  titulo,
-}: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  editando?: boolean;
-  travado?: boolean;
-  titulo?: string;
-}) {
-  if (!editando) {
-    return checked ? (
-      <span className="inline-flex text-success" title={titulo}><IcCheck width={17} height={17} /></span>
-    ) : (
-      <span className="text-ink-3">—</span>
-    );
-  }
-  return (
-    <input
-      type="checkbox"
-      checked={checked}
-      disabled={travado}
-      title={titulo}
-      onChange={(e) => onChange(e.target.checked)}
-      className="w-[17px] h-[17px] accent-primary cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
-    />
-  );
-}
-
-/**
- * Cadastro de áreas (grupos de permissão). Cada área marca quais telas enxerga
- * e quais pode editar. O "nível de segurança" define o que a área alcança no
- * banco — é ele que faz, por exemplo, o Financeiro ver só a descrição financeira
- * da EC e o Produção não ver os valores do cliente.
- */
-function AreasCard() {
-  const { data, loading, error, reload } = useAsync(() => repo.areas.listar(), []);
-  const { data: usuarios } = useAsync(() => repo.auth.usuarios().catch(() => [] as Usuario[]), []);
-  const areaDoUsuario = useAuth((s) => s.usuario?.areaId);
-  /** Área aberta no popup. `novo` entra já em modo de edição. */
-  const [aberta, setAberta] = useState<{ area: Area; novo: boolean } | null>(null);
-
-  const lista = data ?? [];
-  const quantosUsuarios = (areaId: string) => (usuarios ?? []).filter((u) => u.areaId === areaId).length;
-
-  const abrir = (a: Area) => setAberta({ area: { ...a, recursos: [...a.recursos] }, novo: false });
-
-  /** Área sem nenhum usuário some de vez; área com histórico só pode ser inativada. */
-  async function remover(a: Area) {
-    const ok = await confirmar({
-      titulo: `Excluir a área "${a.nome}"?`,
-      mensagem: "Nenhum usuário está vinculado a ela. Esta ação não pode ser desfeita.",
-      tom: "danger",
-    });
-    if (!ok) return;
-    try {
-      await repo.areas.remover(a.id);
-      toast("Área excluída.", "success");
-      if (aberta?.area.id === a.id) setAberta(null);
-      reload();
-    } catch (e) {
-      toast(`Não foi possível excluir: ${(e as Error).message}`, "danger");
-    }
-  }
-
-  async function alternarAtiva(a: Area) {
-    if (a.ativa && a.id === areaDoUsuario) return toast("Você não pode inativar a sua própria área.", "danger");
-    const emUso = quantosUsuarios(a.id);
-    if (a.ativa) {
-      const ok = await confirmar({
-        titulo: `Inativar a área "${a.nome}"?`,
-        mensagem: `Ela tem ${emUso} usuário(s) e registros no sistema, então não pode ser excluída. Inativada, deixa de ser oferecida a novos usuários; quem já está nela mantém o acesso.`,
-        confirmarTexto: "Inativar",
-        tom: "danger",
-      });
-      if (!ok) return;
-    }
-    try {
-      await repo.areas.definirAtiva(a.id, !a.ativa);
-      toast(a.ativa ? "Área inativada." : "Área reativada.", "success");
-      reload();
-    } catch (e) {
-      toast(`Não foi possível alterar: ${(e as Error).message}`, "danger");
-    }
-  }
-
-  return (
-    <div className="max-w-5xl mx-auto">
-      <Card padded={false}>
-        <div className="p-5 flex items-center justify-between gap-3 flex-wrap">
-          <CardTitle hint="Cada área define as telas que seus usuários enxergam e editam">Áreas</CardTitle>
-          <Button size="sm" icon={<IcPlus width={16} height={16} />} onClick={() => setAberta({ area: areaVazia(), novo: true })}>Nova área</Button>
-        </div>
-        {error && (
-          <div className="mx-5 mt-3 text-[13px] text-danger bg-danger-soft rounded-btn px-3 py-2 flex items-center justify-between gap-3">
-            <span>Não foi possível carregar as áreas: {error}</span>
-            <button onClick={reload} className="font-bold underline shrink-0">Tentar de novo</button>
-          </div>
-        )}
-        {loading ? <div className="p-8 text-ink-3 text-sm">Carregando…</div> : error ? null : lista.length === 0 ? (
-          <EmptyState title="Nenhuma área cadastrada" />
-        ) : (
-          <Table>
-            <THead><Th>Área</Th><Th>Nível de segurança</Th><Th align="center">Telas</Th><Th align="center">Usuários</Th><Th align="center">Ações</Th></THead>
-            <tbody>
-              {lista.map((a) => {
-                const emUso = quantosUsuarios(a.id) > 0;
-                return (
-                  <Tr key={a.id} onClick={() => abrir(a)}>
-                    <Td className={cx("font-bold", !a.ativa && "text-ink-3")}>
-                      {a.nome}
-                      {!a.ativa && <span className="ml-2"><Badge tom="neutral">Inativa</Badge></span>}
-                    </Td>
-                    <Td className="text-[12.5px]">{ROTULO_PAPEL[a.papelBase]}</Td>
-                    <Td align="center" className="text-[12.5px]">{TELAS.filter((t) => a.recursos.includes(t.ver)).length}/{TELAS.length}</Td>
-                    <Td align="center" className="text-[12.5px]">{quantosUsuarios(a.id)}</Td>
-                    <Td align="center">
-                      <div className="inline-flex items-center gap-3">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); abrir(a); }}
-                          className="text-ink-3 hover:text-primary-dark inline-flex"
-                          title="Editar área"
-                        >
-                          <IcPencil width={16} height={16} />
-                        </button>
-                        {/* Com usuários vinculados a área guarda histórico: só dá para inativar. */}
-                        {emUso ? (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); void alternarAtiva(a); }}
-                            className={cx("inline-flex", a.ativa ? "text-danger hover:text-danger" : "text-ink-3 hover:text-success")}
-                            title={a.ativa ? "Inativar área (tem usuários vinculados)" : "Reativar área"}
-                          >
-                            <IcBloqueio width={16} height={16} />
-                          </button>
-                        ) : (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); void remover(a); }}
-                            className="text-ink-3 hover:text-danger inline-flex"
-                            title="Excluir área"
-                          >
-                            <IcTrash width={16} height={16} />
-                          </button>
-                        )}
-                      </div>
-                    </Td>
-                  </Tr>
-                );
-              })}
-            </tbody>
-          </Table>
-        )}
-      </Card>
-
-      {aberta && (
-        <AreaModal
-          area={aberta.area}
-          novo={aberta.novo}
-          areaDoUsuario={areaDoUsuario}
-          onFechar={() => setAberta(null)}
-          onSalvo={() => { setAberta(null); reload(); }}
-        />
-      )}
-    </div>
-  );
-}
-
-/**
- * Popup de uma área. Abre em leitura; o lápis no topo troca para edição, e aí
- * o lápis dá lugar a Salvar/Cancelar. O X fecha em qualquer um dos dois modos.
- */
-function AreaModal({
-  area,
-  novo,
-  areaDoUsuario,
-  onFechar,
-  onSalvo,
-}: {
-  area: Area;
-  novo: boolean;
-  areaDoUsuario?: string;
-  onFechar: () => void;
-  onSalvo: () => void;
-}) {
-  const [editando, setEditando] = useState(novo);
-  const [form, setForm] = useState<Area>(area);
-  const [salvando, setSalvando] = useState(false);
-  useAvisoDeSaida(form, editando);
-
-  // Esc fecha (mas não durante o salvamento, para não deixar a gravação órfã).
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !salvando) onFechar(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onFechar, salvando]);
-
-  const marcado = (r: Recurso) => form.recursos.includes(r);
-  function alternar(r: Recurso, v: boolean) {
-    let recursos = v ? [...form.recursos, r] : form.recursos.filter((x) => x !== r);
-    // Editar sem ver não existe: marcar "editar" liga o "ver"; desmarcar "ver" desliga o "editar".
-    // Vale para as telas e para os dados financeiros (12/11/2026).
-    const par = [...TELAS, ...DADOS_FINANCEIROS].find((t) => t.ver === r || t.editar === r);
-    if (par?.editar) {
-      if (v && r === par.editar && !recursos.includes(par.ver)) recursos.push(par.ver);
-      if (!v && r === par.ver) recursos = recursos.filter((x) => x !== par.editar);
-    }
-    setForm({ ...form, recursos });
-  }
-
-  async function salvar() {
-    if (!form.nome.trim()) return toast("Dê um nome para a área.", "danger");
-    setSalvando(true);
-    try {
-      await repo.areas.salvar(form);
-      toast(novo ? "Área criada." : "Área atualizada.", "success");
-      onSalvo();
-    } catch (e) {
-      toast(`Não foi possível salvar: ${(e as Error).message}`, "danger");
-    } finally {
-      setSalvando(false);
-    }
-  }
-
-  /** Numa área nova não há o que voltar: cancelar fecha o popup. */
-  const cancelar = () => (novo ? onFechar() : (setForm(area), setEditando(false)));
-
-  const telasVisiveis = TELAS.filter((t) => form.recursos.includes(t.ver)).length;
-
-  return createPortal(
-    <div className="no-print fixed inset-0 z-60 flex items-center justify-center p-4">
-      <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-[1px]"
-        onClick={editando ? undefined : onFechar}
-      />
-      <div className="relative w-full max-w-[620px] bg-surface rounded-card-lg shadow-modal border border-border animate-[fadein_.12s_ease] flex flex-col max-h-[88vh]">
-        <div className="flex items-start justify-between gap-3 px-6 pt-5 pb-4 border-b border-border shrink-0">
-          <div className="min-w-0">
-            <h3 className="font-display font-bold text-[17px] text-ink tracking-[-0.3px] truncate">
-              {novo ? "Nova área" : form.nome || "Área"}
-            </h3>
-            <p className="text-[12.5px] text-ink-2 mt-0.5">
-              Nível {ROTULO_PAPEL[form.papelBase]} · {telasVisiveis} de {TELAS.length} telas
-              {!form.ativa && " · inativa"}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {editando ? (
-              <>
-                {salvando && <CarregandoTela />}
-                <Button size="sm" onClick={salvar} disabled={salvando}>{salvando ? "Salvando…" : "Salvar"}</Button>
-                <Button size="sm" variant="secondary" onClick={cancelar} disabled={salvando}>Cancelar</Button>
-              </>
-            ) : (
-              <button
-                onClick={() => setEditando(true)}
-                title="Editar área"
-                className="h-8 w-8 grid place-items-center rounded-btn text-ink-2 hover:text-primary-dark hover:bg-[#F5F6F8]"
-              >
-                <IcPencil width={16} height={16} />
-              </button>
-            )}
-            <button
-              onClick={onFechar}
-              title="Fechar"
-              disabled={salvando}
-              className="h-8 w-8 grid place-items-center rounded-btn text-ink-2 hover:text-ink hover:bg-[#F5F6F8] disabled:opacity-40"
-            >
-              <IcFechar width={17} height={17} />
-            </button>
-          </div>
-        </div>
-
-        <div className="px-6 py-5 overflow-y-auto grid gap-3">
-          <div className="grid sm:grid-cols-2 gap-3">
-            <Field label="Nome da área" obrigatorio>
-              {editando ? (
-                <Input formato="titulo" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} placeholder="Ex.: Atendimento" />
-              ) : (
-                <div className="text-[13.5px] font-semibold text-ink py-1.5">{form.nome || "—"}</div>
-              )}
-            </Field>
-            <Field label="Nível de segurança" hint={editando ? "Define o que a área alcança no banco" : undefined}>
-              {editando ? (
-                <Select value={form.papelBase} onChange={(e) => setForm({ ...form, papelBase: e.target.value as Papel })}>
-                  {PAPEIS_AREA.map((p) => <option key={p} value={p}>{ROTULO_PAPEL[p]}</option>)}
-                </Select>
-              ) : (
-                <div className="text-[13.5px] font-semibold text-ink py-1.5">{ROTULO_PAPEL[form.papelBase]}</div>
-              )}
-            </Field>
-          </div>
-
-          <div className="rounded-card border border-border overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-[#FAFAFB]">
-                  <th className="text-left px-4 py-2.5 text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Tela</th>
-                  <th className="px-4 py-2.5 w-24 text-center text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Ver</th>
-                  <th className="px-4 py-2.5 w-24 text-center text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Editar</th>
-                </tr>
-              </thead>
-              <tbody>
-                {TELAS.map((t) => (
-                  <tr key={t.ver} className="border-b border-border-soft last:border-0">
-                    <td className="px-4 py-2.5 font-semibold text-ink">{t.label}</td>
-                    <td className="px-4 py-2.5 text-center">
-                      <Marcador checked={marcado(t.ver)} editando={editando} onChange={(v) => alternar(t.ver, v)} />
-                    </td>
-                    <td className="px-4 py-2.5 text-center">
-                      {t.editar
-                        ? <Marcador checked={marcado(t.editar)} editando={editando} onChange={(v) => alternar(t.editar!, v)} />
-                        : <span className="text-ink-3">—</span>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* DADOS FINANCEIROS (12/11/2026): ver e editar de cada bloco sensível,
-              na mesma matriz das telas. Antes era uma caixa só ("Bloco financeiro"),
-              que liberava ao mesmo tempo os valores da EC, os blocos da OS e a
-              edição deles. */}
-          <div className="rounded-card border border-border overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-[#FAFAFB]">
-                  <th className="text-left px-4 py-2.5 text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Dados financeiros</th>
-                  <th className="px-4 py-2.5 w-24 text-center text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Ver</th>
-                  <th className="px-4 py-2.5 w-24 text-center text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Editar</th>
-                </tr>
-              </thead>
-              <tbody>
-                {DADOS_FINANCEIROS.map((d) => (
-                  <tr key={d.ver} className="border-b border-border-soft last:border-0">
-                    <td className="px-4 py-2.5">
-                      <span className="block font-semibold text-ink">{d.label}</span>
-                      <span className="block text-[12px] text-ink-2">{d.hint}</span>
-                    </td>
-                    <td className="px-4 py-2.5 text-center">
-                      <Marcador checked={marcado(d.ver)} editando={editando} onChange={(v) => alternar(d.ver, v)} />
-                    </td>
-                    <td className="px-4 py-2.5 text-center">
-                      {d.editar
-                        ? <Marcador checked={marcado(d.editar)} editando={editando} onChange={(v) => alternar(d.editar!, v)} />
-                        : <span className="text-ink-3" title="Ver e editar andam juntos">—</span>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="rounded-card border border-border p-4 space-y-3">
-            <div className="text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Permissões especiais</div>
-            {PERMISSOES_ESPECIAIS.map((p) => {
-              // Ninguém pode se trancar para fora: a própria área não perde Configurações.
-              const travado = p.key === "configuracoes" && form.id === areaDoUsuario;
-              return (
-                <label key={p.key} className={cx("flex items-start gap-3", editando && !travado && "cursor-pointer")}>
-                  <span className="pt-0.5">
-                    <Marcador
-                      checked={marcado(p.key)}
-                      editando={editando}
-                      travado={travado}
-                      titulo={editando && travado ? "Você não pode remover Configurações da sua própria área." : undefined}
-                      onChange={(v) => alternar(p.key, v)}
-                    />
-                  </span>
-                  <span>
-                    <span className="block text-[13px] font-bold text-ink">{p.label}</span>
-                    <span className="block text-[12px] text-ink-2">{p.hint}</span>
-                  </span>
-                </label>
-              );
-            })}
-          </div>
-
-          <p className="text-[12.5px] text-ink-2">
-            O que a área marca aqui vale também no <b>banco de dados</b>: o que ela não vê não chega ao
-            navegador, e o que não edita o banco não grava. O <b>nível de segurança</b> só decide o padrão de
-            quem ainda não tem área marcada. Trocar as marcações de uma área muda o acesso de todos os usuários dela.
-          </p>
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
-}
-
-/* -------------------------------- Usuários -------------------------------- */
-
-const usuarioVazio = (): Usuario => ({ id: "", nome: "", email: "", telefone: "", papel: "Producao", areaId: "" });
-
-/**
- * Cadastro de usuários (perfis + login). Criar usuário convida por e-mail (o próprio
- * usuário define a senha); editar altera nome/telefone/papel e, se preciso, o e-mail
- * do login. Tudo passa pela Edge Function `gerenciar-usuarios` (chave de serviço).
- */
-function UsuariosCard() {
-  const { data, loading, error, reload } = useAsync(() => repo.auth.usuariosCompletos(), []);
-  const { data: areas } = useAsync(() => repo.areas.listar(), []);
-  const [edit, setEdit] = useState<Usuario | null>(null);
-  useAvisoDeSaida(edit);
-  const [salvando, setSalvando] = useState(false);
-  /** Qual linha está no meio da troca — para travar só o botão dela. */
-  const [alterando, setAlterando] = useState<string | null>(null);
-  const usuarioAtual = useAuth((st) => st.usuario);
-  const podeAtivar = podeAtivarUsuarios(usuarioAtual?.papel);
-
-  const lista = data ?? [];
-
-  /**
-   * Liga e desliga o acesso de alguém.
-   *
-   * A confirmação existe porque inativar derruba a sessão da pessoa na hora —
-   * quem está com a tela aberta perde o acesso no comando seguinte, e isso não
-   * pode acontecer por um clique errado numa lista.
-   */
-  async function alternarAcesso(u: Usuario) {
-    const ativo = !(u.ativo ?? true);
-    if (!ativo && !(await confirmar({
-      titulo: `Inativar ${u.nome}?`,
-      mensagem:
-        "O acesso é cortado imediatamente, inclusive se a pessoa estiver com o sistema aberto. " +
-        "O histórico é preservado — inativar não é apagar.",
-      confirmarTexto: "Inativar",
-      cancelarTexto: "Voltar",
-    }))) return;
-    setAlterando(u.id);
-    try {
-      await repo.auth.definirUsuarioAtivo({ id: u.id, ativo });
-      toast(ativo ? `${u.nome} voltou a ter acesso.` : `${u.nome} está sem acesso.`, "success");
-      reload();
-    } catch (e) {
-      toast((e as Error).message, "danger");
-    } finally {
-      setAlterando(null);
-    }
-  }
-
-  async function salvar() {
-    if (!edit) return;
-    // O Admin (desenvolvedor) não pertence a área nenhuma — enxerga tudo pelo papel.
-    const areaId = edit.areaId ?? "";
-    if (!areaId && edit.papel !== "Admin") return toast("Selecione a área do usuário.", "danger");
-    setSalvando(true);
-    try {
-      if (edit.id) {
-        await repo.auth.atualizarUsuario({ id: edit.id, nome: edit.nome, telefone: edit.telefone, areaId, email: edit.email });
-        toast("Usuário atualizado.", "success");
-      } else {
-        await repo.auth.criarUsuario({ email: edit.email, nome: edit.nome, areaId, telefone: edit.telefone });
-        toast(`Convite enviado para ${edit.email}.`, "success");
-      }
-      setEdit(null);
-      reload();
-    } catch (e) {
-      toast(`Não foi possível salvar: ${(e as Error).message}`, "danger");
-    } finally {
-      setSalvando(false);
-    }
-  }
-
-  return (
-    <div className={cx(edit ? "grid lg:grid-cols-[1.5fr_1fr] gap-4 items-start" : "max-w-5xl mx-auto")}>
-      <Card padded={false}>
-        <div className="p-5 flex items-center justify-between gap-3 flex-wrap">
-          <CardTitle hint="Nome, e-mail (login), telefone e área de cada usuário do sistema">Usuários</CardTitle>
-          <Button size="sm" icon={<IcPlus width={16} height={16} />} onClick={() => setEdit(usuarioVazio())}>
-            Novo usuário
-          </Button>
-        </div>
-        {error && (
-          <div className="mx-5 mt-3 text-[13px] text-danger bg-danger-soft rounded-btn px-3 py-2 flex items-center justify-between gap-3">
-            <span>Não foi possível carregar os usuários: {error}</span>
-            <button onClick={reload} className="font-bold underline shrink-0">Tentar de novo</button>
-          </div>
-        )}
-        {loading ? <div className="p-8 text-ink-3 text-sm">Carregando…</div> : error ? null : lista.length === 0 ? (
-          <EmptyState title="Nenhum usuário cadastrado" />
-        ) : (
-          <Table>
-            <THead>
-              <Th>Nome</Th><Th>E-mail</Th><Th>Telefone</Th>
-              <Th align="center">Área</Th><Th align="center">Acesso</Th>
-              {podeAtivar && <Th align="center">Ações</Th>}
-            </THead>
-            <tbody>
-              {lista.map((u) => {
-                const ativo = u.ativo ?? true;
-                const impedimento = motivoParaNaoMudar(
-                  { id: usuarioAtual?.id ?? "", papel: usuarioAtual?.papel ?? "Producao" },
-                  { id: u.id, papel: u.papel, ativo },
-                  quantosPodemAtivar(lista)
-                );
-                return (
-                <Tr key={u.id} onClick={() => setEdit({ ...u })}>
-                  <Td className={cx("font-bold", !ativo && "text-ink-3")}>{u.nome}</Td>
-                  <Td className={cx("text-[12.5px]", !ativo && "text-ink-3")}>{u.email || "—"}</Td>
-                  <Td className="text-[12.5px]">{u.telefone || "—"}</Td>
-                  {/* Sem área é o caso do desenvolvedor (papel Admin) — não é uma área, é a ausência dela. */}
-                  <Td align="center">
-                    {u.areaNome ? <Badge tom="info">{u.areaNome}</Badge> : <span className="text-ink-3">—</span>}
-                  </Td>
-                  <Td align="center">
-                    <Badge tom={ativo ? "success" : "danger"}>{ativo ? "Ativo" : "Inativo"}</Badge>
-                  </Td>
-                  {podeAtivar && (
-                    <Td align="center">
-                      {/* O botão some quando a mudança é impossível, e o motivo
-                          vira o título — um botão que falha em silêncio faz a
-                          pessoa tentar de novo e abrir chamado. */}
-                      <button
-                        type="button"
-                        disabled={!!impedimento || alterando === u.id}
-                        title={impedimento ?? (ativo ? "Tira o acesso, preservando o histórico" : "Devolve o acesso")}
-                        onClick={(e) => { e.stopPropagation(); void alternarAcesso(u); }}
-                        className={cx(
-                          "text-[12px] font-bold rounded-sm px-2 py-1 input-focus",
-                          impedimento ? "text-ink-3 cursor-not-allowed" : ativo ? "text-danger hover:underline" : "text-success hover:underline"
-                        )}
-                      >
-                        {alterando === u.id ? "…" : ativo ? "Inativar" : "Ativar"}
-                      </button>
-                    </Td>
-                  )}
-                </Tr>
-                );
-              })}
-            </tbody>
-          </Table>
-        )}
-      </Card>
-
-      {edit && (
-        <Card>
-          <CardTitle>{edit.id ? "Editar usuário" : "Novo usuário"}</CardTitle>
-          {!edit.id && (
-            <div className="mb-3 text-[12.5px] text-info bg-info-soft rounded-btn px-3 py-2">
-              Um convite por e-mail será enviado — o próprio usuário define a senha ao aceitar.
-            </div>
-          )}
-          <div className="grid gap-3">
-            <Field label="Nome" obrigatorio><Input formato="titulo" value={edit.nome} onChange={(e) => setEdit({ ...edit, nome: e.target.value })} /></Field>
-            <Field label="E-mail" obrigatorio><Input type="email" value={edit.email} onChange={(e) => setEdit({ ...edit, email: e.target.value })} placeholder="nome@polobh.com.br" /></Field>
-            <Field label="Telefone"><TelefoneInput value={edit.telefone} onChange={(v) => setEdit({ ...edit, telefone: v })} /></Field>
-            <Field label="Área" hint="Define as telas que este usuário enxerga e edita" obrigatorio={edit.papel !== "Admin"}>
-              <Select value={edit.areaId ?? ""} onChange={(e) => setEdit({ ...edit, areaId: e.target.value })}>
-                <option value="">
-                  {edit.papel === "Admin" ? "Sem área — acesso total (desenvolvedor)" : "Selecione a área…"}
-                </option>
-                {/* Áreas inativas não são oferecidas — exceto a que o usuário já ocupa. */}
-                {(areas ?? [])
-                  .filter((a) => a.ativa || a.id === edit.areaId)
-                  .map((a) => <option key={a.id} value={a.id}>{a.nome}{a.ativa ? "" : " (inativa)"}</option>)}
-              </Select>
-            </Field>
-            <div className="flex gap-2 pt-1">
-              {salvando && <CarregandoTela />}
-              <Button block onClick={salvar} disabled={salvando}>{salvando ? "Salvando…" : "Salvar"}</Button>
-              <Button variant="secondary" onClick={() => setEdit(null)}>Cancelar</Button>
-            </div>
-          </div>
-        </Card>
-      )}
-    </div>
-  );
-}
+// As abas "Áreas e permissões" e "Usuários" MUDARAM para a tela /acessos (padrão de Acessos LSPRO,
+// 24/11/2026): a área virou grupo de permissão e o cadastro de usuários foi junto. Quem chega por
+// `?aba=areas` ou `?aba=usuarios` (link antigo, favorito) é levado para lá — ver `Configuracoes`.
 
 /**
  * Para onde vai o chamado do Help Desk (o quinto botão do cabeçalho).

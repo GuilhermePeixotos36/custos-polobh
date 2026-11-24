@@ -57,8 +57,7 @@ export const NAV_CONFIG: (SecaoNav & { rota: string })[] = [
   { key: "checklist", label: "Check-list", rota: "/configuracoes?aba=checklist", recurso: "configuracoes", ou: ["checklists.padrao"] },
   // Só o Administrador e a Direção de Produção (13/11/2026): a chave é marcada à mão na área.
   { key: "contratos", label: "Contratos", rota: "/configuracoes?aba=contratos", recurso: "contratos.clausulas" },
-  { key: "areas", label: "Áreas e permissões", rota: "/configuracoes?aba=areas", recurso: "configuracoes" },
-  { key: "usuarios", label: "Usuários", rota: "/configuracoes?aba=usuarios", recurso: "configuracoes" },
+  // "Áreas e permissões" e "Usuários" MUDARAM para a tela /acessos (padrão de Acessos, 24/11/2026).
   { key: "backup", label: "Back-up", rota: "/configuracoes?aba=backup", recurso: "configuracoes" },
   { key: "ia", label: "Consumo de IA", rota: "/configuracoes?aba=ia", recurso: "configuracoes" },
   { key: "logs", label: "Logs do sistema", rota: "/logs", recurso: "logs" },

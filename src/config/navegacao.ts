@@ -15,7 +15,7 @@
  * O CALENDÁRIO vem primeiro porque é por ele que o dia começa.
  */
 import {
-  BookOpen, CalendarDays, FolderKanban, LifeBuoy, ScrollText, Settings, Truck, Workflow,
+  BookOpen, CalendarDays, FolderKanban, LifeBuoy, ScrollText, Settings, ShieldCheck, Truck, Workflow,
   type LucideIcon,
 } from "lucide-react";
 import type { Recurso } from "@/store/auth";
@@ -49,6 +49,8 @@ export const ITENS_DE_NAVEGACAO: ItemDeNavegacao[] = [
   { to: "/suporte", rotulo: "Help Desk", rotuloCurto: "Suporte", icone: LifeBuoy, noMenuInferior: false, recurso: "guia", painel: "suporte" },
   // A Coordenação não administra empresas e usuários, mas edita a lista padrão do check-list — por isso o `ou`.
   { to: "/configuracoes", rotulo: "Configurações", rotuloCurto: "Config.", icone: Settings, noMenuInferior: false, administracao: true, recurso: "configuracoes", ou: ["checklists.padrao", "contratos.clausulas"] },
+  // Acessos (padrão de Acessos LSPRO, 24/11/2026): as antigas abas Áreas e Usuários de Configurações.
+  { to: "/acessos", rotulo: "Acessos", rotuloCurto: "Acessos", icone: ShieldCheck, noMenuInferior: false, administracao: true, recurso: "acessos.usuarios", ou: ["acessos.grupos"] },
   { to: "/logs", rotulo: "Logs", rotuloCurto: "Logs", icone: ScrollText, noMenuInferior: false, administracao: true, recurso: "logs" },
 ];
 
