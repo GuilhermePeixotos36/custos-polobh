@@ -84,8 +84,8 @@ export function OsList() {
                 aria-pressed={filtro === valor}
                 onClick={() => setFiltro(valor)}
                 className={cx(
-                  "h-8 rounded-pill px-3 text-[12.5px] font-bold transition-colors",
-                  filtro === valor ? "bg-primary-soft text-primary-dark" : "text-ink-2 hover:bg-[#F1F2F5] hover:text-ink"
+                  "h-8 rounded-pill px-3 text-xs font-bold transition-colors",
+                  filtro === valor ? "bg-primary-soft text-primary-dark" : "text-ink-2 hover:bg-muted hover:text-ink"
                 )}
               >
                 {rotulo}
@@ -119,9 +119,9 @@ export function OsList() {
                   <Td className="font-bold">{o.numero}</Td>
                   <TdItensOs itens={itensPorOs[o.id] ?? []} />
                   <Td>{o.fornecedor.razaoSocial}</Td>
-                  <Td className="text-[12.5px] text-ink-2">{rotuloNumeroEc(o.ecNumero)}</Td>
+                  <Td className="text-xs text-ink-2">{rotuloNumeroEc(o.ecNumero)}</Td>
                   <Td>{o.modalidade || "—"}</Td>
-                  {verFinanceiro && <Td align="right" className="font-display font-bold">{valorDaContratacao(o.itens ?? []) ? brl(valorDaContratacao(o.itens ?? [])) : "a definir"}</Td>}
+                  {verFinanceiro && <Td align="right" className="font-bold">{valorDaContratacao(o.itens ?? []) ? brl(valorDaContratacao(o.itens ?? [])) : "a definir"}</Td>}
                   <Td align="center"><Badge tom={tomStatusOs[o.status]}>{o.status}</Badge></Td>
                 </Tr>
               ))}

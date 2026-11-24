@@ -142,7 +142,7 @@ function BotaoItens({ itens }: { itens: ItemDaOs[] }) {
         title={rotulo}
         className={cx(
           "inline-flex h-7 w-7 items-center justify-center rounded-btn transition-colors",
-          aberto ? "bg-primary-soft text-primary-dark" : "text-ink-3 hover:text-primary-dark hover:bg-[#F1F2F5]"
+          aberto ? "bg-primary-soft text-primary-dark" : "text-ink-3 hover:text-primary-dark hover:bg-muted"
         )}
       >
         <IcList width={15} height={15} />
@@ -159,7 +159,7 @@ function BotaoItens({ itens }: { itens: ItemDaOs[] }) {
             onMouseLeave={fecharComCarencia}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="px-3 py-2 border-b border-border-soft text-[11px] font-extrabold uppercase tracking-wider text-ink-3">
+            <div className="px-3 py-2 border-b border-border-soft text-xs font-semibold text-muted-foreground">
               {rotulo}
             </div>
             {/* Lista longa rola dentro da caixinha — a linha da tabela nunca cresce. */}
@@ -168,8 +168,8 @@ function BotaoItens({ itens }: { itens: ItemDaOs[] }) {
                 <li key={i.id} className="px-3 py-1 flex gap-2">
                   <span aria-hidden="true" className="text-primary shrink-0">•</span>
                   <span className="min-w-0">
-                    <span className="block text-[12.5px] font-semibold text-ink leading-snug">{i.item}</span>
-                    {i.grupo && <span className="block text-[11px] text-ink-3 leading-snug">{i.grupo}</span>}
+                    <span className="block text-xs font-semibold text-ink leading-snug">{i.item}</span>
+                    {i.grupo && <span className="block text-2xs text-ink-3 leading-snug">{i.grupo}</span>}
                   </span>
                 </li>
               ))}

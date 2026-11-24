@@ -1684,7 +1684,7 @@ export function OsForm() {
             </StepperItem>
           ))}
         </Stepper>
-        <div className="mt-3 pt-2.5 border-t border-border-soft flex items-center gap-x-3 gap-y-1 flex-wrap text-[12.5px] text-ink-2">
+        <div className="mt-3 pt-2.5 border-t border-border-soft flex items-center gap-x-3 gap-y-1 flex-wrap text-xs text-ink-2">
           <span>{ESPERANDO_FASE[fase]}</span>
           {os.faseEm && <span className="text-ink-3">desde {dataBR(os.faseEm)}</span>}
           {!editando && !emitida && !encerradaDoc && (podeEditar || editaFinOs || podeValidarContrato) && (
@@ -1692,7 +1692,7 @@ export function OsForm() {
           )}
         </div>
         {!emitida && !encerradaDoc && (problemasContratacao.length > 0 || pendenciasAbertasDaOs.length > 0) && (
-          <ul className="mt-2 space-y-0.5 text-[12.5px]">
+          <ul className="mt-2 space-y-0.5 text-xs">
             {problemasContratacao.map((m) => (
               <li key={m}>
                 <button type="button" className="text-left text-danger font-bold hover:underline" onClick={() => destacarElemento(ID_FORMAS_PAGAMENTO, "pendencia")}>{m}</button>
@@ -1800,7 +1800,7 @@ export function OsForm() {
                   </div>
                 ))
               ) : (
-                <p className="text-[12.5px] text-ink-3">Sem cronograma preenchido no projeto.</p>
+                <p className="text-xs text-ink-3">Sem cronograma preenchido no projeto.</p>
               )}
             </div>
           </LinhaOs>
@@ -1828,7 +1828,7 @@ export function OsForm() {
               troca não é uma edição, e quem está mexendo precisa saber disso
               enquanto ainda pode desfazer. */}
           {trocouFornecedor && (
-            <div className="m-3 text-[12.5px] font-semibold text-warning bg-warning-soft rounded-btn px-3 py-2">
+            <div className="m-3 text-xs font-semibold text-warning bg-warning-soft rounded-btn px-3 py-2">
               Esta OS está {os.status.toLowerCase()} em nome de{" "}
               {fornecedorGravado.current?.nomeFantasia || fornecedorGravado.current?.razaoSocial || "outro fornecedor"}.
               Ao salvar, ela será arquivada e uma nova versão será criada com o fornecedor novo.
@@ -1910,13 +1910,13 @@ export function OsForm() {
               <button
                 type="button"
                 onClick={() => setOs((o) => (o ? { ...o, modalidade: modalidadeSugerida } : o))}
-                className="mt-1.5 inline-flex items-center gap-1.5 text-[12px] font-bold text-primary-dark hover:underline"
+                className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-bold text-primary-dark hover:underline"
               >
                 <IcSpark width={13} height={13} /> Sugestão pelos itens: {modalidadeSugerida} — aplicar
               </button>
             )}
             {!os.modalidade && (
-              <p className="mt-1 text-[12px] font-semibold text-danger">
+              <p className="mt-1 text-xs font-semibold text-danger">
                 Informe a modalidade — ela vai no documento que o fornecedor recebe.
               </p>
             )}
@@ -1926,8 +1926,8 @@ export function OsForm() {
               {linhasConsolidadas.map((l) => (
                 <div key={l.id} className="text-sm">
                   <span className="font-bold text-ink">{l.item || "—"}</span>
-                  <span className="text-[12px] text-ink-3"> · {l.grupo}</span>
-                  {l.descricao && <div className="text-[12px] text-ink-2">{l.descricao}</div>}
+                  <span className="text-xs text-ink-3"> · {l.grupo}</span>
+                  {l.descricao && <div className="text-xs text-ink-2">{l.descricao}</div>}
                 </div>
               ))}
             </div>
@@ -1951,7 +1951,7 @@ export function OsForm() {
                 {/* Dentro do Detalhamento (da Produção), esta linha é do Financeiro. */}
                 <EtiquetaArea area="Financeiro" tambem="Produção" />
                 {problemasContratacao.length > 0 && (
-                  <div className="rounded-btn bg-warning-soft px-3 py-2 text-[12.5px] text-ink">
+                  <div className="rounded-btn bg-warning-soft px-3 py-2 text-xs text-ink">
                     <p className="font-bold text-warning">Falta resolver antes de emitir:</p>
                     <ul className="list-disc pl-5 mt-0.5">
                       {problemasContratacao.map((m) => <li key={m}>{m}</li>)}
@@ -1973,7 +1973,7 @@ export function OsForm() {
                   );
                 })}
                 {!os.itens.length && (
-                  <p className="text-[12.5px] text-ink-3">Esta OS não está ligada a itens da EC.</p>
+                  <p className="text-xs text-ink-3">Esta OS não está ligada a itens da EC.</p>
                 )}
               </div>
             </LinhaOs>
@@ -1987,14 +1987,14 @@ export function OsForm() {
               <button
                 type="button"
                 onClick={() => setOs((o) => (o ? { ...o, descritivo: descritivoDaEc } : o))}
-                className="mt-1.5 inline-flex items-center gap-1.5 text-[12px] font-bold text-primary-dark hover:underline"
+                className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-bold text-primary-dark hover:underline"
                 title="Substitui o texto acima pelo descritivo atual dos itens da EC (financeiro + detalhado)"
               >
                 <IcSpark width={13} height={13} /> A EC mudou desde que esta OS nasceu — trazer o descritivo atual
               </button>
             )}
             {flags.descritivoIA && (
-              <button onClick={descricaoIA} className="mt-2 inline-flex items-center gap-1.5 text-[12.5px] font-bold text-primary-dark hover:underline">
+              <button onClick={descricaoIA} className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-primary-dark hover:underline">
                 <IcSpark width={14} height={14} /> Gerar com IA
               </button>
             )}
@@ -2032,18 +2032,18 @@ export function OsForm() {
                     <button className="text-ink-3 hover:text-danger px-2" title="Remover parcela" onClick={() => updOrc({ parcelas: os.orcamento.parcelas.filter((_, j) => j !== i) })}>✕</button>
                   </div>
                 ))}
-                {os.orcamento.parcelas.length === 0 && <p className="text-[12.5px] text-ink-3">Sem parcelas. Use “+ Parcela”.</p>}
+                {os.orcamento.parcelas.length === 0 && <p className="text-xs text-ink-3">Sem parcelas. Use “+ Parcela”.</p>}
 
                 {os.orcamento.parcelas.length > 0 && (
                   <div
                     className={cx(
-                      "flex items-center justify-between gap-3 rounded-btn px-3 py-2 text-[12.5px]",
-                      parcelasDivergem ? "bg-danger-soft text-danger font-semibold" : "bg-[#FAFAFB] text-ink-2"
+                      "flex items-center justify-between gap-3 rounded-btn px-3 py-2 text-xs",
+                      parcelasDivergem ? "bg-danger-soft text-danger font-semibold" : "bg-muted/40 text-ink-2"
                     )}
                   >
                     <span>
-                      Soma das parcelas: <b className="font-display">{brl(somaParcelas)}</b>
-                      {refParcelas.valor > 0 && <> · saldo a distribuir: <b className="font-display">{brl(saldoParcelas)}</b></>}
+                      Soma das parcelas: <b>{brl(somaParcelas)}</b>
+                      {refParcelas.valor > 0 && <> · saldo a distribuir: <b>{brl(saldoParcelas)}</b></>}
                     </span>
                     {parcelasDivergem ? (
                       <span>
@@ -2106,7 +2106,7 @@ export function OsForm() {
             ) : (
             <div className="py-1.5 overflow-x-auto md:overflow-visible">
               {/* Duas colunas vazias na frente: a alça de arraste e as setas. */}
-              <div className={cx(GRADE_CRONOGRAMA, "mb-2 text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3 px-1")}>
+              <div className={cx(GRADE_CRONOGRAMA, "mb-2 text-xs font-semibold text-muted-foreground px-1")}>
                 <span /><span />
                 <span>Data</span><span>Horário</span><span>Etapa</span><span>Descritivo da contratação</span><span />
               </div>
@@ -2146,7 +2146,7 @@ export function OsForm() {
                   );
                 })}
               </ListaArrastavel>
-              {os.cronograma.length === 0 && <p className="text-[12.5px] text-ink-3 px-1">Nenhuma etapa. Use “+ Etapa” para adicionar.</p>}
+              {os.cronograma.length === 0 && <p className="text-xs text-ink-3 px-1">Nenhuma etapa. Use “+ Etapa” para adicionar.</p>}
             </div>
             )}
           </LinhaOs>
@@ -2207,7 +2207,7 @@ export function OsForm() {
             <button
               type="button"
               onClick={adicionarGrupoExtra}
-              className="py-1.5 text-[12.5px] font-bold text-primary-dark hover:underline input-focus rounded-sm"
+              className="py-1.5 text-xs font-bold text-primary-dark hover:underline input-focus rounded-sm"
             >
               + Novo grupo (além de Logística e Infraestrutura)
             </button>
@@ -2312,7 +2312,7 @@ export function OsForm() {
                     onValue={(v) => updFin({ encargosAcrescimoPercentual: v })}
                     aria-label="Percentual de encargos sobre o acréscimo"
                   />
-                  <span className="text-[12.5px] text-ink-3">%</span>
+                  <span className="text-xs text-ink-3">%</span>
                   <ValorDoAcerto campo="encargosSobreAcrescimo" acerto={acerto} financeiro={os.financeiro} onFin={updFin} />
                 </div>
               </LinhaOs>
@@ -2406,12 +2406,12 @@ export function OsForm() {
               </>
             ) : (
               <LinhaOs label="Dados do Contratante">
-                <p className="py-2 text-[12.5px] text-ink-3">Selecione o contratante para carregar os dados fiscais.</p>
+                <p className="py-2 text-xs text-ink-3">Selecione o contratante para carregar os dados fiscais.</p>
               </LinhaOs>
             )}
             <LinhaOs label="Descritivo dos Serviços e/ou Produtos">
               {/* Objeto do contrato — montado com os dados de faturamento acima. */}
-              <p className="mb-2 text-[13px] text-ink bg-[#FAFAFB] border border-border-soft rounded-btn px-3 py-2.5">
+              <p className="mb-2 text-sm text-ink bg-muted/40 border border-border-soft rounded-btn px-3 py-2.5">
                 {textoObjetoContrato({ ...os.financeiro, ...incentivoDoContrato(os) }, osIncentivada(os))}
               </p>
               <Textarea value={os.contrato.descritivoServicos} onChange={(e) => updCt({ descritivoServicos: e.target.value })} placeholder="Padrão: vem do Descritivo NF — editável" />
@@ -2448,7 +2448,7 @@ export function OsForm() {
                 onValue={(v) => updCt({ valorUnitario: v / quantidadeCt, valorTotal: v, valorAPagar: v - os.contrato.descontoNegociado })}
               />
               {ctDessincronizado && (
-                <div className="mt-1.5 flex items-center gap-2 flex-wrap text-[12px] text-warning">
+                <div className="mt-1.5 flex items-center gap-2 flex-wrap text-xs text-warning">
                   <span className="font-semibold">
                     Diferente do Faturamento ({brl(os.financeiro.valorTotal)}).
                   </span>
@@ -2487,7 +2487,7 @@ export function OsForm() {
                 abertura; o descritivo e os valores logo abaixo dela são montados
                 com os dados da OS, e é por isso que o rótulo diz isso. */}
             <SubSecao>Cláusulas do Contrato — modelo {modeloContrato}</SubSecao>
-            <p className="px-1 pb-2 text-[11.5px] text-ink-3">
+            <p className="px-1 pb-2 text-2xs text-ink-3">
               Para pôr um trecho em negrito no contrato, escreva-o entre dois asteriscos: **assim**. CONTRATANTE e CONTRATADO(A) já saem em negrito sozinhos.
             </p>
             {clausulas.map((c) => {
@@ -2502,7 +2502,7 @@ export function OsForm() {
                       <button
                         type="button"
                         onClick={() => updClausula(c.chave, c.padrao)}
-                        className="text-[10.5px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded-sm px-1"
+                        className="text-2xs font-bold text-ink-3 hover:text-primary-dark input-focus rounded-sm px-1"
                       >
                         Voltar ao texto do modelo
                       </button>
@@ -2553,14 +2553,14 @@ export function OsForm() {
             {/* O prazo é negociado pela Produção (linha "Prazo de pagamento" do Detalhamento da Contratação,
                 acima); aqui o Financeiro só o confere. */}
             <LinhaOs label="Prazo de Pagamento" hint="(negociado pela Produção)">
-              <div className="py-1.5 text-[13px] text-ink space-y-0.5">
+              <div className="py-1.5 text-sm text-ink space-y-0.5">
                 {os.orcamento.parcelas.length === 0 ? (
                   <span className="text-ink-3">Sem parcelas informadas.</span>
                 ) : (
                   os.orcamento.parcelas.map((pc, i) => (
                     <div key={pc.id ?? i}>
                       {i + 1}ª — {pc.descricao || "Parcela"}
-                      {pc.data ? ` · ${dataBR(pc.data)}` : " · sem data"}: <b className="font-display">{brl(pc.valor)}</b>
+                      {pc.data ? ` · ${dataBR(pc.data)}` : " · sem data"}: <b>{brl(pc.valor)}</b>
                     </div>
                   ))
                 )}
@@ -2631,7 +2631,7 @@ export function OsForm() {
                 <LinhaOs label="Inscrição Municipal"><Auto v={dadosTomador.inscricaoMunicipal} /></LinhaOs>
                 {faltaCadastroTomador && (
                   <LinhaOs label="">
-                    <p className="py-2 text-[12.5px] font-semibold text-danger">
+                    <p className="py-2 text-xs font-semibold text-danger">
                       A empresa emissora da Pólobh ainda não está cadastrada — os dados da nota saem em branco.{" "}
                       <Link to="/configuracoes?aba=empresas" className="underline text-primary-dark">
                         Cadastrar em Configurações › Empresas do Grupo
@@ -2642,7 +2642,7 @@ export function OsForm() {
               </>
             ) : (
               <LinhaOs label="Dados do Tomador">
-                <p className="py-2 text-[12.5px] text-ink-3">Selecione o tomador para carregar os dados fiscais.</p>
+                <p className="py-2 text-xs text-ink-3">Selecione o tomador para carregar os dados fiscais.</p>
               </LinhaOs>
             )}
             <LinhaOs label="Descritivo Nota Fiscal" hint="(auto do descritivo da EC)">
@@ -2675,7 +2675,7 @@ export function OsForm() {
             <LinhaOs label="Valor total" hint={finDessincronizado ? undefined : "(espelha o valor negociado no Orçamento)"}>
               <NumberInput value={os.financeiro.valorTotal} onValue={setValorTotalFinanceiro} />
               {finDessincronizado && (
-                <div className="mt-1.5 flex items-center gap-2 flex-wrap text-[12px] text-warning">
+                <div className="mt-1.5 flex items-center gap-2 flex-wrap text-xs text-warning">
                   <span className="font-semibold">
                     Diferente do Orçamento ({brl(os.orcamento.valorComBvNf)}).
                   </span>
@@ -2748,7 +2748,7 @@ export function OsForm() {
                     <button
                       type="button"
                       onClick={() => updFin({ retencoes: RETENCOES_PADRAO })}
-                      className="mt-1 text-[12px] font-bold text-primary-dark hover:underline"
+                      className="mt-1 text-xs font-bold text-primary-dark hover:underline"
                     >
                       Voltar ao texto padrão
                     </button>
@@ -2916,7 +2916,7 @@ function ValorDoAcerto({
   return (
     <div className="flex items-center gap-2 flex-wrap">
       <CurrencyInput
-        className={cx("w-44!", destaque && "font-display font-bold")}
+        className={cx("w-44!", destaque && "font-bold")}
         value={acerto[campo]}
         onValue={(v) => gravar(v)}
         aria-label={campo}
@@ -2925,7 +2925,7 @@ function ValorDoAcerto({
         <button
           type="button"
           onClick={() => gravar(undefined)}
-          className="text-[11.5px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded-sm px-1"
+          className="text-2xs font-bold text-ink-3 hover:text-primary-dark input-focus rounded-sm px-1"
         >
           Voltar ao automático ({brl(acerto.automatico[campo])})
         </button>
@@ -3006,7 +3006,7 @@ function EtiquetaArea({ area, tambem, sufixo, alinhada = false }: { area: AreaOs
       <span className={cx(alinhada && "md:w-68 md:shrink-0")}>
         <span
           title={`Bloco preenchido por: ${rotuloArea}`}
-          className={cx("inline-flex items-center rounded-full border px-2 py-0.5 text-[10.5px] font-extrabold uppercase tracking-[0.04em] whitespace-nowrap", COR_AREA[area])}
+          className={cx("inline-flex items-center rounded-full border px-2 py-0.5 text-2xs font-semibold whitespace-nowrap", COR_AREA[area])}
         >
           Preenche: {rotuloArea}{sufixo ? ` ${sufixo}` : ""}
         </span>
@@ -3014,11 +3014,11 @@ function EtiquetaArea({ area, tambem, sufixo, alinhada = false }: { area: AreaOs
       {situacao && (
         <span className={cx(alinhada && "md:w-74 md:shrink-0")}>
           {situacao.vez ? (
-            <span className="inline-flex items-center rounded-full bg-ink text-white px-2 py-0.5 text-[10.5px] font-extrabold uppercase tracking-[0.04em] whitespace-nowrap">
+            <span className="inline-flex items-center rounded-full bg-navy text-navy-foreground px-2 py-0.5 text-2xs font-semibold whitespace-nowrap">
               É a vez deste bloco
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-ink-2 whitespace-nowrap">
+            <span className="inline-flex items-center gap-1 text-2xs font-bold text-ink-2 whitespace-nowrap">
               <IcCadeado width={12} height={12} /> {situacao.aviso}
             </span>
           )}
@@ -3076,7 +3076,7 @@ function CardOs({
           <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-white/70 text-ink shrink-0" title={recolhida ? "Abrir o bloco" : "Fechar o bloco"}>
             <Chevron aberta={!recolhida} />
           </span>
-          <h3 className="font-display font-bold text-[12.5px] uppercase tracking-wider text-ink">{secao}</h3>
+          <h3 className="font-bold text-xs uppercase tracking-wider text-ink">{secao}</h3>
         </div>
         {area && <EtiquetaArea area={area} tambem={tambem} alinhada />}
         {/* Coluna fixa mesmo sem ação (ou com o bloco fechado): é ela que mantém
@@ -3093,7 +3093,7 @@ function CardOs({
 /** Sub-cabeçalho — cinza claro das barras de grupo da planilha (COR.groupGray). */
 function SubSecao({ children }: { children: ReactNode }) {
   return (
-    <div className="bg-[#D9D9D9] border-y border-border px-4 py-2 text-center font-bold text-[11.5px] uppercase tracking-[0.04em] text-ink">
+    <div className="bg-[#D9D9D9] border-y border-border px-4 py-2 text-center font-bold text-2xs uppercase tracking-[0.04em] text-ink">
       {children}
     </div>
   );
@@ -3121,8 +3121,8 @@ function LinhaOs({
     <div id={id} className="grid md:grid-cols-[240px_minmax(0,1fr)] gap-x-4 items-start px-4 py-0 border-b border-border-soft last:border-b-0">
       <div className="md:py-1 flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <span className="block text-[11.5px] font-extrabold uppercase tracking-[0.03em] text-ink-2">{label}{obrigatorio && <MarcaObrigatorio title="Obrigatório para emitir a OS" />}</span>
-          {hint && <span className="block text-[10.5px] font-semibold text-ink-3">{hint}</span>}
+          <span className="block text-2xs font-bold uppercase tracking-[0.03em] text-ink-2">{label}{obrigatorio && <MarcaObrigatorio title="Obrigatório para emitir a OS" />}</span>
+          {hint && <span className="block text-2xs font-semibold text-ink-3">{hint}</span>}
         </div>
         {acao && <div className="shrink-0 md:hidden">{acao}</div>}
       </div>
@@ -3239,7 +3239,7 @@ function TomadorAvulsoCampos({
         }
       >
         <Input value={atual.cnpjCpf} inputMode="numeric" placeholder="00.000.000/0000-00" onChange={(e) => mudar({ cnpjCpf: maskCpfCnpjInput(e.target.value) })} />
-        {aviso && <p className="mt-1 text-[12px] text-info">{aviso}</p>}
+        {aviso && <p className="mt-1 text-xs text-info">{aviso}</p>}
       </LinhaOs>
       <LinhaOs label="Razão Social">
         <Input formato="titulo-empresa" value={atual.razaoSocial} onChange={(e) => mudar({ razaoSocial: e.target.value })} />
@@ -3390,7 +3390,7 @@ function BlocoDeItens<C extends string>({
                   criado aqui é justamente o que quem cria precisa escrever. */}
               {item.extra ? (
                 <Input
-                  className="h-9! text-[12.5px]!"
+                  className="h-9! text-xs!"
                   formato="item"
                   value={extraDoItem?.rotulo ?? ""}
                   onChange={(e) => onBloco({ extras: extras.map((x) => (x.id === item.chave ? { ...x, rotulo: e.target.value } : x)) })}
@@ -3398,7 +3398,7 @@ function BlocoDeItens<C extends string>({
                   aria-label="Nome do item"
                 />
               ) : (
-                <span className="text-[11.5px] font-extrabold uppercase tracking-[0.03em] text-ink-2 truncate" title={item.rotulo}>
+                <span className="text-2xs font-bold uppercase tracking-[0.03em] text-ink-2 truncate" title={item.rotulo}>
                   {item.rotulo}
                 </span>
               )}
@@ -3435,7 +3435,7 @@ function BlocoDeItens<C extends string>({
           );
         })}
         {itens.length === 0 && (
-          <p className="text-[12.5px] text-ink-3 px-1">Nenhum item. Use “+ Item” para acrescentar.</p>
+          <p className="text-xs text-ink-3 px-1">Nenhum item. Use “+ Item” para acrescentar.</p>
         )}
       </div>
     </LinhaOs>
@@ -3484,9 +3484,9 @@ function ItemContratacao({
   return (
     <div className="rounded-card border border-border-soft bg-surface p-3">
       <div className="mb-2">
-        <span className="text-[13px] font-bold text-ink">{nome}</span>
-        <span className="text-[11.5px] text-ink-3"> · {grupo}</span>
-        {descricao && <div className="text-[12px] text-ink-2">{descricao}</div>}
+        <span className="text-sm font-bold text-ink">{nome}</span>
+        <span className="text-2xs text-ink-3"> · {grupo}</span>
+        {descricao && <div className="text-xs text-ink-2">{descricao}</div>}
       </div>
 
       <div className="grid sm:grid-cols-3 gap-2">
@@ -3500,7 +3500,7 @@ function ItemContratacao({
               key={chave}
               className={cx(
                 "block rounded-btn border-[1.5px] px-2 py-1.5",
-                escolhida ? "border-active-border bg-primary-soft/40" : "border-border-soft bg-[#FCFCFD]",
+                escolhida ? "border-active-border bg-primary-soft/40" : "border-border-soft bg-muted/40",
                 temValor && podeEscolher ? "cursor-pointer" : "cursor-default"
               )}
             >
@@ -3513,19 +3513,19 @@ function ItemContratacao({
                   onChange={() => onUpd({ forma: chave })}
                   className="mt-0.5 h-3.5 w-3.5 accent-primary shrink-0"
                 />
-                <span className="text-[11px] font-bold leading-tight text-ink-2">{longo}</span>
+                <span className="text-2xs font-bold leading-tight text-ink-2">{longo}</span>
               </span>
-              <span className={cx("mt-1 block text-[13px] font-display font-bold", temValor ? "text-ink" : "text-ink-3")}>
+              <span className={cx("mt-1 block text-sm font-bold", temValor ? "text-ink" : "text-ink-3")}>
                 {opcao.naoSeAplica ? "Não se aplica" : brl(opcao.valor)}
               </span>
               {chave === "comBvNf" && temValor && (
-                <span className="block text-[11px] font-semibold text-ink-3">
+                <span className="block text-2xs font-semibold text-ink-3">
                   BV {item.bv.modo === "percentual" ? `${item.bv.valor}%` : brl(item.bv.valor)}
                   {escolhida && ` · ${brl(bv.valor)}`}
                 </span>
               )}
               {justificativa && (
-                <span className="mt-1 block text-[11.5px] text-ink-2 whitespace-pre-wrap">
+                <span className="mt-1 block text-2xs text-ink-2 whitespace-pre-wrap">
                   <span className="font-bold text-ink-3">Justificativa do BV: </span>
                   {justificativa}
                 </span>
@@ -3535,7 +3535,7 @@ function ItemContratacao({
         })}
       </div>
       {!adotada && (
-        <p className="mt-1.5 text-[11.5px] font-bold text-warning">Escolha a forma de pagamento deste item.</p>
+        <p className="mt-1.5 text-2xs font-bold text-warning">Escolha a forma de pagamento deste item.</p>
       )}
     </div>
   );
@@ -3550,12 +3550,12 @@ function ItemContratacao({
  */
 function TabelaResumoCustos({ resumo }: { resumo: ResumoContratacao }) {
   if (!resumo.linhas.length) {
-    return <p className="py-2 text-[12.5px] text-ink-3">Esta OS não está ligada a itens da EC.</p>;
+    return <p className="py-2 text-xs text-ink-3">Esta OS não está ligada a itens da EC.</p>;
   }
   const colunas = COLUNAS_CONTRATACAO.filter((c) => resumo.colunas[c.chave]);
   if (!colunas.length) {
     return (
-      <p className="py-2 text-[12.5px] text-ink-3">
+      <p className="py-2 text-xs text-ink-3">
         Nenhum valor definido ainda — preencha as formas de cobrança em <b>Detalhamento da Contratação</b>.
       </p>
     );
@@ -3565,12 +3565,12 @@ function TabelaResumoCustos({ resumo }: { resumo: ResumoContratacao }) {
 
   return (
     <div className="py-1.5 overflow-x-auto">
-      <table className="w-full text-[12.5px] border-collapse">
+      <table className="w-full text-xs border-collapse">
         <thead>
-          <tr className="text-[10.5px] font-extrabold uppercase tracking-wider text-ink-3">
-            <th className="text-left font-extrabold pb-1.5 pr-2">Item</th>
+          <tr className="text-xs font-semibold text-muted-foreground">
+            <th className="text-left font-semibold pb-1.5 pr-2">Item</th>
             {colunas.map((c) => (
-              <th key={c.chave} className="text-right font-extrabold pb-1.5 px-2 whitespace-nowrap">{c.curto}</th>
+              <th key={c.chave} className="text-right font-semibold pb-1.5 px-2 whitespace-nowrap">{c.curto}</th>
             ))}
           </tr>
         </thead>
@@ -3579,7 +3579,7 @@ function TabelaResumoCustos({ resumo }: { resumo: ResumoContratacao }) {
             <tr key={l.ecLinhaId} className="border-t border-border-soft">
               <td className="py-1.5 pr-2 font-semibold text-ink">{l.item}</td>
               {colunas.map((c) => (
-                <td key={c.chave} className="py-1.5 px-2 text-right font-display text-ink">{celula(l[c.chave])}</td>
+                <td key={c.chave} className="py-1.5 px-2 text-right text-ink">{celula(l[c.chave])}</td>
               ))}
             </tr>
           ))}
@@ -3588,21 +3588,21 @@ function TabelaResumoCustos({ resumo }: { resumo: ResumoContratacao }) {
           <tr className="border-t-2 border-border font-bold text-ink">
             <td className="py-1.5 pr-2">Total por forma de cobrança</td>
             {colunas.map((c) => (
-              <td key={c.chave} className="py-1.5 px-2 text-right font-display">{brl(resumo.totais[c.chave])}</td>
+              <td key={c.chave} className="py-1.5 px-2 text-right">{brl(resumo.totais[c.chave])}</td>
             ))}
           </tr>
         </tfoot>
       </table>
       {/* O que gera nota e o que não gera, separados: são bases diferentes, e
           somá-las daria um total que não existe em lugar nenhum. */}
-      <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-[12px] border-t border-border-soft pt-2">
+      <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-xs border-t border-border-soft pt-2">
         <span className="text-ink-2">
           Total a faturar <span className="text-ink-3">(com nota fiscal)</span>:{" "}
-          <b className="font-display text-ink">{brl(resumo.totalComNota)}</b>
+          <b className="text-ink">{brl(resumo.totalComNota)}</b>
         </span>
         {resumo.totalSemNota > 0 && (
           <span className="text-ink-2">
-            Sem nota fiscal: <b className="font-display text-ink">{brl(resumo.totalSemNota)}</b>
+            Sem nota fiscal: <b className="text-ink">{brl(resumo.totalSemNota)}</b>
           </span>
         )}
       </div>
@@ -3652,7 +3652,7 @@ function CnaeDoFornecedor({
           placeholder="Ex.: 9001-9/06 - Atividades de sonorização e de iluminação"
         />
         {doCnpj.length > 0 && (
-          <button type="button" onClick={() => setDigitando(false)} className="mt-1.5 text-[12px] font-bold text-primary-dark hover:underline">
+          <button type="button" onClick={() => setDigitando(false)} className="mt-1.5 text-xs font-bold text-primary-dark hover:underline">
             Voltar às atividades do CNPJ
           </button>
         )}
@@ -3687,7 +3687,7 @@ function AvisoIncentivo({ faltando, link }: { faltando: string[]; link: string }
   if (!faltando.length) return null;
   return (
     <LinhaOs label="">
-      <p className="py-2 text-[12.5px] font-semibold text-danger">
+      <p className="py-2 text-xs font-semibold text-danger">
         Falta preencher nos Dados Gerais do projeto: {faltando.join(", ")}.{" "}
         {link && (
           <Link to={link} className="underline text-primary-dark">
@@ -3702,7 +3702,7 @@ function AvisoIncentivo({ faltando, link }: { faltando: string[]; link: string }
 /** Valor automático (vem do Projeto/EC) — somente leitura. */
 function Auto({ v }: { v: string | number | null | undefined }) {
   const txt = v === null || v === undefined || v === "" ? "—" : String(v);
-  return <div className="text-[13px] text-ink font-semibold py-0.5 whitespace-pre-wrap leading-snug">{txt}</div>;
+  return <div className="text-sm text-ink font-semibold py-0.5 whitespace-pre-wrap leading-snug">{txt}</div>;
 }
 
 
