@@ -95,7 +95,7 @@ export function Projetos() {
               key={f.key}
               onClick={() => setFiltro(f.key)}
               className={cx(
-                "h-9 px-3.5 rounded-btn text-[13px] font-bold border-[1.5px] transition-colors",
+                "h-9 px-3.5 rounded-btn text-sm font-bold border-[1.5px] transition-colors",
                 filtro === f.key ? "bg-primary-soft border-active-border text-primary-dark" : "bg-surface border-border text-ink-2 hover:text-ink"
               )}
             >
@@ -106,7 +106,7 @@ export function Projetos() {
         <div className="relative min-w-[220px]">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-3"><IcSearch width={16} height={16} /></span>
           <input
-            className="w-full h-10 bg-surface border-[1.5px] border-[#BFC4CE] rounded-btn pl-9 pr-3 text-sm text-ink placeholder:text-ink-3 input-focus"
+            className="w-full h-10 bg-surface border-[1.5px] border-input rounded-btn pl-9 pr-3 text-sm text-ink placeholder:text-ink-3 input-focus"
             placeholder="Buscar projeto ou cliente…"
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
@@ -173,13 +173,13 @@ export function Projetos() {
  */
 function ProgressoChecklist({ resumo }: { resumo?: ResumoChecklist }) {
   if (!resumo || resumo.total === 0) {
-    return <span className="text-[12.5px] text-ink-3">—</span>;
+    return <span className="text-xs text-ink-3">—</span>;
   }
   const completo = resumo.abertos === 0;
   return (
     <div className="inline-flex flex-col items-center gap-1 min-w-[84px]">
       <div className="flex items-center gap-1.5">
-        <span className={cx("text-[12.5px] font-extrabold", completo ? "text-success" : "text-ink")}>
+        <span className={cx("text-xs font-bold", completo ? "text-success" : "text-ink")}>
           {resumo.concluidos}/{resumo.contam}
         </span>
         {resumo.atrasados > 0 && (

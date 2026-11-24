@@ -25,9 +25,9 @@ export function ContratoPreview({
       <div className="bg-surface rounded-card-lg shadow-card w-full max-w-[980px] h-[92vh] flex flex-col">
         <div className="px-5 pt-4 pb-3 border-b border-border-soft flex items-start gap-3">
           <div className="min-w-0 flex-1">
-            <h2 className="font-display font-bold text-lg text-ink">Visualizar contrato</h2>
-            <p className="text-[12.5px] text-ink-2 mt-0.5 truncate" title={titulo}>{titulo}</p>
-            <p className="text-[12px] text-ink-3 mt-0.5">
+            <h2 className="font-bold text-lg text-ink">Visualizar contrato</h2>
+            <p className="text-xs text-ink-2 mt-0.5 truncate" title={titulo}>{titulo}</p>
+            <p className="text-xs text-ink-3 mt-0.5">
               {jaEmitido
                 ? `Versão (${v}), já emitida — nada mudou desde então.`
                 : versao > 1

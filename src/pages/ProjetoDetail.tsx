@@ -920,7 +920,7 @@ export function ProjetoDetail() {
           que sem ele o projeto ficaria ativo para sempre. Então o sistema
           lembra, e quem decide é quem sabe se ainda falta alguma coisa. */}
       {!novo && aba === "dados" && diasDesdeOEvento !== null && diasDesdeOEvento >= 7 && statusExibido === "Ativo" && podeEditarProjeto && (
-        <div className="mb-4 flex items-center gap-3 flex-wrap rounded-card border border-warning/40 bg-warning-soft px-4 py-3 text-[13px] text-ink">
+        <div className="mb-4 flex items-center gap-3 flex-wrap rounded-card border border-warning/40 bg-warning-soft px-4 py-3 text-sm text-ink">
           <span>
             O evento terminou há <b>{diasDesdeOEvento} dias</b> e o projeto continua ativo — ele segue cobrando
             pendências da equipe. Se não há mais nota, acerto ou pagamento em aberto, arquive-o.
@@ -945,7 +945,7 @@ export function ProjetoDetail() {
           className={cx("space-y-4 min-w-0", !editando && "[&_button:disabled]:opacity-50 [&_button:disabled]:cursor-default")}
         >
           {!editando && podeEditarProjeto && (
-            <div className="flex items-center gap-2 rounded-card border border-border-soft bg-[#FBFBFC] px-4 py-2.5 text-[12.5px] text-ink-2">
+            <div className="flex items-center gap-2 rounded-card border border-border-soft bg-muted/40 px-4 py-2.5 text-xs text-ink-2">
               <IcEye width={15} height={15} className="shrink-0 text-ink-3" />
               {/* Só "Modo leitura" (15/09/2026): a explicação de três linhas
                   dizia, toda vez, o que o botão ao lado já diz — e o que
@@ -960,7 +960,7 @@ export function ProjetoDetail() {
                   {cnpjLoading ? "Consultando…" : "Consultar CNPJ"}
                 </Button>
               }>Cliente</CardTitle>
-              {cnpjMsg && <div className="mb-3 text-[12.5px] text-info bg-info-soft rounded-btn px-3 py-2">{cnpjMsg}</div>}
+              {cnpjMsg && <div className="mb-3 text-xs text-info bg-info-soft rounded-btn px-3 py-2">{cnpjMsg}</div>}
               <div className="grid sm:grid-cols-2 gap-4">
                 <Field label="CNPJ/CPF" obrigatorio>
                   <div className="relative">
@@ -975,7 +975,7 @@ export function ProjetoDetail() {
                       placeholder="00.000.000/0000-00"
                     />
                     {cnpjFoco && sugestoesCliente.length > 0 && (
-                      <div className="absolute z-10 mt-1 w-full max-h-56 overflow-auto rounded-btn border border-border-soft bg-surface shadow-lg">
+                      <div className="absolute z-10 mt-1 w-full max-h-56 overflow-auto rounded-btn border border-border-soft bg-surface shadow-(--sombra-flutuante)">
                         {sugestoesCliente.map((c) => (
                           <button
                             key={c.id}
@@ -985,7 +985,7 @@ export function ProjetoDetail() {
                             onClick={() => selecionarClienteArquivado(c)}
                           >
                             <div className="font-bold text-ink">{maskDoc(c.cnpjCpf)}</div>
-                            <div className="text-ink-2 text-[12.5px]">{c.nome || c.razaoSocial}</div>
+                            <div className="text-ink-2 text-xs">{c.nome || c.razaoSocial}</div>
                           </button>
                         ))}
                       </div>
@@ -1004,7 +1004,7 @@ export function ProjetoDetail() {
                       autoComplete="off"
                     />
                     {nomeClienteFoco && sugestoesClientePorNome.length > 0 && (
-                      <div className="absolute z-10 mt-1 w-full max-h-56 overflow-auto rounded-btn border border-border-soft bg-surface shadow-lg">
+                      <div className="absolute z-10 mt-1 w-full max-h-56 overflow-auto rounded-btn border border-border-soft bg-surface shadow-(--sombra-flutuante)">
                         {sugestoesClientePorNome.map((c) => (
                           <button
                             key={c.id}
@@ -1014,7 +1014,7 @@ export function ProjetoDetail() {
                             onClick={() => selecionarClienteArquivado(c)}
                           >
                             <div className="font-bold text-ink">{c.nome || c.razaoSocial}</div>
-                            <div className="text-ink-2 text-[12.5px]">{[c.apelido, maskDoc(c.cnpjCpf)].filter(Boolean).join(" · ")}</div>
+                            <div className="text-ink-2 text-xs">{[c.apelido, maskDoc(c.cnpjCpf)].filter(Boolean).join(" · ")}</div>
                           </button>
                         ))}
                       </div>
@@ -1090,12 +1090,12 @@ export function ProjetoDetail() {
                     placeholder="https://www.dropbox.com/scl/fo/…"
                   />
                   {/^https?:\/\//i.test(p.docsUrl) && (
-                    <a href={p.docsUrl} target="_blank" rel="noopener noreferrer" className="text-[12px] font-bold text-primary whitespace-nowrap hover:underline">
+                    <a href={p.docsUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-primary whitespace-nowrap hover:underline">
                       Abrir pasta
                     </a>
                   )}
                 </div>
-                <p className="mt-1 text-[11.5px] text-ink-3">
+                <p className="mt-1 text-2xs text-ink-3">
                   Os documentos gerados por este projeto (EC, OS, cronograma) serão salvos nesta pasta. Sem o link, nada é arquivado no Dropbox e o Produtor Responsável recebe uma pendência.
                 </p>
               </Field>
@@ -1274,8 +1274,8 @@ export function ProjetoDetail() {
                 aria-pressed={filtroEc === valor}
                 onClick={() => setFiltroEc(valor)}
                 className={cx(
-                  "h-8 rounded-pill px-3 text-[12.5px] font-bold transition-colors",
-                  filtroEc === valor ? "bg-primary-soft text-primary-dark" : "text-ink-2 hover:bg-[#F1F2F5] hover:text-ink"
+                  "h-8 rounded-pill px-3 text-xs font-bold transition-colors",
+                  filtroEc === valor ? "bg-primary-soft text-primary-dark" : "text-ink-2 hover:bg-muted hover:text-ink"
                 )}
               >
                 {rotulo}
@@ -1342,7 +1342,7 @@ export function ProjetoDetail() {
                     ))}
                   </Select>
                   {!!impProjetoId && ecsOrigem.length === 0 && (
-                    <p className="text-[12px] text-ink-3 mt-1.5">Este projeto não tem nenhuma EC para copiar.</p>
+                    <p className="text-xs text-ink-3 mt-1.5">Este projeto não tem nenhuma EC para copiar.</p>
                   )}
                 </Field>
               </div>
@@ -1376,8 +1376,8 @@ export function ProjetoDetail() {
                 aria-pressed={filtroOs === valor}
                 onClick={() => setFiltroOs(valor)}
                 className={cx(
-                  "h-8 rounded-pill px-3 text-[12.5px] font-bold transition-colors",
-                  filtroOs === valor ? "bg-primary-soft text-primary-dark" : "text-ink-2 hover:bg-[#F1F2F5] hover:text-ink"
+                  "h-8 rounded-pill px-3 text-xs font-bold transition-colors",
+                  filtroOs === valor ? "bg-primary-soft text-primary-dark" : "text-ink-2 hover:bg-muted hover:text-ink"
                 )}
               >
                 {rotulo}
@@ -1511,12 +1511,12 @@ export function ProjetoDetail() {
                     <Td className="font-bold text-ink">{f.fornecedor}</Td>
                     {/* Um item por linha: a lista corrida vira um bloco de texto
                         que ninguém bate com o olho. */}
-                    <Td className="text-[12.5px]">
+                    <Td className="text-xs">
                       {f.itens.length ? f.itens.map((it) => <div key={it}>{it}</div>) : "—"}
                     </Td>
-                    <Td className="text-[12.5px]">{f.contato || "—"}</Td>
-                    <Td className="text-[12.5px] whitespace-nowrap">{f.telefone || "—"}</Td>
-                    <Td className="text-[12.5px]">{f.email || "—"}</Td>
+                    <Td className="text-xs">{f.contato || "—"}</Td>
+                    <Td className="text-xs whitespace-nowrap">{f.telefone || "—"}</Td>
+                    <Td className="text-xs">{f.email || "—"}</Td>
                   </Tr>
                 ))}
               </tbody>
@@ -1608,10 +1608,10 @@ function ChecklistPainel({
         <Card>
           <div className="flex items-center gap-3 flex-wrap">
             <IcCalendar width={18} height={18} className="text-ink-3" />
-            <span className="text-[13px] font-bold text-ink">
+            <span className="text-sm font-bold text-ink">
               {semPrazo} {semPrazo === 1 ? "tarefa está" : "tarefas estão"} sem prazo porque o projeto ainda não tem datas.
             </span>
-            <span className="text-[12px] font-bold text-ink-3">
+            <span className="text-xs font-bold text-ink-3">
               Preencha Pré-evento, Evento e Pós-evento em Dados Gerais — os prazos são calculados a partir delas.
             </span>
           </div>
@@ -1624,11 +1624,11 @@ function ChecklistPainel({
         <Card>
           <div className="flex items-center gap-3 flex-wrap">
             <IcCalendar width={18} height={18} className="text-primary" />
-            <span className="text-[13px] font-bold text-ink">
+            <span className="text-sm font-bold text-ink">
               As datas do projeto mudaram — {estado.prazosDesatualizados}{" "}
               {estado.prazosDesatualizados === 1 ? "tarefa teria" : "tarefas teriam"} outro prazo.
             </span>
-            <span className="text-[12px] font-bold text-ink-3">
+            <span className="text-xs font-bold text-ink-3">
               Datas ajustadas à mão e tarefas concluídas não são tocadas.
             </span>
             <Button size="sm" className="ml-auto" onClick={() => void estado.aplicarRecalculo()}>
@@ -1642,13 +1642,13 @@ function ChecklistPainel({
       {podeExcluir && estado.modalidadeDivergente && (
         <Card>
           <div className="flex items-center gap-3 flex-wrap">
-            <span className="text-[13px] font-bold text-ink">
+            <span className="text-sm font-bold text-ink">
               Este check-list foi gerado no modelo <b>{estado.checklist.modalidade}</b>, mas o projeto agora é{" "}
               <b>{projeto.info.modalidade}</b>.
             </span>
             {confirmarRegenerar ? (
               <div className="ml-auto flex items-center gap-2">
-                <span className="text-[12px] font-bold text-danger">
+                <span className="text-xs font-bold text-danger">
                   Refazer apaga status, prazos ajustados e observações. Confirma?
                 </span>
                 <Button size="sm" variant="danger" onClick={() => void estado.regenerar()}>

@@ -81,18 +81,18 @@ export function RentabilidadeItens({
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left border-y border-border bg-[#FAFAFB]">
-              <th className="px-3 py-2 text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Item</th>
-              <th className="px-3 py-2 text-right text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Valor na EC</th>
-              <th className="px-3 py-2 text-right text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Valor Líquido OS</th>
-              <th className="px-3 py-2 text-right text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Rentabilidade</th>
-              <th className="px-3 py-2 text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Justificativa Rentabilidade</th>
+            <tr className="text-left border-y border-border bg-muted/40">
+              <th className="px-3 py-2 text-xs font-semibold text-muted-foreground">Item</th>
+              <th className="px-3 py-2 text-right text-xs font-semibold text-muted-foreground">Valor na EC</th>
+              <th className="px-3 py-2 text-right text-xs font-semibold text-muted-foreground">Valor Líquido OS</th>
+              <th className="px-3 py-2 text-right text-xs font-semibold text-muted-foreground">Rentabilidade</th>
+              <th className="px-3 py-2 text-xs font-semibold text-muted-foreground">Justificativa Rentabilidade</th>
             </tr>
           </thead>
           <tbody>
             {r.linhas.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-3 py-6 text-center text-ink-3 text-[12.5px]">
+                <td colSpan={5} className="px-3 py-6 text-center text-ink-3 text-xs">
                   Nenhum item com custo na EC ou pagamento por OS ainda.
                 </td>
               </tr>
@@ -106,12 +106,12 @@ export function RentabilidadeItens({
                         {l.item}
                       </div>
                     </td>
-                    <td className="px-3 py-2.5 text-right font-display font-bold text-ink whitespace-nowrap">{brl(l.valorEc)}</td>
+                    <td className="px-3 py-2.5 text-right font-bold text-ink whitespace-nowrap">{brl(l.valorEc)}</td>
                     <td className="px-3 py-2.5 text-right font-semibold text-ink whitespace-nowrap">{brl(l.valorLiquidoOs)}</td>
-                    <td className={cx("px-3 py-2.5 text-right font-display font-bold whitespace-nowrap", tomRent(l.percent))}>
+                    <td className={cx("px-3 py-2.5 text-right font-bold whitespace-nowrap", tomRent(l.percent))}>
                       {l.percent === null ? "—" : pct(l.percent)}
                     </td>
-                    <td className="px-3 py-2.5 text-[12px] text-ink-2 max-w-[18rem]">
+                    <td className="px-3 py-2.5 text-xs text-ink-2 max-w-[18rem]">
                       {l.justificativa ? (
                         justificativaAberta === l.id ? (
                           <button type="button" onClick={() => setJustificativaAberta(null)} className="text-left">
@@ -139,12 +139,12 @@ export function RentabilidadeItens({
             {/* CUSTOS INTERNOS — lançados aqui, guardados na EC. */}
             {podeEditar && onCustosInternos && (
               <>
-                <tr className="bg-[#F4F5F7]">
+                <tr className="bg-muted/60">
                   <td colSpan={5} className="px-3 py-1.5">
-                    <span className="text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-ink-2">
+                    <span className="text-xs font-semibold text-muted-foreground">
                       Lançar custo interno
                     </span>
-                    <span className="ml-2 text-[11.5px] text-ink-3">
+                    <span className="ml-2 text-2xs text-ink-3">
                       o que a Pólobh gasta e não está na EC — entra no cálculo, não no documento
                     </span>
                   </td>
@@ -153,7 +153,7 @@ export function RentabilidadeItens({
                   <tr key={c.id} className="border-b border-border-soft">
                     <td className="px-3 py-1.5 pl-6" colSpan={2}>
                       <Input
-                        className="h-9! text-[12.5px]!"
+                        className="h-9! text-xs!"
                         value={c.descricao}
                         onChange={(e) => mudarCusto(c.id, { descricao: e.target.value })}
                         placeholder="Ex.: diária da equipe de produção"
@@ -162,7 +162,7 @@ export function RentabilidadeItens({
                     </td>
                     <td className="px-3 py-1.5">
                       <CurrencyInput
-                        className="h-9! text-[12.5px]!"
+                        className="h-9! text-xs!"
                         value={c.valor}
                         onValue={(valor) => mudarCusto(c.id, { valor })}
                         aria-label="Valor do custo interno"
@@ -172,7 +172,7 @@ export function RentabilidadeItens({
                       <button
                         type="button"
                         onClick={() => onCustosInternos(custos.filter((x) => x.id !== c.id))}
-                        className="text-[12px] font-bold text-ink-3 hover:text-danger"
+                        className="text-xs font-bold text-ink-3 hover:text-danger"
                       >
                         Excluir
                       </button>
@@ -195,11 +195,11 @@ export function RentabilidadeItens({
             )}
 
             {r.linhas.length > 0 && (
-              <tr className="bg-[#FAFAFB]">
+              <tr className="bg-muted/40">
                 <td className="px-3 py-2.5 font-bold text-ink">Total do projeto</td>
-                <td className="px-3 py-2.5 text-right font-display font-bold text-ink">{brl(r.totalEc)}</td>
-                <td className="px-3 py-2.5 text-right font-display font-bold text-ink">{brl(r.totalLiquidoOs)}</td>
-                <td className={cx("px-3 py-2.5 text-right font-display font-bold", tomRent(r.percentSobreEc))}>
+                <td className="px-3 py-2.5 text-right font-bold text-ink">{brl(r.totalEc)}</td>
+                <td className="px-3 py-2.5 text-right font-bold text-ink">{brl(r.totalLiquidoOs)}</td>
+                <td className={cx("px-3 py-2.5 text-right font-bold", tomRent(r.percentSobreEc))}>
                   {r.percentSobreEc === null ? "—" : pct(r.percentSobreEc)}
                 </td>
                 <td />
@@ -208,7 +208,7 @@ export function RentabilidadeItens({
           </tbody>
         </table>
       </div>
-      <p className="px-3 py-2 text-[11.5px] text-ink-3">
+      <p className="px-3 py-2 text-2xs text-ink-3">
         Valor na EC = o que o documento cobrou · Valor Líquido OS = o que saiu, pelas OSs e pelos custos internos ·
         Rentabilidade = (EC − líquido) ÷ EC, e o total é calculado sobre o valor total da EC.
         Honorários e encargos entram como linha porque compõem esse total.
@@ -221,8 +221,8 @@ export function RentabilidadeItens({
 function FragmentoGrupo({ nome, children }: { nome: string; children: React.ReactNode }) {
   return (
     <>
-      <tr className="bg-[#F4F5F7]">
-        <td colSpan={5} className="px-3 py-1.5 text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-ink-2">
+      <tr className="bg-muted/60">
+        <td colSpan={5} className="px-3 py-1.5 text-xs font-semibold text-muted-foreground">
           {nome}
         </td>
       </tr>

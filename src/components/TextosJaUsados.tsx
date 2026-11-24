@@ -33,7 +33,7 @@ export function TextosJaUsados({
   if (valor.trim() || !opcoes.length) return null;
   return (
     <div className={cx("mt-1.5 flex flex-wrap items-center gap-1.5", className)}>
-      <span className="text-[11px] font-bold uppercase tracking-[0.04em] text-ink-3">Já usados</span>
+      <span className="text-xs font-bold text-muted-foreground">Já usados</span>
       {opcoes.slice(0, QUANTOS).map((texto) => (
         <button
           key={texto}
@@ -41,8 +41,8 @@ export function TextosJaUsados({
           title={texto}
           onClick={() => onEscolher(texto)}
           className={cx(
-            "max-w-full truncate rounded-full border border-border-soft bg-[#F5F6F8] px-2.5 py-1",
-            "text-[11.5px] font-semibold text-ink-2 transition-colors",
+            "max-w-full truncate rounded-full border border-border-soft bg-muted/60 px-2.5 py-1",
+            "text-2xs font-semibold text-ink-2 transition-colors",
             "hover:border-primary hover:bg-primary-soft hover:text-primary-dark"
           )}
         >

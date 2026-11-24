@@ -219,14 +219,14 @@ export function ObservacoesThread({ observacoes, usuarios, onChange, className, 
         )}
         {n > 0 ? (
           <>
-            <span className={cx("text-[12px] font-semibold", abertas > 0 ? "text-danger" : "text-ink-3")}>
+            <span className={cx("text-xs font-semibold", abertas > 0 ? "text-danger" : "text-ink-3")}>
               {n} observaç{n > 1 ? "ões" : "ão"}
               {abertas > 0 ? ` · ${abertas} aberta${abertas > 1 ? "s" : ""}` : " · resolvidas"}
             </span>
             <button
               type="button"
               onClick={() => { setCompor({ modo: "novo" }); setAberto(true); }}
-              className="ml-auto inline-flex items-center gap-1.5 h-8 px-2.5 rounded-btn border-[1.5px] border-border bg-surface text-[12px] font-bold text-ink-2 hover:text-ink hover:border-primary/50 input-focus"
+              className="ml-auto inline-flex items-center gap-1.5 h-8 px-2.5 rounded-btn border-[1.5px] border-border bg-surface text-xs font-bold text-ink-2 hover:text-ink hover:border-primary/50 input-focus"
               title="Adicionar Observação"
             >
               <IcComment width={14} height={14} /> Observações
@@ -236,7 +236,7 @@ export function ObservacoesThread({ observacoes, usuarios, onChange, className, 
           <button
             type="button"
             onClick={() => { setCompor({ modo: "novo" }); setAberto(true); }}
-            className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-ink-3 hover:text-primary-dark input-focus rounded-sm"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink-3 hover:text-primary-dark input-focus rounded-sm"
             title="Adicionar Observação"
           >
             <IcComment width={14} height={14} /> Adicionar Observação
@@ -338,35 +338,35 @@ function ComentarioLinha({
   return (
     <div
       id={idComentario(o.id)}
-      className={cx("group rounded-btn border px-2.5 py-2", o.resolvida ? "border-border-soft bg-[#FAFAFB] opacity-80" : "border-border-soft")}
+      className={cx("group rounded-btn border px-2.5 py-2", o.resolvida ? "border-border-soft bg-muted/40 opacity-80" : "border-border-soft")}
     >
       <div className="flex items-baseline gap-2 flex-wrap">
-        <span className="text-[12.5px] font-bold text-ink">{o.autorNome || "Usuário"}</span>
+        <span className="text-xs font-bold text-ink">{o.autorNome || "Usuário"}</span>
         {o.responsavelNome && (
-          <span className="text-[11px] font-bold text-primary-dark bg-primary-soft rounded-full px-2 py-0.5">Para: {o.responsavelNome}</span>
+          <span className="text-2xs font-bold text-primary-dark bg-primary-soft rounded-full px-2 py-0.5">Para: {o.responsavelNome}</span>
         )}
         {o.resolvida && (
-          <span className="text-[11px] font-bold text-success bg-success-soft rounded-full px-2 py-0.5">
+          <span className="text-2xs font-bold text-success bg-success-soft rounded-full px-2 py-0.5">
             Resolvida{o.resolvidoPorNome ? ` por ${o.resolvidoPorNome}` : ""}
           </span>
         )}
         {/* De quem é a bola agora. Cada resposta passa adiante; só "Resolver" encerra. */}
         {!o.resolvida && vez.length > 0 && (
           minhaVez ? (
-            <span className="text-[11px] font-extrabold text-danger bg-danger-soft rounded-full px-2 py-0.5">Sua vez</span>
+            <span className="text-2xs font-bold text-danger bg-danger-soft rounded-full px-2 py-0.5">Sua vez</span>
           ) : (
-            <span className="text-[11px] font-bold text-ink-3 bg-[#F0F1F4] rounded-full px-2 py-0.5">
+            <span className="text-2xs font-bold text-ink-3 bg-muted rounded-full px-2 py-0.5">
               Aguardando {vez.join(", ")}
             </span>
           )
         )}
-        <span className="text-[11px] text-ink-3">{dataHoraBR(o.criadoEm)}</span>
+        <span className="text-2xs text-ink-3">{dataHoraBR(o.criadoEm)}</span>
         <span className="acoes-observacao ml-auto flex items-center gap-1 transition-opacity focus-within:opacity-100">
-          <button type="button" onClick={onResponder} className="text-[11px] font-bold text-ink-3 hover:text-primary px-1.5 py-1" title="Responder">
+          <button type="button" onClick={onResponder} className="text-2xs font-bold text-ink-3 hover:text-primary px-1.5 py-1" title="Responder">
             Responder
           </button>
           {podeResolver && (
-            <button type="button" onClick={onResolver} className="text-[11px] font-bold text-ink-3 hover:text-success px-1.5 py-1" title="Concluir a pendência (não pode ser reaberta). Só quem abriu a observação, a Coordenação e a Direção concluem.">
+            <button type="button" onClick={onResolver} className="text-2xs font-bold text-ink-3 hover:text-success px-1.5 py-1" title="Concluir a pendência (não pode ser reaberta). Só quem abriu a observação, a Coordenação e a Direção concluem.">
               Resolver
             </button>
           )}
@@ -382,7 +382,7 @@ function ComentarioLinha({
           )}
         </span>
       </div>
-      <p className={cx("text-[13px] whitespace-pre-wrap leading-snug mt-0.5", o.resolvida ? "text-ink-3 line-through" : "text-ink-2")}>
+      <p className={cx("text-sm whitespace-pre-wrap leading-snug mt-0.5", o.resolvida ? "text-ink-3 line-through" : "text-ink-2")}>
         {renderComMencoes(o.texto, usuarios)}
       </p>
 
@@ -399,10 +399,10 @@ function ComentarioLinha({
           {respostas.map((r) => (
             <div key={r.id}>
               <div className="flex items-baseline gap-2">
-                <span className="text-[12px] font-bold text-ink">{r.autorNome || "Usuário"}</span>
-                <span className="text-[10.5px] text-ink-3">{dataHoraBR(r.criadoEm)}</span>
+                <span className="text-xs font-bold text-ink">{r.autorNome || "Usuário"}</span>
+                <span className="text-2xs text-ink-3">{dataHoraBR(r.criadoEm)}</span>
               </div>
-              <p className="text-[12.5px] text-ink-2 whitespace-pre-wrap leading-snug">{renderComMencoes(r.texto, usuarios)}</p>
+              <p className="text-xs text-ink-2 whitespace-pre-wrap leading-snug">{renderComMencoes(r.texto, usuarios)}</p>
               {anexos && (r.anexos ?? []).length > 0 && <ListaAnexos itens={r.anexos!} onAbrir={anexos.abrir} />}
             </div>
           ))}
@@ -437,18 +437,18 @@ function ListaAnexos({
       {itens.map((a) => (
         <span
           key={a.id}
-          className="group/anexo inline-flex items-center gap-1.5 max-w-full rounded-btn border border-border-soft bg-[#FAFAFB] pl-2 pr-1.5 py-1"
+          className="group/anexo inline-flex items-center gap-1.5 max-w-full rounded-btn border border-border-soft bg-muted/40 pl-2 pr-1.5 py-1"
         >
-          <span aria-hidden className="text-[13px] leading-none shrink-0">{iconeAnexo(a.nome)}</span>
+          <span aria-hidden className="text-sm leading-none shrink-0">{iconeAnexo(a.nome)}</span>
           <button
             type="button"
             onClick={() => onAbrir(a)}
             title={`Abrir ${a.nome}`}
-            className="min-w-0 text-left text-[12px] font-semibold text-ink hover:text-primary-dark truncate max-w-[220px]"
+            className="min-w-0 text-left text-xs font-semibold text-ink hover:text-primary-dark truncate max-w-[220px]"
           >
             {a.nome}
           </button>
-          <span className="text-[10.5px] text-ink-3 shrink-0 tabular-nums">{tamanhoLegivel(a.tamanho)}</span>
+          <span className="text-2xs text-ink-3 shrink-0 tabular-nums">{tamanhoLegivel(a.tamanho)}</span>
           {onRemover && (
             <button
               type="button"
@@ -669,11 +669,11 @@ function Composer({
   }
 
   return (
-    <div className="mt-2.5 rounded-btn border-[1.5px] border-[#BFC4CE] bg-surface p-2 focus-within:border-primary/60">
+    <div className="mt-2.5 rounded-btn border-[1.5px] border-input bg-surface p-2 focus-within:border-primary/60">
       {comResponsavel && (
         <div className="flex items-center gap-2 mb-2">
-          <span className="text-[11.5px] font-bold text-ink-2 shrink-0">Responsável:</span>
-          <Select className="h-8! text-[12.5px]! flex-1" value={responsavel} onChange={(e) => setResponsavel(e.target.value)}>
+          <span className="text-2xs font-bold text-ink-2 shrink-0">Responsável:</span>
+          <Select className="h-8! text-xs! flex-1" value={responsavel} onChange={(e) => setResponsavel(e.target.value)}>
             <option value="">— Ninguém (observação geral) —</option>
             {usuarios.map((u) => (
               <option key={u} value={u}>{u}</option>
@@ -690,7 +690,7 @@ function Composer({
         autoCapitalize="sentences"
         autoCorrect="on"
         placeholder="Escreva uma observação… use @ para mencionar alguém"
-        className="w-full resize-none bg-transparent text-[13px] text-ink outline-hidden placeholder:text-ink-3 leading-relaxed"
+        className="w-full resize-none bg-transparent text-sm text-ink outline-hidden placeholder:text-ink-3 leading-relaxed"
         value={texto}
         onChange={(e) => {
           setTexto(e.target.value);
@@ -710,11 +710,11 @@ function Composer({
           {pendentes.map((f, i) => (
             <span
               key={`${f.name}-${i}`}
-              className="inline-flex items-center gap-1.5 max-w-full rounded-btn border border-border-soft bg-[#FAFAFB] pl-2 pr-1.5 py-1"
+              className="inline-flex items-center gap-1.5 max-w-full rounded-btn border border-border-soft bg-muted/40 pl-2 pr-1.5 py-1"
             >
-              <span aria-hidden className="text-[13px] leading-none shrink-0">{iconeAnexo(f.name)}</span>
-              <span className="text-[12px] font-semibold text-ink truncate max-w-[200px]">{f.name}</span>
-              <span className="text-[10.5px] text-ink-3 shrink-0 tabular-nums">{tamanhoLegivel(f.size)}</span>
+              <span aria-hidden className="text-sm leading-none shrink-0">{iconeAnexo(f.name)}</span>
+              <span className="text-xs font-semibold text-ink truncate max-w-[200px]">{f.name}</span>
+              <span className="text-2xs text-ink-3 shrink-0 tabular-nums">{tamanhoLegivel(f.size)}</span>
               <button
                 type="button"
                 disabled={enviando}
@@ -730,7 +730,7 @@ function Composer({
         </div>
       )}
 
-      {erroAnexo && <p className="mt-1.5 text-[11.5px] font-semibold text-danger">{erroAnexo}</p>}
+      {erroAnexo && <p className="mt-1.5 text-2xs font-semibold text-danger">{erroAnexo}</p>}
 
       <div className="flex items-center justify-end gap-2 mt-1.5">
         {anexos && (
@@ -748,7 +748,7 @@ function Composer({
               onClick={() => arquivoRef.current?.click()}
               disabled={enviando || pendentes.length >= MAXIMO_ANEXOS_POR_COMENTARIO}
               title={`Anexar arquivo (até ${MAXIMO_ANEXOS_POR_COMENTARIO}, 5 MB cada)`}
-              className="mr-auto inline-flex items-center gap-1.5 h-8 px-2 rounded-btn text-[12px] font-bold text-ink-3 hover:text-primary-dark hover:bg-primary-soft transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+              className="mr-auto inline-flex items-center gap-1.5 h-8 px-2 rounded-btn text-xs font-bold text-ink-3 hover:text-primary-dark hover:bg-primary-soft transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
             >
               <IcClipe width={14} height={14} /> Anexar
             </button>
@@ -766,7 +766,7 @@ function Composer({
         createPortal(
           <div
             style={{ position: "fixed", top: posDropdown.top, left: posDropdown.left, zIndex: 90, width: 240 }}
-            className="rounded-btn border border-border bg-white shadow-2xl py-1 max-h-52 overflow-y-auto"
+            className="rounded-btn border border-border bg-white shadow-(--sombra-flutuante) py-1 max-h-52 overflow-y-auto"
           >
             {sugestoes.map((u, i) => (
               <button
@@ -777,8 +777,8 @@ function Composer({
                   selecionarMencao(u);
                 }}
                 className={cx(
-                  "w-full text-left px-3 py-1.5 text-[13px] truncate",
-                  i === indiceAtivo ? "bg-primary-soft text-primary-dark font-bold" : "text-ink hover:bg-[#FAFAFB]"
+                  "w-full text-left px-3 py-1.5 text-sm truncate",
+                  i === indiceAtivo ? "bg-primary-soft text-primary-dark font-bold" : "text-ink hover:bg-muted/40"
                 )}
               >
                 {u}

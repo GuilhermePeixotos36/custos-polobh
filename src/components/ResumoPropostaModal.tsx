@@ -79,10 +79,10 @@ export function ResumoPropostaModal({ onInserir, onClose }: Props) {
     <div className="no-print fixed inset-0 z-70 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px]" onClick={loading ? undefined : onClose} />
       <div className="relative w-full max-w-[520px] bg-surface rounded-card-lg shadow-modal border border-border p-6 animate-[fadein_.12s_ease] max-h-[85vh] overflow-y-auto">
-        <h3 className="font-display font-bold text-[17px] text-ink tracking-[-0.3px] flex items-center gap-2">
+        <h3 className="font-bold text-lg text-ink tracking-[-0.3px] flex items-center gap-2">
           <IcSpark width={18} height={18} className="text-primary" /> Resumo da Proposta (IA)
         </h3>
-        <p className="text-ink-2 text-[13px] mt-1.5 leading-relaxed">
+        <p className="text-ink-2 text-sm mt-1.5 leading-relaxed">
           Anexe os orçamentos do fornecedor (imagem, PDF ou Excel) ou cole um link. A IA sintetiza os
           descritivos e valores individuais em tópicos, e insere na Descrição Completa.
         </p>
@@ -96,16 +96,16 @@ export function ResumoPropostaModal({ onInserir, onClose }: Props) {
               className="hidden"
               onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }}
             />
-            <span className="inline-flex items-center gap-1.5 text-[13px] font-bold text-primary-dark">
+            <span className="inline-flex items-center gap-1.5 text-sm font-bold text-primary-dark">
               <IcPlus width={16} height={16} /> Adicionar arquivos
             </span>
-            <div className="text-[11.5px] text-ink-3 mt-1">JPG, PNG, PDF, Excel/CSV</div>
+            <div className="text-2xs text-ink-3 mt-1">JPG, PNG, PDF, Excel/CSV</div>
           </label>
 
           {files.length > 0 && (
             <ul className="space-y-1.5">
               {files.map((f, i) => (
-                <li key={i} className="flex items-center gap-2 text-[12.5px] bg-white border border-border-soft rounded-btn px-2.5 py-1.5">
+                <li key={i} className="flex items-center gap-2 text-xs bg-white border border-border-soft rounded-btn px-2.5 py-1.5">
                   <span className="truncate flex-1 text-ink">{f.name}</span>
                   <span className="text-ink-3 shrink-0">{(f.size / 1024).toFixed(0)} KB</span>
                   <button onClick={() => setFiles((p) => p.filter((_, idx) => idx !== i))} className="text-ink-3 hover:text-danger shrink-0" title="Remover">
@@ -120,7 +120,7 @@ export function ResumoPropostaModal({ onInserir, onClose }: Props) {
             <Input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://…" inputMode="url" />
           </Field>
 
-          {erro && <div className="text-[12.5px] text-danger bg-danger-soft rounded-btn px-3 py-2">{erro}</div>}
+          {erro && <div className="text-xs text-danger bg-danger-soft rounded-btn px-3 py-2">{erro}</div>}
         </div>
 
         <div className="flex justify-end gap-2 mt-6">

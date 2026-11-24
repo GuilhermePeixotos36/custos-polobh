@@ -292,18 +292,18 @@ export function CronogramaProjetoEditor({
 
         <DragOverlay dropAnimation={{ duration: 200, easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)" }}>
           {faixaAtiva ? (
-            <div className="rounded-btn border-2 border-primary bg-white shadow-2xl px-3 py-2 opacity-90 rotate-1 flex items-center gap-2">
+            <div className="rounded-btn border-2 border-primary bg-white shadow-(--sombra-flutuante) px-3 py-2 opacity-90 rotate-1 flex items-center gap-2">
               <IcGrip width={18} height={18} className="text-primary" />
-              <span className="text-[13px] font-bold text-ink">
+              <span className="text-sm font-bold text-ink">
                 {dataBR(faixaAtiva.data) || "Nova data"}
                 {faixaAtiva.inicio ? ` · ${faixaAtiva.inicio}` : ""}
               </span>
             </div>
           ) : blocoAtivo ? (
-            <div className="rounded-card border-2 border-primary bg-white shadow-2xl px-3 py-3 opacity-90 rotate-1 flex items-center gap-2">
+            <div className="rounded-card border-2 border-primary bg-white shadow-(--sombra-flutuante) px-3 py-3 opacity-90 rotate-1 flex items-center gap-2">
               <IcGrip width={20} height={20} className="text-primary" />
-              <span className="text-[15px] font-bold text-ink">{blocoAtivo.titulo}</span>
-              <span className="text-[12px] font-bold text-ink-3 bg-[#F0F1F4] rounded-pill px-2 py-0.5">
+              <span className="text-base font-bold text-ink">{blocoAtivo.titulo}</span>
+              <span className="text-xs font-bold text-ink-3 bg-muted rounded-pill px-2 py-0.5">
                 {blocoAtivo.faixas.length} data(s)
               </span>
             </div>
@@ -387,7 +387,7 @@ function BlocoCard({
           </h3>
         ) : (
           <Input
-            className="h-9! text-[13.5px]! font-bold! max-w-xs"
+            className="h-9! text-sm! font-bold! max-w-xs"
             formato="titulo"
             sugestoes={sugestoesEtapa}
             value={bloco.titulo}
@@ -444,7 +444,7 @@ function BlocoCard({
               />
             ))}
             {bloco.faixas.length === 0 && (
-              <p className="text-center text-[13px] text-ink-3 py-3">
+              <p className="text-center text-sm text-ink-3 py-3">
                 Nenhuma data neste bloco — use “Adicionar data” ou arraste uma de outro bloco.
               </p>
             )}

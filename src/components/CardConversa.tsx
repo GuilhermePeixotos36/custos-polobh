@@ -69,7 +69,7 @@ export function CardConversa({
           que faz a equipe escrever à vontade. Saía junto com os textos antigos
           de cada tela, e sem ela a conversa vira documento aos olhos de quem
           escreve. */}
-      <p className="-mt-1 mb-1 text-[11.5px] text-ink-3">
+      <p className="-mt-1 mb-1 text-2xs text-ink-3">
         Não sai em documento, e-mail nem planilha — quem é @mencionado fica com a pendência.
       </p>
       <div id={ancoraDom}>

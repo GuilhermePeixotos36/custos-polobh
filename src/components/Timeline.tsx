@@ -10,10 +10,10 @@ export function Timeline({ itens }: { itens: CronogramaItem[] }) {
         <li key={i} className="ml-5 relative">
           <span className="absolute left-[-27px] top-1 h-3.5 w-3.5 rounded-full bg-primary-grad ring-4 ring-surface" />
           <div className="flex items-baseline gap-2 flex-wrap">
-            <span className="font-display font-bold text-ink text-[14px]">{c.etapa || "Etapa"}</span>
-            <span className="text-[12.5px] text-primary-dark font-bold">{dataBR(c.data)}{c.horario ? ` · ${c.horario}` : ""}</span>
+            <span className="font-bold text-ink text-sm">{c.etapa || "Etapa"}</span>
+            <span className="text-xs text-primary-dark font-bold">{dataBR(c.data)}{c.horario ? ` · ${c.horario}` : ""}</span>
           </div>
-          {c.atividades && <p className="text-[13px] text-ink-2 mt-0.5">{c.atividades}</p>}
+          {c.atividades && <p className="text-sm text-ink-2 mt-0.5">{c.atividades}</p>}
         </li>
       ))}
     </ol>
@@ -58,25 +58,25 @@ export function TimelineConsolidada({ itens }: { itens: ItemConsolidado[] }) {
       {grupos.map((g, gi) => (
         <div key={gi} className="relative">
           <div className="flex items-center gap-2 mb-2">
-            <span className="inline-flex items-center justify-center min-w-[2.6rem] h-7 px-2 rounded-pill bg-black text-white text-[11.5px] font-bold">
+            <span className="inline-flex items-center justify-center min-w-[2.6rem] h-7 px-2 rounded-pill bg-black text-white text-2xs font-bold">
               {dataBR(g.data) || "—"}
             </span>
-            {diaSemana(g.data) && <span className="text-[11px] uppercase tracking-wide text-ink-3 font-bold">{diaSemana(g.data)}</span>}
+            {diaSemana(g.data) && <span className="text-xs text-muted-foreground font-bold">{diaSemana(g.data)}</span>}
           </div>
           <ol className="relative border-l-2 border-border-soft ml-3 space-y-3">
             {g.itens.map((c, i) => (
               <li key={i} className="ml-5 relative">
                 <span className="absolute left-[-27px] top-1.5 h-3 w-3 rounded-full bg-primary-grad ring-4 ring-surface" />
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-display font-bold text-ink text-[13.5px]">{c.etapa || "Etapa"}</span>
-                  {c.horario && <span className="text-[12px] text-primary-dark font-bold">{c.horario}</span>}
+                  <span className="font-bold text-ink text-sm">{c.etapa || "Etapa"}</span>
+                  {c.horario && <span className="text-xs text-primary-dark font-bold">{c.horario}</span>}
                   {c.fornecedor && (
-                    <span className="text-[10.5px] font-bold uppercase tracking-wide bg-[#F0F1F4] text-ink-2 rounded-pill px-2 py-0.5">
+                    <span className="text-2xs font-bold bg-muted text-muted-foreground rounded-pill px-2 py-0.5">
                       {c.fornecedor}
                     </span>
                   )}
                 </div>
-                {c.atividades && <p className="text-[12.5px] text-ink-2 mt-0.5">{c.atividades}</p>}
+                {c.atividades && <p className="text-xs text-ink-2 mt-0.5">{c.atividades}</p>}
               </li>
             ))}
           </ol>

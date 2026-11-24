@@ -133,8 +133,8 @@ export function CredenciamentoProjeto({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
               // reenvia o link), e a pílula precisa achar o fornecedor exato.
               <Tr key={f.os.id} id={idAncoraPendencia(f.os.id)}>
                 <Td className="font-bold text-ink">{f.fornecedor}</Td>
-                <Td className="text-[12.5px] text-ink-2">{f.os.numero}</Td>
-                <Td className="text-[12.5px]">{dataBR(f.os.credenciamento?.prazoLimite) || "—"}</Td>
+                <Td className="text-xs text-ink-2">{f.os.numero}</Td>
+                <Td className="text-xs">{dataBR(f.os.credenciamento?.prazoLimite) || "—"}</Td>
                 <Td>
                   {f.respondeu ? (
                     <Badge tom="success">Respondido</Badge>
@@ -257,15 +257,15 @@ function CamposDoFormulario({
       </CardTitle>
       <div className="flex flex-wrap gap-x-4 gap-y-2">
         {CAMPOS_CREDENCIAMENTO.map(({ campo, rotulo, dica }) => (
-          <label key={campo} className="flex items-center gap-2 text-[13px] text-ink">
+          <label key={campo} className="flex items-center gap-2 text-sm text-ink">
             <input
               type="checkbox"
               checked={escolhidos.includes(campo)}
               onChange={() => alternar(campo)}
-              className="h-4 w-4 accent-(--cor-primaria,#F2820D)"
+              className="h-4 w-4 accent-brand"
             />
             {rotulo}
-            {dica && <span className="text-[11.5px] text-ink-3">({dica})</span>}
+            {dica && <span className="text-2xs text-ink-3">({dica})</span>}
           </label>
         ))}
       </div>
@@ -323,19 +323,19 @@ function RespostasRecebidas({
       </div>
       <div className="px-5 pb-5 space-y-3">
         {comResposta.map((f) => (
-          <div key={f.os.id} className={cx("rounded-btn border border-border-soft bg-[#FAFAFB] p-3")}>
-            <div className="text-[12.5px] font-bold text-ink mb-1.5">{f.fornecedor}</div>
+          <div key={f.os.id} className={cx("rounded-btn border border-border-soft bg-muted/40 p-3")}>
+            <div className="text-xs font-bold text-ink mb-1.5">{f.fornecedor}</div>
             {(respostas?.get(f.os.id) ?? []).map((c) => (
               <div key={c.id} className="mb-2 last:mb-0">
-                <div className="text-[11.5px] text-ink-3 mb-1">Enviado em {dataHoraBR(c.enviadoEm)}</div>
+                <div className="text-2xs text-ink-3 mb-1">Enviado em {dataHoraBR(c.enviadoEm)}</div>
                 {c.equipe.length > 0 && (
-                  <div className="text-[12.5px] text-ink mb-1">
+                  <div className="text-xs text-ink mb-1">
                     <b>Equipe:</b>{" "}
                     {c.equipe.map((p) => `${p.nome}${p.funcao ? ` (${p.funcao})` : ""}${p.cpf ? ` — ${p.cpf}` : ""}`).join("; ")}
                   </div>
                 )}
                 {c.veiculos.length > 0 && (
-                  <div className="text-[12.5px] text-ink">
+                  <div className="text-xs text-ink">
                     <b>Veículos:</b> {c.veiculos.map((v) => `${v.modelo}${v.placa ? ` — ${v.placa}` : ""}`).join("; ")}
                   </div>
                 )}

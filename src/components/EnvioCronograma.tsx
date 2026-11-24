@@ -63,7 +63,7 @@ export function EnvioCronograma({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
           {fila.map((f) => (
             <Tr key={f.os.id} id={idAncoraPendencia(ancoraCronogramaOs(f.os.id))}>
               <Td className="font-bold text-ink">{f.fornecedor}</Td>
-              <Td className="text-[12.5px] text-ink-2">{f.os.numero}</Td>
+              <Td className="text-xs text-ink-2">{f.os.numero}</Td>
               <Td>
                 {f.etapas ? (
                   <Badge tom="success">{f.etapas} etapa(s)</Badge>
