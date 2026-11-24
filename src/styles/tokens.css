@@ -105,7 +105,9 @@
 
   /* 10% — laranja Pólobh, a cor de ação. */
   --brand: #f2820d;
-  --brand-vivid: #f7932e;
+  /* Hover do primário: um tom MAIS FECHADO, não mais claro — o mais claro "acendia" o botão
+     (pedido de 24/11/2026: botões laranja brilhantes demais). */
+  --brand-vivid: #e2760a;
   --brand-soft: #fef1e3;
   /* Laranja fechado para TEXTO sobre branco (link, item ativo): 5,1:1, AA. */
   --brand-forte: #b4530b;
@@ -164,7 +166,9 @@
 
   --sombra-superficie: 0 1px 2px rgb(24 24 27 / 0.05), 0 6px 16px -10px rgb(24 24 27 / 0.12);
   --sombra-flutuante: 0 28px 56px -16px rgb(24 24 27 / 0.32), 0 4px 12px rgb(24 24 27 / 0.08);
-  --sombra-botao: inset 0 1px 0 rgb(255 255 255 / 0.22), 0 1px 2px rgb(242 130 13 / 0.4), 0 4px 10px -4px rgb(242 130 13 / 0.5);
+  /* Botão primário chapado, sem o brilho laranja em volta (24/11/2026): só um traço de
+     profundidade neutro, como os outros controles. */
+  --sombra-botao: 0 1px 2px rgb(24 24 27 / 0.10);
 }
 
 @utility input-focus {
