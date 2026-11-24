@@ -1,0 +1,181 @@
+/*
+ * DESIGN SYSTEM PÓLOBH (24/11/2026) — o padrão "Crachá" do Grupo LSPRO com as cores da Pólo, na
+ * regra 60/30/10:
+ *   60% · fundo claro (off-white e o branco das superfícies) — `--background`, `--card`;
+ *   30% · preto/grafite — texto (`--foreground`) e a âncora escura (`--navy`: cabeçalho de lista e
+ *         faixa do popup; o nome "navy" ficou do padrão, o valor é o grafite da Pólo);
+ *   10% · laranja Pólobh — ação: botão primário, foco, item ativo, selo da marca (`--brand`).
+ *
+ * O laranja é claro: texto SOBRE ele é escuro (`--primary-foreground`, 6,7:1), e texto laranja
+ * sobre branco usa o tom fechado (`--brand-forte`, AA). Vermelho continua sendo a única cor que
+ * grita; âmbar é "pendente".
+ *
+ * Mudança de cor, raio, sombra ou fonte entra AQUI, nunca na tela. Os nomes antigos do app (ink,
+ * primary, surface, bg…) apontam para os tokens novos, para as telas mudarem todas de uma vez.
+ */
+@theme inline {
+  --font-sans: "Figtree Variable", "Figtree", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Figtree Variable", "Figtree", ui-sans-serif, system-ui, sans-serif;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 2px);
+  /* O menor texto do app (11px). Abaixo disso não se lê. */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-navy: var(--navy);
+  --color-navy-foreground: var(--navy-foreground);
+  --color-brand: var(--brand);
+  --color-brand-vivid: var(--brand-vivid);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-forte: var(--brand-forte);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-strong: var(--sidebar-strong);
+  --color-sidebar-hover: var(--sidebar-hover);
+
+  /* ---- Nomes antigos do app, apontando para a paleta nova ---- */
+  --color-ink: var(--foreground);
+  --color-ink-2: var(--muted-foreground);
+  --color-ink-3: #6b6f79;
+  --color-black: #0b0b0d;
+  --color-primary-dark: #d96f08;
+  --color-primary-soft: var(--brand-soft);
+  --color-amber: #fbb040;
+  --color-active-border: #f6dec0;
+  --color-graphite: #3a3c44;
+  --color-bg: var(--background);
+  --color-surface: var(--card);
+  --color-border-soft: #eceef1;
+  --color-success-soft: #e4f6ee;
+  --color-warning-soft: #fbf1da;
+  --color-danger: var(--destructive);
+  --color-danger-soft: #fbe9e7;
+  --color-info: #1b4fd1;
+  --color-info-soft: #eaf1fe;
+
+  --radius-btn: 10px;
+  --radius-card: 14px;
+  --radius-card-lg: 14px;
+  --radius-pill: 99px;
+  --shadow-card: var(--sombra-superficie);
+  --shadow-btn: var(--sombra-botao);
+  --shadow-modal: var(--sombra-flutuante);
+  /* Sem degradê no padrão: os nomes antigos viram cor chapada. */
+  --background-image-primary-grad: linear-gradient(var(--brand), var(--brand));
+  --background-image-progress-grad: linear-gradient(var(--brand), var(--brand));
+  --background-image-avatar-grad: linear-gradient(var(--navy), var(--navy));
+
+  /* Movimento: três durações e uma curva para o app inteiro. */
+  --ease-saida: cubic-bezier(0.2, 0, 0, 1);
+  --default-transition-duration: 120ms;
+  --default-transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  --animate-in: enter var(--tw-animation-duration, var(--tw-duration, 200ms)) var(--tw-ease, cubic-bezier(0.2, 0, 0, 1)) var(--tw-animation-delay, 0s) var(--tw-animation-iteration-count, 1) var(--tw-animation-direction, normal) var(--tw-animation-fill-mode, none);
+}
+
+:root {
+  --radius: 0.75rem;
+
+  /* 10% — laranja Pólobh, a cor de ação. */
+  --brand: #f2820d;
+  --brand-vivid: #f7932e;
+  --brand-soft: #fef1e3;
+  /* Laranja fechado para TEXTO sobre branco (link, item ativo): 5,1:1, AA. */
+  --brand-forte: #b4530b;
+
+  /* 30% — preto/grafite: texto e âncora escura. */
+  --navy: #1f2026;
+  --navy-foreground: #fff;
+
+  /* 60% — fundo claro. */
+  --background: #f4f5f7;
+  --foreground: #16171b;
+  --card: #fff;
+  --card-foreground: #16171b;
+  --popover: #fff;
+  --popover-foreground: #16171b;
+
+  --primary: var(--brand);
+  /* Texto ESCURO sobre o laranja (6,7:1); branco sobre ele não passa no contraste. */
+  --primary-foreground: #241404;
+  --secondary: var(--brand-soft);
+  --secondary-foreground: var(--navy);
+  --muted: #f1f2f4;
+  --muted-foreground: #5e626c;
+  --accent: var(--brand-soft);
+  --accent-foreground: var(--navy);
+  --destructive: #d92d20;
+  --destructive-foreground: #fff;
+  --success: #12805c;
+  --success-foreground: #fff;
+  /* "Pendente" é âmbar no app (o que falta preencher, a conferir) — não se troca pela marca. */
+  --warning: #9a6b0e;
+  --warning-foreground: #fff;
+
+  --border: #e4e6ea;
+  /* Contorno de campo ~2,2:1 sobre branco: campo precisa ser achado; card só separado. */
+  --input: #a9aeb8;
+  --ring: var(--brand);
+
+  /* Barra lateral clara; o item ativo é a única coisa laranja da lista. */
+  --sidebar: #fff;
+  --sidebar-foreground: #3b3d45;
+  --sidebar-strong: var(--foreground);
+  --sidebar-hover: var(--muted);
+  --sidebar-accent: var(--brand-soft);
+  --sidebar-accent-foreground: #a84b07;
+  --sidebar-border: #e8e9ec;
+
+  --duracao-rapida: 120ms;
+  --duracao-media: 160ms;
+  --duracao-painel: 200ms;
+  --curva-saida: cubic-bezier(0.2, 0, 0, 1);
+  --curva-recolhe: cubic-bezier(0.4, 0, 1, 1);
+
+  /* Linha de lista sob o cursor: o laranja-claro clareado, por extenso. */
+  --realce-linha: #fff7ee;
+
+  --sombra-superficie: 0 1px 2px rgb(24 24 27 / 0.05), 0 6px 16px -10px rgb(24 24 27 / 0.12);
+  --sombra-flutuante: 0 28px 56px -16px rgb(24 24 27 / 0.32), 0 4px 12px rgb(24 24 27 / 0.08);
+  --sombra-botao: inset 0 1px 0 rgb(255 255 255 / 0.22), 0 1px 2px rgb(242 130 13 / 0.4), 0 4px 10px -4px rgb(242 130 13 / 0.5);
+}
+
+@utility input-focus {
+  &:focus {
+    outline: none;
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3px rgb(242 130 13 / 0.15);
+  }
+}
+
+@layer base {
+  html, body, #root { height: 100%; }
+  body { margin: 0; text-rendering: optimizeLegibility; }
+}

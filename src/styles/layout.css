@@ -1,0 +1,41 @@
+/*
+ * Casca do app: o que a BarraLateral, o MenuInferior e a CascaDoApp precisam além do styles.css.
+ * Cole no CSS global, depois do styles.css (origem: index.css do Diário de Projetos, nov/2026).
+ *
+ * Já estão no styles.css e não se repetem aqui: tokens `--sidebar-*` (com `--sidebar-strong` e
+ * `--sidebar-hover`), `.sidebar-rolagem`, `ease-saida`, `entrada-popover`/`saida-popover`,
+ * `entrada-sobe`/`saida-desce`, `entrada-overlay`/`saida-overlay`.
+ */
+
+/*
+ * Celular e tablet × computador. No celular e no tablet a navegação mora no menu inferior
+ * (alcance do polegar); no computador, na barra lateral clara.
+ *
+ * - `movel:` → tela estreita (< 1024px) OU tela de toque até 1440px (tablet deitado, iPad Pro).
+ * - `desktop:` → o complemento exato: 1024px+ com mouse, ou qualquer tela de 1440px+.
+ *
+ * Por media query, e não por JavaScript, para a primeira pintura já sair no layout certo.
+ */
+@custom-variant movel (@media (width < 64rem) or ((pointer: coarse) and (width < 90rem)));
+@custom-variant desktop (@media ((width >= 64rem) and (not (pointer: coarse))) or (width >= 90rem));
+
+@layer base {
+  html {
+    /* Toque: sem o clarão cinza do WebKit no botão tocado — o próprio botão já dá o retorno. */
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* Campo de 16px no celular: abaixo disso o iOS dá zoom na página ao focar. */
+  @media (width < 64rem), (pointer: coarse) and (width < 90rem) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea {
+      font-size: max(16px, 1em);
+    }
+  }
+}
+
+/* Espaço que o menu inferior ocupa (64px + a faixa do gesto do sistema). */
+@utility pb-menu-inferior {
+  padding-bottom: calc(4rem + env(safe-area-inset-bottom) + 1rem);
+}
+@utility seguro-inferior {
+  padding-bottom: env(safe-area-inset-bottom);
+}

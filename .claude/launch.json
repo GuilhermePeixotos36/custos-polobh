@@ -9,6 +9,13 @@
       "autoPort": true
     },
     {
+      "name": "polobh-redesign",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "C:/Users/guilherme.silva/OneDrive - LS PRO/Documentos/GitHub/custos-polobh/.claude/worktrees/polobh-redesign", "run", "dev"],
+      "port": 5180,
+      "autoPort": true
+    },
+    {
       "name": "polobh-preview",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "preview"],

@@ -1,0 +1,978 @@
+/*
+ * Base do design system do Grupo LSPRO (padrão "Crachá" do DP Corp), trazida para a Pólobh em
+ * 24/11/2026: card-surface, janela-modal, lista-matriz, esqueletos, selos, tons de status,
+ * animações de entrada e saída, ordenação, sub-abas e barra lateral. As CORES não moram aqui:
+ * moram nos tokens de src/index.css (laranja Pólobh na ação, grafite na âncora). Copiado da
+ * referência sem o que é só do DP Corp (conector do fluxo e motor de assinatura).
+ */
+@layer base {
+  :root { accent-color: var(--brand); }
+
+  /* Seta própria no select simples: sem ela cada navegador desenha a sua. `:where` zera a
+     especificidade, então o `pr-*` e o `bg-*` de quem já estiliza o campo continuam vencendo. */
+  :where(select:not([multiple])) {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235b6478' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.6rem center;
+    background-size: 1rem;
+    padding-right: 2rem;
+  }
+
+  * { border-color: var(--color-border); }
+  html, body { font-family: var(--font-sans); }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Scrollbar fina e moderna — sem os botões de seta (Windows). */
+  * { scrollbar-width: thin; scrollbar-color: rgb(24 24 27 / 0.20) transparent; }
+  *::-webkit-scrollbar { width: 10px; height: 10px; }
+  *::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+  *::-webkit-scrollbar-track { background: transparent; }
+  *::-webkit-scrollbar-thumb {
+    background-color: rgb(24 24 27 / 0.18);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  *::-webkit-scrollbar-thumb:hover { background-color: rgb(24 24 27 / 0.30); }
+
+  /*
+   * Foco visível de série. Boa parte dos botões das telas nasceu sem estilo de foco nenhum — com
+   * o `outline` padrão do navegador ou, pior, com `outline-none` e nada no lugar —, e quem navega
+   * por teclado perdia o cursor no meio do formulário. `:where` zera a especificidade: qualquer
+   * `focus-visible:ring-*` ou `outline-none` de componente continua vencendo.
+   */
+  :where(a, button, [role="tab"], [role="button"], summary, [tabindex]):focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--color-ring) 70%, transparent);
+    outline-offset: 2px;
+  }
+
+  /*
+   * Hover de série para controle. Os botões das telas são classe solta, e metade nasceu sem
+   * `transition-colors`: o fundo trocava seco num e deslizava no vizinho. Aqui todos entram no
+   * mesmo ritmo; quem declara a própria `transition-*` continua mandando (utilitário vence base).
+   */
+  :where(button, a, [role="tab"], summary, select) {
+    transition-property: color, background-color, border-color, box-shadow, opacity;
+    transition-duration: var(--duracao-rapida);
+    transition-timing-function: var(--curva-saida);
+  }
+
+  /* O realce da linha sob o cursor acompanha o ritmo dos botões, em vez de piscar seco. */
+  tbody > tr {
+    transition: background-color var(--duracao-rapida) var(--curva-saida);
+  }
+}
+
+/*
+ * Quem pediu ao sistema menos movimento recebe a interface parada: sem entrada de modal, sem
+ * fade de aba, sem transição de hover. O estado final aparece na hora. O spinner fica de fora —
+ * ali o giro É a informação de que algo está carregando, e um ícone parado diria o contrário.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *:not(.animate-spin),
+  *:not(.animate-spin)::before,
+  *:not(.animate-spin)::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    /* Sem o atraso também: a entrada escalonada do Painel deixaria cada card invisível pelo tempo
+       da vez dele e depois o faria surgir de uma vez — um pisca-pisca em vez de nenhum movimento. */
+    animation-delay: 0s !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@layer utilities {
+  .card-surface {
+    background-color: var(--color-card);
+    border: 1px solid var(--color-border);
+    border-radius: calc(var(--radius) + 2px); /* = rounded-xl */
+    box-shadow: var(--sombra-superficie);
+  }
+
+  /*
+   * O painel de todo popup (`JanelaModal`): canto de 14px (o raio de superfície), sem contorno e com a sombra de quem
+   * flutua. Cada tela passava a sua superfície pela `className` — `card-surface`, `rounded-xl`
+   * com `shadow-2xl` preta, `rounded-lg` — e o mesmo popup saía com três cantos e duas sombras.
+   * `section.` na frente dá a especificidade que vence essas classes sem `!important`; largura,
+   * altura e `overflow` continuam sendo de quem chama. O contorno fica transparente, e não some:
+   * a largura da borda continua contando, e nenhum popup muda de tamanho.
+   */
+  section.janela-modal {
+    border-color: transparent;
+    border-radius: var(--radius-xl);
+    box-shadow: var(--sombra-flutuante);
+  }
+
+  /*
+   * Régua da `FaixaIndicadores`: uma coluna no celular (traço em cima), e a partir de `sm` a
+   * régua vertical entre células. Com grade de 4 há o degrau de 2 colunas no meio — a régua
+   * segue a grade de cada largura, senão sobraria traço solto na ponta da linha.
+   */
+  .faixa-indicadores > .celula-indicador + .celula-indicador {
+    border-top: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
+  }
+  @media (width >= 40rem) {
+    .faixa-indicadores > .celula-indicador + .celula-indicador { border-top: 0; }
+    .faixa-indicadores:is([data-colunas="2"], [data-colunas="3"]) > .celula-indicador + .celula-indicador {
+      border-left: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
+    }
+    .faixa-indicadores[data-colunas="4"] > .celula-indicador:nth-child(even) {
+      border-left: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
+    }
+    .faixa-indicadores[data-colunas="4"] > .celula-indicador:nth-child(n + 3) {
+      border-top: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
+    }
+  }
+  @media (width >= 80rem) {
+    .faixa-indicadores[data-colunas="4"] > .celula-indicador:nth-child(n + 3) { border-top: 0; }
+    .faixa-indicadores[data-colunas="4"] > .celula-indicador + .celula-indicador {
+      border-left: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
+    }
+  }
+
+  /*
+   * Entradas e saídas.
+   *
+   * Já foi "só aparecer, nunca sair", com o argumento de que fechar é o momento em que a pessoa
+   * quer a tela de volta. O argumento vale para saída que SEGURA a tela — e esta não segura: o
+   * véu que sai deixa de receber clique no mesmo quadro (`pointer-events: none`), o conteúdo que
+   * sai fica `inert` e escondido do leitor de tela, e tudo acaba em 120ms, mais curto que a
+   * entrada. O que o corte seco custava era outra coisa: o modal sumia sem direção, e depois de
+   * confirmar uma exclusão a pessoa não tinha certeza se o clique pegou ou se a caixa só piscou.
+   * Quem mantém montado durante a saída é o `usePresenca` (`src/lib/presenca.ts`), que pula a
+   * espera com movimento reduzido.
+   *
+   * - `entrada-overlay`: o véu atrás do modal, só opacidade.
+   * - `entrada-modal`: o próprio modal — opacidade e escala de 0.98. Escala pequena de propósito:
+   *   o 0.95 do `zoom-in-95` faz o formulário "saltar", e o olho precisa reencontrar o campo.
+   * - `entrada-popover`: painel que desce de um botão (sino, lista suspensa) — 4px de deslocamento
+   *   no sentido em que ele se abre, para dizer de onde veio.
+   */
+  .entrada-overlay {
+    animation: entrada-opacidade var(--duracao-painel) var(--curva-saida) backwards;
+  }
+  /* `backwards` e não `both`: terminada a entrada, nenhum `transform` fica pendurado no modal —
+     transform deixado ali viraria o bloco de contenção de todo `position: fixed` lá dentro. */
+  .entrada-modal {
+    animation: entrada-modal var(--duracao-painel) var(--curva-saida) backwards;
+  }
+  .entrada-popover {
+    animation: entrada-popover var(--duracao-media) var(--curva-saida) backwards;
+  }
+  /* Só opacidade: para o que pode abrir para cima ou para baixo (a lista do `ComboBox`), onde um
+     deslocamento fixo apontaria para o lado errado metade das vezes. */
+  .entrada-fade {
+    animation: entrada-opacidade var(--duracao-media) var(--curva-saida) backwards;
+  }
+  @keyframes entrada-opacidade {
+    from { opacity: 0; }
+  }
+  @keyframes entrada-modal {
+    from { opacity: 0; transform: scale(0.98); }
+  }
+  @keyframes entrada-popover {
+    from { opacity: 0; transform: translateY(-4px); }
+  }
+  /*
+   * As saídas refazem o caminho da entrada ao contrário, mais curtas (`--duracao-rapida`) e
+   * aceleradas. `forwards` aqui é seguro, ao contrário da entrada: o elemento desmonta assim que
+   * a animação acaba, então o transform retido não sobrevive para prender `position: fixed`.
+   * O `pointer-events: none` vai junto da classe — o clique que cai no véu que está sumindo
+   * precisa chegar à tela, não reabrir nem fechar nada de novo.
+   */
+  .saida-overlay {
+    pointer-events: none;
+    animation: saida-opacidade var(--duracao-rapida) var(--curva-recolhe) forwards;
+  }
+  .saida-modal {
+    pointer-events: none;
+    animation: saida-modal var(--duracao-rapida) var(--curva-recolhe) forwards;
+  }
+  .saida-popover {
+    pointer-events: none;
+    animation: saida-popover var(--duracao-rapida) var(--curva-recolhe) forwards;
+  }
+  .saida-fade {
+    pointer-events: none;
+    animation: saida-opacidade var(--duracao-rapida) var(--curva-recolhe) forwards;
+  }
+  @keyframes saida-opacidade {
+    to { opacity: 0; }
+  }
+  @keyframes saida-modal {
+    to { opacity: 0; transform: scale(0.98); }
+  }
+  @keyframes saida-popover {
+    to { opacity: 0; transform: translateY(-4px); }
+  }
+  /*
+   * O aviso que nasce no rodapé (a pilha de falhas de gravação) sobe 4px — o mesmo deslocamento
+   * do popover, no sentido de onde ele vem.
+   */
+  .entrada-sobe {
+    animation: entrada-sobe var(--duracao-media) var(--curva-saida) backwards;
+  }
+  .saida-desce {
+    pointer-events: none;
+    animation: saida-desce var(--duracao-rapida) var(--curva-recolhe) forwards;
+  }
+  @keyframes entrada-sobe {
+    from { opacity: 0; transform: translateY(4px); }
+  }
+  @keyframes saida-desce {
+    to { opacity: 0; transform: translateY(4px); }
+  }
+
+  /*
+   * Bloco de tela que entra em sequência (os cards do Painel). Sobe 6px e aparece, um depois do
+   * outro pelo `animation-delay` que o componente passa.
+   *
+   * `backwards`, e não `both`: o `backwards` já segura o bloco invisível durante o atraso (é o
+   * que evita o card piscar cheio antes da vez dele), e terminada a entrada não sobra transform
+   * nenhum no card. Com `both`, o card ficava com uma animação de transform "em vigor" para
+   * sempre — e card do Painel tem balão e lista em `position: fixed` dentro, que passariam a se
+   * posicionar pela caixa do card em vez da janela.
+   */
+  .entrada-bloco {
+    animation: entrada-bloco var(--duracao-painel) var(--curva-saida) backwards;
+  }
+  @keyframes entrada-bloco {
+    from { opacity: 0; transform: translateY(6px); }
+  }
+
+  /*
+   * Número que mudou: o selo do sino, o contador do painel suspenso. Sobe 3px e aparece — o
+   * bastante para o olho perceber que o número NÃO é o mesmo de antes, sem virar placar. Só em
+   * elemento folha (o próprio selo), nunca em contêiner.
+   */
+  .contagem-troca {
+    animation: contagem-troca var(--duracao-media) var(--curva-saida) backwards;
+  }
+  @keyframes contagem-troca {
+    from { opacity: 0; transform: translateY(3px); }
+  }
+  /*
+   * Valor de KPI que mudou (filtro, competência). Só opacidade, de propósito: valor em dinheiro
+   * não rola, não sobe dígito a dígito e não "conta" até o número — o que a pessoa precisa é ler
+   * o valor novo, não assistir a ele chegar. O fade só avisa que ele trocou.
+   */
+  .valor-troca {
+    animation: entrada-opacidade var(--duracao-media) var(--curva-saida) backwards;
+  }
+
+  /*
+   * Tremor de erro: 0 → 4 → −4 → 2 → 0px em 240ms, na mensagem que acabou de aparecer depois de
+   * um "Salvar" recusado. É o que faz a pessoa olhar para a frase vermelha em vez de clicar de
+   * novo no botão achando que o primeiro clique não pegou. Sem preencher o fim: acabou, não sobra
+   * transform. Vai na própria mensagem (folha), nunca no formulário inteiro — que pode ter lista
+   * suspensa `fixed` aberta dentro.
+   */
+  .tremor-erro {
+    animation: tremor-erro 240ms var(--curva-saida);
+  }
+  @keyframes tremor-erro {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(4px); }
+    55% { transform: translateX(-4px); }
+    80% { transform: translateX(2px); }
+  }
+
+  /*
+   * Check que se desenha: o traço do ✓ corre de ponta a ponta em 200ms. Pede o `<path>` com
+   * `pathLength="1"`, que é o que deixa o traço valer 1 qualquer que seja o tamanho do ícone.
+   * `forwards` porque o repouso do traço (dashoffset 1) é invisível; com movimento reduzido a
+   * animação vira instantânea e o `forwards` entrega o check já desenhado.
+   */
+  .check-desenha {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: check-desenha var(--duracao-painel) var(--curva-saida) 60ms forwards;
+  }
+  @keyframes check-desenha {
+    to { stroke-dashoffset: 0; }
+  }
+
+  /*
+   * Rótulos do `BotaoAcao` ("Salvar" → "Salvando…" → "Salvo"), empilhados na mesma célula: a
+   * célula tem a largura do maior e o botão não pula de tamanho a cada troca. O que sai sobe 3px
+   * e some em 120ms acelerando (a transição do estado inativo); o que entra vem de 3px abaixo em
+   * 160ms, DEPOIS da saída (animação com atraso e `backwards`, que o segura invisível na espera e
+   * não deixa transform ao terminar). Em cruzamento simultâneo os dois textos se sobrepunham no
+   * mesmo lugar e liam como borrão. `data-animar` só aparece depois da primeira troca, para o
+   * rótulo de repouso não "entrar" junto com o formulário. Transform aqui é em folha: nada dentro
+   * do rótulo de um botão abre modal.
+   */
+  .botao-acao-rotulos {
+    display: inline-grid;
+    gap: inherit;
+  }
+  .botao-acao-rotulos > * {
+    grid-area: 1 / 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: inherit;
+    transition:
+      opacity var(--duracao-rapida) var(--curva-recolhe),
+      transform var(--duracao-rapida) var(--curva-recolhe);
+  }
+  .botao-acao-rotulos > :not([data-ativo]) {
+    opacity: 0;
+    transform: translateY(-3px);
+    pointer-events: none;
+  }
+  .botao-acao-rotulos > [data-ativo] {
+    transition: none;
+  }
+  .botao-acao-rotulos[data-animar] > [data-ativo] {
+    animation: botao-acao-entra var(--duracao-media) var(--curva-saida) var(--duracao-rapida) backwards;
+  }
+  @keyframes botao-acao-entra {
+    from { opacity: 0; transform: translateY(3px); }
+  }
+
+  /*
+   * Esqueleto do carregamento de lista. A barra pulsa devagar — é indicador contínuo, como o
+   * spinner, e não transição, por isso foge da régua dos 200ms.
+   *
+   * A lista inteira só aparece depois de 200ms (`animation-delay` com `backwards`): carga rápida
+   * não pisca esqueleto nenhum, e a tela passa direto do vazio para o conteúdo. O esqueleto só
+   * existe para a espera que a pessoa chega a perceber.
+   */
+  .esqueleto-lista {
+    animation: entrada-opacidade var(--duracao-media) var(--curva-saida) 200ms backwards;
+  }
+  .esqueleto {
+    border-radius: 6px;
+    background-color: color-mix(in srgb, var(--color-border) 55%, var(--color-muted));
+    animation: esqueleto-pulso 1.4s ease-in-out infinite;
+  }
+  @keyframes esqueleto-pulso {
+    50% { opacity: 0.55; }
+  }
+
+  /*
+   * Carregador em matriz (`CarregadorMatriz`): a grade 3×3 (sm) ou 4×4 (md) cujas células acendem
+   * em onda diagonal, para operação longa — importação, sincronização do ponto, primeira carga.
+   * Como o esqueleto, é indicador contínuo e por isso foge da régua dos 200ms; o ciclo é lento
+   * (1,4s) e a cor só vai do azul-claro ao azul da marca e volta. Sem escala, sem brilho, sem
+   * transform — a célula é folha e só troca de cor.
+   *
+   * Cada célula recebe `--atraso` = (linha + coluna) × 110ms, que é o que faz a onda andar na
+   * diagonal. Sem `fill`: durante o atraso a célula fica na cor de base, que é o próprio repouso.
+   *
+   * Com movimento reduzido a animação sai inteira (e não "roda uma vez em 0,01ms", como no resto
+   * do app) e a diagonal fica acesa: uma grade parada e legível, com a frase ao lado dizendo o que
+   * está acontecendo.
+   */
+  .carregador-matriz {
+    animation: entrada-opacidade var(--duracao-media) var(--curva-saida) backwards;
+  }
+  .carregador-matriz-grade {
+    --matriz-base: color-mix(in srgb, var(--color-brand) 14%, var(--color-card));
+    --matriz-meio: color-mix(in srgb, var(--color-brand) 55%, var(--color-card));
+    --matriz-pico: var(--color-brand);
+    display: inline-grid;
+    grid-template-columns: repeat(var(--colunas), var(--celula));
+    gap: var(--vao);
+    flex-shrink: 0;
+  }
+  .carregador-matriz-grade[data-tamanho="sm"] { --colunas: 3; --celula: 6px; --vao: 3px; }
+  .carregador-matriz-grade[data-tamanho="md"] { --colunas: 4; --celula: 9px; --vao: 4px; }
+  .carregador-matriz-celula {
+    width: var(--celula);
+    height: var(--celula);
+    border-radius: 2px;
+    background-color: var(--matriz-base);
+    animation: carregador-matriz-onda 1400ms ease-in-out var(--atraso, 0ms) infinite;
+  }
+  @keyframes carregador-matriz-onda {
+    0%, 60%, 100% { background-color: var(--matriz-base); }
+    20% { background-color: var(--matriz-pico); }
+    36% { background-color: var(--matriz-meio); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .carregador-matriz-celula { animation: none; }
+    .carregador-matriz-celula[data-diagonal] { background-color: var(--matriz-pico); }
+  }
+
+  /*
+   * Botão excluir com confirmação no lugar (`BotaoExcluir`): o painel com "Excluir" e "×" abre
+   * pela coluna da grade de 0fr a 1fr — anima a largura até o conteúdo sem medir nada em JS — e a
+   * tampa da lixeira levanta. Nada de transform no painel, só na tampa (folha).
+   */
+  .excluir-painel {
+    display: grid;
+    grid-template-columns: 0fr;
+    opacity: 0;
+    transition:
+      grid-template-columns var(--duracao-media) var(--curva-saida),
+      opacity var(--duracao-rapida) var(--curva-saida);
+  }
+  .excluir-painel > * { min-width: 0; overflow: hidden; }
+  .excluir-painel[data-aberto] { grid-template-columns: 1fr; opacity: 1; }
+  .excluir-tampa {
+    transform-box: view-box;
+    transform-origin: 4px 6px;
+    transition: transform var(--duracao-media) var(--curva-saida);
+  }
+  [data-confirmando] .excluir-tampa { transform: rotate(-20deg); }
+  /*
+   * Card dentro do painel de uma aba (`FolderPanel`) já está sobre branco: sombra ali dizia
+   * que ele flutua acima de outra superfície, e é a mesma. Fica a borda, que é o que separa
+   * um bloco do outro.
+   */
+  .painel-pasta .card-surface {
+    box-shadow: none;
+  }
+  /*
+   * Troca de aba. O painel continua montado de uma aba para outra; quem entra é o conteúdo, e é
+   * nele que vai o fade — curto, só para o olho registrar que a área mudou, sem cortina.
+   * Só opacidade, nunca `transform`: há modal (`position: fixed`) renderizado dentro de painel de
+   * aba, e um transform no ancestral o prenderia à caixa do painel em vez da janela.
+   */
+  .painel-pasta > * {
+    animation: entrada-opacidade var(--duracao-media) var(--curva-saida) backwards;
+  }
+  /*
+   * Fileira de abas (`FolderTabs`): rola, mas sem barra. Quem navega é a seta `>`/`<` do
+   * componente; trackpad, shift+roda e toque continuam funcionando porque o overflow segue lá.
+   */
+  .fileira-abas { scrollbar-width: none; }
+  .fileira-abas::-webkit-scrollbar { display: none; }
+  /*
+   * O degradê debaixo da seta precisa ter a cor exata do que está atrás da fileira, senão vira
+   * uma faixa. Atrás dela há sempre o `bg-muted/35`, mas sobre fundos diferentes: no modal é o
+   * branco do card; na `FolderTabsBar` é o cinza da página. A mistura reproduz a composição.
+   */
+  .seta-abas { --fundo-fileira-abas: color-mix(in srgb, var(--color-muted) 35%, var(--color-card)); }
+  .barra-abas .seta-abas { --fundo-fileira-abas: color-mix(in srgb, var(--color-muted) 35%, var(--color-background)); }
+  .seta-abas-direita { background: linear-gradient(to right, transparent, var(--fundo-fileira-abas) 55%); }
+  .seta-abas-esquerda { background: linear-gradient(to left, transparent, var(--fundo-fileira-abas) 55%); }
+  /*
+   * Grade das listas em matriz — colaboradores, folha, férias, benefícios, parâmetros.
+   *
+   * Todas essas telas são a mesma coisa: uma pessoa (ou uma empresa, ou uma rubrica) por linha
+   * e muitos campos por coluna. Só a divisória horizontal deixava o olho escorregar de coluna
+   * no meio da linha — com oito, dez, quinze campos seguidos, saber se aquele número é "INSS"
+   * ou "IRRF" virava contagem de dedos até o cabeçalho. A régua vertical entre as colunas
+   * resolve isso sem pedir mais espaço na tela: o cruzamento linha × coluna fica sempre
+   * fechado, e o cabeçalho ganha um traço de 2px que separa o rótulo do dado.
+   *
+   * `border-separate` com `border-spacing: 0` em vez de `border-collapse`: bordas colapsadas
+   * somem debaixo de célula fixa (cabeçalho preso no topo, coluna do nome presa à esquerda), e
+   * é justamente ali que a grade precisa aparecer. O efeito colateral é que borda declarada em
+   * `<tr>` ou `<tfoot>` deixa de existir — no modelo separado só a célula tem borda —, então
+   * toda a divisória das listas nasce aqui, e não mais espalhada em classe de linha.
+   *
+   * As cores saem do mesmo `--border` do resto do app, diluídas: a régua vertical mais fraca
+   * que a horizontal, porque quem lê uma lista percorre a linha, e a divisória da coluna é
+   * referência de canto de olho — no mesmo peso da horizontal, viraria papel quadriculado.
+   */
+  .lista-matriz {
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  .lista-matriz > thead > tr > th,
+  .lista-matriz > tbody > tr > td,
+  .lista-matriz > tbody > tr > th,
+  .lista-matriz > tfoot > tr > td {
+    border-right: 1px solid color-mix(in srgb, var(--color-border) 55%, transparent);
+  }
+  .lista-matriz > thead > tr > th:last-child,
+  .lista-matriz > tbody > tr > td:last-child,
+  .lista-matriz > tbody > tr > th:last-child,
+  .lista-matriz > tfoot > tr > td:last-child {
+    border-right: 0;
+  }
+  .lista-matriz > thead > tr > th {
+    border-bottom: 2px solid var(--color-border);
+  }
+  .lista-matriz > tbody > tr > td,
+  .lista-matriz > tbody > tr > th {
+    border-bottom: 1px solid color-mix(in srgb, var(--color-border) 75%, transparent);
+  }
+  /* A última linha encosta na borda do cartão: dois traços a 1px de distância viram sujeira. */
+  .lista-matriz > tbody > tr:last-child > td,
+  .lista-matriz > tbody > tr:last-child > th {
+    border-bottom: 0;
+  }
+  /* Totais são conclusão, não mais uma linha: entram depois de um traço cheio. */
+  .lista-matriz > tfoot > tr > td {
+    border-top: 2px solid var(--color-border);
+  }
+  /*
+   * Fim do bloco congelado. Onde há coluna presa à esquerda, a última delas leva a divisória
+   * cheia: ali não é só mais uma coluna, é a fronteira entre o que fica parado e o que corre
+   * por baixo na rolagem horizontal — no mesmo tom fraco das outras, a pessoa não vê onde a
+   * parte fixa termina. Precisa de duas classes para vencer a régua genérica acima.
+   */
+  .lista-matriz .divisor-congelado {
+    border-right: 1px solid var(--color-border);
+  }
+  /*
+   * Cabeçalho navy com texto branco, em TODAS as listas (decisão do usuário, 03/11/2026: com o
+   * cabeçalho cinza as tabelas pareciam "soltas" — o rótulo se confundia com a primeira linha e
+   * a grade não tinha começo). É o mesmo navy da faixa do `CabecalhoJanela`.
+   *
+   * Mora aqui, e não em cada tela, para que nenhuma lista precise lembrar disso: toda `<th>` do
+   * `<thead>` de uma `.lista-matriz` vira navy, mesmo que a tela ainda declare `bg-muted` ou
+   * `text-muted-foreground` nela (este seletor vence o utilitário solto por especificidade).
+   *
+   * Cor CHEIA, nunca translúcida: o cabeçalho fica preso no topo (`sticky`) e a coluna do nome
+   * presa à esquerda passa por baixo dele; com alpha < 1 os rótulos das colunas que correm por
+   * baixo atravessam o vidro. Pelo mesmo motivo as réguas do cabeçalho são branco diluído sobre
+   * o PRÓPRIO fundo da célula (a borda pinta sobre o fundo dela), o que mantém tudo opaco.
+   *
+   * O traço de 2px sob o cabeçalho passa a ser azul corporativo: a separação rótulo/dado já vem
+   * do contraste navy × branco; o traço é o fecho da faixa.
+   */
+  .lista-matriz > thead > tr > th {
+    background-color: var(--color-navy);
+    color: var(--color-navy-foreground);
+    /* Rótulo em caixa normal (redesign "Crachá"): vale também para o `<thead>` que a tela ainda
+       monta à mão com `uppercase tracking-wider` no `<tr>` — a regra na célula vence a herança. */
+    text-transform: none;
+    letter-spacing: normal;
+    border-right-color: color-mix(in srgb, var(--color-navy-foreground) 16%, transparent);
+    border-bottom: 2px solid var(--color-brand);
+  }
+  /* Coluna presa à esquerda no cabeçalho: `celula-congelada` pinta `--card`, e o realce de linha
+     (`.group:hover`) é mais específico que o seletor acima — sem isto a ponta esquerda do
+     cabeçalho ficaria branca. */
+  .lista-matriz > thead > tr > th.celula-congelada,
+  .group:hover .lista-matriz > thead > tr > th.celula-congelada {
+    background-color: var(--color-navy);
+  }
+  /* Fim do bloco congelado no cabeçalho: a divisória cheia continua mais forte que as réguas,
+     mas em branco, que é o que se lê sobre navy. */
+  .lista-matriz > thead > tr > th.divisor-congelado {
+    border-right: 1px solid color-mix(in srgb, var(--color-navy-foreground) 45%, transparent);
+  }
+  /* Texto secundário dentro do rótulo (unidade, "(dias)") herda o branco: cinza sobre navy não
+     passa de 3:1. */
+  .lista-matriz > thead > tr > th :is(.text-muted-foreground, .text-foreground, .text-navy) {
+    color: inherit;
+  }
+  /* "Selecionar todos": o `accent-brand` da caixa marcada some no navy; o azul claro aparece. */
+  .lista-matriz > thead > tr > th input[type="checkbox"] {
+    accent-color: var(--color-brand-soft);
+  }
+
+  /* Células congeladas na rolagem horizontal (colunas presas à esquerda).
+     O fundo precisa ser opaco em TODOS os estados: com alpha < 1 (ex.: um
+     `bg-muted/20` de hover) as colunas que passam por baixo aparecem através
+     da célula e os dois textos se sobrepõem. Por isso o realce da linha é
+     pré-composto com o fundo do card em vez de aplicado por transparência. */
+  .celula-congelada {
+    background-color: var(--color-card);
+    transition: background-color var(--duracao-rapida) var(--curva-saida);
+  }
+  .group:hover .celula-congelada {
+    background-color: var(--realce-linha);
+  }
+
+  /*
+   * Realce da linha sob o cursor, em toda lista: azul bem claro, o "cursor de leitura" de uma
+   * linha com dez colunas. As telas declaram `hover:bg-muted/20` no `<tr>`, que sobre o fundo
+   * novo quase não aparece; pintando a célula daqui, nenhuma tela precisa mudar.
+   *
+   * `:where()` zera a especificidade de propósito: qualquer fundo que a célula já tenha — a cor
+   * de status da linha de Férias, um `bg-*` de destaque, a coluna congelada (que tem a regra
+   * dela, logo acima, na mesma cor) — continua vencendo. A cor é cheia, e não alpha, pelo mesmo
+   * motivo da célula congelada: nada pode aparecer por baixo dela na rolagem horizontal.
+   */
+  :where(.lista-matriz > tbody > tr) > td {
+    transition: background-color var(--duracao-rapida) var(--curva-saida);
+  }
+  :where(.lista-matriz > tbody > tr:hover) > td {
+    background-color: var(--realce-linha);
+  }
+
+  /*
+   * Linha da lista pintada pelo status (Férias, nov/2026: `classesStatusFeriasLista`). A linha
+   * inteira ganha o fundo claro do tom e o status vira texto em negrito no tom escuro.
+   *
+   * O fundo vai nas CÉLULAS, não no `<tr>`: a `lista-matriz` é `border-separate`, e no modelo
+   * separado o fundo da linha fica por baixo das células — célula congelada (fundo `--card`)
+   * apagaria a cor e partiria a linha. Pintando a célula, a borda (régua da grade) continua
+   * desenhada por cima do próprio fundo, igual ao cabeçalho navy. O seletor vence
+   * `.celula-congelada` e o `.group:hover` dela por especificidade, então a coluna presa
+   * acompanha a cor em todos os estados.
+   *
+   * Cor CHEIA (misturada ao `--card`), nunca alpha: a coluna congelada passa por cima das outras
+   * na rolagem horizontal. No hover a mistura só fica um pouco mais forte.
+   *
+   * Texto do status: tom escuro do mesmo matiz, AA (>= 4,5:1) sobre o fundo e sobre o hover.
+   * Amarelo e roxo não existem no design system; ficam aqui, como tokens locais, claros o
+   * bastante para não virarem laranja nem competirem com o vermelho da dobra.
+   */
+  .linha-status-amarelo  { --fundo-status: oklch(0.97 0.05 98);  --fundo-status-hover: oklch(0.945 0.07 98); }
+  /* Azul e vermelho são o `--brand-soft` e o `--destructive` clareados, escritos por extenso: com
+     `color-mix` o minificador gera um fallback com a cor cheia, e a linha viraria vermelho vivo. */
+  .linha-status-azul     { --fundo-status: oklch(0.96 0.022 255); --fundo-status-hover: var(--color-brand-soft); }
+  .linha-status-roxo     { --fundo-status: oklch(0.965 0.025 300); --fundo-status-hover: oklch(0.94 0.04 300); }
+  .linha-status-vermelho { --fundo-status: oklch(0.965 0.018 22); --fundo-status-hover: oklch(0.94 0.032 22); }
+  .linha-status-cinza    { --fundo-status: oklch(0.945 0.006 255); --fundo-status-hover: oklch(0.92 0.008 255); }
+
+  .lista-matriz > tbody > tr:is(.linha-status-amarelo, .linha-status-azul, .linha-status-roxo, .linha-status-vermelho, .linha-status-cinza) > td {
+    background-color: var(--fundo-status);
+    transition: background-color var(--duracao-rapida) var(--curva-saida);
+  }
+  .lista-matriz > tbody > tr:is(.linha-status-amarelo, .linha-status-azul, .linha-status-roxo, .linha-status-vermelho, .linha-status-cinza):hover > td {
+    background-color: var(--fundo-status-hover);
+  }
+
+  .texto-status-amarelo  { font-weight: 700; color: oklch(0.43 0.09 75); }
+  .texto-status-azul     { font-weight: 700; color: var(--color-brand); }
+  .texto-status-roxo     { font-weight: 700; color: oklch(0.45 0.19 295); }
+  .texto-status-vermelho { font-weight: 700; color: oklch(0.47 0.19 27); }
+  /* Tons do `Selo` (ui/Selo.tsx): fundo claro + texto escuro do mesmo matiz, AA. Azul, vermelho,
+     amarelo, roxo e cinza repetem os de status acima; verde e vínculo são só do selo. */
+  .selo-neutro   { --selo-fundo: var(--color-muted);        --selo-texto: var(--color-muted-foreground); }
+  .selo-marca    { --selo-fundo: var(--color-brand-soft);   --selo-texto: var(--color-brand); }
+  .selo-sucesso  { --selo-fundo: oklch(0.96 0.04 165);      --selo-texto: var(--color-success); }
+  .selo-perigo   { --selo-fundo: oklch(0.965 0.018 22);     --selo-texto: oklch(0.47 0.19 27); }
+  .selo-atencao  { --selo-fundo: oklch(0.97 0.05 98);       --selo-texto: oklch(0.43 0.09 75); }
+  .selo-roxo     { --selo-fundo: oklch(0.965 0.025 300);    --selo-texto: oklch(0.45 0.19 295); }
+  .selo-cinza    { --selo-fundo: oklch(0.945 0.006 255);    --selo-texto: oklch(0.42 0.03 260); }
+  .selo-vinculo-clt       { --selo-fundo: var(--color-brand-soft); --selo-texto: var(--color-brand); }
+  .selo-vinculo-pj        { --selo-fundo: oklch(0.965 0.025 300);  --selo-texto: oklch(0.45 0.19 295); }
+  .selo-vinculo-estagio   { --selo-fundo: oklch(0.96 0.04 165);    --selo-texto: var(--color-success); }
+  .selo-vinculo-aprendiz  { --selo-fundo: oklch(0.97 0.05 98);     --selo-texto: oklch(0.43 0.09 75); }
+  .selo-neutro, .selo-marca, .selo-sucesso, .selo-perigo, .selo-atencao, .selo-roxo, .selo-cinza,
+  .selo-vinculo-clt, .selo-vinculo-pj, .selo-vinculo-estagio, .selo-vinculo-aprendiz {
+    background-color: var(--selo-fundo);
+    color: var(--selo-texto);
+  }
+
+  /* Números alinhados em coluna nas grades e nas faixas de indicadores. */
+  .lista-matriz, .faixa-indicadores { font-variant-numeric: tabular-nums; }
+
+  .texto-status-cinza    { font-weight: 700; color: oklch(0.42 0.03 260); }
+
+  /*
+   * Ponto da etapa "Folha a conferir" (migração 215): pulsa devagar para chamar o olho na lista,
+   * sem piscar seco. Quem pediu menos movimento ao sistema vê o ponto parado — a cor e o texto
+   * já dizem a mesma coisa.
+   */
+  @keyframes ponto-piscando {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.35; transform: scale(0.8); }
+  }
+  .ponto-piscando { animation: ponto-piscando 1.6s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) {
+    .ponto-piscando { animation: none; }
+  }
+
+  /*
+   * Campo da ficha do colaborador que falta (`Campo`, em _app.colaboradores.tsx): a borda do
+   * controle fica vermelha. `.campo-piscando` é o campo para onde a ficha acabou de levar a pessoa
+   * (`useIrParaCampo`): a borda pisca por 2 s. O hook marca também `data-piscando`, que o React
+   * não reescreve — trocar o `className` do campo no meio da piscada não a interrompe.
+   * Com menos movimento pedido ao sistema, fica só a borda.
+   */
+  .campo-faltando :is(input:not([type="checkbox"]), select, textarea) {
+    border-color: var(--color-destructive);
+  }
+  @keyframes campo-piscando {
+    0%, 100% { box-shadow: 0 0 0 0 transparent; }
+    50% { box-shadow: 0 0 0 3px oklch(0.6 0.2 27 / 0.35); }
+  }
+  :is(.campo-piscando, [data-piscando]) :is(input:not([type="checkbox"]), select, textarea) {
+    border-color: var(--color-destructive);
+    animation: campo-piscando 0.5s ease-in-out 4;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :is(.campo-piscando, [data-piscando]) :is(input:not([type="checkbox"]), select, textarea) { animation: none; }
+  }
+
+  .icon-button {
+    display: inline-flex;
+    width: 2rem;
+    height: 2rem;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--color-border);
+    border-radius: calc(var(--radius) - 2px); /* = rounded-md */
+    background-color: var(--color-card);
+    color: var(--color-muted-foreground);
+    transition-property: color, background-color, border-color, transform;
+    transition-duration: var(--duracao-rapida);
+    transition-timing-function: var(--curva-saida);
+  }
+  .icon-button:active:not(:disabled) {
+    transform: scale(0.96);
+  }
+  .icon-button:hover {
+    background-color: var(--color-muted);
+    color: var(--color-navy);
+  }
+  .icon-button.icon-button-danger {
+    color: var(--color-destructive);
+  }
+  .icon-button.icon-button-danger:hover {
+    color: var(--color-destructive);
+    background-color: color-mix(in srgb, var(--color-destructive) 10%, transparent);
+  }
+}
+
+/*
+ * Pisque do item de menu apontado por um aviso de outra tela.
+ *
+ * Preenchimento azul-claro e contorno azul, para o item saltar sobre o branco da barra.
+ * Já foi âmbar: o pisque não é alerta, é um dedo apontando o caminho, e âmbar na barra lateral
+ * dizia "problema aqui" sobre um item de menu que não tem problema nenhum. Duas repetições: uma
+ * passa despercebida, três viram enfeite.
+ */
+@keyframes piscar-destaque-menu {
+  0%, 100% {
+    background-color: transparent;
+    box-shadow: inset 0 0 0 0 transparent;
+  }
+  50% {
+    background-color: var(--color-brand-soft);
+    box-shadow: inset 0 0 0 1.5px var(--color-brand);
+  }
+}
+
+.animate-destaque-menu {
+  animation: piscar-destaque-menu 1s ease-in-out 2;
+}
+
+/*
+ * Barra lateral — lista de itens que rola (`Sidebar.tsx`).
+ *
+ * A barra de rolagem é a tinta translúcida do resto do app, só mais fina (a barra lateral é
+ * clara desde o "Crachá"; quando era navy, a rolagem aqui precisava ser branca).
+ *
+ * O esmaecido nas pontas é máscara, não sombra por cima: a lista fica transparente perto da
+ * borda de onde ainda há item escondido. Sombra pintada exigiria um pseudo-elemento preso no
+ * topo da caixa que rola; a máscara acompanha a caixa sozinha e não cobre o clique. Os
+ * `data-sombra-*` vêm do componente, que é quem sabe se há conteúdo além da borda.
+ */
+.sidebar-rolagem {
+  --fade-topo: 0px;
+  --fade-base: 0px;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(24 24 27 / 0.16) transparent;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 var(--fade-topo), #000 calc(100% - var(--fade-base)), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 var(--fade-topo), #000 calc(100% - var(--fade-base)), transparent 100%);
+}
+.sidebar-rolagem[data-sombra-topo] { --fade-topo: 20px; }
+.sidebar-rolagem[data-sombra-base] { --fade-base: 28px; }
+.sidebar-rolagem::-webkit-scrollbar { width: 8px; }
+.sidebar-rolagem::-webkit-scrollbar-thumb { background-color: rgb(24 24 27 / 0.14); }
+.sidebar-rolagem::-webkit-scrollbar-thumb:hover { background-color: rgb(24 24 27 / 0.26); }
+/* Recolhida (72px), os 8px da barra de rolagem tiravam os ícones do centro. A roda do mouse e o
+   esmaecido nas pontas continuam dizendo que a lista rola. */
+.sidebar-rolagem[data-recolhida] { scrollbar-width: none; }
+.sidebar-rolagem[data-recolhida]::-webkit-scrollbar { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* Sem piscar, mas o item ainda precisa ser encontrável: fica aceso o tempo todo. */
+  .animate-destaque-menu {
+    animation: none;
+    background-color: var(--color-brand-soft);
+    box-shadow: inset 0 0 0 1.5px var(--color-brand);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * MOVIMENTO DOS CONTROLES — indicador de ordenação, pílula deslizante, seção retrátil e caixa
+ * de marcação.
+ *
+ * Bloco à parte, no fim, para não se misturar com os tokens e as entradas lá de cima: tudo aqui
+ * USA `--duracao-*` e `--curva-saida`, nada redefine. O `prefers-reduced-motion` do topo já zera
+ * estas transições e animações (inclusive nos `::before`); o que roda em JS (a cascata das linhas
+ * e a troca de página, em `animacaoLista.ts`) consulta a preferência por conta própria.
+ *
+ * `transform`/`rotate`/`scale` só em folha — ícone, pílula, o traço da caixa. Nunca em bloco que
+ * possa conter modal: ali um transform retido vira o referencial de todo `position: fixed`.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+
+/*
+ * Indicador de ordenação (`CabecalhoOrdenavel`). Os dois ícones empilhados na mesma célula: o
+ * neutro só aparece no cursor e no foco (o lugar já está reservado), a seta surge crescendo ao
+ * ativar e GIRA ao inverter o sentido.
+ */
+.indicador-ordem {
+  display: inline-grid;
+  flex-shrink: 0;
+}
+.indicador-ordem > * {
+  grid-area: 1 / 1;
+  transition:
+    opacity var(--duracao-rapida) var(--curva-saida),
+    scale var(--duracao-rapida) var(--curva-saida),
+    rotate var(--duracao-media) var(--curva-saida);
+}
+.indicador-ordem-neutro { opacity: 0; }
+.group:is(:hover, :focus-visible) .indicador-ordem[data-ativa="false"] .indicador-ordem-neutro { opacity: 0.6; }
+.indicador-ordem-seta { opacity: 0; scale: 0.6; }
+.indicador-ordem[data-ativa="true"] .indicador-ordem-seta { opacity: 1; scale: 1; }
+.indicador-ordem[data-sentido="desc"] .indicador-ordem-seta { rotate: 180deg; }
+
+/*
+ * Pílula deslizante (`FilterPills`, `Segmentado`). Sem `data-animar` — primeira pintura, largura
+ * que mudou sozinha — ela pula para o lugar; com ele, desliza. Largura e altura andam junto porque
+ * as opções têm tamanhos diferentes e o grupo de filtros pode quebrar linha.
+ */
+.pilula-deslizante { pointer-events: none; }
+.pilula-deslizante[data-animar] {
+  transition:
+    transform var(--duracao-media) var(--curva-saida),
+    width var(--duracao-media) var(--curva-saida),
+    height var(--duracao-media) var(--curva-saida);
+}
+
+/*
+ * Seção retrátil (`Recolhivel`). A trilha da grade vai de `0fr` a `1fr` — a altura "auto" que
+ * `height` não sabe animar — com o conteúdo aparecendo junto. Só a entrada, e só quando a pessoa
+ * abriu (`data-animar`): a seção que nasce aberta não cresce na chegada da tela.
+ * `overflow: hidden` só durante a abertura (`data-abrindo`): parado, cortaria anel de foco e a
+ * lista suspensa que não sai por portal.
+ */
+.recolhivel {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+.recolhivel > .recolhivel-conteudo { min-height: 0; }
+.recolhivel[data-abrindo] > .recolhivel-conteudo { overflow: hidden; }
+.recolhivel[data-animar] {
+  animation: recolhivel-abre var(--duracao-painel) var(--curva-saida) backwards;
+}
+@keyframes recolhivel-abre {
+  from { grid-template-rows: 0fr; opacity: 0; }
+}
+
+/*
+ * Peças vindas do Skiper UI (`src/components/ui/skiper/`), reescritas em CSS puro.
+ *
+ * O original usa 300ms e `framer-motion`; aqui cai na régua do app (160ms, curva de saída) e sem
+ * biblioteca de animação. Todo `transform` mora em pseudo-elemento ou em traço de SVG — folhas —
+ * para não virar bloco de contenção de `position: fixed` (PADRAO_DESIGN 3.3). O movimento reduzido
+ * cai na regra global lá de cima.
+ */
+
+/* Skiper 40 — sublinhado que varre da esquerda ao passar o cursor e recolhe para a direita ao sair. */
+.link-varre { position: relative; }
+.link-varre::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -2px;
+  height: 1px;
+  background-color: currentColor;
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform var(--duracao-media) var(--curva-saida);
+  pointer-events: none;
+}
+.link-varre:is(:hover, :focus-visible)::before { transform: scaleX(1); transform-origin: left; }
+
+/* Skiper 99 (ArrowIcon) — a seta ganha a haste e avança meio passo: "vai para lá". */
+.seta-haste-ponta, .seta-haste-traco {
+  transform-box: fill-box;
+  transition: transform var(--duracao-media) var(--curva-saida);
+}
+.seta-haste-traco { transform-origin: right center; transform: scaleX(0); }
+/* Botão desabilitado ainda recebe `:hover`; a seta não pode prometer um "vai" que o clique não faz. */
+.group:is(:hover, :focus-visible):not(:disabled) .seta-haste-ponta { transform: translateX(1.5px); }
+.group:is(:hover, :focus-visible):not(:disabled) .seta-haste-traco { transform: translateX(1.5px) scaleX(1); }
+
+/*
+ * Bloco de destaque (inspirado no "Apple Feature Block", Skiper 76). A pílula escolhida abre o
+ * texto por `grid-template-rows` 0fr → 1fr — a altura "auto" sem medir nada em JS — e o "+" gira
+ * para "×". O painel do lado troca por opacidade só (`valor-troca`), nunca desliza.
+ */
+.destaque-corpo {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows var(--duracao-painel) var(--curva-saida),
+    opacity var(--duracao-media) var(--curva-saida);
+}
+.destaque-corpo > * { min-height: 0; overflow: hidden; }
+[aria-selected="true"] > .destaque-corpo { grid-template-rows: 1fr; opacity: 1; }
+.destaque-mais { transition: transform var(--duracao-media) var(--curva-saida); }
+[aria-selected="true"] .destaque-mais { transform: rotate(45deg); }
+
+/*
+ * Caixa de marcação — TODAS as do app, pelo seletor, e não por componente.
+ *
+ * O app tem duas dezenas de `<input type="checkbox">` nativos espalhados em formulário, tabela e
+ * menu, cada um com a sua classe (`accent-brand`, `rounded border-input`…). Migrar para um
+ * componente seria mexer em vinte telas para chegar ao mesmo lugar; o seletor chega de uma vez e
+ * o controle continua nativo — teclado, `label`, `indeterminate`, formulário, leitor de tela,
+ * tudo como era. O que muda é o desenho: a caixa enche de azul e o traço se desenha da esquerda
+ * para a direita, em vez do ✓ que o navegador troca seco (e desenha diferente no Chrome, no
+ * Firefox e no Edge).
+ *
+ * Tamanho e borda ficam em `@layer base` para o `h-3.5 w-3.5`, o `rounded` e o `mt-0.5` das
+ * telas continuarem mandando. Já a cor do estado marcado fica FORA de camada, de propósito: metade
+ * das caixas traz `border-input`, e um utilitário venceria a borda azul da caixa marcada.
+ */
+@layer base {
+  input[type="checkbox"] {
+    -webkit-appearance: none;
+    appearance: none;
+    position: relative;
+    flex-shrink: 0;
+    width: 1rem;
+    height: 1rem;
+    border: 1.5px solid color-mix(in srgb, var(--color-navy) 22%, var(--color-border));
+    border-radius: 4px;
+    background-color: var(--color-card);
+    cursor: pointer;
+    transition:
+      background-color var(--duracao-rapida) var(--curva-saida),
+      border-color var(--duracao-rapida) var(--curva-saida);
+  }
+  input[type="checkbox"]:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--color-brand) 60%, var(--color-border));
+  }
+  input[type="checkbox"]:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--color-ring) 70%, transparent);
+    outline-offset: 2px;
+  }
+  input[type="checkbox"]:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+}
+input[type="checkbox"]:checked,
+input[type="checkbox"]:indeterminate {
+  border-color: var(--color-brand);
+  background-color: var(--color-brand);
+}
+/* O traço é uma máscara pintada de branco; o `clip-path` que recua da direita é o "desenho". */
+input[type="checkbox"]::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  background-color: var(--color-primary-foreground);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-7' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-7' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path var(--duracao-rapida) var(--curva-saida);
+}
+input[type="checkbox"]:checked::before {
+  clip-path: inset(0 0 0 0);
+  transition-duration: var(--duracao-media);
+}
+/* Parcial ("selecionar todos" com parte marcada, na folha de ponto): um traço reto no lugar do ✓. */
+input[type="checkbox"]:indeterminate::before {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8h8' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8h8' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E");
+  clip-path: inset(0 0 0 0);
+}

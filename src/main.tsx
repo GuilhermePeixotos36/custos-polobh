@@ -4,6 +4,8 @@ import { RouterProvider } from "react-router-dom";
 import { router } from "@/router";
 import { useAuth } from "@/store/auth";
 import { useEmpresas } from "@/store/empresas";
+// Figtree servida pelo próprio app (design system LSPRO): nada de Google Fonts em tempo de execução.
+import "@fontsource-variable/figtree";
 import "@/index.css";
 import { tentarRecuperarErroDeChunk } from "@/lib/lazyComRecuperacao";
 import { registrarWorker } from "@/lib/notificacoes";
