@@ -28,7 +28,8 @@ import {
   StepperSeparator,
 } from "@/components/ui";
 import { IcBack, IcCheck, IcCopy, IcDoc, IcEye, IcPencil, IcSearch, IcSend, IcSpark, IcCadeado } from "@/components/icons";
-import { CardConversa } from "@/components/CardConversa";
+import { ObservacoesDaTela } from "@/components/ObservacoesDaTela";
+import { focarPendencia } from "@/lib/focoPendencia";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import {
@@ -642,7 +643,11 @@ export function OsForm() {
   ];
   /** Rola até o campo da pendência e o faz latejar. */
   const irParaPendencia = (p: (typeof pendenciasDaOs)[number]) => {
-    if (p.ancora) destacarElemento(idAncoraPendencia(p.ancora), "pendencia");
+    if (!p.ancora) return;
+    // Observação: a conversa mora na gaveta do balão do cabeçalho (24/11/2026) —
+    // o salto a abre e a thread pisca o comentário exato (ver `ObservacoesDaTela`).
+    if (p.observacaoId) focarPendencia({ ancora: p.ancora, observacaoId: p.observacaoId });
+    else destacarElemento(idAncoraPendencia(p.ancora), "pendencia");
   };
   const problemasContratacao = problemasDaContratacao(os.itens, (id) => {
     const l = linhasConsolidadas.find((x) => x.id === id);
@@ -1431,6 +1436,46 @@ export function OsForm() {
     setEditando(false);
   }
 
+  /**
+   * UM PRIMÁRIO POR TELA (24/11/2026). O comando principal de cada fase é a
+   * PASSAGEM DE BASTÃO (enviar à Direção, ao Financeiro, ao Back-office, emitir).
+   * Quando ela existe, "Editar OS" e "Editar cronograma" ficam secundários; em
+   * edição, o primário é o "Salvar" e a passagem fica secundária — salvar vem antes
+   * de passar adiante. Nada muda de lugar nem de regra: só o peso do botão.
+   */
+  const temPassagemDeBastao =
+    !encerradaDoc &&
+    ((podeEditar && fase === "producao" && !!os.id) ||
+      (podeValidarContrato && fase === "direcao") ||
+      (editaFinOs && fase === "financeiro") ||
+      (podeEmitir && fase === "backoffice"));
+  const varianteBastao = editando || editandoCronograma ? "secondary" : "primary";
+
+  /*
+   * MAPA DA TELA DA OS — de cima para baixo, para quem for mexer aqui:
+   *
+   *  cabeçalho (PageShell)   número, selo, legenda, balão de Observações e o MENU
+   *                          (Editar/Revisar/Salvar · nova versão · arquivar · PDF ·
+   *                          contrato · passagem de bastão · devolver)
+   *  barra do projeto        a pasta (FolderTabsBar) com a aba OS acesa
+   *  painel
+   *   1. Etapa da OS         linha do tempo das fases + o que trava a emissão
+   *                          (é a âncora das pendências "da OS": enviar, emitir)
+   *   2. Produção            Ordem de Serviço · Dados do Cliente · Dados do Projeto ·
+   *                          Dados do Fornecedor
+   *   3. Contratação         Detalhamento da Contratação (partes da Produção e do
+   *                          Financeiro, cada uma no seu fieldset)
+   *   4. Execução            Cronograma | Logística | Infraestrutura
+   *   5. Observações Gerais  (o texto que SAI no documento — a conversa da equipe
+   *                          é o balão do cabeçalho, que não sai)
+   *   6. Financeiro          Acertos Financeiros · Dados para Contrato · Resumo dos
+   *                          Custos · Dados Emissão Faturamento · Faturamento e Contrato
+   *   7. Passagem de bastão  repetida no fim do formulário (secundária: o primário
+   *                          é o do cabeçalho, que acompanha a rolagem)
+   *
+   * Cada bloco é um `CardOs` (recolhível, imita a planilha da Pólobh) e cada área
+   * trava os seus campos com `fieldset disabled` conforme a fase.
+   */
   return (
     <FaseDaOsCtx.Provider value={encerradaDoc ? null : fase}>
     <PageShell
@@ -1447,6 +1492,24 @@ export function OsForm() {
       // O segundo cabeçalho do projeto: a OS é uma página interna dele, e sem
       // esta barra quem entrava aqui perdia toda a referência de onde estava.
       subabas={ecCtx.projetoId ? <BarraProjeto projetoId={ecCtx.projetoId} atual="os" /> : undefined}
+      painel
+      // A CONVERSA da OS (pedido de 09/09/2026: quem abre uma OS costuma abrir
+      // por causa do que foi dito nela) é o balão no canto do cabeçalho desde
+      // 24/11/2026 — sempre à vista, sem empurrar os quinze blocos para baixo.
+      // Não sai em documento, e-mail nem planilha. Grava junto com o "Salvar",
+      // como sempre. Sem `ancoraDom`: a âncora da OS (os.id) é também a de
+      // "concluir e enviar", e mora na faixa de etapas — não na gaveta.
+      topAction={
+        <ObservacoesDaTela
+          key={os.id || "nova"}
+          ancora={os.id}
+          contexto={`OS ${os.numero}`}
+          observacoes={os.observacoes}
+          usuarios={usuarios}
+          minhas={pendenciasDoUsuario.filter((x) => x.tipo === "os.observacao" && x.osId === os.id).length}
+          onChange={(observacoes) => setOs((o) => (o ? { ...o, observacoes } : o))}
+        />
+      }
       acoes={
         /*
          * O MENU DA OS, como o da EC (15/09/2026).
@@ -1474,6 +1537,7 @@ export function OsForm() {
           {!editando && (podeEditar || editaFinOs || podeValidarContrato) && !emitida && !encerradaDoc && (
             <Button
               size="sm"
+              variant={temPassagemDeBastao ? "secondary" : "primary"}
               icon={<IcPencil width={15} height={15} />}
               // Travado por outra pessoa: o botão fica desligado com o motivo à
               // mão, em vez de abrir a edição e recusar o salvamento no fim.
@@ -1489,6 +1553,7 @@ export function OsForm() {
           {!editando && !editandoCronograma && emitida && !encerradaDoc && (podeEditar || podeEmitir) && (
             <Button
               size="sm"
+              variant={temPassagemDeBastao ? "secondary" : "primary"}
               icon={<IcPencil width={15} height={15} />}
               disabled={trava.travado}
               title={trava.travado ? trava.aviso : "Ajusta datas, horários e etapas do fornecedor sem gerar nova versão da OS"}
@@ -1612,20 +1677,21 @@ export function OsForm() {
 
           {/* A PASSAGEM DE BASTÃO — o comando principal de cada fase. */}
           {podeEditar && fase === "producao" && os.id && !encerradaDoc && (
-            <Button size="sm" icon={<IcSend width={15} height={15} />} disabled={busy} onClick={() => void enviarDaProducao()}>
+            <Button size="sm" variant={varianteBastao} icon={<IcSend width={15} height={15} />} disabled={busy} onClick={() => void enviarDaProducao()}>
               {validaContrato ? "Enviar OS para Revisão da Direção" : "Enviar OS para Revisão da Coordenação Administrativo-Financeira"}
             </Button>
           )}
           {/* DIREÇÃO DE PRODUÇÃO (11/11/2026): confere os Dados para Contrato da
               OS cultural e passa a OS ao Financeiro. */}
           {podeValidarContrato && fase === "direcao" && !encerradaDoc && (
-            <Button size="sm" icon={<IcCheck width={15} height={15} />} disabled={busy} onClick={() => void validarContrato()}>
+            <Button size="sm" variant={varianteBastao} icon={<IcCheck width={15} height={15} />} disabled={busy} onClick={() => void validarContrato()}>
               Enviar OS para Revisão da Coordenação Administrativo-Financeira
             </Button>
           )}
           {editaFinOs && fase === "financeiro" && !encerradaDoc && (
             <Button
               size="sm"
+              variant={varianteBastao}
               icon={<IcSend width={15} height={15} />}
               disabled={busy}
               onClick={() => void avancarFase("backoffice", {
@@ -1641,7 +1707,7 @@ export function OsForm() {
               Com `oss.editar`, quem monta a OS — a Produção — emitiria o
               documento que a fase acabou de tirar das mãos dela. */}
           {podeEmitir && fase === "backoffice" && !encerradaDoc && (
-            <Button size="sm" icon={<IcCheck width={15} height={15} />} disabled={busy} onClick={() => void emitirOs()}>
+            <Button size="sm" variant={varianteBastao} icon={<IcCheck width={15} height={15} />} disabled={busy} onClick={() => void emitirOs()}>
               Emitir OS
             </Button>
           )}
@@ -1663,9 +1729,12 @@ export function OsForm() {
           defeito) e as pendências que travam a emissão, que levam ao campo. */}
       <section
         aria-label="Etapa da OS"
+        // Âncora das pendências "da OS" (concluir e enviar, a vez de cada fase):
+        // antes era o cartão de conversa, que agora mora na gaveta do cabeçalho.
+        id={os.id ? idAncoraPendencia(os.id) : undefined}
         className={cx(
-          "mb-4 rounded-card border px-4 pt-4 pb-3 shadow-card",
-          emitida ? "border-success/40 bg-success-soft/40" : "border-border-soft bg-surface"
+          "mb-4 rounded-lg border px-4 pt-4 pb-3",
+          emitida ? "border-success/40 bg-success-soft/40" : "border-border bg-card"
         )}
       >
         <Stepper value={encerradaDoc ? -1 : fasesDoCaminho(validaContrato).indexOf(fase)}>
@@ -1708,20 +1777,6 @@ export function OsForm() {
       </section>
 
       <div className="space-y-4">
-        {/* A CONVERSA vem primeiro (pedido de 09/09/2026), e com o mesmo rótulo
-            da EC: quem abre uma OS costuma abrir por causa do que foi dito nela
-            — "o fornecedor mudou o valor", "falta o Pix" —, e no fim da tela
-            isso ficava atrás de quinze blocos. Não sai em documento, e-mail nem
-            planilha: é o corredor da equipe. */}
-        <CardConversa
-          ancora={os.id}
-          ancoraDom={idAncoraPendencia(os.id)}
-          observacoes={os.observacoes}
-          usuarios={usuarios}
-          minhas={pendenciasDoUsuario.filter((x) => x.tipo === "os.observacao" && x.osId === os.id).length}
-          onChange={(observacoes) => setOs((o) => (o ? { ...o, observacoes } : o))}
-        />
-
         {/* OS BLOCOS DA PRODUÇÃO ficam em leitura assim que a OS passa adiante.
             `fieldset disabled` trava input, select, textarea e botão de uma vez,
             sem cada campo precisar saber da fase — o mesmo recurso da aba Dados
@@ -2767,7 +2822,9 @@ export function OsForm() {
         </fieldset>
 
 
-        {/* OS BOTÕES QUE PASSAM O BASTÃO, no FIM do formulário (12/11/2026). A
+        {/* OS BOTÕES QUE PASSAM O BASTÃO, no FIM do formulário (12/11/2026) —
+            secundários desde 24/11/2026: o primário é o mesmo comando no
+            cabeçalho, que gruda e está sempre à vista (um primário por tela). A
             Produção preenche a OS inteira — inclusive os blocos do Financeiro,
             para quem os vê —, então o comando fica depois do último bloco. O
             caminho não mudou: na OS cultural com contrato vai para a Direção de
@@ -2775,14 +2832,14 @@ export function OsForm() {
             Financeira. Fora dos fieldsets, que travam tudo em leitura. */}
         {podeEditar && fase === "producao" && os.id && !encerradaDoc && (
           <div className="flex justify-end">
-            <Button icon={<IcSend width={15} height={15} />} disabled={busy} onClick={() => void enviarDaProducao()}>
+            <Button variant="secondary" icon={<IcSend width={15} height={15} />} disabled={busy} onClick={() => void enviarDaProducao()}>
               {validaContrato ? "Enviar OS para Revisão da Direção" : "Enviar OS para Revisão da Coordenação Administrativo-Financeira"}
             </Button>
           </div>
         )}
         {podeValidarContrato && fase === "direcao" && !encerradaDoc && (
           <div className="flex justify-end">
-            <Button icon={<IcCheck width={15} height={15} />} disabled={busy} onClick={() => void validarContrato()}>
+            <Button variant="secondary" icon={<IcCheck width={15} height={15} />} disabled={busy} onClick={() => void validarContrato()}>
               Enviar OS para Revisão da Coordenação Administrativo-Financeira
             </Button>
           </div>
@@ -2795,6 +2852,7 @@ export function OsForm() {
         {editaFinOs && fase === "financeiro" && (
           <div className="flex justify-end">
             <Button
+              variant="secondary"
               icon={<IcSend width={15} height={15} />}
               disabled={busy}
               onClick={() => void avancarFase("backoffice", {
@@ -3054,7 +3112,8 @@ function CardOs({
   const fase = useContext(FaseDaOsCtx);
   const destaque = area && fase && vezDoBloco(area, fase).vez ? DESTAQUE_AREA[area] : null;
   return (
-    <div className={cx("bg-surface border border-border rounded-card shadow-card overflow-hidden [&_input:not([type=checkbox]):not([type=radio])]:h-8! [&_select]:h-8! [&_input]:py-0! [&_select]:py-0!", className, destaque?.borda)}>
+    // Dentro do painel da aba: fio de borda, sem sombra (o painel já é a superfície).
+    <div className={cx("bg-card border border-border rounded-card overflow-hidden [&_input:not([type=checkbox]):not([type=radio])]:h-8! [&_select]:h-8! [&_input]:py-0! [&_select]:py-0!", className, destaque?.borda)}>
       <div className={cx(destaque ? destaque.faixa : "bg-[#C0C0C0]", "px-4 py-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1")}>
         {/* NÃO é um <button> (28/10/2026): os blocos de outra área ficam dentro
             de um `fieldset disabled` (leitura), que desliga todo botão lá

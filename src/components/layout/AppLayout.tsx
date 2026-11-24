@@ -22,6 +22,7 @@ import { TourOverlay } from "@/tour/TourOverlay";
 import { PainelSuporte } from "@/components/suporte/PainelSuporte";
 import { ConviteAvisos } from "@/components/ConviteAvisos";
 import { cx } from "@/lib/format";
+import { FolderPanel } from "@/components/padrao/FolderTabs";
 import { useVersaoDoApp } from "@/hooks/useVersaoDoApp";
 
 /**
@@ -156,6 +157,21 @@ export function AppLayout() {
  * A altura real é publicada em `--altura-cabecalho`: outros elementos grudados
  * dentro da página (a barra de seleção de itens da EC, por exemplo) se
  * posicionam abaixo dela sem chutar medida.
+ *
+ * SUB-ABAS NO FORMATO DO DESIGN SYSTEM (24/11/2026). As subguias eram um
+ * sublinhado solto no fim do cabeçalho, e o conteúdo de cada aba ficava em
+ * cartões no cinza da página — não se via a que aba aquilo pertencia ("dentro da
+ * OS, por que as subabas não estão naquele formato subaba que a gente está usando
+ * dentro do design system?"). Agora é a pasta do padrão: `subabas` traz a
+ * `FolderTabsBar` (a aba ativa é branca) e o conteúdo da tela entra, sozinho, num
+ * `FolderPanel` logo abaixo — a superfície branca em que a aba emenda. Por isso o
+ * cabeçalho perde a margem de baixo quando há sub-abas: um vão de 16px separaria a
+ * aba do papel dela.
+ *
+ * `subabasDoPainel` é o SEGUNDO nível (as vistas de um documento: Itens da EC ·
+ * Resumo dos Custos · Rentabilidade). Ela mora no alto do painel, no branco, e
+ * gruda junto com o cabeçalho — trocar de vista no meio de uma EC longa não pode
+ * obrigar a voltar ao topo, que era o motivo de as subguias grudarem.
  */
 export function PageShell({
   breadcrumb,
@@ -166,6 +182,9 @@ export function PageShell({
   topAction,
   acoes,
   subabas,
+  subabasDoPainel,
+  painelSemRecuo = false,
+  painel = false,
   children,
 }: {
   breadcrumb?: ReactNode;
@@ -177,10 +196,22 @@ export function PageShell({
   topAction?: ReactNode;
   /** Fileira de ações da página — gruda junto com o título. */
   acoes?: ReactNode;
-  /** Barra de subguias da tela (`<SubGuias />`) — gruda logo abaixo das ações. */
+  /** Barra de sub-abas da tela (`FolderTabsBar`) — gruda logo abaixo das ações. */
   subabas?: ReactNode;
+  /** Sub-abas de segundo nível (`FolderTabs`), no alto do painel — grudam junto. */
+  subabasDoPainel?: ReactNode;
+  /** O conteúdo das abas já traz o próprio respiro (seções com tabela de ponta a ponta). */
+  painelSemRecuo?: boolean;
+  /**
+   * O conteúdo mora num painel branco mesmo sem nenhuma aba — a EC avulsa (sem
+   * projeto e sem as vistas do financeiro) usa as mesmas seções da EC de projeto,
+   * e seções soltas no cinza da página não teriam superfície.
+   */
+  painel?: boolean;
   children: ReactNode;
 }) {
+  const comAbas = !!(subabas || subabasDoPainel);
+  const emPasta = comAbas || painel;
   const medirCabecalho = useCallback((node: HTMLDivElement | null) => {
     observadorCabecalho?.disconnect();
     observadorCabecalho = null;
@@ -212,12 +243,12 @@ export function PageShell({
       <div
         ref={medirCabecalho}
         className={cx(
-          "cabecalho-pagina md:sticky top-(--altura-topnav) z-20 -mx-(--gutter) px-(--gutter) pt-4 mb-4",
+          "cabecalho-pagina md:sticky top-(--altura-topnav) z-20 -mx-(--gutter) px-(--gutter) pt-4",
           // Fundo da página quase cheio: o conteúdo que passa por baixo não atravessa o título.
           "bg-background/95 backdrop-blur-[6px]",
-          // Quem fecha o bloco embaixo é o fio da barra de subguias, quando ela
-          // existe: dois fios colados viravam uma faixa dupla.
-          subabas ? "pb-0" : "pb-3 border-b border-border"
+          // Com sub-abas, quem fecha o bloco embaixo é a própria pasta (a aba
+          // emenda no painel): sem fio e sem margem. Sem elas, o fio de sempre.
+          comAbas ? "pb-0 mb-0" : "pb-3 mb-4 border-b border-border"
         )}
       >
         {breadcrumb && (
@@ -243,13 +274,30 @@ export function PageShell({
           </div>
         </div>
         {acoes && <div className="mt-3 flex items-center justify-between gap-3 flex-wrap">{acoes}</div>}
-        {/* Sangra até as bordas para o fio virar a base do cabeçalho inteiro, e
-            rola na horizontal quando as guias não cabem na largura da tela. */}
-        {subabas && (
-          <div data-tour="subguias" className="mt-3 -mx-(--gutter) px-(--gutter) border-b border-border overflow-x-auto">{subabas}</div>
+        {/* A pasta: a barra de abas e, logo abaixo, o alto do painel com as
+            vistas do documento. A rolagem horizontal das abas é da própria
+            fileira (setas `<` `>`), não deste contêiner. */}
+        {comAbas && (
+          <div data-tour="subguias" className="mt-3">
+            {subabas}
+            {subabasDoPainel && (
+              <div className={cx("border-x border-border bg-card px-4 pt-3", !subabas && "rounded-t-xl border-t")}>
+                {subabasDoPainel}
+              </div>
+            )}
+          </div>
         )}
       </div>
-      {children}
+      {emPasta ? (
+        <FolderPanel
+          semRecuo={painelSemRecuo}
+          className={cx(!!subabasDoPainel && "rounded-t-none", !comAbas && "rounded-t-xl border-t", painelSemRecuo && "overflow-visible")}
+        >
+          {children}
+        </FolderPanel>
+      ) : (
+        children
+      )}
       {/* Espaço para a PÍLULA DE PENDÊNCIAS (15/09/2026).
           Ela é fixa no canto inferior direito e tapava a última linha do que
           estivesse embaixo — a queixa veio do Resumo de Custos, onde o que ficava

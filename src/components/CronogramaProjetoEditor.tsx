@@ -292,7 +292,7 @@ export function CronogramaProjetoEditor({
 
         <DragOverlay dropAnimation={{ duration: 200, easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)" }}>
           {faixaAtiva ? (
-            <div className="rounded-btn border-2 border-primary bg-white shadow-(--sombra-flutuante) px-3 py-2 opacity-90 rotate-1 flex items-center gap-2">
+            <div className="rounded-btn border-2 border-primary bg-card shadow-(--sombra-flutuante) px-3 py-2 opacity-90 rotate-1 flex items-center gap-2">
               <IcGrip width={18} height={18} className="text-primary" />
               <span className="text-sm font-bold text-ink">
                 {dataBR(faixaAtiva.data) || "Nova data"}
@@ -300,7 +300,7 @@ export function CronogramaProjetoEditor({
               </span>
             </div>
           ) : blocoAtivo ? (
-            <div className="rounded-card border-2 border-primary bg-white shadow-(--sombra-flutuante) px-3 py-3 opacity-90 rotate-1 flex items-center gap-2">
+            <div className="rounded-card border-2 border-primary bg-card shadow-(--sombra-flutuante) px-3 py-3 opacity-90 rotate-1 flex items-center gap-2">
               <IcGrip width={20} height={20} className="text-primary" />
               <span className="text-base font-bold text-ink">{blocoAtivo.titulo}</span>
               <span className="text-xs font-bold text-ink-3 bg-muted rounded-pill px-2 py-0.5">
@@ -363,7 +363,8 @@ function BlocoCard({
       id={idBlocoCronograma(bloco.id)}
       aria-labelledby={`cronograma-${bloco.id}`}
       className={cx(
-        "rounded-btn border p-3 sm:p-4 bg-white",
+        // Bloco dentro da seção do painel: fio de borda e fundo do próprio painel — sem cartão por cima de cartão.
+        "rounded-md border p-3 sm:p-4 bg-card",
         sortable.isDragging ? "opacity-40 border-border" : "border-border-soft",
         droppable.isOver && !sortable.isDragging && "ring-2 ring-primary/40 border-primary"
       )}
@@ -385,6 +386,12 @@ function BlocoCard({
             {bloco.titulo}
             {bloco.etapa === "evento" && <MarcaObrigatorio title="Informe ao menos uma data do evento" />}
           </h3>
+        ) : null}
+        {etapaPadrao ? (
+          // Quantas datas o bloco tem, à vista: com o bloco oculto, é a única pista do que ele guarda.
+          <span className="text-2xs font-semibold text-muted-foreground tabular-nums">
+            {bloco.faixas.length} {bloco.faixas.length === 1 ? "data" : "datas"}{oculto ? " · oculto" : ""}
+          </span>
         ) : (
           <Input
             className="h-9! text-sm! font-bold! max-w-xs"
@@ -420,7 +427,9 @@ function BlocoCard({
               onClick={onRemoverBloco}
             />
           )}
-          <Button type="button" variant="soft" size="sm" icon={<IcPlus width={15} height={15} />} onClick={onAddFaixa}>
+          {/* Texto, não laranja (24/11/2026): um "Adicionar data" em cada bloco era
+              uma fileira de botões coloridos competindo com o primário da tela. */}
+          <Button type="button" variant="text" size="sm" icon={<IcPlus width={15} height={15} />} onClick={onAddFaixa}>
             Adicionar data
           </Button>
         </div>

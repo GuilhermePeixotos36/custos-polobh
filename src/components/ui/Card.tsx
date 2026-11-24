@@ -17,7 +17,9 @@ export function Card({
     <div
       data-tour={marcaTour}
       className={cx(
-        "bg-card border border-border rounded-xl shadow-(--sombra-superficie)",
+        // `superficie-card`: marca para o painel da aba tirar a sombra (e dissolver o cartão
+        // que é a aba inteira) — ver `.painel-pasta` em styles/padrao-lspro.css.
+        "superficie-card bg-card border border-border rounded-xl shadow-(--sombra-superficie)",
         padded && "p-5 md:p-6",
         className
       )}

@@ -10,10 +10,15 @@
  * comentar não é editar a estimativa. Uma mensagem não entra na trava de edição
  * de quem está mexendo nos custos, e um formulário aberto há meia hora não
  * sobrescreve o que foi dito nesse meio tempo.
+ *
+ * Desde 24/11/2026 ela é o balão de Observações no canto do cabeçalho da EC (ver
+ * `ObservacoesDaTela`), e não mais um cartão no alto das três vistas: a conversa
+ * continua uma só para Itens, Resumo e Rentabilidade, sem empurrar a lista.
  */
 import { useEffect, useState } from "react";
-import { CardConversa } from "@/components/CardConversa";
+import { ObservacoesDaTela } from "@/components/ObservacoesDaTela";
 import { repo } from "@/data";
+import { idAncoraPendencia } from "@/lib/destaque";
 import { toast } from "@/store/toast";
 import { usePendencias, useMinhasPendencias } from "@/store/pendencias";
 import { ancoraObservacoesGeraisEc } from "@/domain/pendencias";
@@ -50,8 +55,11 @@ export function ObservacoesGeraisEc({
   }
 
   return (
-    <CardConversa
+    <ObservacoesDaTela
       ancora={ancoraObservacoesGeraisEc(ecId)}
+      // A pendência da conversa geral aponta para ela mesma: a pílula abre a gaveta.
+      ancoraDom={idAncoraPendencia(ancoraObservacoesGeraisEc(ecId))}
+      contexto="Conversa geral da EC"
       observacoes={lista}
       usuarios={usuarios}
       minhas={minhas}

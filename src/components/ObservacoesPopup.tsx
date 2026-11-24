@@ -46,6 +46,12 @@ interface Props {
    * comentário exato — ver `focoPendencia`.
    */
   ancora?: string;
+  /**
+   * A lista nasce aberta. Na gaveta de Observações da tela (ver `ObservacoesDaTela`) a conversa
+   * É o conteúdo: quem abriu a gaveta veio ler, e uma seta a mais para ver o que foi dito seria
+   * um clique sem motivo. Nos itens (EC, check-list) segue retraída, para a lista caber.
+   */
+  abertaDeInicio?: boolean;
 }
 
 const novoId = () => globalThis.crypto?.randomUUID?.() ?? `obs-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -88,10 +94,10 @@ type ComporState =
   | { modo: "responder"; id: string }
   | null;
 
-export function ObservacoesThread({ observacoes, usuarios, onChange, className, ancora, anexos }: Props) {
+export function ObservacoesThread({ observacoes, usuarios, onChange, className, ancora, anexos, abertaDeInicio = false }: Props) {
   const usuarioAtual = useAuth((s) => s.usuario);
   const nomeAtual = usuarioAtual?.nome ?? "";
-  const [aberto, setAberto] = useState(false);
+  const [aberto, setAberto] = useState(abertaDeInicio);
   const [compor, setCompor] = useState<ComporState>(null);
 
   /**

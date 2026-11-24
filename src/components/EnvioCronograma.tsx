@@ -5,11 +5,15 @@
  * padrão da Pólobh já escrito — o envio é de quem aperta "enviar" no
  * aplicativo. Não há e-mail a fornecedor (23/11/2026): o sistema não manda a
  * OS, nem o cronograma, por e-mail.
+ *
+ * É uma SEÇÃO do painel da aba Cronograma (24/11/2026), logo abaixo da linha do
+ * tempo — não mais um segundo cartão empilhado embaixo do primeiro.
  */
 import { useMemo } from "react";
 import {
-  Button, Card, CardTitle, Table, THead, Th, Tr, Td, EmptyState, Badge,
+  Button, Table, THead, Th, Tr, Td, EmptyState, Badge,
 } from "@/components/ui";
+import { SecaoPainel } from "@/components/padrao/SecaoPainel";
 import { textoWhatsAppCronograma } from "@/lib/email/templates";
 import { idAncoraPendencia } from "@/lib/destaque";
 import { ancoraCronogramaOs } from "@/domain/pendencias";
@@ -34,23 +38,21 @@ export function EnvioCronograma({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
 
   if (!fila.length) {
     return (
-      <Card>
-        <CardTitle>Envio dos cronogramas</CardTitle>
+      <SecaoPainel titulo="Envio dos cronogramas">
         <EmptyState
           title="Nenhuma OS neste projeto"
           hint="O cronograma enviado é o da OS de cada fornecedor. Emita as OSs na aba EC."
         />
-      </Card>
+      </SecaoPainel>
     );
   }
 
   return (
-    <Card padded={false}>
-      <div className="p-5 pb-3">
-        <CardTitle hint="Cada fornecedor recebe pelo WhatsApp o cronograma da OS dele — texto padrão da Pólobh com as etapas, datas e horários">
-          Envio dos cronogramas
-        </CardTitle>
-      </div>
+    <SecaoPainel
+      sangrado
+      titulo="Envio dos cronogramas"
+      descricao="Cada fornecedor recebe pelo WhatsApp o cronograma da OS dele — texto padrão da Pólobh com as etapas, datas e horários"
+    >
 
       <Table>
         <THead>
@@ -62,8 +64,8 @@ export function EnvioCronograma({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
         <tbody>
           {fila.map((f) => (
             <Tr key={f.os.id} id={idAncoraPendencia(ancoraCronogramaOs(f.os.id))}>
-              <Td className="font-bold text-ink">{f.fornecedor}</Td>
-              <Td className="text-xs text-ink-2">{f.os.numero}</Td>
+              <Td className="font-bold text-foreground">{f.fornecedor}</Td>
+              <Td className="text-xs text-muted-foreground">{f.os.numero}</Td>
               <Td>
                 {f.etapas ? (
                   <Badge tom="success">{f.etapas} etapa(s)</Badge>
@@ -91,6 +93,6 @@ export function EnvioCronograma({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
           ))}
         </tbody>
       </Table>
-    </Card>
+    </SecaoPainel>
   );
 }

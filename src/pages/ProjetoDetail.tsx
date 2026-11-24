@@ -7,11 +7,11 @@ import { PageShell } from "@/components/layout/AppLayout";
 import { BarraProjeto } from "@/components/layout/BarraSecao";
 import { NAV_PROJETO } from "@/components/layout/nav";
 import {
-  Card, CardTitle, Button, Field, Input, Label, TelefoneInput, Select, Badge,
+  Card, Button, Field, Input, Label, TelefoneInput, Select, Badge,
   Table, THead, Tr, Td, EmptyState, ThOrd, useOrdenacao, type Tom,
   CarregandoTela,
 } from "@/components/ui";
-import { IcPlus, IcBack, IcDownload, IcSearch, IcTrash, IcEye, IcEyeOff, IcDoc, IcCopy, IcCalendar, IcPencil } from "@/components/icons";
+import { IcPlus, IcBack, IcDownload, IcSearch, IcTrash, IcEye, IcEyeOff, IcDoc, IcCopy, IcPencil } from "@/components/icons";
 import { RichTextField } from "@/components/RichTextField";
 import { InscricaoMunicipalInput } from "@/components/InscricaoMunicipalInput";
 import { TextosJaUsados } from "@/components/TextosJaUsados";
@@ -57,7 +57,12 @@ import { ABAS_COM_CONVERSA } from "@/data/types";
 import { nomeCurtoFornecedor } from "@/domain/fornecedor";
 import type { AbaComConversa, Cliente, Ec, Observacao, Projeto, ProjetoInfo, StatusProjeto } from "@/data/types";
 import { ancoraConversaAba, ancoraProjetoSemEc, ancoraProjetoSemPastaDropbox, pendenciasDaTela, type Pendencia } from "@/domain/pendencias";
-import { CardConversa } from "@/components/CardConversa";
+import { ObservacoesDaTela } from "@/components/ObservacoesDaTela";
+import { CabecalhoSecao, SecaoPainel } from "@/components/padrao/SecaoPainel";
+import { AvisoEmLinha } from "@/components/padrao/AvisoEmLinha";
+import { JanelaModal } from "@/components/padrao/JanelaModal";
+import { CabecalhoJanela } from "@/components/padrao/CabecalhoJanela";
+import { Selo } from "@/components/padrao/Selo";
 import { ancoraFornecedorUtil } from "@/domain/dadosUteis";
 import { situacaoEc, ROTULO_SITUACAO_EC } from "@/domain/ec";
 import { osIncentivada } from "@/domain/os";
@@ -698,6 +703,16 @@ export function ProjetoDetail() {
     }
   }
 
+  /**
+   * O LEMBRETE QUE SUBSTITUI O "CONCLUÍDO" (15/09/2026). O selo saiu porque
+   * encerrava as pendências sozinho na virada da data do evento — e é justamente
+   * aí que sobram nota, acerto e pagamento. Só que sem ele o projeto ficaria ativo
+   * para sempre. Então o sistema lembra, e quem decide é quem sabe se ainda falta
+   * alguma coisa.
+   */
+  const lembrarDeArquivar =
+    !novo && diasDesdeOEvento !== null && diasDesdeOEvento >= 7 && statusExibido === "Ativo" && podeEditarProjeto;
+
   if (loading) return <PageShell title="Carregando…">{null}</PageShell>;
   if (!novo && !existente) return <PageShell title="Projeto não encontrado">{null}</PageShell>;
 
@@ -791,6 +806,27 @@ export function ProjetoDetail() {
       title={novo ? "Novo projeto" : p.nome || "Projeto"}
       titleAdornment={!novo ? <Badge tom={tomStatusProjeto[statusExibido]}>{statusExibido}</Badge> : undefined}
       legenda={!novo ? <LegendaProjeto info={p.info} /> : undefined}
+      // A CONVERSA DA ABA (24/11/2026) — o balão no canto do cabeçalho, e não
+      // mais um cartão no topo de cada aba. Quais abas têm uma está em
+      // `ABAS_COM_CONVERSA` (Dados Gerais, Check-list, Cronograma, Credenciamento,
+      // Fornecedores; EC e OS conversam DENTRO do documento). A `key` por aba faz
+      // a gaveta nascer de novo ao trocar de aba — e já aberta quando o sininho
+      // deixou um salto para a conversa da aba nova.
+      topAction={!novo && (ABAS_COM_CONVERSA as readonly string[]).includes(aba) ? (
+        <ObservacoesDaTela
+          key={ancoraConversaAba(id, aba)}
+          ancora={ancoraConversaAba(id, aba)}
+          ancoraDom={idAncoraPendencia(ancoraConversaAba(id, aba))}
+          contexto={`Conversa da aba ${ABAS.find((a) => a.key === aba)?.label ?? ""}`}
+          observacoes={p.conversas?.[aba as AbaComConversa] ?? []}
+          usuarios={nomesUsuarios}
+          minhas={minhasPendencias.filter((x) => x.tipo === "projeto.conversa" && x.projetoId === id && x.aba === aba).length}
+          onChange={(observacoes) => gravarConversa(aba as AbaComConversa, observacoes)}
+        />
+      ) : undefined}
+      // As seções de cada aba trazem o próprio respiro: as tabelas vão de ponta a
+      // ponta do painel, sem outro cartão em volta.
+      painelSemRecuo
       // Grudam junto com o título (ver PageShell): o projeto é uma tela longa, e
       // era preciso voltar ao topo só para salvar.
       acoes={
@@ -799,7 +835,10 @@ export function ProjetoDetail() {
             <IcBack width={16} height={16} /> Voltar
           </button>
           {(aba === "dados" || novo) && podeEditarProjeto && (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {/* "Modo leitura" (15/09/2026) era uma faixa inteira no alto da aba
+                  para dizer o que o botão ao lado já diz; virou um selo aqui. */}
+              {!novo && !editando && <Selo tom="cinza">Modo leitura</Selo>}
               {!novo && statusExibido !== "Arquivado" && !editando && (
                 <Button variant="secondary" size="sm" onClick={arquivarProjeto}>Arquivar projeto</Button>
               )}
@@ -851,43 +890,29 @@ export function ProjetoDetail() {
         />
       }
     >
-      {/* A CONVERSA DA ABA — o corredor da etapa, no topo dela.
-          Quais abas têm uma está em `ABAS_COM_CONVERSA`, e a lista mudou em
-          15/09/2026: Dados Gerais e Check-list entraram (o recado da etapa ia
-          parar no campo de texto mais próximo), EC e OS saíram (ali a conversa
-          mora DENTRO do documento — no corredor da listagem era uma terceira
-          caixa de texto para o mesmo assunto). */}
-      {!novo && (ABAS_COM_CONVERSA as readonly string[]).includes(aba) && (
-        <div className="mb-4">
-          <CardConversa
-            ancora={ancoraConversaAba(id, aba)}
-            ancoraDom={idAncoraPendencia(ancoraConversaAba(id, aba))}
-            observacoes={p.conversas?.[aba as AbaComConversa] ?? []}
-            usuarios={nomesUsuarios}
-            minhas={minhasPendencias.filter((x) => x.tipo === "projeto.conversa" && x.projetoId === id && x.aba === aba).length}
-            onChange={(observacoes) => gravarConversa(aba as AbaComConversa, observacoes)}
-          />
-        </div>
-      )}
-
       {/* O LEMBRETE QUE SUBSTITUI O "CONCLUÍDO" (15/09/2026).
           O selo saiu porque encerrava as pendências sozinho na virada da data
           do evento — e é justamente aí que sobram nota, acerto e pagamento. Só
           que sem ele o projeto ficaria ativo para sempre. Então o sistema
           lembra, e quem decide é quem sabe se ainda falta alguma coisa. */}
-      {!novo && aba === "dados" && diasDesdeOEvento !== null && diasDesdeOEvento >= 7 && statusExibido === "Ativo" && podeEditarProjeto && (
-        <div className="mb-4 flex items-center gap-3 flex-wrap rounded-card border border-warning/40 bg-warning-soft px-4 py-3 text-sm text-ink">
-          <span>
-            O evento terminou há <b>{diasDesdeOEvento} dias</b> e o projeto continua ativo — ele segue cobrando
-            pendências da equipe. Se não há mais nota, acerto ou pagamento em aberto, arquive-o.
-          </span>
-          <Button size="sm" variant="secondary" className="ml-auto" onClick={arquivarProjeto}>
-            Arquivar projeto
-          </Button>
+      {aba === "dados" && (lembrarDeArquivar || !!trava.aviso) && (
+        <div className="space-y-3 px-5 pt-5 pb-1">
+          {lembrarDeArquivar && (
+            <AvisoEmLinha tom="atencao">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span className="text-sm">
+                  O evento terminou há <b>{diasDesdeOEvento} dias</b> e o projeto continua ativo — ele segue cobrando
+                  pendências da equipe. Se não há mais nota, acerto ou pagamento em aberto, arquive-o.
+                </span>
+                <Button size="sm" variant="secondary" onClick={arquivarProjeto}>
+                  Arquivar projeto
+                </Button>
+              </div>
+            </AvisoEmLinha>
+          )}
+          <AvisoTravaEdicao trava={trava} className="mb-0" />
         </div>
       )}
-
-      {aba === "dados" && <AvisoTravaEdicao trava={trava} />}
 
       {aba === "dados" && (
         /*
@@ -898,25 +923,18 @@ export function ProjetoDetail() {
          */
         <fieldset
           disabled={!editando}
-          className={cx("space-y-4 min-w-0", !editando && "[&_button:disabled]:opacity-50 [&_button:disabled]:cursor-default")}
+          className={cx("min-w-0", !editando && "[&_button:disabled]:opacity-50 [&_button:disabled]:cursor-default")}
         >
-          {!editando && podeEditarProjeto && (
-            <div className="flex items-center gap-2 rounded-card border border-border-soft bg-muted/40 px-4 py-2.5 text-xs text-ink-2">
-              <IcEye width={15} height={15} className="shrink-0 text-ink-3" />
-              {/* Só "Modo leitura" (15/09/2026): a explicação de três linhas
-                  dizia, toda vez, o que o botão ao lado já diz — e o que
-                  acontece com EC e OS emitidas agora é dito na hora certa, no
-                  alerta que aparece ao salvar. */}
-              <span>Modo leitura</span>
-            </div>
-          )}
-          <Card data-tour="projeto-cliente">
-              <CardTitle action={
-                <Button variant="soft" size="sm" icon={<IcSearch width={15} height={15} />} onClick={() => consultarCnpjCliente()} disabled={cnpjLoading || !flags.consultaCnpj}>
-                  {cnpjLoading ? "Consultando…" : "Consultar CNPJ"}
-                </Button>
-              }>Cliente</CardTitle>
-              {cnpjMsg && <div className="mb-3 text-xs text-info bg-info-soft rounded-btn px-3 py-2">{cnpjMsg}</div>}
+          <SecaoPainel
+            data-tour="projeto-cliente"
+            titulo="Cliente"
+            acoes={
+              <Button variant="secondary" size="sm" icon={<IcSearch width={15} height={15} />} onClick={() => consultarCnpjCliente()} disabled={cnpjLoading || !flags.consultaCnpj}>
+                {cnpjLoading ? "Consultando…" : "Consultar CNPJ"}
+              </Button>
+            }
+          >
+              {cnpjMsg && <AvisoEmLinha tom="info" className="mb-3">{cnpjMsg}</AvisoEmLinha>}
               <div className="grid sm:grid-cols-2 gap-4">
                 <Field label="CNPJ/CPF" obrigatorio>
                   <div className="relative">
@@ -997,10 +1015,9 @@ export function ProjetoDetail() {
                 <Field label="Telefone do representante"><TelefoneInput value={p.cliente.representante.telefones} onChange={(v) => updCli({ representante: { ...p.cliente.representante, telefones: v } })} /></Field>
                 <Field label="E-mail do representante"><Input type="email" sugestoes={sugestoes.valores.representanteEmail} value={p.cliente.representante.email} onChange={(e) => updCli({ representante: { ...p.cliente.representante, email: e.target.value } })} /></Field>
               </div>
-          </Card>
+          </SecaoPainel>
 
-          <Card>
-            <CardTitle>Informações do projeto</CardTitle>
+          <SecaoPainel titulo="Informações do projeto">
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <Field label="Cliente (apelido)" obrigatorio><Input erro={chavesComErro.has("clienteAbreviado")} sugestoes={sugestoes.valores.clienteApelido} value={p.info.clienteAbreviado} onChange={(e) => updTituloParte({ clienteAbreviado: e.target.value })} placeholder="Ex.: ACME" /></Field>
               <Field label="Nome do projeto" obrigatorio><Input formato="titulo" erro={chavesComErro.has("nomeProjeto")} sugestoes={sugestoes.valores.nomeProjeto} value={p.info.nomeProjeto} onChange={(e) => updTituloParte({ nomeProjeto: e.target.value })} /></Field>
@@ -1072,26 +1089,26 @@ export function ProjetoDetail() {
                 </>
               )}
             </div>
-          </Card>
+          </SecaoPainel>
 
-          <Card>
-            <CardTitle hint="Cada bloco pode ter uma ou mais datas, com horários de início e fim. Arraste pela alça para reordenar blocos e datas (inclusive movendo uma data para outro bloco); as setas movem a data uma posição por vez dentro do bloco.">
-              Cronograma
-            </CardTitle>
+          <SecaoPainel
+            titulo="Cronograma"
+            descricao="Cada bloco pode ter uma ou mais datas, com horários de início e fim. Arraste pela alça para reordenar blocos e datas (inclusive movendo uma data para outro bloco); as setas movem a data uma posição por vez dentro do bloco."
+          >
             <CronogramaProjetoEditor
               info={p.info}
               onChange={updInfo}
               eventoComErro={chavesComErro.has("cronogramaEvento")}
             />
-          </Card>
+          </SecaoPainel>
 
-          <Card>
-            <CardTitle
-              hint="Os textos aceitam parágrafos, negrito e listas. A revisão ortográfica é aplicada ao salvar."
-              action={
+          <SecaoPainel
+            titulo="Roteiro"
+            descricao="Os textos aceitam parágrafos, negrito e listas. A revisão ortográfica é aplicada ao salvar."
+            acoes={
                 <Button
                   type="button"
-                  variant="soft"
+                  variant="secondary"
                   size="sm"
                   icon={<IcPlus width={15} height={15} />}
                   onClick={() => {
@@ -1103,8 +1120,8 @@ export function ProjetoDetail() {
                 >
                   Adicionar item
                 </Button>
-              }
-            >Roteiro</CardTitle>
+            }
+          >
             <ListaArrastavel
               ids={p.info.roteiroOrdem}
               onReordenar={(ordem) => updInfo({ roteiroOrdem: ordem })}
@@ -1169,24 +1186,19 @@ export function ProjetoDetail() {
                 );
               })}
             </ListaArrastavel>
-          </Card>
+          </SecaoPainel>
         </fieldset>
       )}
 
       {aba === "ec" && (
         <Card padded={false}>
-          <div
-            id={idAncoraPendencia(ancoraProjetoSemEc(id))}
-            className="p-5 flex items-center justify-between gap-3 flex-wrap"
-          >
-            <CardTitle hint="Estimativas de custo deste projeto (incluindo versões)">
-              <span className="inline-flex items-center gap-2">
-                Estimativas (EC)
-                <NotifDot inline n={pendenciaSemEc} title="Este projeto ainda não tem estimativa" />
-              </span>
-            </CardTitle>
-            {podeEditarEc && (
-              <div data-tour="acoes-ec" className="flex items-center gap-2">
+          {/* Cabeçalho de seção do padrão (24/11/2026): o mesmo em toda aba. */}
+          <div id={idAncoraPendencia(ancoraProjetoSemEc(id))} className="px-5 pt-5 pb-4">
+            <CabecalhoSecao
+              titulo={<>Estimativas (EC)<NotifDot inline n={pendenciaSemEc} title="Este projeto ainda não tem estimativa" /></>}
+              descricao="Estimativas de custo deste projeto (incluindo versões)"
+              acoes={podeEditarEc && (
+              <div data-tour="acoes-ec" className="flex flex-wrap items-center gap-2">
                 <Button
                   size="sm"
                   icon={<IcPlus width={16} height={16} />}
@@ -1213,58 +1225,57 @@ export function ProjetoDetail() {
                   Importar EC
                 </Button>
               </div>
-            )}
+              )}
+            />
           </div>
           {/* Lista no padrão (24/11/2026): busca, pílulas, ID/Versão/Data e filtro por coluna. */}
           <ListaEcsDoProjeto ecs={ecsDoProjeto} porEc={porEc} onAbrir={(e) => navigate(`/estimativas/${e.id}`)} />
         </Card>
       )}
 
-      {importOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setImportOpen(false)}>
-          <div className="w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
-            <Card>
-              <CardTitle hint="Gera uma NOVA VERSÃO da EC deste projeto com a estrutura de QUALQUER outra — deste projeto ou de outro, no ar ou arquivada. É o mesmo que 'Gerar nova versão', mudando só de onde vem o conteúdo: numeração seguinte, entra no ar e a anterior vai para o arquivo (de onde volta quando você quiser). A EC de origem não é alterada.">
-                Importar EC
-              </CardTitle>
-              <div className="mt-4 grid gap-4">
-                <Field label="Projeto de origem">
-                  <Select value={impProjetoId} onChange={(e) => { setImpProjetoId(e.target.value); setImpEcId(""); }}>
-                    <option value="">Selecione…</option>
-                    {projetosOrigem.map((o) => (
-                      <option key={o.projetoId} value={o.projetoId}>{o.rotulo}</option>
-                    ))}
-                  </Select>
-                </Field>
-                {/* Sem filtro nenhum: a arquivada é justamente a mais copiada —
-                    é a que já deu certo uma vez. O selo ao lado do nome diz de
-                    onde se está copiando. */}
-                <Field label="EC de origem" hint="a que está no ar ou qualquer uma do arquivo">
-                  <Select value={impEcId} onChange={(e) => setImpEcId(e.target.value)} disabled={!impProjetoId}>
-                    <option value="">Selecione…</option>
-                    {ecsOrigem.map((e) => (
-                      <option key={e.id} value={e.id}>{tituloEc(e)} — {ROTULO_SITUACAO_EC[situacaoEc(e)]}</option>
-                    ))}
-                  </Select>
-                  {!!impProjetoId && ecsOrigem.length === 0 && (
-                    <p className="text-xs text-ink-3 mt-1.5">Este projeto não tem nenhuma EC para copiar.</p>
-                  )}
-                </Field>
-              </div>
-              <div className="mt-5 flex justify-end gap-2">
-                <Button variant="secondary" size="sm" onClick={() => setImportOpen(false)}>Cancelar</Button>
-                <Button size="sm" onClick={importarEc} disabled={!impEcId || importando}>
-                  {importando ? "Importando…" : "Importar EC"}
-                </Button>
-              </div>
-            </Card>
-          </div>
+      {/* Popup do padrão (24/11/2026): faixa navy, corpo branco, Cancelar à
+          esquerda do primário. Era um cartão solto sobre um véu preto. */}
+      <JanelaModal aberto={importOpen} onFechar={() => setImportOpen(false)} rotuloId="titulo-importar-ec" className="w-full max-w-lg overflow-hidden bg-card">
+        <CabecalhoJanela tituloId="titulo-importar-ec" titulo="Importar EC" onFechar={() => setImportOpen(false)} />
+        <div className="grid gap-4 p-5">
+          <p className="text-xs text-muted-foreground">
+            Gera uma NOVA VERSÃO da EC deste projeto com a estrutura de qualquer outra — deste projeto ou de outro, no ar ou
+            arquivada. É o mesmo que &quot;Gerar nova versão&quot;, mudando só de onde vem o conteúdo: numeração seguinte, entra
+            no ar e a anterior vai para o arquivo (de onde volta quando você quiser). A EC de origem não é alterada.
+          </p>
+          <Field label="Projeto de origem">
+            <Select value={impProjetoId} onChange={(e) => { setImpProjetoId(e.target.value); setImpEcId(""); }}>
+              <option value="">Selecione…</option>
+              {projetosOrigem.map((o) => (
+                <option key={o.projetoId} value={o.projetoId}>{o.rotulo}</option>
+              ))}
+            </Select>
+          </Field>
+          {/* Sem filtro nenhum: a arquivada é justamente a mais copiada — é a que
+              já deu certo uma vez. O selo ao lado do nome diz de onde se copia. */}
+          <Field label="EC de origem" hint="a que está no ar ou qualquer uma do arquivo">
+            <Select value={impEcId} onChange={(e) => setImpEcId(e.target.value)} disabled={!impProjetoId}>
+              <option value="">Selecione…</option>
+              {ecsOrigem.map((e) => (
+                <option key={e.id} value={e.id}>{tituloEc(e)} — {ROTULO_SITUACAO_EC[situacaoEc(e)]}</option>
+              ))}
+            </Select>
+            {!!impProjetoId && ecsOrigem.length === 0 && (
+              <p className="text-xs text-muted-foreground mt-1.5">Este projeto não tem nenhuma EC para copiar.</p>
+            )}
+          </Field>
         </div>
-      )}
+        <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
+          <Button variant="secondary" size="sm" onClick={() => setImportOpen(false)}>Cancelar</Button>
+          <Button size="sm" onClick={importarEc} disabled={!impEcId || importando}>
+            {importando ? "Importando…" : "Importar EC"}
+          </Button>
+        </div>
+      </JanelaModal>
 
       {aba === "os" && (
         <Card padded={false}>
-          <div className="p-5"><CardTitle hint="Ordens de serviço geradas a partir das ECs deste projeto">Ordens de Serviço</CardTitle></div>
+          <CabecalhoSecao className="px-5 pt-5 pb-4" titulo="Ordens de Serviço" descricao="Ordens de serviço geradas a partir das ECs deste projeto" />
           {/* Lista no padrão (24/11/2026): busca, pílulas, ID/Status/Fornecedor/Data e filtro por coluna. */}
           <ListaOssDoProjeto oss={ossDoProjeto} ecs={ecsAll ?? []} porOs={porOs} onAbrir={(o) => navigate(`/ordens/${o.id}`)} />
         </Card>
@@ -1282,20 +1293,18 @@ export function ProjetoDetail() {
       )}
 
       {aba === "cronograma" && (
-        <div className="space-y-4">
-        <Card>
-          <CardTitle
-            hint="Linha do tempo consolidada. Baixe o Excel no modelo Pólobh (cabeçalho automático da EC; datas/horários/produtor em branco para a equipe)."
-            action={
-              <Button size="sm" variant="secondary" icon={<IcDownload width={16} height={16} />} onClick={baixarCronograma}>
-                Baixar Excel
-              </Button>
-            }
-          >
-            Cronograma consolidado
-          </CardTitle>
+        <div>
+        <SecaoPainel
+          titulo="Cronograma consolidado"
+          descricao="Linha do tempo consolidada. Baixe o Excel no modelo Pólobh (cabeçalho automático da EC; datas/horários/produtor em branco para a equipe)."
+          acoes={
+            <Button size="sm" variant="secondary" icon={<IcDownload width={16} height={16} />} onClick={baixarCronograma}>
+              Baixar Excel
+            </Button>
+          }
+        >
           <TimelineConsolidada itens={etapas} />
-        </Card>
+        </SecaoPainel>
 
         {/* O mesmo painel da tela de Cronogramas: quem recebe o seu cronograma
             por e-mail, marcado a marcado ou de uma vez. */}
@@ -1331,11 +1340,11 @@ export function ProjetoDetail() {
       )}
 
       {aba === "fornecedores" && (
-        <Card padded={false}>
-          <div className="p-5">
-            <CardTitle
-              hint="Quem está no projeto, o que entrega e como se fala com ele — a folha que vai na prancheta no dia da montagem"
-              action={
+        <SecaoPainel
+          sangrado
+          titulo="Dados Úteis"
+          descricao="Quem está no projeto, o que entrega e como se fala com ele — a folha que vai na prancheta no dia da montagem"
+          acoes={
                 <Button
                   size="sm"
                   variant="secondary"
@@ -1345,11 +1354,8 @@ export function ProjetoDetail() {
                 >
                   Baixar Excel
                 </Button>
-              }
-            >
-              Dados Úteis
-            </CardTitle>
-          </div>
+          }
+        >
           {fornecedores.length === 0 ? (
             <div className="p-6"><EmptyState title="Nenhum fornecedor" hint="Aparecem aqui os fornecedores das OSs do projeto." /></div>
           ) : (
@@ -1378,7 +1384,7 @@ export function ProjetoDetail() {
               </tbody>
             </Table>
           )}
-        </Card>
+        </SecaoPainel>
       )}
     </PageShell>
   );
@@ -1429,7 +1435,7 @@ function ChecklistPainel({
     );
   }
   if (estado.carregando) {
-    return <div className="text-center text-ink-3 text-sm py-8">Carregando o check-list…</div>;
+    return <div className="text-center text-muted-foreground text-sm py-8">Carregando o check-list…</div>;
   }
   if (!estado.modelo) {
     return (
@@ -1459,52 +1465,48 @@ function ChecklistPainel({
   const semPrazo = estado.checklist.itens.filter((i) => !i.dataLimite).length;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 p-5">
+      {/* Os três avisos de estado no aviso do padrão (24/11/2026) — eram três
+          cartões, cada um com o seu ícone e o seu negrito. */}
       {semPrazo > 0 && !janela.evento && (
-        <Card>
-          <div className="flex items-center gap-3 flex-wrap">
-            <IcCalendar width={18} height={18} className="text-ink-3" />
-            <span className="text-sm font-bold text-ink">
-              {semPrazo} {semPrazo === 1 ? "tarefa está" : "tarefas estão"} sem prazo porque o projeto ainda não tem datas.
-            </span>
-            <span className="text-xs font-bold text-ink-3">
-              Preencha Pré-evento, Evento e Pós-evento em Dados Gerais — os prazos são calculados a partir delas.
-            </span>
-          </div>
-        </Card>
+        <AvisoEmLinha tom="info">
+          <b>
+            {semPrazo} {semPrazo === 1 ? "tarefa está" : "tarefas estão"} sem prazo porque o projeto ainda não tem datas.
+          </b>{" "}
+          Preencha Pré-evento, Evento e Pós-evento em Dados Gerais — os prazos são calculados a partir delas.
+        </AvisoEmLinha>
       )}
 
       {/* As datas mudaram: o recálculo roda sozinho (ver useChecklistProjeto).
           Este aviso só fica na tela se a gravação automática falhar. */}
       {podeEditar && estado.prazosDesatualizados > 0 && (
-        <Card>
-          <div className="flex items-center gap-3 flex-wrap">
-            <IcCalendar width={18} height={18} className="text-primary" />
-            <span className="text-sm font-bold text-ink">
-              As datas do projeto mudaram — {estado.prazosDesatualizados}{" "}
-              {estado.prazosDesatualizados === 1 ? "tarefa teria" : "tarefas teriam"} outro prazo.
-            </span>
-            <span className="text-xs font-bold text-ink-3">
+        <AvisoEmLinha tom="atencao">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span>
+              <b>
+                As datas do projeto mudaram — {estado.prazosDesatualizados}{" "}
+                {estado.prazosDesatualizados === 1 ? "tarefa teria" : "tarefas teriam"} outro prazo.
+              </b>{" "}
               Datas ajustadas à mão e tarefas concluídas não são tocadas.
             </span>
-            <Button size="sm" className="ml-auto" onClick={() => void estado.aplicarRecalculo()}>
+            <Button size="sm" onClick={() => void estado.aplicarRecalculo()}>
               Recalcular prazos
             </Button>
           </div>
-        </Card>
+        </AvisoEmLinha>
       )}
 
       {/* Trocaram a modalidade do projeto depois da lista criada. */}
       {podeExcluir && estado.modalidadeDivergente && (
-        <Card>
-          <div className="flex items-center gap-3 flex-wrap">
-            <span className="text-sm font-bold text-ink">
+        <AvisoEmLinha tom="atencao">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span>
               Este check-list foi gerado no modelo <b>{estado.checklist.modalidade}</b>, mas o projeto agora é{" "}
               <b>{projeto.info.modalidade}</b>.
             </span>
             {confirmarRegenerar ? (
-              <div className="ml-auto flex items-center gap-2">
-                <span className="text-xs font-bold text-danger">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-bold text-destructive">
                   Refazer apaga status, prazos ajustados e observações. Confirma?
                 </span>
                 <Button size="sm" variant="danger" onClick={() => void estado.regenerar()}>
@@ -1515,12 +1517,12 @@ function ChecklistPainel({
                 </Button>
               </div>
             ) : (
-              <Button size="sm" variant="secondary" className="ml-auto" onClick={() => setConfirmarRegenerar(true)}>
+              <Button size="sm" variant="secondary" onClick={() => setConfirmarRegenerar(true)}>
                 Refazer no modelo certo
               </Button>
             )}
           </div>
-        </Card>
+        </AvisoEmLinha>
       )}
 
       <ChecklistProjeto

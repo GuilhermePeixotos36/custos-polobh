@@ -7,6 +7,18 @@ export type FolderTabOption<T extends string> = {
   label: string;
   badge?: string | number;
   disabled?: boolean;
+  /** Dica no passar do mouse (o porquê de a aba estar desligada, por exemplo). */
+  title?: string;
+  /**
+   * Algo depois do rótulo que não é contagem neutra — no app, a bolinha vermelha de pendências
+   * (`NotifDot`). O `badge` continua sendo o número calmo; isto é o que pede ação.
+   */
+  adorno?: ReactNode;
+  /**
+   * Atributos extras do botão da aba (`data-*`). O tour guiado acha e CLICA nas abas por
+   * `data-subguia`, e a fileira é a única dona do botão — sem isto, o tour perdia o alvo.
+   */
+  atributos?: Record<`data-${string}`, string>;
 };
 
 /**
@@ -165,8 +177,10 @@ export function FolderTabs<T extends string>({ value, options, onChange, ariaLab
         return (
           <button
             key={option.value}
+            {...option.atributos}
             type="button"
             role="tab"
+            title={option.title}
             aria-selected={active}
             disabled={option.disabled}
             onClick={() => onChange(option.value)}
@@ -184,6 +198,7 @@ export function FolderTabs<T extends string>({ value, options, onChange, ariaLab
               // olho registra que ela não é mais a mesma. Só opacidade — o selo é inline no rótulo.
               <span key={option.badge} className={cn("valor-troca ml-1.5 rounded-full px-1.5 py-0.5 text-2xs font-bold tabular-nums", active ? "bg-brand/10 text-brand-forte" : "bg-background/80 text-muted-foreground")}>{option.badge}</span>
             )}
+            {option.adorno && <span className="ml-1.5 inline-flex align-middle">{option.adorno}</span>}
           </button>
         );
       })}

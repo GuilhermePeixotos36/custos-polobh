@@ -1,4 +1,6 @@
 import { Button } from "@/components/ui";
+import { AvisoEmLinha } from "@/components/padrao/AvisoEmLinha";
+import { cn } from "@/lib/utils";
 import type { TravaEdicao } from "@/hooks/useTravaEdicao";
 
 /**
@@ -11,17 +13,22 @@ import type { TravaEdicao } from "@/hooks/useTravaEdicao";
  * O botão só aparece quando a posse caducou. Oferecer "assumir" enquanto a
  * colega está de fato digitando seria devolver, por um clique, exatamente o
  * problema que a trava existe para evitar.
+ *
+ * Desenho do padrão (`AvisoEmLinha`, tom de atenção) desde 24/11/2026, e não
+ * mais uma faixa amarela própria: é o mesmo recado no mesmo tom do resto do app.
  */
-export function AvisoTravaEdicao({ trava }: { trava: TravaEdicao }) {
+export function AvisoTravaEdicao({ trava, className }: { trava: TravaEdicao; className?: string }) {
   if (!trava.aviso) return null;
   return (
-    <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-btn bg-warning-soft px-4 py-3">
-      <p className="text-sm font-semibold text-warning">{trava.aviso}</p>
-      {trava.podeAssumir && (
-        <Button size="sm" variant="secondary" onClick={trava.tentarDeNovo}>
-          Assumir a edição
-        </Button>
-      )}
-    </div>
+    <AvisoEmLinha tom="atencao" className={cn("mb-4", className)}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm font-semibold">{trava.aviso}</p>
+        {trava.podeAssumir && (
+          <Button size="sm" variant="secondary" onClick={trava.tentarDeNovo}>
+            Assumir a edição
+          </Button>
+        )}
+      </div>
+    </AvisoEmLinha>
   );
 }

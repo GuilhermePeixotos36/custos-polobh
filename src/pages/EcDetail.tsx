@@ -6,8 +6,6 @@ import { LegendaProjeto } from "@/components/layout/LegendaProjeto";
 import { PageShell } from "@/components/layout/AppLayout";
 import { BarraProjeto } from "@/components/layout/BarraSecao";
 import {
-  Card,
-  CardTitle,
   Badge,
   Button,
   CarregandoTela,
@@ -30,6 +28,8 @@ import { RentabilidadeItens } from "@/components/RentabilidadeItens";
 import { EcSubGuias, type SubGuiaEc } from "@/components/EcSubGuias";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
 import { ObservacoesGeraisEc } from "@/components/ObservacoesGeraisEc";
+import { SecaoPainel } from "@/components/padrao/SecaoPainel";
+import { AvisoEmLinha } from "@/components/padrao/AvisoEmLinha";
 import { pendenciasDaTela } from "@/domain/pendencias";
 import { destacarElemento, idAncoraPendencia } from "@/lib/destaque";
 import { documentoFiscalDaContratacao, itemDaLinhaEc, valorDaContratacao } from "@/domain/contratacaoOs";
@@ -321,20 +321,21 @@ export function EcDetail() {
     }
   }
 
+  // As vistas da EC são SEÇÕES do painel da aba (24/11/2026), não cartões dentro dele.
   const estimativaCard = (
-    <Card padded={false}>
-      <div className="p-5 flex items-center justify-between gap-3 border-b border-border-soft flex-wrap">
-        <CardTitle hint="Mesma organização por grupos da criação.">
-          Estimativa de custos
-        </CardTitle>
-        <div className="flex items-center gap-2 text-xs font-bold text-ink-2">
-          <button onClick={() => setExpandidos(new Set(gruposLinha.map((g) => g.nome)))} className="hover:text-ink">Expandir</button>
-          <span className="text-border">|</span>
-          <button onClick={() => setExpandidos(new Set())} className="hover:text-ink">Retrair</button>
+    <SecaoPainel
+      sangrado
+      titulo="Estimativa de custos"
+      descricao="Mesma organização por grupos da criação."
+      acoes={
+        <div className="flex items-center gap-1">
+          <Button variant="text" size="sm" onClick={() => setExpandidos(new Set(gruposLinha.map((g) => g.nome)))}>Expandir todos</Button>
+          <Button variant="text" size="sm" onClick={() => setExpandidos(new Set())}>Retrair todos</Button>
         </div>
-      </div>
+      }
+    >
       {bloqueados.length > 0 && (
-        <div className="mx-5 mt-3 text-sm text-danger bg-danger-soft rounded-btn px-3 py-2">
+        <AvisoEmLinha tom="erro" className="mx-5 mb-3 text-sm">
           <p className="font-bold">{bloqueados.length} item(ns) fora da emissão — falta preencher:</p>
           <ul className="mt-1 space-y-0.5">
             {bloqueados.map((b) => (
@@ -352,7 +353,7 @@ export function EcDetail() {
               </li>
             ))}
           </ul>
-        </div>
+        </AvisoEmLinha>
       )}
 
       {selecionados.size > 0 && (
@@ -399,12 +400,12 @@ export function EcDetail() {
         </div>
       )}
 
-      <div className="p-3 space-y-2">
+      <div className="px-5 pb-5 space-y-2">
         {gruposLinha.map((g) => {
           const aberto = expandidos.has(g.nome);
           const subtotal = g.itens.reduce((s, l) => s + l.valorPolobh + l.valorCliente, 0);
           return (
-            <div key={g.nome} className="rounded-card border border-border bg-white">
+            <div key={g.nome} className="rounded-lg border border-border bg-card">
               {/* Cabeçalho do grupo — o mesmo da edição: seleção, setas (apagadas
                   aqui), seta de recolher, nome, contagem e subtotal. */}
               <div className={cx("flex items-center gap-2 px-3 py-3 flex-wrap", aberto && "border-b border-border-soft")}>
@@ -466,12 +467,11 @@ export function EcDetail() {
           );
         })}
       </div>
-    </Card>
+    </SecaoPainel>
   );
 
   const ossCard = (
-    <Card padded={false}>
-      <div className="p-5"><CardTitle>Ordens de Serviço vinculadas</CardTitle></div>
+    <SecaoPainel sangrado titulo="Ordens de Serviço vinculadas">
       {(oss ?? []).length === 0 ? (
         <EmptyState title="Nenhuma OS gerada" hint="Marque itens como 'Emitir' e use o botão Emitir OS, no topo da EC." />
       ) : (
@@ -500,12 +500,11 @@ export function EcDetail() {
           </tbody>
         </Table>
       )}
-    </Card>
+    </SecaoPainel>
   );
 
   const rentabilidadeCard = (
-    <Card padded={false}>
-      <div className="p-5"><CardTitle>Rentabilidade por item</CardTitle></div>
+    <SecaoPainel sangrado titulo="Rentabilidade por item">
       {/* Em leitura os custos internos não se lançam: eles mudam a EC, e a EC
           só muda na edição — ver o botão "Editar EC". */}
       <RentabilidadeItens
@@ -514,13 +513,12 @@ export function EcDetail() {
         onExportar={() => void gerarRentabilidadeExcel(ec, gastoPorLinha)}
         onImprimir={() => navigate(`/estimativas/${ec.id}/imprimir?rentabilidade=1`)}
       />
-    </Card>
+    </SecaoPainel>
   );
 
   const subTotalCliente = t ? Math.round((t.somaCliente + t.honorariosCliente) * 100) / 100 : 0;
   const totaisCard = t ? (
-    <Card padded={false}>
-      <div className="p-5 pb-3"><CardTitle>Resumo dos Custos</CardTitle></div>
+    <SecaoPainel sangrado titulo="Resumo dos Custos">
       <div className="overflow-x-auto">
         <table className="w-full text-sm border-t border-border">
           <thead>
@@ -555,13 +553,20 @@ export function EcDetail() {
           </tbody>
         </table>
       </div>
-    </Card>
+    </SecaoPainel>
   ) : null;
 
   // Dois estados, e só (ver `domain/ec`): ou esta é a estimativa que vale no
   // projeto, ou ela está no arquivo.
   const situacao = situacaoEc(ec);
   const statusBadge = <Badge tom={TOM_SITUACAO_EC[situacao]}>{ROTULO_SITUACAO_EC[situacao]}</Badge>;
+  /**
+   * UM primário por tela (24/11/2026). Com itens prontos, "Emitir OS(s)" é o
+   * comando do momento e "Editar EC" passa a secundário; sem nada a emitir, o
+   * primário volta a ser editar. "Tornar EC ativa" só existe na EC arquivada,
+   * onde nem editar nem emitir aparecem.
+   */
+  const podeEmitirAgora = pode("oss.editar") && ec.ativa && (emissao.prontos.length > 0 || emissao.bloqueados.length > 0);
 
   return (
     <PageShell
@@ -581,7 +586,7 @@ export function EcDetail() {
               primeiro o que se faz com a estimativa, depois o que se tira dela,
               por último o que ela gera. */}
           {podeEditar && ecEditavel(ec) && (
-            <Button size="sm" icon={<IcPencil width={16} height={16} />} onClick={() => navigate(`/estimativas/${ec.id}/editar`)}>
+            <Button size="sm" variant={podeEmitirAgora ? "secondary" : "primary"} icon={<IcPencil width={16} height={16} />} onClick={() => navigate(`/estimativas/${ec.id}/editar`)}>
               Editar EC
             </Button>
           )}
@@ -611,7 +616,7 @@ export function EcDetail() {
           <Button variant="secondary" size="sm" icon={<IcEye width={16} height={16} />} onClick={() => navigate(`/estimativas/${ec.id}/imprimir`)}>
             EC PDF
           </Button>
-          {pode("oss.editar") && ec.ativa && (emissao.prontos.length > 0 || emissao.bloqueados.length > 0) && (
+          {podeEmitirAgora && (
             <Button
               data-tour="emitir-os"
               variant="primary"
@@ -640,31 +645,25 @@ export function EcDetail() {
       // Duas barras: a de cima é o SEGUNDO CABEÇALHO do projeto — a mesma em
       // todas as páginas internas dele, para quem entra numa EC continuar
       // sabendo de onde veio. A de baixo são as vistas deste documento.
-      subabas={
-        <>
-          {ec.projetoId && <BarraProjeto projetoId={ec.projetoId} atual="ec" />}
-          {verFinanceiro && <EcSubGuias atual={subaba} onChange={setSubaba} temResumo temRentabilidade={verRentabilidade} />}
-        </>
-      }
+      subabas={ec.projetoId ? <BarraProjeto projetoId={ec.projetoId} atual="ec" /> : undefined}
+      subabasDoPainel={verFinanceiro ? <EcSubGuias atual={subaba} onChange={setSubaba} temResumo temRentabilidade={verRentabilidade} /> : undefined}
+      painel
+      painelSemRecuo
+      // A conversa da equipe vale para TODAS as vistas da EC — custos, resumo e
+      // rentabilidade (29/09/2026): é a pauta de onde cada um tira o que é seu, e
+      // é uma conversa só. Desde 24/11/2026 ela é o balão no canto do cabeçalho
+      // (gaveta lateral), e não mais um cartão empurrando a lista para baixo.
+      topAction={<ObservacoesGeraisEc ecId={ec.id} observacoes={ec.observacoes ?? []} usuarios={usuarios} />}
     >
-      {/* A conversa da equipe fica no ALTO de todas as vistas da EC — custos,
-          resumo e rentabilidade (29/09/2026): é a pauta de onde cada um tira o
-          que é seu, e é uma conversa só, então as pendências dela contam uma vez.
-          Fora dos blocos de cada aba de propósito: ao trocar de aba o card não é
-          recriado, e o que acabou de ser dito não some. */}
-      <div className="mb-4">
-        <ObservacoesGeraisEc ecId={ec.id} observacoes={ec.observacoes ?? []} usuarios={usuarios} />
-      </div>
-
       {verFinanceiro && subaba === "resumo" && (
-        <div className="space-y-4">{totaisCard}</div>
+        <div>{totaisCard}</div>
       )}
       {verRentabilidade && subaba === "rentabilidade" && (
-        <div className="space-y-4">{rentabilidadeCard}</div>
+        <div>{rentabilidadeCard}</div>
       )}
 
       {subaba === "ec" && (
-        <div className="space-y-4">
+        <div>
           {/* Pílula flutuante que salta entre as pendências DESTA EC. O que a EC
               contabiliza mas mora na OS (observação, cronograma) fica de fora:
               lá é outra tela, e o salto não teria volta. */}
@@ -674,8 +673,9 @@ export function EcDetail() {
 
           {/* Cliente/Projeto só em EC avulsa; dentro de um projeto ficam em "Dados Gerais". */}
           {!ec.projetoId && (
-            <div className="grid md:grid-cols-2 gap-4">
-              <Card>
+            <SecaoPainel titulo="Cliente e projeto">
+            <div className="grid md:grid-cols-2 gap-6">
+              <div>
                 <Eyebrow>Cliente</Eyebrow>
                 <div className="mt-2 space-y-1.5 text-sm">
                   <p className="font-bold text-ink">{ec.cliente.razaoSocial}</p>
@@ -683,8 +683,8 @@ export function EcDetail() {
                   <p className="text-ink-2">{ec.cliente.endereco}</p>
                   <p className="text-ink-2">{ec.cliente.representante.nome} · {ec.cliente.representante.email}</p>
                 </div>
-              </Card>
-              <Card>
+              </div>
+              <div>
                 <Eyebrow>Projeto</Eyebrow>
                 <div className="mt-2 space-y-1.5 text-sm">
                   <p className="text-ink-2"><b className="text-ink">Local:</b> {ec.projeto.local}</p>
@@ -692,8 +692,9 @@ export function EcDetail() {
                   <p className="text-ink-2"><b className="text-ink">Evento:</b> {dataBR(ec.projeto.evento)} · {ec.projeto.horario}</p>
                   <p className="text-ink-2"><b className="text-ink">Responsável:</b> {ec.responsavel}</p>
                 </div>
-              </Card>
+              </div>
             </div>
+            </SecaoPainel>
           )}
 
           {/* Totais (Resumo dos Custos) permanece como último bloco da guia geral da EC */}

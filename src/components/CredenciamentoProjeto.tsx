@@ -14,11 +14,18 @@
  * E a folha da PORTARIA: O que os fornecedores mandaram só existia na tela,
  *    um bloco por fornecedor; no dia do evento isso é uma lista impressa,
  *    conferida nome a nome (ver `lib/excel/credenciamento`).
+ *
+ * DENTRO DO PAINEL DA ABA (24/11/2026): eram quatro cartões empilhados — a fila,
+ * o formulário, o prazo e as respostas —, cada um com a sua moldura dentro da
+ * moldura da aba. Agora são seções separadas por um fio, e o formulário e o prazo
+ * (as duas coisas que se ajustam UMA vez para o evento inteiro) ficam lado a lado
+ * numa seção só, "Configuração do envio".
  */
 import { useMemo, useState } from "react";
 import {
-  Button, Card, CardTitle, Input, Table, THead, Th, Tr, Td, EmptyState, Badge,
+  Button, Input, Table, THead, Th, Tr, Td, EmptyState, Badge,
 } from "@/components/ui";
+import { SecaoPainel } from "@/components/padrao/SecaoPainel";
 import { IcLink, IcCheck, IcDownload } from "@/components/icons";
 import { repo } from "@/data";
 import { CAMPOS_CREDENCIAMENTO, camposDoCredenciamento, type CampoCredenciamento } from "@/domain/credenciamentoCampos";
@@ -84,24 +91,22 @@ export function CredenciamentoProjeto({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
 
   if (!fila.length) {
     return (
-      <Card>
-        <CardTitle>Credenciamento</CardTitle>
+      <SecaoPainel titulo="Credenciamento dos Fornecedores">
         <EmptyState
           title="Nenhuma OS neste projeto"
           hint="O credenciamento é enviado por OS — cada fornecedor recebe o link da OS dele. Emita as OSs na aba EC."
         />
-      </Card>
+      </SecaoPainel>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <Card padded={false}>
-        <div className="p-5 pb-3">
-          <CardTitle
-            hint="Cada fornecedor recebe o link da OS dele, pelo WhatsApp ou copiado — é ele que identifica quem está respondendo"
-            action={
-              <div className="flex items-center gap-2">
+    <div>
+      <SecaoPainel
+        sangrado
+        titulo="Credenciamento dos Fornecedores"
+        descricao="Cada fornecedor recebe o link da OS dele, pelo WhatsApp ou copiado — é ele que identifica quem está respondendo"
+        acoes={
                 <Button
                   size="sm"
                   variant="secondary"
@@ -111,12 +116,8 @@ export function CredenciamentoProjeto({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
                 >
                   Baixar Excel
                 </Button>
-              </div>
-            }
-          >
-            Credenciamento dos Fornecedores
-          </CardTitle>
-        </div>
+        }
+      >
 
         <Table>
           <THead>
@@ -174,8 +175,13 @@ export function CredenciamentoProjeto({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
             ))}
           </tbody>
         </Table>
-      </Card>
+      </SecaoPainel>
 
+      <SecaoPainel
+        titulo="Configuração do envio"
+        descricao="Vale para todas as OSs do projeto: o formulário e o prazo são os mesmos para todos os fornecedores do evento."
+      >
+      <div className="grid gap-6 md:grid-cols-2">
       {/* O QUE PEDIR neste credenciamento (15/09/2026) — a escolha vale para o
           projeto inteiro, como o prazo: o formulário é o mesmo para todos os
           fornecedores do evento. */}
@@ -219,6 +225,8 @@ export function CredenciamentoProjeto({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
           }
         }}
       />
+      </div>
+      </SecaoPainel>
 
       <RespostasRecebidas fila={fila} respostas={respostas} />
     </div>
@@ -251,13 +259,11 @@ function CamposDoFormulario({
   const mudou = escolhidos.join("|") !== campos.join("|");
 
   return (
-    <Card>
-      <CardTitle hint="O que o fornecedor preenche neste evento — o nome é sempre pedido">
-        Formulário de credenciamento
-      </CardTitle>
+    <div>
+      <CabecalhoSubbloco titulo="Formulário de credenciamento" descricao="O que o fornecedor preenche neste evento — o nome é sempre pedido" />
       <div className="flex flex-wrap gap-x-4 gap-y-2">
         {CAMPOS_CREDENCIAMENTO.map(({ campo, rotulo, dica }) => (
-          <label key={campo} className="flex items-center gap-2 text-sm text-ink">
+          <label key={campo} className="flex items-center gap-2 text-sm text-foreground">
             <input
               type="checkbox"
               checked={escolhidos.includes(campo)}
@@ -265,7 +271,7 @@ function CamposDoFormulario({
               className="h-4 w-4 accent-brand"
             />
             {rotulo}
-            {dica && <span className="text-2xs text-ink-3">({dica})</span>}
+            {dica && <span className="text-2xs text-muted-foreground">({dica})</span>}
           </label>
         ))}
       </div>
@@ -274,7 +280,7 @@ function CamposDoFormulario({
           Aplicar às {quantas} OS(s)
         </Button>
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -294,15 +300,25 @@ function PrazoEmLote({
   onAplicar: () => void;
 }) {
   return (
-    <Card>
-      <CardTitle hint="Vai como Prazo para envio na mensagem ao fornecedor — costuma ser o mesmo para o evento inteiro">Prazo limite do credenciamento</CardTitle>
+    <div>
+      <CabecalhoSubbloco titulo="Prazo limite do credenciamento" descricao="Vai como Prazo para envio na mensagem ao fornecedor — costuma ser o mesmo para o evento inteiro" />
       <div className="flex items-end gap-2 flex-wrap">
         <Input type="date" className="max-w-48" value={prazo} onChange={(e) => onPrazo(e.target.value)} />
         <Button variant="secondary" size="sm" disabled={!prazo} onClick={onAplicar}>
           Aplicar às {quantas} OS(s)
         </Button>
       </div>
-    </Card>
+    </div>
+  );
+}
+
+/** Título de um bloco DENTRO de uma seção — um degrau abaixo do `CabecalhoSecao`. */
+function CabecalhoSubbloco({ titulo, descricao }: { titulo: string; descricao: string }) {
+  return (
+    <div className="mb-3">
+      <h3 className="text-sm font-semibold text-foreground">{titulo}</h3>
+      <p className="mt-0.5 text-xs text-muted-foreground">{descricao}</p>
+    </div>
   );
 }
 
@@ -317,14 +333,11 @@ function RespostasRecebidas({
   const comResposta = fila.filter((f) => (respostas?.get(f.os.id)?.length ?? 0) > 0);
   if (!comResposta.length) return null;
   return (
-    <Card padded={false}>
-      <div className="p-5 pb-2">
-        <CardTitle hint="Enviado pelos fornecedores pelo formulário público">Credenciamentos recebidos</CardTitle>
-      </div>
-      <div className="px-5 pb-5 space-y-3">
+    <SecaoPainel titulo="Credenciamentos recebidos" descricao="Enviado pelos fornecedores pelo formulário público">
+      <div className="space-y-3">
         {comResposta.map((f) => (
-          <div key={f.os.id} className={cx("rounded-btn border border-border-soft bg-muted/40 p-3")}>
-            <div className="text-xs font-bold text-ink mb-1.5">{f.fornecedor}</div>
+          <div key={f.os.id} className={cx("rounded-md border border-border bg-muted/40 p-3")}>
+            <div className="text-xs font-bold text-foreground mb-1.5">{f.fornecedor}</div>
             {(respostas?.get(f.os.id) ?? []).map((c) => (
               <div key={c.id} className="mb-2 last:mb-0">
                 <div className="text-2xs text-ink-3 mb-1">Enviado em {dataHoraBR(c.enviadoEm)}</div>
@@ -344,6 +357,6 @@ function RespostasRecebidas({
           </div>
         ))}
       </div>
-    </Card>
+    </SecaoPainel>
   );
 }

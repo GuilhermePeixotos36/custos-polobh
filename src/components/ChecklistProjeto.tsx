@@ -7,6 +7,18 @@
  *
  * Gravação item a item: cada mudança persiste só a tarefa mexida. Duas pessoas
  * trabalhando em tarefas diferentes do mesmo projeto nunca se sobrescrevem.
+ *
+ * ETAPAS COMO SEÇÕES (24/11/2026, "organize melhor as etapas do checklist"):
+ *  · cada etapa é uma seção compacta — título, "feitas de total" com uma barrinha
+ *    de progresso, e a seta que recolhe a etapa inteira;
+ *  · o cabeçalho das colunas é UM só, no alto da lista: repetido em cada etapa,
+ *    ele dobrava a altura de etapa com duas tarefas e fazia a lista parecer uma
+ *    pilha de tabelas. Como todas as linhas usam a mesma grade (`GRADE_COLUNAS`),
+ *    prazo e responsável ficam na mesma vertical de cima a baixo;
+ *  · a etapa recolhida só ESCONDE as tarefas (`hidden` + `data-secao-conteudo`),
+ *    não as tira da tela: o navegador de pendências acha a tarefa lá dentro e
+ *    pede para abrir a etapa (`EVENTO_ABRIR_SECAO`) antes de rolar até ela — o
+ *    mesmo trato dos blocos recolhidos da OS.
  */
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
@@ -19,13 +31,15 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Badge, Button, Card, EmptyState, Input, ProgressBar, Select, type Tom } from "@/components/ui";
+import { Badge, Button, EmptyState, Input, ProgressBar, Select, type Tom } from "@/components/ui";
+import { AvisoEmLinha } from "@/components/padrao/AvisoEmLinha";
+import { Chevron } from "@/components/layout/Recolher";
 import { IcBack, IcCheck, IcPlus, IcEye, IcEyeOff, IcCalendar, IcTrash, IcGrip } from "@/components/icons";
 import { ObservacoesThread } from "@/components/ObservacoesPopup";
 import { MoverSetas } from "@/components/MoverSetas";
 import { NotifDot } from "@/components/NotifDot";
 import { useAnexosChecklist } from "@/hooks/useAnexosChecklist";
-import { idAncoraPendencia } from "@/lib/destaque";
+import { EVENTO_ABRIR_SECAO, idAncoraPendencia } from "@/lib/destaque";
 import {
   agruparPorData,
   atrasoNaConclusao,
@@ -82,6 +96,9 @@ const AVISO_PRAZO: Record<SituacaoPrazo, { tom: Tom; rotulo: string } | null> = 
 };
 
 const hojeIso = () => new Date().toISOString().slice(0, 10);
+
+/** Prefixo do bloco recolhível de cada etapa — o nome que o "abrir para a pendência" procura. */
+const PREFIXO_SECAO_ETAPA = "etapa-checklist:";
 
 type Agrupamento = "etapa" | "data";
 
@@ -159,6 +176,31 @@ export function ChecklistProjeto({
   /** Tarefas marcadas para concluir ou excluir em lote. */
   const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
   const sensores = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  /** Etapas (ou dias) recolhidas pela pessoa. Nada nasce recolhido: a lista abre inteira. */
+  const [fechadas, setFechadas] = useState<Set<string>>(new Set());
+  const alternarEtapa = (chave: string) =>
+    setFechadas((atuais) => {
+      const novo = new Set(atuais);
+      if (!novo.delete(chave)) novo.add(chave);
+      return novo;
+    });
+  // Ir até a pendência de uma tarefa escondida numa etapa recolhida abre a etapa
+  // (ver `comElemento`, em lib/destaque).
+  useEffect(() => {
+    const abrir = (e: Event) => {
+      const id = (e as CustomEvent<string>).detail;
+      if (!id?.startsWith(PREFIXO_SECAO_ETAPA)) return;
+      const chave = id.slice(PREFIXO_SECAO_ETAPA.length);
+      setFechadas((atuais) => {
+        if (!atuais.has(chave)) return atuais;
+        const novo = new Set(atuais);
+        novo.delete(chave);
+        return novo;
+      });
+    };
+    window.addEventListener(EVENTO_ABRIR_SECAO, abrir);
+    return () => window.removeEventListener(EVENTO_ABRIR_SECAO, abrir);
+  }, []);
 
   const resumo = useMemo(() => resumirChecklist(checklist, hoje), [checklist, hoje]);
 
@@ -419,15 +461,16 @@ export function ChecklistProjeto({
 
   return (
     <div className="space-y-4">
-      {/* ----------------------------- resumo ----------------------------- */}
-      <Card>
+      {/* ----------------------------- resumo -----------------------------
+          Sem cartão: já mora no painel branco da aba (24/11/2026). */}
+      <div>
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="min-w-[220px] flex-1">
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-ink tabular-nums">
+              <span className="text-2xl font-bold text-foreground tabular-nums">
                 {resumo.concluidos}/{resumo.contam}
               </span>
-              <span className="text-sm font-bold text-ink-2">tarefas concluídas</span>
+              <span className="text-sm font-semibold text-muted-foreground">tarefas concluídas</span>
             </div>
             <div className="mt-2 max-w-sm">
               <ProgressBar value={resumo.progresso * 100} />
@@ -450,17 +493,19 @@ export function ChecklistProjeto({
 
         {/* Só aparece quando a lista padrão ganhou itens depois deste projeto. */}
         {podeEditar && itensNovosNoModelo > 0 && onSincronizar && (
-          <div className="mt-3 flex items-center gap-3 flex-wrap rounded-btn border border-primary bg-primary-soft px-3 py-2">
-            <span className="text-xs font-bold text-brand-forte">
-              A lista padrão ganhou {itensNovosNoModelo}{" "}
-              {itensNovosNoModelo === 1 ? "tarefa nova" : "tarefas novas"} desde que este check-list foi criado.
-            </span>
-            <Button size="sm" variant="soft" onClick={onSincronizar} className="ml-auto">
-              Trazer para este projeto
-            </Button>
-          </div>
+          <AvisoEmLinha tom="info" className="mt-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span>
+                A lista padrão ganhou {itensNovosNoModelo}{" "}
+                {itensNovosNoModelo === 1 ? "tarefa nova" : "tarefas novas"} desde que este check-list foi criado.
+              </span>
+              <Button size="sm" variant="secondary" onClick={onSincronizar}>
+                Trazer para este projeto
+              </Button>
+            </div>
+          </AvisoEmLinha>
         )}
-      </Card>
+      </div>
 
       {/* ---------------------------- controles --------------------------- */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -516,6 +561,17 @@ export function ChecklistProjeto({
             </Select>
           )}
         </div>
+        <div className="flex items-center gap-3 flex-wrap">
+        {blocos.length > 1 && (
+          <Button
+            size="sm"
+            variant="text"
+            onClick={() => setFechadas(fechadas.size ? new Set() : new Set(blocos.map((b) => b.chave)))}
+            title="Abre ou recolhe todas as etapas — a lista vira um sumário"
+          >
+            {fechadas.size ? "Abrir todas as etapas" : "Recolher todas as etapas"}
+          </Button>
+        )}
         <button
           type="button"
           onClick={() => setVerRecolhidas((v) => !v)}
@@ -526,6 +582,7 @@ export function ChecklistProjeto({
           {verRecolhidas ? <IcEyeOff width={16} height={16} /> : <IcEye width={16} height={16} />}
           {verRecolhidas ? "Esconder recolhidas" : `Ver recolhidas (${recolhidas})`}
         </button>
+        </div>
       </div>
 
       {/* ---------------------- concluir / excluir em lote ---------------------- */}
@@ -602,17 +659,46 @@ export function ChecklistProjeto({
           linhas separadas por um fio, e o título preso no topo. Com um cartão
           por tarefa — borda, sombra e respiro em cada uma — doze tarefas viravam
           doze objetos, e a leitura de cima a baixo se perdia. */}
+      {/* Cabeçalho das colunas — um só, no alto (só em tela larga). O recuo soma o
+          1px da borda das seções, para as colunas baterem com as linhas. */}
+      {blocos.length > 0 && (
+        <div className={cx(GRADE_COLUNAS, "max-md:hidden -mb-2 px-[17px] text-xs font-semibold text-muted-foreground")}>
+          <span />
+          <span />
+          <span>Tarefa</span>
+          <span>Responsável</span>
+          <span>Data Prevista</span>
+          <span>Data de Conclusão</span>
+          <span>Status</span>
+          <span />
+        </div>
+      )}
       <DndContext sensors={sensores} collisionDetection={closestCenter} onDragEnd={aoSoltar}>
         <SortableContext items={blocos.map((b) => `etapa:${b.chave}`)} strategy={verticalListSortingStrategy}>
           {blocos.map((bloco, indiceBloco) => {
             const progresso = progressoDoGrupo.get(bloco.chave) ?? { feitas: 0, contam: 0 };
             const idsDoBloco = bloco.itens.map((i) => i.id);
             const blocoMarcado = idsDoBloco.length > 0 && idsDoBloco.every((id) => selecionadas.has(id));
+            const fechada = fechadas.has(bloco.chave);
+            const idConteudo = `${PREFIXO_SECAO_ETAPA}${bloco.chave}`;
+            const pctEtapa = progresso.contam ? (progresso.feitas / progresso.contam) * 100 : 0;
             return (
               <SecaoEtapa key={bloco.chave} id={`etapa:${bloco.chave}`} ordenavel={podeEditar && agrupamento === "etapa"}>
                 {(alcaEtapa) => (
                   <>
-                    <header className="flex items-center gap-2 px-4 py-2.5 bg-muted/40 border-b border-border-soft">
+                    <header className={cx("flex items-center gap-2 px-4 py-2.5 bg-muted/40", !fechada && "border-b border-border")}>
+                      {/* A seta recolhe a etapa inteira — a lista vira um sumário de etapas. */}
+                      <button
+                        type="button"
+                        onClick={() => alternarEtapa(bloco.chave)}
+                        aria-expanded={!fechada}
+                        aria-controls={idConteudo}
+                        aria-label={fechada ? `Abrir a etapa ${bloco.titulo}` : `Recolher a etapa ${bloco.titulo}`}
+                        title={fechada ? "Abrir a etapa" : "Recolher a etapa"}
+                        className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground input-focus"
+                      >
+                        <Chevron aberta={!fechada} />
+                      </button>
                       {podeEditar && (
                         <input
                           type="checkbox"
@@ -647,21 +733,17 @@ export function ChecklistProjeto({
                           {bloco.titulo}
                         </h3>
                       )}
-                      <span className="ml-auto shrink-0 text-2xs font-bold text-ink-3 tabular-nums">
-                        {progresso.feitas} de {progresso.contam}
+                      {/* Feitas de total, com a barrinha: dá para ver de longe qual etapa está atrasada. */}
+                      <span className="ml-auto flex shrink-0 items-center gap-2">
+                        <span className="max-sm:hidden h-1.5 w-16 overflow-hidden rounded-full bg-muted" aria-hidden>
+                          <span className="block h-full rounded-full bg-success" style={{ width: `${pctEtapa}%` }} />
+                        </span>
+                        <span className="text-2xs font-semibold text-muted-foreground tabular-nums">
+                          {progresso.feitas} de {progresso.contam}
+                        </span>
                       </span>
                     </header>
-                    {/* Cabeçalho das colunas (só em tela larga). */}
-                    <div className={cx(GRADE_COLUNAS, "max-md:hidden px-4 py-1.5 border-b border-border-soft text-xs font-semibold text-muted-foreground")}>
-                      <span />
-                      <span />
-                      <span>Tarefa</span>
-                      <span>Responsável</span>
-                      <span>Data Prevista</span>
-                      <span>Data de Conclusão</span>
-                      <span>Status</span>
-                      <span />
-                    </div>
+                    <div id={idConteudo} data-secao-conteudo={idConteudo} hidden={fechada}>
                     <SortableContext items={idsDoBloco} strategy={verticalListSortingStrategy}>
                       <ul className="divide-y divide-border-soft">
                         {bloco.itens.map((item, indiceItem) => (
@@ -711,6 +793,7 @@ export function ChecklistProjeto({
                         )}
                       </ul>
                     </SortableContext>
+                    </div>
                   </>
                 )}
               </SecaoEtapa>
@@ -754,7 +837,8 @@ function SecaoEtapa({
       ref={sortable.setNodeRef}
       style={{ transform: CSS.Translate.toString(sortable.transform), transition: sortable.transition }}
       className={cx(
-        "rounded-card border border-border bg-surface shadow-card overflow-hidden",
+        // Seção no painel da aba: só o fio de borda, sem sombra (o painel já é a superfície).
+        "rounded-lg border border-border bg-card overflow-hidden",
         sortable.isDragging && "opacity-50 relative z-10"
       )}
     >
