@@ -451,7 +451,7 @@ export function ChecklistProjeto({
         {/* Só aparece quando a lista padrão ganhou itens depois deste projeto. */}
         {podeEditar && itensNovosNoModelo > 0 && onSincronizar && (
           <div className="mt-3 flex items-center gap-3 flex-wrap rounded-btn border border-primary bg-primary-soft px-3 py-2">
-            <span className="text-xs font-bold text-primary-dark">
+            <span className="text-xs font-bold text-brand-forte">
               A lista padrão ganhou {itensNovosNoModelo}{" "}
               {itensNovosNoModelo === 1 ? "tarefa nova" : "tarefas novas"} desde que este check-list foi criado.
             </span>
@@ -698,7 +698,7 @@ export function ChecklistProjeto({
                                   agrupamento === "data" ? { dataLimite: bloco.chave } : { etapa: bloco.chave === SEM_ETAPA ? "" : bloco.chave }
                                 )
                               }
-                              className="w-full text-left px-4 py-2 text-xs font-bold text-ink-3 hover:bg-muted/40 hover:text-primary-dark inline-flex items-center gap-1.5"
+                              className="w-full text-left px-4 py-2 text-xs font-bold text-ink-3 hover:bg-muted/40 hover:text-brand-forte inline-flex items-center gap-1.5"
                             >
                               <IcPlus width={14} height={14} />
                               {agrupamento === "data"
@@ -1042,7 +1042,7 @@ function ItemCard({
               <button
                 type="button"
                 onClick={() => setEditandoDescricao(true)}
-                className="font-bold text-ink-3 hover:text-primary-dark rounded-sm px-1 -mx-1 input-focus opacity-0 group-hover:opacity-100 focus:opacity-100 max-md:opacity-100 transition-opacity"
+                className="font-bold text-ink-3 hover:text-brand-forte rounded-sm px-1 -mx-1 input-focus opacity-0 group-hover:opacity-100 focus:opacity-100 max-md:opacity-100 transition-opacity"
               >
                 + descrição
               </button>

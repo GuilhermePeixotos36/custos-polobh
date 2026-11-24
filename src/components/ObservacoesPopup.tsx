@@ -67,7 +67,7 @@ function renderComMencoes(texto: string, usuarios: string[]) {
   while ((m = re.exec(texto))) {
     if (m.index > ultimo) partes.push(texto.slice(ultimo, m.index));
     partes.push(
-      <span key={chave++} className="font-bold text-primary-dark">
+      <span key={chave++} className="font-bold text-brand-forte">
         {m[0]}
       </span>
     );
@@ -236,7 +236,7 @@ export function ObservacoesThread({ observacoes, usuarios, onChange, className, 
           <button
             type="button"
             onClick={() => { setCompor({ modo: "novo" }); setAberto(true); }}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink-3 hover:text-primary-dark input-focus rounded-sm"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink-3 hover:text-brand-forte input-focus rounded-sm"
             title="Adicionar Observação"
           >
             <IcComment width={14} height={14} /> Adicionar Observação
@@ -343,7 +343,7 @@ function ComentarioLinha({
       <div className="flex items-baseline gap-2 flex-wrap">
         <span className="text-xs font-bold text-ink">{o.autorNome || "Usuário"}</span>
         {o.responsavelNome && (
-          <span className="text-2xs font-bold text-primary-dark bg-primary-soft rounded-full px-2 py-0.5">Para: {o.responsavelNome}</span>
+          <span className="text-2xs font-bold text-brand-forte bg-primary-soft rounded-full px-2 py-0.5">Para: {o.responsavelNome}</span>
         )}
         {o.resolvida && (
           <span className="text-2xs font-bold text-success bg-success-soft rounded-full px-2 py-0.5">
@@ -362,7 +362,7 @@ function ComentarioLinha({
         )}
         <span className="text-2xs text-ink-3">{dataHoraBR(o.criadoEm)}</span>
         <span className="acoes-observacao ml-auto flex items-center gap-1 transition-opacity focus-within:opacity-100">
-          <button type="button" onClick={onResponder} className="text-2xs font-bold text-ink-3 hover:text-primary px-1.5 py-1" title="Responder">
+          <button type="button" onClick={onResponder} className="text-2xs font-bold text-ink-3 hover:text-brand-forte px-1.5 py-1" title="Responder">
             Responder
           </button>
           {podeResolver && (
@@ -444,7 +444,7 @@ function ListaAnexos({
             type="button"
             onClick={() => onAbrir(a)}
             title={`Abrir ${a.nome}`}
-            className="min-w-0 text-left text-xs font-semibold text-ink hover:text-primary-dark truncate max-w-[220px]"
+            className="min-w-0 text-left text-xs font-semibold text-ink hover:text-brand-forte truncate max-w-[220px]"
           >
             {a.nome}
           </button>
@@ -748,7 +748,7 @@ function Composer({
               onClick={() => arquivoRef.current?.click()}
               disabled={enviando || pendentes.length >= MAXIMO_ANEXOS_POR_COMENTARIO}
               title={`Anexar arquivo (até ${MAXIMO_ANEXOS_POR_COMENTARIO}, 5 MB cada)`}
-              className="mr-auto inline-flex items-center gap-1.5 h-8 px-2 rounded-btn text-xs font-bold text-ink-3 hover:text-primary-dark hover:bg-primary-soft transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+              className="mr-auto inline-flex items-center gap-1.5 h-8 px-2 rounded-btn text-xs font-bold text-ink-3 hover:text-brand-forte hover:bg-primary-soft transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
             >
               <IcClipe width={14} height={14} /> Anexar
             </button>
@@ -778,7 +778,7 @@ function Composer({
                 }}
                 className={cx(
                   "w-full text-left px-3 py-1.5 text-sm truncate",
-                  i === indiceAtivo ? "bg-primary-soft text-primary-dark font-bold" : "text-ink hover:bg-muted/40"
+                  i === indiceAtivo ? "bg-primary-soft text-brand-forte font-bold" : "text-ink hover:bg-muted/40"
                 )}
               >
                 {u}

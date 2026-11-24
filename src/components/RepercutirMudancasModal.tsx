@@ -16,7 +16,7 @@ import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { Badge, Button, tomStatusOs } from "@/components/ui";
 import { ROTULO_SITUACAO_EC, situacaoEc, TOM_SITUACAO_EC } from "@/domain/ec";
-import { IcFechar } from "@/components/icons";
+import { CabecalhoJanela } from "@/components/padrao/CabecalhoJanela";
 import { repo } from "@/data";
 import { useAuth } from "@/store/auth";
 import { toast } from "@/store/toast";
@@ -114,29 +114,18 @@ export function RepercutirMudancasModal({
   return createPortal(
     <div className="no-print fixed inset-0 z-70 flex items-center justify-center p-3 sm:p-6">
       <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" onClick={aplicando ? undefined : onFechar} />
-      <div className="relative w-full max-w-[760px] max-h-[92vh] flex flex-col bg-surface rounded-card-lg shadow-modal border border-border animate-[fadein_.14s_ease] overflow-hidden">
-        <div className="flex items-start gap-3 px-5 py-4 border-b border-border-soft">
-          <div className="min-w-0">
-            <h3 className="font-bold text-lg text-ink tracking-[-0.3px]">Alerta</h3>
-            {/* Texto definido pela Pólobh (29/09/2026). */}
-            <p className="text-xs text-ink-2 mt-1 leading-relaxed">
-              Os dados gerais deste projeto foram atualizados. Os próximos documentos (ECs, OSs,
-              cronogramas, etc...) serão emitidos com as novas informações.{" "}
-              <b>Os documentos já emitidos não serão alterados.</b> Substitua os documentos que
-              precisarem de atualização.
-            </p>
-          </div>
-          <button
-            onClick={onFechar}
-            disabled={aplicando}
-            title="Fechar sem alterar documentos"
-            className="ml-auto shrink-0 h-9 w-9 grid place-items-center rounded-btn text-ink-2 hover:text-ink hover:bg-muted transition-colors disabled:opacity-50"
-          >
-            <IcFechar width={18} height={18} />
-          </button>
-        </div>
+      <div className="relative w-full max-w-[760px] max-h-[92vh] flex flex-col bg-surface rounded-card-lg shadow-modal animate-[fadein_.14s_ease] overflow-hidden">
+        {/* Faixa do padrão (24/11/2026); o texto do alerta desceu para o corpo. */}
+        <CabecalhoJanela titulo="Alerta" onFechar={onFechar} fecharDesabilitado={aplicando} />
 
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+          {/* Texto definido pela Pólobh (29/09/2026). */}
+          <p className="text-xs text-ink-2 leading-relaxed">
+            Os dados gerais deste projeto foram atualizados. Os próximos documentos (ECs, OSs,
+            cronogramas, etc...) serão emitidos com as novas informações.{" "}
+            <b>Os documentos já emitidos não serão alterados.</b> Substitua os documentos que
+            precisarem de atualização.
+          </p>
           <Bloco titulo="Veja o que mudou:">
             <div className="rounded-card border border-border-soft overflow-hidden">
               {mudancas.map((m, i) => (

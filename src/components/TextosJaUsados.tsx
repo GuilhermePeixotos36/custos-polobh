@@ -43,7 +43,7 @@ export function TextosJaUsados({
           className={cx(
             "max-w-full truncate rounded-full border border-border-soft bg-muted/60 px-2.5 py-1",
             "text-2xs font-semibold text-ink-2 transition-colors",
-            "hover:border-primary hover:bg-primary-soft hover:text-primary-dark"
+            "hover:border-primary hover:bg-primary-soft hover:text-brand-forte"
           )}
         >
           {texto.length > RESUMO ? `${texto.slice(0, RESUMO - 1)}…` : texto}

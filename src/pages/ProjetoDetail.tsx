@@ -1090,7 +1090,7 @@ export function ProjetoDetail() {
                     placeholder="https://www.dropbox.com/scl/fo/…"
                   />
                   {/^https?:\/\//i.test(p.docsUrl) && (
-                    <a href={p.docsUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-primary whitespace-nowrap hover:underline">
+                    <a href={p.docsUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-brand-forte whitespace-nowrap hover:underline">
                       Abrir pasta
                     </a>
                   )}
@@ -1275,7 +1275,7 @@ export function ProjetoDetail() {
                 onClick={() => setFiltroEc(valor)}
                 className={cx(
                   "h-8 rounded-pill px-3 text-xs font-bold transition-colors",
-                  filtroEc === valor ? "bg-primary-soft text-primary-dark" : "text-ink-2 hover:bg-muted hover:text-ink"
+                  filtroEc === valor ? "bg-primary-soft text-brand-forte" : "text-ink-2 hover:bg-muted hover:text-ink"
                 )}
               >
                 {rotulo}
@@ -1302,7 +1302,7 @@ export function ProjetoDetail() {
                   <Tr key={e.id} id={idAncoraPendencia(e.id)} onClick={() => navigate(`/estimativas/${e.id}`)}>
                     <TdPendencias n={porEc[e.id] ?? 0} title="Ações pendentes suas nesta EC" />
                     {/* Versão e data já vêm no próprio título ("EC – … (03) em 10 08 26"). */}
-                    <Td className={cx("font-bold", e.ativa ? "text-primary-dark" : "text-ink")}>{tituloEc(e)}</Td>
+                    <Td className={cx("font-bold", e.ativa ? "text-brand-forte" : "text-ink")}>{tituloEc(e)}</Td>
                     {/* Dois estados, e só: no ar ou no arquivo (ver `domain/ec`). */}
                     <Td align="center">
                       <Badge tom={TOM_SITUACAO_EC[situacaoEc(e)]}>{ROTULO_SITUACAO_EC[situacaoEc(e)]}</Badge>
@@ -1377,7 +1377,7 @@ export function ProjetoDetail() {
                 onClick={() => setFiltroOs(valor)}
                 className={cx(
                   "h-8 rounded-pill px-3 text-xs font-bold transition-colors",
-                  filtroOs === valor ? "bg-primary-soft text-primary-dark" : "text-ink-2 hover:bg-muted hover:text-ink"
+                  filtroOs === valor ? "bg-primary-soft text-brand-forte" : "text-ink-2 hover:bg-muted hover:text-ink"
                 )}
               >
                 {rotulo}

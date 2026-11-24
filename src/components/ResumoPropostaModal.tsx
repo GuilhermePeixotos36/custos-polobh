@@ -78,7 +78,7 @@ export function ResumoPropostaModal({ onInserir, onClose }: Props) {
   return createPortal(
     <div className="no-print fixed inset-0 z-70 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px]" onClick={loading ? undefined : onClose} />
-      <div className="relative w-full max-w-[520px] bg-surface rounded-card-lg shadow-modal border border-border p-6 animate-[fadein_.12s_ease] max-h-[85vh] overflow-y-auto">
+      <div className="relative w-full max-w-[520px] bg-surface rounded-card-lg shadow-modal p-6 animate-[fadein_.12s_ease] max-h-[85vh] overflow-y-auto">
         <h3 className="font-bold text-lg text-ink tracking-[-0.3px] flex items-center gap-2">
           <IcSpark width={18} height={18} className="text-primary" /> Resumo da Proposta (IA)
         </h3>
@@ -96,7 +96,7 @@ export function ResumoPropostaModal({ onInserir, onClose }: Props) {
               className="hidden"
               onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }}
             />
-            <span className="inline-flex items-center gap-1.5 text-sm font-bold text-primary-dark">
+            <span className="inline-flex items-center gap-1.5 text-sm font-bold text-brand-forte">
               <IcPlus width={16} height={16} /> Adicionar arquivos
             </span>
             <div className="text-2xs text-ink-3 mt-1">JPG, PNG, PDF, Excel/CSV</div>

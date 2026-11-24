@@ -11,7 +11,7 @@ export function Timeline({ itens }: { itens: CronogramaItem[] }) {
           <span className="absolute left-[-27px] top-1 h-3.5 w-3.5 rounded-full bg-primary-grad ring-4 ring-surface" />
           <div className="flex items-baseline gap-2 flex-wrap">
             <span className="font-bold text-ink text-sm">{c.etapa || "Etapa"}</span>
-            <span className="text-xs text-primary-dark font-bold">{dataBR(c.data)}{c.horario ? ` · ${c.horario}` : ""}</span>
+            <span className="text-xs text-brand-forte font-bold">{dataBR(c.data)}{c.horario ? ` · ${c.horario}` : ""}</span>
           </div>
           {c.atividades && <p className="text-sm text-ink-2 mt-0.5">{c.atividades}</p>}
         </li>
@@ -69,7 +69,7 @@ export function TimelineConsolidada({ itens }: { itens: ItemConsolidado[] }) {
                 <span className="absolute left-[-27px] top-1.5 h-3 w-3 rounded-full bg-primary-grad ring-4 ring-surface" />
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-bold text-ink text-sm">{c.etapa || "Etapa"}</span>
-                  {c.horario && <span className="text-xs text-primary-dark font-bold">{c.horario}</span>}
+                  {c.horario && <span className="text-xs text-brand-forte font-bold">{c.horario}</span>}
                   {c.fornecedor && (
                     <span className="text-2xs font-bold bg-muted text-muted-foreground rounded-pill px-2 py-0.5">
                       {c.fornecedor}

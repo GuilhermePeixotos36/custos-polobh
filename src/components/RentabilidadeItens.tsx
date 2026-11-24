@@ -79,9 +79,10 @@ export function RentabilidadeItens({
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        {/* Lista do padrão (24/11/2026): cabeçalho navy e réguas vêm da `lista-matriz`. */}
+        <table className="lista-matriz w-full text-sm border-t border-border">
           <thead>
-            <tr className="text-left border-y border-border bg-muted/40">
+            <tr className="text-left">
               <th className="px-3 py-2 text-xs font-semibold text-muted-foreground">Item</th>
               <th className="px-3 py-2 text-right text-xs font-semibold text-muted-foreground">Valor na EC</th>
               <th className="px-3 py-2 text-right text-xs font-semibold text-muted-foreground">Valor Líquido OS</th>
@@ -100,7 +101,7 @@ export function RentabilidadeItens({
             {grupos.map((g) => (
               <FragmentoGrupo key={g.nome} nome={g.nome}>
                 {g.itens.map((l) => (
-                  <tr key={l.id} className="border-b border-border-soft align-top">
+                  <tr key={l.id} className="align-top">
                     <td className="px-3 py-2.5 pl-6">
                       <div className={cx("font-semibold", l.origem === "item" ? "text-ink" : "text-ink-2 italic")}>
                         {l.item}
@@ -121,7 +122,7 @@ export function RentabilidadeItens({
                           <button
                             type="button"
                             onClick={() => setJustificativaAberta(l.id)}
-                            className="font-bold text-primary-dark hover:underline"
+                            className="font-bold text-brand-forte hover:underline"
                             title="Ver a justificativa do BV deste item"
                           >
                             ver justificativa
@@ -150,7 +151,7 @@ export function RentabilidadeItens({
                   </td>
                 </tr>
                 {custos.map((c) => (
-                  <tr key={c.id} className="border-b border-border-soft">
+                  <tr key={c.id}>
                     <td className="px-3 py-1.5 pl-6" colSpan={2}>
                       <Input
                         className="h-9! text-xs!"
