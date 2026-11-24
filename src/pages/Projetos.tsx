@@ -1,8 +1,13 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { PageShell } from "@/components/layout/AppLayout";
-import { Card, Button, Badge, Table, THead, Tr, Td, EmptyState, AvisoErro, ThOrd, useOrdenacao, ProgressBar, type Tom } from "@/components/ui";
-import { IcPlus, IcSearch } from "@/components/icons";
+import { Card, Button, Badge, Table, THead, Tr, Td, AvisoErro, ThOrd, useOrdenacao, ProgressBar, type Tom } from "@/components/ui";
+import { IcPlus } from "@/components/icons";
+import { FolderOpen, Search } from "lucide-react";
+import { BarraFiltros } from "@/components/padrao/BarraFiltros";
+import { FilterPills } from "@/components/padrao/FilterPills";
+import { EsqueletoTabela } from "@/components/padrao/EsqueletoTabela";
+import { EstadoVazio } from "@/components/padrao/EstadoVazio";
 import { ThPendencias, TdPendencias } from "@/components/ColunaPendencias";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
@@ -21,10 +26,10 @@ const tomStatusProjeto: Record<StatusProjeto, Tom> = {
 };
 
 type FiltroProjeto = "Todos" | "Ativo" | "Arquivado";
-const FILTROS: { key: FiltroProjeto; label: string }[] = [
-  { key: "Todos", label: "Todos" },
-  { key: "Ativo", label: "Ativos" },
-  { key: "Arquivado", label: "Arquivados" },
+const FILTROS: { value: FiltroProjeto; label: string }[] = [
+  { value: "Todos", label: "Todos" },
+  { value: "Ativo", label: "Ativos" },
+  { value: "Arquivado", label: "Arquivados" },
 ];
 
 export function Projetos() {
@@ -88,39 +93,39 @@ export function Projetos() {
         ) : undefined
       }
     >
-      <div data-tour="projetos-filtros" className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-        <div className="flex gap-1.5">
-          {FILTROS.map((f) => (
-            <button
-              key={f.key}
-              onClick={() => setFiltro(f.key)}
-              className={cx(
-                "h-9 px-3.5 rounded-btn text-sm font-bold border-[1.5px] transition-colors",
-                filtro === f.key ? "bg-primary-soft border-active-border text-brand-forte" : "bg-surface border-border text-ink-2 hover:text-ink"
-              )}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-        <div className="relative min-w-[220px]">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-3"><IcSearch width={16} height={16} /></span>
-          <input
-            className="w-full h-10 bg-surface border-[1.5px] border-input rounded-btn pl-9 pr-3 text-sm text-ink placeholder:text-ink-3 input-focus"
-            placeholder="Buscar projeto ou cliente…"
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
+      <Card padded={false}>
+        {/* Barra de filtros do padrão (24/11/2026): pílulas de situação à vista, contagem e
+            busca à direita. O `data-tour` continua no mesmo bloco, para o tour achar os filtros. */}
+        <div data-tour="projetos-filtros" className="border-b border-border-soft">
+          <BarraFiltros
+            busca={busca}
+            onBusca={setBusca}
+            placeholderBusca="Buscar projeto ou cliente…"
+            contagem={loading || error ? undefined : `${lista.length} projeto(s)`}
+            acoes={<FilterPills value={filtro} options={FILTROS} onChange={setFiltro} ariaLabel="Situação do projeto" />}
+            className="movel:[&_input]:h-10"
           />
         </div>
-      </div>
-
-      <Card padded={false}>
         {error ? (
           <AvisoErro erro={error} oQue="os projetos" onTentarDeNovo={reload} />
         ) : loading ? (
-          <div className="p-8 text-ink-3 text-sm">Carregando…</div>
+          <EsqueletoTabela
+            colunas={["", "Cliente", "Projeto", "Produtora", "Datas do evento", ...(podeVerChecklist ? ["Check-list"] : []), "Status"]}
+            rotulo="Carregando os projetos…"
+          />
         ) : lista.length === 0 ? (
-          <div className="p-8"><EmptyState title="Nenhum projeto" hint="Crie o primeiro projeto para começar." /></div>
+          (data?.projetos.length ?? 0) === 0 ? (
+            <EstadoVazio semCartao icone={FolderOpen} titulo="Nenhum projeto" descricao="Crie o primeiro projeto para começar." />
+          ) : (
+            // Vazio por filtro ou busca: o "Limpar filtros" volta para Todos, sem busca.
+            <EstadoVazio
+              semCartao
+              icone={Search}
+              titulo="Nenhum projeto encontrado."
+              descricao="Nenhum projeto com essa situação ou essa busca."
+              acao={<Button variant="secondary" onClick={() => { setBusca(""); setFiltro("Todos"); }}>Limpar filtros</Button>}
+            />
+          )
         ) : (
           <Table>
             <THead>
