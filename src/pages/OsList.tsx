@@ -85,7 +85,7 @@ export function OsList() {
                 onClick={() => setFiltro(valor)}
                 className={cx(
                   "h-8 rounded-pill px-3 text-xs font-bold transition-colors",
-                  filtro === valor ? "bg-primary-soft text-primary-dark" : "text-ink-2 hover:bg-muted hover:text-ink"
+                  filtro === valor ? "bg-primary-soft text-brand-forte" : "text-ink-2 hover:bg-muted hover:text-ink"
                 )}
               >
                 {rotulo}

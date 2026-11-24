@@ -142,7 +142,7 @@ function BotaoItens({ itens }: { itens: ItemDaOs[] }) {
         title={rotulo}
         className={cx(
           "inline-flex h-7 w-7 items-center justify-center rounded-btn transition-colors",
-          aberto ? "bg-primary-soft text-primary-dark" : "text-ink-3 hover:text-primary-dark hover:bg-muted"
+          aberto ? "bg-primary-soft text-brand-forte" : "text-ink-3 hover:text-brand-forte hover:bg-muted"
         )}
       >
         <IcList width={15} height={15} />

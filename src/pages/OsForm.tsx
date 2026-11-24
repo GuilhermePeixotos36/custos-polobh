@@ -1910,7 +1910,7 @@ export function OsForm() {
               <button
                 type="button"
                 onClick={() => setOs((o) => (o ? { ...o, modalidade: modalidadeSugerida } : o))}
-                className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-bold text-primary-dark hover:underline"
+                className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-bold text-brand-forte hover:underline"
               >
                 <IcSpark width={13} height={13} /> Sugestão pelos itens: {modalidadeSugerida} — aplicar
               </button>
@@ -1987,14 +1987,14 @@ export function OsForm() {
               <button
                 type="button"
                 onClick={() => setOs((o) => (o ? { ...o, descritivo: descritivoDaEc } : o))}
-                className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-bold text-primary-dark hover:underline"
+                className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-bold text-brand-forte hover:underline"
                 title="Substitui o texto acima pelo descritivo atual dos itens da EC (financeiro + detalhado)"
               >
                 <IcSpark width={13} height={13} /> A EC mudou desde que esta OS nasceu — trazer o descritivo atual
               </button>
             )}
             {flags.descritivoIA && (
-              <button onClick={descricaoIA} className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-primary-dark hover:underline">
+              <button onClick={descricaoIA} className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-brand-forte hover:underline">
                 <IcSpark width={14} height={14} /> Gerar com IA
               </button>
             )}
@@ -2207,7 +2207,7 @@ export function OsForm() {
             <button
               type="button"
               onClick={adicionarGrupoExtra}
-              className="py-1.5 text-xs font-bold text-primary-dark hover:underline input-focus rounded-sm"
+              className="py-1.5 text-xs font-bold text-brand-forte hover:underline input-focus rounded-sm"
             >
               + Novo grupo (além de Logística e Infraestrutura)
             </button>
@@ -2458,7 +2458,7 @@ export function OsForm() {
                       const v = os.financeiro.valorTotal;
                       updCt({ valorUnitario: v / quantidadeCt, valorTotal: v, valorAPagar: v - os.contrato.descontoNegociado });
                     }}
-                    className="font-bold text-primary-dark hover:underline"
+                    className="font-bold text-brand-forte hover:underline"
                   >
                     Usar o valor do Faturamento
                   </button>
@@ -2502,7 +2502,7 @@ export function OsForm() {
                       <button
                         type="button"
                         onClick={() => updClausula(c.chave, c.padrao)}
-                        className="text-2xs font-bold text-ink-3 hover:text-primary-dark input-focus rounded-sm px-1"
+                        className="text-2xs font-bold text-ink-3 hover:text-brand-forte input-focus rounded-sm px-1"
                       >
                         Voltar ao texto do modelo
                       </button>
@@ -2633,7 +2633,7 @@ export function OsForm() {
                   <LinhaOs label="">
                     <p className="py-2 text-xs font-semibold text-danger">
                       A empresa emissora da Pólobh ainda não está cadastrada — os dados da nota saem em branco.{" "}
-                      <Link to="/configuracoes?aba=empresas" className="underline text-primary-dark">
+                      <Link to="/configuracoes?aba=empresas" className="underline text-brand-forte">
                         Cadastrar em Configurações › Empresas do Grupo
                       </Link>
                     </p>
@@ -2682,7 +2682,7 @@ export function OsForm() {
                   <button
                     type="button"
                     onClick={() => setValorTotalFinanceiro(os.orcamento.valorComBvNf)}
-                    className="font-bold text-primary-dark hover:underline"
+                    className="font-bold text-brand-forte hover:underline"
                   >
                     Usar o valor do Orçamento
                   </button>
@@ -2748,7 +2748,7 @@ export function OsForm() {
                     <button
                       type="button"
                       onClick={() => updFin({ retencoes: RETENCOES_PADRAO })}
-                      className="mt-1 text-xs font-bold text-primary-dark hover:underline"
+                      className="mt-1 text-xs font-bold text-brand-forte hover:underline"
                     >
                       Voltar ao texto padrão
                     </button>
@@ -2925,7 +2925,7 @@ function ValorDoAcerto({
         <button
           type="button"
           onClick={() => gravar(undefined)}
-          className="text-2xs font-bold text-ink-3 hover:text-primary-dark input-focus rounded-sm px-1"
+          className="text-2xs font-bold text-ink-3 hover:text-brand-forte input-focus rounded-sm px-1"
         >
           Voltar ao automático ({brl(acerto.automatico[campo])})
         </button>
@@ -3652,7 +3652,7 @@ function CnaeDoFornecedor({
           placeholder="Ex.: 9001-9/06 - Atividades de sonorização e de iluminação"
         />
         {doCnpj.length > 0 && (
-          <button type="button" onClick={() => setDigitando(false)} className="mt-1.5 text-xs font-bold text-primary-dark hover:underline">
+          <button type="button" onClick={() => setDigitando(false)} className="mt-1.5 text-xs font-bold text-brand-forte hover:underline">
             Voltar às atividades do CNPJ
           </button>
         )}
@@ -3690,7 +3690,7 @@ function AvisoIncentivo({ faltando, link }: { faltando: string[]; link: string }
       <p className="py-2 text-xs font-semibold text-danger">
         Falta preencher nos Dados Gerais do projeto: {faltando.join(", ")}.{" "}
         {link && (
-          <Link to={link} className="underline text-primary-dark">
+          <Link to={link} className="underline text-brand-forte">
             Abrir Dados Gerais
           </Link>
         )}
