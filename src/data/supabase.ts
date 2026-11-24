@@ -487,6 +487,8 @@ function mapEc(r: any): Ec {
   }
   return {
     id: r.id,
+    // ID simples (#12). Antes da migração a coluna não vem no `select *` → undefined → "—".
+    codigo: typeof r.codigo === "number" ? r.codigo : r.codigo != null ? Number(r.codigo) : undefined,
     numero: r.numero,
     slugPublico: r.slug_publico ?? "",
     projetoId: r.projeto_id ?? "",
@@ -742,6 +744,8 @@ export function mapOs(r: any): Os {
   };
   return {
     id: r.id,
+    // ID simples (#87) — mesma regra da EC: ausente antes da migração.
+    codigo: typeof r.codigo === "number" ? r.codigo : r.codigo != null ? Number(r.codigo) : undefined,
     numero: r.numero,
     slugCredenciamento: r.slug_credenciamento ?? "",
     seq: r.seq,

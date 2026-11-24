@@ -90,7 +90,7 @@ export type ColunaOpcional = ColunaCabecalho | false | null | undefined;
 
 const ehColuna = (coluna: ColunaOpcional): coluna is ColunaCabecalho => Boolean(coluna);
 
-export function CabecalhoOrdenavel({ colunas, ordem, onOrdenar, className }: {
+export function CabecalhoOrdenavel({ colunas, ordem, onOrdenar, className, acessorio, grudado = false }: {
   colunas: readonly ColunaOpcional[];
   ordem: EstadoOrdenacao;
   onOrdenar: (coluna: ColunaOrdenavel) => void;
@@ -100,6 +100,18 @@ export function CabecalhoOrdenavel({ colunas, ordem, onOrdenar, className }: {
    * vem de série e não precisa ser repetido.
    */
   className?: string;
+  /**
+   * O que mais mora no `<th>` ao lado do botão de ordenar — é a porta do filtro por coluna
+   * (`CabecalhoDeColuna`, 24/11/2026). Fica aqui, e não num segundo cabeçalho, para a fileira de
+   * `<th>` continuar tendo um construtor só: o filtro acrescenta, não refaz.
+   */
+  acessorio?: (coluna: ColunaCabecalho) => ReactNode;
+  /**
+   * Gruda cada `<th>` logo abaixo do cabeçalho da página, como o `Th` do kit (`ui/Table`). Na
+   * `lista-matriz`, que é `border-separate`, o `sticky` vale na CÉLULA e não no `<thead>`; e só da
+   * tela média para cima, onde a tabela não tem rolagem lateral própria.
+   */
+  grudado?: boolean;
 }) {
   const cabecalho = useRef<HTMLTableSectionElement>(null);
   const chaveOrdem = `${ordem.chave}|${ordem.sentido}`;
@@ -128,6 +140,8 @@ export function CabecalhoOrdenavel({ colunas, ordem, onOrdenar, className }: {
             coluna={coluna}
             ordem={ordem}
             onOrdenar={onOrdenar}
+            extra={acessorio?.(coluna)}
+            grudado={grudado}
           />
         ))}
       </tr>
@@ -139,10 +153,12 @@ export function CabecalhoOrdenavel({ colunas, ordem, onOrdenar, className }: {
  * Uma célula do cabeçalho. Fica aqui dentro, sem `export`: o cabeçalho é a única porta de entrada
  * — duas formas de montar a mesma fileira de `<th>` divergiriam na primeira mudança.
  */
-function ThOrdenavel({ coluna, ordem, onOrdenar }: {
+function ThOrdenavel({ coluna, ordem, onOrdenar, extra, grudado }: {
   coluna: ColunaCabecalho;
   ordem: EstadoOrdenacao;
   onOrdenar: (coluna: ColunaOrdenavel) => void;
+  extra?: ReactNode;
+  grudado?: boolean;
 }) {
   // Sem `chave` não há dado por trás da coluna (Ações, Recibo); com `conteudo` o `<th>` já é um
   // controle. Nos dois casos não há botão nem `aria-sort` para anunciar.
@@ -157,14 +173,8 @@ function ThOrdenavel({ coluna, ordem, onOrdenar }: {
   // Coluna de número vai à direita, e a seta passa para a ESQUERDA do rótulo: depois dele, ela
   // empurrava o texto 18px para dentro e o rótulo deixava de terminar onde terminam os números.
   const direita = /\btext-right\b/.test(coluna.classe ?? "");
-  return (
-    <th
-      scope="col"
-      title={ordenavel ? undefined : coluna.dica ?? (coluna.rotuloCurto ? coluna.rotulo : undefined)}
-      className={cn("px-4 py-3 font-semibold", coluna.classe)}
-      aria-sort={ordenavel ? (ativa ? (ordem.sentido === "asc" ? "ascending" : "descending") : "none") : undefined}
-    >
-      {ordenavel
+  const centro = /\btext-center\b/.test(coluna.classe ?? "");
+  const principal = ordenavel
         ? (
           <button
             type="button"
@@ -178,7 +188,29 @@ function ThOrdenavel({ coluna, ordem, onOrdenar }: {
             <IndicadorOrdem ativa={ativa} sentido={ativa ? ordem.sentido : sentidoInicial(coluna.tipo ?? "texto")} />
           </button>
         )
-        : coluna.conteudo ?? rotulo}
+        : coluna.conteudo ?? rotulo;
+  return (
+    <th
+      scope="col"
+      title={ordenavel ? undefined : coluna.dica ?? (coluna.rotuloCurto ? coluna.rotulo : undefined)}
+      className={cn(
+        "px-4 py-3 font-semibold",
+        grudado && "md:sticky md:top-[calc(var(--altura-topnav)+var(--altura-cabecalho))] md:z-10",
+        coluna.classe,
+      )}
+      aria-sort={ordenavel ? (ativa ? (ordem.sentido === "asc" ? "ascending" : "descending") : "none") : undefined}
+    >
+      {extra
+        // Com o acessório (o funil do filtro), os dois andam juntos e o funil fica do lado de
+        // DENTRO da coluna: na coluna à direita ele vai à esquerda do rótulo, para o rótulo
+        // continuar terminando onde terminam os números.
+        ? (
+          <span className={cn("flex items-center gap-1", direita && "flex-row-reverse", centro && "justify-center")}>
+            {principal}
+            {extra}
+          </span>
+        )
+        : principal}
     </th>
   );
 }

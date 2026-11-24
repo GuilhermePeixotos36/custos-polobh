@@ -16,8 +16,10 @@ import { Plus, Search, Truck } from "lucide-react";
 
 import { CabecalhoPagina } from "@/components/padrao/CabecalhoPagina";
 import { BarraFiltros } from "@/components/padrao/BarraFiltros";
-import { CabecalhoOrdenavel, useOrdenacao, type ColunaCabecalho } from "@/components/padrao/CabecalhoOrdenavel";
+import { useOrdenacao } from "@/components/padrao/CabecalhoOrdenavel";
+import { CabecalhoDeColuna, useFiltrosDeColuna, type ColunaDeLista } from "@/components/padrao/CabecalhoDeColuna";
 import { ordenarPorColuna } from "@/components/padrao/ordenacaoTabela";
+import { filtrarPorColunas, type ExtratoresDeFiltro } from "@/components/padrao/filtrosColuna";
 import { EsqueletoTabela } from "@/components/padrao/EsqueletoTabela";
 import { EstadoVazio } from "@/components/padrao/EstadoVazio";
 import { AvisoEmLinha } from "@/components/padrao/AvisoEmLinha";
@@ -32,7 +34,7 @@ import { useAsync } from "@/hooks/useAsync";
 import { maskDoc } from "@/lib/format";
 import { useAuth } from "@/store/auth";
 
-const COLUNAS: ColunaCabecalho[] = [
+const COLUNAS: ColunaDeLista[] = [
   { rotulo: "Fornecedor", chave: "fornecedor", tipo: "texto" },
   { rotulo: "CPF/CNPJ", chave: "cnpj", tipo: "natural", classe: "whitespace-nowrap" },
   { rotulo: "Perfil", chave: "perfil", tipo: "texto" },
@@ -44,6 +46,15 @@ const VALORES: Record<string, (f: Fornecedor) => string> = {
   cnpj: (f) => f.cnpj,
   perfil: (f) => f.perfilTributario,
   contato: (f) => f.email,
+};
+
+/**
+ * Filtro por coluna (24/11/2026): os mesmos dados da ordenação, com o CPF/CNPJ escrito como na
+ * tela (mascarado) — é assim que a pessoa o reconhece no painel.
+ */
+const VALORES_FILTRO: ExtratoresDeFiltro<Fornecedor> = {
+  ...VALORES,
+  cnpj: (f) => maskDoc(f.cnpj),
 };
 
 /** Desempate estável: pela razão social, depois pelo id. */
@@ -71,10 +82,13 @@ export function Fornecedores() {
   const buscaAdiada = useDeferredValue(busca);
   const [aberto, setAberto] = useState<Fornecedor | null>(null);
   const { ordem, ordenarPor } = useOrdenacao({ chave: "fornecedor", sentido: "asc" });
+  const filtrosColuna = useFiltrosDeColuna();
 
+  /** Depois da busca: é daqui que o painel de cada coluna tira os valores. */
+  const base = useMemo(() => filtrarListaFornecedores(data ?? [], buscaAdiada), [data, buscaAdiada]);
   const lista = useMemo(
-    () => ordenarPorColuna(filtrarListaFornecedores(data ?? [], buscaAdiada), COLUNAS, ordem, VALORES, desempate),
-    [data, buscaAdiada, ordem],
+    () => ordenarPorColuna(filtrarPorColunas(base, filtrosColuna.filtros, VALORES_FILTRO), COLUNAS, ordem, VALORES, desempate),
+    [base, filtrosColuna.filtros, ordem],
   );
 
   const carregando = loading && !data;
@@ -99,6 +113,8 @@ export function Fornecedores() {
           placeholderBusca="Nome ou CPF/CNPJ"
           rotuloBusca="Buscar fornecedor por nome ou CPF/CNPJ"
           contagem={carregando || error ? undefined : `${lista.length} fornecedor(es)`}
+          filtrosDeColuna={filtrosColuna.ativos}
+          onLimpar={filtrosColuna.limpar}
           className="movel:[&_input]:h-10"
         />
 
@@ -112,13 +128,13 @@ export function Fornecedores() {
         ) : carregando ? (
           <EsqueletoTabela colunas={COLUNAS.map((c) => c.rotulo)} rotulo="Carregando os fornecedores…" />
         ) : lista.length === 0 ? (
-          busca.trim() ? (
+          (data?.length ?? 0) > 0 ? (
             <EstadoVazio
               semCartao
               icone={Search}
               titulo="Nenhum fornecedor encontrado."
-              descricao="Confira o nome ou o CPF/CNPJ digitado."
-              acao={<Button variant="secondary" onClick={() => setBusca("")}>Limpar filtros</Button>}
+              descricao="Confira o nome ou o CPF/CNPJ digitado, ou os filtros das colunas."
+              acao={<Button variant="secondary" onClick={() => { setBusca(""); filtrosColuna.limpar(); }}>Limpar filtros</Button>}
             />
           ) : (
             <EstadoVazio
@@ -133,7 +149,15 @@ export function Fornecedores() {
             {/* Computador: a tabela em matriz. */}
             <div className="overflow-x-auto movel:hidden">
               <table className="lista-matriz w-full text-sm">
-                <CabecalhoOrdenavel colunas={COLUNAS} ordem={ordem} onOrdenar={ordenarPor} />
+                <CabecalhoDeColuna
+                  colunas={COLUNAS}
+                  ordem={ordem}
+                  onOrdenar={ordenarPor}
+                  itens={base}
+                  valoresFiltro={VALORES_FILTRO}
+                  filtros={filtrosColuna.filtros}
+                  onFiltros={filtrosColuna.setFiltros}
+                />
                 <tbody>
                   {lista.map((f) => {
                     const end = avisoEndereco(f);
