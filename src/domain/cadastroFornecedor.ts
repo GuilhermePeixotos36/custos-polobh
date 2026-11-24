@@ -271,3 +271,29 @@ export function faltandoNoCadastroParaOs(f: Pick<Fornecedor, "telefone" | "email
   if (!f.email?.trim()) falta.push("e-mail");
   return falta;
 }
+
+/* --------------------------- a tela de cadastro -------------------------- */
+
+/**
+ * A busca da tela /fornecedores: nome ou CPF/CNPJ (com ou sem máscara) — e,
+ * como antes, o que mais a linha mostra (perfil, e-mail, telefone, contatos):
+ * era possível ver "Som & Luz" na lista e não achar nada ao digitar isso.
+ */
+export function filtrarListaFornecedores(lista: readonly Fornecedor[], busca: string): Fornecedor[] {
+  const texto = busca.trim();
+  if (!texto) return [...lista];
+  if (buscaPorDocumento(texto)) {
+    const digitos = onlyDigits(texto);
+    return lista.filter((f) => onlyDigits(f.cnpj).includes(digitos));
+  }
+  const termos = normalizarBusca(texto).split(" ").filter(Boolean);
+  return lista.filter((f) => {
+    const alvo = normalizarBusca(
+      [f.apelido, f.nomeFantasia, f.razaoSocial, f.cnpj, f.perfilTributario, f.email, f.telefone, f.representante,
+       ...(f.contatos ?? []).flatMap((c) => [c.nome, c.funcao, c.email, c.telefone])]
+        .filter(Boolean)
+        .join(" "),
+    );
+    return termos.every((t) => alvo.includes(t));
+  });
+}

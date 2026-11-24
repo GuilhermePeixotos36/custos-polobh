@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   aplicarConsulta, buscaPorDocumento, camposDaCasaLiberados, camposTravados, faltandoNoCadastroParaOs,
   filtrarFornecedores, fornecedorDaOsPeloCadastro, fornecedorEmBranco, linhaComFornecedor, opcoesDeFornecedores,
-  opcoesPerfilNoCadastro, situacaoFornecedor, tipoDocumento,
+  opcoesPerfilNoCadastro, situacaoFornecedor, tipoDocumento, filtrarListaFornecedores,
 } from "./cadastroFornecedor";
 import type { Fornecedor } from "@/data/types";
 import type { DadosCnpj } from "@/lib/cnpj";
@@ -151,5 +151,25 @@ describe("a OS lê o fornecedor do cadastro", () => {
 
   it("aponta o que falta no cadastro para emitir a OS", () => {
     expect(faltandoNoCadastroParaOs({ endereco: "x", perfilTributario: "MEI", telefone: "", email: "" })).toEqual(["telefone", "e-mail"]);
+  });
+});
+
+describe("busca da tela de fornecedores", () => {
+  const lista = [
+    forn({ id: "1", cnpj: "33.333.333/0001-33", razaoSocial: "Sonora Áudio Ltda", nomeFantasia: "Som & Luz", contatos: [{ nome: "Maria", funcao: "Financeiro" }] }),
+    forn({ id: "2", cnpj: CPF, razaoSocial: "José da Silva" }),
+  ];
+
+  it("por nome (fantasia, razão, contato), sem acento", () => {
+    expect(filtrarListaFornecedores(lista, "som & luz").map((f) => f.id)).toEqual(["1"]);
+    expect(filtrarListaFornecedores(lista, "audio").map((f) => f.id)).toEqual(["1"]);
+    expect(filtrarListaFornecedores(lista, "financeiro").map((f) => f.id)).toEqual(["1"]);
+    expect(filtrarListaFornecedores(lista, "jose").map((f) => f.id)).toEqual(["2"]);
+  });
+
+  it("por documento com ou sem máscara", () => {
+    expect(filtrarListaFornecedores(lista, "33333333").map((f) => f.id)).toEqual(["1"]);
+    expect(filtrarListaFornecedores(lista, "529.982").map((f) => f.id)).toEqual(["2"]);
+    expect(filtrarListaFornecedores(lista, "").length).toBe(2);
   });
 });
