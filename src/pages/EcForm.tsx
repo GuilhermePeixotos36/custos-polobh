@@ -41,7 +41,6 @@ import { gerarRentabilidadeExcel } from "@/lib/excel";
 import { gerarNovaVersaoEc } from "@/lib/novaVersaoEc";
 import { revisarEc, type RevisaoEc } from "@/domain/revisaoEc";
 import { RevisaoEcModal } from "@/components/RevisaoEcModal";
-import { consultarCnpj } from "@/lib/cnpj";
 import { AVISO_ORIGEM, buscarPorDocumento, ieDaBusca, useAoCompletarDocumento } from "@/lib/buscaPorDocumento";
 import {
   avisarFalhaRevisao, lembrarRevisados, pendentesDeRevisao, revisarPendentes, somenteMaiusculas,
@@ -56,7 +55,7 @@ import { EcGrupos } from "@/components/EcGrupos";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
 import { ObservacoesGeraisEc } from "@/components/ObservacoesGeraisEc";
 import { pendenciasDaTela } from "@/domain/pendencias";
-import { comPerfilPeloDocumento, contatoDeTexto, mesclarContatos, semVazios } from "@/domain/fornecedor";
+import { contatoDeTexto, mesclarContatos, semVazios } from "@/domain/fornecedor";
 import { useMinhasPendencias } from "@/store/pendencias";
 import { useSugestoes } from "@/hooks/useSugestoes";
 import { EcSubGuias, type SubGuiaEc } from "@/components/EcSubGuias";
@@ -70,32 +69,11 @@ import type {
   ContatoFornecedor,
   Ec,
   EcLinha,
-  Fornecedor,
   ModalidadeProjeto,
   ProjetoInfo,
   TaxaConfig,
 } from "@/data/types";
 import type { EcTotais } from "@/domain/calc";
-
-/** Monta um Fornecedor completo a partir dos campos conhecidos (resto vazio). */
-const fornecedorNovo = (p: Partial<Fornecedor>): Fornecedor =>
-  comPerfilPeloDocumento<Fornecedor>({
-  id: "",
-  razaoSocial: "",
-  nomeFantasia: "",
-  cnpj: "",
-  perfilTributario: "",
-  endereco: "",
-  inscricaoEstadual: "",
-  inscricaoMunicipal: "",
-  dadosBancarios: { tipoConta: "", banco: "", agencia: "", conta: "", chavePix: "" },
-  representante: "",
-  telefone: "",
-  email: "",
-  cnaes: [],
-  contatos: [],
-  ...p,
-  });
 
 const clienteVazio = (): Cliente => ({
   id: "",
@@ -328,32 +306,15 @@ export function EcForm() {
   const numero = numeroEc(ec.cliente.nome || "Cliente", ec.projeto.titulo || "Projeto", ec.versao);
   const temProjeto = Boolean(ec.projetoId);
 
-  /** Valida o CNPJ na Receita e registra o fornecedor no sistema (chamado pela tabela de custos). */
-  async function validarFornecedor(cnpj: string): Promise<string | null> {
-    try {
-      // A validação agora também roda sozinha (18/11/2026), e pode chegar antes
-      // de a lista de fornecedores carregar: quem já está no cadastro não é
-      // registrado de novo.
-      const existente = await repo.fornecedores.porCnpj(cnpj).catch(() => undefined);
-      if (existente) {
-        await reloadForn();
-        return existente.nomeFantasia || existente.razaoSocial || null;
-      }
-      const d = await consultarCnpj(cnpj);
-      await repo.fornecedores.salvar(fornecedorNovo({ cnpj: d.cnpj, razaoSocial: d.razaoSocial, nomeFantasia: d.nomeFantasia, endereco: d.endereco, perfilTributario: d.perfilTributario, telefone: d.telefone, email: d.email, inscricaoEstadual: d.inscricaoEstadual || "Isenta", inscricaoMunicipal: d.inscricaoMunicipal, cnaes: d.cnaes }));
-      await reloadForn();
-      const nome = d.nomeFantasia || d.razaoSocial;
-      toast(`Fornecedor ${nome} registrado no sistema.`, "success");
-      return nome;
-    } catch (e) {
-      toast((e as Error).message, "danger");
-      return null;
-    }
-  }
-
   /**
-   * Ao salvar a EC, garante o cadastro de cada fornecedor citado e acumula os
-   * contatos.
+   * Ao salvar a EC, acumula no cadastro de cada fornecedor citado os contatos
+   * informados nas linhas.
+   *
+   * Até 24/11/2026 isto também CRIAVA o cadastro de quem não existia, com a
+   * razão social digitada na linha — era uma das portas dos fornecedores
+   * "parecidos". Agora o fornecedor da linha só entra escolhido do cadastro ou
+   * cadastrado pelo "+" (ver `SeletorFornecedor`), então aqui só se completa
+   * a agenda de quem já está cadastrado.
    *
    * O campo da EC é uma linha de texto solta ("Maria (31) 99999-0000"), então
    * ela é separada em nome/telefone/e-mail antes de entrar na agenda do
@@ -361,14 +322,13 @@ export function EcForm() {
    * virar uma segunda Maria (ver `mesclarContatos`).
    */
   async function acumularFornecedores(linhas: EcLinha[]) {
-    const porCnpj = new Map<string, { cnpjRaw: string; razao: string; contatos: ContatoFornecedor[] }>();
+    const porCnpj = new Map<string, { contatos: ContatoFornecedor[] }>();
     for (const l of linhas) {
       const d = onlyDigits(l.fornecedorCnpj);
-      // CPF entra também: pessoa física vira fornecedor cadastrado como as demais.
+      // CPF entra também: pessoa física tem cadastro e agenda como as demais.
       if (d.length !== 14 && d.length !== 11) continue;
-      if (!porCnpj.has(d)) porCnpj.set(d, { cnpjRaw: l.fornecedorCnpj, razao: l.fornecedorRazao, contatos: [] });
+      if (!porCnpj.has(d)) porCnpj.set(d, { contatos: [] });
       const e = porCnpj.get(d)!;
-      if (!e.razao && l.fornecedorRazao) e.razao = l.fornecedorRazao;
       const c = contatoDeTexto(l.fornecedorContato);
       if (c) e.contatos = mesclarContatos(e.contatos, [c]);
     }
@@ -384,8 +344,6 @@ export function EcForm() {
           if (JSON.stringify(juntos) !== JSON.stringify(atuais)) {
             await repo.fornecedores.salvar({ ...existente, contatos: juntos });
           }
-        } else {
-          await repo.fornecedores.salvar(fornecedorNovo({ cnpj: info.cnpjRaw, razaoSocial: info.razao, contatos: info.contatos }));
         }
       })
     );
@@ -730,7 +688,7 @@ export function EcForm() {
               usuarios={usuarios}
               sugestoes={sugestoes}
               pendenciasPorLinha={pendenciasPorLinha}
-              onValidarFornecedor={validarFornecedor}
+              onFornecedorCadastrado={() => void reloadForn()}
               modalidade={modalidadeAtual}
             />
           </div>
