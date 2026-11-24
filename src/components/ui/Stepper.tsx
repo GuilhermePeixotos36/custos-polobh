@@ -123,7 +123,7 @@ export function StepperIndicator({ className, children, ...props }: React.HTMLAt
     <div
       className={cx(
         "relative flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-colors",
-        state === "active" && "aura-etapa bg-primary text-white",
+        state === "active" && "aura-etapa bg-brand text-primary-foreground",
         state === "completed" && "bg-success text-white",
         state === "inactive" && "bg-muted text-ink-3",
         className,

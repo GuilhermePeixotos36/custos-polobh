@@ -101,7 +101,7 @@ export function SinoPendencias() {
         title={itens.length ? `${itens.length} pendência(s)` : "Nenhuma pendência"}
         className={cx(
           "relative inline-flex h-9 w-9 items-center justify-center rounded-btn transition-colors",
-          aberto ? "bg-primary-soft text-primary-dark" : "text-ink-2 hover:text-ink hover:bg-muted/60"
+          aberto ? "bg-primary-soft text-brand-forte" : "text-ink-2 hover:text-ink hover:bg-muted/60"
         )}
       >
         <IcBell width={18} height={18} />
@@ -140,7 +140,7 @@ export function SinoPendencias() {
                       <span
                         className={cx(
                           "inline-block text-2xs font-semibold rounded-full px-1.5 py-0.5 mb-1",
-                          urgente(p.tipo) ? "bg-danger-soft text-danger" : "bg-primary-soft text-primary-dark"
+                          urgente(p.tipo) ? "bg-danger-soft text-danger" : "bg-primary-soft text-brand-forte"
                         )}
                       >
                         {ETIQUETA[p.tipo] ?? "Pendência"}

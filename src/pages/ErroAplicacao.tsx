@@ -67,7 +67,7 @@ export function ErroAplicacao() {
             <button
               type="button"
               onClick={() => void sairEEntrarDeNovo()}
-              className="mt-3 text-sm font-bold text-primary-dark hover:underline"
+              className="mt-3 text-sm font-bold text-brand-forte hover:underline"
             >
               Sair e entrar de novo
             </button>

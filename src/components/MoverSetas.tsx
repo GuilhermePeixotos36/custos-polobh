@@ -77,7 +77,7 @@ function Seta({
       title={dica}
       className={cx(
         "inline-flex h-5 w-5 items-center justify-center rounded-sm text-ink-3 transition-colors",
-        disabled ? "opacity-25 cursor-default" : "hover:bg-primary-soft hover:text-primary-dark"
+        disabled ? "opacity-25 cursor-default" : "hover:bg-primary-soft hover:text-brand-forte"
       )}
     >
       <IcChevron width={14} height={14} className={paraCima ? "-rotate-90" : "rotate-90"} />

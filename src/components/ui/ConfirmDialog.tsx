@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useConfirm } from "@/store/confirm";
 import { cx } from "@/lib/format";
+import { Button } from "./Button";
 
 /** Modal de confirmação — montado uma vez no AppLayout. */
 export function ConfirmDialog() {
@@ -29,7 +30,7 @@ export function ConfirmDialog() {
         className="absolute inset-0 bg-black/40 backdrop-blur-[1px]"
         onClick={() => responder(false)}
       />
-      <div className="relative w-full max-w-[420px] bg-surface rounded-card-lg shadow-modal border border-border p-6 animate-[fadein_.12s_ease]">
+      <div className="relative w-full max-w-[420px] bg-surface rounded-card-lg shadow-modal p-6 animate-[fadein_.12s_ease]">
         <h3 className="font-bold text-lg text-ink tracking-[-0.3px]">{opts.titulo}</h3>
         {/* `whitespace-pre-line`: a mensagem às vezes traz um parágrafo extra
             (ex.: os itens que ficaram de fora da emissão de OS). */}
@@ -37,23 +38,18 @@ export function ConfirmDialog() {
 
         <div className="flex justify-end gap-2 mt-6">
           {!opts.somenteOk && (
-            <button
-              onClick={() => responder(false)}
-              className="h-10 px-4 rounded-btn font-bold text-sm bg-surface text-ink border-[1.5px] border-border hover:bg-muted/40"
-            >
+            <Button variant="secondary" onClick={() => responder(false)}>
               {opts.cancelarTexto ?? "Cancelar"}
-            </button>
+            </Button>
           )}
-          <button
+          {/* Confirmação de perigo segue vermelha cheia: é a resposta que apaga. */}
+          <Button
             autoFocus
             onClick={() => responder(true)}
-            className={cx(
-              "h-10 px-4 rounded-btn font-bold text-sm text-white transition-colors",
-              danger ? "bg-danger hover:brightness-95" : "bg-primary-grad text-primary-foreground shadow-btn"
-            )}
+            className={cx(danger && "bg-destructive text-destructive-foreground shadow-none hover:bg-destructive/90")}
           >
             {opts.confirmarTexto ?? "Confirmar"}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

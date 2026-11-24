@@ -83,8 +83,8 @@ export function SubGuias<K extends string>({
               ? cx("text-ink-3/40 cursor-not-allowed", !secundaria && "border-transparent")
               : atual === a.key
                 ? secundaria
-                  ? "bg-primary-soft text-primary-dark"
-                  : "text-primary-dark border-primary"
+                  ? "bg-primary-soft text-brand-forte"
+                  : "text-brand-forte border-primary"
                 : cx("text-ink-2 hover:text-ink", secundaria ? "hover:bg-muted" : "border-transparent")
           )}
         >

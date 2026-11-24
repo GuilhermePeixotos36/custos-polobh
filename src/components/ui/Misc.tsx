@@ -169,7 +169,7 @@ export function ChaveNaoSeAplica({
       className={cx(
         "group inline-flex items-center gap-2 h-7 pl-1.5 pr-2.5 rounded-pill border text-2xs font-bold whitespace-nowrap transition-colors input-focus",
         "disabled:cursor-not-allowed disabled:opacity-60",
-        ativo ? "border-primary/40 bg-primary-soft text-primary-dark" : "border-border bg-surface text-ink-2 hover:border-primary/40 hover:text-ink"
+        ativo ? "border-primary/40 bg-primary-soft text-brand-forte" : "border-border bg-surface text-ink-2 hover:border-primary/40 hover:text-ink"
       )}
     >
       <span className={cx("relative w-[28px] h-[16px] rounded-pill transition-colors", ativo ? "bg-primary" : "bg-input/70")}>

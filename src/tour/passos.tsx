@@ -56,7 +56,7 @@ const Passos = ({ itens }: { itens: ReactNode[] }) => (
   <ol className="space-y-1.5 text-sm leading-relaxed text-ink-2">
     {itens.map((c, i) => (
       <li key={i} className="flex gap-2">
-        <span className="mt-[3px] h-4 w-4 shrink-0 rounded-full bg-primary-soft text-primary-dark text-2xs font-bold grid place-items-center">
+        <span className="mt-[3px] h-4 w-4 shrink-0 rounded-full bg-primary-soft text-brand-forte text-2xs font-bold grid place-items-center">
           {i + 1}
         </span>
         <span className="min-w-0">{c}</span>

@@ -63,7 +63,7 @@ export function MinhaContaModal({ onClose }: { onClose: () => void }) {
     <div className="no-print fixed inset-0 z-80 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px]" onClick={salvando ? undefined : onClose} />
 
-      <div className="relative w-full max-w-[440px] bg-surface rounded-card-lg shadow-modal border border-border p-6 animate-[fadein_.12s_ease] max-h-[90vh] overflow-y-auto">
+      <div className="relative w-full max-w-[440px] bg-surface rounded-card-lg shadow-modal p-6 animate-[fadein_.12s_ease] max-h-[90vh] overflow-y-auto">
         <button
           type="button"
           onClick={onClose}

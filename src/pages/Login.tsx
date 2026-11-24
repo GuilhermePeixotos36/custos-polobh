@@ -90,7 +90,7 @@ export function Login() {
             type="button"
             onClick={() => void esqueciSenha()}
             disabled={enviandoLink}
-            className="mt-4 block w-full text-center text-xs font-bold text-ink-2 hover:text-primary-dark input-focus rounded-sm"
+            className="mt-4 block w-full text-center text-xs font-bold text-ink-2 hover:text-brand-forte input-focus rounded-sm"
           >
             {enviandoLink ? "Enviando…" : "Esqueceu a sua senha?"}
           </button>
@@ -98,7 +98,7 @@ export function Login() {
 
         <p className="text-center text-ink-3 text-2xs mt-6">
           © Pólobh Promoções ·{" "}
-          <a href="/privacidade" target="_blank" rel="noreferrer" className="underline hover:text-primary-dark">Política de privacidade</a>
+          <a href="/privacidade" target="_blank" rel="noreferrer" className="underline hover:text-brand-forte">Política de privacidade</a>
         </p>
       </div>
     </div>

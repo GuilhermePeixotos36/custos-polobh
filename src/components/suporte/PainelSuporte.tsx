@@ -167,7 +167,7 @@ export function PainelSuporte() {
       <aside className="painel-suporte relative h-full w-full sm:w-[540px] bg-bg border-l border-border shadow-(--sombra-flutuante) flex flex-col">
         <header className="shrink-0 px-4 pt-3 pb-0 bg-surface border-b border-border">
           <div className="flex items-start gap-3">
-            <span className="mt-0.5 text-primary-dark shrink-0">
+            <span className="mt-0.5 text-brand-forte shrink-0">
               <IcSuporte width={20} height={20} />
             </span>
             <div className="min-w-0 flex-1">
@@ -199,7 +199,7 @@ export function PainelSuporte() {
                 className={cx(
                   "px-2.5 h-8 text-xs font-bold border-b-2 -mb-px transition-colors inline-flex items-center gap-1.5",
                   aba === a.key
-                    ? "border-primary text-primary-dark"
+                    ? "border-primary text-brand-forte"
                     : "border-transparent text-ink-2 hover:text-ink"
                 )}
               >
@@ -587,7 +587,7 @@ function AnexosGravados({ anexos }: { anexos?: AnexoObservacao[] }) {
             type="button"
             onClick={() => abrir(a)}
             title={`${a.nome} · ${tamanhoLegivel(a.tamanho)}`}
-            className="inline-flex items-center gap-1 max-w-[200px] rounded-pill border border-border-soft bg-surface px-2 h-6 text-2xs font-bold text-ink-2 hover:text-primary-dark hover:border-primary"
+            className="inline-flex items-center gap-1 max-w-[200px] rounded-pill border border-border-soft bg-surface px-2 h-6 text-2xs font-bold text-ink-2 hover:text-brand-forte hover:border-primary"
           >
             <IcClipe width={12} height={12} className="shrink-0" />
             <span className="truncate">{a.nome}</span>
@@ -628,7 +628,7 @@ function FilaDoSuporte({
               className={cx(
                 "h-8 px-2.5 rounded-pill text-xs font-bold border transition-colors",
                 situacao === s
-                  ? "bg-primary-soft border-primary text-primary-dark"
+                  ? "bg-primary-soft border-primary text-brand-forte"
                   : "bg-surface border-border-soft text-ink-2 hover:text-ink"
               )}
             >

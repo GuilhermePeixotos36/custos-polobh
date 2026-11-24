@@ -35,7 +35,7 @@ export function ConviteAvisos() {
   if (escondido || feito || permissao !== "nao-pedida" || !pushSuportado() || iosForaDaTelaDeInicio()) return null;
 
   return (
-    <div className="no-print flex items-center justify-center gap-3 flex-wrap bg-primary-soft text-primary-dark border-b border-primary/20 px-4 py-2 text-sm">
+    <div className="no-print flex items-center justify-center gap-3 flex-wrap bg-primary-soft text-brand-forte border-b border-primary/20 px-4 py-2 text-sm">
       <span className="font-bold">Receba as suas pendências como aviso no computador ou no celular, mesmo com o navegador fechado.</span>
       <span className="flex gap-2">
         <button
@@ -45,7 +45,7 @@ export function ConviteAvisos() {
             const r = await ativar();
             if (r === "ativo") setFeito(true);
           }}
-          className="rounded-btn bg-primary text-white px-3 py-1 text-xs font-bold hover:bg-primary-dark disabled:opacity-60"
+          className="rounded-md bg-brand text-primary-foreground px-3 py-1 text-xs font-semibold hover:bg-brand-vivid disabled:opacity-60"
         >
           {ocupado ? "Ativando…" : "Ativar avisos"}
         </button>
