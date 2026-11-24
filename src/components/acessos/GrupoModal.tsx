@@ -27,7 +27,7 @@ import { toast } from "@/store/toast";
 
 const DICA_SEM_PODER = "Você não tem esta permissão, então não pode concedê-la.";
 
-export function GrupoModal({ grupo, meuGrupoId, meuNivel, euSouAdministrador, minhasPermissoes, podeEditar, podeInativar, onFechar, onSalvo }: {
+export function GrupoModal({ grupo, meuGrupoId, meuNivel, euSouAdministrador, minhasPermissoes, podeEditar, podeInativar, dentroDoAlcance, onFechar, onSalvo }: {
   /** `null` = grupo novo. */
   grupo: GrupoAcesso | null;
   meuGrupoId: string | undefined;
@@ -37,13 +37,16 @@ export function GrupoModal({ grupo, meuGrupoId, meuNivel, euSouAdministrador, mi
   minhasPermissoes: Permissao[];
   podeEditar: boolean;
   podeInativar: boolean;
+  /** Quem não é do Administrador só altera grupo contido no dele (o banco recusa o resto). */
+  dentroDoAlcance: boolean;
   onFechar: () => void;
   onSalvo: () => void;
 }) {
   const novo = !grupo;
   const sistema = grupo?.sistema === true;
   const eMeu = !!grupo && grupo.id === meuGrupoId && !euSouAdministrador;
-  const somenteLeitura = sistema || eMeu || !podeEditar;
+  const foraDoAlcance = !!grupo && !sistema && !eMeu && !euSouAdministrador && !dentroDoAlcance;
+  const somenteLeitura = sistema || eMeu || foraDoAlcance || !podeEditar;
 
   const inicial = {
     nome: grupo?.nome ?? "",
@@ -116,7 +119,8 @@ export function GrupoModal({ grupo, meuGrupoId, meuNivel, euSouAdministrador, mi
         nome,
         descricao: form.descricao.trim(),
         ativo: form.ativo,
-        papel: form.nivel,
+        // O nível só vai quando muda: manter o que o grupo já tinha não é conceder nada.
+        papel: novo || form.nivel !== inicial.nivel ? form.nivel : undefined,
         permissoes: permissoesValidas(form.permissoes),
       });
       toast(novo ? "Grupo criado." : "Grupo atualizado.", "success");
@@ -142,6 +146,9 @@ export function GrupoModal({ grupo, meuGrupoId, meuNivel, euSouAdministrador, mi
         )}
         {eMeu && !sistema && (
           <AvisoEmLinha tom="info">Este é o seu grupo: só um Administrador de sistema altera o acesso do próprio grupo.</AvisoEmLinha>
+        )}
+        {foraDoAlcance && (
+          <AvisoEmLinha tom="info">Este grupo tem mais acesso que o seu: só quem tem esse acesso (ou um Administrador de sistema) o altera.</AvisoEmLinha>
         )}
 
         <div className="grid gap-4 sm:grid-cols-2">

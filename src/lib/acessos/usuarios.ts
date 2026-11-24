@@ -75,10 +75,20 @@ export function motivoDeNaoInativarGrupo(usuariosAtivos: number | null): string 
     : `Este grupo tem ${usuariosAtivos} usuários ativos. Mude o grupo deles antes de inativar.`;
 }
 
-/** Por que a edição está travada, ou `null` quando pode editar. */
-export function motivoDeEdicaoTravada(opcoes: { ehEu: boolean; membroDoAdministrador: boolean; euSouAdministrador: boolean }): string | null {
+/**
+ * Por que a edição está travada, ou `null` quando pode editar. `grupoForaDoMeuAlcance` = o usuário
+ * está num grupo que quem está na tela não poderia conceder (mais permissões ou nível maior): o
+ * banco recusa alterá-lo, inativá-lo ou trocar a senha dele.
+ */
+export function motivoDeEdicaoTravada(opcoes: {
+  ehEu: boolean;
+  membroDoAdministrador: boolean;
+  euSouAdministrador: boolean;
+  grupoForaDoMeuAlcance?: boolean;
+}): string | null {
   if (opcoes.ehEu) return "Você não altera o seu próprio acesso.";
   if (opcoes.membroDoAdministrador && !opcoes.euSouAdministrador) return "Só um Administrador de sistema altera membros do Administrador de sistema.";
+  if (opcoes.grupoForaDoMeuAlcance && !opcoes.euSouAdministrador) return "Este usuário está num grupo com mais acesso que o seu.";
   return null;
 }
 
@@ -110,6 +120,8 @@ export function acoesDaLinha(
     membroDoAdministrador: boolean;
     euSouAdministrador: boolean;
     grupoAtualConcedivel: boolean;
+    /** O grupo atual (mesmo inativo) tem mais acesso que o de quem está na tela. */
+    grupoForaDoMeuAlcance?: boolean;
     /** O usuário guarda permissão específica que quem está na tela não tem: o "Ativar" trava. */
     especiaisForaDoMeuAlcance?: boolean;
   },

@@ -826,14 +826,21 @@ begin
     end loop;
   end if;
 
-  -- Quem não é do Administrador só grava permissões que ele próprio tem, e só um nível contido
-  -- no dele (senão montaria um grupo maior que o dele e poria alguém nele).
+  -- Quem não é do Administrador só LIGA permissões que ele próprio tem, e só dá um nível contido
+  -- no dele (senão montaria um grupo maior que o dele e poria alguém nele). Confere só o que
+  -- muda: desligar o que ele não tem pode (regra da matriz), e manter o nível que o grupo já tinha
+  -- não é conceder nada. (Editar um grupo fora do alcance já é recusado abaixo.)
   if not private.sou_administrador() then
     if p ? 'permissoes' then
       select string_agg(distinct (t.e ->> 'tela') || ' · ' || (t.e ->> 'acao'), ', ')
         into v_excedentes
         from jsonb_array_elements(p -> 'permissoes') as t(e)
        where not exists (
+         select 1 from public.acesso_grupo_permissao atual
+         where v_id is not null and atual.grupo_id = v_id
+           and atual.tela = t.e ->> 'tela' and atual.acao = t.e ->> 'acao'
+       )
+         and not exists (
          select 1
          from public.perfis u
          join public.acesso_grupo gc on gc.id = u.grupo_id and gc.ativo
@@ -846,7 +853,8 @@ begin
           using errcode = '42501';
       end if;
     end if;
-    if v_papel is not null then
+    if v_papel is not null
+       and (v_id is null or v_papel is distinct from (select g.papel_legado from public.acesso_grupo g where g.id = v_id)) then
       select g.papel_legado into v_meu_nivel
         from public.perfis u join public.acesso_grupo g on g.id = u.grupo_id
        where u.id = v_uid and u.status = 'ativo';
@@ -886,6 +894,11 @@ begin
     end if;
     if exists (select 1 from public.perfis u where u.id = v_uid and u.grupo_id = v_id) then
       raise exception 'Você não pode alterar o grupo ao qual pertence.' using errcode = '42501';
+    end if;
+    -- Quem não é do Administrador não mexe em grupo com mais acesso (permissões ou nível) que o
+    -- dele: tirar permissões ou rebaixar um grupo maior também é agir acima do próprio alcance.
+    if not private.sou_administrador() and not public.posso_conceder_grupo(v_id) then
+      raise exception 'Você só pode alterar grupos cujas permissões você mesmo tem.' using errcode = '42501';
     end if;
 
     v_ativo := coalesce((p ->> 'ativo')::boolean, v_grupo.ativo);
@@ -989,6 +1002,17 @@ begin
   end if;
   if v_muda_status and p_status = 'ativo' and not public.tem_permissao('acessos.usuarios', 'editar') then
     raise exception 'Você não tem permissão para ativar usuários.' using errcode = '42501';
+  end if;
+  -- Quem não é do Administrador não age sobre quem está num grupo com mais acesso que o dele
+  -- (inativar, rebaixar, renomear): a mesma régua da troca de senha na Edge `acessos`. Membro do
+  -- grupo de sistema tem a trava própria, mais abaixo, com a mensagem dela.
+  if (v_muda_dados or v_muda_status)
+     and v_alvo.grupo_id is not null
+     and not private.sou_administrador()
+     and not exists (select 1 from public.acesso_grupo g where g.id = v_alvo.grupo_id and g.sistema)
+     and not public.posso_conceder_grupo(v_alvo.grupo_id) then
+    raise exception 'Este usuário está num grupo com mais acesso que o seu. Só quem tem esse acesso (ou um Administrador de sistema) pode alterá-lo.'
+      using errcode = '42501';
   end if;
 
   v_grupo_final := coalesce(p_grupo, v_alvo.grupo_id);
@@ -1255,8 +1279,13 @@ begin
   end if;
 
   -- Um grupo por área, com o MESMO id (é o que mantém `perfis.area_id` e o espelho de pé).
+  -- Área inativa deixava quem já estava nela com acesso ("não é oferecida a novos"); grupo
+  -- inativo não dá acesso a ninguém. Para ninguém perder acesso na virada, a área inativa que
+  -- ainda tem gente ativa vira grupo ATIVO (com os dados de 24/11/2026, nenhuma está assim).
   insert into public.acesso_grupo (id, nome, descricao, ativo, papel_legado)
-  select a.id, a.nome, '', a.ativa, a.papel_base
+  select a.id, a.nome, '',
+         a.ativa or exists (select 1 from public.perfis p where p.area_id = a.id and p.ativo),
+         a.papel_base
   from public.areas a
   where a.papel_base in ('Direcao', 'Producao', 'Administrativo')
   on conflict (id) do nothing;

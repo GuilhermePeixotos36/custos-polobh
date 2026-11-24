@@ -105,8 +105,13 @@ async function contaDoAuthPorEmail(admin: SupabaseClient, email: string): Promis
   return linha?.id ? { id: String(linha.id), email: String(linha.email ?? "") } : null;
 }
 
+/**
+ * A linha de `perfis` do id, ou `null` quando ela NÃO EXISTE. Falha de leitura lança: tratar o
+ * erro como "não existe" faria a conta de um usuário ativo passar por pendente e ser tomada.
+ */
 async function perfilPorId(admin: SupabaseClient, id: string): Promise<LinhaPerfil | null> {
-  const { data } = await admin.from("perfis").select(COLUNAS_PERFIL).eq("id", id).maybeSingle();
+  const { data, error } = await admin.from("perfis").select(COLUNAS_PERFIL).eq("id", id).maybeSingle();
+  if (error) throw new Error(`perfis: ${error.message}`);
   return (data as LinhaPerfil | null) ?? null;
 }
 
@@ -195,12 +200,23 @@ async function criarUsuario(req: Request, chamador: Chamador, corpo: Record<stri
     }
   };
 
-  // O gatilho de Auth já criou a linha pendente; o upsert a completa (e cobre gatilho ausente).
-  // `papel` vai só para cumprir o NOT NULL: o gatilho do banco o deriva do grupo.
-  const gravado = await admin.from("perfis").upsert({
-    id, nome: d.nome, papel: "Producao", status: "ativo", grupo_id: d.grupoId,
+  // O gatilho de Auth já criou a linha pendente; aqui ela é completada — e SÓ se ainda estiver
+  // pendente (o filtro é a trava: se a conta virou ativa entre a leitura e a gravação, nada muda).
+  // Sem linha nenhuma (gatilho ausente), insere. `papel` vai só para cumprir o NOT NULL: o
+  // gatilho do banco o deriva do grupo.
+  const campos = {
+    nome: d.nome, status: "ativo", grupo_id: d.grupoId,
     cargo: d.cargo || null, setor: d.setor || null, telefone: d.telefone,
-  }).select("id").maybeSingle();
+  };
+  let gravado = await admin.from("perfis").update(campos).eq("id", id).eq("status", "pendente").select("id");
+  if (!gravado.error && (gravado.data ?? []).length === 0) {
+    if (existente) {
+      // Nada foi gravado (a conta já existia no Auth e a linha não estava mais pendente): não há o
+      // que desfazer — "restaurar" aqui sobrescreveria o que mudou.
+      return json(req, { error: "Esta conta mudou enquanto o cadastro era feito. Recarregue a lista e tente de novo." }, 409);
+    }
+    gravado = await admin.from("perfis").insert({ id, papel: "Producao", ...campos }).select("id");
+  }
   if (gravado.error) {
     console.error("[acessos] gravar perfil", gravado.error.message);
     await desfazer();
@@ -208,8 +224,11 @@ async function criarUsuario(req: Request, chamador: Chamador, corpo: Record<stri
   }
 
   // Senha de conta já existente só depois de o resto gravar, para a falha não deixar a senha trocada.
+  // O e-mail fica confirmado: conta de convite antigo que nunca confirmou seria barrada no login.
+  // (Sessões que a conta pendente já tivesse continuam até expirar — pendente não acessa nada
+  // pela RLS, mas o cadastro público do Auth deve estar desligado: ver docs/acessos.md.)
   if (contaAuth) {
-    const { error: erroSenha } = await admin.auth.admin.updateUserById(id, { password: d.senha });
+    const { error: erroSenha } = await admin.auth.admin.updateUserById(id, { password: d.senha, email_confirm: true });
     if (erroSenha) {
       console.error("[acessos] updateUserById", erroSenha.message);
       await desfazer();

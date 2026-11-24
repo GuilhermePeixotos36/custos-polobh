@@ -54,11 +54,13 @@ export function AbaUsuarios({ usuarios, grupos, concediveis, euId, euSouAdminist
     const membroDoAdministrador = !!sistemaId && u.grupoId === sistemaId;
     const ehEu = u.id === euId;
     const grupoAtualConcedivel = !!grupoAtual && grupoAtual.ativo && (euSouAdministrador || concediveisIds.has(grupoAtual.id));
+    // Mesma régua do banco (`posso_conceder_grupo` do grupo atual, ativo ou não). O de sistema tem a trava própria.
+    const grupoForaDoMeuAlcance = !!grupoAtual && !grupoAtual.sistema && !euSouAdministrador && !concediveisIds.has(grupoAtual.id);
     const acoes = acoesDaLinha(u, {
-      pode, ehEu, membroDoAdministrador, euSouAdministrador, grupoAtualConcedivel,
+      pode, ehEu, membroDoAdministrador, euSouAdministrador, grupoAtualConcedivel, grupoForaDoMeuAlcance,
       especiaisForaDoMeuAlcance: u.especiais.some((chave) => !temEspecial(chave)),
     });
-    return { grupoAtual, membroDoAdministrador, ehEu, grupoAtualConcedivel, acoes };
+    return { grupoAtual, membroDoAdministrador, ehEu, grupoAtualConcedivel, grupoForaDoMeuAlcance, acoes };
   }
 
   async function inativar(u: UsuarioDoAcesso) {
@@ -219,14 +221,14 @@ export function AbaUsuarios({ usuarios, grupos, concediveis, euId, euSouAdminist
       })()}
 
       {editando && (() => {
-        const { membroDoAdministrador, ehEu, grupoAtualConcedivel } = contextoDa(editando);
+        const { membroDoAdministrador, ehEu, grupoAtualConcedivel, grupoForaDoMeuAlcance } = contextoDa(editando);
         return (
           <EditarUsuario
             usuario={editando}
             grupos={grupos}
             concediveis={concediveis}
             euSouAdministrador={euSouAdministrador}
-            motivoTrava={motivoDeEdicaoTravada({ ehEu, membroDoAdministrador, euSouAdministrador })}
+            motivoTrava={motivoDeEdicaoTravada({ ehEu, membroDoAdministrador, euSouAdministrador, grupoForaDoMeuAlcance })}
             podeDefinirSenha={editando.status === "ativo" && pode("acessos.usuarios", "editar") && !ehEu && grupoAtualConcedivel}
             setores={setores}
             cargos={cargos}

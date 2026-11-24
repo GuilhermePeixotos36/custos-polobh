@@ -122,6 +122,7 @@ export function Acessos() {
                 meuGrupoId={meuGrupo?.id}
                 euSouAdministrador={euSouAdministrador}
                 podeEditar={pode("acessos.grupos", "editar")}
+                concediveisIds={new Set(concediveis.map((g) => g.id))}
                 onAbrir={(g) => setGrupoAberto({ grupo: g })}
               />
             )}
@@ -152,6 +153,7 @@ export function Acessos() {
           minhasPermissoes={permissoes}
           podeEditar={grupoAberto.grupo ? pode("acessos.grupos", "editar") : pode("acessos.grupos", "criar")}
           podeInativar={pode("acessos.grupos", "inativar")}
+          dentroDoAlcance={!grupoAberto.grupo || euSouAdministrador || concediveis.some((g) => g.id === grupoAberto.grupo!.id)}
           onFechar={() => setGrupoAberto(null)}
           onSalvo={() => { setGrupoAberto(null); recarregarTudo(); }}
         />

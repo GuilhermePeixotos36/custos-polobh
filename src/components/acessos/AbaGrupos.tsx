@@ -12,11 +12,13 @@ import { NIVEIS_NO_BANCO } from "@/config/acessos/catalogo";
 import { resumoDoGrupo } from "@/lib/acessos/permissoes";
 import type { GrupoAcesso } from "@/lib/acessos/acessosStore";
 
-export function AbaGrupos({ grupos, meuGrupoId, euSouAdministrador, podeEditar, onAbrir }: {
+export function AbaGrupos({ grupos, meuGrupoId, euSouAdministrador, podeEditar, concediveisIds, onAbrir }: {
   grupos: GrupoAcesso[];
   meuGrupoId: string | undefined;
   euSouAdministrador: boolean;
   podeEditar: boolean;
+  /** Grupos que quem está na tela poderia conceder: só esses ele altera (se não é do Administrador). */
+  concediveisIds: ReadonlySet<string>;
   onAbrir: (grupo: GrupoAcesso) => void;
 }) {
   if (grupos.length === 0) return <EstadoVazio semCartao icone={ShieldCheck} titulo="Nenhum grupo de permissão cadastrado." />;
@@ -35,7 +37,8 @@ export function AbaGrupos({ grupos, meuGrupoId, euSouAdministrador, podeEditar, 
       <tbody>
         {ordenados.map((g) => {
           // Só leitura: o de sistema, o próprio grupo de quem não é Administrador, ou sem permissão de editar.
-          const soVer = g.sistema || !podeEditar || (g.id === meuGrupoId && !euSouAdministrador);
+          const soVer = g.sistema || !podeEditar
+            || (!euSouAdministrador && (g.id === meuGrupoId || !concediveisIds.has(g.id)));
           return (
             <Tr key={g.id} onClick={() => onAbrir(g)}>
               <Td>

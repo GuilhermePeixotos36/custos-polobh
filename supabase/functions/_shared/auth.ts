@@ -26,10 +26,12 @@ export async function autorizar(req: Request, papeis: Papel[]): Promise<UsuarioA
   }
   const { data: perfil, error: perfilError } = await admin
     .from("perfis")
-    .select("papel, nome")
+    .select("papel, nome, ativo")
     .eq("id", authData.user.id)
     .maybeSingle();
-  if (perfilError || !perfil || !papeis.includes(perfil.papel as Papel)) {
+  // Conta inativa ou pendente (padrão de Acessos, 24/11/2026: conta nova fora da tela de Acessos
+  // nasce pendente, com um papel provisório) não passa, qualquer que seja o papel gravado.
+  if (perfilError || !perfil || (perfil as { ativo?: boolean }).ativo === false || !papeis.includes(perfil.papel as Papel)) {
     throw new Response(JSON.stringify({ ok: false, erro: "Sem permissão para esta operação." }), { status: 403 });
   }
   return { id: authData.user.id, papel: perfil.papel as Papel, nome: (perfil as { nome?: string }).nome ?? undefined };

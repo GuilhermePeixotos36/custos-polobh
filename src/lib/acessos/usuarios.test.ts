@@ -128,6 +128,15 @@ describe("travas e ações da linha", () => {
     expect(a.alternar).toBeNull();
   });
 
+  it("usuário de grupo com mais acesso que o meu: lápis e inativar travados (o banco recusa)", () => {
+    const a = acoesDaLinha({ status: "ativo" }, { ...base, grupoForaDoMeuAlcance: true, pode: tudo });
+    expect(a.editar).toBe("travado");
+    expect(a.alternar?.estado).toBe("travado");
+    expect(a.motivo).toMatch(/mais acesso que o seu/);
+    // O Administrador de sistema não tem esse limite.
+    expect(acoesDaLinha({ status: "ativo" }, { ...base, euSouAdministrador: true, grupoForaDoMeuAlcance: true, pode: tudo }).editar).toBe("livre");
+  });
+
   it("a própria linha: lápis e inativar travados com o motivo, olho livre", () => {
     const a = acoesDaLinha({ status: "ativo" }, { ...base, ehEu: true, pode: tudo });
     expect(a.ver).toBe("livre");

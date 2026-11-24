@@ -92,8 +92,15 @@ nível e as mesmas permissões, e o cadastro de usuários veio junto. Os links a
 - **Grupo sem nenhuma permissão:** no banco e na tela não pode nada; o push de pendências e a
   lista de Produtor Responsável, que leem `areas.recursos`, caem no padrão do papel para quem tem
   área com recursos vazios (comportamento antigo). Não acontece com os grupos de partida.
-- **Inativar não derruba a sessão na hora** (a Edge antiga chamava `signOut` global): a RLS já
-  recusa tudo no comando seguinte, porque `papel_atual()` exige ativo.
+- **Inativar e trocar senha não derrubam a sessão na hora** (a Edge antiga chamava `signOut`, que na
+  API admin pede o JWT da pessoa, não o id): a RLS recusa tudo do inativo no comando seguinte,
+  porque `papel_atual()` exige ativo; quem teve a senha trocada segue logado até a sessão expirar.
+- **Quem não é do Administrador não age acima do próprio alcance:** não edita, inativa nem troca a
+  senha de quem está num grupo com mais acesso (permissões ou nível) que o dele, e não altera um
+  grupo assim (banco: `definir_acesso_do_usuario`, `salvar_grupo_acesso`; Edge: `definir_senha`).
+- **Front publicado antes do banco:** as abas antigas de Áreas e Usuários saíram de Configurações e
+  `/acessos`, sem a migration, só mostra o aviso — ninguém cadastra usuário nesse intervalo. Por
+  isso a ordem banco → Edges → front é obrigatória no dia do merge.
 - Fica para depois: sugestão de grupo por setor/cargo (gancho em `usuarios.ts`) e troca automática
   de grupo quando a pessoa muda de função.
 
@@ -135,6 +142,10 @@ decidir se o "nível no banco" sai junto (entrega separada, com deploy acoplado)
    `ativos sem grupo=0, administradores ativos=1, grupo padrão=1, grupos=10` e o mapa
    papel → grupo igual ao de hoje. Se a migration desistir antes (mensagens "A tradução área →
    grupo mudaria…", "Há usuário ativo sem área…"), nada foi aplicado: resolva e ensaie de novo.
+   Área inativa que ainda tem gente ativa vira grupo **ativo** (senão essas pessoas perderiam o
+   acesso); confira antes com
+   `select a.nome, count(*) from areas a join perfis p on p.area_id = a.id and p.ativo where not a.ativa group by 1;`
+   (em 24/11/2026: nenhuma).
 2. **Aplicar a migration** (arquivo original, sem o bloco de ensaio).
 3. Rodar as consultas de **CONFERÊNCIA DEPOIS DE APLICAR** do fim do arquivo.
 4. **Publicar a Edge `acessos`** (nova) e **republicar `gerenciar-usuarios`** (agora recusa criar,
