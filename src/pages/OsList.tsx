@@ -2,11 +2,15 @@ import { useMemo, useState } from "react";
 import { valorDaContratacao } from "@/domain/contratacaoOs";
 import { useNavigate } from "react-router-dom";
 import { PageShell } from "@/components/layout/AppLayout";
-import { Card, Badge, Table, THead, Tr, Td, Input, EmptyState, AvisoErro, ThOrd, useOrdenacao, tomStatusOs } from "@/components/ui";
-import { IcSearch } from "@/components/icons";
+import { Card, Badge, Button, Table, THead, Tr, Td, AvisoErro, ThOrd, useOrdenacao, tomStatusOs } from "@/components/ui";
+import { FileText, Search } from "lucide-react";
+import { BarraFiltros } from "@/components/padrao/BarraFiltros";
+import { FilterPills } from "@/components/padrao/FilterPills";
+import { EsqueletoTabela } from "@/components/padrao/EsqueletoTabela";
+import { EstadoVazio } from "@/components/padrao/EstadoVazio";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
-import { brl, cx } from "@/lib/format";
+import { brl } from "@/lib/format";
 import { ThPendencias, TdPendencias } from "@/components/ColunaPendencias";
 import { ThItensOs, TdItensOs } from "@/components/ColunaItensOs";
 import { itensDaOs } from "@/domain/os";
@@ -16,6 +20,12 @@ import { rotuloNumeroEc } from "@/domain/calc";
 
 /** Os mesmos filtros da lista de ECs e da aba OS do projeto (29/09/2026). */
 type Filtro = "todas" | "Ativa" | "Emitida" | "Arquivada";
+const FILTROS: { value: Filtro; label: string }[] = [
+  { value: "todas", label: "Todas" },
+  { value: "Ativa", label: "Ativa" },
+  { value: "Emitida", label: "Emitida" },
+  { value: "Arquivada", label: "Arquivada" },
+];
 
 export function OsList() {
   const navigate = useNavigate();
@@ -66,39 +76,35 @@ export function OsList() {
   return (
     <PageShell title="Ordens de Serviço" subtitle="OSs geradas a partir das estimativas, consolidadas por fornecedor.">
       <Card padded={false}>
-        <div className="p-4 border-b border-border-soft flex items-center gap-3 flex-wrap">
-          <div className="relative max-w-md flex-1 min-w-[220px]">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-3"><IcSearch width={16} height={16} /></span>
-            <Input
-              className="h-10! pl-9"
-              placeholder="Buscar por número, fornecedor, CNPJ, EC…"
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-            />
-          </div>
-          <div className="flex items-center gap-1 flex-wrap" role="group" aria-label="Filtrar OSs">
-            {([["todas", "Todas"], ["Ativa", "Ativa"], ["Emitida", "Emitida"], ["Arquivada", "Arquivada"]] as const).map(([valor, rotulo]) => (
-              <button
-                key={valor}
-                type="button"
-                aria-pressed={filtro === valor}
-                onClick={() => setFiltro(valor)}
-                className={cx(
-                  "h-8 rounded-pill px-3 text-xs font-bold transition-colors",
-                  filtro === valor ? "bg-primary-soft text-brand-forte" : "text-ink-2 hover:bg-muted hover:text-ink"
-                )}
-              >
-                {rotulo}
-              </button>
-            ))}
-          </div>
-        </div>
+        {/* Barra de filtros do padrão (24/11/2026): situação em pílulas, contagem e busca. */}
+        <BarraFiltros
+          busca={busca}
+          onBusca={setBusca}
+          placeholderBusca="Buscar por número, fornecedor, CNPJ, EC…"
+          larguraBusca="w-80"
+          contagem={loading || error ? undefined : `${lista.length} OS(s)`}
+          acoes={<FilterPills value={filtro} options={FILTROS} onChange={setFiltro} ariaLabel="Filtrar OSs" />}
+          className="border-b border-border-soft movel:[&_input]:h-10"
+        />
         {error ? (
           <AvisoErro erro={error} oQue="as OSs" onTentarDeNovo={reload} />
         ) : loading ? (
-          <div className="p-8 text-ink-3 text-sm">Carregando…</div>
+          <EsqueletoTabela
+            colunas={["", "OS", "", "Fornecedor", "EC", "Modalidade", ...(verFinanceiro ? ["Valor OS"] : []), "Status"]}
+            rotulo="Carregando as OSs…"
+          />
         ) : lista.length === 0 ? (
-          <EmptyState title="Nenhuma OS" hint="Gere OSs a partir das linhas de uma EC." />
+          (data?.length ?? 0) === 0 ? (
+            <EstadoVazio semCartao icone={FileText} titulo="Nenhuma OS" descricao="Gere OSs a partir das linhas de uma EC." />
+          ) : (
+            <EstadoVazio
+              semCartao
+              icone={Search}
+              titulo="Nenhuma OS encontrada."
+              descricao="Nenhuma OS com essa situação ou essa busca."
+              acao={<Button variant="secondary" onClick={() => { setBusca(""); setFiltro("todas"); }}>Limpar filtros</Button>}
+            />
+          )
         ) : (
           <Table>
             <THead>
