@@ -105,6 +105,11 @@ function FormularioCadastroFornecedor({ inicial, cadastro = [], onFechar, onSalv
   /** A resposta que chega depois de o documento mudar é descartada. */
   const docAtual = useRef(onlyDigits(f.cnpj));
   docAtual.current = onlyDigits(f.cnpj);
+  /** O formulário como está agora — para a resposta da consulta partir dele, e não de uma foto velha. */
+  const fAtual = useRef(f);
+  fAtual.current = f;
+  /** Qual consulta é a vigente: a que chega depois de outra ter começado é descartada. */
+  const consultaVigente = useRef(0);
 
   /** Carrega um fornecedor no formulário como ponto de partida (sem alteração pendente). */
   function carregar(novoF: Fornecedor) {
@@ -120,16 +125,18 @@ function FormularioCadastroFornecedor({ inicial, cadastro = [], onFechar, onSalv
       setTravados(camposTravados({ ...f, cnpj: maskDoc(digitos) }));
       return;
     }
+    const minha = ++consultaVigente.current;
+    const vigente = () => consultaVigente.current === minha && docAtual.current === digitos;
     setConsultando(true);
     setAviso({ tom: "info", texto: "Consultando o CNPJ…" });
     try {
       const d = await consultarCnpj(digitos);
-      if (docAtual.current !== digitos) return;
-      setF((atual) => {
-        const preenchido = aplicarConsulta(atual, d);
-        setTravados(camposTravados(preenchido));
-        return preenchido;
-      });
+      if (!vigente()) return;
+      // Os campos ficam travados durante a consulta (fieldset), então o que
+      // está na tela agora é o ponto de partida certo.
+      const preenchido = aplicarConsulta(fAtual.current, d);
+      setF(preenchido);
+      setTravados(camposTravados(preenchido));
       setAviso({
         tom: "sucesso",
         texto: atualizar
@@ -137,12 +144,12 @@ function FormularioCadastroFornecedor({ inicial, cadastro = [], onFechar, onSalv
           : "Dados preenchidos pela consulta do CNPJ. Os que vieram de lá ficam só leitura.",
       });
     } catch (e) {
-      if (docAtual.current !== digitos) return;
+      if (!vigente()) return;
       // Plano B da consulta (ver lib/cnpj): fora do ar, o que veio vazio fica
       // livre para preencher — o CNPJ continua amarrando o cadastro.
       setAviso({ tom: "erro", texto: `${(e as Error).message} Os campos vazios ficam livres para preencher.` });
     } finally {
-      if (docAtual.current === digitos) setConsultando(false);
+      if (consultaVigente.current === minha) setConsultando(false);
     }
   }
 
@@ -190,6 +197,11 @@ function FormularioCadastroFornecedor({ inicial, cadastro = [], onFechar, onSalv
     };
     setF(limpo);
     setAviso(null);
+    // Consulta em andamento do documento anterior deixa de valer, e o documento
+    // que voltar a ficar completo é buscado de novo (os campos acabaram de ser limpos).
+    consultaVigente.current++;
+    tratado.current = "";
+    setConsultando(false);
     setTravados(camposTravados(limpo));
   }
 
