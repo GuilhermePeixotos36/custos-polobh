@@ -20,7 +20,8 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { Input, AutoTextarea, Select, CurrencyInput, NumberInput, Button, classeCampoStatus, MarcaObrigatorio } from "@/components/ui";
 import { IcGrip, IcChevron, IcPlus, IcEyeOff, IcTrash, IcSpark, IcCheck, IcBack } from "@/components/icons";
-import { FornecedorField } from "@/components/FornecedorField";
+import { SeletorFornecedor } from "@/components/SeletorFornecedor";
+import { linhaComFornecedor } from "@/domain/cadastroFornecedor";
 import { RichTextField } from "@/components/RichTextField";
 import { ObservacoesThread } from "@/components/ObservacoesPopup";
 import { ResumoPropostaModal } from "@/components/ResumoPropostaModal";
@@ -151,14 +152,15 @@ interface Props {
    * mesmo que o badge da EC e o navegador: "o que é seu", não "o que existe".
    */
   pendenciasPorLinha?: Record<string, number>;
-  onValidarFornecedor: (cnpj: string) => Promise<string | null>;
+  /** Um fornecedor acabou de ser cadastrado pelo "+" de uma linha: a tela recarrega o cadastro. */
+  onFornecedorCadastrado?: (f: Fornecedor) => void;
   /** Modalidade ATUAL do projeto: define o modelo oferecido em "Adicionar grupo / item". */
   modalidade?: ModalidadeProjeto;
 }
 
 export function EcGrupos({
   linhas, onChange, verFinanceiro, fornecedores, usuarios, sugestoes,
-  pendenciasPorLinha = {}, onValidarFornecedor, modalidade = "",
+  pendenciasPorLinha = {}, onFornecedorCadastrado, modalidade = "",
 }: Props) {
   const [grupos, setGrupos] = useState<Grupo[]>(() => agruparVinculados(agrupar(linhas)));
   const [expandido, setExpandido] = useState<Record<string, boolean>>({});
@@ -842,7 +844,7 @@ export function EcGrupos({
                 onSelecionarGrupo={(marcar) => alternarSelecaoGrupo(g.id, marcar)}
                 onMoverItem={(itemId, direcao) => moverItem(g.id, itemId, direcao)}
                 onMoverGrupo={(direcao) => moverGrupo(g.id, direcao)}
-                onValidarFornecedor={onValidarFornecedor}              />
+                onFornecedorCadastrado={onFornecedorCadastrado}              />
             ))}
           </div>
         </SortableContext>
@@ -926,14 +928,14 @@ interface GrupoProps {
   onSelecionarGrupo: (marcar: boolean) => void;
   onMoverItem: (itemId: string, direcao: -1 | 1) => void;
   onMoverGrupo: (direcao: -1 | 1) => void;
-  onValidarFornecedor: (cnpj: string) => Promise<string | null>;
+  onFornecedorCadastrado?: (f: Fornecedor) => void;
 }
 
 function GrupoCard({
   g, aberto, primeiroGrupo, ultimoGrupo, verFinanceiro, fornecedores, usuarios, sugestoes,
   pendenciasPorLinha, selecionados,
   onToggle, onRenomear, onAddItem, onUpdLinha, onOcultoItem, onOcultoGrupo, onExcluirItem, onExcluirGrupo, acoesVinculo,
-  onSelecionarItem, onSelecionarGrupo, onMoverItem, onMoverGrupo, onValidarFornecedor,
+  onSelecionarItem, onSelecionarGrupo, onMoverItem, onMoverGrupo, onFornecedorCadastrado,
 }: GrupoProps) {
   const sortable = useSortable({ id: GID(g.id) });
   const droppable = useDroppable({ id: CID(g.id) });
@@ -1062,7 +1064,7 @@ function GrupoCard({
                 onExcluir={() => onExcluirItem(l.id)}
                 onSelecionar={() => onSelecionarItem(l.id)}
                 onMover={(direcao) => onMoverItem(l.id, direcao)}
-                onValidarFornecedor={onValidarFornecedor}              />
+                onFornecedorCadastrado={onFornecedorCadastrado}              />
             ))}
           </SortableContext>
 
@@ -1104,12 +1106,12 @@ interface ItemProps {
   onExcluir: () => void;
   onSelecionar: () => void;
   onMover: (direcao: -1 | 1) => void;
-  onValidarFornecedor: (cnpj: string) => Promise<string | null>;
+  onFornecedorCadastrado?: (f: Fornecedor) => void;
 }
 
 function ItemRow({
   l, verFinanceiro, fornecedores, usuarios, sugestoes, pendencias, vinculados, acoesVinculo, selecionado, primeiro, ultimo, motivoBloqueio,
-  onUpd, onOcultar, onExcluir, onSelecionar, onMover, onValidarFornecedor,
+  onUpd, onOcultar, onExcluir, onSelecionar, onMover, onFornecedorCadastrado,
 }: ItemProps) {
   const sortable = useSortable({ id: l.id });
   const style = { transform: CSS.Translate.toString(sortable.transform), transition: sortable.transition };
@@ -1287,12 +1289,16 @@ function ItemRow({
           </Select>
         </Campo>
         <Campo label={vinculados.length ? "Fornecedor 1 (CNPJ / Razão social)" : "Fornecedor (CNPJ / Razão social)"} className="basis-full min-w-0 sm:basis-auto sm:flex-[2_1_22rem] sm:min-w-[20rem]" obrigatorio>
-          <FornecedorField
+          {/* Caixa combinada do cadastro (24/11/2026): o fornecedor é escolhido
+              ou cadastrado pelo "+" — não há mais razão social digitada solta. */}
+          <SeletorFornecedor
             razao={l.fornecedorRazao}
             cnpj={l.fornecedorCnpj}
             fornecedores={fornecedores}
-            onChange={onUpd}
-            onValidar={onValidarFornecedor}
+            onEscolher={(f) => onUpd(linhaComFornecedor(f))}
+            onCadastrado={onFornecedorCadastrado}
+            onLimpar={() => onUpd({ fornecedorCnpj: "", fornecedorRazao: "" })}
+            aria-label={vinculados.length ? "Fornecedor 1" : "Fornecedor"}
           />
         </Campo>
         {/* DOCUMENTO PG, CÓDIGO DE SERVIÇO e PEDIDO DE COMPRA são LEITURA aqui
@@ -1317,7 +1323,7 @@ function ItemRow({
         verFinanceiro={verFinanceiro}
         fornecedores={fornecedores}
         acoes={acoesVinculo}
-        onValidarFornecedor={onValidarFornecedor}
+        onFornecedorCadastrado={onFornecedorCadastrado}
       />
 
       {verFinanceiro && <OpcoesDeValor l={l} onUpd={onUpd} />}
@@ -1686,14 +1692,14 @@ function FornecedoresDoItem({
   verFinanceiro,
   fornecedores,
   acoes,
-  onValidarFornecedor,
+  onFornecedorCadastrado,
 }: {
   principal: EcLinha;
   vinculados: EcLinha[];
   verFinanceiro: boolean;
   fornecedores: Fornecedor[];
   acoes: AcoesVinculo;
-  onValidarFornecedor: (cnpj: string) => Promise<string | null>;
+  onFornecedorCadastrado?: (f: Fornecedor) => void;
 }) {
   const total = valorTotalDoItem(principal, vinculados);
   const rotulo = "block text-[10.5px] font-extrabold uppercase tracking-wider text-ink-3 mb-1";
@@ -1716,12 +1722,14 @@ function FornecedoresDoItem({
               <span className="w-5 pb-2.5 text-[12px] font-bold text-ink-3">{i + 2}.</span>
               <label className="block flex-[2_1_20rem] min-w-[16rem]">
                 <span className={rotulo}>Fornecedor {i + 2} (CPF/CNPJ / Razão social)<MarcaObrigatorio title="Obrigatório para emitir a OS" /></span>
-                <FornecedorField
+                <SeletorFornecedor
                   razao={v.fornecedorRazao}
                   cnpj={v.fornecedorCnpj}
                   fornecedores={fornecedores}
-                  onChange={(patch) => acoes.alterar(v.id, patch)}
-                  onValidar={onValidarFornecedor}
+                  onEscolher={(f) => acoes.alterar(v.id, linhaComFornecedor(f))}
+                  onCadastrado={onFornecedorCadastrado}
+                  onLimpar={() => acoes.alterar(v.id, { fornecedorCnpj: "", fornecedorRazao: "" })}
+                  aria-label={`Fornecedor ${i + 2}`}
                 />
               </label>
               {verFinanceiro && (

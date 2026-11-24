@@ -12,8 +12,9 @@
  */
 import { repo } from "@/data";
 import { sincronizarCamposLegados } from "@/domain/projeto";
-import type { Ec, Os } from "@/data/types";
+import type { Ec, Fornecedor, Os } from "@/data/types";
 import { osEmitida } from "@/domain/faseOs";
+import { doCadastro } from "@/domain/fornecedor";
 
 export async function comDadosAtuaisDoProjeto(ec: Ec): Promise<Ec> {
   if (!ec.projetoId) return ec;
@@ -60,4 +61,19 @@ export function completarIncentivo(foto: Os["projeto"], viva: Ec["projeto"] | un
     if (!(completo[k] ?? "").trim() && (viva[k] ?? "").trim()) completo[k] = viva[k];
   }
   return completo;
+}
+
+/**
+ * A OS com o FORNECEDOR como o cadastro diz agora — enquanto ela não foi
+ * emitida (24/11/2026, Módulo 1).
+ *
+ * O bloco do fornecedor da OS virou leitura do cadastro: a tela já abre com o
+ * cadastro de hoje, e o PDF tem de sair igual — sem depender do texto que a OS
+ * gravou da última vez. Campo vazio no cadastro não apaga o que a OS tem
+ * (`doCadastro`). Emitida, segue a foto do dia da emissão; sem cadastro (OS
+ * antiga de fornecedor não cadastrado), segue o que a OS guardou.
+ */
+export function osComFornecedorDoCadastro(os: Os, cadastro: Fornecedor | undefined): Os {
+  if (!cadastro || osEmitida(os)) return os;
+  return { ...os, fornecedor: { ...os.fornecedor, ...doCadastro(cadastro) } };
 }

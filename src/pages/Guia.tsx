@@ -399,9 +399,9 @@ const MODULOS: Modulo[] = [
           <Campos
             bloco="Dados do Fornecedor"
             itens={[
-              ["CNPJ + Consultar CNPJ", "auto", "Ao digitar o CPF/CNPJ completo, a OS busca sozinha o cadastro da casa e depois a Receita (o botão busca de novo). O que for corrigido aqui volta para o cadastro do fornecedor ao salvar."],
-              ["Perfil (regime tributário)", "escolha", "MEI, Simples, Lucro Presumido, Lucro Real, Imune/Isenta, Pessoa Física (Recibo Simples), Pessoa Física (RPA). Com CPF, o sistema já marca Pessoa Física (Recibo Simples). Decide retenção e o que a nota precisa trazer."],
-              ["Inscrição Municipal", "equipe", "Tem botão de busca, como o do cliente."],
+              ["Fornecedor", "escolha", "Escolhido do cadastro pela caixa combinada (CPF/CNPJ ou parte do nome); quem não tem cadastro entra pelo +. Razão social, endereço, inscrições, perfil, representante, telefone e e-mail vêm do cadastro e não se digitam na OS: para corrigir, use Abrir cadastro."],
+              ["Perfil (regime tributário)", "auto", "Vem do cadastro (pela consulta do CNPJ; com CPF, Pessoa Física (Recibo Simples)). Decide retenção e o que a nota precisa trazer."],
+              ["Inscrição Municipal", "auto", "Vem do cadastro do fornecedor, onde tem o botão de busca na PBH."],
               ["Dados bancários / Pix", "equipe", "Nenhuma fonte pública tem isso: é memória da casa, e a consulta de CNPJ nunca apaga."],
             ]}
           />
@@ -833,7 +833,7 @@ const MODULOS: Modulo[] = [
           <Passos>
             <span>Abra a EC e, na tabela de linhas, <b>marque as linhas</b> do mesmo fornecedor.</span>
             <span>Clique em <b>Gerar OS</b>. A OS já vem com cliente, projeto e itens preenchidos a partir da EC.</span>
-            <span>Complete os dados do <b>Fornecedor</b> (use Consultar CNPJ), o <b>detalhamento</b>, o <b>cronograma</b> e o <b>orçamento</b>.</span>
+            <span>Confira os dados do <b>Fornecedor</b> (vêm do cadastro; corrija pelo Abrir cadastro), o <b>detalhamento</b>, o <b>cronograma</b> e o <b>orçamento</b>.</span>
             <span>Clique em <b>Salvar</b>.</span>
           </Passos>
           <Dica>

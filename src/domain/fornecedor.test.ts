@@ -3,7 +3,7 @@ import {
   contatoDeTexto, doCadastro, gerarApelidoFornecedor, limparContatos, mesclarContatos,
   normalizarContatos, opcoesPerfilTributario, semVazios, textoDoContato,
 } from "./fornecedor";
-import { cadastroAtualizadoPelaOs, comPerfilPeloDocumento, completarCadastro } from "./fornecedor";
+import { bancariosAtualizadosPelaOs, comPerfilPeloDocumento, completarCadastro } from "./fornecedor";
 import type { Fornecedor } from "@/data/types";
 
 /**
@@ -259,7 +259,7 @@ describe("perfil do fornecedor com CPF", () => {
   });
 });
 
-describe("o que a OS corrige no fornecedor volta para o cadastro (18/11/2026)", () => {
+describe("só os dados bancários corrigidos na OS voltam ao cadastro (24/11/2026)", () => {
   const banc: Fornecedor["dadosBancarios"] = { tipoConta: "PJ", banco: "Itaú", agencia: "0001", conta: "123-4", chavePix: "pix@som.com" };
   const forn = (p: Partial<Fornecedor> = {}): Fornecedor => ({
     id: "f1", razaoSocial: "Som e Luz Ltda", nomeFantasia: "Som & Luz", cnpj: "33.333.333/0001-33",
@@ -268,50 +268,32 @@ describe("o que a OS corrige no fornecedor volta para o cadastro (18/11/2026)", 
     representante: "", telefone: "", email: "", apelido: "SomLuz", contatos: [{ nome: "Maria" }], ...p,
   });
 
-  it("o valor corrigido na OS vence, e o campo vazio na OS não apaga o cadastro", () => {
-    const daOs = forn({ id: "", endereco: "Rua B, 2 - Centro - Contagem - MG", inscricaoMunicipal: "123", inscricaoEstadual: "", apelido: undefined, contatos: undefined,
-      dadosBancarios: { ...banc, chavePix: "" } });
-    const novo = cadastroAtualizadoPelaOs(forn(), daOs)!;
+  it("a conta corrigida na OS vai ao cadastro; o resto do cadastro não muda", () => {
+    const comoAbriu = forn({ id: "" });
+    const daOs = forn({ id: "", endereco: "Outro endereço digitado", dadosBancarios: { ...banc, conta: "555-5", chavePix: "" } });
+    const novo = bancariosAtualizadosPelaOs(forn(), daOs, comoAbriu)!;
     expect(novo.id).toBe("f1");
-    expect(novo.endereco).toBe("Rua B, 2 - Centro - Contagem - MG");
-    expect(novo.inscricaoMunicipal).toBe("123");
-    expect(novo.inscricaoEstadual).toBe("Isenta");
+    expect(novo.dadosBancarios.conta).toBe("555-5");
+    // Campo apagado na OS não apaga o cadastro.
     expect(novo.dadosBancarios.chavePix).toBe("pix@som.com");
-    expect(novo.apelido).toBe("SomLuz");
+    // Endereço não volta mais: ele é do cadastro.
+    expect(novo.endereco).toBe("Rua A, 1 - Centro - Contagem - MG");
     expect(novo.contatos).toEqual([{ nome: "Maria" }]);
   });
 
   it("nada diferente: não grava", () => {
-    expect(cadastroAtualizadoPelaOs(forn(), forn({ id: "", contatos: undefined }))).toBeNull();
+    expect(bancariosAtualizadosPelaOs(forn(), forn({ id: "" }), forn({ id: "" }))).toBeNull();
   });
 
-  it("fornecedor sem cadastro entra no cadastro; sem documento completo ou sem razão social, não", () => {
-    expect(cadastroAtualizadoPelaOs(undefined, forn({ id: "x" }))?.id).toBe("");
-    expect(cadastroAtualizadoPelaOs(undefined, forn({ cnpj: "33.333" }))).toBeNull();
-    expect(cadastroAtualizadoPelaOs(undefined, forn({ razaoSocial: "" }))).toBeNull();
-    // Documento que não passa no validador (dígito verificador errado) não cria cadastro.
-    expect(cadastroAtualizadoPelaOs(undefined, forn({ id: "x" }), undefined, () => false)).toBeNull();
+  it("a conta velha de uma OS antiga não desfaz a conta nova do cadastro", () => {
+    const cadastro = forn({ dadosBancarios: { ...banc, conta: "999-B" } });
+    const comoAbriu = forn({ id: "" });
+    expect(bancariosAtualizadosPelaOs(cadastro, comoAbriu, comoAbriu)).toBeNull();
   });
 
-  it("só o que mudou NESTA edição volta: a foto velha da OS não desfaz o cadastro", () => {
-    // O cadastro já está na conta B; a OS abriu com a conta A e ninguém mexeu nela.
-    const cadastro = forn({ dadosBancarios: { ...banc, conta: "999-B" }, endereco: "Rua Nova, 9 - Centro - Contagem - MG" });
-    const comoAbriu = forn({ id: "", contatos: undefined });
-    expect(cadastroAtualizadoPelaOs(cadastro, comoAbriu, comoAbriu)).toBeNull();
-    // Agora a pessoa corrigiu só a IM: só a IM vai — banco e endereço do cadastro ficam.
-    const novo = cadastroAtualizadoPelaOs(cadastro, { ...comoAbriu, inscricaoMunicipal: "456" }, comoAbriu)!;
-    expect(novo.inscricaoMunicipal).toBe("456");
-    expect(novo.dadosBancarios.conta).toBe("999-B");
-    expect(novo.endereco).toBe("Rua Nova, 9 - Centro - Contagem - MG");
-  });
-
-  it("documento trocado na OS: o que ela tem preenchido é do fornecedor novo e vai para o cadastro dele", () => {
-    const antes = forn({ cnpj: "11.111.111/0001-11" });
-    const cadastroNovo = forn({ razaoSocial: "Outra Ltda", inscricaoMunicipal: "", dadosBancarios: { tipoConta: "", banco: "", agencia: "", conta: "", chavePix: "" } });
-    const daOs = forn({ razaoSocial: "Outra Ltda", inscricaoMunicipal: "789" });
-    const novo = cadastroAtualizadoPelaOs(cadastroNovo, daOs, antes)!;
-    expect(novo.inscricaoMunicipal).toBe("789");
-    expect(novo.dadosBancarios.banco).toBe("Itaú");
+  it("sem cadastro, ou cadastro de outro documento: não grava nem cria", () => {
+    expect(bancariosAtualizadosPelaOs(undefined, forn({ id: "" }))).toBeNull();
+    expect(bancariosAtualizadosPelaOs(forn({ cnpj: "11.111.111/0001-11" }), forn({ id: "" }))).toBeNull();
   });
 });
 
