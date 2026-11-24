@@ -16,9 +16,9 @@ function Secao({ titulo, children }: { titulo: string; children: ReactNode }) {
     <section className="scroll-mt-24">
       <div className="flex items-center gap-2.5 mb-3">
         <span className="h-4 w-1.5 rounded-full bg-progress-grad" />
-        <h3 className="font-display font-bold text-ink text-[16px]">{titulo}</h3>
+        <h3 className="font-bold text-ink text-base">{titulo}</h3>
       </div>
-      <div className="space-y-3 text-[13.5px] text-ink-2 leading-relaxed">{children}</div>
+      <div className="space-y-3 text-sm text-ink-2 leading-relaxed">{children}</div>
     </section>
   );
 }
@@ -29,7 +29,7 @@ function Passos({ children }: { children: ReactNode }) {
     <ol className="space-y-2.5">
       {items.map((c, i) => (
         <li key={i} className="flex gap-3">
-          <span className="shrink-0 h-6 w-6 rounded-full bg-primary-soft text-primary-dark font-display font-bold text-[12.5px] grid place-items-center">
+          <span className="shrink-0 h-6 w-6 rounded-full bg-primary-soft text-primary-dark font-bold text-xs grid place-items-center">
             {i + 1}
           </span>
           <div className="pt-0.5">{c}</div>
@@ -41,7 +41,7 @@ function Passos({ children }: { children: ReactNode }) {
 
 function Dica({ children }: { children: ReactNode }) {
   return (
-    <div className="flex items-start gap-2.5 rounded-card bg-success-soft text-success px-3.5 py-2.5 text-[13px]">
+    <div className="flex items-start gap-2.5 rounded-card bg-success-soft text-success px-3.5 py-2.5 text-sm">
       <span className="mt-0.5 shrink-0"><IcCheck width={16} height={16} /></span>
       <div><b>Dica.</b> {children}</div>
     </div>
@@ -50,7 +50,7 @@ function Dica({ children }: { children: ReactNode }) {
 
 function Atencao({ children }: { children: ReactNode }) {
   return (
-    <div className="flex items-start gap-2.5 rounded-card bg-warning-soft text-warning px-3.5 py-2.5 text-[13px]">
+    <div className="flex items-start gap-2.5 rounded-card bg-warning-soft text-warning px-3.5 py-2.5 text-sm">
       <span className="mt-0.5 shrink-0" aria-hidden>⚠️</span>
       <div><b>Atenção.</b> {children}</div>
     </div>
@@ -61,11 +61,11 @@ function Atencao({ children }: { children: ReactNode }) {
 function Tela({ titulo, children }: { titulo: string; children: ReactNode }) {
   return (
     <div className="rounded-card border border-border overflow-hidden shadow-card bg-surface">
-      <div className="flex items-center gap-1.5 px-3 py-2 bg-[#F4F5F7] border-b border-border">
+      <div className="flex items-center gap-1.5 px-3 py-2 bg-muted/60 border-b border-border">
         <span className="h-2.5 w-2.5 rounded-full bg-[#E5564B]" />
         <span className="h-2.5 w-2.5 rounded-full bg-[#F2B441]" />
         <span className="h-2.5 w-2.5 rounded-full bg-[#36C26B]" />
-        <span className="ml-2 text-[11px] font-bold text-ink-3">{titulo}</span>
+        <span className="ml-2 text-2xs font-bold text-ink-3">{titulo}</span>
       </div>
       <div className="p-4">{children}</div>
     </div>
@@ -74,13 +74,13 @@ function Tela({ titulo, children }: { titulo: string; children: ReactNode }) {
 
 function Tag({ children, tom = "neutral" }: { children: ReactNode; tom?: "neutral" | "primary" | "success" | "warning" | "info" }) {
   const tons: Record<string, string> = {
-    neutral: "bg-[#F0F1F4] text-ink-2",
+    neutral: "bg-muted text-ink-2",
     primary: "bg-primary-soft text-primary-dark",
     success: "bg-success-soft text-success",
     warning: "bg-warning-soft text-warning",
     info: "bg-info-soft text-info",
   };
-  return <span className={cx("inline-flex items-center rounded-pill px-2 py-0.5 text-[11px] font-bold", tons[tom])}>{children}</span>;
+  return <span className={cx("inline-flex items-center rounded-pill px-2 py-0.5 text-2xs font-bold", tons[tom])}>{children}</span>;
 }
 
 /**
@@ -101,9 +101,9 @@ function LegendaOrigem() {
   return (
     <div className="grid sm:grid-cols-2 gap-2">
       {(Object.keys(ORIGEM) as Origem[]).map((o) => (
-        <div key={o} className="flex items-start gap-2 rounded-card border border-border-soft bg-[#FAFAFB] px-3 py-2">
+        <div key={o} className="flex items-start gap-2 rounded-card border border-border-soft bg-muted/40 px-3 py-2">
           <Tag tom={ORIGEM[o].tom}>{ORIGEM[o].rotulo}</Tag>
-          <span className="text-[12px] text-ink-2 leading-snug">{ORIGEM[o].explica}</span>
+          <span className="text-xs text-ink-2 leading-snug">{ORIGEM[o].explica}</span>
         </div>
       ))}
     </div>
@@ -114,13 +114,13 @@ function LegendaOrigem() {
 function Campos({ bloco, itens }: { bloco: string; itens: [string, Origem, string][] }) {
   return (
     <div className="rounded-card border border-border overflow-hidden">
-      <div className="bg-[#EDEEF1] px-3 py-2 text-[11.5px] font-extrabold uppercase tracking-wider text-ink-2">{bloco}</div>
+      <div className="bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground">{bloco}</div>
       <div className="divide-y divide-border-soft">
         {itens.map(([nome, origem, o_que]) => (
           <div key={nome} className="grid sm:grid-cols-[13rem_6.5rem_minmax(0,1fr)] gap-x-3 gap-y-1 px-3 py-2 items-start">
-            <span className="text-[12.5px] font-bold text-ink">{nome}</span>
+            <span className="text-xs font-bold text-ink">{nome}</span>
             <span><Tag tom={ORIGEM[origem].tom}>{ORIGEM[origem].rotulo}</Tag></span>
-            <span className="text-[12.5px] text-ink-2 leading-snug">{o_que}</span>
+            <span className="text-xs text-ink-2 leading-snug">{o_que}</span>
           </div>
         ))}
       </div>
@@ -163,10 +163,10 @@ const MODULOS: Modulo[] = [
           <p>O acesso é por <b>e-mail e senha</b>. Cada pessoa tem um <b>perfil</b> que define o que ela pode ver e fazer.</p>
           <Tela titulo="custos-polobh.vercel.app/login">
             <div className="max-w-[260px] mx-auto space-y-2">
-              <div className="text-center font-display font-bold text-ink text-sm">Entrar</div>
-              <div className="h-9 rounded-btn border border-border bg-bg flex items-center px-2.5 text-[12px] text-ink-3">voce@polobh.com.br</div>
-              <div className="h-9 rounded-btn border border-border bg-bg flex items-center px-2.5 text-[12px] text-ink-3">••••••••</div>
-              <div className="h-9 rounded-btn bg-primary-grad text-[#2A1602] grid place-items-center text-[12.5px] font-bold">Entrar no painel</div>
+              <div className="text-center font-bold text-ink text-sm">Entrar</div>
+              <div className="h-9 rounded-btn border border-border bg-bg flex items-center px-2.5 text-xs text-ink-3">voce@polobh.com.br</div>
+              <div className="h-9 rounded-btn border border-border bg-bg flex items-center px-2.5 text-xs text-ink-3">••••••••</div>
+              <div className="h-9 rounded-btn bg-primary-grad text-primary-foreground grid place-items-center text-xs font-bold">Entrar no painel</div>
             </div>
           </Tela>
           <Passos>
@@ -530,7 +530,7 @@ const MODULOS: Modulo[] = [
             sai de quem falou e acende para quem tem de responder.
           </p>
           <Tela titulo="Observações do item">
-            <div className="space-y-2 text-[12px]">
+            <div className="space-y-2 text-xs">
               <div className="flex items-center gap-2"><b className="text-ink">Ana</b><Tag tom="warning">Sua vez</Tag><span className="text-ink-3">@Bruno confere o orçamento</span></div>
               <div className="flex items-center gap-2"><b className="text-ink">Ana</b><Tag>Aguardando Ana</Tag><span className="text-ink-3">Bruno respondeu "conferido"</span></div>
               <div className="flex items-center gap-2"><b className="text-ink">Ana</b><Tag tom="success">Resolvida por Bruno</Tag></div>
@@ -662,7 +662,7 @@ const MODULOS: Modulo[] = [
             alteração vale para o que nascer daí em diante.
           </Atencao>
           <Tela titulo="O evento mudou. E os documentos já emitidos?">
-            <div className="space-y-2 text-[12px]">
+            <div className="space-y-2 text-xs">
               <div className="flex items-center gap-2"><span className="text-ink-3 line-through">Expominas</span><span className="text-ink-3">→</span><b className="text-ink">Minascentro</b></div>
               <div className="flex items-center gap-2"><span className="text-ink">EC – ACME – V02</span><span className="text-ink-3">nova versão</span></div>
               <div className="flex items-center gap-2"><span className="text-ink">Som &amp; Luz – OS (01)</span><span className="text-ink-3">nova versão</span></div>
@@ -700,8 +700,8 @@ const MODULOS: Modulo[] = [
             <span>Confira os <b>Totais ao vivo</b> e clique em <b>Salvar</b>.</span>
           </Passos>
           <Tela titulo="Nova Estimativa">
-            <div className="space-y-2 text-[12px]">
-              <div className="grid grid-cols-[1fr_1fr_70px_70px] gap-1.5 text-[10px] font-bold uppercase text-ink-3"><span>Item</span><span>Fornecedor</span><span className="text-right">Pólobh</span><span className="text-right">Cliente</span></div>
+            <div className="space-y-2 text-xs">
+              <div className="grid grid-cols-[1fr_1fr_70px_70px] gap-1.5 text-2xs font-bold uppercase text-ink-3"><span>Item</span><span>Fornecedor</span><span className="text-right">Pólobh</span><span className="text-right">Cliente</span></div>
               <div className="grid grid-cols-[1fr_1fr_70px_70px] gap-1.5 items-center"><span className="text-ink">Sonorização</span><span className="text-ink-2">Som &amp; Luz</span><span className="text-right font-bold">R$ 8.500</span><span className="text-right">—</span></div>
               <div className="grid grid-cols-[1fr_1fr_70px_70px] gap-1.5 items-center"><span className="text-ink">Coffee break</span><span className="text-ink-2">Sabor &amp; Arte</span><span className="text-right">—</span><span className="text-right font-bold">R$ 9.200</span></div>
               <div className="flex justify-between bg-primary-soft rounded-btn px-2.5 py-1.5 mt-1"><b className="text-ink">Valor total bruto</b><b className="text-primary-dark">R$ 40.168,65</b></div>
@@ -956,7 +956,7 @@ const MODULOS: Modulo[] = [
             <span>Clicar no anexo <b>abre em outra aba</b>. Quem escreveu o comentário pode tirar um anexo pelo <b>×</b>.</span>
           </Passos>
           <Tela titulo="Observações da tarefa">
-            <div className="space-y-2 text-[12px]">
+            <div className="space-y-2 text-xs">
               <div className="flex items-center gap-2 flex-wrap">
                 <b className="text-ink">Ana</b>
                 <span className="text-ink-3">@Bruno a planta mudou — segue a nova</span>
@@ -1018,7 +1018,7 @@ const MODULOS: Modulo[] = [
             colorida continua em três trilhas: ali o assunto é <i>quão cheio está</i>, e mais linhas virariam um borrão.
           </p>
           <Tela titulo="Calendário — 2026">
-            <div className="space-y-2 text-[12px]">
+            <div className="space-y-2 text-xs">
               <div className="flex items-center gap-2">
                 <Tag tom="primary">‹ 2026 ›</Tag>
                 <span className="text-ink-3">a seta troca o ano</span>
@@ -1116,10 +1116,10 @@ const MODULOS: Modulo[] = [
             nome no portão vira dúvida na hora de liberar a entrada.
           </Dica>
           <Tela titulo="custos-polobh.vercel.app/credenciamento/…">
-            <div className="space-y-2 text-[12px]">
-              <div className="font-display font-bold text-ink">Equipe</div>
+            <div className="space-y-2 text-xs">
+              <div className="font-bold text-ink">Equipe</div>
               <div className="grid grid-cols-[1fr_90px_1fr] gap-1.5"><span className="bg-bg rounded-sm px-2 py-1">Nome</span><span className="bg-bg rounded-sm px-2 py-1">CPF</span><span className="bg-bg rounded-sm px-2 py-1">Função</span></div>
-              <div className="font-display font-bold text-ink pt-1">Veículos</div>
+              <div className="font-bold text-ink pt-1">Veículos</div>
               <div className="grid grid-cols-[1fr_90px] gap-1.5"><span className="bg-bg rounded-sm px-2 py-1">Modelo</span><span className="bg-bg rounded-sm px-2 py-1">Placa</span></div>
             </div>
           </Tela>
@@ -1376,16 +1376,16 @@ function PassoModulo({
       onClick={onClick}
       className={cx(
         "flex-1 min-w-52 flex items-center gap-3 px-4 py-3 rounded-card border border-border bg-surface",
-        "hover:bg-[#FAFAFB] transition-colors text-left",
+        "hover:bg-muted/40 transition-colors text-left",
         proximo ? "flex-row-reverse text-right" : ""
       )}
     >
       <span className="text-ink-3 text-lg leading-none shrink-0">{proximo ? "→" : "←"}</span>
       <span className="min-w-0">
-        <span className="block text-[10px] font-extrabold uppercase tracking-[0.14em] text-ink-3">
+        <span className="block text-xs font-semibold text-muted-foreground">
           {proximo ? "Próximo módulo" : "Módulo anterior"}
         </span>
-        <span className="block text-[13.5px] font-bold text-ink leading-tight mt-0.5 truncate">{modulo.titulo}</span>
+        <span className="block text-sm font-bold text-ink leading-tight mt-0.5 truncate">{modulo.titulo}</span>
       </span>
     </button>
   );
@@ -1424,10 +1424,10 @@ function ConviteTour() {
         <IcCompass width={22} height={22} />
       </span>
       <div className="min-w-0 flex-1">
-        <h2 className="font-display font-bold text-ink text-[17px] leading-tight">
+        <h2 className="font-bold text-ink text-lg leading-tight">
           {jaFez ? "Refazer o tour guiado" : "Comece pelo tour guiado"}
         </h2>
-        <p className="text-[13px] text-ink-2 mt-1">
+        <p className="text-sm text-ink-2 mt-1">
           O caminho inteiro de um evento — <b>Projeto → EC → OS → acompanhamento</b> — mostrado nas telas de
           verdade, passo a passo. Uns 10 minutos, e nada é alterado no sistema.
         </p>
@@ -1537,7 +1537,7 @@ export function Guia() {
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
           placeholder="Buscar módulo ou assunto (ex.: BV, CNPJ, credenciamento, link público…)"
-          className="w-full h-12 bg-surface border-[1.5px] border-[#BFC4CE] rounded-card pl-11 pr-3.5 text-sm text-ink placeholder:text-ink-3 input-focus"
+          className="w-full h-12 bg-surface border-[1.5px] border-input rounded-card pl-11 pr-3.5 text-sm text-ink placeholder:text-ink-3 input-focus"
         />
       </div>
 
@@ -1562,11 +1562,11 @@ export function Guia() {
             "max-h-[46vh]"
           )}
         >
-          <div className="px-1 mb-1 text-[10px] font-extrabold uppercase tracking-[0.14em] text-ink-3 shrink-0">
+          <div className="px-1 mb-1 text-xs font-semibold text-muted-foreground shrink-0">
             {busca ? `${filtrados.length} resultado(s)` : "Módulos"}
           </div>
           {filtrados.length === 0 && (
-            <p className="text-[13px] text-ink-3 px-1">Nada encontrado para “{busca}”. Tente outro termo.</p>
+            <p className="text-sm text-ink-3 px-1">Nada encontrado para “{busca}”. Tente outro termo.</p>
           )}
           {/* `min-h-0` é o que faz a rolagem existir: sem ele o filho de um flex
               nunca encolhe abaixo do próprio conteúdo, e a barra não aparece.
@@ -1582,13 +1582,13 @@ export function Guia() {
                 onClick={() => abrirModulo(m.id)}
                 className={cx(
                   "w-full text-left flex items-start gap-3 px-3 py-2.5 rounded-card border transition-colors",
-                  sel ? "bg-primary-soft border-active-border" : "bg-surface border-border hover:bg-[#FAFAFB]"
+                  sel ? "bg-primary-soft border-active-border" : "bg-surface border-border hover:bg-muted/40"
                 )}
               >
                 <span className={cx("mt-0.5 shrink-0", sel ? "text-primary-dark" : "text-ink-3")}>{m.icone}</span>
                 <span className="min-w-0">
-                  <span className={cx("block text-[13.5px] font-bold leading-tight", sel ? "text-primary-dark" : "text-ink")}>{m.titulo}</span>
-                  <span className="block text-[11.5px] text-ink-3 leading-snug mt-0.5">{m.resumo}</span>
+                  <span className={cx("block text-sm font-bold leading-tight", sel ? "text-primary-dark" : "text-ink")}>{m.titulo}</span>
+                  <span className="block text-2xs text-ink-3 leading-snug mt-0.5">{m.resumo}</span>
                 </span>
               </button>
             );
@@ -1603,8 +1603,8 @@ export function Guia() {
             <div className="flex items-center gap-3 mb-5 pb-5 border-b border-border-soft">
               <span className="h-11 w-11 rounded-card bg-primary-soft text-primary-dark grid place-items-center">{ativo.icone}</span>
               <div>
-                <h2 className="font-display font-bold text-ink text-[22px] tracking-[-0.4px] leading-none">{ativo.titulo}</h2>
-                <p className="text-ink-2 text-[13px] mt-1.5">{ativo.resumo}</p>
+                <h2 className="font-bold text-ink text-xl tracking-[-0.4px] leading-none">{ativo.titulo}</h2>
+                <p className="text-ink-2 text-sm mt-1.5">{ativo.resumo}</p>
               </div>
             </div>
             <div className="space-y-7">{ativo.conteudo}</div>

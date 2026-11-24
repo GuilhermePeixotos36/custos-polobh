@@ -169,7 +169,7 @@ export function Fluxograma() {
   const comandos = (
     <div className="flex items-center gap-1.5 flex-wrap">
       <Button variant="secondary" size="sm" onClick={menos} disabled={zoom <= ZOOM_MIN} aria-label="Diminuir o zoom" title="Diminuir o zoom">−</Button>
-      <span className="min-w-[3.2rem] text-center text-[12.5px] font-bold text-ink tabular-nums" aria-live="polite">{Math.round(zoom * 100)}%</span>
+      <span className="min-w-[3.2rem] text-center text-xs font-bold text-ink tabular-nums" aria-live="polite">{Math.round(zoom * 100)}%</span>
       <Button variant="secondary" size="sm" onClick={mais} disabled={zoom >= ZOOM_MAX} aria-label="Aumentar o zoom" title="Aumentar o zoom">+</Button>
       <Button variant="secondary" size="sm" onClick={ajustar} title="Voltar ao tamanho que cabe na tela">Ajustar à tela</Button>
       <Button size="sm" onClick={() => void alternarTelaCheia()}>{cheia ? "Sair da tela cheia" : "Tela cheia"}</Button>
@@ -207,7 +207,7 @@ export function Fluxograma() {
         <div ref={area} className={cheia ? "bg-white flex flex-col h-screen" : ""}>
           <div className="flex items-center justify-between gap-3 flex-wrap px-4 py-3 border-b border-border-soft bg-surface">
             {comandos}
-            <span className="text-[11.5px] text-ink-3">
+            <span className="text-2xs text-ink-3">
               {atual?.dataUrl
                 ? `Imagem trocada${atual.atualizadoPor ? ` por ${atual.atualizadoPor}` : ""} em ${dataHoraBR(atual.atualizadoEm)}`
                 : "Imagem original do aplicativo"}{" "}
@@ -216,7 +216,7 @@ export function Fluxograma() {
           </div>
           <div
             ref={rolagem}
-            className={`overflow-auto bg-[#F6F7F9] ${cheia ? "flex-1" : "max-h-[calc(100vh-15rem)] min-h-[320px]"}`}
+            className={`overflow-auto bg-muted/60 ${cheia ? "flex-1" : "max-h-[calc(100vh-15rem)] min-h-[320px]"}`}
           >
             {loading && !atual ? (
               <div className="p-10 text-center text-ink-3 text-sm">Carregando…</div>
