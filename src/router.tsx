@@ -24,6 +24,7 @@ const Fornecedores = lazyComRecuperacao(() => import("@/pages/Fornecedores").the
 const Configuracoes = lazyComRecuperacao(() => import("@/pages/Configuracoes").then((m) => ({ default: m.Configuracoes })));
 const Fluxograma = lazyComRecuperacao(() => import("@/pages/Fluxograma").then((m) => ({ default: m.Fluxograma })));
 const Logs = lazyComRecuperacao(() => import("@/pages/Logs").then((m) => ({ default: m.Logs })));
+const Acessos = lazyComRecuperacao(() => import("@/pages/Acessos").then((m) => ({ default: m.Acessos })));
 const Guia = lazyComRecuperacao(() => import("@/pages/Guia").then((m) => ({ default: m.Guia })));
 const Privacidade = lazyComRecuperacao(() => import("@/pages/Privacidade").then((m) => ({ default: m.Privacidade })));
 const Suporte = lazyComRecuperacao(() => import("@/pages/Suporte").then((m) => ({ default: m.Suporte })));
@@ -72,6 +73,9 @@ export const router = createBrowserRouter([
       { path: "fluxograma", element: <RequireRecurso r="guia"><Fluxograma /></RequireRecurso> },
       { path: "configuracoes", element: <RequireRecurso r={["configuracoes", "checklists.padrao", "contratos.clausulas"]}><Configuracoes /></RequireRecurso> },
       { path: "logs", element: <RequireRecurso r="logs"><Logs /></RequireRecurso> },
+      // Acessos (padrão de Acessos LSPRO, 24/11/2026): usuários e grupos de permissão. Abre para
+      // quem vê uma das duas sub-abas; cada sub-aba confere a própria permissão por dentro.
+      { path: "acessos", element: <RequireRecurso r={["acessos.usuarios", "acessos.grupos"]}><Acessos /></RequireRecurso> },
       { path: "guia", element: <RequireRecurso r="guia"><Guia /></RequireRecurso> },
       // O Help Desk usa o mesmo recurso do Guia: pedir ajuda é para todo mundo
       // que consegue abrir o aplicativo.

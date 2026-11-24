@@ -1,5 +1,6 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { autorizar, respostaAutorizacao, type Papel } from "../_shared/auth.ts";
+import { rpcInexistente } from "../_shared/permissaoDoUsuario.ts";
 
 /**
  * Edge Function: gerenciar-usuarios
@@ -19,6 +20,14 @@ import { autorizar, respostaAutorizacao, type Papel } from "../_shared/auth.ts";
  * O `papel` (nível de segurança usado pela RLS) NÃO vem do cliente: é derivado
  * do `papel_base` da área por trigger no banco — ver a migração
  * 20260809120000_areas_permissoes.sql.
+ *
+ * PADRÃO DE ACESSOS (24/11/2026): cadastrar, editar e ativar/inativar passaram para a tela
+ * /acessos (Edge `acessos` e as RPCs dos grupos de permissão). Depois da migration
+ * 20261124150000 estas três ações respondem 410 — senão um nível antigo (Direção,
+ * Administrativo) seguiria criando e mudando usuários por fora das regras novas ("quem não é do
+ * Administrador nunca concede mais do que tem", grupo obrigatório, Administrador nunca vazio).
+ * Antes da migration (banco antigo), tudo segue como sempre. `listar` continua: o projeto usa a
+ * lista para achar o e-mail do Produtor Responsável.
  */
 
 const cors = {
@@ -59,6 +68,16 @@ async function papelDaArea(sb: ReturnType<typeof admin>, areaId: string): Promis
   if (error) throw new Error(error.message);
   if (!data) throw new Error("Área não encontrada.");
   return data.papel_base as Papel;
+}
+
+/**
+ * A migration dos grupos de permissão já está no banco? Com ela, a RPC `tem_permissao` existe
+ * (pela service role ela só responde falso). Erro que não seja "função inexistente" conta como
+ * modelo novo: na dúvida, esta função antiga não escreve.
+ */
+async function modeloNovoNoBanco(sb: ReturnType<typeof admin>): Promise<boolean> {
+  const { error } = await sb.rpc("tem_permissao", { p_tela: "acessos.usuarios", p_acao: "ver" });
+  return !error || !rpcInexistente(error);
 }
 
 function admin() {
@@ -251,6 +270,11 @@ Deno.serve(async (req) => {
   }
 
   const sb = admin();
+  if (body.acao === "criar" || body.acao === "atualizar" || body.acao === "definirAtivo") {
+    if (await modeloNovoNoBanco(sb)) {
+      return json({ ok: false, erro: "O cadastro de usuários agora é feito na tela Acessos." }, 410);
+    }
+  }
   try {
     switch (body.acao) {
       case "listar":
