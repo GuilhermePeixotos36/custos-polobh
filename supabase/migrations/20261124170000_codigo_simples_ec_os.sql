@@ -43,20 +43,20 @@ begin
     -- 1. a coluna
     execute format('alter table public.%I add column if not exists codigo bigint', v_tabela);
 
-    -- 2. numeração das que já existem, da mais antiga para a mais nova
-    execute format($f$
-      update public.%1$I t
-         set codigo = n.ordem
-        from (select id, row_number() over (order by criado_em, id) as ordem from public.%1$I) n
-       where n.id = t.id
-         and t.codigo is null
-    $f$, v_tabela);
-
-    -- 3. identity "generated always" (só se ainda não for)
+    -- 2 e 3. numeração das que já existem (da mais antiga para a mais nova) e a identity
+    -- "generated always" — só na primeira vez: depois da identity, o próprio UPDATE da coluna
+    -- é recusado pelo Postgres, mesmo sem linha nenhuma a mudar.
     if not exists (
       select 1 from information_schema.columns
        where table_schema = 'public' and table_name = v_tabela and column_name = 'codigo' and is_identity = 'YES'
     ) then
+      execute format($f$
+        update public.%1$I t
+           set codigo = n.ordem
+          from (select id, row_number() over (order by criado_em, id) as ordem from public.%1$I) n
+         where n.id = t.id
+           and t.codigo is null
+      $f$, v_tabela);
       execute format('alter table public.%I alter column codigo set not null', v_tabela);
       execute format('alter table public.%I alter column codigo add generated always as identity', v_tabela);
     end if;
