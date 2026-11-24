@@ -567,6 +567,12 @@ export interface TaxaConfig {
 
 export interface Ec {
   id: string;
+  /**
+   * ID simples da EC (#12) — sequencial, dado pelo banco na criação e nunca
+   * editado (migração `20261124170000_codigo_simples_ec_os`). Opcional porque o
+   * app roda antes da migração: sem a coluna, as listas mostram "—".
+   */
+  codigo?: number;
   numero: string; // "EC – Cliente – Projeto – V01"
   slugPublico: string; // token não-adivinhável p/ o link público do cronograma
   versao: number;
@@ -1027,6 +1033,12 @@ export interface CredenciamentoResposta {
 
 export interface Os {
   id: string;
+  /**
+   * ID simples da OS (#87) — sequencial, dado pelo banco na criação e nunca
+   * editado (migração `20261124170000_codigo_simples_ec_os`). Opcional porque o
+   * app roda antes da migração: sem a coluna, as listas mostram "—".
+   */
+  codigo?: number;
   numero: string; // "...– OS-01"
   slugCredenciamento: string; // token do link público de credenciamento
   seq: number;
