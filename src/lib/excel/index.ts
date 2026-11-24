@@ -1,7 +1,6 @@
-import type { Ec, Os } from "@/data/types";
+import type { Ec } from "@/data/types";
 import type { CronogramaExcelDados } from "./cronograma";
 import { auditar } from "@/store/logs";
-import { empresaPadrao, useEmpresas } from "@/store/empresas";
 import { nomeEcExcel } from "./nomeEc";
 import { rotuloNumeroEc } from "@/domain/calc";
 
@@ -88,45 +87,6 @@ export async function gerarRentabilidadeExcel(ec: Ec, gastoPorLinha: Record<stri
   });
 }
 
-/**
- * Empresa emissora e empresas do grupo que entram na OS em Excel — as mesmas no
- * download e na cópia arquivada, para as duas saírem iguais.
- */
-function opcoesDeEmpresaDaOs() {
-  // empresa emissora (Pólobh Promoções / MF Promoções) vem das Configurações
-  const emp = empresaPadrao();
-  const empresaPolobh = emp
-    ? {
-        nome: emp.nome,
-        razaoSocial: emp.razaoSocial,
-        cnpj: emp.cnpj,
-        endereco: emp.endereco,
-        inscricaoEstadual: emp.inscricaoEstadual,
-        inscricaoMunicipal: emp.inscricaoMunicipal,
-      }
-    : undefined;
-  // A lista INTEIRA das empresas do grupo vai junto (15/09/2026): o tomador
-  // pode ser a MF, e não só a emissora padrão (ver `domain/tomadorOs`).
-  return { empresaPolobh, empresas: useEmpresas.getState().empresas };
-}
-
-/** Geração da OS em Excel remontada com a marca (ExcelJS sob demanda). */
-export async function gerarOsExcel(
-  os: Os,
-  ec: Ec,
-  opts?: { incluirFinanceiro?: boolean }
-): Promise<void> {
-  const { gerarOsExcel: fn } = await import("./os");
-  const r = await fn(os, ec, { ...opts, ...opcoesDeEmpresaDaOs() });
-  auditar({
-    categoria: "Exportação",
-    acao: "os.excel",
-    mensagem: `OS ${os.numero} exportada para Excel${opts?.incluirFinanceiro ? " (com financeiro)" : ""}`,
-    alvoId: os.id,
-  });
-  return r;
-}
-
 /** Geração do Cronograma em Excel no modelo Pólobh (ExcelJS sob demanda). */
 export async function gerarCronogramaExcel(dados: CronogramaExcelDados): Promise<void> {
   const { gerarCronogramaExcel: fn } = await import("./cronograma");
@@ -172,42 +132,13 @@ export function baixarPdfViaImpressao() {
 }
 
 /**
- * A OS "oficial" é o PDF, que sai pela impressão do navegador — e a impressão
- * não entrega um arquivo que o app possa copiar. Então a pasta Dropbox do
- * projeto recebe a OS em Excel (sem financeiro) como cópia.
+ * NOVA VERSÃO de EC também vai para a pasta do Dropbox (01/10/2026): gerar
+ * versão não baixa arquivo nenhum, então a versão recém-criada é montada em
+ * Excel (modelo completo) e arquivada. A OS não tem Excel (23/11/2026): o
+ * documento dela é só o PDF.
  *
- * UMA VEZ POR VERSÃO (06/11/2026): a cópia sai ao EMITIR a OS e ao gerar nova
- * versão — não mais a cada clique em "OS PDF" nem em cada download do Excel,
- * que geravam "OS (01) (1)", "(2)" na pasta. E se o arquivo da versão já
- * estiver lá, o servidor não envia de novo.
+ * Nunca lança: arquivar não pode atrapalhar quem gerou a versão.
  */
-export async function arquivarOsNoProjeto(os: Os, ec: Ec): Promise<void> {
-  try {
-    const [{ criarOsExcelBuffer }, { arquivarCopia }] = await Promise.all([import("./os"), import("@/lib/arquivarDocumento")]);
-    const { buffer, nome } = await criarOsExcelBuffer(os, ec, { incluirFinanceiro: false, ...opcoesDeEmpresaDaOs() });
-    arquivarCopia(ec.projetoId, nome, buffer, undefined, { seExistir: "pular" });
-  } catch {
-    /* arquivar nunca atrapalha quem emitiu */
-  }
-}
-
-/**
- * NOVA VERSÃO de OS ou de EC também vai para a pasta do Dropbox (01/10/2026).
- *
- * Até aqui só o DOWNLOAD de um documento arquivava a cópia. Gerar nova versão —
- * pelo botão da EC ou pelo Alerta de alteração dos Dados Gerais — não baixa
- * arquivo nenhum, então a versão nascia no sistema e nunca chegava à pasta: o
- * projeto tinha o link certo e nada era salvo. Agora a versão recém-criada é
- * montada em Excel e arquivada, no mesmo formato das cópias de download (a OS
- * sem financeiro; a EC no modelo completo).
- *
- * Nunca lança: arquivar não pode atrapalhar quem gerou a versão. Projeto sem
- * link de pasta não arquiva (e a pendência "falta o link" cobra o produtor).
- */
-export async function arquivarNovaVersaoOs(os: Os, ec: Ec): Promise<void> {
-  await arquivarOsNoProjeto(os, ec);
-}
-
 export async function arquivarNovaVersaoEc(ec: Ec): Promise<void> {
   try {
     const [{ criarEcExcelBuffer }, { arquivarCopia }] = await Promise.all([import("./ec"), import("@/lib/arquivarDocumento")]);

@@ -31,13 +31,4 @@ export const flags = {
    */
   emailDestinoReal: on(import.meta.env.VITE_EMAIL_DESTINO_REAL),
 
-  /**
-   * Os botões de DISPARAR OS e de enviar cronograma aparecem habilitados?
-   *
-   * Desligados por padrão, a pedido do Guilherme (30/08/2026): a equipe está
-   * usando o sistema para conferir dados, e um disparo acidental chegaria a
-   * fornecedor de verdade. Separada da trava acima de propósito: para testar o
-   * disparo basta ligar esta, que o e-mail continua caindo no endereço de teste.
-   */
-  disparoFornecedor: on(import.meta.env.VITE_DISPARO_FORNECEDOR),
 };

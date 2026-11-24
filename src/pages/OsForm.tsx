@@ -15,7 +15,6 @@ import {
   CurrencyInput,
   Badge,
   tomStatusOs,
-  AvisoEmailPendente,
   CarregandoTela,
   ChaveNaoSeAplica,
   AvisoNaoSeAplica,
@@ -51,9 +50,6 @@ import { useEmpresas } from "@/store/empresas";
 import { consultarCnpj } from "@/lib/cnpj";
 import { AVISO_ORIGEM, buscarPorDocumento, documentoCompleto, ieDaBusca, useAoCompletarDocumento } from "@/lib/buscaPorDocumento";
 import { gerarDescritivo } from "@/lib/ai";
-import { dispararOsPorEmail } from "@/lib/email";
-import { disparoBloqueado, notaCaixaDeTeste } from "@/lib/avisoHomologacao";
-import { arquivarOsNoProjeto } from "@/lib/excel";
 import { flags } from "@/lib/flags";
 import { brl, cx, dataBR, maskCpfCnpjInput, onlyDigits } from "@/lib/format";
 import { useAuth } from "@/store/auth";
@@ -1105,8 +1101,8 @@ export function OsForm() {
       guard.liberar();
       usePendencias.getState().carregar(true); // o cronograma resolve/abre pendências
       toast(
-        salvo.disparadaEm
-          ? "Cronograma salvo. O fornecedor já recebeu a OS: reenvie o cronograma pela aba Cronograma do projeto."
+        osEmitida(salvo)
+          ? "Cronograma salvo. A OS já foi emitida: reenvie o cronograma ao fornecedor pela aba Cronograma do projeto."
           : "Cronograma salvo.",
         "success",
       );
@@ -1133,7 +1129,7 @@ export function OsForm() {
     }
   }
 
-  async function salvar(status?: Os["status"], patch?: Partial<Os>, opcoes?: { disparar?: boolean }): Promise<Os | undefined> {
+  async function salvar(status?: Os["status"], patch?: Partial<Os>): Promise<Os | undefined> {
     /**
      * TROCA DE FORNECEDOR numa OS que já saiu da casa: não é edição, é outro
      * contrato. A OS anterior existe do lado do primeiro fornecedor — deixar
@@ -1146,20 +1142,11 @@ export function OsForm() {
       await trocarFornecedorComNovaVersao();
       return;
     }
-    if (opcoes?.disparar) {
-      if (await disparoBloqueado("a OS")) return;
-      const destino = os!.fornecedor.email || "o fornecedor (sem e-mail cadastrado)";
-      if (!(await confirmar({
-        titulo: "Enviar esta OS ao fornecedor?",
-        mensagem: `A OS ${os!.numero} será enviada por e-mail para ${destino}. O envio fica registrado na OS.${notaCaixaDeTeste()}`,
-        confirmarTexto: "Enviar OS",
-      }))) return;
-    }
     // Textos alterados ainda não revisados. A revisão por IA é oferecida só
-    // quando a OS SAI DA CASA — ao emitir ou enviar ao fornecedor (06/11/2026).
+    // quando a OS SAI DA CASA — ao emitir (06/11/2026).
     // O "Salvar" do dia a dia só grava: perguntar a cada salvamento cansava, e
     // o texto ainda ia mudar antes de sair.
-    const momentoDeRevisar = status === "Emitida" || !!opcoes?.disparar;
+    const momentoDeRevisar = status === "Emitida";
     const gravadaParaRevisao = baseline ? (JSON.parse(baseline) as Os) : null;
     const comPatchParaRevisao = { ...os!, ...patch };
     const pendentes = pendentesDeRevisao(
@@ -1177,12 +1164,12 @@ export function OsForm() {
       const bvValor = verFinanceiro
         ? (os!.financeiro.valorTotal * os!.financeiro.bvPercentual) / 100
         : os!.financeiro.bvValor;
-      // mantém o link de credenciamento coerente com o token da OS (p/ e-mail/impressão)
+      // mantém o link de credenciamento coerente com o token da OS (p/ impressão)
       const linkCred = urlCredenciamento(os!);
 
       /*
-       * REVISÃO DE TEXTO. A OS é o documento que SAI DA CASA — vai por e-mail
-       * para o fornecedor, impressa e em planilha. Desde 28/10/2026 a revisão
+       * REVISÃO DE TEXTO. A OS é o documento que SAI DA CASA — impressa, em
+       * PDF. Desde 28/10/2026 a revisão
        * por IA é perguntada (acima) e vai só o que mudou desde a última gravação
        * e ainda não foi revisado. O que está marcado como "não se aplica" fica
        * de fora — não sai no documento. Sem revisão, vale só a regra de
@@ -1212,23 +1199,7 @@ export function OsForm() {
       });
       iniciar(ecCtx ? aplicarAutoPreenchimento(salvo, ecCtx) : salvo);
       if (!jaEmitida) await devolverAoCadastro(salvo.fornecedor, fornecedorAntes);
-      if (opcoes?.disparar) {
-        const r = await dispararOsPorEmail(salvo, ecCtx!);
-        if (!r.ok) toast(`OS salva; o e-mail não saiu: ${r.motivo}`, "warning");
-        else if (r.simulado) toast(`E-mail simulado para ${r.destinatarios.join(", ") || "—"}; o envio não foi registrado.`, "info");
-        else {
-          // O CARIMBO só é gravado quando o e-mail saiu de verdade
-          // (15/09/2026): é ele que destrava as cobranças de cronograma e
-          // credenciamento, que só fazem sentido com o fornecedor de posse do
-          // documento. Registrar um envio que falhou cobraria resposta de quem
-          // não recebeu nada.
-          salvo = await repo.oss.salvar({ ...salvo, disparadaEm: new Date().toISOString() });
-          iniciar(ecCtx ? aplicarAutoPreenchimento(salvo, ecCtx) : salvo);
-          toast(`OS enviada por e-mail para ${r.destinatarios.join(", ")}.`, "success");
-        }
-      } else {
-        toast("OS salva.", "success");
-      }
+      toast("OS salva.", "success");
       usePendencias.getState().carregar(true); // atualiza os badges de pendência
       guard.liberar();
       // Salvou: volta para a tela de visualização. Antes só a URL era
@@ -1494,9 +1465,6 @@ export function OsForm() {
     } catch (e) {
       toast(`A OS foi emitida, mas os itens da EC não foram fechados: ${(e as Error).message}`, "warning");
     }
-    // A cópia da OS vai para a pasta Dropbox UMA vez, aqui na emissão
-    // (06/11/2026) — antes saía a cada clique em "OS PDF".
-    if (ecCtx) void arquivarOsNoProjeto(emitida, ecCtx);
     setEditando(false);
   }
 
@@ -1526,9 +1494,8 @@ export function OsForm() {
          * Revisar e Salvar; e, quando a fase muda de mãos, o botão que passa o
          * bastão, que é o comando principal daquele momento.
          *
-         * "Disparar OS" continua existindo, e só depois de emitida: mandar ao
-         * fornecedor um documento que ainda está sendo montado é o que a fase
-         * veio impedir.
+         * A OS não é enviada pelo sistema (23/11/2026): não há "Disparar OS"
+         * nem e-mail ao fornecedor. O documento é o PDF, visualizado e impresso.
          */
         <>
         {/* Mesma barra da EC (28/10/2026): "Voltar ao projeto" à esquerda e os
@@ -1646,8 +1613,9 @@ export function OsForm() {
             size="sm"
             icon={<IcEye width={16} height={16} />}
             onClick={() => {
-              if (!os.id) return toast("Salve a OS antes de baixar o PDF.", "info");
-              navigate(`/ordens/${os.id}/imprimir?auto=1`);
+              if (!os.id) return toast("Salve a OS antes de ver o PDF.", "info");
+              // Abre a VISUALIZAÇÃO do PDF; imprimir é um botão de lá (23/11/2026).
+              navigate(`/ordens/${os.id}/imprimir`);
             }}
           >
             OS PDF
@@ -1723,24 +1691,10 @@ export function OsForm() {
             </Button>
           )}
 
-          {/* O e-mail ao fornecedor é o último passo, e só do que já saiu. */}
-          {emitida && podeEditar && !editandoCronograma && (
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={<IcSend width={15} height={15} />}
-              onClick={() => void salvar(undefined, undefined, { disparar: true })}
-              disabled={busy}
-              title="Envia a OS emitida ao fornecedor"
-            >
-              Disparar OS
-            </Button>
-          )}
         </div>
       </>}
     >
       <AvisoTravaEdicao trava={trava} />
-      <AvisoEmailPendente className="mb-4" />
 
       {/* ONDE A OS ESTÁ (28/10/2026): a linha do tempo das quatro etapas, no
           alto — antes era uma faixa de texto aqui e o bloco "Status OS" no fim
@@ -1848,9 +1802,9 @@ export function OsForm() {
               como lá — só em OS de EC cultural. No corporativo não existem. */}
           {osIncentivada(os) && (
             <>
-              <LinhaOs label="Nome do Projeto Incentivado"><Auto v={incentivoNota.projetoIncentivado} /></LinhaOs>
-              <LinhaOs label="Código do Projeto Incentivado"><Auto v={incentivoNota.codigoProjetoIncentivado} /></LinhaOs>
-              <LinhaOs label="Lei de Incentivo à Cultura"><Auto v={incentivoNota.leiIncentivo} /></LinhaOs>
+              <LinhaOs label="Nome do Projeto Incentivado" hint="(dos Dados Gerais)"><Auto v={incentivoNota.projetoIncentivado} /></LinhaOs>
+              <LinhaOs label="Código do Projeto Incentivado" hint="(dos Dados Gerais)"><Auto v={incentivoNota.codigoProjetoIncentivado} /></LinhaOs>
+              <LinhaOs label="Lei de Incentivo à Cultura" hint="(dos Dados Gerais)"><Auto v={incentivoNota.leiIncentivo} /></LinhaOs>
               <AvisoIncentivo faltando={faltaIncentivo} link={linkDadosGerais} />
             </>
           )}
@@ -2713,9 +2667,10 @@ export function OsForm() {
                 nascia: corrigir os Dados Gerais depois não chegava à nota. */}
             {osIncentivada(os) && (
               <>
+                {/* Mesma ordem e mesmos rótulos dos Dados Gerais (23/11/2026). */}
                 <LinhaOs label="Nome do Projeto Incentivado" hint="(dos Dados Gerais)"><Auto v={incentivoNota.projetoIncentivado} /></LinhaOs>
-                <LinhaOs label="Lei de Incentivo à Cultura" hint="(dos Dados Gerais)"><Auto v={incentivoNota.leiIncentivo} /></LinhaOs>
                 <LinhaOs label="Código do Projeto Incentivado" hint="(dos Dados Gerais)"><Auto v={incentivoNota.codigoProjetoIncentivado} /></LinhaOs>
+                <LinhaOs label="Lei de Incentivo à Cultura" hint="(dos Dados Gerais)"><Auto v={incentivoNota.leiIncentivo} /></LinhaOs>
                 <AvisoIncentivo faltando={faltaIncentivo} link={linkDadosGerais} />
               </>
             )}

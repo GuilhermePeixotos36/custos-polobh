@@ -96,7 +96,15 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
       <Secao titulo="Dados do Projeto" />
       <LV label="Título" valor={p.titulo} />
       <LV label="Modalidade" valor={p.modalidade} />
-      {incentivada && <LV label="Incentivos Fiscais" valor={p.incentivosFiscais} />}
+      {/* Os três dados do projeto incentivado, como nos Dados Gerais e na tela
+          da OS (23/11/2026) — no lugar do antigo "Incentivos Fiscais" composto. */}
+      {incentivada && (
+        <>
+          <LV label="Nome do Projeto Incentivado" valor={incentivoDaNota(os).projetoIncentivado} />
+          <LV label="Código do Projeto Incentivado" valor={incentivoDaNota(os).codigoProjetoIncentivado} />
+          <LV label="Lei de Incentivo à Cultura" valor={incentivoDaNota(os).leiIncentivo} />
+        </>
+      )}
       {/* Todas as faixas do evento, e não só a primeira: é este papel que vai
           ao fornecedor, e um evento de três dias saía dali como se fosse de um. */}
       <LV label="Data(s)" valor={datasDoEvento(p)} />

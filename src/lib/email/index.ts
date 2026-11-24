@@ -13,16 +13,10 @@
 import { flags } from "@/lib/flags";
 import { EMAIL_TESTE, protegerDestinatarios } from "./seguranca";
 import { supabase } from "@/lib/supabaseClient";
-import { criarOsExcelBuffer } from "@/lib/excel/os";
 import { criarEcExcelBuffer } from "@/lib/excel/ec";
-import type { Ec, Os } from "@/data/types";
-import { comDadosAtuaisDoProjeto, osComDadosAtuais } from "@/lib/projetoAoVivo";
-import { osEmitida } from "@/domain/faseOs";
+import type { Ec } from "@/data/types";
 import {
-  emailCredenciamento,
-  emailDispararOs,
   emailEcParaAprovacao,
-  emailCronogramaDoFornecedor,
   emailHelpDesk,
   emailRespostaChamado,
   type AnexoEmail,
@@ -129,16 +123,9 @@ export function resumoDoEnvio(r: ResultadoEmail, quantos = 1): string {
 /* Cada um monta a mensagem do evento, anexa a planilha do escopo certo (se */
 /* houver) e delega para enviarEmail. Geração do anexo é best-effort: se     */
 /* falhar, o e-mail ainda assim sai, só sem o arquivo.                       */
-
-/** Anexo da OS — SEM o bloco financeiro (BV/desconto negociado são internos da Pólobh, não vão ao fornecedor). */
-async function anexoOs(os: Os, ec: Ec): Promise<AnexoEmail | undefined> {
-  try {
-    const { buffer, nome } = await criarOsExcelBuffer(os, ec, { incluirFinanceiro: false });
-    return { nome, conteudoBase64: bufferParaBase64(buffer) };
-  } catch {
-    return undefined; // segue sem anexo em vez de bloquear o envio
-  }
-}
+/* Não há e-mail ao FORNECEDOR (23/11/2026): a OS não é enviada pelo sistema */
+/* — nem ela, nem cronograma, nem link de credenciamento. O que vai a ele    */
+/* sai pelo WhatsApp (texto pronto) ou pelo PDF impresso.                    */
 
 /** Anexo da EC — modelo "financeiro" (só Item/Pólobh/Cliente): o modelo "completa" traz CNPJ de
  *  fornecedores e status internos de OS/Contrato, que não devem ir para o cliente. */
@@ -149,35 +136,6 @@ async function anexoEc(ec: Ec): Promise<AnexoEmail | undefined> {
   } catch {
     return undefined;
   }
-}
-
-/**
- * A OS e a EC com os Dados Gerais e o cliente de AGORA, enquanto a OS não foi
- * emitida (23/11/2026) — a mesma regra da tela e do PDF (ver `osComDadosAtuais`).
- *
- * As abas Cronograma e Credenciamento mandam a OS como ela está gravada no
- * banco, e a foto gravada só se atualiza quando alguém abre e salva a OS: o
- * fornecedor recebia a planilha com o projeto incentivado, o local ou o cliente
- * de antes da edição nos Dados Gerais. Emitida segue a foto, como sempre.
- */
-async function comDadosDeAgora(os: Os, ec: Ec): Promise<{ os: Os; ec: Ec }> {
-  if (osEmitida(os)) return { os, ec };
-  const viva = await comDadosAtuaisDoProjeto(ec);
-  return { os: osComDadosAtuais(os, viva), ec: viva };
-}
-
-export async function dispararOsPorEmail(osGravada: Os, ecGravada: Ec) {
-  const { os, ec } = await comDadosDeAgora(osGravada, ecGravada);
-  const msg = emailDispararOs(os, ec);
-  const anexo = await anexoOs(os, ec);
-  if (anexo) msg.anexos = [anexo];
-  return enviarEmail(msg);
-}
-
-/** Credenciamento é só um link de formulário — sem planilha associada a este disparo. */
-export async function enviarCredenciamento(osGravada: Os, ecGravada: Ec) {
-  const { os, ec } = await comDadosDeAgora(osGravada, ecGravada);
-  return enviarEmail(emailCredenciamento(os, ec));
 }
 
 /** Chamado do Help Desk para o endereço de suporte configurado. */
@@ -203,20 +161,6 @@ export async function arquivoParaAnexo(arquivo: File): Promise<AnexoEmail> {
  */
 export const enviarRespostaChamado = (opcoes: Parameters<typeof emailRespostaChamado>[0]) =>
   enviarEmail(emailRespostaChamado(opcoes));
-
-/**
- * Manda ao fornecedor o cronograma DELE, com a OS em anexo.
- *
- * Um só caminho para os dois usos — o envio da aba Cronograma e o lembrete de
- * véspera: é a mesma informação, e dois textos fariam um deles envelhecer.
- */
-export async function enviarCronogramaAoFornecedor(osGravada: Os, ecGravada: Ec) {
-  const { os, ec } = await comDadosDeAgora(osGravada, ecGravada);
-  const msg = emailCronogramaDoFornecedor(os, ec);
-  const anexo = await anexoOs(os, ec);
-  if (anexo) msg.anexos = [anexo];
-  return enviarEmail(msg);
-}
 
 export async function enviarEcParaAprovacao(ec: Ec) {
   const msg = emailEcParaAprovacao(ec);

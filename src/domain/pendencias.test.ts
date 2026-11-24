@@ -338,6 +338,21 @@ describe("badge e pílula contam a mesma coisa", () => {
     expect(rotaDaPendencia(p)).toContain("aba=cronograma");
   });
 
+  it("OS emitida cobra o cronograma mesmo sem e-mail enviado — a OS não vai mais por e-mail", () => {
+    const emitida = calcularPendencias(
+      [projeto("Carla")], [ec([linha([])])],
+      [os({ status: "Emitida", fase: "emitida", cronograma: [] } as Partial<Os>)],
+      USUARIOS, [], [], HOJE
+    );
+    expect(emitida.some((x) => x.tipo === "os.cronograma")).toBe(true);
+    const montando = calcularPendencias(
+      [projeto("Carla")], [ec([linha([])])],
+      [os({ status: "Ativa", fase: "producao", cronograma: [] } as Partial<Os>)],
+      USUARIOS, [], [], HOJE
+    );
+    expect(montando.some((x) => x.tipo === "os.cronograma")).toBe(false);
+  });
+
   it("fornecedor sem telefone/e-mail nos Dados Úteis é cobrado na aba Fornecedores, uma vez por fornecedor", () => {
     const sem = { fornecedor: { razaoSocial: "Som Ltda", cnpj: "11", telefone: "", email: "" } } as Partial<Os>;
     const itens = calcularPendencias(

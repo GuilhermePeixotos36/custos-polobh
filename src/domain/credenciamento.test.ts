@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { credenciadosDaFila, filaDeCredenciamento, podeEnviar, podeReceberLink } from "./credenciamento";
+import { credenciadosDaFila, filaDeCredenciamento } from "./credenciamento";
 import type { CredenciamentoResposta, Ec, Os } from "@/data/types";
 
 const ec = (id: string): Ec => ({ id, projetoId: "p1" }) as Ec;
@@ -56,34 +56,9 @@ describe("fila de credenciamento do projeto", () => {
     expect(fila.find((f) => f.os.id === "b")!.respondeu).toBe(false);
   });
 
-  describe("quem entra no disparo em lote", () => {
-    const daFila = (p: OsDeTeste, responderam: string[] = []) =>
-      filaDeCredenciamento([os(p)], [ec("ec1")], responderam)[0];
-
-    it("com link, e-mail, EC e sem resposta: entra", () => {
-      expect(podeReceberLink(daFila({}))).toBe(true);
-    });
-
-    it("quem já respondeu fica de fora — reenviar a quem preencheu é ruído", () => {
-      expect(podeReceberLink(daFila({ id: "os1" }, ["os1"]))).toBe(false);
-    });
-
-    it("fornecedor sem e-mail fica de fora, em vez de o envio falhar calado", () => {
-      expect(podeReceberLink(daFila({ fornecedor: { email: "" } }))).toBe(false);
-      expect(podeReceberLink(daFila({ fornecedor: { email: "   " } }))).toBe(false);
-    });
-
-    it("OS ainda não salva fica de fora: o token do link nasce no banco", () => {
-      const semToken = daFila({ slugCredenciamento: "", credenciamento: { prazoLimite: "", linkFormulario: "" } });
-      expect(semToken.link).toBe("");
-      expect(podeReceberLink(semToken)).toBe(false);
-    });
-
-    it("OS cuja EC não está carregada fica de fora — o e-mail cita o projeto", () => {
-      const semEc = filaDeCredenciamento([os({ ecId: "outra" })], [ec("ec1")], [])[0];
-      expect(semEc.ec).toBeUndefined();
-      expect(podeReceberLink(semEc)).toBe(false);
-    });
+  it("OS ainda não salva fica sem link: o token nasce no banco", () => {
+    const semToken = filaDeCredenciamento([os({ slugCredenciamento: "", credenciamento: { prazoLimite: "", linkFormulario: "" } })], [ec("ec1")], [])[0];
+    expect(semToken.link).toBe("");
   });
 });
 
@@ -141,23 +116,5 @@ describe("credenciados para a portaria", () => {
     );
     expect(equipe).toEqual([]);
     expect(veiculos).toEqual([]);
-  });
-});
-
-/**
- * Marcar alguém na lista é uma escolha, e ela pode ser justamente reenviar a
- * quem já respondeu — o formulário voltou errado, a equipe mudou.
- */
-describe("podeEnviar x podeReceberLink", () => {
-  const so = (p: OsDeTeste, responderam: string[] = []) => filaDeCredenciamento([os(p)], [ec("ec1")], responderam)[0];
-
-  it("quem já respondeu sai do disparo automático, mas pode ser marcado à mão", () => {
-    const respondeu = so({ id: "os1" }, ["os1"]);
-    expect(podeReceberLink(respondeu)).toBe(false);
-    expect(podeEnviar(respondeu)).toBe(true);
-  });
-
-  it("sem e-mail não sai por caminho nenhum — nem marcado", () => {
-    expect(podeEnviar(so({ fornecedor: { email: "" } }))).toBe(false);
   });
 });

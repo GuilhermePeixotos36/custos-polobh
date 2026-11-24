@@ -8,27 +8,21 @@
  *
  * O LINK continua sendo um por OS, e tem de ser: é o `slugCredenciamento` dela
  * que diz ao formulário público qual fornecedor está respondendo (as respostas
- * gravam `os_id`). O que mudou de lugar é o comando, não o dado — aqui se vê a
- * fila inteira e se dispara para todos, cada um recebendo o seu link.
+ * gravam `os_id`). Aqui se vê a fila inteira, e cada fornecedor recebe o seu
+ * link pelo WhatsApp ou copiado — não há e-mail a fornecedor (23/11/2026).
  *
- * Duas coisas o disparo em lote não resolvia sozinho, e agora resolve:
- *  · MARCAR quem recebe. "A todos" alcança quem falta; marcar na lista serve
- *    para o resto — reenviar a um fornecedor que preencheu errado, cobrar só
- *    os três que faltam do palco.
- *  · a folha da PORTARIA. O que os fornecedores mandaram só existia na tela,
+ * E a folha da PORTARIA: O que os fornecedores mandaram só existia na tela,
  *    um bloco por fornecedor; no dia do evento isso é uma lista impressa,
  *    conferida nome a nome (ver `lib/excel/credenciamento`).
  */
-import { notaCaixaDeTeste } from "@/lib/avisoHomologacao";
 import { useMemo, useState } from "react";
 import {
   Button, Card, CardTitle, Input, Table, THead, Th, Tr, Td, EmptyState, Badge,
 } from "@/components/ui";
-import { IcSend, IcLink, IcCheck, IcDownload } from "@/components/icons";
+import { IcLink, IcCheck, IcDownload } from "@/components/icons";
 import { repo } from "@/data";
 import { CAMPOS_CREDENCIAMENTO, camposDoCredenciamento, type CampoCredenciamento } from "@/domain/credenciamentoCampos";
 import { useAsync } from "@/hooks/useAsync";
-import { enviarCredenciamento, resumoDoEnvio } from "@/lib/email";
 import { textoWhatsAppCredenciamento } from "@/lib/email/templates";
 import { gerarCredenciamentoExcel } from "@/lib/excel";
 import { toast } from "@/store/toast";
@@ -38,19 +32,15 @@ import { idAncoraPendencia } from "@/lib/destaque";
 import {
   credenciadosDaFila,
   filaDeCredenciamento,
-  podeEnviar,
-  podeReceberLink,
   type NaFila,
 } from "@/domain/credenciamento";
 import type { CredenciamentoResposta, Ec, Os } from "@/data/types";
 
 export function CredenciamentoProjeto({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
-  const [enviando, setEnviando] = useState("");
   const [copiado, setCopiado] = useState("");
   const [prazoLote, setPrazoLote] = useState("");
-  const [marcados, setMarcados] = useState<ReadonlySet<string>>(new Set());
   /** Quem já respondeu — uma consulta só para a fila inteira. */
-  const { data: responderam, reload: recarregar } = useAsync(() => repo.oss.osComCredenciamento(), []);
+  const { data: responderam } = useAsync(() => repo.oss.osComCredenciamento(), []);
 
   const fila = useMemo(() => filaDeCredenciamento(oss, ecs, responderam ?? []), [oss, ecs, responderam]);
 
@@ -66,75 +56,10 @@ export function CredenciamentoProjeto({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
     return new Map<string, CredenciamentoResposta[]>(pares);
   }, [idsComResposta, oss]);
 
-  /** Quem o botão vai alcançar: o que estiver marcado, ou os que faltam. */
-  const alvos = marcados.size
-    ? fila.filter((f) => marcados.has(f.os.id) && podeEnviar(f))
-    : fila.filter(podeReceberLink);
-  const marcaveis = fila.filter(podeEnviar);
-
-  function alternar(id: string) {
-    setMarcados((atuais) => {
-      const novo = new Set(atuais);
-      if (!novo.delete(id)) novo.add(id);
-      return novo;
-    });
-  }
-
-  async function enviar(f: NaFila) {
-    if (!f.ec || !f.link || !f.email) return { ok: false, simulado: true, destinatarios: [] };
-    return enviarCredenciamento(f.os, f.ec);
-  }
-
   /** WhatsApp: abre a conversa com o texto padrão e o link já escritos (envio manual). */
   function abrirWhatsApp(f: NaFila) {
     if (!f.ec || !f.link || !f.whatsapp) return;
     window.open(`https://wa.me/${f.whatsapp}?text=${encodeURIComponent(textoWhatsAppCredenciamento(f.os, f.ec))}`, "_blank", "noopener,noreferrer");
-  }
-
-  async function enviarUm(f: NaFila) {
-    if (!(await confirmar({
-      titulo: `Enviar credenciamento para ${f.fornecedor}?`,
-      mensagem: `Será enviado um e-mail com o link do formulário para ${f.email}.${notaCaixaDeTeste()}`,
-      confirmarTexto: "Enviar",
-    }))) return;
-    setEnviando(f.os.id);
-    try {
-      const r = await enviar(f);
-      toast(resumoDoEnvio(r), r.ok && !r.desviado ? "success" : "warning");
-    } finally {
-      setEnviando("");
-      recarregar();
-    }
-  }
-
-  async function enviarLote() {
-    if (!alvos.length) return;
-    const marcou = marcados.size > 0;
-    if (!(await confirmar({
-      titulo: `Enviar credenciamento a ${alvos.length} fornecedor(es)?`,
-      mensagem: (marcou
-        ? "Cada um dos marcados recebe um e-mail com o SEU link — inclusive quem já respondeu, caso precise refazer."
-        : "Cada um recebe um e-mail com o SEU link. Quem já respondeu e quem está sem e-mail cadastrado ficam de fora.") + notaCaixaDeTeste(),
-      confirmarTexto: marcou ? "Enviar aos marcados" : "Enviar a todos",
-    }))) return;
-    setEnviando("lote");
-    try {
-      const resultados = await Promise.all(alvos.map(enviar));
-      const ok = resultados.filter((r) => r.ok).length;
-      const desviados = resultados.filter((r) => r.desviado).length;
-      toast(
-        ok < resultados.length
-          ? `${ok} de ${resultados.length} enviados — os demais falharam.`
-          : desviados
-            ? `${ok} mensagem(ns) foram para a caixa de TESTE, não para os fornecedores — o sistema está em homologação.`
-            : `Link enviado a ${ok} fornecedor(es).`,
-        ok === resultados.length && !desviados ? "success" : "warning"
-      );
-      if (ok) setMarcados(new Set());
-    } finally {
-      setEnviando("");
-      recarregar();
-    }
   }
 
   async function baixarPlanilha() {
@@ -169,14 +94,12 @@ export function CredenciamentoProjeto({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
     );
   }
 
-  const todosMarcados = marcaveis.length > 0 && marcaveis.every((f) => marcados.has(f.os.id));
-
   return (
     <div className="space-y-4">
       <Card padded={false}>
         <div className="p-5 pb-3">
           <CardTitle
-            hint="Cada fornecedor recebe o link da OS dele — é ele que identifica quem está respondendo"
+            hint="Cada fornecedor recebe o link da OS dele, pelo WhatsApp ou copiado — é ele que identifica quem está respondendo"
             action={
               <div className="flex items-center gap-2">
                 <Button
@@ -188,25 +111,6 @@ export function CredenciamentoProjeto({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
                 >
                   Baixar Excel
                 </Button>
-                <Button
-                  size="sm"
-                  icon={<IcSend width={15} height={15} />}
-                  onClick={enviarLote}
-                  disabled={!alvos.length || !!enviando}
-                  title={
-                    marcados.size
-                      ? `${alvos.length} marcado(s) com e-mail e OS salva`
-                      : alvos.length
-                        ? `${alvos.length} fornecedor(es) ainda sem resposta`
-                        : "Ninguém pendente: todos responderam ou estão sem e-mail"
-                  }
-                >
-                  {enviando === "lote"
-                    ? "Enviando…"
-                    : marcados.size
-                      ? `Enviar aos marcados (${alvos.length})`
-                      : `Enviar a todos (${alvos.length})`}
-                </Button>
               </div>
             }
           >
@@ -216,24 +120,8 @@ export function CredenciamentoProjeto({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
 
         <Table>
           <THead>
-            <Th className="w-10">
-              {/* Marca de uma vez todos os que o e-mail alcança. */}
-              <input
-                type="checkbox"
-                className="h-4 w-4 shrink-0 accent-[#F2820D] cursor-pointer"
-                checked={todosMarcados}
-                ref={(el) => {
-                  if (el) el.indeterminate = marcados.size > 0 && !todosMarcados;
-                }}
-                disabled={!marcaveis.length}
-                onChange={(e) => setMarcados(e.target.checked ? new Set(marcaveis.map((f) => f.os.id)) : new Set())}
-                aria-label="Marcar todos os fornecedores"
-                title="Marcar todos os que podem receber o link"
-              />
-            </Th>
             <Th>Fornecedor</Th>
             <Th>OS</Th>
-            <Th>E-mail</Th>
             <Th>Prazo</Th>
             <Th>Situação</Th>
             <Th align="right">Ações</Th>
@@ -243,27 +131,9 @@ export function CredenciamentoProjeto({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
               // O `id` é o endereço da linha para o navegador de pendências: o
               // credenciamento sem resposta é cobrado NESTA tela (é daqui que se
               // reenvia o link), e a pílula precisa achar o fornecedor exato.
-              <Tr
-                key={f.os.id}
-                id={idAncoraPendencia(f.os.id)}
-                className={cx(marcados.has(f.os.id) && "bg-primary-soft")}
-              >
-                <Td>
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 shrink-0 accent-[#F2820D] cursor-pointer"
-                    checked={marcados.has(f.os.id)}
-                    disabled={!podeEnviar(f)}
-                    onChange={() => alternar(f.os.id)}
-                    aria-label={`Marcar ${f.fornecedor}`}
-                    title={podeEnviar(f) ? "Marcar para o envio em lote" : "Sem e-mail ou OS ainda não salva"}
-                  />
-                </Td>
+              <Tr key={f.os.id} id={idAncoraPendencia(f.os.id)}>
                 <Td className="font-bold text-ink">{f.fornecedor}</Td>
                 <Td className="text-[12.5px] text-ink-2">{f.os.numero}</Td>
-                <Td className="text-[12.5px]">
-                  {f.email || <span className="text-danger font-semibold">sem e-mail no cadastro</span>}
-                </Td>
                 <Td className="text-[12.5px]">{dataBR(f.os.credenciamento?.prazoLimite) || "—"}</Td>
                 <Td>
                   {f.respondeu ? (
@@ -289,15 +159,6 @@ export function CredenciamentoProjeto({ oss, ecs }: { oss: Os[]; ecs: Ec[] }) {
                         setTimeout(() => setCopiado(""), 1800);
                       }}
                     />
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      disabled={!f.link || !f.email || !!enviando}
-                      title={!f.email ? "Fornecedor sem e-mail cadastrado" : "Enviar só para este fornecedor"}
-                      onClick={() => enviarUm(f)}
-                    >
-                      {enviando === f.os.id ? "Enviando…" : "E-mail"}
-                    </Button>
                     <Button
                       variant="secondary"
                       size="sm"

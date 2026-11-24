@@ -33,9 +33,31 @@ export async function comDadosAtuaisDoProjeto(ec: Ec): Promise<Ec> {
  * A foto (`Os.cliente`, `Os.projeto`) existe para a OS EMITIDA não mudar
  * sozinha. Antes disso ela é rascunho: o bloco "Dados do Cliente" do PDF e da
  * tela saía com o que o cadastro dizia quando a OS nasceu, e quem corrigia o
- * cliente no projeto não via a correção chegar à OS. Emitida, segue a foto.
+ * cliente no projeto não via a correção chegar à OS. Emitida, segue a foto —
+ * com o projeto incentivado em branco completado (ver `completarIncentivo`).
  */
 export function osComDadosAtuais(os: Os, viva: Ec): Os {
-  if (osEmitida(os)) return os;
+  if (osEmitida(os)) return { ...os, projeto: completarIncentivo(os.projeto, viva.projeto) };
   return { ...os, cliente: viva.cliente ?? os.cliente, projeto: viva.projeto ?? os.projeto };
+}
+
+/** Os três dados do projeto incentivado, como os Dados Gerais os guardam. */
+const CAMPOS_INCENTIVO = ["projetoIncentivado", "codigoProjetoIncentivado", "leiIncentivo"] as const;
+
+/**
+ * Na OS EMITIDA, o projeto incentivado que ficou EM BRANCO vem dos Dados Gerais
+ * de agora (23/11/2026).
+ *
+ * A emitida segue a foto do dia da emissão — mas a foto de uma OS emitida antes
+ * de o código (ou o nome, ou a lei) ser lançado nos Dados Gerais mostrava "—"
+ * para sempre, na tela e no PDF. "Tem que vir automático": o que a emissão
+ * gravou continua valendo; só o que está vazio é completado.
+ */
+export function completarIncentivo(foto: Os["projeto"], viva: Ec["projeto"] | undefined): Os["projeto"] {
+  if (!foto || !viva) return foto;
+  const completo = { ...foto };
+  for (const k of CAMPOS_INCENTIVO) {
+    if (!(completo[k] ?? "").trim() && (viva[k] ?? "").trim()) completo[k] = viva[k];
+  }
+  return completo;
 }

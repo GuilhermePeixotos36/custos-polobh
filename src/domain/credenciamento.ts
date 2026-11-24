@@ -3,8 +3,8 @@
  *
  * Credenciar é tarefa do EVENTO — a pergunta é "quem ainda falta?", e ela não
  * cabia dentro de uma OS só. Aqui a lista dos fornecedores do projeto vira uma
- * fila com o estado de cada um, pronta para a tela mostrar e para o disparo em
- * lote decidir quem entra.
+ * fila com o estado de cada um, pronta para a tela mostrar. O link vai ao
+ * fornecedor pelo WhatsApp ou copiado — não há e-mail a fornecedor (23/11/2026).
  *
  * O LINK continua sendo um por OS, e tem de ser: é o `slugCredenciamento` dela
  * que diz ao formulário público qual fornecedor está respondendo. O que mudou
@@ -14,13 +14,12 @@ import { urlCredenciamento } from "@/lib/links";
 import { telefoneWhatsApp } from "@/domain/envioCronograma";
 import type { CredenciamentoResposta, Ec, Os } from "@/data/types";
 
-/** Uma OS na fila, já com o que a tela mostra e o que o disparo precisa decidir. */
+/** Uma OS na fila, já com o que a tela mostra. */
 export interface NaFila {
   os: Os;
-  /** A EC da OS — o e-mail cita o projeto, então sem ela não há o que enviar. */
+  /** A EC da OS — o texto do WhatsApp cita o projeto, então sem ela não há o que enviar. */
   ec: Ec | undefined;
   fornecedor: string;
-  email: string;
   /** Telefone do cadastro, pronto para o wa.me (só dígitos, com DDI). Vazio sem telefone. */
   whatsapp: string;
   /** Vazio enquanto a OS não foi salva: o token do link nasce no banco. */
@@ -44,37 +43,11 @@ export function filaDeCredenciamento(oss: Os[], ecs: Ec[], responderam: string[]
       ec: ecs.find((e) => e.id === os.ecId),
       fornecedor:
         os.fornecedor.apelido || os.fornecedor.nomeFantasia || os.fornecedor.razaoSocial || "Fornecedor",
-      email: os.fornecedor.email?.trim() ?? "",
       whatsapp: telefoneWhatsApp(os.fornecedor.telefone),
       link: urlCredenciamento(os),
       respondeu: respondidas.has(os.id),
     }))
     .sort((a, b) => a.fornecedor.localeCompare(b.fornecedor, "pt-BR"));
-}
-
-/**
- * Entra no disparo em lote? Precisa de link, de e-mail, da EC e ainda não ter
- * respondido.
- *
- * Quem já respondeu fica de fora de propósito: reenviar o formulário a quem já
- * preencheu é ruído, e o "Enviar a todos" existe justamente para alcançar os
- * que faltam.
- */
-export function podeReceberLink(f: NaFila): boolean {
-  return podeEnviar(f) && !f.respondeu;
-}
-
-/**
- * O e-mail chega a sair? São os requisitos técnicos, e só eles: link (a OS
- * precisa estar salva), endereço e a EC que o texto cita.
- *
- * Separado de `podeReceberLink` porque a ESCOLHA da pessoa é outra coisa: ao
- * marcar alguém na lista, ela pode estar justamente reenviando a quem já
- * respondeu — o formulário voltou errado, o fornecedor trocou de equipe. Aí
- * "já respondeu" não é motivo para barrar; falta de e-mail é.
- */
-export function podeEnviar(f: NaFila): boolean {
-  return !!f.link && !!f.email && !!f.ec;
 }
 
 /* ------------------- a folha de credenciados, para o portão ---------------- */

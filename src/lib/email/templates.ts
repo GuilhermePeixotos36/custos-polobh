@@ -4,11 +4,9 @@
  */
 import type { Ec, Os } from "@/data/types";
 import { urlCredenciamento } from "@/lib/links";
-import { corpoCronogramaFornecedor, linhasDadosDoProjeto, textoCronogramaFornecedor, type EtapaProjetoTexto } from "../../../supabase/functions/_shared/cronogramaEmail";
+import { linhasDadosDoProjeto, textoCronogramaFornecedor, type EtapaProjetoTexto } from "../../../supabase/functions/_shared/cronogramaEmail";
 import { dataBR } from "@/lib/format";
-// Todas as faixas do evento: o e-mail que leva a OS ao fornecedor dizia só o
-// primeiro dia (ver `datasDoEvento`).
-import { datasDoEvento, ETAPAS_CRONOGRAMA, horariosDoEvento } from "@/domain/projeto";
+import { ETAPAS_CRONOGRAMA } from "@/domain/projeto";
 import { rotuloNumeroEc } from "@/domain/calc";
 
 export interface AnexoEmail {
@@ -70,29 +68,6 @@ function wrap(titulo: string, corpoHtml: string): string {
   </div>`;
 }
 
-/** OS disparada ao fornecedor. */
-export function emailDispararOs(os: Os, ec: Ec): MensagemEmail {
-  const corpo = `
-    <p>Olá, ${h(os.fornecedor.representante || os.fornecedor.razaoSocial || "fornecedor")}.</p>
-    <p>Segue a <b>Ordem de Serviço ${h(os.numero)}</b> referente ao projeto
-       <b>${h(ec.projeto.titulo)}</b> (${h(ec.cliente.nome)}).</p>
-    <ul style="font-size:14px;line-height:1.6">
-      <li><b>Data(s):</b> ${h(datasDoEvento(ec.projeto))}</li>
-      <li><b>Horário(s):</b> ${h(horariosDoEvento(ec.projeto))}</li>
-      <li><b>Local:</b> ${h(ec.projeto.local)}</li>
-      <li><b>Modalidade:</b> ${h(os.modalidade || "—")}</li>
-    </ul>
-    <p style="font-size:14px"><b>Descritivo:</b><br>${h(os.descritivo || "").replace(/\n/g, "<br>")}</p>
-    <p style="font-size:14px">Por favor, confirme o recebimento e realize o credenciamento da equipe pelo link:
-       <a href="${urlHttp(urlCredenciamento(os))}">${h(urlCredenciamento(os))}</a>
-       ${os.credenciamento.prazoLimite ? `(prazo: ${dataBR(os.credenciamento.prazoLimite)})` : ""}.</p>`;
-  return {
-    para: os.fornecedor.email ? [{ email: os.fornecedor.email, nome: os.fornecedor.razaoSocial }] : [],
-    assunto: `Ordem de Serviço ${os.numero} — ${ec.projeto.titulo}`,
-    html: wrap("Nova Ordem de Serviço", corpo),
-  };
-}
-
 const ABERTURA_CREDENCIAMENTO = [
   "Esta é uma mensagem automática do sistema de gestão da Pólobh.",
   "Preencha o formulário abaixo com os dados completos da sua equipe até o prazo informado. Essas informações são necessárias para garantir o acesso dos integrantes ao evento.",
@@ -103,34 +78,11 @@ const prazoDoCredenciamento = (os: Os) =>
   os.credenciamento.prazoLimite ? dataBR(os.credenciamento.prazoLimite) : "a combinar com a produção";
 
 /**
- * Link de credenciamento ao fornecedor (texto padrão de 29/09/2026): "Alerta:
- * Credenciamento da Equipe", Dados do Projeto completos como na OS, o link e o
- * prazo lançado a partir do que foi definido na aba Credenciamento.
+ * Link de credenciamento ao fornecedor, em mensagem simples para o WhatsApp
+ * (texto padrão de 29/09/2026): "Alerta: Credenciamento da Equipe", os Dados do
+ * Projeto como na OS, o link e o prazo. Não há mais e-mail ao fornecedor
+ * (23/11/2026) — o WhatsApp é o caminho.
  */
-export function emailCredenciamento(os: Os, ec: Ec): MensagemEmail {
-  const projeto = os.projeto ?? ec.projeto;
-  const dados = linhasDadosDoProjeto(projeto, etapasDoProjetoEmTexto(projeto))
-    .map(([k, v]) => `<tr><td style="padding:2px 12px 2px 0;color:#6A6E78;font-size:13px;vertical-align:top">${h(k)}</td>
-      <td style="padding:2px 0;font-size:13px">${h(v)}</td></tr>`)
-    .join("");
-  const corpo = `
-    ${ABERTURA_CREDENCIAMENTO.map((t) => `<p>${h(t)}</p>`).join("")}
-    <p style="font-size:13px;font-weight:bold;margin-bottom:4px">Dados do projeto</p>
-    <table style="border-collapse:collapse;margin:4px 0 16px">${dados}</table>
-    <p style="font-size:13px;font-weight:bold;margin-bottom:4px">Formulário de credenciamento</p>
-    <p><a href="${urlHttp(urlCredenciamento(os))}"
-        style="display:inline-block;background:#F2820D;color:#2A1602;font-weight:700;
-        padding:10px 18px;border-radius:10px;text-decoration:none">Abrir formulário</a><br>
-       <span style="font-size:12px;color:#6A6E78">${h(urlCredenciamento(os))}</span></p>
-    <p style="font-size:14px"><b>Prazo para envio:</b> ${h(prazoDoCredenciamento(os))}</p>`;
-  return {
-    para: os.fornecedor.email ? [{ email: os.fornecedor.email, nome: os.fornecedor.razaoSocial }] : [],
-    assunto: `Alerta: Credenciamento da Equipe — ${projeto.titulo} (${os.numero})`,
-    html: wrap("Alerta: Credenciamento da Equipe", corpo),
-  };
-}
-
-/** O MESMO texto em mensagem simples, para o WhatsApp. */
 export function textoWhatsAppCredenciamento(os: Os, ec: Ec): string {
   const projeto = os.projeto ?? ec.projeto;
   return [
@@ -185,23 +137,6 @@ export function textoWhatsAppCronograma(os: Os, ec: Ec): string {
     numeroOs: os.numero,
     etapasProjeto: etapasDoProjetoEmTexto(projeto),
   });
-}
-
-export function emailCronogramaDoFornecedor(os: Os, ec: Ec): MensagemEmail {
-  const projeto = os.projeto ?? ec.projeto;
-  const { assunto, html } = corpoCronogramaFornecedor({
-    // A foto do evento que a OS guarda — é ela que o fornecedor recebeu.
-    projeto,
-    fornecedor: os.fornecedor,
-    etapas: os.cronograma ?? [],
-    numeroOs: os.numero,
-    etapasProjeto: etapasDoProjetoEmTexto(projeto),
-  });
-  return {
-    para: os.fornecedor.email ? [{ email: os.fornecedor.email, nome: os.fornecedor.razaoSocial }] : [],
-    assunto,
-    html,
-  };
 }
 
 /** EC enviada ao cliente para aprovação. */

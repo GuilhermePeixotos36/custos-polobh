@@ -53,6 +53,11 @@ import { nomeCurtoFornecedor } from "@/domain/fornecedor";
 
 /** OS encerrada não cobra contato de ninguém. */
 const ENCERRADA_OS: string[] = ["Cancelada", "Arquivada"];
+/**
+ * A OS já está com o fornecedor? Emitida (23/11/2026 — o sistema não envia a OS
+ * por e-mail) ou, nas antigas, com o carimbo do e-mail que a levou.
+ */
+const saiuDaCasa = (os: Os): boolean => !!os.disparadaEm || faseDaOs(os) === "emitida";
 import { statusProjetoAutomatico } from "@/domain/statusProjeto";
 // `encerrado` já é o nome do teste de projeto encerrado aqui — o do item vem com alias.
 import { encerrado as itemEncerrado, situacaoPrazo } from "@/domain/checklist";
@@ -551,11 +556,11 @@ export function calcularPendencias(
 
   // Cronograma e credenciamento da OS (pedido da Marisa, 09/08/2026) — ambos
   // cobrados do Produtor Responsável do projeto, e só depois que a OS chegou ao
-  // fornecedor. O gatilho é o CARIMBO DE ENVIO, e não mais o status "Disparada",
-  // que deixou de existir em 15/09/2026: o que importa aqui é que o fornecedor
-  // já tem o documento na mão para responder.
+  // fornecedor. O gatilho era o carimbo do e-mail (`disparadaEm`); desde
+  // 23/11/2026 o sistema não envia a OS por e-mail, e a OS EMITIDA é a que saiu
+  // da casa. O carimbo das OSs antigas continua valendo.
   for (const os of oss) {
-    if (!os.disparadaEm) continue;
+    if (!saiuDaCasa(os)) continue;
     const ec = ecPorId.get(os.ecId);
     if (!ec?.projetoId || encerrado(ec.projetoId)) continue;
     const responsavel = responsavelPorProjeto.get(ec.projetoId);
@@ -610,7 +615,7 @@ export function calcularPendencias(
   // pendência por fornecedor (e não por OS), com a linha da aba como endereço.
   const contatosCobrados = new Set<string>();
   for (const os of oss) {
-    if (!os.disparadaEm || ENCERRADA_OS.includes(os.status)) continue;
+    if (!saiuDaCasa(os) || ENCERRADA_OS.includes(os.status)) continue;
     const ec = ecPorId.get(os.ecId);
     if (!ec?.projetoId || encerrado(ec.projetoId)) continue;
     const responsavel = responsavelPorProjeto.get(ec.projetoId);

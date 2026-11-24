@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filaDeCronograma, podeEnviarCronograma, temCronogramaParaEnviar } from "./envioCronograma";
+import { filaDeCronograma, telefoneWhatsApp } from "./envioCronograma";
 import type { Ec, Os } from "@/data/types";
 
 const ec = (id: string): Ec => ({ id, projetoId: "p1" }) as Ec;
@@ -54,28 +54,13 @@ describe("fila de envio dos cronogramas", () => {
     expect(fila.map((f) => f.os.id)).toEqual(["a"]);
   });
 
-  describe("quem entra no disparo", () => {
-    const so = (p: OsDeTeste) => filaDeCronograma([os(p)], [ec("ec1")])[0];
+  it("OS cuja EC não está carregada fica sem EC — o texto do WhatsApp cita o projeto", () => {
+    const semEc = filaDeCronograma([os({ ecId: "outra" })], [ec("ec1")])[0];
+    expect(semEc.ec).toBeUndefined();
+  });
 
-    it("com e-mail, EC e etapas: entra no 'a todos'", () => {
-      expect(temCronogramaParaEnviar(so({}))).toBe(true);
-    });
-
-    it("sem etapas fica fora do lote automático, mas pode ser marcado à mão", () => {
-      const vazio = so({ cronograma: [] });
-      expect(temCronogramaParaEnviar(vazio)).toBe(false);
-      expect(podeEnviarCronograma(vazio)).toBe(true);
-    });
-
-    it("sem e-mail não sai por caminho nenhum", () => {
-      expect(podeEnviarCronograma(so({ fornecedor: { email: "" } }))).toBe(false);
-      expect(podeEnviarCronograma(so({ fornecedor: { email: "   " } }))).toBe(false);
-    });
-
-    it("OS cuja EC não está carregada fica de fora — o e-mail cita o projeto", () => {
-      const semEc = filaDeCronograma([os({ ecId: "outra" })], [ec("ec1")])[0];
-      expect(semEc.ec).toBeUndefined();
-      expect(podeEnviarCronograma(semEc)).toBe(false);
-    });
+  it("WhatsApp: só dígitos, com DDI 55 quando faltar", () => {
+    expect(telefoneWhatsApp("(31) 99999-0000")).toBe("5531999990000");
+    expect(telefoneWhatsApp("123")).toBe("");
   });
 });

@@ -858,7 +858,7 @@ const MODULOS: Modulo[] = [
             <span>O <b>Cronograma do Fornecedor</b> já nasce com todas as faixas de todas as etapas do projeto — é só ajustar o que for dele. Ele fica aberto em qualquer etapa da OS; depois de emitida, use <b>Editar cronograma</b> (não gera nova versão).</span>
           </Passos>
           <Dica>
-            Vale nos três lugares em que a OS aparece — tela, PDF e Excel — e no e-mail que a dispara ao fornecedor.
+            Vale nos dois lugares em que a OS aparece: a tela e o PDF.
           </Dica>
         </Secao>
         <Secao titulo="Bloco financeiro (restrito)">
@@ -866,27 +866,15 @@ const MODULOS: Modulo[] = [
         </Secao>
         <Secao titulo="O documento da OS">
           <p>
-            A OS tem <b>uma</b> ação de documento: <b>Baixar PDF</b>, que já abre a janela de salvar. O PDF respeita
-            o seu perfil — quem não vê o bloco financeiro também não o vê no arquivo.
+            A OS existe em dois lugares: na <b>tela</b>, onde é criada, editada e visualizada, e no <b>PDF</b>.
+            O botão <b>OS PDF</b> abre a visualização do documento; de lá, <b>Baixar PDF</b> abre a janela de
+            imprimir/salvar do navegador. O PDF respeita o seu perfil — quem não vê o bloco financeiro também não
+            o vê no arquivo.
           </p>
           <Dica>
-            A opção “OS em Excel” saiu do menu. A planilha continua sendo gerada como <b>anexo do e-mail</b> que o
-            fornecedor recebe, sem o bloco financeiro.
+            A OS não tem versão em Excel e não é enviada por e-mail pelo sistema (23/11/2026). O que vai ao
+            fornecedor — cronograma e link de credenciamento — sai pelo <b>WhatsApp</b>, com o texto pronto.
           </Dica>
-        </Secao>
-        <Secao titulo="Disparar ao fornecedor">
-          <p>
-            <b>Disparar OS</b> manda a OS ao fornecedor por e-mail, com a planilha anexada. O status
-            continua <Tag tom="success">Emitida</Tag>: desde 15/09/2026 o envio é um <b>carimbo</b> ao lado do
-            status, e não um status — uma OS entregue em mãos está tão pronta quanto uma que foi por e-mail.
-            A tela passa a mostrar a data do envio.
-          </p>
-          <Atencao>
-            Enquanto o sistema está em <b>homologação</b>, clicar em disparar mostra um <b>aviso</b> e nada é
-            enviado; nenhum e-mail chega a fornecedor ou cliente: o que for enviado por qualquer tela vai para a caixa de teste da
-            equipe, com o destinatário original no assunto. É uma trava de publicação — nem o Administrador liga ou
-            desliga pela interface.
-          </Atencao>
         </Secao>
       </>
     ),
@@ -1097,13 +1085,9 @@ const MODULOS: Modulo[] = [
             horários daquele contrato.
           </p>
           <Passos>
-            <span><b>Enviar a todos</b> alcança quem tem e-mail e cronograma montado.</span>
-            <span><b>Marque</b> fornecedores para alcançar só eles — inclusive quem ainda está com as etapas em branco, quando a intenção é justamente avisar que o dele está para sair.</span>
+            <span>Clique em <b>WhatsApp</b> na linha do fornecedor: a conversa abre com o texto pronto, e o envio é seu.</span>
+            <span>Sem etapas? <b>Abrir OS</b> leva direto à OS para preenchê-las.</span>
           </Passos>
-          <Atencao>
-            Em homologação, clicar neste botão mostra um <b>aviso</b> e nada é enviado, como no de disparar OS —
-            nada chega a fornecedor nenhum.
-          </Atencao>
         </Secao>
       </>
     ),
@@ -1112,7 +1096,7 @@ const MODULOS: Modulo[] = [
     id: "credenciamento",
     icone: <IcSend />,
     titulo: "Credenciamento de fornecedores",
-    resumo: "Subaba do Projeto: dispara o link a todos os fornecedores de uma vez e mostra quem já respondeu.",
+    resumo: "Subaba do Projeto: o link de cada fornecedor, pelo WhatsApp ou copiado, e quem já respondeu.",
     tags: ["credenciamento", "fornecedor", "equipe", "veículos", "placa", "cpf", "link", "formulário", "acesso ao local", "projeto"],
     conteudo: (
       <>
@@ -1122,8 +1106,7 @@ const MODULOS: Modulo[] = [
           <Passos>
             <span>Abra o Projeto e vá na subaba <b>Credenciamento</b>.</span>
             <span>Defina o <b>prazo-limite</b> — ele costuma ser o mesmo para o evento inteiro, e há um campo que aplica a todas as OSs.</span>
-            <span>Clique em <b>Enviar a todos</b>. Quem já respondeu e quem está sem e-mail cadastrado ficam de fora; para um só, use o <b>Enviar</b> da linha.</span>
-            <span>Precisa alcançar só alguns? <b>Marque</b> os fornecedores na lista — o botão passa a ser “Enviar aos marcados”. Marcar vale inclusive para <b>reenviar</b> a quem já respondeu, quando o formulário voltou errado.</span>
+            <span>Mande o link a cada fornecedor pelo <b>WhatsApp</b> (texto pronto) ou <b>copie</b> o link pelo ícone da linha.</span>
             <span>As respostas aparecem em <b>Credenciamentos recebidos</b>, na mesma subaba.</span>
           </Passos>
           <Dica>
@@ -1344,7 +1327,7 @@ const MODULOS: Modulo[] = [
     conteudo: (
       <>
         <Secao titulo="Status atual">
-          <Atencao>O envio de e-mails está <b>aguardando a conexão com o e-mail da Pólobh (Brevo)</b>. Enquanto isso, todas as ações de e-mail (disparar OS, enviar credenciamento, enviar EC para aprovação) funcionam em modo <b>simulado</b>: a ação acontece no sistema (status muda, registros são salvos), mas <b>nenhum e-mail sai de fato</b>.</Atencao>
+          <Atencao>O envio de e-mails está <b>aguardando a conexão com o e-mail da Pólobh (Brevo)</b>. Enquanto isso, todas as ações de e-mail (enviar EC para aprovação, Help Desk) funcionam em modo <b>simulado</b>: a ação acontece no sistema (status muda, registros são salvos), mas <b>nenhum e-mail sai de fato</b>.</Atencao>
           <p>Assim que o Brevo for conectado, os mesmos botões passam a enviar os e-mails de verdade — sem nenhuma mudança no uso.</p>
         </Secao>
       </>

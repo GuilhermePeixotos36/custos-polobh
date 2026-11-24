@@ -101,8 +101,8 @@ describe("mensagem interna atravessa a trava", () => {
  * teste é o guardião disso.
  *
  * Ele lê os templates de verdade e confere um a um: se alguém amanhã marcar o
- * disparo de OS ou o credenciamento como interno, o teste quebra aqui antes de
- * a mensagem chegar a um fornecedor.
+ * e-mail da EC ao cliente como interno, o teste quebra aqui antes de a
+ * mensagem sair. (Não há mais e-mail ao fornecedor desde 23/11/2026.)
  */
 describe("só o Help Desk é mensagem interna", () => {
   it("nenhum outro template escapa da trava", async () => {
@@ -112,17 +112,8 @@ describe("só o Help Desk é mensagem interna", () => {
       cronograma: { evento: [{ data: "2026-10-14" }] },
     };
     const ec = { id: "ec", numero: "EC-01", projeto, cliente: { nome: "ACME", representante: { email: "c@acme.com", nome: "Cliente" } }, validadeDias: 30 };
-    const os = {
-      id: "os", numero: "OS-01", projeto, cronograma: [],
-      fornecedor: { razaoSocial: "Sonora", email: "f@sonora.com" },
-      credenciamento: { prazoLimite: "", linkFormulario: "" },
-      slugCredenciamento: "abc",
-    };
     /* eslint-disable @typescript-eslint/no-explicit-any */
     const externos: MensagemEmail[] = [
-      t.emailDispararOs(os as any, ec as any),
-      t.emailCredenciamento(os as any, ec as any),
-      t.emailCronogramaDoFornecedor(os as any, ec as any),
       t.emailEcParaAprovacao(ec as any),
     ];
     for (const m of externos) expect(m.interna).toBeFalsy();

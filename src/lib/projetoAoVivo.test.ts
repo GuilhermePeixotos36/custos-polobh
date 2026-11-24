@@ -21,4 +21,22 @@ describe("osComDadosAtuais", () => {
     expect(r.cliente.nome).toBe("Cliente Velho");
     expect(r.projeto.titulo).toBe("Projeto Antigo");
   });
+
+  it("OS emitida completa o projeto incentivado EM BRANCO com os Dados Gerais de agora", () => {
+    const vivaInc = {
+      ...viva,
+      projeto: { titulo: "Projeto Hoje", projetoIncentivado: "Festival Hoje", codigoProjetoIncentivado: "PRONAC 26 1234", leiIncentivo: "Lei Rouanet" },
+    } as unknown as Ec;
+    const emitida = os({
+      status: "Emitida", fase: "emitida",
+      projeto: { titulo: "Projeto Antigo", projetoIncentivado: "Festival da Emissão", codigoProjetoIncentivado: "", leiIncentivo: "" },
+    } as unknown as Partial<Os>);
+    const r = osComDadosAtuais(emitida, vivaInc);
+    // O que a emissão gravou continua; só o vazio é completado.
+    expect(r.projeto.projetoIncentivado).toBe("Festival da Emissão");
+    expect(r.projeto.codigoProjetoIncentivado).toBe("PRONAC 26 1234");
+    expect(r.projeto.leiIncentivo).toBe("Lei Rouanet");
+    expect(r.projeto.titulo).toBe("Projeto Antigo");
+    expect(r.cliente.nome).toBe("Cliente Velho");
+  });
 });
