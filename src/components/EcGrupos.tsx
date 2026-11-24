@@ -684,7 +684,7 @@ export function EcGrupos({
       {totalSelecionados > 0 && (
         <div className="sticky top-[calc(var(--altura-topnav)+var(--altura-cabecalho)+8px)] z-10 space-y-1.5 rounded-btn border border-primary bg-primary-soft px-3 py-2 shadow-card">
           <div className="flex items-center gap-3 flex-wrap">
-            <span className="text-[13px] font-extrabold text-primary-dark">
+            <span className="text-sm font-bold text-primary-dark">
               {totalSelecionados} {totalSelecionados === 1 ? "item selecionado" : "itens selecionados"}
             </span>
             <Button
@@ -711,7 +711,7 @@ export function EcGrupos({
                 Reverter para Pendente ({jaAprovados.length})
               </Button>
             )}
-            <button type="button" onClick={limparSelecao} className="ml-auto text-[12.5px] font-bold text-ink-2 hover:text-ink">
+            <button type="button" onClick={limparSelecao} className="ml-auto text-xs font-bold text-ink-2 hover:text-ink">
               Limpar seleção
             </button>
           </div>
@@ -719,7 +719,7 @@ export function EcGrupos({
           {/* Os três status, um a um: o atalho acima faz o par mais comum
               (aprovar + liberar OS); aqui se muda só o que se quer mudar. */}
           <div className="flex items-center gap-2 flex-wrap border-t border-primary/20 pt-1.5">
-            <span className="text-[11px] font-extrabold uppercase tracking-wider text-primary-dark/80">
+            <span className="text-xs font-semibold text-brand-forte">
               Alterar em massa
             </span>
             <SeletorEmMassa
@@ -742,7 +742,7 @@ export function EcGrupos({
           {/* Prévia do efeito: o que sai pronto para OS e o que ainda vai travar.
               Evita a descoberta tardia na tela de emissão. */}
           {aAprovar.length > 0 && (
-            <div className="text-[12px] font-bold text-ink-2 leading-snug">
+            <div className="text-xs font-bold text-ink-2 leading-snug">
               {liberadosPrevistos > 0 && (
                 <span className="text-primary-dark">
                   {liberadosPrevistos} {liberadosPrevistos === 1 ? "item fica pronto" : "itens ficam prontos"} para emitir OS
@@ -758,7 +758,7 @@ export function EcGrupos({
             </div>
           )}
           {jaAprovados.length > 0 && (
-            <div className="text-[12px] font-bold text-ink-3 leading-snug">
+            <div className="text-xs font-bold text-ink-3 leading-snug">
               {jaAprovados.length} {jaAprovados.length === 1 ? "item já aprovado" : "itens já aprovados"} — a aprovação não os altera.
             </div>
           )}
@@ -769,7 +769,7 @@ export function EcGrupos({
         <Button variant="secondary" size="sm" icon={<IcPlus width={16} height={16} />} onClick={() => setPopupAdicionar(true)}>
           Adicionar grupo / item
         </Button>
-        <div className="flex items-center gap-3 text-[13px] font-bold text-ink-2">
+        <div className="flex items-center gap-3 text-sm font-bold text-ink-2">
           {pendentesAprovacao.length > 0 && (
             <>
               <button
@@ -852,18 +852,18 @@ export function EcGrupos({
         {/* Card flutuante que acompanha o cursor */}
         <DragOverlay dropAnimation={{ duration: 200, easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)" }}>
           {itemAtivo ? (
-            <div className="rounded-btn border-2 border-primary bg-white shadow-2xl px-3 py-2 opacity-90 rotate-1 flex items-center gap-2 min-w-[260px]">
+            <div className="rounded-btn border-2 border-primary bg-white shadow-(--sombra-flutuante) px-3 py-2 opacity-90 rotate-1 flex items-center gap-2 min-w-[260px]">
               <IcGrip width={18} height={18} className="text-primary" />
               <div className="min-w-0">
-                <div className="text-[13.5px] font-bold text-ink truncate">{itemAtivo.item || "Item"}</div>
-                {itemAtivo.descricao && <div className="text-[12px] text-ink-2 truncate">{itemAtivo.descricao}</div>}
+                <div className="text-sm font-bold text-ink truncate">{itemAtivo.item || "Item"}</div>
+                {itemAtivo.descricao && <div className="text-xs text-ink-2 truncate">{itemAtivo.descricao}</div>}
               </div>
             </div>
           ) : grupoAtivo ? (
-            <div className="rounded-card border-2 border-primary bg-white shadow-2xl px-3 py-3 opacity-90 rotate-1 flex items-center gap-2">
+            <div className="rounded-card border-2 border-primary bg-white shadow-(--sombra-flutuante) px-3 py-3 opacity-90 rotate-1 flex items-center gap-2">
               <IcGrip width={20} height={20} className="text-primary" />
-              <span className="text-[15px] font-bold uppercase text-ink">{grupoAtivo.nome}</span>
-              <span className="text-[12px] font-bold text-ink-3 bg-[#F0F1F4] rounded-pill px-2 py-0.5">{grupoAtivo.itens.length} itens</span>
+              <span className="text-base font-bold uppercase text-ink">{grupoAtivo.nome}</span>
+              <span className="text-xs font-bold text-ink-3 bg-muted rounded-pill px-2 py-0.5">{grupoAtivo.itens.length} itens</span>
             </div>
           ) : null}
         </DragOverlay>
@@ -1001,17 +1001,17 @@ function GrupoCard({
           <IcChevron width={20} height={20} className={cx("transition-transform duration-200", aberto && "rotate-90")} />
         </button>
         <Input
-          className="h-10! px-2.5! text-[15px]! font-bold! uppercase! max-w-sm min-w-0 flex-1 basis-36"
+          className="h-10! px-2.5! text-base! font-bold! uppercase! max-w-sm min-w-0 flex-1 basis-36"
           formato="grupo"
           value={g.nome}
           sugestoes={sugestoes.valores.grupoEc}
           onChange={(e) => onRenomear(e.target.value)}
         />
-        <span className="shrink-0 text-[12px] font-bold text-ink-3 bg-[#F0F1F4] rounded-pill px-2.5 py-1">
+        <span className="shrink-0 text-xs font-bold text-ink-3 bg-muted rounded-pill px-2.5 py-1">
           {visiveis.length} {visiveis.length === 1 ? "item" : "itens"}
         </span>
         {verFinanceiro && subtotal > 0 && (
-          <span className="shrink-0 text-[14px] font-display font-bold text-ink-2">{brl(subtotal)}</span>
+          <span className="shrink-0 text-sm font-bold text-ink-2">{brl(subtotal)}</span>
         )}
         <div className="ml-auto flex items-center gap-1 shrink-0">
           <button
@@ -1069,7 +1069,7 @@ function GrupoCard({
           </SortableContext>
 
           {visiveis.length === 0 && (
-            <div className="text-center text-ink-3 text-[13px] py-4">Este grupo não tem itens.</div>
+            <div className="text-center text-ink-3 text-sm py-4">Este grupo não tem itens.</div>
           )}
 
           <div className="pt-0.5">
@@ -1182,7 +1182,7 @@ function ItemRow({
         <div className="min-w-0">
           <Campo label="Item">
             <Input
-              className="h-10! px-2.5! text-[13.5px]! font-semibold!"
+              className="h-10! px-2.5! text-sm! font-semibold!"
               placeholder="Nome do item"
               formato="item"
               value={l.item}
@@ -1195,7 +1195,7 @@ function ItemRow({
         <div className="col-start-2 xl:col-start-auto min-w-0 grid gap-2">
           <Campo label="Descrição Financeiro">
             <AutoTextarea
-              className="text-[13px]! whitespace-pre-wrap"
+              className="text-sm! whitespace-pre-wrap"
               placeholder="Descrição do item — use Enter para criar parágrafos"
               value={l.descricao}
               rows={3}
@@ -1217,7 +1217,7 @@ function ItemRow({
                     type="button"
                     onClick={() => setResumoAberto(true)}
                     title="Resumo da Proposta com IA"
-                    className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11.5px] font-extrabold text-primary-dark bg-primary-soft hover:bg-active-border"
+                    className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-2xs font-bold text-primary-dark bg-primary-soft hover:bg-active-border"
                   >
                     <IcSpark width={13} height={13} /> Resumo da Proposta
                   </button>
@@ -1230,10 +1230,10 @@ function ItemRow({
         {verFinanceiro && (
           <div className="col-start-2 xl:col-start-auto grid grid-cols-2 gap-2 min-w-0">
             <Campo label="Pólobh" className="w-full xl:w-32">
-              <CurrencyInput className="h-10! px-2.5! text-[13.5px]!" value={l.valorPolobh} onValue={(v) => onUpd({ valorPolobh: v })} />
+              <CurrencyInput className="h-10! px-2.5! text-sm!" value={l.valorPolobh} onValue={(v) => onUpd({ valorPolobh: v })} />
             </Campo>
             <Campo label="Cliente" className="w-full xl:w-32">
-              <CurrencyInput className="h-10! px-2.5! text-[13.5px]!" value={l.valorCliente} onValue={(v) => onUpd({ valorCliente: v })} />
+              <CurrencyInput className="h-10! px-2.5! text-sm!" value={l.valorCliente} onValue={(v) => onUpd({ valorCliente: v })} />
             </Campo>
           </div>
         )}
@@ -1252,14 +1252,14 @@ function ItemRow({
       {/* Os campos quebram de linha sozinhos quando falta largura, em vez de serem
           cortados: status com largura própria e curta, o fornecedor (o campo
           largo) cresce com o que sobrar. */}
-      <div className="flex flex-wrap items-end gap-x-2 gap-y-2 px-2.5 pb-2.5 pt-1 border-t border-border-soft bg-[#FCFCFD] rounded-b-card min-w-0">
+      <div className="flex flex-wrap items-end gap-x-2 gap-y-2 px-2.5 pb-2.5 pt-1 border-t border-border-soft bg-muted/40 rounded-b-card min-w-0">
         <Campo label="Aprovação" className="w-28 shrink-0">
           {/* Aprovar o item JÁ pede a OS: a mesma regra do botão "Aprovar
               selecionados" (ver `aprovarLinha`), para o campo OS não ficar em
               "Pendente" num item que o cliente já liberou. Voltar para Pendente
               desfaz só a OS que a aprovação criou. */}
           <Select
-            className={cx("h-9! px-2! text-[12.5px]!", classeCampoStatus(l.statusAprovacao))}
+            className={cx("h-9! px-2! text-xs!", classeCampoStatus(l.statusAprovacao))}
             value={l.statusAprovacao}
             onChange={(e) => {
               const escolhido = e.target.value as StatusAprovacao;
@@ -1278,13 +1278,13 @@ function ItemRow({
             Os dois levam id próprio: "OS a emitir" é uma pendência, e o
             navegador/sininho pisca exatamente este pedaço da linha. */}
         <Campo label="OS" className="w-38 shrink-0" id={idCampoPendencia(l.id, "os")}>
-          <Select className={cx("h-9! px-2! text-[12.5px]!", classeCampoStatus(l.statusOs))} value={l.statusOs} onChange={(e) => onUpd({ statusOs: e.target.value as StatusOs })}>
+          <Select className={cx("h-9! px-2! text-xs!", classeCampoStatus(l.statusOs))} value={l.statusOs} onChange={(e) => onUpd({ statusOs: e.target.value as StatusOs })}>
             {OPCOES_STATUS_OS.map((o) => <option key={o}>{o}</option>)}
           </Select>
         </Campo>
         {/* Contrato usa exatamente a mesma lista da OS (inclui "Emitir Nova Versão"). */}
         <Campo label="Contrato" className="w-38 shrink-0" id={idCampoPendencia(l.id, "contrato")}>
-          <Select className={cx("h-9! px-2! text-[12.5px]!", classeCampoStatus(l.contratoStatus))} value={l.contratoStatus} onChange={(e) => onUpd({ contratoStatus: e.target.value as StatusOs })}>
+          <Select className={cx("h-9! px-2! text-xs!", classeCampoStatus(l.contratoStatus))} value={l.contratoStatus} onChange={(e) => onUpd({ contratoStatus: e.target.value as StatusOs })}>
             {OPCOES_STATUS_OS.map((o) => <option key={o}>{o}</option>)}
           </Select>
         </Campo>
@@ -1350,7 +1350,7 @@ function ItemRow({
 function DaOs({ valor }: { valor: string }) {
   return (
     <div
-      className="h-9 px-2 flex items-center rounded-btn bg-[#F1F2F5] border border-border-soft text-[12.5px] text-ink-2 truncate"
+      className="h-9 px-2 flex items-center rounded-btn bg-muted border border-border-soft text-xs text-ink-2 truncate"
       title={valor ? `${valor} — preenchido na OS` : "Será preenchido na OS deste fornecedor"}
     >
       {valor || <span className="text-ink-3">— vem da OS</span>}
@@ -1403,7 +1403,7 @@ function OpcoesDeValor({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinh
   ).length;
 
   return (
-    <div className="px-2.5 pb-2 pt-1.5 border-t border-border-soft bg-[#FCFCFD]">
+    <div className="px-2.5 pb-2 pt-1.5 border-t border-border-soft bg-muted/40">
       <button
         type="button"
         onClick={() => setAberta((v) => !v)}
@@ -1415,10 +1415,10 @@ function OpcoesDeValor({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinh
           height={12}
           className={cx("shrink-0 text-ink-3 transition-transform", aberta ? "rotate-90" : "")}
         />
-        <span className="text-[10.5px] font-extrabold uppercase tracking-wider text-ink-3 group-hover/alt:text-ink-2">
+        <span className="text-xs font-semibold text-muted-foreground group-hover/alt:text-ink-2">
           Alternativas de Custos
         </span>
-        <span className="text-[11px] text-ink-3 truncate">
+        <span className="text-2xs text-ink-3 truncate">
           {aberta
             ? "Informe as negociações possíveis a serem definidas no ato da emissão das OS's"
             : `${respondidas} de 3 formas informadas · a escolha é feita na OS`}
@@ -1427,13 +1427,13 @@ function OpcoesDeValor({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinh
 
       {aberta && (
         <div className="mt-1.5 overflow-x-auto">
-          <table className="w-full text-[12px] border-separate border-spacing-0">
+          <table className="w-full text-xs border-separate border-spacing-0">
             <thead>
               <tr className="text-left">
                 {["Modalidade", "Valor", "BV", "Observações sob o BV"].map((c) => (
                   <th
                     key={c}
-                    className="px-2 py-1 text-[9.5px] font-extrabold uppercase tracking-wider text-ink-3 border-b border-border-soft"
+                    className="px-2 py-1 text-xs font-semibold text-muted-foreground border-b border-border-soft"
                   >
                     {c}
                   </th>
@@ -1446,7 +1446,7 @@ function OpcoesDeValor({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinh
                 return (
                   <tr key={opcao} className="align-top">
                     <td className="px-2 py-1 border-b border-border-soft">
-                      <span className="block text-[11.5px] font-bold text-ink-2 leading-tight">{rotulo}</span>
+                      <span className="block text-2xs font-bold text-ink-2 leading-tight">{rotulo}</span>
                       {/* "Valor Sem BV e Sem NF" só aceita valor (tabela da
                           Pólobh de 29/09/2026): o "Não se aplica" não é oferecido.
                           Se um item antigo já o tem marcado, o botão aparece só
@@ -1455,7 +1455,7 @@ function OpcoesDeValor({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinh
                         <button
                           type="button"
                           onClick={() => alternarNaoSeAplica(opcao)}
-                          className="text-[10px] font-bold text-ink-3 hover:text-primary-dark input-focus rounded-sm"
+                          className="text-2xs font-bold text-ink-3 hover:text-primary-dark input-focus rounded-sm"
                           title={naoSeAplica ? "Voltar a informar um valor" : "Este item não é cobrado desta forma"}
                         >
                           {naoSeAplica ? "Informar valor" : "Não se aplica"}
@@ -1466,12 +1466,12 @@ function OpcoesDeValor({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinh
                       {/* Ou o valor, ou "Não se aplica" — as duas respostas
                           possíveis, ambas diferentes de deixar em branco. */}
                       {naoSeAplica ? (
-                        <div className="h-8 flex items-center rounded-btn border border-border-soft bg-[#F1F2F5] px-2 text-[11.5px] font-bold text-ink-3">
+                        <div className="h-8 flex items-center rounded-btn border border-border-soft bg-muted px-2 text-2xs font-bold text-ink-3">
                           Não se aplica
                         </div>
                       ) : (
                         <CurrencyInput
-                          className="h-8! px-2! text-[12.5px]!"
+                          className="h-8! px-2! text-xs!"
                           value={l[campo]}
                           onValue={(v) => onUpd({ [campo]: v } as Partial<EcLinha>)}
                           title={l.valorPolobh > 0 ? `Até ${brl(l.valorPolobh)} (valor definido do item)` : undefined}
@@ -1482,12 +1482,12 @@ function OpcoesDeValor({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinh
                     <td className="px-2 py-1 border-b border-border-soft w-44">
                       {opcao === "comBvNf" ? (
                         naoSeAplica ? (
-                          <span className="text-[11px] text-ink-3">—</span>
+                          <span className="text-2xs text-ink-3">—</span>
                         ) : (
                           <CamposBv l={l} onUpd={onUpd} />
                         )
                       ) : (
-                        <span className="text-[11px] text-ink-3">Não se aplica</span>
+                        <span className="text-2xs text-ink-3">Não se aplica</span>
                       )}
                     </td>
                     <td className="px-2 py-1 border-b border-border-soft">
@@ -1529,7 +1529,7 @@ function ObservacaoDaForma({
     return (
       <>
         <AutoTextarea
-          className={cx("text-[12px]!", faltando && "border-danger! bg-danger-soft!")}
+          className={cx("text-xs!", faltando && "border-danger! bg-danger-soft!")}
           rows={1}
           value={bv.justificativa ?? ""}
           onChange={(e) => onUpd({ bv: { ...bv, justificativa: e.target.value } })}
@@ -1537,7 +1537,7 @@ function ObservacaoDaForma({
           aria-label={`Justificativa do BV do item ${l.item || "sem título"}`}
         />
         {faltando && (
-          <p className="mt-0.5 text-[10px] font-bold text-danger">
+          <p className="mt-0.5 text-2xs font-bold text-danger">
             Obrigatória: {opcaoNaoSeAplica(l, "comBvNf")
               ? "este item não é cobrado com BV"
               : `o BV está ${bvDaLinha(l).valor > 0 ? `abaixo de ${BV_PADRAO_PERCENTUAL}%` : "zerado"}`}.
@@ -1549,7 +1549,7 @@ function ObservacaoDaForma({
   const chave = opcao === "semBvComNf" ? "observacaoSemBvComNf" : "observacaoSemBvSemNf";
   return (
     <AutoTextarea
-      className="text-[12px]!"
+      className="text-xs!"
       rows={1}
       value={bv[chave] ?? ""}
       onChange={(e) => onUpd({ bv: { ...bv, [chave]: e.target.value } })}
@@ -1584,7 +1584,7 @@ function CamposBv({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinha>) =
               type="button"
               onClick={() => mudar({ modo })}
               className={cx(
-                "px-1.5 py-0.5 text-[10px] font-bold transition-colors",
+                "px-1.5 py-0.5 text-2xs font-bold transition-colors",
                 bv.modo === modo ? "bg-primary text-white" : "bg-surface text-ink-3 hover:text-ink"
               )}
             >
@@ -1595,14 +1595,14 @@ function CamposBv({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinha>) =
       </div>
       {bv.modo === "percentual" ? (
         <NumberInput
-          className="h-8! px-2! text-[12.5px]!"
+          className="h-8! px-2! text-xs!"
           value={bv.valor}
           onValue={(v: number) => mudar({ valor: limitarBvPercentual(v) })}
           aria-label={`Percentual do BV do item ${l.item || "sem título"}`}
         />
       ) : (
         <CurrencyInput
-          className="h-8! px-2! text-[12.5px]!"
+          className="h-8! px-2! text-xs!"
           value={bv.valor}
           onValue={(v: number) => mudar({ valor: v })}
           aria-label={`Valor fixo do BV do item ${l.item || "sem título"}`}
@@ -1610,7 +1610,7 @@ function CamposBv({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinha>) =
       )}
       {/* O outro lado da conta, sempre à vista: quem digita % quer conferir o
           reais, e quem digita reais quer conferir o percentual. */}
-      <p className={cx("text-[10.5px] font-semibold", abaixoDoPadrao ? "text-warning" : "text-ink-3")}>
+      <p className={cx("text-2xs font-semibold", abaixoDoPadrao ? "text-warning" : "text-ink-3")}>
         {bv.modo === "percentual" ? brl(calculado.valor) : `${calculado.percentual.toLocaleString("pt-BR")}%`}
         {abaixoDoPadrao && ` · abaixo de ${BV_PADRAO_PERCENTUAL}%`}
       </p>
@@ -1636,9 +1636,9 @@ export function SeletorEmMassa({
 }) {
   return (
     <label className="flex items-center gap-1.5">
-      <span className="text-[11.5px] font-bold text-ink-2">{rotulo}</span>
+      <span className="text-2xs font-bold text-ink-2">{rotulo}</span>
       <Select
-        className="h-8! px-2! text-[12px]! w-auto!"
+        className="h-8! px-2! text-xs! w-auto!"
         value=""
         onChange={(e) => {
           if (!e.target.value) return;
@@ -1660,7 +1660,7 @@ export function SeletorEmMassa({
 function Campo({ label, className, children, obrigatorio, id }: { label: string; className?: string; children: React.ReactNode; obrigatorio?: boolean; id?: string }) {
   return (
     <label id={id} className={cx("block", className)}>
-      <span className="block text-[10.5px] font-extrabold uppercase tracking-wider text-ink-3 mb-1 truncate">
+      <span className="block text-xs font-semibold text-muted-foreground mb-1 truncate">
         {label}
         {obrigatorio && <span className="text-danger" title="Obrigatório para emitir a OS"> *</span>}
       </span>
@@ -1702,24 +1702,24 @@ function FornecedoresDoItem({
   onFornecedorCadastrado?: (f: Fornecedor) => void;
 }) {
   const total = valorTotalDoItem(principal, vinculados);
-  const rotulo = "block text-[10.5px] font-extrabold uppercase tracking-wider text-ink-3 mb-1";
+  const rotulo = "block text-xs font-semibold text-muted-foreground mb-1";
   return (
     <div className="px-2.5 pb-2.5 -mt-0.5">
       {vinculados.length > 0 && (
-        <div className="rounded-btn border border-border-soft bg-[#FAFAFB] p-2.5 space-y-2.5">
+        <div className="rounded-btn border border-border-soft bg-muted/40 p-2.5 space-y-2.5">
           <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-            <span className="text-[11px] font-extrabold uppercase tracking-wider text-ink-2">
+            <span className="text-xs font-semibold text-muted-foreground">
               Outros fornecedores deste item ({vinculados.length})
             </span>
             {verFinanceiro && (
-              <span className="text-[11.5px] font-semibold text-ink-3">
+              <span className="text-2xs font-semibold text-ink-3">
                 Valor do item {brl(total)} · fornecedor 1 fica com <b className="text-ink-2">{brl(principal.valorPolobh)}</b>
               </span>
             )}
           </div>
           {vinculados.map((v, i) => (
             <div key={v.id} id={idAncoraPendencia(v.id)} className="flex flex-wrap items-end gap-2 rounded-btn">
-              <span className="w-5 pb-2.5 text-[12px] font-bold text-ink-3">{i + 2}.</span>
+              <span className="w-5 pb-2.5 text-xs font-bold text-ink-3">{i + 2}.</span>
               <label className="block flex-[2_1_20rem] min-w-[16rem]">
                 <span className={rotulo}>Fornecedor {i + 2} (CPF/CNPJ / Razão social)<MarcaObrigatorio title="Obrigatório para emitir a OS" /></span>
                 <SeletorFornecedor
@@ -1736,12 +1736,12 @@ function FornecedoresDoItem({
                 <>
                   <label className="block w-36">
                     <span className={rotulo}>Valor</span>
-                    <CurrencyInput className="h-9! text-[13px]!" value={v.valorPolobh} onValue={(x) => acoes.valor(principal.id, v.id, x)} />
+                    <CurrencyInput className="h-9! text-sm!" value={v.valorPolobh} onValue={(x) => acoes.valor(principal.id, v.id, x)} />
                   </label>
                   <label className="block w-44">
                     <span className={rotulo}>Forma de pagamento</span>
                     <Select
-                      className="h-9! px-2! text-[12.5px]!"
+                      className="h-9! px-2! text-xs!"
                       value={formaDoVinculado(v)}
                       onChange={(e) => acoes.valor(principal.id, v.id, v.valorPolobh, e.target.value as FormaVinculo)}
                     >
@@ -1755,7 +1755,7 @@ function FornecedoresDoItem({
               <label className="block w-38">
                 <span className={rotulo}>OS</span>
                 <Select
-                  className={cx("h-9! px-2! text-[12.5px]!", classeCampoStatus(v.statusOs))}
+                  className={cx("h-9! px-2! text-xs!", classeCampoStatus(v.statusOs))}
                   value={v.statusOs}
                   onChange={(e) => acoes.alterar(v.id, { statusOs: e.target.value as StatusOs })}
                 >
@@ -1778,7 +1778,7 @@ function FornecedoresDoItem({
       <button
         type="button"
         onClick={() => acoes.vincular(principal.id)}
-        className="mt-1.5 inline-flex items-center gap-1.5 rounded-btn px-2 py-1 text-[12.5px] font-bold text-primary-dark hover:bg-primary-soft"
+        className="mt-1.5 inline-flex items-center gap-1.5 rounded-btn px-2 py-1 text-xs font-bold text-primary-dark hover:bg-primary-soft"
         title="Este item é pago a mais de um fornecedor: cada um vira a sua OS"
       >
         <IcPlus width={14} height={14} /> Vincular {vinculados.length ? "mais um" : "outro"} fornecedor a este item

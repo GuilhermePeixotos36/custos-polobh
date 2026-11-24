@@ -45,8 +45,8 @@ export function RevisaoEcModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" role="dialog" aria-modal="true" aria-label={`Conferir alterações da ${documento}`}>
       <div className="bg-surface rounded-card-lg shadow-card w-full max-w-[860px] max-h-[85vh] flex flex-col">
         <div className="px-6 pt-5 pb-3 border-b border-border-soft">
-          <h2 className="font-display font-bold text-lg text-ink">Conferir alterações</h2>
-          <p className="text-[13px] text-ink-2 mt-0.5">
+          <h2 className="font-bold text-lg text-ink">Conferir alterações</h2>
+          <p className="text-sm text-ink-2 mt-0.5">
             {revisao.total === 0
               ? "A formatação dos textos foi padronizada e nada mais mudou desde o último salvamento."
               : "A formatação dos textos foi padronizada. Confira o que muda ao salvar — o que está aqui é exatamente o que vai ser gravado."}
@@ -55,12 +55,12 @@ export function RevisaoEcModal({
 
         <div className="overflow-y-auto px-6 py-4 space-y-4">
           {revisao.total === 0 && (
-            <p className="text-[13px] text-ink-3 py-6 text-center">Nenhuma alteração a conferir.</p>
+            <p className="text-sm text-ink-3 py-6 text-center">Nenhuma alteração a conferir.</p>
           )}
 
           {revisao.gerais.length > 0 && (
             <section>
-              <h3 className="text-[10.5px] font-extrabold uppercase tracking-widest text-ink-3 mb-2">Dados da {documento}</h3>
+              <h3 className="text-xs font-semibold text-muted-foreground mb-2">Dados da {documento}</h3>
               <div className="rounded-card border border-border divide-y divide-border-soft">
                 {revisao.gerais.map((c) => (
                   <LinhaCampo key={c.label} label={c.label} antes={c.antes} depois={c.depois} />
@@ -71,16 +71,16 @@ export function RevisaoEcModal({
 
           {revisao.itens.length > 0 && (
             <section>
-              <h3 className="text-[10.5px] font-extrabold uppercase tracking-widest text-ink-3 mb-2">
+              <h3 className="text-xs font-semibold text-muted-foreground mb-2">
                 Itens ({revisao.itens.length})
               </h3>
               <div className="space-y-2.5">
                 {revisao.itens.map((item) => (
                   <div key={item.chave} className="rounded-card border border-border overflow-hidden">
-                    <div className="flex items-center gap-2 flex-wrap px-3.5 py-2.5 bg-[#FAFAFB] border-b border-border-soft">
-                      <span className="font-bold text-[13.5px] text-ink">{item.titulo}</span>
-                      {item.grupo && <span className="text-[11.5px] text-ink-3">{item.grupo}</span>}
-                      <span className={cx("ml-auto text-[10.5px] font-extrabold uppercase tracking-[0.06em] rounded-pill px-2 py-0.5", TOM_TIPO[item.tipo])}>
+                    <div className="flex items-center gap-2 flex-wrap px-3.5 py-2.5 bg-muted/40 border-b border-border-soft">
+                      <span className="font-bold text-sm text-ink">{item.titulo}</span>
+                      {item.grupo && <span className="text-2xs text-ink-3">{item.grupo}</span>}
+                      <span className={cx("ml-auto text-2xs font-semibold rounded-pill px-2 py-0.5", TOM_TIPO[item.tipo])}>
                         {ROTULO_TIPO[item.tipo]}
                       </span>
                     </div>
@@ -115,8 +115,8 @@ export function RevisaoEcModal({
 function LinhaCampo({ label, antes, depois }: { label: string; antes: string; depois: string }) {
   return (
     <div className="grid sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)] gap-x-3 gap-y-1 px-3.5 py-2.5">
-      <span className="text-[12.5px] font-bold text-ink-2">{label}</span>
-      <span className="text-[12.5px] min-w-0">
+      <span className="text-xs font-bold text-ink-2">{label}</span>
+      <span className="text-xs min-w-0">
         <span className="text-ink-3 line-through wrap-break-word">{antes || "(vazio)"}</span>
         <span className="text-ink-3 mx-1.5">›</span>
         <span className="text-ink font-semibold wrap-break-word">{depois || "(vazio)"}</span>

@@ -327,14 +327,14 @@ export function EcDetail() {
         <CardTitle hint="Mesma organização por grupos da criação.">
           Estimativa de custos
         </CardTitle>
-        <div className="flex items-center gap-2 text-[12px] font-bold text-ink-2">
+        <div className="flex items-center gap-2 text-xs font-bold text-ink-2">
           <button onClick={() => setExpandidos(new Set(gruposLinha.map((g) => g.nome)))} className="hover:text-ink">Expandir</button>
           <span className="text-border">|</span>
           <button onClick={() => setExpandidos(new Set())} className="hover:text-ink">Retrair</button>
         </div>
       </div>
       {bloqueados.length > 0 && (
-        <div className="mx-5 mt-3 text-[13px] text-danger bg-danger-soft rounded-btn px-3 py-2">
+        <div className="mx-5 mt-3 text-sm text-danger bg-danger-soft rounded-btn px-3 py-2">
           <p className="font-bold">{bloqueados.length} item(ns) fora da emissão — falta preencher:</p>
           <ul className="mt-1 space-y-0.5">
             {bloqueados.map((b) => (
@@ -358,7 +358,7 @@ export function EcDetail() {
       {selecionados.size > 0 && (
         <div className="sticky top-[calc(var(--altura-topnav)+var(--altura-cabecalho)+8px)] z-10 mx-3 mt-3 space-y-1.5 rounded-btn border border-primary bg-primary-soft px-3 py-2 shadow-card">
           <div className="flex items-center gap-3 flex-wrap">
-            <span className="text-[13px] font-extrabold text-primary-dark">
+            <span className="text-sm font-bold text-primary-dark">
               {selecionados.size} {selecionados.size === 1 ? "item selecionado" : "itens selecionados"}
             </span>
             {podeMudarStatus && (
@@ -383,19 +383,19 @@ export function EcDetail() {
                 )}
               </>
             )}
-            <button type="button" onClick={() => setSelecionados(new Set())} className="ml-auto text-[12.5px] font-bold text-ink-2 hover:text-ink">
+            <button type="button" onClick={() => setSelecionados(new Set())} className="ml-auto text-xs font-bold text-ink-2 hover:text-ink">
               Limpar seleção
             </button>
           </div>
           {podeMudarStatus && (
             <div className="flex items-center gap-2 flex-wrap border-t border-primary/20 pt-1.5">
-              <span className="text-[11px] font-extrabold uppercase tracking-wider text-primary-dark/80">Alterar em massa</span>
+              <span className="text-xs font-semibold text-brand-forte">Alterar em massa</span>
               <SeletorEmMassa rotulo="Aprovação" opcoes={["Pendente", "OK"]} onEscolher={(v) => mudarStatus([...selecionados], { aprovacao: v as "Pendente" | "OK" }, true)} />
               <SeletorEmMassa rotulo="OS" opcoes={OPCOES_STATUS_OS} onEscolher={(v) => mudarStatus([...selecionados], { os: v as StatusOs }, true)} />
               <SeletorEmMassa rotulo="Contrato" opcoes={OPCOES_STATUS_OS} onEscolher={(v) => mudarStatus([...selecionados], { contrato: v as StatusOs }, true)} />
             </div>
           )}
-          <div className="text-[12px] font-bold text-ink-2">A emissão de OS vale só para os itens selecionados.</div>
+          <div className="text-xs font-bold text-ink-2">A emissão de OS vale só para os itens selecionados.</div>
         </div>
       )}
 
@@ -432,14 +432,14 @@ export function EcDetail() {
                 <button onClick={() => toggleGrupo(g.nome)} className="shrink-0 text-ink-2 hover:text-ink" aria-expanded={aberto} aria-label={`${aberto ? "Retrair" : "Expandir"} ${g.nome}`}>
                   <IcChevron width={20} height={20} className={cx("transition-transform duration-200", aberto && "rotate-90")} />
                 </button>
-                <button onClick={() => toggleGrupo(g.nome)} className="text-[15px] font-bold uppercase text-ink text-left min-w-0 flex-1 wrap-break-word sm:flex-none sm:truncate">
+                <button onClick={() => toggleGrupo(g.nome)} className="text-base font-bold uppercase text-ink text-left min-w-0 flex-1 wrap-break-word sm:flex-none sm:truncate">
                   {g.nome}
                 </button>
-                <span className="shrink-0 text-[12px] font-bold text-ink-3 bg-[#F0F1F4] rounded-pill px-2.5 py-1">
+                <span className="shrink-0 text-xs font-bold text-ink-3 bg-muted rounded-pill px-2.5 py-1">
                   {g.itens.length} {g.itens.length === 1 ? "item" : "itens"}
                 </span>
                 {verFinanceiro && subtotal > 0 && (
-                  <span className="shrink-0 text-[14px] font-display font-bold text-ink-2">{brl(subtotal)}</span>
+                  <span className="shrink-0 text-sm font-bold text-ink-2">{brl(subtotal)}</span>
                 )}
               </div>
 
@@ -493,7 +493,7 @@ export function EcDetail() {
                     {o.ecLinhaIds.length > 1 ? `${o.ecLinhaIds.length} consolidados` : "1 item"}
                   </Badge>
                 </Td>
-                {verFinanceiro && <Td align="right" className="font-display font-bold">{valorDaContratacao(o.itens ?? []) ? brl(valorDaContratacao(o.itens ?? [])) : "a definir"}</Td>}
+                {verFinanceiro && <Td align="right" className="font-bold">{valorDaContratacao(o.itens ?? []) ? brl(valorDaContratacao(o.itens ?? [])) : "a definir"}</Td>}
                 <Td align="center"><Badge tom={tomStatusOs[o.status]}>{o.status}</Badge></Td>
               </Tr>
             ))}
@@ -524,10 +524,10 @@ export function EcDetail() {
       <div className="overflow-x-auto">
         <table className="w-full text-sm border-t border-border">
           <thead>
-            <tr className="text-left bg-[#FAFAFB] border-b border-border">
-              <th className="px-4 py-2 text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Descrição</th>
-              <th className="px-4 py-2 text-right text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Pólobh</th>
-              <th className="px-4 py-2 text-right text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Cliente</th>
+            <tr className="text-left bg-muted/40 border-b border-border">
+              <th className="px-4 py-2 text-xs font-semibold text-muted-foreground">Descrição</th>
+              <th className="px-4 py-2 text-right text-xs font-semibold text-muted-foreground">Pólobh</th>
+              <th className="px-4 py-2 text-right text-xs font-semibold text-muted-foreground">Cliente</th>
             </tr>
           </thead>
           <tbody>
@@ -539,16 +539,16 @@ export function EcDetail() {
             />
             <tr className="border-b border-border-soft">
               <td className="px-4 py-2.5 font-semibold text-ink">{ec.encargosRotulo || ROTULO_ENCARGOS_PADRAO} ({rotuloTaxa(ec.encargos)})</td>
-              <td className="px-4 py-2.5 text-right font-display font-bold text-ink whitespace-nowrap">{brl(t.encargos)}</td>
+              <td className="px-4 py-2.5 text-right font-bold text-ink whitespace-nowrap">{brl(t.encargos)}</td>
               <td className="px-4 py-2.5 text-right text-ink-3">—</td>
             </tr>
             <LinhaResumo desc="Sub-total" polobh={t.subTotalPolobh} cliente={subTotalCliente} strong />
             <tr className="bg-primary-soft">
               <td className="px-4 py-3 font-bold text-ink">Valor Total Bruto (Custo Total do Projeto)</td>
-              <td className="px-4 py-3 text-right font-display font-bold text-primary-dark whitespace-nowrap" colSpan={2}>{brl(t.valorTotalBruto)}</td>
+              <td className="px-4 py-3 text-right font-bold text-primary-dark whitespace-nowrap" colSpan={2}>{brl(t.valorTotalBruto)}</td>
             </tr>
             <tr>
-              <td className="px-4 pt-3 pb-1 text-[11.5px] font-bold italic text-ink-3" colSpan={3}>Sendo:</td>
+              <td className="px-4 pt-3 pb-1 text-2xs font-bold italic text-ink-3" colSpan={3}>Sendo:</td>
             </tr>
             <LinhaResumo desc="Faturamento Pólobh — NF Pólobh × Cliente" polobh={t.faturamentoPolobh} colSpanValor />
             <LinhaResumo desc="Faturamento Terceiros — NF's Terceiros × Cliente" polobh={t.faturamentoTerceiros} colSpanValor />
@@ -782,11 +782,11 @@ function LinhaResumo({
     <tr className="border-b border-border-soft">
       <td className={cx("px-4 py-2.5", strong ? "font-bold text-ink" : "font-semibold text-ink")}>{desc}</td>
       {colSpanValor ? (
-        <td className="px-4 py-2.5 text-right whitespace-nowrap font-display font-bold text-ink" colSpan={2}>{brl(polobh)}</td>
+        <td className="px-4 py-2.5 text-right whitespace-nowrap font-bold text-ink" colSpan={2}>{brl(polobh)}</td>
       ) : (
         <>
-          <td className="px-4 py-2.5 text-right whitespace-nowrap font-display font-bold text-ink">{brl(polobh)}</td>
-          <td className="px-4 py-2.5 text-right whitespace-nowrap font-display font-bold text-ink">{cliente === undefined ? "" : brl(cliente)}</td>
+          <td className="px-4 py-2.5 text-right whitespace-nowrap font-bold text-ink">{brl(polobh)}</td>
+          <td className="px-4 py-2.5 text-right whitespace-nowrap font-bold text-ink">{cliente === undefined ? "" : brl(cliente)}</td>
         </>
       )}
     </tr>

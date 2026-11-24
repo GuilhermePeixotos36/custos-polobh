@@ -40,8 +40,8 @@ export function OcultosEcModal({
       >
         <div className="flex items-start gap-3 px-5 py-4 border-b border-border-soft">
           <div className="min-w-0">
-            <h3 className="font-display font-bold text-[18px] text-ink tracking-[-0.3px]">Itens e grupos ocultos</h3>
-            <p className="text-[12.5px] text-ink-2 mt-1">
+            <h3 className="font-bold text-lg text-ink tracking-[-0.3px]">Itens e grupos ocultos</h3>
+            <p className="text-xs text-ink-2 mt-1">
               Marque o que deve voltar para a tela. O que está oculto fica guardado, fora dos totais e do Excel.
             </p>
           </div>
@@ -49,7 +49,7 @@ export function OcultosEcModal({
             type="button"
             onClick={onFechar}
             title="Fechar"
-            className="ml-auto shrink-0 h-9 w-9 grid place-items-center rounded-btn text-ink-2 hover:text-ink hover:bg-[#F1F2F5]"
+            className="ml-auto shrink-0 h-9 w-9 grid place-items-center rounded-btn text-ink-2 hover:text-ink hover:bg-muted"
           >
             <IcFechar width={18} height={18} />
           </button>
@@ -62,7 +62,7 @@ export function OcultosEcModal({
             const marcadosNoGrupo = ids.filter((id) => marcados.has(id)).length;
             return (
               <div key={g.grupo} className="rounded-btn border border-border-soft">
-                <label className="flex items-center gap-2 px-3 py-2 bg-[#FAFAFB] cursor-pointer">
+                <label className="flex items-center gap-2 px-3 py-2 bg-muted/40 cursor-pointer">
                   <input
                     type="checkbox"
                     className="h-4 w-4 accent-primary"
@@ -72,22 +72,22 @@ export function OcultosEcModal({
                     }}
                     onChange={(e) => alternar(ids, e.target.checked)}
                   />
-                  <span className="flex-1 min-w-0 truncate text-[13.5px] font-extrabold uppercase text-ink">{g.grupo}</span>
-                  <span className="shrink-0 text-[11px] font-extrabold uppercase rounded-pill bg-[#F0F1F4] text-ink-3 px-2 py-0.5">
+                  <span className="flex-1 min-w-0 truncate text-sm font-bold uppercase text-ink">{g.grupo}</span>
+                  <span className="shrink-0 text-2xs font-bold uppercase rounded-pill bg-muted text-ink-3 px-2 py-0.5">
                     {g.inteiro ? "grupo oculto" : `${ids.length} oculto${ids.length > 1 ? "s" : ""}`}
                   </span>
                 </label>
                 <ul className="divide-y divide-border-soft">
                   {g.itens.map((i) => (
                     <li key={i.id}>
-                      <label className="flex items-center gap-2 px-3 py-1.5 pl-8 cursor-pointer hover:bg-[#FCFCFD]">
+                      <label className="flex items-center gap-2 px-3 py-1.5 pl-8 cursor-pointer hover:bg-muted/40">
                         <input
                           type="checkbox"
                           className="h-4 w-4 accent-primary"
                           checked={marcados.has(i.id)}
                           onChange={(e) => alternar([i.id], e.target.checked)}
                         />
-                        <span className="min-w-0 truncate text-[13px] text-ink-2">{i.titulo}</span>
+                        <span className="min-w-0 truncate text-sm text-ink-2">{i.titulo}</span>
                       </label>
                     </li>
                   ))}
@@ -100,7 +100,7 @@ export function OcultosEcModal({
         <div className="flex items-center gap-2 flex-wrap px-5 py-3 border-t border-border-soft">
           <button
             type="button"
-            className="text-[12.5px] font-bold text-ink-2 hover:text-ink"
+            className="text-xs font-bold text-ink-2 hover:text-ink"
             onClick={() => alternar(todosIds, !todosMarcados)}
             disabled={!todosIds.length}
           >

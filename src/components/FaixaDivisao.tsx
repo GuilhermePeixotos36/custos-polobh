@@ -11,7 +11,7 @@ export function FaixaDivisao({ info, verFinanceiro }: { info: InfoDivisao; verFi
     <div
       className={cx(
         "flex flex-wrap items-center gap-x-2 gap-y-0.5 px-3 py-1.5 border-b border-border-soft rounded-t-card",
-        "bg-primary-soft/50 text-[11.5px] font-bold text-primary-dark"
+        "bg-primary-soft/50 text-2xs font-bold text-primary-dark"
       )}
     >
       <span>

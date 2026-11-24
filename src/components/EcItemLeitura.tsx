@@ -80,18 +80,18 @@ export function EcItemLeitura({
         </div>
 
         <div className="flex-1 min-w-48 pt-1">
-          <div className="font-bold text-ink text-[13.5px]">{l.item || "—"}</div>
-          {l.descricao && <div className="text-[12.5px] text-ink-2 whitespace-pre-wrap mt-0.5">{l.descricao}</div>}
+          <div className="font-bold text-ink text-sm">{l.item || "—"}</div>
+          {l.descricao && <div className="text-xs text-ink-2 whitespace-pre-wrap mt-0.5">{l.descricao}</div>}
           {veDescricaoCompleta && l.descricaoCompleta && (
             <div
-              className="text-[12.5px] text-ink-2 mt-1.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
+              className="text-xs text-ink-2 mt-1.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
               dangerouslySetInnerHTML={{ __html: sanitizarHtmlEditor(l.descricaoCompleta) }}
             />
           )}
         </div>
 
         {verFinanceiro && (
-          <div className="shrink-0 flex items-center gap-4 rounded-btn bg-[#F4F5F8] px-3 py-1.5">
+          <div className="shrink-0 flex items-center gap-4 rounded-btn bg-muted/60 px-3 py-1.5">
             <ValorItem rotulo="Pólobh" valor={l.valorPolobh} />
             <span className="h-7 w-px bg-border" aria-hidden="true" />
             <ValorItem rotulo="Cliente" valor={l.valorCliente} />
@@ -100,11 +100,11 @@ export function EcItemLeitura({
       </div>
 
       {/* Linha 2: status e contratação, com a mesma largura dos campos da edição. */}
-      <div className="flex flex-wrap items-end gap-x-2 gap-y-2 px-2.5 pb-2.5 pt-2 border-t border-border-soft bg-[#FCFCFD] rounded-b-card min-w-0">
+      <div className="flex flex-wrap items-end gap-x-2 gap-y-2 px-2.5 pb-2.5 pt-2 border-t border-border-soft bg-muted/40 rounded-b-card min-w-0">
         <Campo label="Aprovação" className="w-28 shrink-0">
           {editavelStatus ? (
             <Select
-              className={cx("h-9! px-2! text-[12.5px]!", classeCampoStatus(l.statusAprovacao))}
+              className={cx("h-9! px-2! text-xs!", classeCampoStatus(l.statusAprovacao))}
               value={l.statusAprovacao}
               onChange={(e) => onStatus({ aprovacao: e.target.value as "Pendente" | "OK" })}
               aria-label={`Aprovação do item ${l.item || "sem título"}`}
@@ -120,7 +120,7 @@ export function EcItemLeitura({
             navegador pisca este campo em vez da linha inteira. */}
         <Campo label="OS" className="w-38 shrink-0" id={idCampoPendencia(l.id, "os")}>
           {editavelStatus ? (
-            <Select className={cx("h-9! px-2! text-[12.5px]!", classeCampoStatus(l.statusOs))} value={l.statusOs} onChange={(e) => onStatus({ os: e.target.value as EcLinha["statusOs"] })} aria-label={`OS do item ${l.item || "sem título"}`}>
+            <Select className={cx("h-9! px-2! text-xs!", classeCampoStatus(l.statusOs))} value={l.statusOs} onChange={(e) => onStatus({ os: e.target.value as EcLinha["statusOs"] })} aria-label={`OS do item ${l.item || "sem título"}`}>
               {OPCOES_STATUS_OS.map((o) => <option key={o}>{o}</option>)}
             </Select>
           ) : (
@@ -129,7 +129,7 @@ export function EcItemLeitura({
         </Campo>
         <Campo label="Contrato" className="w-38 shrink-0" id={idCampoPendencia(l.id, "contrato")}>
           {editavelStatus ? (
-            <Select className={cx("h-9! px-2! text-[12.5px]!", classeCampoStatus(l.contratoStatus))} value={l.contratoStatus} onChange={(e) => onStatus({ contrato: e.target.value as EcLinha["contratoStatus"] })} aria-label={`Contrato do item ${l.item || "sem título"}`}>
+            <Select className={cx("h-9! px-2! text-xs!", classeCampoStatus(l.contratoStatus))} value={l.contratoStatus} onChange={(e) => onStatus({ contrato: e.target.value as EcLinha["contratoStatus"] })} aria-label={`Contrato do item ${l.item || "sem título"}`}>
               {OPCOES_STATUS_OS.map((o) => <option key={o}>{o}</option>)}
             </Select>
           ) : (
@@ -159,8 +159,8 @@ export function EcItemLeitura({
 function ValorItem({ rotulo, valor }: { rotulo: string; valor: number }) {
   return (
     <div className="text-right">
-      <span className="block text-[9.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">{rotulo}</span>
-      <span className="font-display font-bold text-ink text-[13px] whitespace-nowrap">{brl(valor)}</span>
+      <span className="block text-xs font-semibold text-muted-foreground">{rotulo}</span>
+      <span className="font-bold text-ink text-sm whitespace-nowrap">{brl(valor)}</span>
     </div>
   );
 }
@@ -169,7 +169,7 @@ function ValorItem({ rotulo, valor }: { rotulo: string; valor: number }) {
 function Campo({ label, className, children, id }: { label: string; className?: string; children: ReactNode; id?: string }) {
   return (
     <div id={id} className={cx("block", className)}>
-      <span className="block text-[10.5px] font-extrabold uppercase tracking-wider text-ink-3 mb-1 truncate">{label}</span>
+      <span className="block text-xs font-semibold text-muted-foreground mb-1 truncate">{label}</span>
       <div className="min-h-9 flex items-center">{children}</div>
     </div>
   );
@@ -179,11 +179,11 @@ function Campo({ label, className, children, id }: { label: string; className?: 
 function Texto({ valor, extra }: { valor?: string; extra?: string }) {
   const preenchido = !!valor?.trim();
   return (
-    <span className="min-w-0 truncate text-[12.5px]" title={preenchido ? [valor, extra].filter(Boolean).join(" · ") : undefined}>
+    <span className="min-w-0 truncate text-xs" title={preenchido ? [valor, extra].filter(Boolean).join(" · ") : undefined}>
       {preenchido ? (
         <>
           <span className="text-ink font-medium">{valor}</span>
-          {extra?.trim() && <span className="text-[11px] text-ink-3"> ({extra})</span>}
+          {extra?.trim() && <span className="text-2xs text-ink-3"> ({extra})</span>}
         </>
       ) : (
         <span className="text-ink-3/60">—</span>

@@ -81,8 +81,8 @@ export function AdicionarEcModal({
       >
         <div className="flex items-start gap-3 px-5 py-4 border-b border-border-soft">
           <div className="min-w-0">
-            <h3 className="font-display font-bold text-[18px] text-ink tracking-[-0.3px]">Adicionar grupo / item</h3>
-            <p className="text-[12.5px] text-ink-2 mt-1">
+            <h3 className="font-bold text-lg text-ink tracking-[-0.3px]">Adicionar grupo / item</h3>
+            <p className="text-xs text-ink-2 mt-1">
               Crie do zero ou importe do modelo da modalidade. Nada entra na EC sem você escolher.
             </p>
           </div>
@@ -90,7 +90,7 @@ export function AdicionarEcModal({
             type="button"
             onClick={onFechar}
             title="Fechar"
-            className="ml-auto shrink-0 h-9 w-9 grid place-items-center rounded-btn text-ink-2 hover:text-ink hover:bg-[#F1F2F5]"
+            className="ml-auto shrink-0 h-9 w-9 grid place-items-center rounded-btn text-ink-2 hover:text-ink hover:bg-muted"
           >
             <IcFechar width={18} height={18} />
           </button>
@@ -103,9 +103,9 @@ export function AdicionarEcModal({
               e.preventDefault();
               criar();
             }}
-            className="rounded-btn border border-border-soft bg-[#FAFAFB] p-3 space-y-2"
+            className="rounded-btn border border-border-soft bg-muted/40 p-3 space-y-2"
           >
-            <div className="text-[11px] font-extrabold uppercase tracking-wider text-ink-3">Criar novo</div>
+            <div className="text-xs font-semibold text-muted-foreground">Criar novo</div>
             <div className="flex flex-wrap items-center gap-2">
               <Input
                 className="h-10! flex-1 min-w-[180px]"
@@ -115,7 +115,7 @@ export function AdicionarEcModal({
                 onChange={(e) => setNome(e.target.value)}
                 autoFocus
               />
-              <div className="inline-flex rounded-btn border border-border overflow-hidden text-[12.5px] font-bold">
+              <div className="inline-flex rounded-btn border border-border overflow-hidden text-xs font-bold">
                 {(["grupo", "item"] as const).map((t) => (
                   <button
                     key={t}
@@ -133,14 +133,14 @@ export function AdicionarEcModal({
             </div>
             {tipo === "item" && (
               gruposExistentes.length > 0 ? (
-                <label className="flex items-center gap-2 text-[12.5px] text-ink-2">
+                <label className="flex items-center gap-2 text-xs text-ink-2">
                   No grupo
                   <Select className="h-9! max-w-xs" value={grupoDestino} onChange={(e) => setGrupoDestino(e.target.value)}>
                     {gruposExistentes.map((g) => <option key={g}>{g}</option>)}
                   </Select>
                 </label>
               ) : (
-                <p className="text-[12px] text-warning">Crie ou importe um grupo antes de adicionar um item.</p>
+                <p className="text-xs text-warning">Crie ou importe um grupo antes de adicionar um item.</p>
               )
             )}
           </form>
@@ -148,8 +148,8 @@ export function AdicionarEcModal({
           {/* Importar do modelo */}
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <div className="text-[11px] font-extrabold uppercase tracking-wider text-ink-3">Importar do modelo</div>
-              <div className="ml-auto inline-flex rounded-btn border border-border overflow-hidden text-[12px] font-bold">
+              <div className="text-xs font-semibold text-muted-foreground">Importar do modelo</div>
+              <div className="ml-auto inline-flex rounded-btn border border-border overflow-hidden text-xs font-bold">
                 {(["Corporativo", "Cultural"] as const).map((m) => (
                   <button
                     key={m}
@@ -163,7 +163,7 @@ export function AdicionarEcModal({
               </div>
             </div>
             {modalidade && aba !== modalidade && (
-              <p className="text-[11.5px] text-ink-3 mb-2">O projeto é {modalidade}; você está vendo o modelo {aba}.</p>
+              <p className="text-2xs text-ink-3 mb-2">O projeto é {modalidade}; você está vendo o modelo {aba}.</p>
             )}
             <div className="space-y-1.5">
               {grupos.map((g) => {
@@ -173,7 +173,7 @@ export function AdicionarEcModal({
                 const jaExiste = gruposExistentes.includes(g.nome);
                 return (
                   <div key={g.nome} className="rounded-btn border border-border-soft">
-                    <div className="flex items-center gap-2 px-3 py-2 bg-[#FAFAFB]">
+                    <div className="flex items-center gap-2 px-3 py-2 bg-muted/40">
                       <input
                         type="checkbox"
                         className="h-4 w-4 accent-primary cursor-pointer"
@@ -190,18 +190,18 @@ export function AdicionarEcModal({
                         className="flex items-center gap-2 flex-1 min-w-0 text-left"
                       >
                         <IcChevron width={14} height={14} className={cx("shrink-0 transition-transform", aberto && "rotate-90")} />
-                        <span className="text-[13px] font-bold uppercase text-ink truncate">{g.nome}</span>
-                        <span className="text-[11.5px] text-ink-3 shrink-0">
+                        <span className="text-sm font-bold uppercase text-ink truncate">{g.nome}</span>
+                        <span className="text-2xs text-ink-3 shrink-0">
                           {grupoMarcado ? `${marcadosNoGrupo} de ${g.itens.length}` : g.itens.length} {g.itens.length === 1 ? "item" : "itens"}
                         </span>
-                        {jaExiste && <span className="text-[11px] text-ink-3 shrink-0">· já está na EC</span>}
+                        {jaExiste && <span className="text-2xs text-ink-3 shrink-0">· já está na EC</span>}
                       </button>
                     </div>
                     {aberto && (
                       <ul className="px-3 py-1.5 space-y-0.5">
                         {g.itens.map((i) => (
                           <li key={i.chave}>
-                            <label className="flex items-center gap-2 py-1 cursor-pointer text-[13px] text-ink-2">
+                            <label className="flex items-center gap-2 py-1 cursor-pointer text-sm text-ink-2">
                               <input
                                 type="checkbox"
                                 className="h-4 w-4 accent-primary"
@@ -222,7 +222,7 @@ export function AdicionarEcModal({
         </div>
 
         <div className="flex items-center gap-2 px-5 py-3 border-t border-border-soft">
-          <span className="text-[12.5px] text-ink-3">
+          <span className="text-xs text-ink-3">
             {qtdGrupos === 0
               ? "Marque grupos e itens para importar."
               : `${qtdGrupos} ${qtdGrupos === 1 ? "grupo" : "grupos"} · ${entradas.filter((e) => e.item).length} itens`}

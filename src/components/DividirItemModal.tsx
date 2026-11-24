@@ -42,8 +42,8 @@ export function DividirItemModal({
       >
         <div className="flex items-start gap-3 px-5 py-4 border-b border-border-soft">
           <div className="min-w-0">
-            <h3 className="font-display font-bold text-[18px] text-ink tracking-[-0.3px]">Dividir item</h3>
-            <p className="text-[12.5px] text-ink-2 mt-1">
+            <h3 className="font-bold text-lg text-ink tracking-[-0.3px]">Dividir item</h3>
+            <p className="text-xs text-ink-2 mt-1">
               Para quando <b>{linha.item || "este item"}</b> é atendido por mais de um fornecedor. A parte nova
               entra logo abaixo, sem fornecedor, e o original fica com o que sobrar — o total não muda. As partes
               ficam ligadas: cada uma gera a sua OS, e para o cliente o item segue sendo um só.
@@ -53,7 +53,7 @@ export function DividirItemModal({
             type="button"
             onClick={onFechar}
             title="Fechar"
-            className="ml-auto shrink-0 h-9 w-9 grid place-items-center rounded-btn text-ink-2 hover:text-ink hover:bg-[#F1F2F5]"
+            className="ml-auto shrink-0 h-9 w-9 grid place-items-center rounded-btn text-ink-2 hover:text-ink hover:bg-muted"
           >
             <IcFechar width={18} height={18} />
           </button>
@@ -69,11 +69,11 @@ export function DividirItemModal({
           }}
         >
           <label className="block">
-            <span className="block text-[11px] font-extrabold uppercase tracking-wider text-ink-3 mb-1">Nome do novo item<MarcaObrigatorio /></span>
+            <span className="block text-xs font-semibold text-muted-foreground mb-1">Nome do novo item<MarcaObrigatorio /></span>
             <Input formato="item" value={parte.item} onChange={(e) => upd({ item: e.target.value })} autoFocus />
           </label>
           <label className="block">
-            <span className="block text-[11px] font-extrabold uppercase tracking-wider text-ink-3 mb-1">
+            <span className="block text-xs font-semibold text-muted-foreground mb-1">
               Descrição financeiro <span className="normal-case font-semibold">(opcional — vazio usa o nome)</span>
             </span>
             <Input value={parte.descricao} onChange={(e) => upd({ descricao: e.target.value })} />
@@ -82,32 +82,32 @@ export function DividirItemModal({
           {verFinanceiro && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label className="block">
-                <span className="block text-[11px] font-extrabold uppercase tracking-wider text-ink-3 mb-1">
+                <span className="block text-xs font-semibold text-muted-foreground mb-1">
                   Pólobh da nova parte
                 </span>
                 <CurrencyInput value={parte.valorPolobh} onValue={(v) => upd({ valorPolobh: v })} />
-                <span className="block text-[11.5px] text-ink-3 mt-1">
+                <span className="block text-2xs text-ink-3 mt-1">
                   Fica no original: {brl(Math.max(0, linha.valorPolobh - parte.valorPolobh))}
                 </span>
               </label>
               <label className="block">
-                <span className="block text-[11px] font-extrabold uppercase tracking-wider text-ink-3 mb-1">
+                <span className="block text-xs font-semibold text-muted-foreground mb-1">
                   Cliente da nova parte
                 </span>
                 <CurrencyInput value={parte.valorCliente} onValue={(v) => upd({ valorCliente: v })} />
-                <span className="block text-[11.5px] text-ink-3 mt-1">
+                <span className="block text-2xs text-ink-3 mt-1">
                   Fica no original: {brl(Math.max(0, linha.valorCliente - parte.valorCliente))}
                 </span>
               </label>
             </div>
           )}
 
-          <p className="text-[12px] text-ink-3">
+          <p className="text-xs text-ink-3">
             Depois de dividir: informe o fornecedor e as Alternativas de Custos do item novo e salve a EC.
             {linha.statusAprovacao === "OK" && " Como o item já está aprovado, a parte nova nasce pedindo a OS dela."}
           </p>
 
-          {motivo && <p className="text-[12.5px] font-bold text-danger">{motivo}</p>}
+          {motivo && <p className="text-xs font-bold text-danger">{motivo}</p>}
 
           <div className="flex justify-end gap-2 pt-1">
             <Button type="button" variant="secondary" size="sm" onClick={onFechar}>Cancelar</Button>

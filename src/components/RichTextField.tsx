@@ -76,21 +76,21 @@ export function RichTextField({ value, onChange, placeholder, toolbarExtra, clas
   const vazio = !value || value === "<br>";
 
   return (
-    <div className={cx("rounded-btn border-[1.5px] border-[#BFC4CE] bg-surface overflow-hidden focus-within:border-primary/60", className)}>
+    <div className={cx("rounded-btn border-[1.5px] border-input bg-surface overflow-hidden focus-within:border-primary/60", className)}>
       {!somenteLeitura && (
-      <div className="flex flex-wrap items-center gap-0.5 px-1.5 py-1 border-b border-border-soft bg-[#FAFAFB]">
-        <ToolBtn title="Parágrafo" onClick={() => cmd("formatBlock", "p")}><span className="text-[11px] font-extrabold">¶</span></ToolBtn>
+      <div className="flex flex-wrap items-center gap-0.5 px-1.5 py-1 border-b border-border-soft bg-muted/40">
+        <ToolBtn title="Parágrafo" onClick={() => cmd("formatBlock", "p")}><span className="text-2xs font-bold">¶</span></ToolBtn>
         <ToolBtn title="Negrito" onClick={() => cmd("bold")}><IcBold width={15} height={15} /></ToolBtn>
         <ToolBtn title="Itálico" onClick={() => cmd("italic")}><span className="font-serif italic font-bold">I</span></ToolBtn>
         <ToolBtn title="Sublinhado" onClick={() => cmd("underline")}><span className="font-serif underline font-bold">U</span></ToolBtn>
         <span className="mx-0.5 h-5 w-px bg-border" />
         <ToolBtn title="Lista com marcadores" onClick={() => cmd("insertUnorderedList")}><IcList width={15} height={15} /></ToolBtn>
-        <ToolBtn title="Lista numerada" onClick={() => cmd("insertOrderedList")}><span className="text-[11px] font-extrabold">1.</span></ToolBtn>
-        <ToolBtn title="Aumentar recuo" onClick={() => cmd("indent")}><span className="text-[12px] font-extrabold">→|</span></ToolBtn>
-        <ToolBtn title="Diminuir recuo" onClick={() => cmd("outdent")}><span className="text-[12px] font-extrabold">|←</span></ToolBtn>
+        <ToolBtn title="Lista numerada" onClick={() => cmd("insertOrderedList")}><span className="text-2xs font-bold">1.</span></ToolBtn>
+        <ToolBtn title="Aumentar recuo" onClick={() => cmd("indent")}><span className="text-xs font-bold">→|</span></ToolBtn>
+        <ToolBtn title="Diminuir recuo" onClick={() => cmd("outdent")}><span className="text-xs font-bold">|←</span></ToolBtn>
         <span className="mx-0.5 h-5 w-px bg-border" />
-        <ToolBtn title="Alinhar à esquerda" onClick={() => cmd("justifyLeft")}><span className="text-[13px] font-extrabold">≡</span></ToolBtn>
-        <ToolBtn title="Centralizar" onClick={() => cmd("justifyCenter")}><span className="text-[13px] font-extrabold">≣</span></ToolBtn>
+        <ToolBtn title="Alinhar à esquerda" onClick={() => cmd("justifyLeft")}><span className="text-sm font-bold">≡</span></ToolBtn>
+        <ToolBtn title="Centralizar" onClick={() => cmd("justifyCenter")}><span className="text-sm font-bold">≣</span></ToolBtn>
         <ToolBtn title="Desfazer" onClick={() => cmd("undo")}><span className="text-base leading-none">↶</span></ToolBtn>
         <ToolBtn title="Refazer" onClick={() => cmd("redo")}><span className="text-base leading-none">↷</span></ToolBtn>
         <div className="ml-auto">{toolbarExtra}</div>
@@ -98,7 +98,7 @@ export function RichTextField({ value, onChange, placeholder, toolbarExtra, clas
       )}
       <div className="relative">
         {vazio && placeholder && (
-          <span className="pointer-events-none absolute left-2.5 top-2 text-[13px] text-ink-3">{placeholder}</span>
+          <span className="pointer-events-none absolute left-2.5 top-2 text-sm text-ink-3">{placeholder}</span>
         )}
         <div
           ref={ref}
@@ -113,7 +113,7 @@ export function RichTextField({ value, onChange, placeholder, toolbarExtra, clas
           suppressContentEditableWarning
           onInput={emit}
           onBlur={emit}
-          className="min-h-[96px] px-2.5 py-2 text-[13.5px] text-ink outline-hidden leading-relaxed [&_p]:mb-2 [&_p:last-child]:mb-0 [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:mb-1 [&_li_>_ul]:ml-3 [&_li_>_ol]:ml-3"
+          className="min-h-[96px] px-2.5 py-2 text-sm text-ink outline-hidden leading-relaxed [&_p]:mb-2 [&_p:last-child]:mb-0 [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:mb-1 [&_li_>_ul]:ml-3 [&_li_>_ol]:ml-3"
         />
       </div>
     </div>

@@ -117,9 +117,9 @@ export function RepercutirMudancasModal({
       <div className="relative w-full max-w-[760px] max-h-[92vh] flex flex-col bg-surface rounded-card-lg shadow-modal border border-border animate-[fadein_.14s_ease] overflow-hidden">
         <div className="flex items-start gap-3 px-5 py-4 border-b border-border-soft">
           <div className="min-w-0">
-            <h3 className="font-display font-bold text-[18px] text-ink tracking-[-0.3px]">Alerta</h3>
+            <h3 className="font-bold text-lg text-ink tracking-[-0.3px]">Alerta</h3>
             {/* Texto definido pela Pólobh (29/09/2026). */}
-            <p className="text-[12.5px] text-ink-2 mt-1 leading-relaxed">
+            <p className="text-xs text-ink-2 mt-1 leading-relaxed">
               Os dados gerais deste projeto foram atualizados. Os próximos documentos (ECs, OSs,
               cronogramas, etc...) serão emitidos com as novas informações.{" "}
               <b>Os documentos já emitidos não serão alterados.</b> Substitua os documentos que
@@ -130,7 +130,7 @@ export function RepercutirMudancasModal({
             onClick={onFechar}
             disabled={aplicando}
             title="Fechar sem alterar documentos"
-            className="ml-auto shrink-0 h-9 w-9 grid place-items-center rounded-btn text-ink-2 hover:text-ink hover:bg-[#F1F2F5] transition-colors disabled:opacity-50"
+            className="ml-auto shrink-0 h-9 w-9 grid place-items-center rounded-btn text-ink-2 hover:text-ink hover:bg-muted transition-colors disabled:opacity-50"
           >
             <IcFechar width={18} height={18} />
           </button>
@@ -143,8 +143,8 @@ export function RepercutirMudancasModal({
                 <div
                   key={m.chave}
                   className={cx(
-                    "grid sm:grid-cols-[190px_1fr] gap-x-3 gap-y-1 px-3.5 py-2.5 text-[12.5px]",
-                    i % 2 === 1 && "bg-[#FBFBFC]"
+                    "grid sm:grid-cols-[190px_1fr] gap-x-3 gap-y-1 px-3.5 py-2.5 text-xs",
+                    i % 2 === 1 && "bg-muted/40"
                   )}
                 >
                   <div className="font-bold text-ink">{m.label}</div>
@@ -207,8 +207,8 @@ export function RepercutirMudancasModal({
           )}
         </div>
 
-        <div className="px-5 py-3.5 border-t border-border-soft bg-[#FCFCFD] flex items-center justify-between gap-3 flex-wrap">
-          <span className="text-[12px] text-ink-3">
+        <div className="px-5 py-3.5 border-t border-border-soft bg-muted/40 flex items-center justify-between gap-3 flex-wrap">
+          <span className="text-xs text-ink-3">
             {!haAlvos ? "" : total === 0 ? "Nenhum documento ativo para substituir." : `${total} documento(s) ativo(s) ganham nova versão.`}
           </span>
           <div className="flex items-center gap-2">
@@ -232,8 +232,8 @@ function Bloco({ titulo, hint, children }: { titulo: string; hint?: string; chil
   return (
     <section>
       <div className="flex items-baseline gap-2 mb-2 flex-wrap">
-        <h4 className="font-display font-bold text-[13.5px] text-ink">{titulo}</h4>
-        {hint && <span className="text-[11.5px] text-ink-3">{hint}</span>}
+        <h4 className="font-bold text-sm text-ink">{titulo}</h4>
+        {hint && <span className="text-2xs text-ink-3">{hint}</span>}
       </div>
       <div className="space-y-1.5">{children}</div>
     </section>
@@ -241,7 +241,7 @@ function Bloco({ titulo, hint, children }: { titulo: string; hint?: string; chil
 }
 
 function Aviso({ children }: { children: React.ReactNode }) {
-  return <p className="text-[12.5px] text-ink-3 italic px-1">{children}</p>;
+  return <p className="text-xs text-ink-3 italic px-1">{children}</p>;
 }
 
 function LinhaDocumento({
@@ -256,8 +256,8 @@ function LinhaDocumento({
   return (
     <div className="flex items-center gap-3 rounded-btn border border-border-soft bg-surface px-3.5 py-2.5">
       <span className="min-w-0 flex-1">
-        <span className="block text-[13px] font-bold text-ink truncate">{titulo}</span>
-        <span className="block text-[11.5px] text-ink-3 truncate">{detalhe}</span>
+        <span className="block text-sm font-bold text-ink truncate">{titulo}</span>
+        <span className="block text-2xs text-ink-3 truncate">{detalhe}</span>
       </span>
       <span className="shrink-0">{badge}</span>
     </div>

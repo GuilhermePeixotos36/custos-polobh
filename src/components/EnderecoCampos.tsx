@@ -117,10 +117,10 @@ export function EnderecoCampos({
         </Field>
       </div>
       {foraDoPadrao && faltando.length === 0 && (
-        <p className="text-[12px] text-warning font-semibold">Este endereço estava fora do padrão; ele passa para o padrão ao salvar.</p>
+        <p className="text-xs text-warning font-semibold">Este endereço estava fora do padrão; ele passa para o padrão ao salvar.</p>
       )}
       {faltando.length > 0 && !!(value.trim() || Object.values(partes).some(Boolean)) && (
-        <p className="text-[12px] text-warning font-semibold">
+        <p className="text-xs text-warning font-semibold">
           Falta preencher: {faltando.map((c) => ROTULO_CAMPO[c].replace(/ \(.*\)$/, "")).join(", ")}.
         </p>
       )}
