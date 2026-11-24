@@ -428,8 +428,20 @@
    * que ele flutua acima de outra superfície, e é a mesma. Fica a borda, que é o que separa
    * um bloco do outro.
    */
-  .painel-pasta .card-surface {
+  .painel-pasta .card-surface,
+  .painel-pasta .superficie-card {
     box-shadow: none;
+  }
+  /*
+   * O cartão que é filho DIRETO do painel não é um bloco dentro da aba — é a aba inteira (a lista
+   * de ECs, a de OSs, a lista padrão do check-list). Com borda própria ele virava cartão dentro de
+   * cartão, com dois fios na lateral; aqui ele se dissolve no painel, que já é a superfície.
+   * `.superficie-card` é a marca do `Card` do kit (components/ui/Card.tsx).
+   */
+  .painel-pasta > .superficie-card {
+    border-color: transparent;
+    border-radius: 0;
+    background-color: transparent;
   }
   /*
    * Troca de aba. O painel continua montado de uma aba para outra; quem entra é o conteúdo, e é

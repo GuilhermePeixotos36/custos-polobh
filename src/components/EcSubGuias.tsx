@@ -1,8 +1,16 @@
-import { SubGuias } from "@/components/layout/SubGuias";
+import { FolderTabs } from "@/components/padrao/FolderTabs";
 
 /** Subguias da EC: guia principal + Resumo dos Custos + Rentabilidade (esta só p/ financeiro). */
 export type SubGuiaEc = "ec" | "resumo" | "rentabilidade";
 
+/**
+ * As VISTAS da EC aberta — a fileira de abas do design system no alto do painel.
+ *
+ * Vai pelo slot `subabasDoPainel` do `PageShell` (24/11/2026): a barra do projeto
+ * é a pasta de cima (a aba "EC" acesa) e estas são as abas de dentro dela, no
+ * branco do painel. Antes eram pílulas logo abaixo da barra do projeto, e as duas
+ * fileiras liam como uma só, com "EC" aceso nas duas.
+ */
 export function EcSubGuias({
   atual,
   onChange,
@@ -17,18 +25,14 @@ export function EcSubGuias({
   temRentabilidade?: boolean;
 }) {
   return (
-    <SubGuias
-      rotulo="Seções da EC"
-      atual={atual}
+    <FolderTabs<SubGuiaEc>
+      ariaLabel="Seções da EC"
+      value={atual}
       onChange={onChange}
-      // Secundária: estas são VISTAS da EC que já está aberta, e ficam logo
-      // abaixo da barra do projeto — desenhadas igual, as duas liam como uma
-      // fileira só, com "EC" aceso nas duas.
-      variante="secundaria"
-      abas={[
-        { key: "ec", label: "Itens da EC" },
-        ...(temResumo ? ([{ key: "resumo", label: "Resumo dos Custos" }] as const) : []),
-        ...(temRentabilidade ? ([{ key: "rentabilidade", label: "Rentabilidade" }] as const) : []),
+      options={[
+        { value: "ec", label: "Itens da EC", atributos: { "data-subguia": "ec-itens" } },
+        ...(temResumo ? [{ value: "resumo" as const, label: "Resumo dos Custos", atributos: { "data-subguia": "ec-resumo" } }] : []),
+        ...(temRentabilidade ? [{ value: "rentabilidade" as const, label: "Rentabilidade", atributos: { "data-subguia": "ec-rentabilidade" } }] : []),
       ]}
     />
   );

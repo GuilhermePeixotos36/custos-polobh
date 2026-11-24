@@ -1,24 +1,26 @@
 /**
  * O SEGUNDO CABEÇALHO — a barra que diz onde se está dentro de uma área.
  *
- * O cabeçalho geral tem cinco botões e responde "em que parte do aplicativo eu
- * estou". Ele não cabe mais do que isso, e não deveria: o resto é navegação de
- * DENTRO, e é o que esta barra faz.
+ * O cabeçalho geral responde "em que parte do aplicativo eu estou". O resto é
+ * navegação de DENTRO, e é o que esta barra faz. Ela atravessa rotas: a barra do
+ * projeto é a mesma dentro do projeto, da EC e da OS — entrar num documento
+ * deixava a pessoa sem nenhuma referência de onde estava. A de Configurações é a
+ * mesma nos Logs, que têm rota própria mas pertencem ali.
  *
- * Ela atravessa rotas, e é essa a diferença para `SubGuias` (que troca estado
- * de uma tela só). A barra do projeto é a mesma dentro do projeto, da EC e da
- * OS — entrar num documento deixava a pessoa sem nenhuma referência de onde
- * estava, e voltar exigia caçar o botão "Voltar" certo. A de Configurações é a
- * mesma em Agenda, Fornecedores e Logs, que têm rota própria mas pertencem ali.
- *
- * Ela entra pelo slot `subabas` do `PageShell`, então gruda logo abaixo do
- * título e das ações — trocar de seção no meio de uma lista longa nunca obriga
+ * Desde 24/11/2026 ela é a `FolderTabsBar` do design system (aba ativa branca,
+ * painel embaixo), e não mais um sublinhado: entra pelo slot `subabas` do
+ * `PageShell`, que embrulha o conteúdo da tela no `FolderPanel` e gruda os dois
+ * logo abaixo do título — trocar de seção no meio de uma lista longa nunca obriga
  * a voltar ao topo.
+ *
+ * Cada aba leva `data-subguia={chave}`: é por ele que o tour guiado acha (e
+ * clica) a aba certa.
  */
 import { useLocation, useNavigate } from "react-router-dom";
-import { SubGuias } from "@/components/layout/SubGuias";
+import { FolderTabsBar } from "@/components/padrao/FolderTabs";
+import { NotifDot } from "@/components/NotifDot";
 import { useAuth } from "@/store/auth";
-import { NAV_CONFIG, NAV_PROJETO, rotaAbaProjeto, type SecaoNav } from "@/components/layout/nav";
+import { NAV_CONFIG, NAV_PROJETO, rotaAbaProjeto } from "@/components/layout/nav";
 
 /**
  * A barra do PROJETO. `atual` é a aba acesa; `pendencias` traz o contador de
@@ -45,15 +47,23 @@ export function BarraProjeto({
 }) {
   const navigate = useNavigate();
   return (
-    <SubGuias
-      rotulo="Seções do projeto"
-      atual={atual}
+    <FolderTabsBar
+      ariaLabel="Seções do projeto"
+      value={atual}
       onChange={(aba) => (onAba ? onAba(aba) : navigate(rotaAbaProjeto(projetoId, aba)))}
-      abas={NAV_PROJETO.map((a) => ({
-        ...a,
-        desabilitada: !!desabilitadasExceto && a.key !== desabilitadasExceto,
-        pendencias: pendencias?.[a.key] ?? 0,
-      }))}
+      options={NAV_PROJETO.map((a) => {
+        const desabilitada = !!desabilitadasExceto && a.key !== desabilitadasExceto;
+        const n = desabilitada ? 0 : pendencias?.[a.key] ?? 0;
+        return {
+          value: a.key,
+          label: a.label,
+          disabled: desabilitada,
+          title: desabilitada ? "Salve o projeto para abrir esta seção" : undefined,
+          // A bolinha vermelha é "o que é seu" nesta etapa — a mesma conta do sino.
+          adorno: n > 0 ? <NotifDot inline n={n} title="Ações pendentes nesta etapa" /> : undefined,
+          atributos: { "data-subguia": a.key },
+        };
+      })}
     />
   );
 }
@@ -70,14 +80,14 @@ export function BarraConfiguracoes({ atual }: { atual: string }) {
   const pode = useAuth((s) => s.pode);
   const visiveis = NAV_CONFIG.filter((s) => !s.recurso || pode(s.recurso) || !!s.ou?.some(pode));
   return (
-    <SubGuias
-      rotulo="Seções das configurações"
-      atual={atual}
+    <FolderTabsBar
+      ariaLabel="Seções das configurações"
+      value={atual}
       onChange={(key) => {
         const alvo = visiveis.find((s) => s.key === key);
         if (alvo) navigate(alvo.rota);
       }}
-      abas={visiveis.map(({ key, label }): SecaoNav & { key: string; label: string } => ({ key, label }))}
+      options={visiveis.map(({ key, label }) => ({ value: key, label, atributos: { "data-subguia": key } }))}
     />
   );
 }

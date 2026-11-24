@@ -86,6 +86,18 @@ export function alvoPendente(ancora: string): AlvoPendencia | null {
   return Date.now() - em > VALIDADE_MS ? null : { ancora, observacaoId, campos };
 }
 
+/**
+ * Há um salto guardado para `ancora`? Só OLHA — não consome.
+ *
+ * Existe para a gaveta de Observações da tela (`ObservacoesDaTela`): a thread mora dentro
+ * dela, e é a thread quem consome o salto ao montar (`alvoPendente`). A gaveta precisa saber
+ * ANTES, no próprio render, que tem de nascer aberta — senão o comentário piscaria dentro de
+ * uma gaveta fechada, e a pessoa que veio do sininho não veria nada.
+ */
+export function haAlvoPendente(ancora: string): boolean {
+  return !!pendente && pendente.ancora === ancora && Date.now() - pendente.em <= VALIDADE_MS;
+}
+
 /** Destaca o comentário dentro da thread já aberta (usado pela própria thread). */
 export function destacarComentario(observacaoId: string): void {
   destacarElemento(idComentario(observacaoId), "pendencia");
