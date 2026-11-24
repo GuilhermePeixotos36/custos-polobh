@@ -3,9 +3,9 @@ import { createPortal } from "react-dom";
 import { ChevronDown } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { LIMITE_RENDERIZADO, filtrarOpcoes, proximoDestaque, type OpcaoCombo } from "@/lib/comboFiltro";
+import { LIMITE_RENDERIZADO, filtrarOpcoes, proximoDestaque, type OpcaoCombo, type ResultadoFiltro } from "@/lib/comboFiltro";
 
-export type { OpcaoCombo } from "@/lib/comboFiltro";
+export type { OpcaoCombo, ResultadoFiltro } from "@/lib/comboFiltro";
 
 /**
  * Caixa combinada: um `<select>` que se pesquisa digitando.
@@ -47,6 +47,14 @@ type Props = {
    * ver inteira, em ordem, sem digitar — a escolha de quem ganha acesso — passa um limite maior.
    */
   limite?: number;
+  /**
+   * Busca própria, no lugar da busca por texto (`filtrarOpcoes`). Existe para o seletor de
+   * fornecedor (24/11/2026): CNPJ digitado sem máscara precisa achar o CNPJ guardado com ela,
+   * coisa que a comparação de texto não faz.
+   */
+  filtrar?: (opcoes: readonly OpcaoCombo[], busca: string, limite: number) => ResultadoFiltro;
+  /** Avisa o que está sendo digitado — o "+" do seletor de fornecedor leva o CNPJ para o cadastro. */
+  onBusca?: (busca: string) => void;
 };
 
 export function ComboBox({
@@ -59,6 +67,8 @@ export function ComboBox({
   vazio = "Nenhuma opção encontrada",
   className,
   limite = LIMITE_RENDERIZADO,
+  filtrar = filtrarOpcoes,
+  onBusca,
 }: Props) {
   const [aberto, setAberto] = useState(false);
   const [busca, setBusca] = useState("");
@@ -72,7 +82,7 @@ export function ComboBox({
   const idOpcao = (indice: number) => `${idBase}-opcao-${indice}`;
 
   const selecionada = useMemo(() => opcoes.find((opcao) => opcao.valor === valor), [opcoes, valor]);
-  const { visiveis, total } = useMemo(() => filtrarOpcoes(opcoes, aberto ? busca : "", limite), [opcoes, busca, aberto, limite]);
+  const { visiveis, total } = useMemo(() => filtrar(opcoes, aberto ? busca : "", limite), [filtrar, opcoes, busca, aberto, limite]);
   const ocultas = total - visiveis.length;
 
   function abrir() {
@@ -219,6 +229,7 @@ export function ComboBox({
         onChange={(evento) => {
           if (!aberto) abrir();
           setBusca(evento.target.value);
+          onBusca?.(evento.target.value);
           setDestaque(0);
         }}
         onFocus={abrir}
