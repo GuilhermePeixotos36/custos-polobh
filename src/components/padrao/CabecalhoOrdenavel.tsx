@@ -201,13 +201,15 @@ function ThOrdenavel({ coluna, ordem, onOrdenar, extra, grudado }: {
       aria-sort={ordenavel ? (ativa ? (ordem.sentido === "asc" ? "ascending" : "descending") : "none") : undefined}
     >
       {extra
-        // Com o acessório (o funil do filtro), os dois andam juntos e o funil fica do lado de
-        // DENTRO da coluna: na coluna à direita ele vai à esquerda do rótulo, para o rótulo
-        // continuar terminando onde terminam os números.
+        // Com o acessório (o funil do filtro), o funil fica SEMPRE no canto direito da coluna
+        // (pedido de 24/11/2026), no mesmo lugar em todas as colunas e listas: o olho sabe onde
+        // procurar. O rótulo ocupa o resto, à esquerda, centralizado ou à direita como a coluna.
         ? (
-          <span className={cn("flex items-center gap-1", direita && "flex-row-reverse", centro && "justify-center")}>
-            {principal}
-            {extra}
+          <span className="flex w-full items-center gap-1.5">
+            <span className={cn("flex min-w-0 flex-1", direita && "justify-end", centro && "justify-center")}>
+              {principal}
+            </span>
+            <span className="ml-auto shrink-0">{extra}</span>
           </span>
         )
         : principal}
