@@ -1,13 +1,13 @@
 /**
- * Coluna dos ITENS da OS nas listagens — o "olhinho" ao lado do número.
+ * Os ITENS da OS nas listagens — o "olhinho" ao lado do nome.
  *
  * A OS consolida vários itens da EC, e saber quais é justamente o que faltava
  * na lista: para descobrir era preciso abrir OS por OS. Escrever os nomes na
  * própria linha resolveria e criaria outro problema — uma OS com oito itens
  * esticaria a linha e desalinharia a tabela inteira.
  *
- * Então o conteúdo fica guardado atrás de um ícone, numa coluna estreita e SEM
- * cabeçalho (ela não é um dado da tabela, é um atalho). Passar o mouse já
+ * Então o conteúdo fica guardado atrás de um ícone, no canto direito da célula
+ * do nome (ver `BotaoItensOs`). Passar o mouse já
  * mostra; clicar PRENDE a caixinha aberta, para dar tempo de ler uma lista
  * longa, mover o mouse até ela e usar no toque, onde não existe "passar o
  * mouse". Esc ou clique fora fecham.
@@ -17,37 +17,25 @@
  */
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Th, Td } from "@/components/ui";
 import { IcList } from "@/components/icons";
 import { cx } from "@/lib/format";
 import type { ItemDaOs } from "@/domain/os";
-
-/** Coluna estreita: cabe o ícone, sem roubar espaço do número da OS. */
-const LARGURA = "w-[40px] min-w-[40px] px-1";
 
 /** Largura da caixinha e folga que ela guarda das bordas da janela. */
 const LARGURA_CAIXA = 260;
 const MARGEM = 8;
 
 /**
- * Cabeçalho vazio de propósito: a coluna é um atalho, não um dado — dar-lhe um
- * rótulo ("Itens") sugeriria que dá para ordenar por ele. O texto existe só
- * para o leitor de tela.
+ * O "olhinho" dos itens, dentro da célula do NOME da OS, no canto direito (24/11/2026).
+ *
+ * Antes ele tinha uma coluna estreita só sua, sem rótulo no cabeçalho — a única coluna da
+ * tabela que não dizia o que era, e que com o filtro por coluna ficaria a única sem ordenar nem
+ * filtrar. Na célula do nome ele fica junto do que descreve (os itens DESTA OS), a tabela perde
+ * uma coluna e o nome continua começando sempre no mesmo lugar.
  */
-export function ThItensOs({ className }: { className?: string }) {
-  return (
-    <Th align="center" className={cx(LARGURA, className)}>
-      <span className="sr-only">Itens da OS</span>
-    </Th>
-  );
-}
-
-export function TdItensOs({ itens, className }: { itens: ItemDaOs[]; className?: string }) {
-  return (
-    <Td align="center" className={cx(LARGURA, className)}>
-      {itens.length > 0 && <BotaoItens itens={itens} />}
-    </Td>
-  );
+export function BotaoItensOs({ itens }: { itens: ItemDaOs[] }) {
+  if (itens.length === 0) return null;
+  return <BotaoItens itens={itens} />;
 }
 
 function BotaoItens({ itens }: { itens: ItemDaOs[] }) {

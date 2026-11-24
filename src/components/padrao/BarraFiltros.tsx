@@ -14,10 +14,16 @@ import { cn } from "@/lib/utils";
  * filtro: ela já está à vista.
  *
  * Tela sem nenhum filtro além da busca não passa `children`, e o botão não aparece.
+ *
+ * Filtro por coluna (`CabecalhoDeColuna`, 24/11/2026): os controles moram no funil de cada
+ * cabeçalho, mas a contagem mora aqui — `filtrosDeColuna` soma no contador do botão, o painel diz
+ * quantas colunas estão filtradas e o "Limpar filtros" (`onLimpar`, que a tela faz limpar as
+ * duas coisas) desliga também esses. Passar `filtrosDeColuna`, mesmo zero, já mostra o botão:
+ * ele não pode aparecer e sumir conforme o funil é usado, empurrando a barra.
  */
 export function BarraFiltros({
   busca, onBusca, placeholderBusca = "Buscar", rotuloBusca, ativos = 0, onLimpar, contagem, acoes, children,
-  abertoInicial = false, larguraBusca = "w-72", className,
+  abertoInicial = false, larguraBusca = "w-72", className, filtrosDeColuna,
 }: {
   busca?: string;
   onBusca?: (valor: string) => void;
@@ -36,10 +42,14 @@ export function BarraFiltros({
   abertoInicial?: boolean;
   larguraBusca?: string;
   className?: string;
+  /** Quantas colunas da tabela estão filtradas pelo funil do cabeçalho. Soma em `ativos`. */
+  filtrosDeColuna?: number;
 }) {
   const [aberto, setAberto] = useState(abertoInicial);
   const idPainel = useId();
-  const temPainel = !!children;
+  const temPainel = !!children || filtrosDeColuna !== undefined;
+  const colunas = filtrosDeColuna ?? 0;
+  const total = ativos + colunas;
 
   return (
     <div className={className}>
@@ -54,9 +64,9 @@ export function BarraFiltros({
               className="inline-flex h-9 items-center gap-2 rounded-full border border-input bg-card px-3.5 text-sm font-medium text-foreground hover:border-brand/50"
             >
               <SlidersHorizontal className="h-4 w-4" /> Filtros
-              {ativos > 0 && (
-                <span aria-label={`${ativos} filtro(s) ativo(s)`} className="rounded-full bg-brand px-1.5 text-2xs font-semibold text-primary-foreground tabular-nums">
-                  {ativos}
+              {total > 0 && (
+                <span aria-label={`${total} filtro(s) ativo(s)`} className="rounded-full bg-brand px-1.5 text-2xs font-semibold text-primary-foreground tabular-nums">
+                  {total}
                 </span>
               )}
             </button>
@@ -81,7 +91,14 @@ export function BarraFiltros({
       {temPainel && aberto && (
         <div id={idPainel} className="flex flex-wrap items-center gap-3 border-t border-border bg-muted/25 px-4 py-3">
           {children}
-          {ativos > 0 && onLimpar && (
+          {filtrosDeColuna !== undefined && (
+            <span className="text-xs text-muted-foreground">
+              {colunas > 0
+                ? `${colunas} coluna(s) filtrada(s) pelo funil do cabeçalho.`
+                : "Para filtrar uma coluna, use o funil ao lado do nome dela no cabeçalho da tabela."}
+            </span>
+          )}
+          {total > 0 && onLimpar && (
             <button type="button" onClick={onLimpar} className="text-xs font-semibold text-brand-forte hover:underline">
               Limpar filtros
             </button>

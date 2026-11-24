@@ -1,14 +1,18 @@
-import { useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { PageShell } from "@/components/layout/AppLayout";
-import { Card, Button, Badge, Table, THead, Tr, Td, AvisoErro, ThOrd, useOrdenacao, ProgressBar, type Tom } from "@/components/ui";
+import { Card, Button, Badge, Table, Tr, Td, AvisoErro, ProgressBar, type Tom } from "@/components/ui";
 import { IcPlus } from "@/components/icons";
 import { FolderOpen, Search } from "lucide-react";
 import { BarraFiltros } from "@/components/padrao/BarraFiltros";
 import { FilterPills } from "@/components/padrao/FilterPills";
 import { EsqueletoTabela } from "@/components/padrao/EsqueletoTabela";
 import { EstadoVazio } from "@/components/padrao/EstadoVazio";
-import { ThPendencias, TdPendencias } from "@/components/ColunaPendencias";
+import { CabecalhoDeColuna, useFiltrosDeColuna, type ColunaDeLista } from "@/components/padrao/CabecalhoDeColuna";
+import { useOrdenacao } from "@/components/padrao/CabecalhoOrdenavel";
+import { ordenarPorColuna, type ValorOrdenavel } from "@/components/padrao/ordenacaoTabela";
+import { filtrarPorColunas, type ExtratoresDeFiltro } from "@/components/padrao/filtrosColuna";
+import { SeloPendencias, filtroPendencias } from "@/components/listas/celulas";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import { useMinhasPendencias } from "@/store/pendencias";
@@ -18,7 +22,7 @@ import { statusProjetoAutomatico } from "@/domain/statusProjeto";
 import { periodoDoProjeto } from "@/domain/calendario";
 import { dataBR } from "@/lib/format";
 import { resumirChecklist, type ResumoChecklist } from "@/domain/checklist";
-import type { StatusProjeto } from "@/data/types";
+import type { Projeto, StatusProjeto } from "@/data/types";
 
 const tomStatusProjeto: Record<StatusProjeto, Tom> = {
   Ativo: "success",
@@ -31,6 +35,29 @@ const FILTROS: { value: FiltroProjeto; label: string }[] = [
   { value: "Ativo", label: "Ativos" },
   { value: "Arquivado", label: "Arquivados" },
 ];
+
+type LinhaProjeto = Projeto & { status: StatusProjeto };
+
+/** O período como valor de filtro: "inicio|fim" em ISO — ordena como data e vira o texto da célula. */
+function chavePeriodo(p: Projeto): string {
+  const periodo = periodoDoProjeto(p);
+  return periodo ? `${periodo.inicio}|${periodo.fim}` : "";
+}
+function formatarPeriodo(chave: string): string {
+  const [inicio, fim] = chave.split("|");
+  return !fim || inicio === fim ? dataBR(inicio) : `${dataBR(inicio)} › ${dataBR(fim)}`;
+}
+
+/** A situação do check-list em poucas palavras — é o que se procura ao filtrar a coluna. */
+function situacaoChecklist(resumo: ResumoChecklist | undefined): string {
+  if (!resumo || resumo.total === 0) return "";
+  if (resumo.atrasados > 0) return "Com atraso";
+  return resumo.abertos === 0 ? "Completo" : "Em andamento";
+}
+
+/** Desempate estável: projeto, depois id — colunas com o mesmo empate desenham a mesma ordem. */
+const desempate = (a: LinhaProjeto, b: LinhaProjeto) =>
+  a.nome.localeCompare(b.nome, "pt-BR", { sensitivity: "base" }) || a.id.localeCompare(b.id);
 
 export function Projetos() {
   const navigate = useNavigate();
@@ -48,6 +75,10 @@ export function Projetos() {
   }, [podeVerChecklist], { oQue: "os projetos" });
   const [filtro, setFiltro] = useState<FiltroProjeto>("Ativo");
   const [busca, setBusca] = useState("");
+  const buscaAdiada = useDeferredValue(busca);
+  const filtrosColuna = useFiltrosDeColuna();
+  // Ordem padrão mantida em Cliente A→Z: é a que a equipe já usa para achar o projeto pelo cliente.
+  const { ordem, ordenarPor } = useOrdenacao({ chave: "cliente", sentido: "asc" });
 
   const hoje = new Date().toISOString().slice(0, 10);
   /** Resumo do check-list por projeto — alimenta a coluna de progresso. */
@@ -57,30 +88,64 @@ export function Projetos() {
     return mapa;
   }, [data?.checklists, hoje]);
 
-  const filtrados = useMemo(() => {
-    const q = busca.trim().toLowerCase();
-    return (data?.projetos ?? []).map((p) => ({ ...p, status: statusProjetoAutomatico(p, data?.ecs ?? []) }))
+  /**
+   * UMA lista de colunas para desenhar, ordenar e filtrar. Pendências virou coluna como as outras
+   * (24/11/2026): antes era a coluna estreita do "!", com ordenação à parte.
+   */
+  const colunas: (ColunaDeLista | false)[] = [
+    { rotulo: "Cliente", chave: "cliente", tipo: "texto" },
+    { rotulo: "Projeto", chave: "projeto", tipo: "texto" },
+    // Produtora e datas do evento (15/09/2026): as duas perguntas que faziam abrir projeto por
+    // projeto — "de quem é?" e "quando é?".
+    { rotulo: "Produtora", chave: "produtora", tipo: "texto" },
+    { rotulo: "Datas do evento", chave: "datas", tipo: "data", classe: "whitespace-nowrap", formatarFiltro: formatarPeriodo },
+    podeVerChecklist && { rotulo: "Check-list", chave: "checklist", tipo: "numero", classe: "text-center" },
+    { rotulo: "Pendências", chave: "pendencias", tipo: "numero", classe: "text-center" },
+    { rotulo: "Status", chave: "status", tipo: "texto", classe: "text-center" },
+  ];
+
+  const valoresOrdem: Record<string, (p: LinhaProjeto) => ValorOrdenavel> = {
+    cliente: (p) => p.cliente?.nome,
+    projeto: (p) => p.nome,
+    produtora: (p) => p.info?.produtoraResponsavel,
+    // Pela data de início do evento; projeto sem data vai para o fim (o vazio vai sempre).
+    datas: (p) => periodoDoProjeto(p)?.inicio,
+    // Pelo que falta fazer, não pelo percentual: o projeto com mais tarefas em aberto é o que
+    // precisa de atenção primeiro.
+    checklist: (p) => resumoPorProjeto.get(p.id)?.abertos,
+    // Zero pendência é "nada a fazer": vai com os vazios para o fim, e o primeiro clique
+    // (maior primeiro) abre a lista pelo projeto que mais pede ação.
+    pendencias: (p) => porProjeto[p.id] || null,
+    status: (p) => p.status,
+  };
+  const valoresFiltro: ExtratoresDeFiltro<LinhaProjeto> = {
+    cliente: (p) => p.cliente?.nome,
+    projeto: (p) => p.nome,
+    produtora: (p) => p.info?.produtoraResponsavel,
+    datas: chavePeriodo,
+    checklist: (p) => situacaoChecklist(resumoPorProjeto.get(p.id)),
+    pendencias: (p) => filtroPendencias(porProjeto[p.id] ?? 0),
+    status: (p) => p.status,
+  };
+
+  /** A lista depois da busca e das pílulas — é dela que o painel de cada coluna tira os valores. */
+  const base = useMemo(() => {
+    const q = buscaAdiada.trim().toLowerCase();
+    return (data?.projetos ?? [])
+      .map((p): LinhaProjeto => ({ ...p, status: statusProjetoAutomatico(p, data?.ecs ?? []) }))
       // "Arquivados" agrupa tudo que não está Ativo (Arquivado/Concluído/Cancelado).
       .filter((p) => filtro === "Todos" || (filtro === "Ativo" ? p.status === "Ativo" : p.status !== "Ativo"))
       .filter((p) => !q || `${p.nome} ${p.cliente?.nome ?? ""} ${p.info?.produtoraResponsavel ?? ""}`.toLowerCase().includes(q));
-  }, [data, filtro, busca]);
+  }, [data, filtro, buscaAdiada]);
 
-  const { ordem, ordenarPor, ordenados: lista } = useOrdenacao(
-    filtrados,
-    {
-      pendencias: (p) => porProjeto[p.id] ?? 0,
-      cliente: (p) => p.cliente?.nome,
-      projeto: (p) => p.nome,
-      produtora: (p) => p.info?.produtoraResponsavel ?? "",
-      // Ordena pela data de início do evento; projeto sem data vai para o fim.
-      datas: (p) => periodoDoProjeto(p)?.inicio ?? "9999-99-99",
-      // Ordena pelo que falta fazer, não pelo percentual: o projeto com mais
-      // tarefas em aberto é o que precisa de atenção primeiro.
-      checklist: (p) => resumoPorProjeto.get(p.id)?.abertos ?? -1,
-      status: (p) => p.status,
-    },
-    { col: "cliente", dir: "asc" }
-  );
+  const lista = ordenarPorColuna(filtrarPorColunas(base, filtrosColuna.filtros, valoresFiltro), colunas, ordem, valoresOrdem, desempate);
+
+  /** O "Limpar filtros" do estado vazio limpa TUDO: busca, pílula e filtros de coluna. */
+  function limparTudo() {
+    setBusca("");
+    setFiltro("Todos");
+    filtrosColuna.limpar();
+  }
 
   return (
     <PageShell
@@ -95,7 +160,8 @@ export function Projetos() {
     >
       <Card padded={false}>
         {/* Barra de filtros do padrão (24/11/2026): pílulas de situação à vista, contagem e
-            busca à direita. O `data-tour` continua no mesmo bloco, para o tour achar os filtros. */}
+            busca à direita; os filtros de coluna (o funil de cada cabeçalho) somam no contador do
+            botão "Filtros". O `data-tour` continua no mesmo bloco, para o tour achar os filtros. */}
         <div data-tour="projetos-filtros" className="border-b border-border-soft">
           <BarraFiltros
             busca={busca}
@@ -103,6 +169,8 @@ export function Projetos() {
             placeholderBusca="Buscar projeto ou cliente…"
             contagem={loading || error ? undefined : `${lista.length} projeto(s)`}
             acoes={<FilterPills value={filtro} options={FILTROS} onChange={setFiltro} ariaLabel="Situação do projeto" />}
+            filtrosDeColuna={filtrosColuna.ativos}
+            onLimpar={filtrosColuna.limpar}
             className="movel:[&_input]:h-10"
           />
         </div>
@@ -110,47 +178,50 @@ export function Projetos() {
           <AvisoErro erro={error} oQue="os projetos" onTentarDeNovo={reload} />
         ) : loading ? (
           <EsqueletoTabela
-            colunas={["", "Cliente", "Projeto", "Produtora", "Datas do evento", ...(podeVerChecklist ? ["Check-list"] : []), "Status"]}
+            colunas={colunas.filter((c): c is ColunaDeLista => Boolean(c)).map((c) => c.rotulo)}
             rotulo="Carregando os projetos…"
           />
         ) : lista.length === 0 ? (
           (data?.projetos.length ?? 0) === 0 ? (
             <EstadoVazio semCartao icone={FolderOpen} titulo="Nenhum projeto" descricao="Crie o primeiro projeto para começar." />
           ) : (
-            // Vazio por filtro ou busca: o "Limpar filtros" volta para Todos, sem busca.
+            // Vazio por filtro ou busca: o "Limpar filtros" volta para Todos, sem busca e sem filtro de coluna.
             <EstadoVazio
               semCartao
               icone={Search}
               titulo="Nenhum projeto encontrado."
-              descricao="Nenhum projeto com essa situação ou essa busca."
-              acao={<Button variant="secondary" onClick={() => { setBusca(""); setFiltro("Todos"); }}>Limpar filtros</Button>}
+              descricao="Nenhum projeto com essa situação, esses filtros ou essa busca."
+              acao={<Button variant="secondary" onClick={limparTudo}>Limpar filtros</Button>}
             />
           )
         ) : (
           <Table>
-            <THead>
-              {/* Pendências em coluna própria: os badges ficam alinhados entre si e o
-                  nome do projeto começa sempre na mesma posição. */}
-              <ThPendencias col="pendencias" ordem={ordem} onSort={ordenarPor} />
-              <ThOrd col="cliente" ordem={ordem} onSort={ordenarPor}>Cliente</ThOrd>
-              <ThOrd col="projeto" ordem={ordem} onSort={ordenarPor}>Projeto</ThOrd>
-              {/* Produtora e datas do evento (15/09/2026): as duas perguntas que
-                  faziam abrir projeto por projeto — "de quem é?" e "quando é?". */}
-              <ThOrd col="produtora" ordem={ordem} onSort={ordenarPor}>Produtora</ThOrd>
-              <ThOrd col="datas" ordem={ordem} onSort={ordenarPor}>Datas do evento</ThOrd>
-              {podeVerChecklist && (
-                <ThOrd col="checklist" align="center" ordem={ordem} onSort={ordenarPor}>Check-list</ThOrd>
-              )}
-              <ThOrd col="status" align="center" ordem={ordem} onSort={ordenarPor}>Status</ThOrd>
-            </THead>
+            <CabecalhoDeColuna
+              colunas={colunas}
+              ordem={ordem}
+              onOrdenar={ordenarPor}
+              itens={base}
+              valoresFiltro={valoresFiltro}
+              filtros={filtrosColuna.filtros}
+              onFiltros={filtrosColuna.setFiltros}
+              grudado
+            />
             <tbody>
               {lista.map((p) => (
                 <Tr key={p.id} onClick={() => navigate(`/projetos/${p.id}`)}>
-                  <TdPendencias n={porProjeto[p.id] ?? 0} title={`${porProjeto[p.id] ?? 0} pendência(s) neste projeto`} />
                   <Td className="text-ink font-medium">{p.cliente?.nome || "—"}</Td>
                   {/* Sem thumbnail: as iniciais não informavam nada e saíam quebradas em
-                      títulos com travessão ("BM – Convenção…" virava "B–"). */}
-                  <Td className="font-bold text-ink">{p.nome || "(sem título)"}</Td>
+                      títulos com travessão ("BM – Convenção…" virava "B–"). O nome é um botão de
+                      verdade: a linha abre pelo teclado também. */}
+                  <Td className="font-bold text-ink">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); navigate(`/projetos/${p.id}`); }}
+                      className="rounded-sm text-left hover:text-brand-forte focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+                    >
+                      {p.nome || "(sem título)"}
+                    </button>
+                  </Td>
                   <Td className="text-ink font-medium">{p.info?.produtoraResponsavel || "—"}</Td>
                   <Td className="text-ink font-medium whitespace-nowrap tabular-nums">{datasDoProjeto(p)}</Td>
                   {podeVerChecklist && (
@@ -158,6 +229,7 @@ export function Projetos() {
                       <ProgressoChecklist resumo={resumoPorProjeto.get(p.id)} />
                     </Td>
                   )}
+                  <Td align="center"><SeloPendencias n={porProjeto[p.id] ?? 0} rotulo="pendência(s) neste projeto" /></Td>
                   <Td align="center"><Badge tom={tomStatusProjeto[p.status]}>{p.status}</Badge></Td>
                 </Tr>
               ))}

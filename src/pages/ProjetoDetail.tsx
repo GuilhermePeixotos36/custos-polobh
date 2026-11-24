@@ -8,7 +8,7 @@ import { BarraProjeto } from "@/components/layout/BarraSecao";
 import { NAV_PROJETO } from "@/components/layout/nav";
 import {
   Card, CardTitle, Button, Field, Input, Label, TelefoneInput, Select, Badge,
-  Table, THead, Tr, Td, EmptyState, ThOrd, useOrdenacao, tomStatusOs, type Tom,
+  Table, THead, Tr, Td, EmptyState, ThOrd, useOrdenacao, type Tom,
   CarregandoTela,
 } from "@/components/ui";
 import { IcPlus, IcBack, IcDownload, IcSearch, IcTrash, IcEye, IcEyeOff, IcDoc, IcCopy, IcCalendar, IcPencil } from "@/components/icons";
@@ -17,7 +17,6 @@ import { InscricaoMunicipalInput } from "@/components/InscricaoMunicipalInput";
 import { TextosJaUsados } from "@/components/TextosJaUsados";
 import { TimelineConsolidada, type ItemConsolidado } from "@/components/Timeline";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
-import { ThPendencias, TdPendencias } from "@/components/ColunaPendencias";
 import { NotifDot } from "@/components/NotifDot";
 import { MoverSetas, moverNaLista } from "@/components/MoverSetas";
 import { ListaArrastavel, ItemArrastavel } from "@/components/ListaArrastavel";
@@ -56,13 +55,14 @@ import {
 } from "@/domain/mudancasEvento";
 import { ABAS_COM_CONVERSA } from "@/data/types";
 import { nomeCurtoFornecedor } from "@/domain/fornecedor";
-import type { AbaComConversa, Cliente, Ec, Observacao, Projeto, ProjetoInfo, StatusOsDoc, StatusProjeto } from "@/data/types";
+import type { AbaComConversa, Cliente, Ec, Observacao, Projeto, ProjetoInfo, StatusProjeto } from "@/data/types";
 import { ancoraConversaAba, ancoraProjetoSemEc, ancoraProjetoSemPastaDropbox, pendenciasDaTela, type Pendencia } from "@/domain/pendencias";
 import { CardConversa } from "@/components/CardConversa";
 import { ancoraFornecedorUtil } from "@/domain/dadosUteis";
-import { situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
-import { itensDaOs, osIncentivada } from "@/domain/os";
-import { ThItensOs, TdItensOs } from "@/components/ColunaItensOs";
+import { situacaoEc, ROTULO_SITUACAO_EC } from "@/domain/ec";
+import { osIncentivada } from "@/domain/os";
+import { ListaEcsDoProjeto } from "@/components/listas/ListaEcsDoProjeto";
+import { ListaOssDoProjeto } from "@/components/listas/ListaOssDoProjeto";
 import { CredenciamentoProjeto } from "@/components/CredenciamentoProjeto";
 import { dadosUteisDosFornecedores } from "@/domain/dadosUteis";
 import { EnvioCronograma } from "@/components/EnvioCronograma";
@@ -190,9 +190,6 @@ export function ProjetoDetail() {
   }, [trava.travado, trava.aviso, editando, novo]);
   /** Diferenças a repercutir em EC/OS depois de salvar (ver RepercutirMudancasModal). */
   const [repercussao, setRepercussao] = useState<{ mudancas: MudancaEvento[]; atual: SnapshotEvento } | null>(null);
-  const [filtroEc, setFiltroEc] = useState<"todas" | "ativas" | "arquivadas">("todas");
-  /** Mesmo filtro da EC, agora também na lista de OSs do projeto (15/09/2026). */
-  const [filtroOs, setFiltroOs] = useState<"todas" | StatusOsDoc>("todas");
   const [cnpjLoading, setCnpjLoading] = useState(false);
   const [cnpjMsg, setCnpjMsg] = useState("");
   const [cnpjFoco, setCnpjFoco] = useState(false);
@@ -232,10 +229,6 @@ export function ProjetoDetail() {
         .sort((a, b) => Number(b.ativa) - Number(a.ativa) || b.versao - a.versao),
     [ecsAll, id]
   );
-  const ecsFiltradas = useMemo(
-    () => ecsDoProjeto.filter((ec) => filtroEc === "todas" || (filtroEc === "ativas" ? ec.ativa : !ec.ativa)),
-    [ecsDoProjeto, filtroEc]
-  );
 
   const ecIds = useMemo(() => new Set(ecsDoProjeto.map((e) => e.id)), [ecsDoProjeto]);
   const ossDoProjeto = useMemo(() => (ossAll ?? []).filter((o) => ecIds.has(o.ecId)), [ossAll, ecIds]);
@@ -250,20 +243,6 @@ export function ProjetoDetail() {
     p.info.modalidade === "Cultural" ||
     ossDoProjeto.some((o) => o.status !== "Arquivada" && osIncentivada(o)) ||
     !!(p.info.projetoIncentivado || p.info.codigoProjetoIncentivado || p.info.leiIncentivo);
-  const ossFiltradas = useMemo(
-    () => ossDoProjeto.filter((os) => filtroOs === "todas" || os.status === filtroOs),
-    [ossDoProjeto, filtroOs]
-  );
-  /**
-   * Itens da EC que cada OS consolida — o conteúdo da caixinha do "olhinho" na
-   * lista de OSs. Calculado uma vez para todas, e não por linha: a busca é na
-   * lista inteira de ECs.
-   */
-  const itensPorOs = useMemo(() => {
-    const mapa: Record<string, ReturnType<typeof itensDaOs>> = {};
-    for (const o of ossDoProjeto) mapa[o.id] = itensDaOs(o, ecsAll ?? []);
-    return mapa;
-  }, [ossDoProjeto, ecsAll]);
   const statusExibido = useMemo(() => statusProjetoAutomatico(p, ecsDoProjeto), [p, ecsDoProjeto]);
   /** Dias desde o fim do evento — alimenta o lembrete de arquivar (ver abaixo). */
   const diasDesdeOEvento = useMemo(() => eventoEncerradoHaDias(p), [p]);
@@ -314,30 +293,7 @@ export function ProjetoDetail() {
     [ossDoProjeto, ecsAll]
   );
 
-  // Ordenação de todas as listagens desta tela — mesmo mecanismo da lista de Projetos.
-  const ecsOrdenadas = useOrdenacao(
-    ecsFiltradas,
-    {
-      pendencias: (e) => porEc[e.id] ?? 0,
-      titulo: (e) => tituloEc(e),
-      // Booleano em vez do rótulo: ordenado por texto, "Arquivada" viria antes de
-      // "Ativa". Como booleano, a EC ativa é sempre a primeira.
-      status: (e) => e.ativa,
-    },
-    // Padrão = ativa no topo; dentro do mesmo status, a ordenação estável preserva
-    // a da lista de origem (versão mais nova primeiro).
-    { col: "status", dir: "asc" }
-  );
-  const ossOrdenadas = useOrdenacao(
-    ossFiltradas,
-    {
-      pendencias: (o) => porOs[o.id] ?? 0,
-      numero: (o) => o.numero,
-      fornecedor: (o) => nomeCurtoFornecedor(o.fornecedor),
-      status: (o) => o.status,
-    },
-    { col: "numero", dir: "asc" }
-  );
+  // Ordenação da folha de Dados Úteis (as listas de EC e OS ordenam dentro de `components/listas`).
   const fornecedoresOrdenados = useOrdenacao(
     fornecedores,
     {
@@ -1259,59 +1215,8 @@ export function ProjetoDetail() {
               </div>
             )}
           </div>
-          <div className="px-5 pb-4 flex items-center gap-1 border-b border-border-soft" role="group" aria-label="Filtrar estimativas">
-            {([
-              ["todas", "Todas"],
-              // Sempre uma só: a estimativa que vale hoje (ver `domain/ec`).
-              ["ativas", "Ativa"],
-              // Todo o resto do projeto — versões anteriores e o que foi tirado
-              // do ar. É deste arquivo que se importa de volta.
-              ["arquivadas", "Arquivadas"],
-            ] as const).map(([valor, rotulo]) => (
-              <button
-                key={valor}
-                type="button"
-                aria-pressed={filtroEc === valor}
-                onClick={() => setFiltroEc(valor)}
-                className={cx(
-                  "h-8 rounded-pill px-3 text-xs font-bold transition-colors",
-                  filtroEc === valor ? "bg-primary-soft text-brand-forte" : "text-ink-2 hover:bg-muted hover:text-ink"
-                )}
-              >
-                {rotulo}
-              </button>
-            ))}
-          </div>
-          {ecsDoProjeto.length === 0 ? (
-            <div className="p-6"><EmptyState title="Nenhuma EC" hint="Crie a primeira EC deste projeto." /></div>
-          ) : ecsFiltradas.length === 0 ? (
-            <div className="p-6"><EmptyState title="Nenhuma EC neste filtro" hint="Selecione outro filtro para visualizar as demais estimativas." /></div>
-          ) : (
-            <Table>
-              <THead>
-                {/* Pendências em coluna própria, alinhadas à esquerda do título da EC. */}
-                <ThPendencias col="pendencias" ordem={ecsOrdenadas.ordem} onSort={ecsOrdenadas.ordenarPor} />
-                <ThOrd col="titulo" ordem={ecsOrdenadas.ordem} onSort={ecsOrdenadas.ordenarPor}>Título da EC</ThOrd>
-                <ThOrd col="status" align="center" ordem={ecsOrdenadas.ordem} onSort={ecsOrdenadas.ordenarPor}>Status</ThOrd>
-              </THead>
-              <tbody>
-                {ecsOrdenadas.ordenados.map((e) => (
-                  // O `id` é o endereço da linha para o navegador de pendências:
-                  // na subguia EC a pílula pisca a linha, e o detalhe (comentário,
-                  // campo a emitir) fica para a tela da EC.
-                  <Tr key={e.id} id={idAncoraPendencia(e.id)} onClick={() => navigate(`/estimativas/${e.id}`)}>
-                    <TdPendencias n={porEc[e.id] ?? 0} title="Ações pendentes suas nesta EC" />
-                    {/* Versão e data já vêm no próprio título ("EC – … (03) em 10 08 26"). */}
-                    <Td className={cx("font-bold", e.ativa ? "text-brand-forte" : "text-ink")}>{tituloEc(e)}</Td>
-                    {/* Dois estados, e só: no ar ou no arquivo (ver `domain/ec`). */}
-                    <Td align="center">
-                      <Badge tom={TOM_SITUACAO_EC[situacaoEc(e)]}>{ROTULO_SITUACAO_EC[situacaoEc(e)]}</Badge>
-                    </Td>
-                  </Tr>
-                ))}
-              </tbody>
-            </Table>
-          )}
+          {/* Lista no padrão (24/11/2026): busca, pílulas, ID/Versão/Data e filtro por coluna. */}
+          <ListaEcsDoProjeto ecs={ecsDoProjeto} porEc={porEc} onAbrir={(e) => navigate(`/estimativas/${e.id}`)} />
         </Card>
       )}
 
@@ -1360,57 +1265,8 @@ export function ProjetoDetail() {
       {aba === "os" && (
         <Card padded={false}>
           <div className="p-5"><CardTitle hint="Ordens de serviço geradas a partir das ECs deste projeto">Ordens de Serviço</CardTitle></div>
-          {/* Os mesmos filtros da lista de ECs (15/09/2026): a lista de OSs de um
-              projeto cresce a cada versão reemitida, e o que se procura quase
-              sempre é "as que ainda não saíram" ou "a que foi arquivada". */}
-          <div className="px-5 pb-4 flex items-center gap-1 flex-wrap border-b border-border-soft" role="group" aria-label="Filtrar ordens de serviço">
-            {([
-              ["todas", "Todas"],
-              ["Ativa", "Ativa"],
-              ["Emitida", "Emitida"],
-              ["Arquivada", "Arquivada"],
-            ] as const).map(([valor, rotulo]) => (
-              <button
-                key={valor}
-                type="button"
-                aria-pressed={filtroOs === valor}
-                onClick={() => setFiltroOs(valor)}
-                className={cx(
-                  "h-8 rounded-pill px-3 text-xs font-bold transition-colors",
-                  filtroOs === valor ? "bg-primary-soft text-brand-forte" : "text-ink-2 hover:bg-muted hover:text-ink"
-                )}
-              >
-                {rotulo}
-              </button>
-            ))}
-          </div>
-          {ossDoProjeto.length === 0 ? (
-            <div className="p-6"><EmptyState title="Nenhuma OS" hint="Gere OSs a partir das ECs do projeto." /></div>
-          ) : ossFiltradas.length === 0 ? (
-            <div className="p-6"><EmptyState title="Nenhuma OS neste filtro" hint="Selecione outro filtro para ver as demais ordens de serviço." /></div>
-          ) : (
-            <Table>
-              <THead>
-                <ThPendencias col="pendencias" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor} />
-                <ThOrd col="numero" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor}>OS</ThOrd>
-                {/* Sem rótulo: é o atalho para ver os itens, não uma coluna de dado. */}
-                <ThItensOs />
-                <ThOrd col="fornecedor" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor}>Fornecedor</ThOrd>
-                <ThOrd col="status" align="center" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor}>Status</ThOrd>
-              </THead>
-              <tbody>
-                {ossOrdenadas.ordenados.map((o) => (
-                  <Tr key={o.id} id={idAncoraPendencia(o.id)} onClick={() => navigate(`/ordens/${o.id}`)}>
-                    <TdPendencias n={porOs[o.id] ?? 0} title="Ações pendentes suas nesta OS" />
-                    <Td className="font-bold">{o.numero}</Td>
-                    <TdItensOs itens={itensPorOs[o.id] ?? []} />
-                    <Td>{nomeCurtoFornecedor(o.fornecedor) || "—"}</Td>
-                    <Td align="center"><Badge tom={tomStatusOs[o.status]}>{o.status}</Badge></Td>
-                  </Tr>
-                ))}
-              </tbody>
-            </Table>
-          )}
+          {/* Lista no padrão (24/11/2026): busca, pílulas, ID/Status/Fornecedor/Data e filtro por coluna. */}
+          <ListaOssDoProjeto oss={ossDoProjeto} ecs={ecsAll ?? []} porOs={porOs} onAbrir={(o) => navigate(`/ordens/${o.id}`)} />
         </Card>
       )}
 
