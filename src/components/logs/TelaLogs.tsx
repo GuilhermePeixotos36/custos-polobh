@@ -14,7 +14,7 @@ import { ComboBox } from "@/components/padrao/ComboBox";
 import { EsqueletoTabela } from "@/components/padrao/EsqueletoTabela";
 import { EstadoVazio } from "@/components/padrao/EstadoVazio";
 import { FilterPills, filterControlClass } from "@/components/padrao/FilterPills";
-import { FolderPanel, FolderTabsBar } from "@/components/padrao/FolderTabs";
+import { FolderPanel, FolderTabs, FolderTabsBar } from "@/components/padrao/FolderTabs";
 import { Presenca } from "@/components/padrao/JanelaModal";
 import { Selo } from "@/components/padrao/Selo";
 import { Button } from "@/components/padrao/button";
@@ -39,7 +39,7 @@ const ATALHOS: { value: Atalho; label: string }[] = [
   { value: "30", label: "30 dias" },
 ];
 
-export function TelaLogs({ consultar, podeExportar, carregarUsuarios, hoje: hojeProp }: {
+export function TelaLogs({ consultar, podeExportar, carregarUsuarios, hoje: hojeProp, aninhada = false }: {
   consultar: Consultar;
   /** Sem ela o botão "Exportar CSV" não aparece. */
   podeExportar: boolean;
@@ -47,6 +47,12 @@ export function TelaLogs({ consultar, podeExportar, carregarUsuarios, hoje: hoje
   carregarUsuarios?: () => Promise<{ valor: string; rotulo: string }[]>;
   /** Hoje (aaaa-mm-dd); o teste fixa. */
   hoje?: string;
+  /**
+   * A tela já mora no painel de outra pasta (a barra de Configurações, no Pólobh). Aí as abas
+   * Atividades · Acessos · Erros são a FILEIRA do padrão no branco do painel, e não uma segunda
+   * barra cinza com o próprio painel — pasta dentro de pasta, com duas molduras.
+   */
+  aninhada?: boolean;
 }) {
   const hoje = useMemo(() => hojeProp ?? hojeISO(), [hojeProp]);
   const [filtros, setFiltros] = useState<FiltrosLogs>(() => filtrosIniciais(hoje));
@@ -184,13 +190,23 @@ export function TelaLogs({ consultar, podeExportar, carregarUsuarios, hoje: hoje
 
   return (
     <div>
-      <FolderTabsBar<AbaLogs>
-        value={filtros.aba}
-        options={ABAS_LOGS}
-        onChange={(aba) => mudar({ aba })}
-        ariaLabel="Logs"
-      />
-      <FolderPanel semRecuo>
+      {aninhada ? (
+        <FolderTabs<AbaLogs>
+          value={filtros.aba}
+          options={ABAS_LOGS}
+          onChange={(aba) => mudar({ aba })}
+          ariaLabel="Logs"
+          className="px-4 pt-3"
+        />
+      ) : (
+        <FolderTabsBar<AbaLogs>
+          value={filtros.aba}
+          options={ABAS_LOGS}
+          onChange={(aba) => mudar({ aba })}
+          ariaLabel="Logs"
+        />
+      )}
+      <PainelDosLogs aninhada={aninhada}>
         <BarraFiltros
           busca={buscaDigitada}
           onBusca={setBuscaDigitada}
@@ -286,7 +302,7 @@ export function TelaLogs({ consultar, podeExportar, carregarUsuarios, hoje: hoje
             onPagina={(pagina) => setFiltros((f) => ({ ...f, pagina }))}
           />
         )}
-      </FolderPanel>
+      </PainelDosLogs>
 
       <Presenca valor={aberto}>
         {(item) => (
@@ -299,4 +315,9 @@ export function TelaLogs({ consultar, podeExportar, carregarUsuarios, hoje: hoje
       </Presenca>
     </div>
   );
+}
+
+/** O painel das abas dos logs — ou nada, quando a tela já está dentro do painel de outra pasta. */
+function PainelDosLogs({ aninhada, children }: { aninhada: boolean; children: React.ReactNode }) {
+  return aninhada ? <div>{children}</div> : <FolderPanel semRecuo>{children}</FolderPanel>;
 }

@@ -22,8 +22,11 @@ export function Logs() {
       title="Logs"
       subtitle="Quem entrou, o que foi alterado ou exportado e que erro apareceu — sem abrir o Supabase."
       subabas={<BarraConfiguracoes atual="logs" />}
+      // A tela dos logs traz as próprias abas (Atividades · Acessos · Erros) e a
+      // tabela de ponta a ponta: dentro do painel de Configurações, sem recuo.
+      painelSemRecuo
     >
-      <TelaLogs consultar={consultarComReserva} podeExportar={podeExportar} carregarUsuarios={carregarUsuariosDoFiltro} />
+      <TelaLogs aninhada consultar={consultarComReserva} podeExportar={podeExportar} carregarUsuarios={carregarUsuariosDoFiltro} />
     </PageShell>
   );
 }
