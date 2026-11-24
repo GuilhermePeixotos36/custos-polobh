@@ -138,23 +138,31 @@
    * cravado, um sangrava mais que o outro e a faixa saía torta.
    */
   --gutter: 16px;
-  --altura-topnav: 60px;
+  /* Sem topo no computador (casca do design system, 24/11/2026): a barra lateral não ocupa altura.
+     No celular o topo de 56px fica FORA do <main> que rola, então também não conta. */
+  --altura-topnav: 0px;
   /* Altura do cabeçalho grudado da página (título + ações + subabas). Valor de
      partida; o PageShell mede o bloco e atualiza a variável, porque ela cresce
      quando os botões quebram para uma segunda linha e quando a tela tem barra
      de subguias. Quem gruda DENTRO da página se posiciona abaixo de
      topnav + cabeçalho. */
   --altura-cabecalho: 96px;
-  /* Barra de menu fixa embaixo, só no celular (ver TopNav). */
-  --altura-nav-celular: 60px;
+  /* Menu inferior fixo do celular e do tablet (ver casca/MenuInferior): só existe no `movel:`. */
+  --altura-nav-celular: 0px;
 }
 
 /* Da largura md para cima volta a respiração do desktop. */
 @media (min-width: 768px) {
   :root {
-    --gutter: 40px;
-    --altura-nav-celular: 0px;
+    --gutter: 24px;
   }
+}
+@media (min-width: 96rem) {
+  :root { --gutter: 32px; }
+}
+/* A mesma regra do `movel:` (styles/layout.css). */
+@media (width < 64rem), (pointer: coarse) and (width < 90rem) {
+  :root { --altura-nav-celular: 4rem; }
 }
 
 /**

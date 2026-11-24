@@ -2,12 +2,14 @@ import { cx } from "@/lib/format";
 
 export type Tom = "success" | "warning" | "danger" | "info" | "neutral";
 
+// Os tons do `Selo` do design system (classes `.selo-*` em styles/padrao-lspro.css): fundo claro
+// + texto escuro do mesmo matiz, AA, sem anel. "info" vira o tom da marca (laranja-claro).
 const tons: Record<Tom, string> = {
-  success: "bg-success-soft text-success",
-  warning: "bg-warning-soft text-warning",
-  danger: "bg-danger-soft text-danger",
-  info: "bg-info-soft text-info",
-  neutral: "bg-[#F0F1F4] text-ink-2",
+  success: "selo-sucesso",
+  warning: "selo-atencao",
+  danger: "selo-perigo",
+  info: "selo-marca",
+  neutral: "selo-neutro",
 };
 
 export function Badge({
@@ -22,7 +24,7 @@ export function Badge({
   return (
     <span
       className={cx(
-        "inline-flex items-center rounded-pill px-2.5 py-1 text-[11.5px] font-bold leading-none whitespace-nowrap",
+        "inline-flex items-center rounded-full px-2 py-0.5 text-2xs font-semibold whitespace-nowrap",
         tons[tom],
         className
       )}

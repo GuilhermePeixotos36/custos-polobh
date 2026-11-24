@@ -16,7 +16,7 @@ import { cx } from "@/lib/format";
 export function Table({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div className="overflow-x-auto md:overflow-visible">
-      <table className={cx("w-full border-collapse text-sm", className)}>{children}</table>
+      <table className={cx("lista-matriz w-full text-sm", className)}>{children}</table>
     </div>
   );
 }
@@ -64,14 +64,13 @@ export function Th({
     <th
       aria-sort={ariaSort}
       className={cx(
-        "px-3 py-2.5 text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-ink-3",
-        grudado
-          ? // No celular a tabela rola de lado dentro do próprio contêiner, e o
-          // `sticky` passava a contar a partir DELE: o cabeçalho descia 150px
-          // e cobria as linhas (12/10/2026). Grudar só vale da tela média
-          // para cima, onde a tabela não tem rolagem própria.
-          "bg-surface border-b border-border md:border-b-0 md:sticky md:top-[calc(var(--altura-topnav)+var(--altura-cabecalho))] md:z-10 md:shadow-[inset_0_-1px_0_var(--border)]"
-          : "border-b border-border",
+        // Design system (24/11/2026): a `.lista-matriz` da tabela pinta o cabeçalho grafite cheio,
+        // as réguas e o traço laranja — a célula só dá o espaço e o tamanho do rótulo.
+        "px-4 py-3 text-xs font-semibold",
+        // No celular a tabela rola de lado dentro do próprio contêiner, e o `sticky` passava a
+        // contar a partir DELE: o cabeçalho descia 150px e cobria as linhas (12/10/2026). Grudar
+        // só vale da tela média para cima, onde a tabela não tem rolagem própria.
+        grudado && "md:sticky md:top-[calc(var(--altura-topnav)+var(--altura-cabecalho))] md:z-10",
         align === "right" && "text-right",
         align === "center" && "text-center",
         className
@@ -103,8 +102,8 @@ export function Tr({
       id={id}
       onClick={onClick}
       className={cx(
-        "border-b border-border-soft last:border-0",
-        onClick && "cursor-pointer hover:bg-[#FAFAFB]",
+        // Divisória e realce da linha vêm da `.lista-matriz`; nunca na `<tr>`.
+        onClick && "cursor-pointer",
         className
       )}
     >
@@ -125,7 +124,7 @@ export function Td({
   return (
     <td
       className={cx(
-        "px-3 py-3 text-ink align-middle",
+        "px-4 py-3 text-foreground align-middle",
         align === "right" && "text-right",
         align === "center" && "text-center",
         className

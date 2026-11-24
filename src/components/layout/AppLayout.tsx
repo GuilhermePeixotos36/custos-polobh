@@ -1,6 +1,12 @@
-import { Suspense, useCallback, useEffect, type ReactNode } from "react";
-import { Navigate, Outlet, useLocation } from "react-router-dom";
-import { TopNav } from "./TopNav";
+import { Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { CascaDoApp } from "./casca/CascaDoApp";
+import { ITENS_DE_NAVEGACAO } from "@/config/navegacao";
+import { SinoPendencias } from "@/components/SinoPendencias";
+import { MinhaContaModal } from "@/components/MinhaContaModal";
+import { useMinhasPendencias } from "@/store/pendencias";
+import { abrirSuporte } from "@/store/suporte";
+import { ROTULO_PAPEL } from "@/store/auth";
 import { Toaster } from "@/components/ui/Toaster";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useAuth } from "@/store/auth";
@@ -18,10 +24,31 @@ import { ConviteAvisos } from "@/components/ConviteAvisos";
 import { cx } from "@/lib/format";
 import { useVersaoDoApp } from "@/hooks/useVersaoDoApp";
 
-/** Casca autenticada: sidebar + área de conteúdo. */
+/**
+ * Casca autenticada (design system LSPRO, 24/11/2026): barra lateral clara no computador — marca,
+ * itens, sino de pendências e a conta no rodapé — e menu inferior no celular. O topo de antes
+ * (`TopNav`) saiu: no computador não há cabeçalho; o título de cada tela é o do `PageShell`.
+ */
 export function AppLayout() {
   const usuario = useAuth((s) => s.usuario);
   const carregando = useAuth((s) => s.carregando);
+  const pode = useAuth((s) => s.pode);
+  const sair = useAuth((s) => s.sair);
+  const navigate = useNavigate();
+  const { porRecurso } = useMinhasPendencias();
+  const [minhaConta, setMinhaConta] = useState(false);
+
+  // A lista do menu já filtrada pelo que a pessoa pode ver, com o contador de pendências e o
+  // clique do Help Desk (que abre o painel em vez de navegar).
+  const itens = useMemo(
+    () =>
+      ITENS_DE_NAVEGACAO.filter((i) => !i.recurso || pode(i.recurso) || !!i.ou?.some(pode)).map((i) => ({
+        ...i,
+        contador: i.pendencias && i.recurso ? porRecurso[i.recurso] ?? 0 : undefined,
+        aoClicar: i.painel === "suporte" ? () => abrirSuporte() : undefined,
+      })),
+    [pode, porRecurso]
+  );
   const carregarPendencias = usePendencias((s) => s.carregar);
   const carregarEmpresas = useEmpresas((s) => s.carregar);
   const { pathname } = useLocation();
@@ -50,42 +77,64 @@ export function AppLayout() {
 
   // Aguarda a sessão inicial resolver antes de decidir redirecionar.
   if (carregando) {
-    return <div className="min-h-screen grid place-items-center text-ink-3">Carregando…</div>;
+    return <div className="min-h-screen grid place-items-center text-muted-foreground">Carregando…</div>;
   }
   if (!usuario) return <Navigate to="/login" replace />;
 
   return (
-    <div className="flex flex-col min-h-screen pb-[calc(var(--altura-nav-celular)+env(safe-area-inset-bottom))] md:pb-0">
-      {/* Deploy novo publicado com a aba aberta: todos os perfis passam a ver o
-          mesmo aplicativo assim que clicam (ver `useVersaoDoApp`). */}
-      {versaoNova && (
-        <div className="no-print flex items-center justify-center gap-3 flex-wrap bg-primary text-white px-4 py-2 text-[13px] font-bold">
-          <span>Há uma versão nova do aplicativo. Atualize para usar a mais recente.</span>
-          <button
-            type="button"
-            onClick={() => window.location.reload()}
-            className="rounded-btn bg-white text-primary-dark px-3 py-1 text-[12.5px] font-extrabold hover:bg-primary-soft"
-          >
-            Atualizar agora
-          </button>
-        </div>
-      )}
-      <TopNav />
-      <ConviteAvisos />
-      <div className="flex-1 min-w-0 flex flex-col">
-        <Suspense fallback={<div className="flex-1 grid place-items-center text-ink-3 text-sm">Carregando…</div>}>
+    <CascaDoApp
+      marca="/icone-aviso.png"
+      nomeDoApp="Pólobh"
+      itens={itens}
+      caminho={pathname}
+      pessoa={{
+        nome: usuario.nome,
+        grupo: usuario.areaNome ?? ROTULO_PAPEL[usuario.papel],
+        email: usuario.email,
+        formaDeEntrada: "E-mail e senha",
+      }}
+      onSair={async () => {
+        await sair();
+        navigate("/login");
+      }}
+      // A troca de senha pela própria pessoa continua (decisão de 24/11/2026, exceção ao padrão de Acessos).
+      onAlterarSenha={() => setMinhaConta(true)}
+      // Tudo o que é cobrado da pessoa, em qualquer projeto — ver SinoPendencias.
+      extraDoRodape={(recolhida) => <div className={cx("flex", recolhida ? "justify-center" : "justify-start")}><SinoPendencias /></div>}
+      extraDoTopoMovel={<SinoPendencias />}
+      // O PageShell de cada tela cuida do recuo e da largura máxima.
+      telaCheia
+      faixaDoTopo={
+        /* Deploy novo publicado com a aba aberta: todos passam a ver o mesmo aplicativo assim
+           que clicam (ver `useVersaoDoApp`). */
+        versaoNova ? (
+          <div className="no-print flex items-center justify-center gap-3 flex-wrap bg-navy text-navy-foreground px-4 py-2 text-sm font-semibold">
+            <span>Há uma versão nova do aplicativo. Atualize para usar a mais recente.</span>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="rounded-md bg-brand text-primary-foreground px-3 py-1 text-xs font-semibold hover:bg-brand-vivid"
+            >
+              Atualizar agora
+            </button>
+          </div>
+        ) : undefined
+      }
+      antesDoConteudo={<ConviteAvisos />}
+    >
+      <div className="flex min-h-full flex-col">
+        <Suspense fallback={<div className="flex-1 grid place-items-center text-muted-foreground text-sm">Carregando…</div>}>
           <Outlet />
         </Suspense>
       </div>
       <Toaster />
       <ConfirmDialog />
-      {/* O tour atravessa várias rotas: a sobreposição precisa viver AQUI, na
-          casca, senão ela morreria na primeira troca de tela. */}
+      {/* O tour atravessa várias rotas: a sobreposição precisa viver AQUI, na casca. */}
       <TourOverlay />
-      {/* O Help Desk é um painel sobre a tela, e pelo mesmo motivo mora aqui:
-          ele abre de qualquer lugar do aplicativo sem tirar ninguém do lugar. */}
+      {/* O Help Desk é um painel sobre a tela: abre de qualquer lugar sem tirar ninguém do lugar. */}
       <PainelSuporte />
-    </div>
+      {minhaConta && <MinhaContaModal onClose={() => setMinhaConta(false)} />}
+    </CascaDoApp>
   );
 }
 
@@ -158,34 +207,34 @@ export function PageShell({
 
   return (
     <ProvedorRecolher>
-    <main className="flex-1 px-(--gutter) py-5 md:py-[30px] max-w-[1720px] w-full mx-auto">
+    {/* <div>, não <main>: o <main> é o da casca (um só por página). */}
+    <div className="flex-1 px-(--gutter) py-5 md:py-6 max-w-[1600px] w-full mx-auto">
       <div
         ref={medirCabecalho}
         className={cx(
           "cabecalho-pagina md:sticky top-(--altura-topnav) z-20 -mx-(--gutter) px-(--gutter) pt-3 mb-4",
-          // Translúcido com desfoque: encosta no degradê do fundo sem virar uma
-          // faixa chapada, e o conteúdo que passa por baixo continua legível.
-          "bg-bg/90 backdrop-blur-[6px]",
+          // Fundo da página quase cheio: o conteúdo que passa por baixo não atravessa o título.
+          "bg-background/95 backdrop-blur-[6px]",
           // Quem fecha o bloco embaixo é o fio da barra de subguias, quando ela
           // existe: dois fios colados viravam uma faixa dupla.
-          subabas ? "pb-0" : "pb-3 border-b border-border-soft"
+          subabas ? "pb-0" : "pb-3 border-b border-border"
         )}
       >
         {breadcrumb && (
-          <div className="mb-2 flex items-center gap-2 text-sm text-ink-2 font-semibold min-w-0">
+          <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground font-medium min-w-0">
             {breadcrumb}
           </div>
         )}
         <div className="flex items-end justify-between gap-4 flex-wrap">
           <div>
             <div className="flex items-center gap-2.5 flex-wrap">
-              <h1 className="font-display font-bold text-[30px] tracking-[-0.7px] text-ink leading-none">
+              <h1 className="text-[26px] font-bold tracking-tight text-foreground leading-tight">
                 {title}
               </h1>
               {titleAdornment}
             </div>
             {legenda}
-            {subtitle && <p className="text-ink-2 text-[15px] mt-2">{subtitle}</p>}
+            {subtitle && <p className="text-muted-foreground text-sm mt-1">{subtitle}</p>}
           </div>
           {/* O "Recolher tudo" saiu daqui (28/10/2026): cada bloco abre e fecha
               pela seta do próprio cabeçalho. */}
@@ -208,7 +257,7 @@ export function PageShell({
           (`--altura-pilula`, medida por ResizeObserver) e é ZERO nas telas que
           não têm pílula, então nenhuma página ganha um rodapé vazio. */}
       <div aria-hidden className="no-print" style={{ height: "calc(var(--altura-pilula, 0px) + 1.5rem)" }} />
-    </main>
+    </div>
     </ProvedorRecolher>
   );
 }
@@ -218,5 +267,5 @@ let observadorCabecalho: ResizeObserver | null = null;
 
 /** Item de breadcrumb simples. */
 export function Crumb({ children }: { children: ReactNode }) {
-  return <span className="text-ink font-bold">{children}</span>;
+  return <span className="text-foreground font-semibold">{children}</span>;
 }

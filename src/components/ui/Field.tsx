@@ -13,8 +13,10 @@ import {
 } from "@/lib/format";
 import { padronizarNomeGrupo, padronizarNomeItem } from "@/domain/textos";
 
+// O `campoCls` do design system LSPRO: borda de campo (`--input`, ~2,2:1, para ser achado),
+// hover laranja diluído e UM foco no app inteiro (borda laranja + anel de 15%).
 const fieldBase =
-  "w-full bg-surface border-[1.5px] border-[#BFC4CE] rounded-btn px-3.5 text-sm text-ink placeholder:text-ink-3 input-focus disabled:bg-[#EDEEF1] disabled:text-ink-2";
+  "w-full bg-card border border-input rounded-md px-3 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-colors hover:border-brand/40 focus:border-brand focus:ring-2 focus:ring-brand/15 disabled:bg-muted disabled:text-muted-foreground disabled:hover:border-input";
 /** Destaque de campo obrigatório não preenchido: contorno + preenchimento vermelhos. */
 const fieldErro = "border-danger! bg-danger-soft!";
 const dataIsoValida = (v: string) => {
@@ -47,8 +49,8 @@ export function Label({
 }) {
   return (
     <label htmlFor={htmlFor} className="block mb-1.5">
-      <span className="text-[12.5px] font-bold text-ink">{children}{obrigatorio && <MarcaObrigatorio />}</span>
-      {hint && <span className="text-[12px] text-ink-3 font-medium ml-1">{hint}</span>}
+      <span className="text-xs font-semibold text-muted-foreground">{children}{obrigatorio && <MarcaObrigatorio />}</span>
+      {hint && <span className="text-xs text-muted-foreground font-normal ml-1">{hint}</span>}
     </label>
   );
 }
@@ -135,7 +137,7 @@ export function Input({ className, type, onChange, value, onBlur, formato, erro,
   const temSugestoes = !!sugestoes?.length;
   const campo = (
     <input
-      className={cx(fieldBase, "h-11", erro && fieldErro, className)}
+      className={cx(fieldBase, "h-9 movel:h-10", erro && fieldErro, className)}
       type={type}
       list={temSugestoes ? idLista : undefined}
       onChange={onChange}
@@ -181,7 +183,7 @@ export function TelefoneInput({
   return (
     <div className={cx("grid grid-cols-[4.5rem_minmax(0,1fr)] gap-2 min-w-0", className)}>
       <input
-        className={cx(fieldBase, "h-11 w-18! px-2! text-center")}
+        className={cx(fieldBase, "h-9 movel:h-10 w-18! px-2! text-center")}
         inputMode="numeric"
         maxLength={2}
         placeholder="DDD"
@@ -194,7 +196,7 @@ export function TelefoneInput({
       />
       <input
         ref={numeroRef}
-        className={cx(fieldBase, "h-11 w-auto! min-w-0")}
+        className={cx(fieldBase, "h-9 movel:h-10 w-auto! min-w-0")}
         inputMode="tel"
         maxLength={10}
         placeholder="90000-0000"
@@ -254,7 +256,7 @@ export function Select({
   ...rest
 }: SelectHTMLAttributes<HTMLSelectElement> & { erro?: boolean }) {
   return (
-    <select className={cx(fieldBase, "h-11 pr-8 appearance-none bg-no-repeat", erro && fieldErro, className)}
+    <select className={cx(fieldBase, "h-9 movel:h-10 pr-8 appearance-none bg-no-repeat", erro && fieldErro, className)}
       style={{
         backgroundImage:
           "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236A6E78' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")",
@@ -299,7 +301,7 @@ function CampoData({ className, value, onChange, onBlur, erro, ...rest }: InputP
       type="date"
       min="1900-01-01"
       max="2100-12-31"
-      className={cx(fieldBase, "h-11", erro && fieldErro, className)}
+      className={cx(fieldBase, "h-9 movel:h-10", erro && fieldErro, className)}
       value={exibido}
       onChange={(e) => {
         setRascunho(e.target.value);
@@ -366,7 +368,7 @@ export function NumberInput({ value, onValue, className, onFocus, onBlur, ...res
     <input
       type="text"
       inputMode="decimal"
-      className={cx(fieldBase, "h-11 text-right", className)}
+      className={cx(fieldBase, "h-9 movel:h-10 text-right", className)}
       {...rest}
       value={campo.exibido}
       onFocus={(e) => { campo.aoFocar(); onFocus?.(e); }}
@@ -387,7 +389,7 @@ export function CurrencyInput({ value, onValue, className, onFocus, onBlur, ...r
       type="text"
       inputMode="decimal"
       placeholder="R$ 0,00"
-      className={cx(fieldBase, "h-11 text-right", className)}
+      className={cx(fieldBase, "h-9 movel:h-10 text-right", className)}
       {...rest}
       value={campo.exibido}
       onFocus={(e) => { campo.aoFocar(); onFocus?.(e); }}

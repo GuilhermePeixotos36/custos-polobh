@@ -1,3 +1,4 @@
+import { rolagemAtual, rolarPara, topoDaRolagem } from "@/lib/rolagem";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { PageShell } from "@/components/layout/AppLayout";
 import { Button, Card } from "@/components/ui";
@@ -1475,10 +1476,10 @@ export function Guia() {
     trazerParaALista(id);
     const card = conteudo.current;
     if (!card) return;
-    const alvo = window.scrollY + card.getBoundingClientRect().top - alturaDasCamadas();
-    if (window.scrollY <= alvo + 4) return;
+    const alvo = rolagemAtual() + card.getBoundingClientRect().top - topoDaRolagem() - alturaDasCamadas();
+    if (rolagemAtual() <= alvo + 4) return;
     const suave = !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    window.scrollTo({ top: Math.max(alvo, 0), behavior: suave ? "smooth" : "auto" });
+    rolarPara(alvo, suave);
   }
 
   /**

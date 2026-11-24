@@ -630,19 +630,19 @@
   }
 
   .texto-status-amarelo  { font-weight: 700; color: oklch(0.43 0.09 75); }
-  .texto-status-azul     { font-weight: 700; color: var(--color-brand); }
+  .texto-status-azul     { font-weight: 700; color: var(--color-brand-forte); }
   .texto-status-roxo     { font-weight: 700; color: oklch(0.45 0.19 295); }
   .texto-status-vermelho { font-weight: 700; color: oklch(0.47 0.19 27); }
   /* Tons do `Selo` (ui/Selo.tsx): fundo claro + texto escuro do mesmo matiz, AA. Azul, vermelho,
      amarelo, roxo e cinza repetem os de status acima; verde e vínculo são só do selo. */
   .selo-neutro   { --selo-fundo: var(--color-muted);        --selo-texto: var(--color-muted-foreground); }
-  .selo-marca    { --selo-fundo: var(--color-brand-soft);   --selo-texto: var(--color-brand); }
+  .selo-marca    { --selo-fundo: var(--color-brand-soft);   --selo-texto: var(--color-brand-forte); }
   .selo-sucesso  { --selo-fundo: oklch(0.96 0.04 165);      --selo-texto: var(--color-success); }
   .selo-perigo   { --selo-fundo: oklch(0.965 0.018 22);     --selo-texto: oklch(0.47 0.19 27); }
   .selo-atencao  { --selo-fundo: oklch(0.97 0.05 98);       --selo-texto: oklch(0.43 0.09 75); }
   .selo-roxo     { --selo-fundo: oklch(0.965 0.025 300);    --selo-texto: oklch(0.45 0.19 295); }
   .selo-cinza    { --selo-fundo: oklch(0.945 0.006 255);    --selo-texto: oklch(0.42 0.03 260); }
-  .selo-vinculo-clt       { --selo-fundo: var(--color-brand-soft); --selo-texto: var(--color-brand); }
+  .selo-vinculo-clt       { --selo-fundo: var(--color-brand-soft); --selo-texto: var(--color-brand-forte); }
   .selo-vinculo-pj        { --selo-fundo: oklch(0.965 0.025 300);  --selo-texto: oklch(0.45 0.19 295); }
   .selo-vinculo-estagio   { --selo-fundo: oklch(0.96 0.04 165);    --selo-texto: var(--color-success); }
   .selo-vinculo-aprendiz  { --selo-fundo: oklch(0.97 0.05 98);     --selo-texto: oklch(0.43 0.09 75); }

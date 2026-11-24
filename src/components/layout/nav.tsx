@@ -1,63 +1,6 @@
-import type { ReactNode } from "react";
 import type { Recurso } from "@/store/auth";
-import { IcCalendar, IcFluxo, IcFolder, IcGear, IcHelp, IcSuporte } from "@/components/icons";
 
-export interface NavItem {
-  to: string;
-  label: string;
-  /** Rótulo da barra de baixo, no celular (o espaço é de ~60px). */
-  rotuloCurto?: string;
-  icon: ReactNode;
-  recurso: Recurso;
-  /** Recursos alternativos: basta ter o principal OU um destes para o item aparecer. */
-  ou?: Recurso[];
-  /**
-   * Acende a bolinha vermelha de pendências neste item do menu.
-   *
-   * É por ITEM, e não pelo `recurso`: Calendário e Projetos usam o mesmo
-   * recurso de permissão, e por isso o Calendário herdava o número de Projetos
-   * sem ter uma única pendência para mostrar dentro dele — o quadro do ano é
-   * uma leitura de "quando cada projeto acontece", não uma lista de tarefas.
-   * Quem não declara, não conta.
-   */
-  pendencias?: boolean;
-  /**
-   * Este item abre um PAINEL sobre a tela, em vez de navegar.
-   *
-   * O Help Desk é o caso: quem pede ajuda está no meio de outra coisa, e trocar
-   * de tela faz a pessoa perder de vista justamente o que precisa descrever
-   * (ver `components/suporte/PainelSuporte`). O `to` continua existindo porque
-   * o e-mail de resposta aponta para ele — a rota abre o painel e devolve a
-   * pessoa para a tela de onde ela veio.
-   */
-  painel?: "suporte";
-}
-
-/**
- * O CABEÇALHO GERAL — cinco botões, e só (revisão de 09/09/2026).
- *
- * A barra tinha sete itens e misturava duas coisas: o que se faz todo dia
- * (Projetos, Calendário) com o que se administra de vez em quando (Áreas,
- * Usuários, Logs) e com cadastros que já vivem dentro do projeto (Fornecedores).
- * Na largura de um notebook os rótulos sumiam e sobrava uma fileira de ícones
- * parecidos.
- *
- * Agora o topo diz só ONDE se está no aplicativo, e cada lugar tem a sua
- * própria barra logo abaixo (ver `NAV_PROJETO` e `NAV_CONFIG`).
- *
- * O CALENDÁRIO vem primeiro porque é por ele que o dia começa: "o que acontece
- * esta semana" antes de "onde está cada projeto".
- */
-export const NAV: NavItem[] = [
-  { to: "/calendario", label: "Calendário Pólobh", rotuloCurto: "Calendário", icon: <IcCalendar />, recurso: "projetos" },
-  { to: "/projetos", label: "Projetos", icon: <IcFolder />, recurso: "projetos", pendencias: true },
-  // O FLUXOGRAMA fica entre Projetos e Configurações (pedido de 29/09/2026).
-  { to: "/fluxograma", label: "Fluxograma", rotuloCurto: "Fluxo", icon: <IcFluxo />, recurso: "guia" },
-  // A Coordenação não administra empresas e usuários, mas edita a lista padrão do check-list — por isso o `ou`.
-  { to: "/configuracoes", label: "Configurações", rotuloCurto: "Config.", icon: <IcGear />, recurso: "configuracoes", ou: ["checklists.padrao", "contratos.clausulas"] },
-  { to: "/guia", label: "Guia do Aplicativo", rotuloCurto: "Guia", icon: <IcHelp />, recurso: "guia" },
-  { to: "/suporte", label: "Help Desk", rotuloCurto: "Suporte", icon: <IcSuporte />, recurso: "guia", painel: "suporte" },
-];
+/* O cabeçalho geral (NAV) virou a barra lateral: ver src/config/navegacao.ts (24/11/2026). */
 
 /* ------------------------- os segundos cabeçalhos ------------------------- */
 

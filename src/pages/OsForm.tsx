@@ -1,3 +1,4 @@
+import { rolarPara } from "@/lib/rolagem";
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { EnderecoCampos } from "@/components/EnderecoCampos";
@@ -1206,7 +1207,7 @@ export function OsForm() {
       // "navegada" — como é a mesma rota da edição, a pessoa continuava no
       // formulário aberto.
       setEditando(false);
-      window.scrollTo({ top: 0 });
+      rolarPara(0);
       navigate(`/ordens/${salvo.id}`);
       return salvo;
     } catch (e) {

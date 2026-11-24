@@ -11,24 +11,26 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
   block?: boolean;
 }
 
+// Design system Pólobh (24/11/2026): mesmo desenho do `button` do padrão LSPRO
+// (components/padrao/button.tsx), com a API antiga do app para as telas não mudarem.
 const base =
-  "inline-flex items-center justify-center gap-2 font-bold rounded-btn transition-colors select-none disabled:cursor-not-allowed";
+  "inline-flex items-center justify-center gap-2 font-semibold rounded-md whitespace-nowrap select-none outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand/40 disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:shrink-0";
 
 const variants: Record<Variant, string> = {
-  // laranja é claro -> texto escuro (#2A1602)
-  primary:
-    "bg-primary-grad text-[#2A1602] shadow-btn hover:brightness-[1.03] disabled:bg-none disabled:bg-[#EEF1F7] disabled:text-[#A3ADC2] disabled:shadow-none",
-  dark: "bg-avatar-grad text-white hover:brightness-110",
-  secondary:
-    "bg-surface text-ink border-[1.5px] border-border hover:bg-[#FAFAFB]",
-  soft: "bg-primary-soft text-primary-dark hover:bg-[#FBE7CF]",
-  text: "text-ink-2 hover:text-ink hover:bg-[#F1F2F5]",
-  danger: "bg-danger-soft text-danger hover:bg-[#F7D9D9]",
+  // O laranja é claro: texto escuro sobre ele (`primary-foreground`, 6,7:1). Um primário por tela.
+  primary: "bg-brand text-primary-foreground shadow-(--sombra-botao) hover:bg-brand-vivid disabled:shadow-none",
+  dark: "bg-navy text-navy-foreground hover:bg-navy/90",
+  // Secundário = contorno: borda de campo, fundo branco, sem sombra.
+  secondary: "border border-input bg-card text-foreground hover:bg-muted hover:border-input",
+  soft: "bg-brand-soft text-brand-forte hover:bg-brand-soft/70",
+  text: "text-muted-foreground hover:text-foreground hover:bg-muted",
+  // Perigo suave: texto vermelho, fundo só no hover.
+  danger: "text-destructive hover:bg-destructive/10",
 };
 
 const sizes: Record<Size, string> = {
-  md: "h-11 px-4 text-sm",
-  sm: "h-9 px-3 text-[13px]",
+  md: "h-9 px-4 text-sm",
+  sm: "h-8 px-3 text-sm",
 };
 
 export function Button({

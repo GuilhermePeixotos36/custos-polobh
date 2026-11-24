@@ -18,6 +18,7 @@
  * Depois de um tempo de espera o passo desiste e devolve `null` — e o balão vai
  * para o centro com a explicação, em vez de apontar para o vazio.
  */
+import { rolagemAtual, rolarPara, topoDaRolagem } from "@/lib/rolagem";
 import { useEffect, useRef, useState } from "react";
 import { rolagemNecessaria, type Retangulo } from "./geometria";
 
@@ -121,8 +122,8 @@ function rolarAte(el: HTMLElement): void {
   const destino = rolagemNecessaria(
     { top: r.top, left: r.left, width: r.width, height: r.height },
     { altura: window.innerHeight },
-    alturaDasCamadas(),
-    window.scrollY
+    alturaDasCamadas() + topoDaRolagem(),
+    rolagemAtual()
   );
-  if (destino !== null) window.scrollTo({ top: destino, behavior: suave ? "smooth" : "auto" });
+  if (destino !== null) rolarPara(destino, suave);
 }
