@@ -1296,7 +1296,9 @@ service role pelo `supabase/functions/_shared/log.ts` (`comRegistroDeErros` embr
 5. rota barrada → `RequireRecurso`;
 6. exportação → **toda exportação nova chama `baixarArquivo`** (`src/lib/download.ts`), que
    registra; o que não vira download (impressão, salvar pelo seletor de pasta) chama
-   `registrarExportacao` na linha em que acontece.
+   `registrarExportacao` na linha em que acontece. O que o navegador grava é indício, não prova:
+   quem chama a Edge direto (o back-up, por exemplo) não passa por aqui — o back-up tem a tabela
+   `backups` no servidor.
 
 O registrador (`src/lib/logs/registrarLog.ts`) não importa o cliente Supabase: quem cria o
 cliente (`src/lib/supabaseClient.ts`) injeta o envio. Nada de `await` no registro (só o logout

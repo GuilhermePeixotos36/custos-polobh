@@ -35,21 +35,28 @@ export function chaveProibida(chave: string): boolean {
 const LIMITE_DETALHE_BYTES = 4096;
 const NIVEIS_MAX = 5;
 
-/** Tira caracteres de controle (viram espaço) e corta no tamanho. Não-texto vira "". */
+/**
+ * Corta no tamanho (antes, para texto enorme não custar CPU) e troca por espaço os caracteres de
+ * controle e os invisíveis de formatação (bidi, largura zero), que inverteriam ou esconderiam
+ * texto na tela. Não-texto vira "".
+ */
 export function cortar(valor: unknown, max: number): string {
   if (typeof valor !== "string") return "";
-  return valor.replace(/\p{Cc}/gu, " ").slice(0, max);
+  return valor.slice(0, max).replace(/[\p{Cc}\p{Cf}]/gu, " ").slice(0, max);
 }
 
 /**
- * Mensagem de erro costuma carregar dado pessoal: sequência de 11 dígitos (CPF, com ou sem
- * pontuação) vira `***` e o `Key (coluna)=(valor)` do Postgres perde o valor. A mesma regra mora
- * no banco (`private.mascarar_mensagem`).
+ * Mensagem de erro costuma carregar dado pessoal: CNPJ (14 dígitos) e CPF (11), com ou sem
+ * pontuação, viram `***`; o `Key (coluna)=(valor)` do Postgres perde o valor (também com índice de
+ * expressão, `Key (lower(email))=(…)`); e-mail vira `***`. A mesma regra mora no banco
+ * (`private.mascarar_mensagem`).
  */
 export function mascararMensagem(texto: string): string {
   return texto
+    .replace(/\b\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}\b/g, "***")
     .replace(/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g, "***")
-    .replace(/Key \(([^)]*)\)=\(([^)]*)\)/g, "Key ($1)=(***)");
+    .replace(/Key \((.*)\)=\((.*)\)/g, "Key ($1)=(***)")
+    .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, "***");
 }
 
 /** Caminho da rota sem query string nem fragmento. */
@@ -64,7 +71,10 @@ export function mascararEmail(email: unknown): string {
   const limpo = email.trim();
   const arroba = limpo.indexOf("@");
   if (arroba < 1) return "***";
-  return `${limpo.slice(0, arroba).slice(0, 2).toLowerCase()}***@${limpo.slice(arroba + 1).toLowerCase().slice(0, 100)}`;
+  const dominio = limpo.slice(arroba + 1).toLowerCase();
+  // O domínio só entra se for domínio: senão vira texto livre no log.
+  if (!/^[a-z0-9.-]{1,100}$/.test(dominio)) return "***";
+  return `${limpo.slice(0, arroba).slice(0, 2).toLowerCase()}***@${dominio}`;
 }
 
 function sanearNo(valor: unknown, nivel: number): unknown {
@@ -78,6 +88,8 @@ function sanearNo(valor: unknown, nivel: number): unknown {
     }
     return saida;
   }
+  // O valor também passa pela máscara (a pilha de um erro repete a mensagem na primeira linha).
+  if (typeof valor === "string") return mascararMensagem(valor);
   return valor;
 }
 
@@ -92,10 +104,13 @@ export function sanearDetalhe(detalhe: unknown): Record<string, unknown> | null 
 /**
  * IP de quem chamou: `cf-connecting-ip` quando existe; senão a ÚLTIMA entrada do `x-forwarded-for`
  * (a que o proxy acrescenta; as anteriores o cliente pode forjar), nunca a primeira. Só vale se
- * parecer IP: um valor torto derrubaria o insert na coluna `inet`.
+ * for IP de verdade (IPv4 com quatro partes de 0 a 255, ou IPv6): um valor torto derrubaria o
+ * insert na coluna `inet` e o evento inteiro sumiria.
  */
 export function ipDaRequisicao(req: Request | null | undefined): string | null {
-  const parece = (v: string) => /^[0-9a-fA-F:.]{3,45}$/.test(v);
+  const ipv4 = (v: string) => /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.test(v) && v.split(".").every((p) => Number(p) <= 255);
+  const ipv6 = (v: string) => /^[0-9a-fA-F:.]{2,45}$/.test(v) && (v.match(/:/g) ?? []).length >= 2 && (v.match(/::/g) ?? []).length <= 1;
+  const parece = (v: string) => ipv4(v) || ipv6(v);
   const cloudflare = (req?.headers.get("cf-connecting-ip") ?? "").trim();
   if (cloudflare) return parece(cloudflare) ? cloudflare : null;
   const entradas = (req?.headers.get("x-forwarded-for") ?? "").split(",").map((e) => e.trim()).filter(Boolean);
@@ -249,20 +264,26 @@ export function clienteDeLogDoAmbiente(): ClienteDeLog | null {
 
 /**
  * O motivo de uma resposta de erro que a própria função montou (`json({ erro: "…" }, 502)`): os
- * handlers do app devolvem `erro` ou `error`. Lê no máximo 2.000 caracteres de uma CÓPIA da
- * resposta — o corpo original segue intacto para quem chamou.
+ * handlers do app devolvem `erro` ou `error`. Lê uma CÓPIA da resposta — o corpo original segue
+ * intacto para quem chamou — e desiste em 500 ms (nenhuma função do app responde erro em
+ * streaming, mas o log não pode prender a resposta se um dia responder). O texto guardado é
+ * cortado depois, em `linhaDoLog`.
  */
 export async function motivoDaResposta(resposta: Response): Promise<string> {
+  const reserva = `Resposta ${resposta.status}`;
   try {
-    const texto = (await resposta.clone().text()).slice(0, 2000);
+    const texto = await Promise.race([
+      resposta.clone().text(),
+      new Promise<string>((resolver) => setTimeout(() => resolver(""), 500)),
+    ]);
     try {
       const corpo = JSON.parse(texto) as Record<string, unknown>;
       const motivo = corpo?.erro ?? corpo?.error ?? corpo?.message;
-      if (typeof motivo === "string" && motivo.trim()) return motivo;
+      if (typeof motivo === "string" && motivo.trim()) return motivo.slice(0, 2000);
     } catch { /* não era JSON: vale o texto */ }
-    return texto.trim() || `Resposta ${resposta.status}`;
+    return texto.trim().slice(0, 2000) || reserva;
   } catch {
-    return `Resposta ${resposta.status}`;
+    return reserva;
   }
 }
 
@@ -271,7 +292,8 @@ type Handler = (req: Request) => Response | Promise<Response>;
 const RESPOSTA_GENERICA = () =>
   new Response(JSON.stringify({ ok: false, erro: "Não foi possível concluir a operação." }), {
     status: 500,
-    headers: { "Content-Type": "application/json" },
+    // Com o CORS aberto, como as funções do app: o navegador mostra o JSON, não um erro de CORS.
+    headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
   });
 
 /**

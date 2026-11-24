@@ -11,7 +11,7 @@ import { JanelaModal } from "@/components/padrao/JanelaModal";
 import { Button } from "@/components/padrao/button";
 import { dataHoraBr, detalheComoTexto } from "@/lib/logs/csv";
 import {
-  ROTULO_NIVEL, ROTULO_ORIGEM_LOG, ROTULO_RESULTADO, antesEDepois, rotuloDaAcao, rotuloDaTela, type ItemLog,
+  ROTULO_NIVEL, ROTULO_RESULTADO, antesEDepois, rotuloDaAcao, rotuloDaOrigem, rotuloDaTela, type ItemLog,
 } from "@/lib/logs/logsStore";
 
 const traco = (valor: string | null | undefined) => (valor && valor.trim() ? valor : "—");
@@ -61,7 +61,7 @@ export function DetalheLog({ item, onFechar, onMesmaCorrelacao }: {
           <Campo rotulo="Ação">{rotuloDaAcao(item.acao)}</Campo>
           <Campo rotulo="Resultado">{ROTULO_RESULTADO[item.resultado] ?? traco(item.resultado)}</Campo>
           <Campo rotulo="Nível">{ROTULO_NIVEL[item.nivel] ?? traco(item.nivel)}</Campo>
-          <Campo rotulo="Origem">{ROTULO_ORIGEM_LOG[item.origem ?? ""] ?? traco(item.origem)}</Campo>
+          <Campo rotulo="Origem">{rotuloDaOrigem(item)}</Campo>
           <Campo rotulo="Tela">{traco(nomeDaTela)}</Campo>
           <Campo rotulo="Alvo">{traco(alvo)}</Campo>
           <Campo rotulo="IP">{traco(item.ip)}</Campo>

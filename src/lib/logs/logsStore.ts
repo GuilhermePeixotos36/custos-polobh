@@ -77,6 +77,16 @@ export const ROTULO_RESULTADO: Record<string, string> = { ok: "Ok", negado: "Neg
 export const ROTULO_ORIGEM_LOG: Record<string, string> = { app: "App", banco: "Banco", edge: "Servidor", rotina: "Rotina" };
 
 /**
+ * A origem como a tela a mostra. A linha da trilha antiga (`audit_log`) é marcada: ela é gravada
+ * pelo navegador e a policy dela só confere quem gravou (`user_id`), não o texto — não tem o mesmo
+ * peso de um evento do `log_evento`.
+ */
+export function rotuloDaOrigem(item: Pick<ItemLog, "fonte" | "origem">): string {
+  if (item.fonte === "auditoria") return "Trilha antiga";
+  return ROTULO_ORIGEM_LOG[item.origem ?? ""] ?? item.origem ?? "—";
+}
+
+/**
  * As telas do app para o filtro "Tela" e para mostrar o nome no lugar do caminho. O VALOR é o
  * caminho da rota — o único formato que o front grava. Montado a partir do `router.tsx` e do menu
  * (a Pólobh não tem catálogo de telas). As Edges gravam `edge/<função>`.
@@ -215,8 +225,13 @@ export function parametrosDaConsulta(f: FiltrosLogs, porPagina = POR_PAGINA): Re
   };
 }
 
-/** Antes e depois de uma alteração, quando o detalhe os traz. */
+/**
+ * Antes e depois de uma alteração, quando o detalhe os traz. Evento que o próprio navegador gravou
+ * (`log_evento` com origem 'app') nunca é "alteração de cadastro": um cliente poderia mandar
+ * `{ antes, depois }` no detalhe, e a tela mostraria como se fosse.
+ */
 export function antesEDepois(item: ItemLog): { antes: unknown; depois: unknown } | null {
+  if (item.fonte === "log" && item.origem === "app") return null;
   if (!item.detalhe || typeof item.detalhe !== "object") return null;
   const d = item.detalhe as { antes?: unknown; depois?: unknown };
   if (d.antes === undefined && d.depois === undefined) return null;
@@ -235,7 +250,9 @@ export class LogsIndisponiveis extends Error {
 
 export function funcaoAusente(erro: { message?: string; code?: string; status?: number } | null | undefined): boolean {
   if (!erro) return false;
-  return erro.code === "PGRST202" || erro.status === 404 || /could not find the function|schema cache/i.test(erro.message ?? "");
+  // Só "a função não existe" (PGRST202). Banco fora do ar ou cache de schema recarregando é outro
+  // erro: não pode prender a sessão na leitura de reserva.
+  return erro.code === "PGRST202" || /could not find the function/i.test(erro.message ?? "");
 }
 
 /**

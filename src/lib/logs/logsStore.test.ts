@@ -5,7 +5,7 @@ const rpc = vi.fn();
 vi.mock("@/lib/supabaseClient", () => ({ supabase: { rpc: (...a: unknown[]) => rpc(...a) } }));
 
 import {
-  buscaSeguraParaOr, coletarParaExportar, consultarLogs, filtrosAtivos, filtrosIniciais, itemDaTrilhaAntiga, limitarPeriodo,
+  antesEDepois, buscaSeguraParaOr, coletarParaExportar, funcaoAusente, rotuloDaOrigem, consultarLogs, filtrosAtivos, filtrosIniciais, itemDaTrilhaAntiga, limitarPeriodo,
   opcoesDeTela, parametrosDaConsulta, periodoPadrao, rotuloDaAcao, rotuloDaTela, semFiltrosDoPainel, LogsIndisponiveis,
   type Consultar, type ItemLog,
 } from "./logsStore";
@@ -123,5 +123,28 @@ describe("coletarParaExportar", () => {
     const r = await coletarParaExportar(filtrosIniciais("2026-03-10"), falso(1000), 300);
     expect(r.itens).toHaveLength(300);
     expect(r).toMatchObject({ total: 1000, cortou: true });
+  });
+});
+
+describe("ajustes da revisão de segurança", () => {
+  const base: ItemLog = {
+    id: "log:1", fonte: "log", em: "2026-03-10T12:00:00Z", categoria: "atividade", nivel: "info", acao: "exportacao", resultado: "ok",
+    atorId: null, atorNome: null, alvoTipo: null, alvoId: null, alvoRotulo: null, tela: null, origem: "app", mensagem: null,
+    detalhe: { antes: { a: 1 }, depois: { a: 2 } }, ip: null, userAgent: null, correlacao: null,
+  };
+
+  it("antes/depois mandado pelo navegador não vira 'alteração de cadastro'", () => {
+    expect(antesEDepois(base)).toBeNull();
+    expect(antesEDepois({ ...base, origem: "banco" })).toEqual({ antes: { a: 1 }, depois: { a: 2 } });
+  });
+
+  it("a trilha antiga aparece marcada na origem", () => {
+    expect(rotuloDaOrigem({ fonte: "auditoria", origem: "app" })).toBe("Trilha antiga");
+    expect(rotuloDaOrigem({ fonte: "log", origem: "edge" })).toBe("Servidor");
+  });
+
+  it("só PGRST202 conta como função ausente (cache de schema não prende a sessão na reserva)", () => {
+    expect(funcaoAusente({ code: "PGRST202" })).toBe(true);
+    expect(funcaoAusente({ code: "PGRST002", message: "Could not query the database for the schema cache" })).toBe(false);
   });
 });

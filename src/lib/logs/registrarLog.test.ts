@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  ACOES_DO_APP, LIMITE_MENSAGEM, criarRegistrador, prepararEvento, resumoDoErroJs, type EventoLog,
+  ACOES_DO_APP, LIMITE_MENSAGEM, criarRegistrador, prepararEvento, resumoDoErroJs, semSegredoNoCaminho, type EventoLog,
 } from "./registrarLog";
 
 const erro: EventoLog = { categoria: "erro", acao: "erro_js", mensagem: "x is not defined", tela: "/projetos" };
@@ -138,5 +138,19 @@ describe("erro de JavaScript", () => {
   it("aceita o que não é Error", () => {
     expect(resumoDoErroJs("texto").mensagem).toBe("texto");
     expect(resumoDoErroJs(undefined).mensagem).toBe("Erro sem mensagem");
+  });
+});
+
+describe("tela sem segredo", () => {
+  it("as rotas públicas perdem o token do caminho", () => {
+    expect(semSegredoNoCaminho("/credenciamento/abc123")).toBe("/credenciamento/:token");
+    expect(semSegredoNoCaminho("/cronograma/meu-evento")).toBe("/cronograma/:slug");
+    expect(semSegredoNoCaminho("/projetos/abc")).toBe("/projetos/abc");
+  });
+
+  it("a pilha não repete a mensagem (primeira linha do V8)", () => {
+    const e = new Error("cpf 123");
+    e.stack = ["Error: cpf 123", "at a", "at b"].join("\n");
+    expect(resumoDoErroJs(e).pilha).toBe("at a\nat b");
   });
 });

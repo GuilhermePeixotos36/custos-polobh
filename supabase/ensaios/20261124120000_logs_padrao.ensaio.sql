@@ -55,11 +55,36 @@ select public.registrar_falha_de_login('fulano@exemplo.com.br');
 select acao, resultado, ator_id, tela, mensagem from public.log_evento where acao = 'login_falhou' order by id desc limit 1;
 -- esperado: 'Falha de login: fu***@exemplo.com.br', ator_id nulo, tela '/login'
 
--- 7d. Só inserção: os dois devem falhar com 42501 (se algum passar, o bloco levanta erro).
+-- 7c'. Máscaras da mensagem (CNPJ, e-mail, Key com índice de expressão) e rota pública sem o token.
+select private.mascarar_mensagem('cnpj 12.345.678/0001-90 mail fulano@exemplo.com.br Key (lower(email))=(x@y.com) already exists') as esperado_mascarado;
+-- esperado: 'cnpj *** mail *** Key (lower(email))=(***) already exists'
+select private.mascarar_email('ab@ATENÇÃO ligue para 0800') as esperado_tres_asteriscos;
+set local role authenticated;
+select public.registrar_log(jsonb_build_object('acao', 'erro_js', 'tela', '/credenciamento/token-secreto-123', 'mensagem', 'teste rota pública'));
+reset role;
+select tela as esperado_credenciamento_token from public.log_evento where mensagem = 'teste rota pública' order by id desc limit 1;
+-- esperado: '/credenciamento/:token'
+
+-- 7d. Só inserção: os dois devem falhar com 42501 (se algum passar, o bloco levanta erro). Há
+--     linhas na tabela a esta altura (7a–7c'), então o gatilho é de fato exercitado.
 do $$ begin
   begin update public.log_evento set mensagem = 'x'; raise exception 'UPDATE passou'; exception when sqlstate '42501' then null; end;
   begin delete from public.log_evento; raise exception 'DELETE passou'; exception when sqlstate '42501' then null; end;
 end $$;
+
+-- 7d'. A sessão não escreve direto na tabela, e o anon não chama registrar_log (só a falha de login).
+set local role authenticated;
+do $$ begin
+  begin insert into public.log_evento (categoria, acao, origem) values ('acesso', 'login', 'app'); raise exception 'INSERT da sessão passou';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+set local role anon;
+do $$ begin
+  begin perform public.registrar_log('{"acao":"login"}'::jsonb); raise exception 'anon executou registrar_log';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
 
 -- 7e. Consulta: total e itens no formato do contrato.
 set local role authenticated;
@@ -87,6 +112,27 @@ do $$ begin
   raise exception 'consultar_logs deveria recusar com 42501';
 exception when sqlstate '42501' then null;
 end $$;
+reset role;
+
+-- 7f'. Uma área que ganhasse o recurso `logs` sem ser Administrador veria os eventos novos, mas
+--      não a trilha antiga: marca `logs` na área desse mesmo perfil (o rollback desfaz) e confere
+--      auditoriaIncluida = false. Perfil sem área com recursos: o bloco só avisa e segue.
+do $$
+declare
+  v_sub uuid := (current_setting('request.jwt.claims', true)::jsonb ->> 'sub')::uuid;
+  v_area uuid;
+begin
+  select p.area_id into v_area from public.perfis p join public.areas a on a.id = p.area_id
+   where p.id = v_sub and coalesce(cardinality(a.recursos), 0) > 0;
+  if v_area is null then
+    raise notice '7f'' pulado: o perfil de teste não tem área com recursos.';
+    return;
+  end if;
+  update public.areas set recursos = array_append(recursos, 'logs') where id = v_area;
+end $$;
+set local role authenticated;
+select public.consultar_logs('{"aba":"atividades"}'::jsonb) -> 'auditoriaIncluida' as esperado_false
+ where public.pode_ver_logs();   -- sem linha = 7f' foi pulado
 reset role;
 
 -- 7g. Agenda do expurgo criada dentro da transação (desfeita pelo rollback).

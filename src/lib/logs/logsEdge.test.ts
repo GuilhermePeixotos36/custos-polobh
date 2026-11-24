@@ -143,3 +143,34 @@ describe("listas que moram em dois lugares", () => {
     expect(helper.includes("\\" + "u")).toBe(false);
   });
 });
+
+describe("ajustes da revisão de segurança", () => {
+  it("mascara CNPJ, e-mail e o valor de Key com índice de expressão", () => {
+    expect(mascararMensagem("cnpj 12.345.678/0001-90 e 12345678000190")).toBe("cnpj *** e ***");
+    expect(mascararMensagem("falha para fulano@exemplo.com.br")).toBe("falha para ***");
+    expect(mascararMensagem("Key (lower(email))=(x@y.com) already exists")).toBe("Key (lower(email))=(***) already exists");
+  });
+
+  it("o valor de texto do detalhe também passa pela máscara (a pilha repete a mensagem)", () => {
+    expect(sanearDetalhe({ pilha: "Error: cpf 123.456.789-09\n  at x" })).toEqual({ pilha: "Error: cpf ***\n  at x" });
+  });
+
+  it("mascararEmail não deixa texto livre no lugar do domínio", () => {
+    expect(mascararEmail("ab@ATENÇÃO ligue para 0800")).toBe("***");
+  });
+
+  it("IP só se for IP de verdade; invisíveis de formatação viram espaço", () => {
+    expect(ipDaRequisicao(req({ "x-forwarded-for": "1.2.3" }))).toBeNull();
+    expect(ipDaRequisicao(req({ "x-forwarded-for": "999.1.1.1" }))).toBeNull();
+    expect(ipDaRequisicao(req({ "x-forwarded-for": "abc" }))).toBeNull();
+    expect(ipDaRequisicao(req({ "cf-connecting-ip": "2001:db8::1" }))).toBe("2001:db8::1");
+    expect(cortar("a" + String.fromCharCode(0x202e) + "b", 10)).toBe("a b");
+  });
+
+  it("a resposta genérica de erro sai com CORS aberto", async () => {
+    const espiao = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const r = await comRegistroDeErros("teste", () => { throw new Error("boom"); })(req({}));
+    expect(r.headers.get("Access-Control-Allow-Origin")).toBe("*");
+    espiao.mockRestore();
+  });
+});

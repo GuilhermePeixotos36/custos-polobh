@@ -11,7 +11,7 @@ import { Button } from "@/components/padrao/button";
 import { cn } from "@/lib/utils";
 import { dataHoraBr } from "@/lib/logs/csv";
 import {
-  POR_PAGINA, ROTULO_NIVEL, ROTULO_ORIGEM_LOG, ROTULO_RESULTADO, rotuloDaAcao, rotuloDaTela, type AbaLogs, type ItemLog,
+  POR_PAGINA, ROTULO_NIVEL, ROTULO_RESULTADO, rotuloDaAcao, rotuloDaOrigem, rotuloDaTela, type AbaLogs, type ItemLog,
 } from "@/lib/logs/logsStore";
 
 const TOM_RESULTADO: Record<string, TomDoSelo> = { ok: "sucesso", negado: "atencao", falha: "perigo" };
@@ -85,7 +85,7 @@ export function TabelaLogs({ aba, itens, total, pagina, ordem, recarregando, onA
                       <Selo tom={TOM_RESULTADO[item.resultado] ?? "neutro"}>{ROTULO_RESULTADO[item.resultado] ?? item.resultado}</Selo>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">{ROTULO_ORIGEM_LOG[item.origem ?? ""] ?? item.origem ?? "—"}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{rotuloDaOrigem(item)}</td>
                   <td className="whitespace-nowrap px-4 py-3 tabular-nums text-muted-foreground">{item.ip || "—"}</td>
                 </tr>
               );

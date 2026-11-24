@@ -204,7 +204,18 @@ function registradorDoApp() {
 /** O caminho da página sem a query: filtro e token nunca vão para o log. */
 export function telaAtual(): string | undefined {
   if (typeof window === "undefined") return undefined;
-  return window.location.pathname || undefined;
+  return semSegredoNoCaminho(window.location.pathname) || undefined;
+}
+
+/**
+ * As rotas públicas levam um segredo no caminho: o token do credenciamento é a credencial do
+ * formulário em que o fornecedor manda dados bancários, e o log é lido por toda área com o recurso
+ * `logs`. O caminho vai com o marcador no lugar do segredo. O banco repete a regra (`gravar_log`).
+ */
+export function semSegredoNoCaminho(caminho: string): string {
+  return caminho
+    .replace(/^\/credenciamento\/[^/]+/, "/credenciamento/:token")
+    .replace(/^\/cronograma\/[^/]+/, "/cronograma/:slug");
 }
 
 /**
@@ -213,7 +224,7 @@ export function telaAtual(): string | undefined {
  * primeira rota dela.
  */
 export function telaComoCaminho(tela: string | undefined): string | undefined {
-  return tela;
+  return tela === undefined ? undefined : semSegredoNoCaminho(tela);
 }
 
 /** Registra sem esperar e sem nunca falhar. A tela, se não vier, é a atual. */
@@ -250,10 +261,14 @@ export function registrarErroDeRequisicao(mensagem: string, codigo: string | und
   registrarLog({ categoria: "erro", nivel: "erro", acao: "erro_requisicao", resultado: "falha", mensagem, detalhe: { ...(codigo ? { codigo } : {}), ...(contexto ? { contexto } : {}) } });
 }
 
-/** Erro de JavaScript: a mensagem e as cinco primeiras linhas da pilha. Nada de dado de formulário. */
+/**
+ * Erro de JavaScript: a mensagem e cinco linhas da pilha. Nada de dado de formulário. A primeira
+ * linha da pilha do V8 repete a mensagem ("TypeError: …") e fica de fora: a mensagem já vai em
+ * `mensagem`, que o banco mascara.
+ */
 export function resumoDoErroJs(erro: unknown): { mensagem: string; pilha?: string } {
   if (erro instanceof Error) {
-    const pilha = erro.stack?.split("\n").slice(0, 5).join("\n");
+    const pilha = erro.stack?.split("\n").slice(1, 6).join("\n");
     return { mensagem: erro.message || erro.name, pilha };
   }
   return { mensagem: typeof erro === "string" ? erro : "Erro sem mensagem" };

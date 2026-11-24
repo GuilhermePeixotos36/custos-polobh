@@ -80,7 +80,8 @@ begin
   if p_id is null then
     return '';
   end if;
-  select coalesce(nullif(btrim(p.nome), ''), u.email, '')
+  -- Sem nome no perfil, o e-mail vai MASCARADO: o log é lido por toda área com o recurso `logs`.
+  select coalesce(nullif(btrim(p.nome), ''), private.mascarar_email(u.email), '')
     into v
     from auth.users u
     left join public.perfis p on p.id = u.id
@@ -187,7 +188,10 @@ create trigger log_evento_proteger_truncate
   for each statement execute function private.proteger_log_evento();
 
 -- --- Saneamento ----------------------------------------------------------
--- Caractere de controle vira espaço (quebra de linha forjada não cria "linha falsa") e o texto é cortado.
+-- Caractere de controle vira espaço (quebra de linha forjada não cria "linha falsa"), e também os
+-- invisíveis que invertem ou escondem texto na tela (bidi, largura zero). Corta ANTES do
+-- regexp_replace: um texto de megabytes não custa CPU à toa. A mesma ideia mora em
+-- `_shared/log.ts` (`cortar`, com as classes Cc e Cf).
 create or replace function private.limpar_texto(p text, p_max integer)
 returns text
 language sql
@@ -195,11 +199,12 @@ immutable
 set search_path = ''
 as $$
   select case when p is null then null
-              else left(regexp_replace(p, '[[:cntrl:]]', ' ', 'g'), p_max) end;
+              else left(regexp_replace(left(p, p_max), '[[:cntrl:]\u200B-\u200F\u202A-\u202E\u2060-\u2064\uFEFF]', ' ', 'g'), p_max) end;
 $$;
 
--- Mensagem de erro costuma carregar dado pessoal: CPF (11 dígitos, com ou sem pontuação) vira ***
--- e o `Key (coluna)=(valor)` do Postgres (violação de unicidade) perde o valor.
+-- Mensagem de erro costuma carregar dado pessoal: CNPJ (14 dígitos) e CPF (11), com ou sem
+-- pontuação, viram ***; o `Key (coluna)=(valor)` do Postgres (violação de unicidade) perde o valor
+-- — também com índice de expressão, `Key (lower(email))=(…)`; e-mail vira ***.
 -- A MESMA regra mora em `supabase/functions/_shared/log.ts` (mascararMensagem).
 create or replace function private.mascarar_mensagem(p text)
 returns text
@@ -209,8 +214,12 @@ set search_path = ''
 as $$
   select case when p is null then null
               else regexp_replace(
-                     regexp_replace(p, '\m\d{3}\.?\d{3}\.?\d{3}-?\d{2}\M', '***', 'g'),
-                     'Key \(([^)]*)\)=\(([^)]*)\)', 'Key (\1)=(***)', 'g')
+                     regexp_replace(
+                       regexp_replace(
+                         regexp_replace(p, '\m\d{2}\.?\d{3}\.?\d{3}/?\d{4}-?\d{2}\M', '***', 'g'),
+                         '\m\d{3}\.?\d{3}\.?\d{3}-?\d{2}\M', '***', 'g'),
+                       'Key \((.*)\)=\((.*)\)', 'Key (\1)=(***)', 'g'),
+                     '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}', '***', 'g')
          end;
 $$;
 
@@ -221,10 +230,13 @@ language sql
 immutable
 set search_path = ''
 as $$
+  -- O domínio só entra se for domínio: senão quem nem entrou (a falha de login é do anon)
+  -- escreveria texto livre na aba Acessos.
   select case
            when p is null or position('@' in btrim(p)) < 2 then '***'
+           when lower(btrim(substr(btrim(p), position('@' in btrim(p)) + 1))) !~ '^[a-z0-9.-]{1,100}$' then '***'
            else left(lower(btrim(split_part(btrim(p), '@', 1))), 2) || '***@'
-                || left(lower(btrim(substr(btrim(p), position('@' in btrim(p)) + 1))), 100)
+                || lower(btrim(substr(btrim(p), position('@' in btrim(p)) + 1)))
          end;
 $$;
 
@@ -270,13 +282,17 @@ begin
         into v_saida
         from jsonb_array_elements(p) with ordinality as t(e, ord);
       return v_saida;
+    when 'string' then
+      -- O valor também: a pilha de um erro de JavaScript repete a mensagem na primeira linha.
+      return to_jsonb(private.mascarar_mensagem(p #>> '{}'));
     else
       return p;
   end case;
 end;
 $$;
 
--- `detalhe` só pode ser objeto; acima de 4 KB vira {"cortado": true}.
+-- `detalhe` só pode ser objeto; acima de 4 KB vira {"cortado": true}. Acima de 64 KB nem é
+-- percorrido (um cliente autenticado mandando megabytes não custa CPU).
 create or replace function private.sanear_detalhe(p jsonb)
 returns jsonb
 language plpgsql
@@ -288,6 +304,9 @@ declare
 begin
   if p is null or jsonb_typeof(p) <> 'object' then
     return null;
+  end if;
+  if octet_length(p::text) > 65536 then
+    return '{"cortado": true}'::jsonb;
   end if;
   v := private.sanear_detalhe_no(p, 1);
   if octet_length(v::text) > 4096 then
@@ -392,8 +411,11 @@ begin
     private.limpar_texto(p_alvo_tipo, 60),
     private.limpar_texto(p_alvo_id, 200),
     private.limpar_texto(p_alvo_rotulo, 300),
-    -- A tela perde a query string e o fragmento: filtro e token nunca vão para o log.
-    private.limpar_texto(split_part(split_part(p_tela, '?', 1), '#', 1), 200),
+    -- A tela perde a query string e o fragmento (filtro e token nunca vão para o log), e as rotas
+    -- públicas perdem o segredo do caminho: o token do credenciamento é a credencial do formulário
+    -- em que o fornecedor manda dados bancários. O front faz o mesmo (`telaComoCaminho`).
+    private.limpar_texto(regexp_replace(regexp_replace(split_part(split_part(p_tela, '?', 1), '#', 1),
+      '^/credenciamento/[^/]+', '/credenciamento/:token'), '^/cronograma/[^/]+', '/cronograma/:slug'), 200),
     p_origem,
     left(coalesce(private.mascarar_mensagem(private.limpar_texto(p_mensagem, 500)), ''), 500),
     private.sanear_detalhe(p_detalhe),
@@ -624,7 +646,7 @@ begin
     --   nível     info/aviso/erro (os mesmos nomes);
     --   resultado 'negado' para acesso negado e senha recusada, 'falha' para nível erro;
     --   alvo      tipo = a categoria antiga ("EC", "OS", "Autenticação"…), id = alvo_id;
-    --   origem    'app' (quase tudo vem do front).
+    --   origem    'app' (quase tudo vem do front); a tela marca a linha como "trilha antiga".
     union all
     select 'auditoria:' || a.id::text, 'auditoria'::text, a.ts, 'atividade'::text,
            case when a.nivel in ('info', 'aviso', 'erro') then a.nivel else 'info' end,
@@ -632,7 +654,9 @@ begin
            case when a.acao ilike '%negad%' or a.acao ilike '%recusad%' then 'negado'
                 when a.nivel = 'erro' then 'falha'
                 else 'ok' end,
-           a.user_id, coalesce(a.usuario, ''), a.categoria, a.alvo_id, null::text, null::text, 'app'::text,
+           -- O nome vem do PERFIL de `user_id` (o único campo que a policy de INSERT da audit_log
+           -- confere); o `usuario` gravado pelo navegador é texto livre e só vale de reserva.
+           a.user_id, coalesce(nullif(private.nome_do_ator(a.user_id), ''), a.usuario, ''), a.categoria, a.alvo_id, null::text, null::text, 'app'::text,
            a.mensagem,
            nullif(jsonb_strip_nulls(jsonb_build_object('categoria', a.categoria, 'papel', a.papel)), '{}'::jsonb),
            null::text, null::text, null::uuid
@@ -684,8 +708,10 @@ end;
 $$;
 
 -- --- Expurgo ---------------------------------------------------------------------
--- Em lotes de 5.000, para não segurar lock. É o ÚNICO caminho que apaga log. Não toca na
--- `audit_log` (a retenção dela é a de `aplicar_retencao_de_dados`, 2 anos).
+-- Em lotes de 5.000 (cada `delete` fica pequeno; a função toda ainda é uma transação só — o job
+-- roda de madrugada). É o ÚNICO caminho que apaga log. Não toca na `audit_log` (a retenção dela
+-- é a de `aplicar_retencao_de_dados`, 2 anos). A falha de login, que o anon consegue gerar em
+-- volume, fica só 90 dias (o resto da categoria acesso, 12 meses).
 create or replace function private.expurgar_logs()
 returns void
 language plpgsql
@@ -697,6 +723,16 @@ declare
   v_linhas integer;
 begin
   perform set_config('app.logs_expurgo', '1', true);
+  loop
+    delete from public.log_evento
+     where id in (
+       select l.id from public.log_evento l
+        where l.acao = 'login_falhou' and l.em < now() - interval '90 days'
+        limit 5000
+     );
+    get diagnostics v_linhas = row_count;
+    exit when v_linhas = 0;
+  end loop;
   for v_regra in
     select * from (values
       ('erro', interval '90 days'),
@@ -729,20 +765,20 @@ grant execute on function public.registrar_log(jsonb) to authenticated, service_
 grant execute on function public.registrar_falha_de_login(text) to anon, authenticated, service_role;
 grant execute on function public.consultar_logs(jsonb) to authenticated, service_role;
 
-revoke all on function private.pode_auditar_trilha() from public;
-revoke all on function private.nome_do_ator(uuid) from public;
-revoke all on function private.situacao_do_ator(uuid) from public;
-revoke all on function private.mascarar_mensagem(text) from public;
-revoke all on function private.proteger_log_evento() from public;
-revoke all on function private.limpar_texto(text, integer) from public;
-revoke all on function private.mascarar_email(text) from public;
-revoke all on function private.sanear_detalhe_no(jsonb, integer) from public;
-revoke all on function private.sanear_detalhe(jsonb) from public;
-revoke all on function private.cabecalho_da_requisicao(text) from public;
-revoke all on function private.ip_da_requisicao() from public;
-revoke all on function private.gravar_log(text, text, text, text, uuid, text, text, text, text, text, text, jsonb, text, inet, text, text, text) from public;
-revoke all on function private.registrar_log_interno(text, text, text, text, uuid, text, text, text, text, text, jsonb, text) from public;
-revoke all on function private.expurgar_logs() from public;
+revoke all on function private.pode_auditar_trilha() from public, anon, authenticated;
+revoke all on function private.nome_do_ator(uuid) from public, anon, authenticated;
+revoke all on function private.situacao_do_ator(uuid) from public, anon, authenticated;
+revoke all on function private.mascarar_mensagem(text) from public, anon, authenticated;
+revoke all on function private.proteger_log_evento() from public, anon, authenticated;
+revoke all on function private.limpar_texto(text, integer) from public, anon, authenticated;
+revoke all on function private.mascarar_email(text) from public, anon, authenticated;
+revoke all on function private.sanear_detalhe_no(jsonb, integer) from public, anon, authenticated;
+revoke all on function private.sanear_detalhe(jsonb) from public, anon, authenticated;
+revoke all on function private.cabecalho_da_requisicao(text) from public, anon, authenticated;
+revoke all on function private.ip_da_requisicao() from public, anon, authenticated;
+revoke all on function private.gravar_log(text, text, text, text, uuid, text, text, text, text, text, text, jsonb, text, inet, text, text, text) from public, anon, authenticated;
+revoke all on function private.registrar_log_interno(text, text, text, text, uuid, text, text, text, text, text, jsonb, text) from public, anon, authenticated;
+revoke all on function private.expurgar_logs() from public, anon, authenticated;
 
 -- --- Agenda do expurgo (todo dia, 04:30 UTC) -----------------------------------------
 -- O projeto já tem pg_cron (retencao-de-dados, backup-diario…). Sem a extensão a migration passa,
