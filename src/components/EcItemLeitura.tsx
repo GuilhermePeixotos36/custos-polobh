@@ -62,7 +62,7 @@ export function EcItemLeitura({
         <div className="flex flex-col items-center gap-1 shrink-0 pt-1">
           <input
             type="checkbox"
-            className="h-4 w-4 accent-[#F2820D] cursor-pointer"
+            className="h-4 w-4 accent-primary cursor-pointer"
             checked={selecionado}
             onChange={onSelecionar}
             aria-label={`Selecionar item ${l.item || "sem título"}`}
@@ -79,7 +79,7 @@ export function EcItemLeitura({
           />
         </div>
 
-        <div className="flex-1 min-w-[12rem] pt-1">
+        <div className="flex-1 min-w-48 pt-1">
           <div className="font-bold text-ink text-[13.5px]">{l.item || "—"}</div>
           {l.descricao && <div className="text-[12.5px] text-ink-2 whitespace-pre-wrap mt-0.5">{l.descricao}</div>}
           {veDescricaoCompleta && l.descricaoCompleta && (
@@ -101,10 +101,10 @@ export function EcItemLeitura({
 
       {/* Linha 2: status e contratação, com a mesma largura dos campos da edição. */}
       <div className="flex flex-wrap items-end gap-x-2 gap-y-2 px-2.5 pb-2.5 pt-2 border-t border-border-soft bg-[#FCFCFD] rounded-b-card min-w-0">
-        <Campo label="Aprovação" className="w-[7rem] shrink-0">
+        <Campo label="Aprovação" className="w-28 shrink-0">
           {editavelStatus ? (
             <Select
-              className={cx("!h-9 !px-2 !text-[12.5px]", classeCampoStatus(l.statusAprovacao))}
+              className={cx("h-9! px-2! text-[12.5px]!", classeCampoStatus(l.statusAprovacao))}
               value={l.statusAprovacao}
               onChange={(e) => onStatus({ aprovacao: e.target.value as "Pendente" | "OK" })}
               aria-label={`Aprovação do item ${l.item || "sem título"}`}
@@ -118,18 +118,18 @@ export function EcItemLeitura({
         </Campo>
         {/* Os dois levam id próprio: "OS/Contrato a emitir" é pendência, e o
             navegador pisca este campo em vez da linha inteira. */}
-        <Campo label="OS" className="w-[9.5rem] shrink-0" id={idCampoPendencia(l.id, "os")}>
+        <Campo label="OS" className="w-38 shrink-0" id={idCampoPendencia(l.id, "os")}>
           {editavelStatus ? (
-            <Select className={cx("!h-9 !px-2 !text-[12.5px]", classeCampoStatus(l.statusOs))} value={l.statusOs} onChange={(e) => onStatus({ os: e.target.value as EcLinha["statusOs"] })} aria-label={`OS do item ${l.item || "sem título"}`}>
+            <Select className={cx("h-9! px-2! text-[12.5px]!", classeCampoStatus(l.statusOs))} value={l.statusOs} onChange={(e) => onStatus({ os: e.target.value as EcLinha["statusOs"] })} aria-label={`OS do item ${l.item || "sem título"}`}>
               {OPCOES_STATUS_OS.map((o) => <option key={o}>{o}</option>)}
             </Select>
           ) : (
             <Badge tom={tomDoStatus(l.statusOs)}>{l.statusOs}</Badge>
           )}
         </Campo>
-        <Campo label="Contrato" className="w-[9.5rem] shrink-0" id={idCampoPendencia(l.id, "contrato")}>
+        <Campo label="Contrato" className="w-38 shrink-0" id={idCampoPendencia(l.id, "contrato")}>
           {editavelStatus ? (
-            <Select className={cx("!h-9 !px-2 !text-[12.5px]", classeCampoStatus(l.contratoStatus))} value={l.contratoStatus} onChange={(e) => onStatus({ contrato: e.target.value as EcLinha["contratoStatus"] })} aria-label={`Contrato do item ${l.item || "sem título"}`}>
+            <Select className={cx("h-9! px-2! text-[12.5px]!", classeCampoStatus(l.contratoStatus))} value={l.contratoStatus} onChange={(e) => onStatus({ contrato: e.target.value as EcLinha["contratoStatus"] })} aria-label={`Contrato do item ${l.item || "sem título"}`}>
               {OPCOES_STATUS_OS.map((o) => <option key={o}>{o}</option>)}
             </Select>
           ) : (
@@ -139,13 +139,13 @@ export function EcItemLeitura({
         <Campo label="Fornecedor (CNPJ / Razão social)" className="basis-full min-w-0 sm:basis-auto sm:flex-[2_1_22rem] sm:min-w-[16rem]">
           <Texto valor={l.fornecedorRazao} extra={l.fornecedorCnpj} />
         </Campo>
-        <Campo label="Documento PG" className="flex-[1_1_8rem] min-w-[7rem]">
+        <Campo label="Documento PG" className="flex-[1_1_8rem] min-w-28">
           <Texto valor={l.faturaNf} />
         </Campo>
-        <Campo label="Código de Serviço" className="flex-[1_1_8rem] min-w-[7rem]">
+        <Campo label="Código de Serviço" className="flex-[1_1_8rem] min-w-28">
           {l.codigoServico.trim() ? <Badge tom={tomDoStatus(l.codigoServico)}>{l.codigoServico}</Badge> : <Texto valor="" />}
         </Campo>
-        <Campo label="Pedido de Compra" className="flex-[1_1_8rem] min-w-[7rem]">
+        <Campo label="Pedido de Compra" className="flex-[1_1_8rem] min-w-28">
           {l.pedidoCompra.trim() ? <Badge tom={tomDoStatus(l.pedidoCompra)}>{l.pedidoCompra}</Badge> : <Texto valor="" />}
         </Campo>
       </div>
@@ -169,7 +169,7 @@ function ValorItem({ rotulo, valor }: { rotulo: string; valor: number }) {
 function Campo({ label, className, children, id }: { label: string; className?: string; children: ReactNode; id?: string }) {
   return (
     <div id={id} className={cx("block", className)}>
-      <span className="block text-[10.5px] font-extrabold uppercase tracking-[0.05em] text-ink-3 mb-1 truncate">{label}</span>
+      <span className="block text-[10.5px] font-extrabold uppercase tracking-wider text-ink-3 mb-1 truncate">{label}</span>
       <div className="min-h-9 flex items-center">{children}</div>
     </div>
   );

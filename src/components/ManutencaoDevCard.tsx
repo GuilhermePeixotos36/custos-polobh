@@ -127,11 +127,11 @@ function ManutencaoDev() {
                 usuários, áreas, empresas do grupo, configurações nem as listas padrão do check-list.
               </p>
               <label className="flex items-center gap-2 text-[12.5px] font-bold text-ink-2">
-                <input type="checkbox" className="h-4 w-4 accent-[#F2820D]" checked={cadastros} onChange={(e) => setCadastros(e.target.checked)} />
+                <input type="checkbox" className="h-4 w-4 accent-primary" checked={cadastros} onChange={(e) => setCadastros(e.target.checked)} />
                 Apagar também clientes e fornecedores
               </label>
               <label className="flex items-center gap-2 text-[12.5px] font-bold text-ink-2">
-                <input type="checkbox" className="h-4 w-4 accent-[#F2820D]" checked={historico} onChange={(e) => setHistorico(e.target.checked)} />
+                <input type="checkbox" className="h-4 w-4 accent-primary" checked={historico} onChange={(e) => setHistorico(e.target.checked)} />
                 Apagar também o histórico (logs, e-mails, chamados, registros de back-up)
               </label>
               <div className="grid gap-2 sm:grid-cols-2">

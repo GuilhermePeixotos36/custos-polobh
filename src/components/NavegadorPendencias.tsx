@@ -150,7 +150,7 @@ function SetaPendencia({ direcao, onClick }: { direcao: "anterior" | "proxima"; 
       aria-label={acima ? "Pendência anterior" : "Próxima pendência"}
       title={acima ? "Pendência anterior" : "Próxima pendência"}
       className={cx(
-        "inline-flex h-5 w-6 items-center justify-center rounded text-ink-2",
+        "inline-flex h-5 w-6 items-center justify-center rounded-sm text-ink-2",
         "hover:bg-danger-soft hover:text-danger transition-colors"
       )}
     >

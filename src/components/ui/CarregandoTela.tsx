@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
  * escurecido, enquanto o app salva ou revisa. Antes só o texto do botão mudava
  * ("Salvando…"), e quem não estava olhando para ele seguia clicando na tela.
  *
- * Fica ABAIXO dos diálogos (z-[85] < z-[90] do ConfirmDialog): a pergunta e o
+ * Fica ABAIXO dos diálogos (z-[85] < z-90 do ConfirmDialog): a pergunta e o
  * aviso de falha da revisão aparecem por cima dela.
  */
 export function CarregandoTela({ texto = "Salvando…" }: { texto?: string }) {
@@ -13,7 +13,7 @@ export function CarregandoTela({ texto = "Salvando…" }: { texto?: string }) {
     <div
       role="status"
       aria-live="polite"
-      className="no-print fixed inset-0 z-[85] flex items-center justify-center bg-black/40 backdrop-blur-[1px]"
+      className="no-print fixed inset-0 z-85 flex items-center justify-center bg-black/40 backdrop-blur-[1px]"
     >
       <div className="flex flex-col items-center gap-3 rounded-card-lg bg-surface px-8 py-6 shadow-modal border border-border">
         <svg

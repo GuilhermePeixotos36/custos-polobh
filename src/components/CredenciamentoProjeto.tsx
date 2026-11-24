@@ -262,7 +262,7 @@ function CamposDoFormulario({
               type="checkbox"
               checked={escolhidos.includes(campo)}
               onChange={() => alternar(campo)}
-              className="h-4 w-4 accent-[color:var(--cor-primaria,#F2820D)]"
+              className="h-4 w-4 accent-(--cor-primaria,#F2820D)"
             />
             {rotulo}
             {dica && <span className="text-[11.5px] text-ink-3">({dica})</span>}
@@ -297,7 +297,7 @@ function PrazoEmLote({
     <Card>
       <CardTitle hint="Vai como Prazo para envio na mensagem ao fornecedor — costuma ser o mesmo para o evento inteiro">Prazo limite do credenciamento</CardTitle>
       <div className="flex items-end gap-2 flex-wrap">
-        <Input type="date" className="max-w-[12rem]" value={prazo} onChange={(e) => onPrazo(e.target.value)} />
+        <Input type="date" className="max-w-48" value={prazo} onChange={(e) => onPrazo(e.target.value)} />
         <Button variant="secondary" size="sm" disabled={!prazo} onClick={onAplicar}>
           Aplicar às {quantas} OS(s)
         </Button>

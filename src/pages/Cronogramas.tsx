@@ -77,7 +77,7 @@ export function Cronogramas() {
       subtitle="Linha do tempo do projeto por fornecedor, com link público para envio."
       topAction={
         <div className="flex items-center gap-2 flex-wrap max-w-full">
-          <Select className="!h-9 !w-auto min-w-0 max-w-full sm:min-w-[220px]" value={ecSel?.id ?? ""} onChange={(e) => setEcId(e.target.value)}>
+          <Select className="h-9! w-auto! min-w-0 max-w-full sm:min-w-[220px]" value={ecSel?.id ?? ""} onChange={(e) => setEcId(e.target.value)}>
             {opcoes.map((e) => (
               <option key={e.id} value={e.id}>{e.projeto.titulo || e.numero}</option>
             ))}

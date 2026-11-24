@@ -16,7 +16,7 @@ import { padronizarNomeGrupo, padronizarNomeItem } from "@/domain/textos";
 const fieldBase =
   "w-full bg-surface border-[1.5px] border-[#BFC4CE] rounded-btn px-3.5 text-sm text-ink placeholder:text-ink-3 input-focus disabled:bg-[#EDEEF1] disabled:text-ink-2";
 /** Destaque de campo obrigatório não preenchido: contorno + preenchimento vermelhos. */
-const fieldErro = "!border-danger !bg-danger-soft";
+const fieldErro = "border-danger! bg-danger-soft!";
 const dataIsoValida = (v: string) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
   const ano = Number(v.slice(0, 4));
@@ -181,7 +181,7 @@ export function TelefoneInput({
   return (
     <div className={cx("grid grid-cols-[4.5rem_minmax(0,1fr)] gap-2 min-w-0", className)}>
       <input
-        className={cx(fieldBase, "h-11 !w-[4.5rem] !px-2 text-center")}
+        className={cx(fieldBase, "h-11 w-18! px-2! text-center")}
         inputMode="numeric"
         maxLength={2}
         placeholder="DDD"
@@ -194,7 +194,7 @@ export function TelefoneInput({
       />
       <input
         ref={numeroRef}
-        className={cx(fieldBase, "h-11 !w-auto min-w-0")}
+        className={cx(fieldBase, "h-11 w-auto! min-w-0")}
         inputMode="tel"
         maxLength={10}
         placeholder="90000-0000"

@@ -78,7 +78,7 @@ function CampoFuncoes({
   useEffect(() => setTexto(funcoes.join(" + ")), [funcoes]);
   return (
     <Input
-      className="!h-8 !px-2 !text-[12.5px]"
+      className="h-8! px-2! text-[12.5px]!"
       value={texto}
       disabled={disabled}
       onChange={(e) => setTexto(e.target.value)}
@@ -235,7 +235,7 @@ export function ChecklistModelosCard() {
               "rounded-btn px-3 h-9 text-[13px] font-bold border-[1.5px] transition-colors",
               modalidade === m
                 ? "border-primary bg-primary-soft text-primary-dark"
-                : "border-[#D6D9E0] text-ink-2 hover:bg-[#FAFAFB]"
+                : "border-border text-ink-2 hover:bg-[#FAFAFB]"
             )}
           >
             Projetos {m}s
@@ -278,7 +278,7 @@ export function ChecklistModelosCard() {
                 <div className="min-w-0 space-y-2">
                   <div className="flex items-center gap-2 flex-wrap">
                     <Input
-                      className="!h-8 !px-2 !text-[13.5px] !font-bold flex-1 min-w-[220px]"
+                      className="h-8! px-2! text-[13.5px]! font-bold! flex-1 min-w-[220px]"
                       sugestoes={sugestoes.valores.tituloTarefa}
                       value={item.titulo}
                       disabled={!podeEditar}
@@ -298,7 +298,7 @@ export function ChecklistModelosCard() {
                   </div>
                   <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_14rem]">
                     <Input
-                      className="!h-8 !px-2 !text-[12.5px] !uppercase"
+                      className="h-8! px-2! text-[12.5px]! uppercase!"
                       sugestoes={sugestoes.valores.etapaTarefa}
                       value={item.etapa}
                       disabled={!podeEditar}
@@ -307,7 +307,7 @@ export function ChecklistModelosCard() {
                       aria-label="Etapa"
                     />
                     <Select
-                      className="!h-8 !px-2 !text-[12.5px]"
+                      className="h-8! px-2! text-[12.5px]!"
                       value={item.prazo.modo}
                       disabled={!podeEditar}
                       onChange={(e) => alterar(item.id, { prazo: REGRA_INICIAL[e.target.value as ModoPrazoChecklist] })}
@@ -330,7 +330,7 @@ export function ChecklistModelosCard() {
                       instrução que a pessoa consegue seguir sozinha. */}
                   <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_13rem]">
                     <Input
-                      className="!h-8 !px-2 !text-[12.5px]"
+                      className="h-8! px-2! text-[12.5px]!"
                       value={item.descricao}
                       disabled={!podeEditar}
                       onChange={(e) => alterar(item.id, { descricao: e.target.value })}
@@ -338,7 +338,7 @@ export function ChecklistModelosCard() {
                       aria-label="Descrição da tarefa padrão"
                     />
                     <Select
-                      className="!h-8 !px-2 !text-[12.5px]"
+                      className="h-8! px-2! text-[12.5px]!"
                       value={item.responsavelPadrao}
                       disabled={!podeEditar}
                       onChange={(e) => alterar(item.id, { responsavelPadrao: e.target.value })}
@@ -388,13 +388,13 @@ function CampoPrazo({
   disabled: boolean;
   onChange: (prazo: RegraPrazoChecklist) => void;
 }) {
-  const classe = "!h-8 !px-2 !text-[12.5px]";
+  const classe = "h-8! px-2! text-[12.5px]!";
   switch (prazo.modo) {
     case "semanas-antes":
       return (
         <div className="flex items-center gap-3 flex-wrap">
           <NumberInput
-            className={cx(classe, "!w-24")}
+            className={cx(classe, "w-24!")}
             value={prazo.semanas ?? 1}
             disabled={disabled}
             onValue={(v) => onChange({ ...prazo, semanas: Math.max(0, Math.round(v)) })}
@@ -403,7 +403,7 @@ function CampoPrazo({
           <label className="inline-flex items-center gap-2 text-[12.5px] font-bold text-ink-2">
             <input
               type="checkbox"
-              className="h-4 w-4 accent-[#F2820D]"
+              className="h-4 w-4 accent-primary"
               checked={!!prazo.fixo}
               disabled={disabled}
               onChange={(e) => onChange({ modo: "semanas-antes", semanas: prazo.semanas ?? 1, ...(e.target.checked ? { fixo: true } : {}) })}
@@ -455,19 +455,19 @@ function CampoPrazo({
       );
     case "semanas-apos":
       return (
-        <NumberInput className={cx(classe, "!w-24")} value={prazo.semanas ?? 1} disabled={disabled}
+        <NumberInput className={cx(classe, "w-24!")} value={prazo.semanas ?? 1} disabled={disabled}
           onValue={(v) => onChange({ ...prazo, semanas: Math.max(0, Math.round(v)) })}
           aria-label="Quantas semanas após o evento" />
       );
     case "ancora":
       return (
-        <NumberInput className={cx(classe, "!w-24")} value={prazo.diasDoEvento ?? 0} disabled={disabled}
+        <NumberInput className={cx(classe, "w-24!")} value={prazo.diasDoEvento ?? 0} disabled={disabled}
           onValue={(v) => onChange({ modo: "ancora", diasDoEvento: v })}
           aria-label="Dias em relação ao evento (negativo = antes)" />
       );
     default:
       return (
-        <NumberInput className={cx(classe, "!w-24")} value={Math.round((prazo.percentual ?? 0) * 100)} disabled={disabled}
+        <NumberInput className={cx(classe, "w-24!")} value={Math.round((prazo.percentual ?? 0) * 100)} disabled={disabled}
           onValue={(v) => onChange({ modo: "percentual", percentual: Math.min(100, Math.max(0, v)) / 100 })}
           aria-label="Percentual do período do projeto (0 a 100)" />
       );

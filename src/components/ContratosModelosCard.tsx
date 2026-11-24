@@ -57,7 +57,7 @@ const COMO_NO_DOCUMENTO =
   "text-justify [&_p]:mb-2 [&_p:last-child]:mb-0 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:mb-1 [&_li]:text-justify";
 /** O mesmo, aplicado à área editável do RichTextField. */
 const COMO_NO_DOCUMENTO_EDITOR =
-  "[&_[contenteditable]]:text-justify [&_[contenteditable]_li]:text-justify [&_[contenteditable]_li]:mb-1";
+  "**:[[contenteditable]]:text-justify [&_[contenteditable]_li]:text-justify [&_[contenteditable]_li]:mb-1";
 
 /** O texto na sua forma canônica: duas escritas que o contrato lê igual dão o mesmo resultado. */
 const canonico = (chave: ChaveClausula, texto: string) => htmlParaTexto(textoParaHtml(texto, chave), chave).trim();
@@ -298,7 +298,7 @@ export function ContratosModelosCard() {
 
             <RichTextField
               somenteLeitura={!editando}
-              className={`${COMO_NO_DOCUMENTO_EDITOR} [&_[contenteditable]]:text-[13.5px] ${editando ? "[&_[contenteditable]]:min-h-[140px]" : "[&_[contenteditable]]:min-h-[48px] !border-border-soft"}`}
+              className={`${COMO_NO_DOCUMENTO_EDITOR} **:[[contenteditable]]:text-[13.5px] ${editando ? "**:[[contenteditable]]:min-h-[140px]" : "**:[[contenteditable]]:min-h-[48px] border-border-soft!"}`}
               value={textoParaHtml(atual, c.chave)}
               onChange={(html) => editar(c.chave, c.padrao, htmlParaTexto(html, c.chave))}
               toolbarExtra={
@@ -326,7 +326,7 @@ export function ContratosModelosCard() {
       })}
 
       {editando && (
-        <div className="sticky bottom-0 z-10 -mx-1 px-1 py-3 bg-bg/90 backdrop-blur-sm border-t border-border-soft flex items-center gap-2 flex-wrap">
+        <div className="sticky bottom-0 z-10 -mx-1 px-1 py-3 bg-bg/90 backdrop-blur-xs border-t border-border-soft flex items-center gap-2 flex-wrap">
           <Button size="sm" onClick={pedirSalvar} disabled={salvando}>Salvar</Button>
           <Button size="sm" variant="secondary" onClick={() => void pedirCancelar()} disabled={salvando}>Cancelar</Button>
         </div>
@@ -334,7 +334,7 @@ export function ContratosModelosCard() {
 
       {fluxo &&
         createPortal(
-          <div className="no-print fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="no-print fixed inset-0 z-60 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px]" />
             {fluxo.etapa === "conferencia" ? (
               <div className="relative w-full max-w-[860px] max-h-[90vh] bg-surface rounded-card-lg shadow-modal border border-border flex flex-col">
@@ -413,7 +413,7 @@ export function ContratosModelosCard() {
 
       {previa &&
         createPortal(
-          <div className="no-print fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="no-print fixed inset-0 z-60 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px]" onClick={() => setPrevia(null)} />
             <div className="relative w-full max-w-[980px] h-[92vh] bg-surface rounded-card-lg shadow-modal border border-border flex flex-col">
               <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-border shrink-0">

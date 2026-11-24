@@ -18,9 +18,9 @@ const variants: Record<Variant, string> = {
   // laranja é claro -> texto escuro (#2A1602)
   primary:
     "bg-primary-grad text-[#2A1602] shadow-btn hover:brightness-[1.03] disabled:bg-none disabled:bg-[#EEF1F7] disabled:text-[#A3ADC2] disabled:shadow-none",
-  dark: "bg-[linear-gradient(135deg,#3A3C44,#0B0B0D)] text-white hover:brightness-110",
+  dark: "bg-avatar-grad text-white hover:brightness-110",
   secondary:
-    "bg-surface text-ink border-[1.5px] border-[#D6D9E0] hover:bg-[#FAFAFB]",
+    "bg-surface text-ink border-[1.5px] border-border hover:bg-[#FAFAFB]",
   soft: "bg-primary-soft text-primary-dark hover:bg-[#FBE7CF]",
   text: "text-ink-2 hover:text-ink hover:bg-[#F1F2F5]",
   danger: "bg-danger-soft text-danger hover:bg-[#F7D9D9]",

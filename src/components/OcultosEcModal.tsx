@@ -31,7 +31,7 @@ export function OcultosEcModal({
     });
 
   return createPortal(
-    <div className="no-print fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-6">
+    <div className="no-print fixed inset-0 z-70 flex items-center justify-center p-3 sm:p-6">
       <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" onClick={onFechar} />
       <div
         role="dialog"
@@ -65,7 +65,7 @@ export function OcultosEcModal({
                 <label className="flex items-center gap-2 px-3 py-2 bg-[#FAFAFB] cursor-pointer">
                   <input
                     type="checkbox"
-                    className="h-4 w-4 accent-[#F2820D]"
+                    className="h-4 w-4 accent-primary"
                     checked={marcadosNoGrupo === ids.length}
                     ref={(el) => {
                       if (el) el.indeterminate = marcadosNoGrupo > 0 && marcadosNoGrupo < ids.length;
@@ -83,7 +83,7 @@ export function OcultosEcModal({
                       <label className="flex items-center gap-2 px-3 py-1.5 pl-8 cursor-pointer hover:bg-[#FCFCFD]">
                         <input
                           type="checkbox"
-                          className="h-4 w-4 accent-[#F2820D]"
+                          className="h-4 w-4 accent-primary"
                           checked={marcados.has(i.id)}
                           onChange={(e) => alternar([i.id], e.target.checked)}
                         />

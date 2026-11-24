@@ -113,7 +113,7 @@ export function RichTextField({ value, onChange, placeholder, toolbarExtra, clas
           suppressContentEditableWarning
           onInput={emit}
           onBlur={emit}
-          className="min-h-[96px] px-2.5 py-2 text-[13.5px] text-ink outline-none leading-relaxed [&_p]:mb-2 [&_p:last-child]:mb-0 [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:mb-1 [&_li_>_ul]:ml-3 [&_li_>_ol]:ml-3"
+          className="min-h-[96px] px-2.5 py-2 text-[13.5px] text-ink outline-hidden leading-relaxed [&_p]:mb-2 [&_p:last-child]:mb-0 [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:mb-1 [&_li_>_ul]:ml-3 [&_li_>_ol]:ml-3"
         />
       </div>
     </div>

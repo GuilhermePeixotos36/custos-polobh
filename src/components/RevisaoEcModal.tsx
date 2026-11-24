@@ -60,7 +60,7 @@ export function RevisaoEcModal({
 
           {revisao.gerais.length > 0 && (
             <section>
-              <h3 className="text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-ink-3 mb-2">Dados da {documento}</h3>
+              <h3 className="text-[10.5px] font-extrabold uppercase tracking-widest text-ink-3 mb-2">Dados da {documento}</h3>
               <div className="rounded-card border border-border divide-y divide-border-soft">
                 {revisao.gerais.map((c) => (
                   <LinhaCampo key={c.label} label={c.label} antes={c.antes} depois={c.depois} />
@@ -71,7 +71,7 @@ export function RevisaoEcModal({
 
           {revisao.itens.length > 0 && (
             <section>
-              <h3 className="text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-ink-3 mb-2">
+              <h3 className="text-[10.5px] font-extrabold uppercase tracking-widest text-ink-3 mb-2">
                 Itens ({revisao.itens.length})
               </h3>
               <div className="space-y-2.5">
@@ -117,9 +117,9 @@ function LinhaCampo({ label, antes, depois }: { label: string; antes: string; de
     <div className="grid sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)] gap-x-3 gap-y-1 px-3.5 py-2.5">
       <span className="text-[12.5px] font-bold text-ink-2">{label}</span>
       <span className="text-[12.5px] min-w-0">
-        <span className="text-ink-3 line-through break-words">{antes || "(vazio)"}</span>
+        <span className="text-ink-3 line-through wrap-break-word">{antes || "(vazio)"}</span>
         <span className="text-ink-3 mx-1.5">›</span>
-        <span className="text-ink font-semibold break-words">{depois || "(vazio)"}</span>
+        <span className="text-ink font-semibold wrap-break-word">{depois || "(vazio)"}</span>
       </span>
     </div>
   );

@@ -25,7 +25,7 @@ export function Toggle({
       >
         <span
           className={cx(
-            "absolute top-[3px] h-[21px] w-[21px] rounded-full bg-white shadow transition-all",
+            "absolute top-[3px] h-[21px] w-[21px] rounded-full bg-white shadow-sm transition-all",
             checked ? "left-[22px]" : "left-[3px]"
           )}
         />
@@ -107,7 +107,7 @@ export function AvisoErro({
         <p className="font-bold text-[13.5px]">
           Não foi possível carregar {oQue ?? "os dados"}.
         </p>
-        <p className="text-[12.5px] opacity-90 break-words">{erro}</p>
+        <p className="text-[12.5px] opacity-90 wrap-break-word">{erro}</p>
       </div>
       {onTentarDeNovo && (
         <button onClick={onTentarDeNovo} className="shrink-0 font-bold underline text-[13px]">
@@ -175,7 +175,7 @@ export function ChaveNaoSeAplica({
       <span className={cx("relative w-[28px] h-[16px] rounded-pill transition-colors", ativo ? "bg-primary" : "bg-[#CDD0D6]")}>
         <span
           className={cx(
-            "absolute top-[2px] h-[12px] w-[12px] rounded-full bg-white shadow transition-all",
+            "absolute top-[2px] h-[12px] w-[12px] rounded-full bg-white shadow-sm transition-all",
             ativo ? "left-[14px]" : "left-[2px]"
           )}
         />
