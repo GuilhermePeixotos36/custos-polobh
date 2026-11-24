@@ -20,6 +20,7 @@ import { useAuth } from "@/store/auth";
 import { useEmpresas } from "@/store/empresas";
 import { useConfigApp } from "@/store/configApp";
 import { useAsync } from "@/hooks/useAsync";
+import { EsqueletoTabela } from "@/components/padrao/EsqueletoTabela";
 import { repo } from "@/data";
 import { gravarResponsavelFeriados, lerFeriados, lerResponsavelFeriados, salvarFeriadosMunicipais } from "@/lib/feriados";
 import { idAncoraPendencia } from "@/lib/destaque";
@@ -223,7 +224,16 @@ function EmpresasGrupoCard() {
       </CardTitle>
 
       {!carregado && empresas.length === 0 ? (
-        <p className="text-ink-3 text-sm">Carregando…</p>
+        // Esqueleto na mesma grade dos cartões (24/11/2026), no lugar do "Carregando…".
+        <div role="status" aria-label="Carregando as empresas…" className="esqueleto-lista grid md:grid-cols-2 gap-4">
+          {[0, 1].map((i) => (
+            <div key={i} aria-hidden className="rounded-card border border-border p-4 space-y-3">
+              <div className="esqueleto h-4 w-1/2" />
+              <div className="esqueleto h-3 w-3/4" />
+              <div className="esqueleto h-3 w-2/3" />
+            </div>
+          ))}
+        </div>
       ) : (
         <div className="grid md:grid-cols-2 gap-4">
           {empresas.map((e) => (
@@ -677,7 +687,9 @@ function BackupCard() {
 
       <Card>
         <CardTitle hint="Toda cópia que saiu do servidor fica registrada aqui.">Histórico</CardTitle>
-        {!historico.data?.length ? (
+        {historico.loading && !historico.data ? (
+          <EsqueletoTabela colunas={["Quando", "Origem", "Destino", "Tamanho", "Situação"]} linhas={3} rotulo="Carregando o histórico de back-up…" />
+        ) : !historico.data?.length ? (
           <EmptyState title="Nenhum back-up ainda" hint="Assim que o primeiro for gerado, ele aparece aqui." />
         ) : (
           <Table>
