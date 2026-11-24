@@ -25,7 +25,7 @@
  *  · o salto que veio de OUTRA tela fica guardado (`focoPendencia`) até a thread montar; a
  *    gaveta espia esse recado no primeiro render (`haAlvoPendente`) e já nasce aberta.
  *
- * Quem grava é quem chama, como antes no `CardConversa`: a EC e as abas do projeto gravam na
+ * Quem grava é quem chama, como no antigo cartão de conversa (CardConversa, removido em 24/11/2026): a EC e as abas do projeto gravam na
  * hora, por caminho próprio (comentar não é editar o documento); a OS acumula no formulário e
  * vai junto do "Salvar".
  */
