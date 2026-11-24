@@ -42,7 +42,7 @@ export function CronogramaPublico() {
       <header className="bg-surface border-b-2 border-primary">
         <div className="max-w-3xl mx-auto px-6 py-5 flex items-center gap-3">
           <img src="/polobh-logo.png" className="h-8 w-auto object-contain" alt="Pólobh" />
-          <div className="text-ink-3 text-[12px] font-semibold">Cronograma do projeto</div>
+          <div className="text-ink-3 text-xs font-semibold">Cronograma do projeto</div>
         </div>
       </header>
 
@@ -57,12 +57,12 @@ export function CronogramaPublico() {
             <>
               {/* Linha do tempo consolidada do evento */}
               <div className="bg-surface border border-border rounded-card shadow-card p-5">
-                <h2 className="font-display font-bold text-ink text-[15px] mb-3">Linha do tempo do evento</h2>
+                <h2 className="font-display font-bold text-ink text-base mb-3">Linha do tempo do evento</h2>
                 <TimelineConsolidada itens={blocosConsolidados} />
               </div>
 
               {/* Detalhe por fornecedor */}
-              <div className="text-[10.5px] font-extrabold uppercase tracking-[0.14em] text-ink-3 px-1 pt-1">Por fornecedor</div>
+              <div className="text-2xs font-extrabold uppercase tracking-[0.14em] text-ink-3 px-1 pt-1">Por fornecedor</div>
               {data.blocos.map((b, i) => (
                 <div key={i} className="bg-surface border border-border rounded-card shadow-card p-5">
                   <div className="flex items-center justify-between mb-3">
@@ -75,7 +75,7 @@ export function CronogramaPublico() {
             </>
           )}
         </div>
-        <p className="text-center text-ink-3 text-[12px] mt-10">© Pólobh Promoções</p>
+        <p className="text-center text-ink-3 text-xs mt-10">© Pólobh Promoções</p>
       </main>
     </div>
   );

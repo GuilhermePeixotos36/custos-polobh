@@ -9,7 +9,7 @@ function Secao({ titulo, children }: { titulo: string; children: ReactNode }) {
   return (
     <section className="mt-7">
       <h2 className="font-display font-bold text-ink text-[17px] mb-2">{titulo}</h2>
-      <div className="space-y-2 text-[14px] leading-relaxed text-ink-2">{children}</div>
+      <div className="space-y-2 text-sm leading-relaxed text-ink-2">{children}</div>
     </section>
   );
 }
@@ -24,14 +24,14 @@ export function Privacidade() {
       <header className="bg-surface border-b-2 border-primary">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 py-5 flex items-center gap-3">
           <img src="/polobh-logo.png" className="h-8 w-auto object-contain" alt="Pólobh" />
-          <div className="text-ink-3 text-[12px] font-semibold">Política de privacidade</div>
+          <div className="text-ink-3 text-xs font-semibold">Política de privacidade</div>
         </div>
       </header>
 
       <main className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
         <h1 className="font-display font-bold text-[24px] tracking-[-0.6px] text-ink">Política de privacidade</h1>
-        <p className="text-ink-3 text-[12.5px] mt-1">Atualizada em {ATUALIZADA_EM}</p>
-        <p className="text-ink-2 text-[14px] leading-relaxed mt-4">
+        <p className="text-ink-3 text-xs mt-1">Atualizada em {ATUALIZADA_EM}</p>
+        <p className="text-ink-2 text-sm leading-relaxed mt-4">
           O Aplicativo Gestão da Pólobh organiza orçamentos, ordens de serviço e a produção de eventos. Esta página explica
           quais dados pessoais ele guarda, para quê, com quem compartilha e por quanto tempo, conforme a Lei Geral de
           Proteção de Dados (Lei 13.709/2018).
@@ -87,7 +87,7 @@ export function Privacidade() {
           </p>
         </Secao>
 
-        <p className="text-center text-ink-3 text-[12px] mt-10">© Pólobh Promoções</p>
+        <p className="text-center text-ink-3 text-xs mt-10">© Pólobh Promoções</p>
       </main>
     </div>
   );

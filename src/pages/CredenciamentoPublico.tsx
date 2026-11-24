@@ -95,7 +95,7 @@ export function CredenciamentoPublico() {
       <header className="bg-surface border-b-2 border-primary">
         <div className="max-w-2xl mx-auto px-6 py-5 flex items-center gap-3">
           <img src="/polobh-logo.png" className="h-8 w-auto object-contain" alt="Pólobh" />
-          <div className="text-ink-3 text-[12px] font-semibold">Credenciamento de fornecedor</div>
+          <div className="text-ink-3 text-xs font-semibold">Credenciamento de fornecedor</div>
         </div>
       </header>
 
@@ -105,7 +105,7 @@ export function CredenciamentoPublico() {
           {ctx.fornecedor && <>{ctx.fornecedor} · </>}Evento em {dataBR(ctx.evento.data)}{ctx.evento.local ? ` · ${ctx.evento.local}` : ""}
         </p>
         {ctx.prazoLimite && (
-          <p className={cx("text-[12.5px] font-semibold mt-1", ctx.prazoEncerrado ? "text-danger" : "text-primary-dark")}>
+          <p className={cx("text-xs font-semibold mt-1", ctx.prazoEncerrado ? "text-danger" : "text-primary-dark")}>
             Prazo para credenciamento: {dataBR(ctx.prazoLimite)}
             {ctx.prazoEncerrado && " — encerrado"}
           </p>
@@ -195,14 +195,14 @@ export function CredenciamentoPublico() {
 
             {/* LGPD (05/11/2026): quem preenche dados de terceiros precisa saber
                 para quê, com quem vão e até quando ficam guardados. */}
-            <p className="text-[12.5px] leading-relaxed text-ink-2 bg-surface border border-border rounded-card px-4 py-3">
+            <p className="text-xs leading-relaxed text-ink-2 bg-surface border border-border rounded-card px-4 py-3">
               <b>Sobre os seus dados:</b> as informações deste formulário servem só para liberar a entrada da equipe e dos
               veículos no evento. A Pólobh as repassa ao local ou à organização do evento e as apaga automaticamente{" "}
               {PRAZOS.credenciamentoDias} dias depois do envio. Ao enviar, confirme que as pessoas listadas sabem desse uso.{" "}
               <a href="/privacidade" target="_blank" rel="noreferrer" className="font-semibold text-primary-dark underline">Política de privacidade</a>
             </p>
 
-            {erro && <p className="text-[13px] font-semibold text-danger bg-danger-soft rounded-btn px-3 py-2">{erro}</p>}
+            {erro && <p className="text-sm font-semibold text-danger bg-danger-soft rounded-btn px-3 py-2">{erro}</p>}
 
             <Button type="submit" block disabled={enviando}>
               {enviando ? "Enviando…" : "Enviar credenciamento"}
@@ -210,7 +210,7 @@ export function CredenciamentoPublico() {
           </form>
         )}
 
-        <p className="text-center text-ink-3 text-[12px] mt-10">
+        <p className="text-center text-ink-3 text-xs mt-10">
           © Pólobh Promoções ·{" "}
           <a href="/privacidade" target="_blank" rel="noreferrer" className="underline hover:text-primary-dark">Política de privacidade</a>
         </p>
