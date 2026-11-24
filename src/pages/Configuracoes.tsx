@@ -92,10 +92,10 @@ export function Configuracoes() {
                 <Toggle checked={arquivamentoAuto} onChange={setArquivamentoAuto} />
               </div>
               <div>
-                <label className="text-[12.5px] font-bold text-ink">Prazo de arquivamento: <span className="text-primary-dark">{retencao} meses</span></label>
+                <label className="text-xs font-bold text-ink">Prazo de arquivamento: <span className="text-primary-dark">{retencao} meses</span></label>
                 <input type="range" min={6} max={48} step={6} value={retencao} onChange={(e) => setRetencao(Number(e.target.value))} className="w-full accent-primary mt-2" />
               </div>
-              <p className="text-[12.5px] text-ink-2">Ao concluir um projeto, os dados são arquivados (não apagados) e seguem disponíveis para consulta e duplicação.</p>
+              <p className="text-xs text-ink-2">Ao concluir um projeto, os dados são arquivados (não apagados) e seguem disponíveis para consulta e duplicação.</p>
             </div>
           </Card>
 
@@ -235,13 +235,13 @@ function EmpresasGrupoCard() {
               )}
             >
               <div className="flex items-center justify-between gap-2 mb-3">
-                <h4 className="font-display font-bold text-[14px] text-ink">{e.nome}</h4>
+                <h4 className="font-bold text-sm text-ink">{e.nome}</h4>
                 {e.padrao ? (
                   <Badge tom="success">Padrão p/ emissão</Badge>
                 ) : (
                   <button
                     onClick={async () => { await definirPadrao(e.id); toast(`${e.nome} definida como padrão.`, "success"); }}
-                    className="text-[12px] font-bold text-primary-dark hover:underline"
+                    className="text-xs font-bold text-primary-dark hover:underline"
                   >
                     Tornar padrão
                   </button>
@@ -268,7 +268,7 @@ function EmpresasGrupoCard() {
                 </Field>
                 <Field label="Telefone (entra no contrato, na qualificação do Contratante)">
                   <TelefoneInput value={e.telefone ?? ""} onChange={(v) => editar(e.id, { telefone: v })} />
-                  <button type="button" className="mt-1 text-[11.5px] font-bold text-primary-dark hover:underline" onClick={() => salvar(e.id)}>
+                  <button type="button" className="mt-1 text-2xs font-bold text-primary-dark hover:underline" onClick={() => salvar(e.id)}>
                     Salvar telefone
                   </button>
                 </Field>
@@ -278,7 +278,7 @@ function EmpresasGrupoCard() {
         </div>
       )}
 
-      <p className="text-[12.5px] text-ink-2 mt-3">
+      <p className="text-xs text-ink-2 mt-3">
         As alterações são salvas ao sair de cada campo. A empresa <b>padrão</b> é usada na emissão;
         se o tomador/contratante da OS for a Pólobh, estes dados entram na planilha.
       </p>
@@ -371,7 +371,7 @@ function FeriadosCard() {
             onChange={(e) => { setAno(Number(e.target.value) || anoAtual); setRascunho(null); }}
           />
         </Field>
-        <span className="text-[12.5px] text-ink-3 self-end pb-2">
+        <span className="text-xs text-ink-3 self-end pb-2">
           {loading ? "Carregando…" : `${nacionais.length} feriado(s) nacional(is) já no sistema`}
         </span>
       </div>
@@ -404,7 +404,7 @@ function FeriadosCard() {
           </div>
         ))}
         {municipais.length === 0 && (
-          <p className="text-[12.5px] text-ink-3">Nenhum feriado municipal lançado para {ano}.</p>
+          <p className="text-xs text-ink-3">Nenhum feriado municipal lançado para {ano}.</p>
         )}
       </div>
 
@@ -477,7 +477,7 @@ function HelpDeskCard() {
           placeholder="suporte@exemplo.com.br"
         />
       </Field>
-      {erro && <p className="mt-1.5 text-[12.5px] font-semibold text-danger">{erro}</p>}
+      {erro && <p className="mt-1.5 text-xs font-semibold text-danger">{erro}</p>}
     </Card>
   );
 }
@@ -603,7 +603,7 @@ function BackupCard() {
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <SituacaoDoBackup situacao={situacao} />
           {ultimo && (
-            <span className="text-[12.5px] text-ink-2">
+            <span className="text-xs text-ink-2">
               Último: {haQuantoTempo(new Date(ultimo.criadoEm))} · {formatarTamanho(ultimo.tamanhoBytes)}
               {ultimo.destinos.length ? ` · ${ultimo.destinos.join(", ")}` : ""}
             </span>
@@ -622,7 +622,7 @@ function BackupCard() {
               ))}
             </Select>
           </Field>
-          <p className="-mt-2 text-[12.5px] text-ink-2">
+          <p className="-mt-2 text-xs text-ink-2">
             {OPCOES_FREQUENCIA.find((o) => o.valor === config.frequencia)?.ajuda}
           </p>
 
@@ -636,7 +636,7 @@ function BackupCard() {
               placeholder="direcao@polobh.com.br, ti@polobh.com.br"
             />
           </Field>
-          <p className="-mt-2 text-[12.5px] text-ink-2">
+          <p className="-mt-2 text-xs text-ink-2">
             Separe por vírgula. Deixe vazio para não mandar e-mail. Pacotes muito grandes não cabem
             num e-mail — nesse caso a mensagem avisa e o arquivo fica no Dropbox ou no botão abaixo.
           </p>
@@ -644,7 +644,7 @@ function BackupCard() {
           <div className="flex items-center justify-between">
             <div>
               <span className="text-sm text-ink">Salvar também no Dropbox</span>
-              <p className="text-[12.5px] text-ink-2">
+              <p className="text-xs text-ink-2">
                 Guarda cada pacote numa pasta da Pólobh. Precisa de uma configuração única, feita
                 pelo suporte — se estiver ligado e não configurado, o histórico abaixo acusa.
               </p>
@@ -664,12 +664,12 @@ function BackupCard() {
             </Button>
           </div>
           {!podeMexer && (
-            <p className="text-[12.5px] text-ink-2">
+            <p className="text-xs text-ink-2">
               Só a Direção e o Administrador tiram um back-up — o pacote leva a base inteira,
               inclusive o financeiro. Você pode acompanhar o histórico aqui.
             </p>
           )}
-          <p className="text-[12.5px] text-ink-2">
+          <p className="text-xs text-ink-2">
             Gerar um back-up leva alguns instantes e não interrompe quem estiver usando o sistema.
           </p>
         </div>
@@ -693,7 +693,7 @@ function BackupCard() {
                 <Tr key={b.id}>
                   <Td>
                     {new Date(b.criadoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
-                    <span className="block text-[11.5px] text-ink-2">{b.arquivo}</span>
+                    <span className="block text-2xs text-ink-2">{b.arquivo}</span>
                   </Td>
                   <Td>{b.origem === "manual" ? "Pedido na tela" : "Automático"}</Td>
                   <Td>{b.destinos.length ? b.destinos.join(", ") : "—"}</Td>
@@ -702,7 +702,7 @@ function BackupCard() {
                     <Badge tom={b.status === "concluido" ? "success" : b.status === "parcial" ? "warning" : "danger"}>
                       {b.status === "concluido" ? "Concluído" : b.status === "parcial" ? "Com ressalva" : "Falhou"}
                     </Badge>
-                    {b.erro && <span className="block text-[11.5px] text-ink-2">{b.erro}</span>}
+                    {b.erro && <span className="block text-2xs text-ink-2">{b.erro}</span>}
                   </Td>
                 </Tr>
               ))}
@@ -734,7 +734,7 @@ function ComoFuncionaOBackup() {
       <CardTitle hint="Leia uma vez. Explica o que o sistema faz sozinho e o que depende de vocês.">
         Como funciona a proteção dos dados
       </CardTitle>
-      <div className="space-y-3 text-[13px] leading-relaxed text-ink">
+      <div className="space-y-3 text-sm leading-relaxed text-ink">
         <p>
           Os dados do sistema ficam num banco de dados na nuvem (o <b>Supabase</b>). Ele faz
           back-up sozinho, todo dia, sem ninguém pedir — e isso resolve o acidente comum:

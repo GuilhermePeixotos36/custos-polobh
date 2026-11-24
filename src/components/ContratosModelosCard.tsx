@@ -292,13 +292,13 @@ export function ContratosModelosCard() {
         return (
           <Card key={c.chave}>
             <div className="flex items-center gap-2 mb-3 flex-wrap">
-              <h3 className="font-display font-bold text-[13.5px] text-ink tracking-[-0.2px]">{c.titulo}</h3>
+              <h3 className="font-bold text-sm text-ink tracking-[-0.2px]">{c.titulo}</h3>
               {mudou && <Badge tom="warning">Alterada</Badge>}
             </div>
 
             <RichTextField
               somenteLeitura={!editando}
-              className={`${COMO_NO_DOCUMENTO_EDITOR} **:[[contenteditable]]:text-[13.5px] ${editando ? "**:[[contenteditable]]:min-h-[140px]" : "**:[[contenteditable]]:min-h-[48px] border-border-soft!"}`}
+              className={`${COMO_NO_DOCUMENTO_EDITOR} **:[[contenteditable]]:text-sm ${editando ? "**:[[contenteditable]]:min-h-[140px]" : "**:[[contenteditable]]:min-h-[48px] border-border-soft!"}`}
               value={textoParaHtml(atual, c.chave)}
               onChange={(html) => editar(c.chave, c.padrao, htmlParaTexto(html, c.chave))}
               toolbarExtra={
@@ -306,7 +306,7 @@ export function ContratosModelosCard() {
                   <button
                     type="button"
                     onClick={() => voltarAoOriginal(c.chave)}
-                    className="h-7 px-2 rounded-md text-[11.5px] font-bold text-ink-3 hover:bg-primary-soft hover:text-primary-dark"
+                    className="h-7 px-2 rounded-md text-2xs font-bold text-ink-3 hover:bg-primary-soft hover:text-primary-dark"
                   >
                     Voltar ao texto original
                   </button>
@@ -317,7 +317,7 @@ export function ContratosModelosCard() {
             {c.chave === "objeto" && (
               <div
                 aria-hidden
-                className={`mt-2 px-2.5 text-[13.5px] leading-relaxed text-ink-3 select-none pointer-events-none ${COMO_NO_DOCUMENTO}`}
+                className={`mt-2 px-2.5 text-sm leading-relaxed text-ink-3 select-none pointer-events-none ${COMO_NO_DOCUMENTO}`}
                 dangerouslySetInnerHTML={{ __html: textoParaHtml(geradoDoObjeto, "objeto") }}
               />
             )}
@@ -339,8 +339,8 @@ export function ContratosModelosCard() {
             {fluxo.etapa === "conferencia" ? (
               <div className="relative w-full max-w-[860px] max-h-[90vh] bg-surface rounded-card-lg shadow-modal border border-border flex flex-col">
                 <div className="px-5 py-4 border-b border-border shrink-0">
-                  <h3 className="font-display font-bold text-[16px] text-ink">Correções da revisão</h3>
-                  <p className="text-[12.5px] text-ink-2 mt-0.5">
+                  <h3 className="font-bold text-base text-ink">Correções da revisão</h3>
+                  <p className="text-xs text-ink-2 mt-0.5">
                     {fluxo.parcial ? "A IA está indisponível; foi aplicada só a correção básica. " : ""}
                     Confira o que foi corrigido antes de salvar.
                   </p>
@@ -348,27 +348,27 @@ export function ContratosModelosCard() {
                 <div className="overflow-y-auto px-5 py-4 space-y-5">
                   {fluxo.itens.map((i) => (
                     <div key={`${i.modelo}:${i.chave}`}>
-                      <div className="text-[12.5px] font-bold text-ink mb-2">
+                      <div className="text-xs font-bold text-ink mb-2">
                         {ROTULO_MODELO[i.modelo]} — {i.titulo}
                       </div>
                       <ul className="mb-3 flex flex-wrap gap-1.5">
                         {i.correcoes.slice(0, 60).map((x, k) => (
-                          <li key={k} className="inline-flex items-center gap-1.5 rounded-pill border border-border bg-bg px-2.5 py-1 text-[12.5px]">
+                          <li key={k} className="inline-flex items-center gap-1.5 rounded-pill border border-border bg-bg px-2.5 py-1 text-xs">
                             {x.de && <span className="text-danger line-through">{x.de}</span>}
                             {x.de && x.para && <span className="text-ink-3">→</span>}
                             {x.para && <span className="font-bold text-success">{x.para}</span>}
                           </li>
                         ))}
-                        {i.correcoes.length > 60 && <li className="text-[12px] text-ink-3 self-center">e mais {i.correcoes.length - 60}…</li>}
+                        {i.correcoes.length > 60 && <li className="text-xs text-ink-3 self-center">e mais {i.correcoes.length - 60}…</li>}
                       </ul>
                       <div className="grid md:grid-cols-2 gap-3">
                         <div className="rounded-btn border border-border p-3">
-                          <div className="text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3 mb-1.5">Como você escreveu</div>
-                          <div className={`text-[13px] text-ink leading-relaxed ${COMO_NO_DOCUMENTO}`} dangerouslySetInnerHTML={{ __html: textoParaHtml(i.original, i.chave) }} />
+                          <div className="text-xs font-semibold text-muted-foreground mb-1.5">Como você escreveu</div>
+                          <div className={`text-sm text-ink leading-relaxed ${COMO_NO_DOCUMENTO}`} dangerouslySetInnerHTML={{ __html: textoParaHtml(i.original, i.chave) }} />
                         </div>
                         <div className="rounded-btn border border-primary/30 bg-primary-soft/40 p-3">
-                          <div className="text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-primary-dark mb-1.5">Revisado</div>
-                          <div className={`text-[13px] text-ink leading-relaxed ${COMO_NO_DOCUMENTO}`} dangerouslySetInnerHTML={{ __html: textoParaHtml(i.revisado, i.chave) }} />
+                          <div className="text-xs font-semibold text-brand-forte mb-1.5">Revisado</div>
+                          <div className={`text-sm text-ink leading-relaxed ${COMO_NO_DOCUMENTO}`} dangerouslySetInnerHTML={{ __html: textoParaHtml(i.revisado, i.chave) }} />
                         </div>
                       </div>
                     </div>
@@ -388,8 +388,8 @@ export function ContratosModelosCard() {
               </div>
             ) : (
               <div className="relative w-full max-w-[460px] bg-surface rounded-card-lg shadow-modal border border-border p-6">
-                <h3 className="font-display font-bold text-[16px] text-ink">Revisar o texto com IA?</h3>
-                <p className="text-[13px] text-ink-2 mt-1.5">
+                <h3 className="font-bold text-base text-ink">Revisar o texto com IA?</h3>
+                <p className="text-sm text-ink-2 mt-1.5">
                   {fluxo.etapa === "revisando"
                     ? "Revisando o que você alterou…"
                     : "A IA corrige só ortografia, acentuação e pontuação do que você alterou, e você vê cada correção antes de salvar."}
@@ -417,7 +417,7 @@ export function ContratosModelosCard() {
             <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px]" onClick={() => setPrevia(null)} />
             <div className="relative w-full max-w-[980px] h-[92vh] bg-surface rounded-card-lg shadow-modal border border-border flex flex-col">
               <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-border shrink-0">
-                <h3 className="font-display font-bold text-[16px] text-ink truncate">
+                <h3 className="font-bold text-base text-ink truncate">
                   Contrato {ROTULO_MODELO[modelo]} — exemplo
                 </h3>
                 <div className="flex items-center gap-2">
@@ -425,14 +425,14 @@ export function ContratosModelosCard() {
                     href={previa.url}
                     target="_blank"
                     rel="noopener"
-                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-btn text-[12.5px] font-bold text-ink-2 hover:bg-primary-soft hover:text-primary-dark"
+                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-btn text-xs font-bold text-ink-2 hover:bg-primary-soft hover:text-primary-dark"
                   >
                     Abrir em nova aba
                   </a>
                   <a
                     href={previa.url}
                     download={previa.nome}
-                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-btn text-[12.5px] font-bold text-ink-2 hover:bg-primary-soft hover:text-primary-dark"
+                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-btn text-xs font-bold text-ink-2 hover:bg-primary-soft hover:text-primary-dark"
                   >
                     <IcDownload width={14} height={14} /> Baixar PDF
                   </a>

@@ -98,7 +98,7 @@ function ManutencaoDev() {
       ) : (
         <div className="space-y-5">
           <section className="space-y-2">
-            <h4 className="text-[13px] font-extrabold text-ink">
+            <h4 className="text-sm font-bold text-ink">
               {temSenha ? "Trocar a senha de manutenção" : "Criar a senha de manutenção"}
             </h4>
             <div className="grid gap-2 sm:grid-cols-3">
@@ -121,16 +121,16 @@ function ManutencaoDev() {
 
           {temSenha && (
             <section className="space-y-2 rounded-card border border-danger/40 bg-danger-soft/40 p-3">
-              <h4 className="text-[13px] font-extrabold text-danger">Limpar o banco</h4>
-              <p className="text-[12.5px] font-bold text-ink-2">
+              <h4 className="text-sm font-bold text-danger">Limpar o banco</h4>
+              <p className="text-xs font-bold text-ink-2">
                 Apaga projetos e tudo o que depende deles (EC, OS, check-list, credenciamento). Nunca apaga
                 usuários, áreas, empresas do grupo, configurações nem as listas padrão do check-list.
               </p>
-              <label className="flex items-center gap-2 text-[12.5px] font-bold text-ink-2">
+              <label className="flex items-center gap-2 text-xs font-bold text-ink-2">
                 <input type="checkbox" className="h-4 w-4 accent-primary" checked={cadastros} onChange={(e) => setCadastros(e.target.checked)} />
                 Apagar também clientes e fornecedores
               </label>
-              <label className="flex items-center gap-2 text-[12.5px] font-bold text-ink-2">
+              <label className="flex items-center gap-2 text-xs font-bold text-ink-2">
                 <input type="checkbox" className="h-4 w-4 accent-primary" checked={historico} onChange={(e) => setHistorico(e.target.checked)} />
                 Apagar também o histórico (logs, e-mails, chamados, registros de back-up)
               </label>

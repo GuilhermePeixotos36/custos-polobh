@@ -98,9 +98,9 @@ async function exportarExcel(mes: string, registros: RegistroIa[]) {
 function Numero({ rotulo, valor, detalhe }: { rotulo: string; valor: string; detalhe?: string }) {
   return (
     <div className="rounded-card border border-border bg-white px-4 py-3">
-      <div className="text-[11.5px] font-bold text-ink-3 uppercase tracking-wide">{rotulo}</div>
-      <div className="font-display font-bold text-[22px] text-ink mt-0.5">{valor}</div>
-      {detalhe && <div className="text-[11.5px] text-ink-3">{detalhe}</div>}
+      <div className="text-xs font-bold text-muted-foreground">{rotulo}</div>
+      <div className="font-bold text-2xl text-ink tabular-nums mt-0.5">{valor}</div>
+      {detalhe && <div className="text-2xs text-ink-3">{detalhe}</div>}
     </div>
   );
 }
@@ -118,7 +118,7 @@ export function ConsumoIaCard() {
           Consumo de IA
         </CardTitle>
         <div className="flex flex-wrap items-end gap-3 mt-1">
-          <label className="text-[12.5px] font-bold text-ink-2">
+          <label className="text-xs font-bold text-ink-2">
             Mês
             <Input type="month" className="mt-1 w-[170px]" value={mes} onChange={(e) => setMes(e.target.value || mesAtual())} />
           </label>
@@ -186,7 +186,7 @@ export function ConsumoIaCard() {
                     <Td className="whitespace-nowrap text-ink-2">{dataHoraBR(r.criadoEm)}</Td>
                     <Td>{r.usuario}</Td>
                     <Td>{ROTULO_FUNCAO_IA[r.funcao] ?? r.funcao}{r.itens ? <span className="text-ink-3"> · {r.itens}</span> : null}</Td>
-                    <Td className="text-ink-2 text-[12px]">{r.modelo || "—"}</Td>
+                    <Td className="text-ink-2 text-xs">{r.modelo || "—"}</Td>
                     <Td align="right">{formatarTokens(r.tokensEntrada + r.tokensSaida)}</Td>
                     <Td align="right">{formatarUsd(r.custoUsd)}</Td>
                     <Td>{r.sucesso ? <Badge tom="success">OK</Badge> : <span title={r.erro}><Badge tom="danger">Falhou</Badge></span>}</Td>
