@@ -307,8 +307,8 @@ export function montarPassos(ctx: ContextoTour, pode: (r: Recurso) => boolean): 
           <Passos
             itens={[
               <><b>Item e descritivo</b> — o que será entregue.</>,
-              <><b>Fornecedor</b> — CNPJ, razão social e o contato. O que for digitado aqui alimenta o cadastro de
-                fornecedores sozinho.</>,
+              <><b>Fornecedor</b> — escolhido do cadastro pela caixa combinada (CNPJ ou nome). Ainda sem cadastro?
+                O <b>+</b> ao lado cadastra pelo CNPJ ali mesmo.</>,
               <><b>Valores</b> — custo do fornecedor e preço ao cliente.</>,
               <><b>BV</b> — a bonificação da Pólobh naquele item, visível só para quem tem acesso financeiro.</>,
               <><b>Status da OS</b> — <b>Pendente</b>, <b>Emitir</b>, <b>Emitir Nova Versão</b>, <b>OK</b> ou
