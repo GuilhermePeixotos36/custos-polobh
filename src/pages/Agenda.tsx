@@ -184,7 +184,7 @@ export function Agenda() {
       <Card>
         <div className="flex items-center gap-2 flex-wrap">
           <Select
-            className="h-9! text-[13px]! w-60!"
+            className="h-9! text-sm! w-60!"
             value={responsavel}
             onChange={(e) => setResponsavel(e.target.value)}
             aria-label="Filtrar por responsável"
@@ -198,7 +198,7 @@ export function Agenda() {
             ))}
           </Select>
           <Select
-            className="h-9! text-[13px]! w-[18rem]!"
+            className="h-9! text-sm! w-[18rem]!"
             value={projetoId}
             onChange={(e) => setProjetoId(e.target.value)}
             aria-label="Filtrar por projeto"
@@ -237,7 +237,7 @@ export function Agenda() {
           <Card key={faixa.chave} padded={false}>
             <div className="flex items-center gap-2 px-4 py-3 border-b border-border-soft">
               <IcCalendar width={16} height={16} className="text-ink-3" />
-              <h2 className="text-[13px] font-extrabold uppercase tracking-wide text-ink-2">{faixa.titulo}</h2>
+              <h2 className="text-sm font-semibold text-muted-foreground">{faixa.titulo}</h2>
               <Badge tom={faixa.tom}>{lista.length}</Badge>
             </div>
             <div className="divide-y divide-border-soft">
@@ -283,14 +283,14 @@ function LinhaAgenda({
   const observacoesAbertas = (item.observacoes ?? []).filter((o) => !o.resolvida && o.texto.trim()).length;
 
   return (
-    <div className="group flex items-center gap-3 px-4 py-2.5 hover:bg-[#FAFAFB]">
+    <div className="group flex items-center gap-3 px-4 py-2.5 hover:bg-muted/40">
       <button
         type="button"
         disabled={!podeEditar}
         onClick={onConcluir}
         title="Marcar como concluída"
         className={cx(
-          "h-5 w-5 shrink-0 rounded-md border-[1.5px] border-[#C9CDD6] grid place-items-center transition-colors",
+          "h-5 w-5 shrink-0 rounded-md border-[1.5px] border-input grid place-items-center transition-colors",
           podeEditar ? "hover:border-primary hover:bg-primary-soft" : "cursor-not-allowed opacity-60"
         )}
       >
@@ -300,8 +300,8 @@ function LinhaAgenda({
       </button>
 
       <button type="button" onClick={onAbrirProjeto} className="min-w-0 flex-1 text-left">
-        <div className="truncate text-[13.5px] font-bold text-ink">{item.titulo || "(tarefa sem título)"}</div>
-        <div className="truncate text-[12px] font-bold text-ink-3">
+        <div className="truncate text-sm font-bold text-ink">{item.titulo || "(tarefa sem título)"}</div>
+        <div className="truncate text-xs font-bold text-ink-3">
           {tarefa.projetoNome}
           {tarefa.clienteNome ? ` · ${tarefa.clienteNome}` : ""}
           {item.etapa ? ` · ${item.etapa}` : ""}
@@ -311,13 +311,13 @@ function LinhaAgenda({
       <div className="flex items-center gap-2 shrink-0">
         {observacoesAbertas > 0 && <Badge tom="warning">{observacoesAbertas} obs.</Badge>}
         {item.responsavel ? (
-          <span className="hidden sm:inline text-[12px] font-bold text-ink-2">{item.responsavel}</span>
+          <span className="hidden sm:inline text-xs font-bold text-ink-2">{item.responsavel}</span>
         ) : (
-          <span className="hidden sm:inline text-[12px] font-bold text-ink-3">sem responsável</span>
+          <span className="hidden sm:inline text-xs font-bold text-ink-3">sem responsável</span>
         )}
         <span
           className={cx(
-            "text-[12.5px] font-extrabold tabular-nums w-22 text-right",
+            "text-xs font-bold tabular-nums w-22 text-right",
             atrasada ? "text-danger" : "text-ink-2"
           )}
         >

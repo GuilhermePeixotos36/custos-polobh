@@ -98,10 +98,10 @@ export function CalendarioMesModal({
             <BotaoSeta titulo="Próximo mês" onClick={() => onTrocarMes(mes + 1)} />
           </div>
           <div className="min-w-0">
-            <h3 className="font-display font-bold text-[19px] text-ink tracking-[-0.4px] leading-tight">
+            <h3 className="font-bold text-lg text-ink tracking-[-0.4px] leading-tight">
               {MESES[mes]} <span className="text-ink-3 font-semibold">de {ano}</span>
             </h3>
-            <p className="text-[12.5px] text-ink-2 mt-0.5">
+            <p className="text-xs text-ink-2 mt-0.5">
               {segmentos.length === 0
                 ? "Nenhum projeto neste mês."
                 : `${segmentos.length} projeto${segmentos.length > 1 ? "s" : ""} · ${diasComProjeto} dia${diasComProjeto > 1 ? "s" : ""} com projeto acontecendo`}
@@ -110,7 +110,7 @@ export function CalendarioMesModal({
           <button
             onClick={onFechar}
             title="Fechar"
-            className="ml-auto shrink-0 h-9 w-9 grid place-items-center rounded-btn text-ink-2 hover:text-ink hover:bg-[#F1F2F5] transition-colors"
+            className="ml-auto shrink-0 h-9 w-9 grid place-items-center rounded-btn text-ink-2 hover:text-ink hover:bg-muted transition-colors"
           >
             <IcFechar width={18} height={18} />
           </button>
@@ -121,7 +121,7 @@ export function CalendarioMesModal({
           {segmentos.length === 0 ? (
             <div className="p-10 text-center">
               <p className="text-ink-2 text-sm">Nada marcado em {MESES[mes].toLowerCase()}.</p>
-              <p className="text-ink-3 text-[12.5px] mt-1">
+              <p className="text-ink-3 text-xs mt-1">
                 Os projetos entram aqui sozinhos assim que recebem datas no cronograma.
               </p>
             </div>
@@ -129,7 +129,7 @@ export function CalendarioMesModal({
             <div style={{ minWidth: larguraMinima }}>
               {/* cabeçalho dos dias */}
               <div className="grid sticky top-0 z-20 bg-surface border-b border-border" style={{ gridTemplateColumns: template }}>
-                <div className="sticky left-0 z-30 bg-surface border-r border-border-soft px-4 py-2 text-[10.5px] font-extrabold uppercase tracking-[0.12em] text-ink-3 flex items-end">
+                <div className="sticky left-0 z-30 bg-surface border-r border-border-soft px-4 py-2 text-xs font-semibold text-muted-foreground flex items-end">
                   Projeto
                 </div>
                 {Array.from({ length: dias }, (_, i) => {
@@ -143,7 +143,7 @@ export function CalendarioMesModal({
                       title={feriado?.nome}
                       className={cx(
                         "py-1.5 text-center border-l border-border-soft",
-                        fimDeSemana(ano, mes, d) && "bg-[#F1F3F7]",
+                        fimDeSemana(ano, mes, d) && "bg-muted",
                         // FERIADO tem cor própria (15/09/2026): quem marca
                         // montagem precisa ver, antes de marcar, o dia em que a
                         // cidade para. Vem por cima do fim de semana — um
@@ -153,13 +153,13 @@ export function CalendarioMesModal({
                     >
                       <div
                         className={cx(
-                          "mx-auto w-6 h-6 grid place-items-center rounded-full text-[12px] font-bold tabular-nums",
-                          ehHoje ? "bg-primary text-[#2A1602]" : "text-ink"
+                          "mx-auto w-6 h-6 grid place-items-center rounded-full text-xs font-bold tabular-nums",
+                          ehHoje ? "bg-primary text-primary-foreground" : "text-ink"
                         )}
                       >
                         {d}
                       </div>
-                      <div className="text-[9.5px] font-bold uppercase text-ink-3 mt-0.5">
+                      <div className="text-2xs font-bold uppercase text-ink-3 mt-0.5">
                         {INICIAIS_SEMANA[diaDaSemana(ano, mes, d)]}
                       </div>
                     </div>
@@ -178,20 +178,20 @@ export function CalendarioMesModal({
                 return (
                   <div
                     key={item.id}
-                    className="grid items-center border-b border-border-soft last:border-b-0 hover:bg-[#FBFBFC] transition-colors"
+                    className="grid items-center border-b border-border-soft last:border-b-0 hover:bg-muted/40 transition-colors"
                     style={{ gridTemplateColumns: template }}
                   >
                     <button
                       onClick={() => navigate(`/projetos/${item.id}`)}
                       title={`Abrir ${item.titulo}`}
                       style={{ gridRow: 1, gridColumn: 1 }}
-                      className="sticky left-0 z-10 bg-surface hover:bg-[#F7F8FA] border-r border-border-soft h-[46px] px-4 flex items-center gap-2.5 text-left min-w-0 transition-colors"
+                      className="sticky left-0 z-10 bg-surface hover:bg-muted/60 border-r border-border-soft h-[46px] px-4 flex items-center gap-2.5 text-left min-w-0 transition-colors"
                     >
                       {/* Uma cor só, como no resto do quadro: a identidade do
                           projeto é o nome, não o tom. */}
                       <span className="h-6 w-1.5 rounded-full shrink-0 bg-primary" />
                       <span className="min-w-0">
-                        <span className={cx("block text-[13px] font-bold text-ink truncate", encerrado && "line-through text-ink-3")}>
+                        <span className={cx("block text-sm font-bold text-ink truncate", encerrado && "line-through text-ink-3")}>
                           {item.titulo}
                         </span>
                         {/* A PRODUTORA RESPONSÁVEL no lugar do cliente
@@ -199,7 +199,7 @@ export function CalendarioMesModal({
                             procurando quem toca o quê, e o cliente já está no
                             título do projeto. */}
                         {(item.produtora || item.cliente) && (
-                          <span className="block text-[11px] text-ink-3 truncate">{item.produtora || item.cliente}</span>
+                          <span className="block text-2xs text-ink-3 truncate">{item.produtora || item.cliente}</span>
                         )}
                       </span>
                     </button>
@@ -221,7 +221,7 @@ export function CalendarioMesModal({
                             style={{ gridRow: 1, gridColumn: d + 1 }}
                             className={cx(
                               "h-[46px] border-l border-border-soft",
-                              fimDeSemana(ano, mes, d) && "bg-[#F1F3F7]",
+                              fimDeSemana(ano, mes, d) && "bg-muted",
                               feriados?.has(iso) && "bg-[#EFE7FB]",
                               ehHoje && "bg-primary-soft"
                             )}
@@ -257,14 +257,14 @@ export function CalendarioMesModal({
         </div>
 
         {/* -------------------------------- rodapé --------------------------------- */}
-        <div className="px-5 py-3 border-t border-border-soft bg-[#FCFCFD] flex items-center gap-3 flex-wrap">
-          <span className="text-[11.5px] text-ink-3">
+        <div className="px-5 py-3 border-t border-border-soft bg-muted/40 flex items-center gap-3 flex-wrap">
+          <span className="text-2xs text-ink-3">
             O dia pintado é dia ocupado — a marcação cobre o período completo do projeto; a
             divisória mais grossa separa montagem, evento e desmontagem.
           </span>
-          <span className="ml-auto flex items-center gap-3 text-[11px] text-ink-3 flex-wrap">
+          <span className="ml-auto flex items-center gap-3 text-2xs text-ink-3 flex-wrap">
             <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-[4px] bg-primary" /> projeto</span>
-            <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-[4px] bg-[#F1F3F7] border border-border" /> fim de semana</span>
+            <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-[4px] bg-muted border border-border" /> fim de semana</span>
             <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-[4px] bg-[#EFE7FB] border border-[#C9B6EA]" /> feriado</span>
             <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-[4px] bg-primary-soft border border-active-border" /> hoje</span>
           </span>

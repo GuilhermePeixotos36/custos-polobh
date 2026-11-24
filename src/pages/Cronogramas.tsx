@@ -105,11 +105,11 @@ export function Cronogramas() {
             <div className="flex items-center gap-3 mb-1">
               <span className="text-primary"><IcCalendar /></span>
               <div>
-                <h3 className="font-display font-bold text-ink">{ecSel.projeto.titulo}</h3>
-                <p className="text-[12.5px] text-ink-2">{ecSel.cliente.nome} · Evento em {dataBR(ecSel.projeto.evento)}</p>
+                <h3 className="font-bold text-ink">{ecSel.projeto.titulo}</h3>
+                <p className="text-xs text-ink-2">{ecSel.cliente.nome} · Evento em {dataBR(ecSel.projeto.evento)}</p>
               </div>
             </div>
-            <div className="mt-3 text-[12.5px] bg-bg rounded-btn px-3 py-2 text-ink-2 break-all">
+            <div className="mt-3 text-xs bg-bg rounded-btn px-3 py-2 text-ink-2 break-all">
               {linkPublico ? (
                 <>Link público (sem login): <span className="text-primary-dark font-semibold">{linkPublico}</span></>
               ) : (
@@ -134,7 +134,7 @@ export function Cronogramas() {
               <EnvioCronograma oss={ossDoProjeto} ecs={ecs ?? []} />
 
               {/* Detalhe por fornecedor */}
-              <div className="text-[10.5px] font-extrabold uppercase tracking-[0.14em] text-ink-3 px-1 pt-1">Por fornecedor</div>
+              <div className="text-xs font-semibold text-muted-foreground px-1 pt-1">Por fornecedor</div>
               {ossDoProjeto.map((o) => (
                 <Card key={o.id}>
                   <CardTitle action={<Badge tom={tomStatusOs[o.status]}>{o.status}</Badge>}>

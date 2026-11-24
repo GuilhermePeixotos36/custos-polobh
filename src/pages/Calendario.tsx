@@ -156,7 +156,7 @@ export function Calendario() {
           )}
           <div className="flex items-center gap-1 rounded-pill border-[1.5px] border-border bg-surface p-1">
             <SetaAno titulo="Ano anterior" onClick={() => irParaAno(ano - 1)} virada />
-            <span className="font-display font-extrabold text-[19px] text-ink tabular-nums px-2 leading-none">{ano}</span>
+            <span className="font-bold text-lg text-ink tabular-nums px-2 leading-none">{ano}</span>
             <SetaAno titulo="Próximo ano" onClick={() => irParaAno(ano + 1)} />
           </div>
         </div>
@@ -178,7 +178,7 @@ export function Calendario() {
                   key={f.key}
                   onClick={() => setFiltro(f.key)}
                   className={cx(
-                    "h-9 px-3.5 rounded-btn text-[13px] font-bold border-[1.5px] transition-colors",
+                    "h-9 px-3.5 rounded-btn text-sm font-bold border-[1.5px] transition-colors",
                     filtro === f.key
                       ? "bg-primary-soft border-active-border text-primary-dark"
                       : "bg-surface border-border text-ink-2 hover:text-ink"
@@ -208,7 +208,7 @@ export function Calendario() {
             <div className="relative min-w-[220px]">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-3"><IcSearch width={16} height={16} /></span>
               <input
-                className="w-full h-9 bg-surface border-[1.5px] border-[#BFC4CE] rounded-btn pl-9 pr-3 text-[13px] text-ink placeholder:text-ink-3 input-focus"
+                className="w-full h-9 bg-surface border-[1.5px] border-input rounded-btn pl-9 pr-3 text-sm text-ink placeholder:text-ink-3 input-focus"
                 placeholder="Buscar projeto, cliente ou local…"
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
@@ -226,13 +226,13 @@ export function Calendario() {
         <>
           {anosDisponiveis.length > 1 && (
             <div className="flex items-center gap-2 flex-wrap mb-4">
-              <span className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-ink-3">Anos com projeto</span>
+              <span className="text-xs font-semibold text-muted-foreground">Anos com projeto</span>
               {anosDisponiveis.map((a) => (
                 <button
                   key={a}
                   onClick={() => irParaAno(a)}
                   className={cx(
-                    "h-7 px-3 rounded-pill text-[12px] font-bold tabular-nums border transition-colors",
+                    "h-7 px-3 rounded-pill text-xs font-bold tabular-nums border transition-colors",
                     a === ano ? "bg-black text-white border-black" : "bg-surface text-ink-2 border-border hover:text-ink hover:border-ink-3"
                   )}
                 >
@@ -318,16 +318,16 @@ function CardMes({
       onClick={onAbrir}
       className={cx(
         "group text-left bg-surface border rounded-card-lg shadow-card p-4 flex flex-col gap-3 transition-all duration-150",
-        "hover:translate-y-[-2px] hover:shadow-[0_18px_32px_-24px_rgba(16,30,66,.55)] hover:border-primary/45",
+        "hover:translate-y-[-2px] hover:shadow-(--sombra-flutuante) hover:border-primary/45",
         ehMesAtual ? "border-primary/55 ring-2 ring-primary/15" : "border-border",
-        segmentos.length === 0 && "bg-[#FBFBFC]"
+        segmentos.length === 0 && "bg-muted/40"
       )}
     >
       <div className="flex items-center gap-2">
-        <h3 className={cx("font-display font-bold text-[15px] tracking-[-0.2px]", segmentos.length ? "text-ink" : "text-ink-3")}>
+        <h3 className={cx("font-bold text-base tracking-[-0.2px]", segmentos.length ? "text-ink" : "text-ink-3")}>
           {MESES[mes]}
         </h3>
-        {ehMesAtual && <span className="text-[9.5px] font-extrabold uppercase tracking-widest text-primary-dark bg-primary-soft rounded-pill px-2 py-0.5">agora</span>}
+        {ehMesAtual && <span className="text-2xs font-semibold text-brand-forte bg-primary-soft rounded-pill px-2 py-0.5">Agora</span>}
         <span className="ml-auto">
           <Badge tom={segmentos.length ? "warning" : "neutral"}>
             {segmentos.length === 0 ? "livre" : `${segmentos.length} projeto${segmentos.length > 1 ? "s" : ""}`}
@@ -339,7 +339,7 @@ function CardMes({
       <div className="relative">
         <div className="flex flex-col gap-[3px]">
           {Array.from({ length: TRILHAS_NO_CARD }, (_, t) => (
-            <div key={t} className="relative h-[7px] rounded-pill bg-[#EFF1F4] overflow-hidden">
+            <div key={t} className="relative h-[7px] rounded-pill bg-muted overflow-hidden">
               {/* Um bloco por etapa, todos no laranja da casa, com a divisória
                   branca entre uma etapa e a seguinte (29/09/2026). */}
               {(trilhas[t] ?? []).flatMap((seg) =>
@@ -366,7 +366,7 @@ function CardMes({
             title="hoje"
           />
         )}
-        <div className="flex justify-between text-[9px] font-bold text-ink-3 mt-1 tabular-nums">
+        <div className="flex justify-between text-2xs font-bold text-ink-3 mt-1 tabular-nums">
           <span>01</span>
           <span>{dias}</span>
         </div>
@@ -395,10 +395,10 @@ function LinhaProjetoCard({ seg }: { seg: SegmentoMes }) {
   return (
     <span className="flex items-center gap-2 min-w-0" title={`${item.titulo} — ${rotuloPeriodo(item)}`}>
       <span className="h-2 w-2 rounded-full shrink-0 bg-primary" />
-      <span className={cx("text-[12.5px] font-semibold text-ink truncate flex-1 min-w-0", item.status === "Arquivado" && "line-through text-ink-3")}>
+      <span className={cx("text-xs font-semibold text-ink truncate flex-1 min-w-0", item.status === "Arquivado" && "line-through text-ink-3")}>
         {item.titulo}
       </span>
-      <span className="text-[11px] font-bold text-ink-3 tabular-nums shrink-0">
+      <span className="text-2xs font-bold text-ink-3 tabular-nums shrink-0">
         {rotuloDias(seg)}
       </span>
     </span>
@@ -436,17 +436,17 @@ function VistaLista({
         const ehMesAtual = hoje.slice(0, 7) === `${ano}-${String(mes + 1).padStart(2, "0")}`;
         return (
           <Card key={mes} padded={false} className={cx("overflow-hidden", ehMesAtual && "ring-2 ring-primary/15 border-primary/45")}>
-            <div className="flex items-center gap-2.5 px-5 py-3 border-b border-border-soft bg-[#FCFCFD]">
+            <div className="flex items-center gap-2.5 px-5 py-3 border-b border-border-soft bg-muted/40">
               <span className="h-4 w-1.5 rounded-full bg-progress-grad" />
-              <h3 className="font-display font-bold text-[15px] text-ink">
+              <h3 className="font-bold text-base text-ink">
                 {MESES[mes]} <span className="text-ink-3 font-semibold">de {ano}</span>
               </h3>
-              {ehMesAtual && <span className="text-[9.5px] font-extrabold uppercase tracking-widest text-primary-dark bg-primary-soft rounded-pill px-2 py-0.5">agora</span>}
+              {ehMesAtual && <span className="text-2xs font-semibold text-brand-forte bg-primary-soft rounded-pill px-2 py-0.5">Agora</span>}
               <Badge tom="warning">{segmentos.length} projeto{segmentos.length > 1 ? "s" : ""}</Badge>
               <button
                 onClick={() => onAbrirMes(mes)}
                 title={`Abrir ${MESES[mes]} dia a dia`}
-                className="ml-auto text-[12px] font-bold text-ink-2 hover:text-primary-dark transition-colors flex items-center gap-1"
+                className="ml-auto text-xs font-bold text-ink-2 hover:text-primary-dark transition-colors flex items-center gap-1"
               >
                 <IcCalendar width={14} height={14} /> {MESES[mes]} dia a dia
               </button>
@@ -455,7 +455,7 @@ function VistaLista({
                 produtor(a) responsável — o que a equipe procura na lista. Sem
                 selo de status, dias ou modalidade: o projeto arquivado sai
                 riscado, e o resto se vê no projeto. */}
-            <div className="hidden md:grid grid-cols-[minmax(0,2.2fr)_minmax(0,1.1fr)_minmax(0,1.5fr)_minmax(0,1.3fr)] gap-4 px-5 py-2 border-b border-border-soft text-[10.5px] font-extrabold uppercase tracking-[0.12em] text-ink-3">
+            <div className="hidden md:grid grid-cols-[minmax(0,2.2fr)_minmax(0,1.1fr)_minmax(0,1.5fr)_minmax(0,1.3fr)] gap-4 px-5 py-2 border-b border-border-soft text-xs font-semibold text-muted-foreground">
               <span>Projeto</span>
               <span>Datas</span>
               <span>Local</span>
@@ -468,16 +468,16 @@ function VistaLista({
                   <button
                     key={item.id}
                     onClick={() => navigate(`/projetos/${item.id}`)}
-                    className="w-full text-left px-5 py-3 grid gap-x-4 gap-y-0.5 md:grid-cols-[minmax(0,2.2fr)_minmax(0,1.1fr)_minmax(0,1.5fr)_minmax(0,1.3fr)] items-center hover:bg-[#FAFAFB] transition-colors border-l-[6px] border-l-primary"
+                    className="w-full text-left px-5 py-3 grid gap-x-4 gap-y-0.5 md:grid-cols-[minmax(0,2.2fr)_minmax(0,1.1fr)_minmax(0,1.5fr)_minmax(0,1.3fr)] items-center hover:bg-muted/40 transition-colors border-l-[6px] border-l-primary"
                   >
-                    <span className={cx("text-[14px] font-bold text-ink", item.status === "Arquivado" && "line-through text-ink-3")}>
+                    <span className={cx("text-sm font-bold text-ink", item.status === "Arquivado" && "line-through text-ink-3")}>
                       {item.titulo}
                     </span>
-                    <span className="text-[12.5px] font-semibold text-ink tabular-nums">
+                    <span className="text-xs font-semibold text-ink tabular-nums">
                       {dataBR(item.inicio)}{item.inicio !== item.fim ? ` a ${dataBR(item.fim)}` : ""}
                     </span>
-                    <span className="text-[12.5px] text-ink-2">{item.local || "—"}</span>
-                    <span className="text-[12.5px] text-ink-2">{item.produtora || "—"}</span>
+                    <span className="text-xs text-ink-2">{item.local || "—"}</span>
+                    <span className="text-xs text-ink-2">{item.produtora || "—"}</span>
                   </button>
                 );
               })}
@@ -500,7 +500,7 @@ function AvisoSemData({ semData }: { semData: { id: string; titulo: string; clie
   const navigate = useNavigate();
   return (
     <div className="mt-5 rounded-card border border-warning/30 bg-warning-soft/60 px-4 py-3">
-      <div className="text-[12.5px] font-bold text-warning">
+      <div className="text-xs font-bold text-warning">
         {semData.length} projeto{semData.length > 1 ? "s" : ""} ainda sem data de evento — não aparece
         {semData.length > 1 ? "m" : ""} no calendário.
       </div>
@@ -510,7 +510,7 @@ function AvisoSemData({ semData }: { semData: { id: string; titulo: string; clie
             key={p.id}
             onClick={() => navigate(`/projetos/${p.id}`)}
             title={`Abrir ${p.titulo} e preencher a data do evento`}
-            className="h-7 px-3 rounded-pill bg-surface border border-border text-[12px] font-semibold text-ink-2 hover:text-ink hover:border-warning transition-colors max-w-[280px] truncate"
+            className="h-7 px-3 rounded-pill bg-surface border border-border text-xs font-semibold text-ink-2 hover:text-ink hover:border-warning transition-colors max-w-[280px] truncate"
           >
             {p.titulo}
           </button>
@@ -550,8 +550,8 @@ function BotaoVista({
     <button
       onClick={onClick}
       className={cx(
-        "h-7 px-3 rounded-[8px] text-[12.5px] font-bold flex items-center gap-1.5 transition-colors",
-        ativo ? "bg-primary-soft text-primary-dark" : "text-ink-2 hover:text-ink hover:bg-[#F5F6F8]"
+        "h-7 px-3 rounded-[8px] text-xs font-bold flex items-center gap-1.5 transition-colors",
+        ativo ? "bg-primary-soft text-primary-dark" : "text-ink-2 hover:text-ink hover:bg-muted/60"
       )}
     >
       {icone}
