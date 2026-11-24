@@ -208,11 +208,11 @@ export function PageShell({
   return (
     <ProvedorRecolher>
     {/* <div>, não <main>: o <main> é o da casca (um só por página). */}
-    <div className="flex-1 px-(--gutter) py-5 md:py-6 max-w-[1600px] w-full mx-auto">
+    <div className="flex-1 px-(--gutter) pb-5 md:pb-6 max-w-[1600px] w-full mx-auto">
       <div
         ref={medirCabecalho}
         className={cx(
-          "cabecalho-pagina md:sticky top-(--altura-topnav) z-20 -mx-(--gutter) px-(--gutter) pt-3 mb-4",
+          "cabecalho-pagina md:sticky top-(--altura-topnav) z-20 -mx-(--gutter) px-(--gutter) pt-4 mb-4",
           // Fundo da página quase cheio: o conteúdo que passa por baixo não atravessa o título.
           "bg-background/95 backdrop-blur-[6px]",
           // Quem fecha o bloco embaixo é o fio da barra de subguias, quando ela
