@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { useRouteError } from "react-router-dom";
+import { registrarErroJs, registrarLogoutAntesDeSair } from "@/lib/logs/registrarLog";
 import { Button } from "@/components/ui";
 import { ehErroDeChunk } from "@/lib/lazyComRecuperacao";
 import { supabase } from "@/lib/supabaseClient";
@@ -10,6 +12,9 @@ import { supabase } from "@/lib/supabaseClient";
  * tela quebrar até ser descartada.
  */
 async function sairEEntrarDeNovo() {
+  // Saída de verdade: vai para a tela Logs antes do signOut (depois não há sessão para a RPC);
+  // espera no máximo 1,5 s e nunca falha.
+  await registrarLogoutAntesDeSair();
   try {
     await supabase.auth.signOut();
   } catch {
@@ -34,6 +39,12 @@ export function ErroAplicacao() {
   const erro = useRouteError();
   const erroDeAtualizacao = ehErroDeChunk(erro);
   console.error("[rota] Falha ao abrir tela", erro);
+  // LOGS: esta é a rede de segurança das telas (o `errorElement` de cada rota), então o erro vai
+  // para a aba Erros da tela Logs — mensagem e 5 linhas da pilha, nada de props nem estado. A
+  // versão velha aberta depois de uma publicação (erro de chunk) não é defeito: fica de fora.
+  useEffect(() => {
+    if (!erroDeAtualizacao) registrarErroJs(erro instanceof Error ? erro : motivoTecnico(erro), "rota");
+  }, [erro, erroDeAtualizacao]);
 
   return (
     <main className="min-h-screen grid place-items-center bg-page p-5">

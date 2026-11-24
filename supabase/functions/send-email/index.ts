@@ -1,4 +1,6 @@
 import { autorizar, respostaAutorizacao } from "../_shared/auth.ts";
+// Todo erro da função (exceção solta ou resposta >= 500) vai para a aba Erros da tela Logs.
+import { comRegistroDeErros } from "../_shared/log.ts";
 
 /**
  * Edge Function: send-email
@@ -167,7 +169,7 @@ async function registrarLog(row: Record<string, unknown>): Promise<void> {
   }
 }
 
-Deno.serve(async (req) => {
+Deno.serve(comRegistroDeErros("send-email", async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ erro: "Method not allowed" }, 405);
 
@@ -225,4 +227,4 @@ Deno.serve(async (req) => {
     });
     return json({ ok: false, erro }, 500);
   }
-});
+}));

@@ -2,6 +2,8 @@ import { autorizar, respostaAutorizacao, type Papel } from "../_shared/auth.ts";
 import { enviarPeloBrevo } from "../_shared/brevo.ts";
 import { subirParaDropbox, dropboxConfigurado } from "./dropbox.ts";
 import { montarZip, type ArquivoZip } from "./zip.ts";
+// Todo erro da função (exceção solta ou resposta >= 500) vai para a aba Erros da tela Logs.
+import { comRegistroDeErros } from "../_shared/log.ts";
 import {
   CONFIG_PADRAO,
   csvDaTabela,
@@ -319,7 +321,7 @@ async function entregar(p: Pacote, config: ConfigBackup): Promise<Entrega> {
 
 /* -------------------------------------------------------------------------- */
 
-Deno.serve(async (req) => {
+Deno.serve(comRegistroDeErros("backup", async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ ok: false, erro: "Method not allowed" }, 405);
 
@@ -431,4 +433,4 @@ Deno.serve(async (req) => {
     erro,
     dropboxConfigurado: dropboxConfigurado(),
   });
-});
+}));

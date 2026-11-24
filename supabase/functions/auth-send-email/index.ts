@@ -35,6 +35,8 @@ import { assuntoDe, corpoDe, mensagensDoEvento, type EventoDeEmail } from "./mod
  *   BREVO_API_KEY / BREVO_SENDER_EMAIL / BREVO_SENDER_NAME  (já existem)
  */
 import { Webhook } from "https://esm.sh/standardwebhooks@1.0.0";
+// Todo erro da função (exceção solta ou resposta >= 500) vai para a aba Erros da tela Logs.
+import { comRegistroDeErros } from "../_shared/log.ts";
 
 /** O que o Supabase manda. Só os campos que este hook usa. */
 interface CargaDoHook {
@@ -101,7 +103,7 @@ async function registrar(linha: Record<string, unknown>): Promise<void> {
   }
 }
 
-Deno.serve(async (req) => {
+Deno.serve(comRegistroDeErros("auth-send-email", async (req) => {
   if (req.method !== "POST") return erro("Method not allowed", 405);
 
   const payload = await req.text();
@@ -155,4 +157,4 @@ Deno.serve(async (req) => {
   }
 
   return json({});
-});
+}));

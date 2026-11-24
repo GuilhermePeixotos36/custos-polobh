@@ -1270,3 +1270,46 @@ falha visível é melhor do que um back-up que a casa acha que tem.
 Senhas (nem embaralhadas — quem as guarda é o serviço de autenticação) e os
 logins em si. O cadastro de perfis está lá; recriar o acesso é um passo à parte,
 por convite. Está escrito no `LEIA-ME` dentro de cada pacote.
+
+## Logs (padrão LSPRO, 24/11/2026)
+
+A tela **Logs** (`/logs`, em Configurações) tem três abas — **Atividades**, **Acessos** e
+**Erros** — e é consulta: ninguém recebe alerta. Quem vê é quem tem o recurso `logs` (o
+Administrador sempre; uma área só se `logs` estiver marcado nela). O banco confere o mesmo
+portão em `public.pode_ver_logs()`; quando o padrão de Acessos chegar, troca-se o corpo dessa
+função por `tem_permissao('admin.logs', 'ver')`. "Exportar CSV" segue o mesmo recurso.
+
+**Motor.** Uma tabela só de inserção, `log_evento` (migration `20261124120000_logs_padrao.sql`):
+ninguém altera nem apaga — só o expurgo diário (`polobh-expurgo-logs`, pg_cron): erros 90 dias,
+acessos 12 meses, atividades 5 anos. O front grava pela RPC `registrar_log`, que aceita **só seis
+ações** (`login`, `logout`, `acesso_negado`, `erro_requisicao`, `erro_js`, `exportacao`); a falha
+de login vai por `registrar_falha_de_login` (e-mail mascarado); as Edge Functions gravam com a
+service role pelo `supabase/functions/_shared/log.ts` (`comRegistroDeErros` embrulha o handler).
+
+**Os pontos de captura são estes, e só estes** (não se espalha `registrarLog` pelas telas):
+
+1. erro do banco → `ok()` em `src/data/supabase.ts` (42501 vira "Acesso negado");
+2. erro de JavaScript → `ErrorBoundary` da raiz, `errorElement` das rotas (`ErroAplicacao`),
+   `window.onerror` e promessa rejeitada (`instalarCapturaDeErrosJs`, em `main.tsx`);
+3. entrou / saiu → `entrarComEmail` e `sair` em `src/store/auth.ts` (o logout antes do `signOut`);
+4. falha de login → o erro do `signInWithPassword` em `entrarComEmail`;
+5. rota barrada → `RequireRecurso`;
+6. exportação → **toda exportação nova chama `baixarArquivo`** (`src/lib/download.ts`), que
+   registra; o que não vira download (impressão, salvar pelo seletor de pasta) chama
+   `registrarExportacao` na linha em que acontece.
+
+O registrador (`src/lib/logs/registrarLog.ts`) não importa o cliente Supabase: quem cria o
+cliente (`src/lib/supabaseClient.ts`) injeta o envio. Nada de `await` no registro (só o logout
+espera, no máximo 1,5 s). Sem a migration no banco, o registrador se desliga sozinho e a tela
+lê a trilha antiga com um aviso.
+
+**Nunca entra no log:** senha, token, CPF/CNPJ, documento, dado bancário, dado de formulário. O
+banco e a Edge ainda descartam do `detalhe` essas chaves pelo nome e mascaram CPF na mensagem.
+
+**Trilha antiga.** A `audit_log` (o `auditar()` de `src/store/logs.ts`) **não foi migrada nem
+apagada** e continua sendo gravada como antes. Ela aparece unida na aba Atividades, só para o
+Administrador (quem já a lia). A policy de INSERT dela segue aberta à sessão, porque quem grava é o
+front — fechar exige antes levar esses registros para o banco.
+
+**Fora do log:** navegação por tela, abrir um registro (inclusive o anexo do check-list e do Help
+Desk), sessão que expira sozinha ou aba fechada (não geram "Saiu do app").

@@ -11,6 +11,7 @@ import { useMemo, useState } from "react";
 import { Card, CardTitle, Input, Button, Table, THead, Th, Tr, Td, EmptyState, Badge } from "@/components/ui";
 import { IcDownload } from "@/components/icons";
 import { supabase } from "@/lib/supabaseClient";
+import { baixarArquivo } from "@/lib/download";
 import { useAsync } from "@/hooks/useAsync";
 import { dataHoraBR } from "@/lib/format";
 import { toast } from "@/store/toast";
@@ -85,12 +86,12 @@ async function exportarExcel(mes: string, registros: RegistroIa[]) {
   cabecalho(chamadas);
 
   const buffer = await wb.xlsx.writeBuffer();
-  const url = URL.createObjectURL(new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `consumo-ia-polobh-${mes}.xlsx`;
-  a.click();
-  URL.revokeObjectURL(url);
+  // Pelo helper único de download: é ele que registra a exportação na tela Logs.
+  baixarArquivo(
+    `consumo-ia-polobh-${mes}.xlsx`,
+    new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
+    { detalhe: { mes, linhas: registros.length } },
+  );
   toast("Relatório de consumo de IA exportado.", "success");
 }
 

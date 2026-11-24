@@ -1,6 +1,7 @@
 import type { Ec } from "@/data/types";
 import type { CronogramaExcelDados } from "./cronograma";
 import { auditar } from "@/store/logs";
+import { registrarExportacao } from "@/lib/logs/registrarLog";
 import { nomeEcExcel } from "./nomeEc";
 import { rotuloNumeroEc } from "@/domain/calc";
 
@@ -47,6 +48,8 @@ export async function salvarEcExcelNoDestino(
     const writable = await destino.handle.createWritable();
     await writable.write(new Blob([buffer], { type: XLSX_MIME }));
     await writable.close();
+    // Salvo pelo seletor de pasta não passa pelo `baixarArquivo`, mas é a mesma exportação.
+    registrarExportacao(undefined, destino.nome, { tipo: XLSX_MIME, bytes: buffer.byteLength, modo: "seletor de pasta" });
     return "salvo";
   }
   baixar(buffer, destino.nome);
@@ -128,6 +131,8 @@ export async function gerarCredenciamentoExcel(
 /** "Baixar PDF": usa a impressão do navegador sobre a visualização em tela.
  *  Funciona em qualquer navegador e mantém o armazenamento de arquivos mínimo. */
 export function baixarPdfViaImpressao() {
+  // Impressão não vira download: o registro na tela Logs é explícito.
+  registrarExportacao(undefined, "PDF pela impressão do navegador");
   window.print();
 }
 

@@ -1,4 +1,6 @@
 import ExcelJS from "exceljs";
+import { baixarArquivo } from "@/lib/download";
+import { registrarExportacao } from "@/lib/logs/registrarLog";
 
 /** Paleta Pólobh em ARGB (ExcelJS usa AARRGGBB). */
 export const COR = {
@@ -132,15 +134,8 @@ const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.s
 
 export function baixar(buffer: ArrayBuffer, nome: string, projetoId?: string) {
   arquivarCopia(projetoId, nome, buffer);
-  const blob = new Blob([buffer], { type: XLSX_MIME });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = nome.endsWith(".xlsx") ? nome : `${nome}.xlsx`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  // Pelo helper único de download: é ele que registra a exportação na tela Logs.
+  baixarArquivo(nome.endsWith(".xlsx") ? nome : `${nome}.xlsx`, new Blob([buffer], { type: XLSX_MIME }));
 }
 
 /**
@@ -163,6 +158,8 @@ export async function salvarComPicker(buffer: ArrayBuffer, nome: string, projeto
       await writable.write(new Blob([buffer], { type: XLSX_MIME }));
       await writable.close();
       arquivarCopia(projetoId, nomeArq, buffer);
+      // Salvo pelo seletor de pasta não passa pelo `baixarArquivo`, mas é a mesma exportação.
+      registrarExportacao(undefined, nomeArq, { tipo: XLSX_MIME, bytes: buffer.byteLength, modo: "seletor de pasta" });
       return "salvo";
     } catch (e) {
       // Usuário cancelou o diálogo
