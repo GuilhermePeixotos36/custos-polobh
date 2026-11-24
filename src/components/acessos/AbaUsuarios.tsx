@@ -7,23 +7,46 @@
  * coluna Setor.
  */
 import { useMemo, useState } from "react";
-import { Eye, Pencil, Power, PowerOff, Users } from "lucide-react";
+import { Eye, Pencil, Power, PowerOff, Search, Users } from "lucide-react";
 import { BarraFiltros } from "@/components/padrao/BarraFiltros";
 import { filterControlClass } from "@/components/padrao/FilterPills";
 import { EstadoVazio } from "@/components/padrao/EstadoVazio";
 import { AvatarUsuario } from "@/components/padrao/AvatarUsuario";
-import { Table, THead, Th, Tr, Td } from "@/components/ui";
+import { Button, Table, Tr, Td } from "@/components/ui";
+import { CabecalhoDeColuna, useFiltrosDeColuna, type ColunaDeLista } from "@/components/padrao/CabecalhoDeColuna";
+import { useOrdenacao } from "@/components/padrao/CabecalhoOrdenavel";
+import { ordenarPorColuna, type ValorOrdenavel } from "@/components/padrao/ordenacaoTabela";
+import { diaDoCarimbo, filtrarPorColunas, type ExtratoresDeFiltro } from "@/components/padrao/filtrosColuna";
+import { dataBR } from "@/lib/format";
 import { BotaoIcone, SeloDoStatus, formatarUltimoAcesso } from "./comum";
 import { EditarUsuario } from "./EditarUsuario";
 import { DetalhesUsuario } from "./DetalhesUsuario";
 import { AtivarComGrupo } from "./AtivarComGrupo";
 import { definirAcessoDoUsuario, type GrupoAcesso, type UsuarioDoAcesso } from "@/lib/acessos/acessosStore";
 import {
-  FILTROS_VAZIOS, acoesDaLinha, filtrarUsuarios, filtrosAtivosDeUsuarios, gruposEscolheveis, motivoDeEdicaoTravada,
+  FILTROS_VAZIOS, ROTULO_STATUS, acoesDaLinha, filtrarUsuarios, filtrosAtivosDeUsuarios, gruposEscolheveis, motivoDeEdicaoTravada,
   type FiltrosDeUsuarios,
 } from "@/lib/acessos/usuarios";
 import { confirmar } from "@/store/confirm";
 import { toast } from "@/store/toast";
+
+/**
+ * Colunas da lista (24/11/2026): todas ordenam e filtram pelo cabeçalho, como nas listas de EC e
+ * OS. Ações não tem dado por trás — nem ordena, nem filtra, e o rótulo é só para o leitor de tela.
+ */
+const COLUNAS: ColunaDeLista[] = [
+  { rotulo: "Nome", chave: "nome", tipo: "texto" },
+  { rotulo: "E-mail", chave: "email", tipo: "texto" },
+  { rotulo: "Setor", chave: "setor", tipo: "texto" },
+  { rotulo: "Cargo", chave: "cargo", tipo: "texto" },
+  { rotulo: "Grupo", chave: "grupo", tipo: "texto" },
+  { rotulo: "Status", chave: "status", tipo: "texto" },
+  { rotulo: "Último acesso", chave: "acesso", tipo: "data", classe: "whitespace-nowrap", formatarFiltro: (v) => dataBR(v) },
+  { rotulo: "Ações", classe: "text-right", conteudo: <span className="sr-only">Ações</span> },
+];
+
+/** Desempate estável: e-mail, depois id. */
+const desempate = (a: UsuarioDoAcesso, b: UsuarioDoAcesso) => a.email.localeCompare(b.email, "pt-BR") || a.id.localeCompare(b.id);
 
 export function AbaUsuarios({ usuarios, grupos, concediveis, euId, euSouAdministrador, pode, temEspecial, setores, cargos, onRecarregar }: {
   usuarios: UsuarioDoAcesso[];
@@ -44,8 +67,27 @@ export function AbaUsuarios({ usuarios, grupos, concediveis, euId, euSouAdminist
   /** A linha no meio de uma gravação: não aceita outro clique. */
   const [gravando, setGravando] = useState<string | null>(null);
 
-  const lista = useMemo(() => filtrarUsuarios(usuarios, filtros), [usuarios, filtros]);
+  const filtrosColuna = useFiltrosDeColuna();
+  // Cadastro: nome A→Z (a mesma ordem que `filtrarUsuarios` já devolve).
+  const { ordem, ordenarPor } = useOrdenacao({ chave: "nome", sentido: "asc" });
   const grupoDe = useMemo(() => new Map(grupos.map((g) => [g.id, g])), [grupos]);
+  /** Depois da busca e do painel: é daqui que o funil de cada coluna tira os valores. */
+  const base = useMemo(() => filtrarUsuarios(usuarios, filtros), [usuarios, filtros]);
+  const valoresOrdem: Record<string, (u: UsuarioDoAcesso) => ValorOrdenavel> = {
+    nome: (u) => u.nome || u.email,
+    email: (u) => u.email,
+    setor: (u) => u.setor,
+    cargo: (u) => u.cargo,
+    grupo: (u) => (u.grupoId ? grupoDe.get(u.grupoId)?.nome : undefined),
+    status: (u) => ROTULO_STATUS[u.status],
+    // Quem nunca entrou vai para o fim, nos dois sentidos.
+    acesso: (u) => u.ultimoAcesso || undefined,
+  };
+  const valoresFiltro: ExtratoresDeFiltro<UsuarioDoAcesso> = {
+    ...valoresOrdem,
+    acesso: (u) => diaDoCarimbo(u.ultimoAcesso),
+  };
+  const lista = ordenarPorColuna(filtrarPorColunas(base, filtrosColuna.filtros, valoresFiltro), COLUNAS, ordem, valoresOrdem, desempate);
   const sistemaId = grupos.find((g) => g.sistema)?.id;
   const concediveisIds = useMemo(() => new Set(concediveis.map((g) => g.id)), [concediveis]);
 
@@ -112,7 +154,8 @@ export function AbaUsuarios({ usuarios, grupos, concediveis, euId, euSouAdminist
         placeholderBusca="Nome, e-mail ou cargo"
         rotuloBusca="Buscar usuário"
         ativos={ativos}
-        onLimpar={() => setFiltros({ ...FILTROS_VAZIOS, busca: filtros.busca })}
+        onLimpar={() => { setFiltros({ ...FILTROS_VAZIOS, busca: filtros.busca }); filtrosColuna.limpar(); }}
+        filtrosDeColuna={filtrosColuna.ativos}
         contagem={`${lista.length} usuário(s)`}
         className="border-b border-border"
       >
@@ -131,19 +174,24 @@ export function AbaUsuarios({ usuarios, grupos, concediveis, euId, euSouAdminist
       {usuarios.length === 0 ? (
         <EstadoVazio semCartao icone={Users} titulo="Nenhum usuário cadastrado." />
       ) : lista.length === 0 ? (
-        <EstadoVazio semCartao icone={Users} titulo="Nenhum usuário encontrado." />
+        <EstadoVazio
+          semCartao
+          icone={Search}
+          titulo="Nenhum usuário encontrado."
+          descricao="Nenhum usuário com esses filtros ou essa busca."
+          acao={<Button variant="secondary" onClick={() => { setFiltros(FILTROS_VAZIOS); filtrosColuna.limpar(); }}>Limpar filtros</Button>}
+        />
       ) : (
         <Table>
-          <THead>
-            <Th grudado={false}>Nome</Th>
-            <Th grudado={false}>E-mail</Th>
-            <Th grudado={false}>Setor</Th>
-            <Th grudado={false}>Cargo</Th>
-            <Th grudado={false}>Grupo</Th>
-            <Th grudado={false}>Status</Th>
-            <Th grudado={false}>Último acesso</Th>
-            <Th grudado={false} align="right"><span className="sr-only">Ações</span></Th>
-          </THead>
+          <CabecalhoDeColuna
+            colunas={COLUNAS}
+            ordem={ordem}
+            onOrdenar={ordenarPor}
+            itens={base}
+            valoresFiltro={valoresFiltro}
+            filtros={filtrosColuna.filtros}
+            onFiltros={filtrosColuna.setFiltros}
+          />
           <tbody>
             {lista.map((u) => {
               const { grupoAtual, acoes } = contextoDa(u);
