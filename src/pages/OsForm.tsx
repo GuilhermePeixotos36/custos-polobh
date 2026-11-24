@@ -2,14 +2,13 @@ import { rolarPara } from "@/lib/rolagem";
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { EnderecoCampos } from "@/components/EnderecoCampos";
-import { comDadosAtuaisDoProjeto, osComDadosAtuais } from "@/lib/projetoAoVivo";
+import { comDadosAtuaisDoProjeto, osComDadosAtuais, osComFornecedorDoCadastro } from "@/lib/projetoAoVivo";
 import { LegendaProjeto } from "@/components/layout/LegendaProjeto";
 import { PageShell } from "@/components/layout/AppLayout";
 import { BarraProjeto } from "@/components/layout/BarraSecao";
 import {
   Button,
   Input,
-  TelefoneInput,
   Textarea,
   Select,
   NumberInput,
@@ -45,10 +44,13 @@ import {
   rotuloNumeroEc,
 } from "@/domain/calc";
 import { datasDoEvento, ETAPAS_CRONOGRAMA, horariosDoEvento } from "@/domain/projeto";
-import { bancariosDoHistorico, bancariosVazios, cadastroAtualizadoPelaOs, comPerfilPeloDocumento, doCadastro, opcoesPerfilTributario, semVazios } from "@/domain/fornecedor";
+import { bancariosAtualizadosPelaOs, bancariosDoHistorico, bancariosVazios, comPerfilPeloDocumento, doCadastro } from "@/domain/fornecedor";
+import { faltandoNoCadastroParaOs, fornecedorDaOsPeloCadastro, situacaoFornecedor } from "@/domain/cadastroFornecedor";
+import { SeletorFornecedor } from "@/components/SeletorFornecedor";
+import { JanelaCadastroFornecedor } from "@/components/fornecedor/JanelaCadastroFornecedor";
+import { AvisoEmLinha } from "@/components/padrao/AvisoEmLinha";
 import { listarBancos } from "@/lib/bancos";
 import { useEmpresas } from "@/store/empresas";
-import { consultarCnpj } from "@/lib/cnpj";
 import { AVISO_ORIGEM, buscarPorDocumento, documentoCompleto, ieDaBusca, useAoCompletarDocumento } from "@/lib/buscaPorDocumento";
 import { gerarDescritivo } from "@/lib/ai";
 import { flags } from "@/lib/flags";
@@ -423,10 +425,14 @@ export function OsForm() {
   const [previaContrato, setPreviaContrato] = useState<{ url: string; preparo: PreparoContrato } | null>(null);
   const [gerandoContrato, setGerandoContrato] = useState(false);
   const [baseline, setBaseline] = useState("");
-  const [cnpjMsg, setCnpjMsg] = useState("");
   const [busy, setBusy] = useState(false);
-  /** Busca do fornecedor pelo CPF/CNPJ em andamento — em segundo plano, sem a tela cheia do "Salvando…". */
-  const [consultandoCnpj, setConsultandoCnpj] = useState(false);
+  /**
+   * O cadastro de fornecedores — alimenta a caixa combinada do bloco do
+   * fornecedor e diz se o da OS está cadastrado (24/11/2026).
+   */
+  const { data: cadastroForn, reload: recarregarCadastroForn } = useAsync(() => repo.fornecedores.listar(), []);
+  /** O cadastro do fornecedor aberto em popup pelo "Abrir cadastro" do bloco. */
+  const [cadastroAberto, setCadastroAberto] = useState<Fornecedor | null>(null);
   /** "Revisar" em andamento (a IA leva alguns segundos). */
   const [revisando, setRevisando] = useState(false);
   /** Textos já revisados nesta edição (id → texto final): o "Salvar" não pergunta de novo. */
@@ -441,14 +447,10 @@ export function OsForm() {
    */
   const fornecedorGravado = useRef<Fornecedor | undefined>(undefined);
 
-  /** O CPF/CNPJ do fornecedor que já foi buscado — a busca automática roda uma vez por documento. */
-  const cnpjBuscado = useRef("");
-
   const iniciar = (o: Os) => {
     setOs(o);
     setBaseline(JSON.stringify(o));
     fornecedorGravado.current = structuredClone(o.fornecedor);
-    cnpjBuscado.current = (o.fornecedor.cnpj ?? "").replace(/\D/g, "");
   };
 
   // edição de OS existente — a EC vem primeiro para o auto-preenchimento já entrar
@@ -468,7 +470,8 @@ export function OsForm() {
         const cadastro = osEmitida(aoVivo) || !aoVivo.fornecedor.cnpj
           ? undefined
           : await repo.fornecedores.porCnpj(aoVivo.fornecedor.cnpj).catch(() => undefined);
-        const comCadastro = cadastro ? { ...aoVivo, fornecedor: { ...aoVivo.fornecedor, ...doCadastro(cadastro) } } : aoVivo;
+        // A mesma regra do PDF (ver `osComFornecedorDoCadastro`).
+        const comCadastro = osComFornecedorDoCadastro(aoVivo, cadastro);
         setEcCtx(e);
         iniciar(aplicarAutoPreenchimento(comCadastro, e));
       });
@@ -621,19 +624,6 @@ export function OsForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editando, cnpjDaOs, ossDoHistorico]);
 
-  /**
-   * CPF/CNPJ DIGITADO no bloco do fornecedor (18/11/2026, Marisa): completo, a
-   * busca roda sozinha — o cadastro da casa primeiro, a Receita para o que
-   * faltar —, sem precisar clicar em "Consultar CNPJ". Uma vez por documento:
-   * depois disso os campos ficam livres para corrigir.
-   */
-  const digitosFornecedor = cnpjDaOs.replace(/\D/g, "");
-  useEffect(() => {
-    if (!editando || !os || digitosFornecedor === cnpjBuscado.current) return;
-    if (documentoCompleto(digitosFornecedor)) void consultar();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editando, digitosFornecedor]);
-
   if (!os || !ecCtx) return <PageShell title="Carregando…">{null}</PageShell>;
 
   // Linhas da EC que esta OS consolida (mesmo fornecedor).
@@ -711,6 +701,11 @@ export function OsForm() {
   const mexeContrato = contratoCultural
     ? (editando && ((fase === "producao" && podeEditar) || (fase === "direcao" && podeValidarContrato))) || backofficeCorrige
     : mexeFinanceiro;
+
+  /** O fornecedor da OS diante do cadastro — e o que falta nele para a OS sair inteira. */
+  // Enquanto o cadastro carrega, nada de aviso: "não está no cadastro" piscaria à toa.
+  const situacaoForn = cadastroForn ? situacaoFornecedor(os.fornecedor.cnpj, os.fornecedor.razaoSocial, cadastroForn) : "cadastrado";
+  const faltaNoCadastro = faltandoNoCadastroParaOs(os.fornecedor);
 
   /** Trocar o fornecedor de uma OS já emitida arquiva esta e abre a seguinte. */
   const trocouFornecedor = exigeNovaVersaoPorFornecedor(os, fornecedorGravado.current, os.fornecedor);
@@ -915,8 +910,6 @@ export function OsForm() {
   /** A conta do acerto — tudo calculado, menos o percentual de encargos. */
   const acerto = calcularAcerto(os.financeiro, os.orcamento, bvContratado.valor, valorDaContratacao(os.itens ?? []));
 
-  const updF = (patch: Partial<Fornecedor>) =>
-    setOs((o) => (o ? { ...o, fornecedor: comPerfilPeloDocumento({ ...o.fornecedor, ...patch }) } : o));
   const updB = (patch: Partial<Fornecedor["dadosBancarios"]>) =>
     setOs((o) => (o ? { ...o, fornecedor: { ...o.fornecedor, dadosBancarios: { ...o.fornecedor.dadosBancarios, ...patch } } } : o));
   const updFin = (patch: Partial<Os["financeiro"]>) => setOs((o) => (o ? { ...o, financeiro: { ...o.financeiro, ...patch } } : o));
@@ -926,90 +919,54 @@ export function OsForm() {
   const updCt = (patch: Partial<Os["contrato"]>) => setOs((o) => (o ? { ...o, contrato: { ...o.contrato, ...patch } } : o));
 
   /**
-   * Consulta do CNPJ: o CADASTRO da casa primeiro, a Receita depois.
+   * TROCA DE FORNECEDOR pela caixa combinada (24/11/2026): o fornecedor da OS
+   * passa a ser o do cadastro, inteiro. Era aqui que o CNPJ era digitado e a
+   * Receita consultada; agora quem não está no cadastro entra pelo "+" do
+   * próprio seletor.
    *
-   * Antes ia direto à BrasilAPI, e isso desfazia memória: Inscrição Estadual e
-   * Municipal, dados bancários e representante não existem em fonte pública —
-   * alguém da casa digitou aquilo uma vez, e a consulta seguinte sobrescrevia o
-   * registro com o que a API tinha (menos). Agora o fornecedor já cadastrado
-   * devolve tudo o que a casa sabe dele, e a API só completa o que faltar.
-   *
-   * Nenhum dos dois apaga campo: valor vazio na fonte deixa o que está na tela.
+   * Outro documento = outro fornecedor (18/11/2026): os bancários do anterior
+   * não ficam na OS do novo (vêm os do cadastro, ou o histórico completa). O
+   * MESMO fornecedor escolhido de novo só refresca os dados do cadastro.
+   * OS emitida trocada vira nova versão ao salvar (`exigeNovaVersaoPorFornecedor`).
    */
-  async function consultar() {
-    const cnpj = os!.fornecedor.cnpj;
-    const digitos = onlyDigits(cnpj);
-    /*
-     * OUTRO DOCUMENTO = outro fornecedor (18/11/2026). O que está na tela é do
-     * anterior — banco, inscrições, representante — e não pode ficar nesta OS
-     * nem ir para o cadastro do novo ao salvar. Zera antes de buscar.
-     */
-    const outroDocumento = !!cnpjBuscado.current && cnpjBuscado.current !== digitos;
-    cnpjBuscado.current = digitos;
-    /** A resposta que chega depois de o documento mudar de novo é descartada. */
-    const aindaEste = () => cnpjBuscado.current === digitos;
-    if (outroDocumento) setOs((o) => (o ? { ...o, fornecedor: fornecedorVazio("", o.fornecedor.cnpj) } : o));
-    const ieAntes = outroDocumento ? "" : os!.fornecedor.inscricaoEstadual;
-    setCnpjMsg("");
-    setConsultandoCnpj(true);
-    try {
-      const cadastrado = await repo.fornecedores.porCnpj(cnpj).catch(() => undefined);
-      if (!aindaEste()) return;
-      if (cadastrado) updF(doCadastro(cadastrado));
-      // CPF não tem fonte pública: sem cadastro, os dados são digitados aqui (e
-      // vão para o cadastro ao salvar a OS).
-      if (digitos.length === 11) {
-        setCnpjMsg(cadastrado ? `Dados vindos do cadastro do fornecedor (${cadastrado.razaoSocial || cadastrado.nomeFantasia}).` : "CPF sem cadastro: preencha os dados abaixo — eles vão para o cadastro ao salvar a OS.");
-        return;
-      }
+  function escolherFornecedor(f: Fornecedor) {
+    setOs((o) => {
+      if (!o) return o;
+      const mesmo = onlyDigits(o.fornecedor.cnpj) === onlyDigits(f.cnpj);
+      // O mesmo fornecedor numa OS emitida: a foto da emissão não se reescreve.
+      if (mesmo && osEmitida(o)) return o;
+      const fornecedor = mesmo ? { ...o.fornecedor, ...doCadastro(f) } : fornecedorDaOsPeloCadastro(f);
+      return { ...o, fornecedor: comPerfilPeloDocumento(fornecedor) };
+    });
+    if (onlyDigits(os!.fornecedor.cnpj) !== onlyDigits(f.cnpj)) setBancoDaOs("");
+  }
 
-      // Já cadastrado E com o essencial preenchido: não há o que buscar fora.
-      //
-      // Os CNAEs contam como essencial. O cadastro da casa é ANTERIOR a eles,
-      // então o fornecedor já cadastrado caía aqui e voltava sem atividade
-      // nenhuma — e a lista de CNAE da nota ficava vazia para sempre, por mais
-      // vezes que se consultasse o CNPJ. É o que dava a impressão de que a
-      // busca por cartão CNPJ não trazia as opções certas: ela não era feita.
-      const completo =
-        !!cadastrado?.razaoSocial &&
-        !!cadastrado?.endereco &&
-        !!cadastrado?.perfilTributario &&
-        !!cadastrado?.cnaes?.length;
-      if (completo) {
-        setCnpjMsg(`Dados vindos do cadastro do fornecedor (${cadastrado.razaoSocial}). Perfil: ${cadastrado.perfilTributario}.`);
-        return;
-      }
-      if (!flags.consultaCnpj) {
-        setCnpjMsg(cadastrado ? "Dados vindos do cadastro do fornecedor." : "Fornecedor sem cadastro: preencha os dados abaixo.");
-        return;
-      }
-
-      const d = await consultarCnpj(cnpj);
-      if (!aindaEste()) return;
-      updF(semVazios({
-        razaoSocial: d.razaoSocial, nomeFantasia: d.nomeFantasia, endereco: d.endereco,
-        perfilTributario: d.perfilTributario, email: d.email, telefone: d.telefone,
-        // A pesquisa não achou IE: "Isenta" (29/09/2026); o que já estava escrito vence.
-        inscricaoEstadual: d.inscricaoEstadual || ieAntes || "Isenta",
-      }));
-      if (d.cnaes?.length) {
-        updF({ cnaes: d.cnaes });
-        // Devolve ao cadastro o que a Receita disse: a próxima OS deste
-        // fornecedor já abre com as atividades certas, sem nova consulta.
-        if (cadastrado && !cadastrado.cnaes?.length) {
-          await repo.fornecedores.salvar({ ...cadastrado, cnaes: d.cnaes }).catch(() => undefined);
-        }
-      }
-      setCnpjMsg(
-        cadastrado
-          ? `Cadastro do fornecedor completado com os dados públicos. Perfil: ${d.perfilTributario}.`
-          : `Perfil: ${d.perfilTributario}. Dados preenchidos pela BrasilAPI.`
-      );
-    } catch (e) {
-      if (aindaEste()) setCnpjMsg((e as Error).message);
-    } finally {
-      setConsultandoCnpj(false);
+  /**
+   * Corrigiu o cadastro pelo "Abrir cadastro": a OS mostra a correção na hora.
+   * Os bancários ficam como estão na OS — o popup não mexe neles, e a OS pode
+   * ter os mais novos (eles voltam ao cadastro ao salvar a OS).
+   */
+  function aoSalvarCadastro(f: Fornecedor) {
+    setCadastroAberto(null);
+    void recarregarCadastroForn();
+    // Cadastrou OUTRO documento pelo popup: é uma troca de fornecedor.
+    if (onlyDigits(os!.fornecedor.cnpj) !== onlyDigits(f.cnpj)) {
+      escolherFornecedor(f);
+      return;
     }
+    // Emitida segue com a foto do dia da emissão: corrigir o cadastro não a reescreve.
+    if (osEmitida(os!)) return;
+    const { dadosBancarios: _bancarios, ...cadastrais } = doCadastro(f);
+    void _bancarios;
+    setOs((o) => (o ? { ...o, fornecedor: comPerfilPeloDocumento({ ...o.fornecedor, ...cadastrais }) } : o));
+  }
+
+  /** Abre o cadastro do fornecedor desta OS — ou um cadastro novo já com o documento dela. */
+  async function abrirCadastroDoFornecedor() {
+    const doc = os!.fornecedor.cnpj;
+    const existente = (cadastroForn ?? []).find((x) => onlyDigits(x.cnpj) === onlyDigits(doc))
+      ?? (doc ? await repo.fornecedores.porCnpj(doc).catch(() => undefined) : undefined);
+    setCadastroAberto(existente ? structuredClone(existente) : { ...fornecedorVazio("", doc), cnaes: [], contatos: [] });
   }
 
   async function descricaoIA() {
@@ -1115,18 +1072,23 @@ export function OsForm() {
   }
 
   /**
-   * O que a OS completou ou corrigiu no fornecedor VOLTA para o cadastro
-   * (18/11/2026): é assim que a próxima OS dele já nasce certa. Falhar aqui não
-   * desfaz a OS salva — só avisa.
+   * Os DADOS BANCÁRIOS corrigidos na OS voltam ao cadastro (24/11/2026).
+   *
+   * Até aqui era `devolverAoCadastro` (18/11/2026), que devolvia ao cadastro
+   * TUDO o que se editava no bloco do fornecedor. Com o bloco virando leitura
+   * do cadastro, razão social, endereço, inscrições, telefone, e-mail e
+   * representante se corrigem no próprio cadastro ("Abrir cadastro") — devolver
+   * da OS só arriscaria levar de volta uma foto velha. Os bancários continuam
+   * editáveis na OS (onde eles moram ainda não foi decidido), então só eles
+   * seguem voltando. Falhar aqui não desfaz a OS salva — só avisa.
    */
-  async function devolverAoCadastro(fornecedor: Fornecedor, antes: Fornecedor | undefined) {
+  async function devolverBancariosAoCadastro(fornecedor: Fornecedor, antes: Fornecedor | undefined) {
     try {
       const cadastro = fornecedor.cnpj ? await repo.fornecedores.porCnpj(fornecedor.cnpj) : undefined;
-      // Só o que mudou nesta edição (ver `cadastroAtualizadoPelaOs`).
-      const atualizado = cadastroAtualizadoPelaOs(cadastro, fornecedor, antes, documentoCompleto);
+      const atualizado = bancariosAtualizadosPelaOs(cadastro, fornecedor, antes);
       if (atualizado) await repo.fornecedores.salvar(atualizado);
     } catch (e) {
-      toast(`OS salva, mas o cadastro do fornecedor não foi atualizado: ${(e as Error).message}`, "warning");
+      toast(`OS salva, mas os dados bancários não foram levados ao cadastro do fornecedor: ${(e as Error).message}`, "warning");
     }
   }
 
@@ -1185,7 +1147,7 @@ export function OsForm() {
         revisada = aplicarNaOs(comPatchParaRevisao, somenteMaiusculas(pendentes));
       }
 
-      // Para devolver ao cadastro só o que esta edição mudou no fornecedor — e
+      // Para devolver ao cadastro só os bancários que esta edição mudou — e
       // nada quando a OS já estava emitida (a foto dela é de outro dia).
       const fornecedorAntes = fornecedorGravado.current;
       const jaEmitida = osEmitida(os!);
@@ -1199,7 +1161,7 @@ export function OsForm() {
         financeiro: { ...os!.financeiro, bvValor },
       });
       iniciar(ecCtx ? aplicarAutoPreenchimento(salvo, ecCtx) : salvo);
-      if (!jaEmitida) await devolverAoCadastro(salvo.fornecedor, fornecedorAntes);
+      if (!jaEmitida) await devolverBancariosAoCadastro(salvo.fornecedor, fornecedorAntes);
       toast("OS salva.", "success");
       usePendencias.getState().carregar(true); // atualiza os badges de pendência
       guard.liberar();
@@ -1579,9 +1541,6 @@ export function OsForm() {
                   if (baseline) {
                     const gravada = JSON.parse(baseline) as Os;
                     setOs(gravada);
-                    // A busca automática volta a partir do fornecedor gravado.
-                    cnpjBuscado.current = onlyDigits(gravada.fornecedor.cnpj);
-                    setCnpjMsg("");
                   }
                   setEditando(false);
                 }}
@@ -1782,7 +1741,9 @@ export function OsForm() {
           <LinhaOs label="Itens consolidados"><Auto v={`${os.ecLinhaIds.length} linha(s) da EC`} /></LinhaOs>
         </CardOs>
 
-        {/* DADOS DO CLIENTE — automático da EC */}
+        {/* DADOS DO CLIENTE — leitura do cadastro do cliente do projeto (o dos
+            Dados Gerais), ao vivo até a emissão e foto depois dela (ver
+            `osComDadosAtuais`). Nada aqui se digita na OS: corrige-se no projeto. */}
         <CardOs secao="Dados do Cliente" area="Produção">
           <LinhaOs label="Cliente"><Auto v={os.cliente.nome} /></LinhaOs>
           <LinhaOs label="Razão Social"><Auto v={os.cliente.razaoSocial} /></LinhaOs>
@@ -1845,18 +1806,24 @@ export function OsForm() {
           </LinhaOs>
         </CardOs>
 
-        {/* DADOS DO FORNECEDOR */}
+        {/* DADOS DO FORNECEDOR — LEITURA DO CADASTRO (24/11/2026, Módulo 1).
+            O que é do fornecedor (razão social, endereço, inscrições, perfil,
+            representante, telefone, e-mail) vem do cadastro e não se digita na
+            OS: para corrigir, corrige-se o cadastro ("Abrir cadastro", aqui
+            mesmo em popup) e a OS mostra. A troca de fornecedor é pela caixa
+            combinada. Os bancários continuam editáveis aqui, como eram — onde
+            eles devem morar ainda não foi decidido. Emitida, a OS segue com a
+            foto do dia da emissão (ver `projetoAoVivo`). */}
         <CardOs
           secao="Dados do Fornecedor"
           area="Produção"
           acaoSoAberto
           acaoSecao={
-            <Button variant="soft" size="sm" icon={<IcSearch width={15} height={15} />} onClick={() => void consultar()} disabled={busy || consultandoCnpj || !flags.consultaCnpj}>
-              {consultandoCnpj ? "Consultando…" : "Consultar CNPJ"}
+            <Button variant="soft" size="sm" icon={<IcPencil width={15} height={15} />} onClick={() => void abrirCadastroDoFornecedor()} disabled={busy}>
+              {situacaoForn === "cadastrado" ? "Abrir cadastro" : "Cadastrar fornecedor"}
             </Button>
           }
         >
-          {cnpjMsg && <div className="m-3 text-[12.5px] text-info bg-info-soft rounded-btn px-3 py-2">{cnpjMsg}</div>}
           {/* O aviso vem ANTES do "Salvar", e não como surpresa depois dele: a
               troca não é uma edição, e quem está mexendo precisa saber disso
               enquanto ainda pode desfazer. */}
@@ -1867,25 +1834,37 @@ export function OsForm() {
               Ao salvar, ela será arquivada e uma nova versão será criada com o fornecedor novo.
             </div>
           )}
-          <LinhaOs label="Fornecedor" hint="(nome fantasia)"><Input formato="titulo" value={os.fornecedor.nomeFantasia ?? ""} onChange={(e) => updF({ nomeFantasia: e.target.value })} /></LinhaOs>
-          <LinhaOs label="CNPJ/CPF"><Input value={os.fornecedor.cnpj} onChange={(e) => updF({ cnpj: maskCpfCnpjInput(e.target.value) })} inputMode="numeric" placeholder="00.000.000/0000-00" /></LinhaOs>
-          <LinhaOs label="Perfil" hint="(regime tributário)">
-            <Select value={os.fornecedor.perfilTributario} onChange={(e) => updF({ perfilTributario: e.target.value })}>
-              <option value="">Selecione…</option>
-              {opcoesPerfilTributario(os.fornecedor.perfilTributario).map((perfil) => (
-                <option key={perfil}>{perfil}</option>
-              ))}
-            </Select>
+          {!emitida && situacaoForn === "cadastrado" && faltaNoCadastro.length > 0 && (
+            <AvisoEmLinha tom="atencao" className="m-3">
+              Falta no cadastro deste fornecedor: {faltaNoCadastro.join(", ")}. Complete pelo "Abrir cadastro".
+            </AvisoEmLinha>
+          )}
+          {!emitida && (situacaoForn === "sem-cadastro" || situacaoForn === "sem-documento") && (
+            <AvisoEmLinha tom="atencao" className="m-3">
+              Este fornecedor não está no cadastro: os dados abaixo são os que a OS guardou. Escolha um fornecedor
+              cadastrado ou cadastre-o para a OS passar a ler do cadastro.
+            </AvisoEmLinha>
+          )}
+          {/* A troca continua possível na OS emitida: ao salvar, vira nova versão. */}
+          <LinhaOs label="Fornecedor" hint={emitida ? "(dados do dia da emissão; trocar gera nova versão)" : "(escolha do cadastro)"}>
+            <div className="py-1">
+              <SeletorFornecedor
+                cnpj={os.fornecedor.cnpj}
+                razao={os.fornecedor.razaoSocial}
+                fornecedores={cadastroForn ?? []}
+                onEscolher={escolherFornecedor}
+                onCadastrado={() => void recarregarCadastroForn()}
+                aria-label="Fornecedor da OS"
+              />
+            </div>
           </LinhaOs>
-          <LinhaOs label="Razão Social"><Input formato="titulo-empresa" value={os.fornecedor.razaoSocial} onChange={(e) => updF({ razaoSocial: e.target.value })} /></LinhaOs>
-          <LinhaOs label="Endereço"><EnderecoCampos value={os.fornecedor.endereco} onChange={(endereco) => updF({ endereco })} /></LinhaOs>
-          <LinhaOs label="Inscrição Estadual"><Input value={os.fornecedor.inscricaoEstadual} onChange={(e) => updF({ inscricaoEstadual: e.target.value })} /></LinhaOs>
-          <LinhaOs label="Inscrição Municipal">
-            <InscricaoMunicipalInput
-              value={os.fornecedor.inscricaoMunicipal}
-              onChange={(inscricaoMunicipal) => updF({ inscricaoMunicipal })}
-            />
-          </LinhaOs>
+          <LinhaOs label="Nome fantasia"><Auto v={os.fornecedor.nomeFantasia} /></LinhaOs>
+          <LinhaOs label="CNPJ/CPF"><Auto v={os.fornecedor.cnpj} /></LinhaOs>
+          <LinhaOs label="Perfil" hint="(regime tributário)"><Auto v={os.fornecedor.perfilTributario} /></LinhaOs>
+          <LinhaOs label="Razão Social"><Auto v={os.fornecedor.razaoSocial} /></LinhaOs>
+          <LinhaOs label="Endereço"><Auto v={os.fornecedor.endereco} /></LinhaOs>
+          <LinhaOs label="Inscrição Estadual"><Auto v={os.fornecedor.inscricaoEstadual} /></LinhaOs>
+          <LinhaOs label="Inscrição Municipal"><Auto v={os.fornecedor.inscricaoMunicipal} /></LinhaOs>
           <LinhaOs label="Conta PJ / PF">
             <Select value={os.fornecedor.dadosBancarios.tipoConta} onChange={(e) => updB({ tipoConta: e.target.value as Fornecedor["dadosBancarios"]["tipoConta"] })}>
               <option value="">Selecione…</option>
@@ -1897,10 +1876,17 @@ export function OsForm() {
           <LinhaOs label="Agência"><Input value={os.fornecedor.dadosBancarios.agencia} onChange={(e) => updB({ agencia: e.target.value })} /></LinhaOs>
           <LinhaOs label="Conta Corrente"><Input value={os.fornecedor.dadosBancarios.conta} onChange={(e) => updB({ conta: e.target.value })} /></LinhaOs>
           <LinhaOs label="Chave Pix"><Input value={os.fornecedor.dadosBancarios.chavePix} onChange={(e) => updB({ chavePix: e.target.value })} /></LinhaOs>
-          <LinhaOs label="Representante"><Input formato="titulo" value={os.fornecedor.representante} onChange={(e) => updF({ representante: e.target.value })} /></LinhaOs>
-          <LinhaOs label="Telefone" obrigatorio><TelefoneInput value={os.fornecedor.telefone} onChange={(v) => updF({ telefone: v })} /></LinhaOs>
-          <LinhaOs label="E-mail" obrigatorio><Input value={os.fornecedor.email} onChange={(e) => updF({ email: e.target.value })} /></LinhaOs>
+          <LinhaOs label="Representante"><Auto v={os.fornecedor.representante} /></LinhaOs>
+          <LinhaOs label="Telefone" obrigatorio><Auto v={os.fornecedor.telefone} /></LinhaOs>
+          <LinhaOs label="E-mail" obrigatorio><Auto v={os.fornecedor.email} /></LinhaOs>
         </CardOs>
+        <JanelaCadastroFornecedor
+          fornecedor={cadastroAberto}
+          cadastro={cadastroForn ?? []}
+          onFechar={() => setCadastroAberto(null)}
+          onSalvo={aoSalvarCadastro}
+          escolher
+        />
 
         {/* O bloco de cima é da PRODUÇÃO; o Detalhamento tem partes dela e uma do
             FINANCEIRO (a escolha da forma de pagamento), e um `fieldset`

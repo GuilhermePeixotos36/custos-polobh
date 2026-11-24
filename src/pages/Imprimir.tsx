@@ -15,7 +15,7 @@ import { Button } from "@/components/ui";
 import { IcBack, IcDownload } from "@/components/icons";
 import { EcDocumento } from "@/components/print/EcDocumento";
 import { OsDocumento } from "@/components/print/OsDocumento";
-import { comDadosAtuaisDoProjeto, osComDadosAtuais } from "@/lib/projetoAoVivo";
+import { comDadosAtuaisDoProjeto, osComDadosAtuais, osComFornecedorDoCadastro } from "@/lib/projetoAoVivo";
 import { RentabilidadeDocumento } from "@/components/print/RentabilidadeDocumento";
 import { gastoPorLinhaViaOSs, rotuloNumeroEc } from "@/domain/calc";
 
@@ -61,7 +61,15 @@ export function ImprimirOs() {
   const [params] = useSearchParams();
   const usuario = useAuth((s) => s.usuario);
   const pode = useAuth((s) => s.pode);
-  const { data: os, loading } = useAsync(() => repo.oss.obter(id), [id]);
+  // O fornecedor da OS não emitida sai do CADASTRO de agora (24/11/2026): o
+  // bloco virou leitura do cadastro na tela, e o PDF acompanha (ver
+  // `osComFornecedorDoCadastro`). Emitida, a foto da emissão.
+  const { data: os, loading } = useAsync(async () => {
+    const gravada = await repo.oss.obter(id);
+    if (!gravada?.fornecedor?.cnpj) return gravada;
+    const cadastro = await repo.fornecedores.porCnpj(gravada.fornecedor.cnpj).catch(() => undefined);
+    return osComFornecedorDoCadastro(gravada, cadastro);
+  }, [id]);
   // A EC com os dados do projeto de AGORA: a OS ainda não emitida sai com o
   // cliente e o projeto do cadastro (ver `osComDadosAtuais`).
   const { data: ec } = useAsync(
