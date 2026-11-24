@@ -9,7 +9,7 @@ function iniciaisDe(nome: string) {
   return nome.trim().split(/\s+/).slice(0, 2).map((parte) => parte[0]).join("").toUpperCase() || "?";
 }
 
-export function AvatarUsuario({ nome, fotoUrl, className = "h-9 w-9", textoClassName = "text-[11px]", title, carregando = false }: {
+export function AvatarUsuario({ nome, fotoUrl, className = "h-9 w-9", textoClassName = "text-2xs", title, carregando = false }: {
   nome: string;
   fotoUrl?: string | null;
   className?: string;
@@ -38,7 +38,7 @@ export function AvatarUsuario({ nome, fotoUrl, className = "h-9 w-9", textoClass
     );
   }
   return (
-    <span title={rotulo} className={`inline-flex shrink-0 items-center justify-center rounded-full bg-brand-vivid font-bold text-white ${className} ${textoClassName}`}>
+    <span title={rotulo} className={`inline-flex shrink-0 items-center justify-center rounded-full bg-navy font-bold text-navy-foreground ${className} ${textoClassName}`}>
       {iniciaisDe(nome)}
     </span>
   );

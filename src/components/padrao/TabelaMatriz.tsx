@@ -22,7 +22,7 @@ export const matriz = {
   tabela: "lista-matriz w-full text-left text-xs",
   // 11px em caixa normal ocupa a largura dos 10px em CAIXA ALTA de antes: a matriz de quinze
   // colunas não alarga, e o rótulo fica mais fácil de ler.
-  cabecalho: "sticky top-0 z-20 whitespace-nowrap bg-navy px-3 py-2.5 text-center text-[11px] font-semibold text-navy-foreground",
+  cabecalho: "sticky top-0 z-20 whitespace-nowrap bg-navy px-3 py-2.5 text-center text-2xs font-semibold text-navy-foreground",
   /**
    * Valor centralizado na célula. Com rótulos longos como "saldo até a próxima recarga", o
    * número encostado na borda ficava longe do próprio cabeçalho; no centro, o olho desce em
@@ -92,7 +92,7 @@ export function GradeNomesMatriz({ nomes, vazio }: { nomes: readonly string[]; v
           <span
             key={nome}
             title={nome}
-            className="truncate border-b border-r border-border/70 px-2.5 py-1.5 text-[11px] text-foreground"
+            className="truncate border-b border-r border-border/70 px-2.5 py-1.5 text-2xs text-foreground"
           >
             {nome}
           </span>

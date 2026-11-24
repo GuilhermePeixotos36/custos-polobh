@@ -182,7 +182,7 @@ export function FolderTabs<T extends string>({ value, options, onChange, ariaLab
             {option.badge !== undefined && (
               // `key` no número: a contagem que muda (pendência resolvida, filtro) troca com fade, e o
               // olho registra que ela não é mais a mesma. Só opacidade — o selo é inline no rótulo.
-              <span key={option.badge} className={cn("valor-troca ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums", active ? "bg-brand/10 text-brand-forte" : "bg-background/80 text-muted-foreground")}>{option.badge}</span>
+              <span key={option.badge} className={cn("valor-troca ml-1.5 rounded-full px-1.5 py-0.5 text-2xs font-bold tabular-nums", active ? "bg-brand/10 text-brand-forte" : "bg-background/80 text-muted-foreground")}>{option.badge}</span>
             )}
           </button>
         );

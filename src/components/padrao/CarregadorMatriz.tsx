@@ -99,7 +99,7 @@ export function CarregadorMatriz({
         </p>
         {temProgresso ? (
           <>
-            <p className={cn("tabular-nums text-muted-foreground", md ? "mt-1 text-lg font-semibold text-navy" : "mt-0.5 text-[11px]")}>
+            <p className={cn("tabular-nums text-muted-foreground", md ? "mt-1 text-lg font-semibold text-navy" : "mt-0.5 text-2xs")}>
               {atual} de {progresso!.total}{progresso!.unidade ? ` ${progresso!.unidade}` : ""}
             </p>
             <div aria-hidden className={cn("h-1.5 w-full overflow-hidden rounded-full bg-muted", md ? "mt-2" : "mt-1.5")}>
@@ -110,7 +110,7 @@ export function CarregadorMatriz({
             </div>
           </>
         ) : null}
-        {detalhe ? <p className={cn("text-[11px] text-muted-foreground", md ? "mt-2" : "mt-0.5")}>{detalhe}</p> : null}
+        {detalhe ? <p className={cn("text-2xs text-muted-foreground", md ? "mt-2" : "mt-0.5")}>{detalhe}</p> : null}
       </div>
     </div>
   );

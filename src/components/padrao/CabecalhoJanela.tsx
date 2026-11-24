@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 import { usePedirParaSairDaJanela } from "@/components/padrao/JanelaModal";
 
 /** Selo legível sobre o navy — o `bg-*-100` de fundo claro some na faixa escura. */
-export const SELO_NA_FAIXA = "inline-flex items-center rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-semibold text-white";
+export const SELO_NA_FAIXA = "inline-flex items-center rounded-full bg-white/15 px-2 py-0.5 text-2xs font-semibold text-white";
 
 /** Botão de ação secundária dentro da faixa (imprimir, voltar, baixar). */
 // Contornado e com fundo leve (nov/2026, pedido do usuário: os botões soltos no navy pareciam
@@ -76,7 +76,7 @@ export function CabecalhoJanela({
           </span>
         )}
         <div className="min-w-0 flex-1">
-          {sobretitulo && <p className="text-[11px] font-medium text-white/65">{sobretitulo}</p>}
+          {sobretitulo && <p className="text-2xs font-medium text-white/65">{sobretitulo}</p>}
           <h2 id={tituloId} className="truncate text-[1.0625rem] font-bold tracking-[-0.01em] text-white">{titulo}</h2>
           {subtitulo && <p className="text-xs text-white/70">{subtitulo}</p>}
           {children}

@@ -129,8 +129,9 @@ export function PainelSuspenso({ rotulo, contador, destaque, tom = "atencao", ic
           // `key`: o número que muda troca subindo, e o olho percebe que a contagem não é a mesma.
           key={contador}
           className={cn(
-            "contagem-troca inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold tabular-nums text-white",
-            perigo ? "bg-destructive" : "bg-brand",
+            "contagem-troca inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-2xs font-bold tabular-nums",
+            // Sobre o laranja, texto escuro (contraste); sobre o vermelho, branco.
+            perigo ? "bg-destructive text-white" : "bg-brand text-primary-foreground",
           )}
         >
           {contador}

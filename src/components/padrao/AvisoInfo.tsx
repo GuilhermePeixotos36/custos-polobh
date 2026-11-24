@@ -108,7 +108,7 @@ function Balao({ children, aoAbrir, rotulo, acao, gatilho }: AvisoProps & {
             <button
               type="button"
               onClick={acao.aoClicar}
-              className="mt-2.5 inline-flex h-7 items-center rounded-md bg-brand px-2.5 text-[11px] font-semibold text-white hover:bg-brand-vivid shadow-(--sombra-botao)"
+              className="mt-2.5 inline-flex h-7 items-center rounded-md bg-brand px-2.5 text-2xs font-semibold text-primary-foreground hover:bg-brand-vivid shadow-(--sombra-botao)"
             >
               {acao.rotulo}
             </button>
@@ -157,7 +157,7 @@ export function AvisoPill({ contagem, rotulo, ...props }: AvisoProps & { contage
           type="button"
           aria-expanded={aberto}
           onClick={alternar}
-          className="inline-flex h-6 items-center gap-1.5 rounded-full bg-brand-soft px-2.5 text-[11px] font-semibold text-brand-forte transition-colors hover:bg-brand/15"
+          className="inline-flex h-6 items-center gap-1.5 rounded-full bg-brand-soft px-2.5 text-2xs font-semibold text-brand-forte transition-colors hover:bg-brand/15"
         >
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
           <span className="tabular-nums">{contagem}</span>

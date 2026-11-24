@@ -49,13 +49,13 @@ export function FilterPills<T extends string>({ value, options, onChange, ariaLa
             className={cn(
               "inline-flex h-9 items-center rounded-full border px-3.5 text-xs font-semibold transition-colors",
               active
-                ? cn("border-brand text-white", pilula ? "bg-card" : "bg-brand")
+                ? cn("border-brand text-primary-foreground", pilula ? "bg-card" : "bg-brand")
                 : "border-brand/30 bg-card text-navy hover:bg-brand/5",
             )}
           >
             <span className="relative inline-flex items-center gap-1.5">
               {option.label}
-              {option.count !== undefined && <span className={cn("min-w-5 rounded-full px-1.5 py-0.5 text-center text-[10px] font-bold tabular-nums transition-colors", active ? "bg-white/20 text-white" : "bg-brand/10 text-brand-forte")}>{option.count}</span>}
+              {option.count !== undefined && <span className={cn("min-w-5 rounded-full px-1.5 py-0.5 text-center text-2xs font-bold tabular-nums transition-colors", active ? "bg-white/35 text-primary-foreground" : "bg-brand/10 text-brand-forte")}>{option.count}</span>}
             </span>
           </button>
         );

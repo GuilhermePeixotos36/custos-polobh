@@ -55,7 +55,7 @@ export function BarraFiltros({
             >
               <SlidersHorizontal className="h-4 w-4" /> Filtros
               {ativos > 0 && (
-                <span aria-label={`${ativos} filtro(s) ativo(s)`} className="rounded-full bg-brand px-1.5 text-[11px] font-semibold text-white tabular-nums">
+                <span aria-label={`${ativos} filtro(s) ativo(s)`} className="rounded-full bg-brand px-1.5 text-2xs font-semibold text-primary-foreground tabular-nums">
                   {ativos}
                 </span>
               )}
