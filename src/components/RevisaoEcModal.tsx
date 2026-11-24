@@ -12,6 +12,7 @@
  * na linha errada.
  */
 import { Button } from "@/components/ui";
+import { CabecalhoJanela } from "@/components/padrao/CabecalhoJanela";
 import type { MudancaItemEc, RevisaoEc } from "@/domain/revisaoEc";
 import { cx } from "@/lib/format";
 
@@ -24,7 +25,7 @@ const ROTULO_TIPO: Record<MudancaItemEc["tipo"], string> = {
 const TOM_TIPO: Record<MudancaItemEc["tipo"], string> = {
   incluido: "bg-success-soft text-success",
   removido: "bg-danger-soft text-danger",
-  alterado: "bg-primary-soft text-primary-dark",
+  alterado: "bg-primary-soft text-brand-forte",
 };
 
 export function RevisaoEcModal({
@@ -43,15 +44,15 @@ export function RevisaoEcModal({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" role="dialog" aria-modal="true" aria-label={`Conferir alterações da ${documento}`}>
-      <div className="bg-surface rounded-card-lg shadow-card w-full max-w-[860px] max-h-[85vh] flex flex-col">
-        <div className="px-6 pt-5 pb-3 border-b border-border-soft">
-          <h2 className="font-bold text-lg text-ink">Conferir alterações</h2>
-          <p className="text-sm text-ink-2 mt-0.5">
-            {revisao.total === 0
+      <div className="bg-surface rounded-card-lg shadow-modal w-full max-w-[860px] max-h-[85vh] flex flex-col overflow-hidden">
+        <CabecalhoJanela
+          titulo="Conferir alterações"
+          subtitulo={
+            revisao.total === 0
               ? "A formatação dos textos foi padronizada e nada mais mudou desde o último salvamento."
-              : "A formatação dos textos foi padronizada. Confira o que muda ao salvar — o que está aqui é exatamente o que vai ser gravado."}
-          </p>
-        </div>
+              : "A formatação dos textos foi padronizada. Confira o que muda ao salvar — o que está aqui é exatamente o que vai ser gravado."
+          }
+        />
 
         <div className="overflow-y-auto px-6 py-4 space-y-4">
           {revisao.total === 0 && (

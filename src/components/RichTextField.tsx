@@ -128,7 +128,7 @@ function ToolBtn({ title, onClick, children }: { title: string; onClick: () => v
       aria-label={title}
       onMouseDown={(e) => e.preventDefault()} // não perde o foco/seleção do editor
       onClick={onClick}
-      className="h-7 w-7 grid place-items-center rounded-md text-ink-2 hover:bg-primary-soft hover:text-primary-dark"
+      className="h-7 w-7 grid place-items-center rounded-md text-ink-2 hover:bg-primary-soft hover:text-brand-forte"
     >
       {children}
     </button>

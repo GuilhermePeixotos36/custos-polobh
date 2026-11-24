@@ -7,7 +7,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { Button, CurrencyInput, Input, MarcaObrigatorio } from "@/components/ui";
-import { IcFechar } from "@/components/icons";
+import { CabecalhoJanela } from "@/components/padrao/CabecalhoJanela";
 import { motivoDivisaoInvalida, type ParteDaDivisao } from "@/domain/ec";
 import { brl } from "@/lib/format";
 import type { EcLinha } from "@/data/types";
@@ -38,26 +38,15 @@ export function DividirItemModal({
       <div
         role="dialog"
         aria-label="Dividir item"
-        className="relative w-full max-w-[520px] max-h-[90vh] overflow-y-auto bg-surface rounded-card-lg shadow-modal border border-border"
+        className="relative w-full max-w-[520px] max-h-[90vh] overflow-y-auto bg-surface rounded-card-lg shadow-modal"
       >
-        <div className="flex items-start gap-3 px-5 py-4 border-b border-border-soft">
-          <div className="min-w-0">
-            <h3 className="font-bold text-lg text-ink tracking-[-0.3px]">Dividir item</h3>
-            <p className="text-xs text-ink-2 mt-1">
-              Para quando <b>{linha.item || "este item"}</b> é atendido por mais de um fornecedor. A parte nova
-              entra logo abaixo, sem fornecedor, e o original fica com o que sobrar — o total não muda. As partes
-              ficam ligadas: cada uma gera a sua OS, e para o cliente o item segue sendo um só.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onFechar}
-            title="Fechar"
-            className="ml-auto shrink-0 h-9 w-9 grid place-items-center rounded-btn text-ink-2 hover:text-ink hover:bg-muted"
-          >
-            <IcFechar width={18} height={18} />
-          </button>
-        </div>
+        {/* Faixa do padrão (24/11/2026); a explicação longa desceu para o corpo. */}
+        <CabecalhoJanela titulo="Dividir item" onFechar={onFechar} />
+        <p className="px-5 pt-4 text-xs text-ink-2">
+          Para quando <b>{linha.item || "este item"}</b> é atendido por mais de um fornecedor. A parte nova
+          entra logo abaixo, sem fornecedor, e o original fica com o que sobrar — o total não muda. As partes
+          ficam ligadas: cada uma gera a sua OS, e para o cliente o item segue sendo um só.
+        </p>
 
         <form
           className="px-5 py-4 space-y-3"
@@ -74,7 +63,7 @@ export function DividirItemModal({
           </label>
           <label className="block">
             <span className="block text-xs font-semibold text-muted-foreground mb-1">
-              Descrição financeiro <span className="normal-case font-semibold">(opcional — vazio usa o nome)</span>
+              Descrição financeiro <span className="font-normal">(opcional — vazio usa o nome)</span>
             </span>
             <Input value={parte.descricao} onChange={(e) => upd({ descricao: e.target.value })} />
           </label>

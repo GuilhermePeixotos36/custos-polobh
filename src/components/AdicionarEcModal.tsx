@@ -8,7 +8,8 @@
 import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { Button, Input, Select } from "@/components/ui";
-import { IcChevron, IcFechar, IcPlus } from "@/components/icons";
+import { IcChevron, IcPlus } from "@/components/icons";
+import { CabecalhoJanela } from "@/components/padrao/CabecalhoJanela";
 import {
   alternarGrupo,
   alternarItem,
@@ -77,24 +78,9 @@ export function AdicionarEcModal({
       <div
         role="dialog"
         aria-label="Adicionar grupo ou item"
-        className="relative w-full max-w-[640px] max-h-[90vh] flex flex-col bg-surface rounded-card-lg shadow-modal border border-border overflow-hidden"
+        className="relative w-full max-w-[640px] max-h-[90vh] flex flex-col bg-surface rounded-card-lg shadow-modal overflow-hidden"
       >
-        <div className="flex items-start gap-3 px-5 py-4 border-b border-border-soft">
-          <div className="min-w-0">
-            <h3 className="font-bold text-lg text-ink tracking-[-0.3px]">Adicionar grupo / item</h3>
-            <p className="text-xs text-ink-2 mt-1">
-              Crie do zero ou importe do modelo da modalidade. Nada entra na EC sem você escolher.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onFechar}
-            title="Fechar"
-            className="ml-auto shrink-0 h-9 w-9 grid place-items-center rounded-btn text-ink-2 hover:text-ink hover:bg-muted"
-          >
-            <IcFechar width={18} height={18} />
-          </button>
-        </div>
+        <CabecalhoJanela titulo="Adicionar grupo / item" subtitulo="Crie do zero ou importe do modelo da modalidade. Nada entra na EC sem você escolher." onFechar={onFechar} />
 
         <div className="overflow-y-auto px-5 py-4 space-y-4">
           {/* Criar do zero */}
@@ -121,7 +107,7 @@ export function AdicionarEcModal({
                     key={t}
                     type="button"
                     onClick={() => setTipo(t)}
-                    className={cx("px-3 h-10", tipo === t ? "bg-primary-soft text-primary-dark" : "bg-white text-ink-2")}
+                    className={cx("px-3 h-10", tipo === t ? "bg-primary-soft text-brand-forte" : "bg-white text-ink-2")}
                   >
                     {t === "grupo" ? "Grupo" : "Item"}
                   </button>
@@ -155,7 +141,7 @@ export function AdicionarEcModal({
                     key={m}
                     type="button"
                     onClick={() => trocarAba(m)}
-                    className={cx("px-3 h-8", aba === m ? "bg-primary-soft text-primary-dark" : "bg-white text-ink-2")}
+                    className={cx("px-3 h-8", aba === m ? "bg-primary-soft text-brand-forte" : "bg-white text-ink-2")}
                   >
                     {m}
                   </button>

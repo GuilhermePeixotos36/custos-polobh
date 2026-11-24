@@ -684,7 +684,7 @@ export function EcGrupos({
       {totalSelecionados > 0 && (
         <div className="sticky top-[calc(var(--altura-topnav)+var(--altura-cabecalho)+8px)] z-10 space-y-1.5 rounded-btn border border-primary bg-primary-soft px-3 py-2 shadow-card">
           <div className="flex items-center gap-3 flex-wrap">
-            <span className="text-sm font-bold text-primary-dark">
+            <span className="text-sm font-bold text-brand-forte">
               {totalSelecionados} {totalSelecionados === 1 ? "item selecionado" : "itens selecionados"}
             </span>
             <Button
@@ -744,7 +744,7 @@ export function EcGrupos({
           {aAprovar.length > 0 && (
             <div className="text-xs font-bold text-ink-2 leading-snug">
               {liberadosPrevistos > 0 && (
-                <span className="text-primary-dark">
+                <span className="text-brand-forte">
                   {liberadosPrevistos} {liberadosPrevistos === 1 ? "item fica pronto" : "itens ficam prontos"} para emitir OS
                 </span>
               )}
@@ -1017,7 +1017,7 @@ function GrupoCard({
           <button
             type="button"
             onClick={() => onOcultoGrupo(true)}
-            className="inline-flex items-center rounded-btn p-1.5 text-ink-3 hover:bg-primary-soft hover:text-primary-dark"
+            className="inline-flex items-center rounded-btn p-1.5 text-ink-3 hover:bg-primary-soft hover:text-brand-forte"
             title="Ocultar grupo — some da tela e fica guardado (reexibir em Ocultos)"
             aria-label="Ocultar grupo"
           >
@@ -1217,7 +1217,7 @@ function ItemRow({
                     type="button"
                     onClick={() => setResumoAberto(true)}
                     title="Resumo da Proposta com IA"
-                    className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-2xs font-bold text-primary-dark bg-primary-soft hover:bg-active-border"
+                    className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-2xs font-bold text-brand-forte bg-primary-soft hover:bg-active-border"
                   >
                     <IcSpark width={13} height={13} /> Resumo da Proposta
                   </button>
@@ -1455,7 +1455,7 @@ function OpcoesDeValor({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinh
                         <button
                           type="button"
                           onClick={() => alternarNaoSeAplica(opcao)}
-                          className="text-2xs font-bold text-ink-3 hover:text-primary-dark input-focus rounded-sm"
+                          className="text-2xs font-bold text-ink-3 hover:text-brand-forte input-focus rounded-sm"
                           title={naoSeAplica ? "Voltar a informar um valor" : "Este item não é cobrado desta forma"}
                         >
                           {naoSeAplica ? "Informar valor" : "Não se aplica"}
@@ -1585,7 +1585,7 @@ function CamposBv({ l, onUpd }: { l: EcLinha; onUpd: (patch: Partial<EcLinha>) =
               onClick={() => mudar({ modo })}
               className={cx(
                 "px-1.5 py-0.5 text-2xs font-bold transition-colors",
-                bv.modo === modo ? "bg-primary text-white" : "bg-surface text-ink-3 hover:text-ink"
+                bv.modo === modo ? "bg-brand text-primary-foreground" : "bg-surface text-ink-3 hover:text-ink"
               )}
             >
               {modo === "percentual" ? "%" : "R$"}
@@ -1778,7 +1778,7 @@ function FornecedoresDoItem({
       <button
         type="button"
         onClick={() => acoes.vincular(principal.id)}
-        className="mt-1.5 inline-flex items-center gap-1.5 rounded-btn px-2 py-1 text-xs font-bold text-primary-dark hover:bg-primary-soft"
+        className="mt-1.5 inline-flex items-center gap-1.5 rounded-btn px-2 py-1 text-xs font-bold text-brand-forte hover:bg-primary-soft"
         title="Este item é pago a mais de um fornecedor: cada um vira a sua OS"
       >
         <IcPlus width={14} height={14} /> Vincular {vinculados.length ? "mais um" : "outro"} fornecedor a este item

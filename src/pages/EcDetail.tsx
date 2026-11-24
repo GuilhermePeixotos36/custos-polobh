@@ -358,7 +358,7 @@ export function EcDetail() {
       {selecionados.size > 0 && (
         <div className="sticky top-[calc(var(--altura-topnav)+var(--altura-cabecalho)+8px)] z-10 mx-3 mt-3 space-y-1.5 rounded-btn border border-primary bg-primary-soft px-3 py-2 shadow-card">
           <div className="flex items-center gap-3 flex-wrap">
-            <span className="text-sm font-bold text-primary-dark">
+            <span className="text-sm font-bold text-brand-forte">
               {selecionados.size} {selecionados.size === 1 ? "item selecionado" : "itens selecionados"}
             </span>
             {podeMudarStatus && (
@@ -545,7 +545,7 @@ export function EcDetail() {
             <LinhaResumo desc="Sub-total" polobh={t.subTotalPolobh} cliente={subTotalCliente} strong />
             <tr className="bg-primary-soft">
               <td className="px-4 py-3 font-bold text-ink">Valor Total Bruto (Custo Total do Projeto)</td>
-              <td className="px-4 py-3 text-right font-bold text-primary-dark whitespace-nowrap" colSpan={2}>{brl(t.valorTotalBruto)}</td>
+              <td className="px-4 py-3 text-right font-bold text-brand-forte whitespace-nowrap" colSpan={2}>{brl(t.valorTotalBruto)}</td>
             </tr>
             <tr>
               <td className="px-4 pt-3 pb-1 text-2xs font-bold italic text-ink-3" colSpan={3}>Sendo:</td>

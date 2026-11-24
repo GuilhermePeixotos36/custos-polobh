@@ -7,7 +7,8 @@
 import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui";
-import { IcEye, IcFechar } from "@/components/icons";
+import { IcEye } from "@/components/icons";
+import { CabecalhoJanela } from "@/components/padrao/CabecalhoJanela";
 import type { GrupoComOcultos } from "@/domain/ocultosEc";
 
 export function OcultosEcModal({
@@ -36,24 +37,9 @@ export function OcultosEcModal({
       <div
         role="dialog"
         aria-label="Itens e grupos ocultos"
-        className="relative w-full max-w-[560px] max-h-[88vh] flex flex-col bg-surface rounded-card-lg shadow-modal border border-border overflow-hidden"
+        className="relative w-full max-w-[560px] max-h-[88vh] flex flex-col bg-surface rounded-card-lg shadow-modal overflow-hidden"
       >
-        <div className="flex items-start gap-3 px-5 py-4 border-b border-border-soft">
-          <div className="min-w-0">
-            <h3 className="font-bold text-lg text-ink tracking-[-0.3px]">Itens e grupos ocultos</h3>
-            <p className="text-xs text-ink-2 mt-1">
-              Marque o que deve voltar para a tela. O que está oculto fica guardado, fora dos totais e do Excel.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onFechar}
-            title="Fechar"
-            className="ml-auto shrink-0 h-9 w-9 grid place-items-center rounded-btn text-ink-2 hover:text-ink hover:bg-muted"
-          >
-            <IcFechar width={18} height={18} />
-          </button>
-        </div>
+        <CabecalhoJanela titulo="Itens e grupos ocultos" subtitulo="Marque o que deve voltar para a tela. O que está oculto fica guardado, fora dos totais e do Excel." onFechar={onFechar} />
 
         <div className="overflow-y-auto px-5 py-3 space-y-3">
           {grupos.length === 0 && <p className="text-center text-ink-3 text-sm py-6">Nada oculto.</p>}

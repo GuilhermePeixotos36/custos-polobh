@@ -829,7 +829,7 @@ function ResumoCustos({
           <ResumoLinha desc="Sub-total" polobh={t.subTotalPolobh} cliente={subTotalCliente} strong />
           <tr className="bg-primary-soft">
             <td className="px-4 py-3 font-bold text-ink">Valor Total Bruto (Custo Total do Projeto)</td>
-            <td className="px-4 py-3 text-right font-bold text-primary-dark whitespace-nowrap" colSpan={2}>{brl(t.valorTotalBruto)}</td>
+            <td className="px-4 py-3 text-right font-bold text-brand-forte whitespace-nowrap" colSpan={2}>{brl(t.valorTotalBruto)}</td>
           </tr>
           <tr>
             <td className="px-4 pt-3 pb-1 text-2xs font-bold italic text-ink-3" colSpan={3}>Sendo:</td>
