@@ -17,6 +17,7 @@ import { PageShell } from "@/components/layout/AppLayout";
 import { Card, Badge, Button, EmptyState, AvisoErro, Select } from "@/components/ui";
 import { IcChevron, IcSearch, IcCalendar, IcGrid, IcList } from "@/components/icons";
 import { CalendarioMesModal } from "@/components/CalendarioMesModal";
+import { FilterPills } from "@/components/padrao/FilterPills";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import { garantirFeriadosNacionais } from "@/lib/feriados";
@@ -39,10 +40,10 @@ import {
 } from "@/domain/calendario";
 
 type FiltroStatus = "Todos" | "Ativos" | "Arquivados";
-const FILTROS: { key: FiltroStatus; label: string }[] = [
-  { key: "Todos", label: "Todos" },
-  { key: "Ativos", label: "Ativos" },
-  { key: "Arquivados", label: "Arquivados" },
+const FILTROS: { value: FiltroStatus; label: string }[] = [
+  { value: "Todos", label: "Todos" },
+  { value: "Ativos", label: "Ativos" },
+  { value: "Arquivados", label: "Arquivados" },
 ];
 
 /**
@@ -172,22 +173,7 @@ export function Calendario() {
                 Lista
               </BotaoVista>
             </div>
-            <div className="flex gap-1.5">
-              {FILTROS.map((f) => (
-                <button
-                  key={f.key}
-                  onClick={() => setFiltro(f.key)}
-                  className={cx(
-                    "h-9 px-3.5 rounded-btn text-sm font-bold border-[1.5px] transition-colors",
-                    filtro === f.key
-                      ? "bg-primary-soft border-active-border text-brand-forte"
-                      : "bg-surface border-border text-ink-2 hover:text-ink"
-                  )}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
+            <FilterPills value={filtro} options={FILTROS} onChange={setFiltro} ariaLabel="Situação do projeto" />
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <Select className="h-9! w-auto! min-w-[150px]" value={modalidade} onChange={(e) => setModalidade(e.target.value)}>
@@ -221,7 +207,16 @@ export function Calendario() {
       {error ? (
         <AvisoErro erro={error} oQue="o calendário de projetos" onTentarDeNovo={reload} />
       ) : loading ? (
-        <Card><div className="py-10 text-center text-ink-3 text-sm">Carregando o calendário…</div></Card>
+        // Esqueleto na mesma grade dos meses (24/11/2026), no lugar do "Carregando…".
+        <div role="status" aria-label="Carregando o calendário…" className="esqueleto-lista grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {MESES.map((_, mes) => (
+            <div key={mes} aria-hidden className="card-surface p-4 space-y-3">
+              <div className="esqueleto h-4 w-1/3" />
+              <div className="esqueleto h-3 w-2/3" />
+              <div className="esqueleto h-2 w-full" />
+            </div>
+          ))}
+        </div>
       ) : (
         <>
           {anosDisponiveis.length > 1 && (
@@ -233,7 +228,7 @@ export function Calendario() {
                   onClick={() => irParaAno(a)}
                   className={cx(
                     "h-7 px-3 rounded-pill text-xs font-bold tabular-nums border transition-colors",
-                    a === ano ? "bg-black text-white border-black" : "bg-surface text-ink-2 border-border hover:text-ink hover:border-ink-3"
+                    a === ano ? "bg-navy text-navy-foreground border-navy" : "bg-surface text-ink-2 border-border hover:text-ink hover:border-ink-3"
                   )}
                 >
                   {a}
@@ -251,7 +246,21 @@ export function Calendario() {
                     ? "Ajuste a busca ou os filtros — o quadro mostra tudo o que existe no ano."
                     : "Assim que um projeto receber datas no cronograma, ele aparece aqui sozinho — da montagem à desmontagem."
                 }
-                action={<Button size="sm" variant="secondary" onClick={() => navigate("/projetos")}>Ver projetos</Button>}
+                action={
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {/* Vazio por filtro: "Limpar filtros" limpa tudo (busca, situação, modalidade e produtora). */}
+                    {filtrando && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => { setBusca(""); setFiltro("Todos"); setModalidade(""); setProdutora(""); }}
+                      >
+                        Limpar filtros
+                      </Button>
+                    )}
+                    <Button size="sm" variant="secondary" onClick={() => navigate("/projetos")}>Ver projetos</Button>
+                  </div>
+                }
               />
             </Card>
           ) : vista === "lista" ? (

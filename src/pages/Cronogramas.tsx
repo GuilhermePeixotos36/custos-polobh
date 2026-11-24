@@ -9,6 +9,7 @@ import { dataBR } from "@/lib/format";
 import { Timeline, TimelineConsolidada, type ItemConsolidado } from "@/components/Timeline";
 import { urlCronogramaPublico } from "@/lib/links";
 import { EnvioCronograma } from "@/components/EnvioCronograma";
+import { EsqueletoLista } from "@/components/padrao/EsqueletoLista";
 import type { Ec } from "@/data/types";
 
 /** EC encerrada não representa mais o projeto no seletor. */
@@ -18,8 +19,8 @@ const EC_ENCERRADA = ["Cancelada", "Arquivada"];
 const OS_ENCERRADA = ["Cancelada", "Arquivada"];
 
 export function Cronogramas() {
-  const { data: ecs } = useAsync(() => repo.ecs.listar(), []);
-  const { data: oss } = useAsync(() => repo.oss.listar(), []);
+  const { data: ecs, loading: carregandoEcs } = useAsync(() => repo.ecs.listar(), []);
+  const { data: oss, loading: carregandoOss } = useAsync(() => repo.oss.listar(), []);
   const [ecId, setEcId] = useState<string>("");
   const [copiado, setCopiado] = useState(false);
 
@@ -97,7 +98,11 @@ export function Cronogramas() {
         </div>
       }
     >
-      {!ecSel ? (
+      {/* Esqueleto no primeiro carregamento (24/11/2026): antes o "Sem projetos" aparecia
+          enquanto as ECs ainda chegavam. */}
+      {carregandoEcs || carregandoOss ? (
+        <EsqueletoLista rotulo="Carregando os cronogramas…" linhas={3} />
+      ) : !ecSel ? (
         <Card><EmptyState title="Sem projetos" /></Card>
       ) : (
         <div className="space-y-4">
