@@ -92,7 +92,7 @@ export function Configuracoes() {
                 <Toggle checked={arquivamentoAuto} onChange={setArquivamentoAuto} />
               </div>
               <div>
-                <label className="text-xs font-bold text-ink">Prazo de arquivamento: <span className="text-primary-dark">{retencao} meses</span></label>
+                <label className="text-xs font-bold text-ink">Prazo de arquivamento: <span className="text-brand-forte">{retencao} meses</span></label>
                 <input type="range" min={6} max={48} step={6} value={retencao} onChange={(e) => setRetencao(Number(e.target.value))} className="w-full accent-primary mt-2" />
               </div>
               <p className="text-xs text-ink-2">Ao concluir um projeto, os dados são arquivados (não apagados) e seguem disponíveis para consulta e duplicação.</p>
@@ -241,7 +241,7 @@ function EmpresasGrupoCard() {
                 ) : (
                   <button
                     onClick={async () => { await definirPadrao(e.id); toast(`${e.nome} definida como padrão.`, "success"); }}
-                    className="text-xs font-bold text-primary-dark hover:underline"
+                    className="text-xs font-bold text-brand-forte hover:underline"
                   >
                     Tornar padrão
                   </button>
@@ -268,7 +268,7 @@ function EmpresasGrupoCard() {
                 </Field>
                 <Field label="Telefone (entra no contrato, na qualificação do Contratante)">
                   <TelefoneInput value={e.telefone ?? ""} onChange={(v) => editar(e.id, { telefone: v })} />
-                  <button type="button" className="mt-1 text-2xs font-bold text-primary-dark hover:underline" onClick={() => salvar(e.id)}>
+                  <button type="button" className="mt-1 text-2xs font-bold text-brand-forte hover:underline" onClick={() => salvar(e.id)}>
                     Salvar telefone
                   </button>
                 </Field>

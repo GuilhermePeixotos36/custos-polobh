@@ -111,7 +111,7 @@ export function Cronogramas() {
             </div>
             <div className="mt-3 text-xs bg-bg rounded-btn px-3 py-2 text-ink-2 break-all">
               {linkPublico ? (
-                <>Link público (sem login): <span className="text-primary-dark font-semibold">{linkPublico}</span></>
+                <>Link público (sem login): <span className="text-brand-forte font-semibold">{linkPublico}</span></>
               ) : (
                 <>Salve este projeto/EC para gerar o link público do cronograma.</>
               )}

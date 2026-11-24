@@ -180,7 +180,7 @@ export function Calendario() {
                   className={cx(
                     "h-9 px-3.5 rounded-btn text-sm font-bold border-[1.5px] transition-colors",
                     filtro === f.key
-                      ? "bg-primary-soft border-active-border text-primary-dark"
+                      ? "bg-primary-soft border-active-border text-brand-forte"
                       : "bg-surface border-border text-ink-2 hover:text-ink"
                   )}
                 >
@@ -446,7 +446,7 @@ function VistaLista({
               <button
                 onClick={() => onAbrirMes(mes)}
                 title={`Abrir ${MESES[mes]} dia a dia`}
-                className="ml-auto text-xs font-bold text-ink-2 hover:text-primary-dark transition-colors flex items-center gap-1"
+                className="ml-auto text-xs font-bold text-ink-2 hover:text-brand-forte transition-colors flex items-center gap-1"
               >
                 <IcCalendar width={14} height={14} /> {MESES[mes]} dia a dia
               </button>
@@ -528,7 +528,7 @@ function SetaAno({ titulo, onClick, virada }: { titulo: string; onClick: () => v
       onClick={onClick}
       title={titulo}
       aria-label={titulo}
-      className="h-8 w-8 grid place-items-center rounded-full text-ink-2 hover:text-primary-dark hover:bg-primary-soft transition-colors"
+      className="h-8 w-8 grid place-items-center rounded-full text-ink-2 hover:text-brand-forte hover:bg-primary-soft transition-colors"
     >
       <IcChevron width={16} height={16} className={virada ? "rotate-180" : undefined} />
     </button>
@@ -551,7 +551,7 @@ function BotaoVista({
       onClick={onClick}
       className={cx(
         "h-7 px-3 rounded-[8px] text-xs font-bold flex items-center gap-1.5 transition-colors",
-        ativo ? "bg-primary-soft text-primary-dark" : "text-ink-2 hover:text-ink hover:bg-muted/60"
+        ativo ? "bg-primary-soft text-brand-forte" : "text-ink-2 hover:text-ink hover:bg-muted/60"
       )}
     >
       {icone}

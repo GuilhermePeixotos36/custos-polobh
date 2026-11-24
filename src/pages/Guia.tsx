@@ -29,7 +29,7 @@ function Passos({ children }: { children: ReactNode }) {
     <ol className="space-y-2.5">
       {items.map((c, i) => (
         <li key={i} className="flex gap-3">
-          <span className="shrink-0 h-6 w-6 rounded-full bg-primary-soft text-primary-dark font-bold text-xs grid place-items-center">
+          <span className="shrink-0 h-6 w-6 rounded-full bg-primary-soft text-brand-forte font-bold text-xs grid place-items-center">
             {i + 1}
           </span>
           <div className="pt-0.5">{c}</div>
@@ -75,7 +75,7 @@ function Tela({ titulo, children }: { titulo: string; children: ReactNode }) {
 function Tag({ children, tom = "neutral" }: { children: ReactNode; tom?: "neutral" | "primary" | "success" | "warning" | "info" }) {
   const tons: Record<string, string> = {
     neutral: "bg-muted text-ink-2",
-    primary: "bg-primary-soft text-primary-dark",
+    primary: "bg-primary-soft text-brand-forte",
     success: "bg-success-soft text-success",
     warning: "bg-warning-soft text-warning",
     info: "bg-info-soft text-info",
@@ -704,7 +704,7 @@ const MODULOS: Modulo[] = [
               <div className="grid grid-cols-[1fr_1fr_70px_70px] gap-1.5 text-2xs font-bold uppercase text-ink-3"><span>Item</span><span>Fornecedor</span><span className="text-right">Pólobh</span><span className="text-right">Cliente</span></div>
               <div className="grid grid-cols-[1fr_1fr_70px_70px] gap-1.5 items-center"><span className="text-ink">Sonorização</span><span className="text-ink-2">Som &amp; Luz</span><span className="text-right font-bold">R$ 8.500</span><span className="text-right">—</span></div>
               <div className="grid grid-cols-[1fr_1fr_70px_70px] gap-1.5 items-center"><span className="text-ink">Coffee break</span><span className="text-ink-2">Sabor &amp; Arte</span><span className="text-right">—</span><span className="text-right font-bold">R$ 9.200</span></div>
-              <div className="flex justify-between bg-primary-soft rounded-btn px-2.5 py-1.5 mt-1"><b className="text-ink">Valor total bruto</b><b className="text-primary-dark">R$ 40.168,65</b></div>
+              <div className="flex justify-between bg-primary-soft rounded-btn px-2.5 py-1.5 mt-1"><b className="text-ink">Valor total bruto</b><b className="text-brand-forte">R$ 40.168,65</b></div>
             </div>
           </Tela>
           <Dica>Os percentuais são fixos: <b>honorários 15%</b> e <b>encargos 16,33%</b>. O valor total recalcula sozinho a cada mudança.</Dica>
@@ -1420,7 +1420,7 @@ function ConviteTour() {
 
   return (
     <div className="mb-5 rounded-card border border-active-border bg-primary-soft/50 p-4 md:p-5 flex items-center gap-4 flex-wrap">
-      <span className="h-11 w-11 rounded-card bg-surface text-primary-dark grid place-items-center shrink-0 shadow-card">
+      <span className="h-11 w-11 rounded-card bg-surface text-brand-forte grid place-items-center shrink-0 shadow-card">
         <IcCompass width={22} height={22} />
       </span>
       <div className="min-w-0 flex-1">
@@ -1585,9 +1585,9 @@ export function Guia() {
                   sel ? "bg-primary-soft border-active-border" : "bg-surface border-border hover:bg-muted/40"
                 )}
               >
-                <span className={cx("mt-0.5 shrink-0", sel ? "text-primary-dark" : "text-ink-3")}>{m.icone}</span>
+                <span className={cx("mt-0.5 shrink-0", sel ? "text-brand-forte" : "text-ink-3")}>{m.icone}</span>
                 <span className="min-w-0">
-                  <span className={cx("block text-sm font-bold leading-tight", sel ? "text-primary-dark" : "text-ink")}>{m.titulo}</span>
+                  <span className={cx("block text-sm font-bold leading-tight", sel ? "text-brand-forte" : "text-ink")}>{m.titulo}</span>
                   <span className="block text-2xs text-ink-3 leading-snug mt-0.5">{m.resumo}</span>
                 </span>
               </button>
@@ -1601,7 +1601,7 @@ export function Guia() {
         {ativo ? (
           <Card className="p-6! md:p-8!">
             <div className="flex items-center gap-3 mb-5 pb-5 border-b border-border-soft">
-              <span className="h-11 w-11 rounded-card bg-primary-soft text-primary-dark grid place-items-center">{ativo.icone}</span>
+              <span className="h-11 w-11 rounded-card bg-primary-soft text-brand-forte grid place-items-center">{ativo.icone}</span>
               <div>
                 <h2 className="font-bold text-ink text-xl tracking-[-0.4px] leading-none">{ativo.titulo}</h2>
                 <p className="text-ink-2 text-sm mt-1.5">{ativo.resumo}</p>

@@ -32,7 +32,8 @@ import { createPortal } from "react-dom";
 import { SubGuias } from "@/components/layout/SubGuias";
 import { RichTextField } from "@/components/RichTextField";
 import { Badge, Button, CarregandoTela, Card } from "@/components/ui";
-import { IcDownload, IcEye, IcFechar, IcPencil } from "@/components/icons";
+import { IcDownload, IcEye, IcPencil } from "@/components/icons";
+import { BOTAO_NA_FAIXA, CabecalhoJanela } from "@/components/padrao/CabecalhoJanela";
 import { htmlParaTexto, textoParaHtml } from "@/domain/clausulaTexto";
 import { contratoDeExemplo } from "@/domain/contratoExemplo";
 import { correcoesDaRevisao, type Correcao } from "@/domain/correcoesDeTexto";
@@ -306,7 +307,7 @@ export function ContratosModelosCard() {
                   <button
                     type="button"
                     onClick={() => voltarAoOriginal(c.chave)}
-                    className="h-7 px-2 rounded-md text-2xs font-bold text-ink-3 hover:bg-primary-soft hover:text-primary-dark"
+                    className="h-7 px-2 rounded-md text-2xs font-bold text-ink-3 hover:bg-primary-soft hover:text-brand-forte"
                   >
                     Voltar ao texto original
                   </button>
@@ -337,14 +338,11 @@ export function ContratosModelosCard() {
           <div className="no-print fixed inset-0 z-60 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px]" />
             {fluxo.etapa === "conferencia" ? (
-              <div className="relative w-full max-w-[860px] max-h-[90vh] bg-surface rounded-card-lg shadow-modal border border-border flex flex-col">
-                <div className="px-5 py-4 border-b border-border shrink-0">
-                  <h3 className="font-bold text-base text-ink">Correções da revisão</h3>
-                  <p className="text-xs text-ink-2 mt-0.5">
-                    {fluxo.parcial ? "A IA está indisponível; foi aplicada só a correção básica. " : ""}
-                    Confira o que foi corrigido antes de salvar.
-                  </p>
-                </div>
+              <div className="relative w-full max-w-[860px] max-h-[90vh] bg-surface rounded-card-lg shadow-modal flex flex-col overflow-hidden">
+                <CabecalhoJanela
+                  titulo="Correções da revisão"
+                  subtitulo={`${fluxo.parcial ? "A IA está indisponível; foi aplicada só a correção básica. " : ""}Confira o que foi corrigido antes de salvar.`}
+                />
                 <div className="overflow-y-auto px-5 py-4 space-y-5">
                   {fluxo.itens.map((i) => (
                     <div key={`${i.modelo}:${i.chave}`}>
@@ -387,7 +385,7 @@ export function ContratosModelosCard() {
                 </div>
               </div>
             ) : (
-              <div className="relative w-full max-w-[460px] bg-surface rounded-card-lg shadow-modal border border-border p-6">
+              <div className="relative w-full max-w-[460px] bg-surface rounded-card-lg shadow-modal p-6">
                 <h3 className="font-bold text-base text-ink">Revisar o texto com IA?</h3>
                 <p className="text-sm text-ink-2 mt-1.5">
                   {fluxo.etapa === "revisando"
@@ -415,37 +413,21 @@ export function ContratosModelosCard() {
         createPortal(
           <div className="no-print fixed inset-0 z-60 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px]" onClick={() => setPrevia(null)} />
-            <div className="relative w-full max-w-[980px] h-[92vh] bg-surface rounded-card-lg shadow-modal border border-border flex flex-col">
-              <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-border shrink-0">
-                <h3 className="font-bold text-base text-ink truncate">
-                  Contrato {ROTULO_MODELO[modelo]} — exemplo
-                </h3>
-                <div className="flex items-center gap-2">
-                  <a
-                    href={previa.url}
-                    target="_blank"
-                    rel="noopener"
-                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-btn text-xs font-bold text-ink-2 hover:bg-primary-soft hover:text-primary-dark"
-                  >
-                    Abrir em nova aba
-                  </a>
-                  <a
-                    href={previa.url}
-                    download={previa.nome}
-                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-btn text-xs font-bold text-ink-2 hover:bg-primary-soft hover:text-primary-dark"
-                  >
-                    <IcDownload width={14} height={14} /> Baixar PDF
-                  </a>
-                  <button
-                    type="button"
-                    onClick={() => setPrevia(null)}
-                    aria-label="Fechar"
-                    className="h-8 w-8 grid place-items-center rounded-btn text-ink-2 hover:bg-primary-soft"
-                  >
-                    <IcFechar width={16} height={16} />
-                  </button>
-                </div>
-              </div>
+            <div className="relative w-full max-w-[980px] h-[92vh] bg-surface rounded-card-lg shadow-modal flex flex-col overflow-hidden">
+              <CabecalhoJanela
+                titulo={`Contrato ${ROTULO_MODELO[modelo]} — exemplo`}
+                onFechar={() => setPrevia(null)}
+                acoes={
+                  <>
+                    <a href={previa.url} target="_blank" rel="noopener" className={BOTAO_NA_FAIXA}>
+                      Abrir em nova aba
+                    </a>
+                    <a href={previa.url} download={previa.nome} className={BOTAO_NA_FAIXA}>
+                      <IcDownload width={14} height={14} /> Baixar PDF
+                    </a>
+                  </>
+                }
+              />
               <iframe title="Visualização do contrato" src={previa.url} className="flex-1 w-full rounded-b-card-lg" />
             </div>
           </div>,

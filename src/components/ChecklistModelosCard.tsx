@@ -234,7 +234,7 @@ export function ChecklistModelosCard() {
             className={cx(
               "rounded-btn px-3 h-9 text-sm font-bold border-[1.5px] transition-colors",
               modalidade === m
-                ? "border-primary bg-primary-soft text-primary-dark"
+                ? "border-primary bg-primary-soft text-brand-forte"
                 : "border-border text-ink-2 hover:bg-muted/40"
             )}
           >
@@ -247,7 +247,7 @@ export function ChecklistModelosCard() {
       </div>
 
       {modelo && semanasDeReferencia(modelo) > 0 && (
-        <p className="mb-3 rounded-btn bg-primary-soft px-3 py-2 text-xs font-bold text-primary-dark">
+        <p className="mb-3 rounded-btn bg-primary-soft px-3 py-2 text-xs font-bold text-brand-forte">
           Prazo de manual desta lista: {semanasDeReferencia(modelo)} semanas antes do evento. Em cada projeto, as
           tarefas “semanas antes do evento” se esticam ou se comprimem para caber entre o dia em que o projeto é
           criado e o evento, mantendo a proporção entre elas. Tarefa marcada “não adaptar” fica sempre na semana escrita.
