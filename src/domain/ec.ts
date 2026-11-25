@@ -82,13 +82,19 @@ const CAMPOS_FORMA = ["valorComBvNf", "valorSemBvComNf", "valorSemBvSemNf"] as c
  * nenhuma negociação pode custar mais do que o item vale. Sem valor definido
  * (zero) não há teto — o item ainda está sendo descrito. Só os campos que
  * acabaram de ser digitados são cortados, para não reescrever dado antigo.
+ *
+ * BAIXAR O VALOR DO ITEM baixa junto as formas que ficariam acima dele
+ * (25/11/2026). A Viviane corrigiu o Design Gráfico de R$ 2.150 para
+ * R$ 2.125 no valor do item, mas a forma de pagamento continuou em R$ 2.150 —
+ * e é a forma que vai para a OS. Subir o valor do item não mexe nas formas.
  */
 export function limitarFormasAoValorDoItem(linha: EcLinha, patch: Partial<EcLinha>): EcLinha {
   const teto = Number(linha.valorPolobh) || 0;
   if (teto <= 0) return linha;
+  const mudouOTeto = "valorPolobh" in patch;
   const fora: Partial<EcLinha> = {};
   for (const campo of CAMPOS_FORMA) {
-    if (campo in patch && (Number(linha[campo]) || 0) > teto) fora[campo] = teto;
+    if ((mudouOTeto || campo in patch) && (Number(linha[campo]) || 0) > teto) fora[campo] = teto;
   }
   return Object.keys(fora).length ? { ...linha, ...fora } : linha;
 }

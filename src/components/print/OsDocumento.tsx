@@ -7,6 +7,7 @@ import { calcularAcerto, percentualDoBv } from "@/domain/acertoFinanceiro";
 import { datasDoEvento, horariosDoEvento, resumoCronogramaProjeto } from "@/domain/projeto";
 import { useEmpresas } from "@/store/empresas";
 import { dadosDoTomador, RETENCOES_PADRAO } from "@/domain/tomadorOs";
+import { osEmitida } from "@/domain/faseOs";
 
 /** Faixa de seção — cinza das barras do modelo original Pólobh (COR.sectionGray). */
 function Secao({ titulo }: { titulo: string }) {
@@ -58,7 +59,7 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
   // O que a OS DEFINIU item a item (ver `domain/contratacaoOs`).
   // OS gravada antes desta revisão não tem contratação nenhuma: `sincronizar`
   // parte do que a EC levantou, para o documento nunca sair com a tabela vazia.
-  const resumo = resumoContratacao(sincronizarContratacao(os.itens ?? [], consolidadas), consolidadas);
+  const resumo = resumoContratacao(sincronizarContratacao(os.itens ?? [], consolidadas, { emitida: osEmitida(os) }), consolidadas);
   /** Só as colunas com algum valor vão ao fornecedor — ver `resumoContratacao`. */
   const colunas = COLUNAS_CONTRATACAO.filter((c) => resumo.colunas[c.chave]);
   const infraestrutura = itensParaDocumento(os.infraestrutura, CAMPOS_INFRAESTRUTURA);

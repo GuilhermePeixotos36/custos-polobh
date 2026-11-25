@@ -239,7 +239,7 @@ function aplicarAutoPreenchimento(osOriginal: Os, ec: Ec): Os {
    * também por aqui que uma OS gravada antes da contratação por item ganha os
    * seus (ver `sincronizarContratacao`).
    */
-  const itensContratacao = sincronizarContratacao(os.itens ?? [], linhas);
+  const itensContratacao = sincronizarContratacao(os.itens ?? [], linhas, { emitida: osEmitida(os) });
   const totaisContratacao = resumoContratacao(itensContratacao, linhas).totais;
 
   // OSs antigas nasciam com uma única linha "Evento" gerada automaticamente.
