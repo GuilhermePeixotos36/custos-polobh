@@ -62,15 +62,22 @@ export function itemDaLinhaEc(l: EcLinha): ItemContratacaoOs {
  * que saiu da OS some. A ORDEM é a dos itens da EC, para a tabela do documento
  * sair na mesma sequência da estimativa.
  */
-export function sincronizarContratacao(itens: ItemContratacaoOs[], linhas: EcLinha[]): ItemContratacaoOs[] {
+export function sincronizarContratacao(
+  itens: ItemContratacaoOs[],
+  linhas: EcLinha[],
+  opts: { emitida?: boolean } = {},
+): ItemContratacaoOs[] {
   const gravados = new Map(itens.map((i) => [i.ecLinhaId, i]));
   return linhas.map((l) => {
     const gravado = gravados.get(l.id);
-    // DECIDIDO = o Financeiro já escolheu a forma. Só aí a OS guarda os valores
-    // dela. Antes disso os valores são da EC e a acompanham (15/10/2026): a OS
-    // nascida antes de as Alternativas de Custos serem preenchidas ficava com
-    // R$ 0,00 congelado, e corrigir a EC não chegava à OS.
-    return gravado?.forma ? gravado : itemDaLinhaEc(l);
+    // OS EMITIDA: o que saiu para o fornecedor é o que vale, a EC não mexe mais.
+    if (opts.emitida) return gravado ?? itemDaLinhaEc(l);
+    // ANTES DA EMISSÃO os valores são os da EC, sempre (25/11/2026). Os valores
+    // não se editam na OS — ela só escolhe a FORMA, e a escolha fica. Antes,
+    // escolhida a forma, os valores congelavam: a Viviane corrigiu dois itens
+    // na EC e a OS continuou com os valores velhos.
+    const daEc = itemDaLinhaEc(l);
+    return gravado?.forma ? { ...daEc, forma: gravado.forma } : daEc;
   });
 }
 
