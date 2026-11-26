@@ -323,8 +323,41 @@ export function calcularDataLimite(prazo: RegraPrazoChecklist, janela: JanelaPro
 
 /* --------------------------- geração e sincronia -------------------------- */
 
-/** A função da lista que é, na prática, a pessoa cadastrada como produtora do projeto. */
+/**
+ * A função da lista que é, na prática, o produtor do projeto (Dados Gerais › Produtora
+ * Responsável). Desde 26/11/2026 é a função "Produção" do cadastro de Funções; "Produção
+ * Responsável" é o nome antigo e continua valendo.
+ */
+export const FUNCAO_PRODUCAO = "Produção";
 export const FUNCAO_PRODUCAO_RESPONSAVEL = "Produção Responsável";
+const ehFuncaoDeProducao = (f: string) => f === FUNCAO_PRODUCAO || f === FUNCAO_PRODUCAO_RESPONSAVEL;
+
+/** Função (cargo do cadastro) → nomes dos usuários ativos que a têm. */
+export type ResponsaveisPorFuncao = Readonly<Record<string, readonly string[]>>;
+
+/**
+ * Quem recebe a tarefa, pela função da lista padrão (26/11/2026). Percorre as funções na ordem:
+ * "Produção" é o produtor do projeto; as demais, quem tem aquele cargo (na Pólobh, uma pessoa por
+ * função — havendo mais de uma, a primeira em ordem alfabética). A primeira função que acha alguém
+ * decide. Sem ninguém, a tarefa fica sem dono (e a pendência cai no produtor, como sempre).
+ */
+export function responsavelPelaFuncao(
+  funcoes: readonly string[] | undefined,
+  produtora: string,
+  responsaveis: ResponsaveisPorFuncao = {}
+): string {
+  for (const f of funcoes ?? []) {
+    const funcao = f.trim();
+    if (!funcao) continue;
+    if (ehFuncaoDeProducao(funcao)) {
+      if (produtora.trim()) return produtora.trim();
+      continue;
+    }
+    const pessoas = [...(responsaveis[funcao] ?? [])].filter((n) => n.trim()).sort((a, b) => a.localeCompare(b, "pt-BR"));
+    if (pessoas.length) return pessoas[0];
+  }
+  return "";
+}
 
 /** Gera o id de um item novo — isolado para o teste poder injetar um previsível. */
 export type GeradorId = () => string;
@@ -344,14 +377,15 @@ export function gerarChecklist(
   projeto: Projeto,
   modelo: ModeloChecklist,
   novoId: GeradorId = idPadrao,
-  feriados?: Feriados
+  feriados?: Feriados,
+  responsaveis?: ResponsaveisPorFuncao
 ): Checklist {
   const janela = janelaDoProjeto(projeto, { modelo, feriados });
   const agora = new Date().toISOString();
   const checklistId = novoId();
   const itens = [...modelo.itens]
     .sort((a, b) => a.ordem - b.ordem)
-    .map((molde, indice) => itemDoModelo(molde, checklistId, janela, indice, novoId, projeto));
+    .map((molde, indice) => itemDoModelo(molde, checklistId, janela, indice, novoId, projeto, responsaveis));
   return {
     id: checklistId,
     projetoId: projeto.id,
@@ -369,13 +403,13 @@ function itemDoModelo(
   janela: JanelaProjeto,
   ordem: number,
   novoId: GeradorId,
-  projeto?: Projeto
+  projeto?: Projeto,
+  responsaveis?: ResponsaveisPorFuncao
 ): ItemChecklist {
-  // "Produção Responsável" não é uma pessoa qualquer: é a produtora do projeto,
-  // que já está em Dados Gerais. A tarefa nasce com ela como dona.
+  // A tarefa nasce com dono: o responsável padrão, se a lista tiver um; senão, a pessoa da função
+  // ("Produção" = a produtora do projeto, que já está em Dados Gerais).
   const produtora = projeto?.info.produtoraResponsavel?.trim() ?? "";
-  const responsavel =
-    molde.responsavelPadrao || (produtora && molde.funcoes?.includes(FUNCAO_PRODUCAO_RESPONSAVEL) ? produtora : "");
+  const responsavel = molde.responsavelPadrao || responsavelPelaFuncao(molde.funcoes, produtora, responsaveis);
   return {
     id: novoId(),
     checklistId,
@@ -434,7 +468,8 @@ export function sincronizarComModelo(
   projeto: Projeto,
   modelo: ModeloChecklist,
   novoId: GeradorId = idPadrao,
-  feriados?: Feriados
+  feriados?: Feriados,
+  responsaveis?: ResponsaveisPorFuncao
 ): { checklist: Checklist; adicionados: number } {
   const janela = janelaDoProjeto(projeto, { modelo, feriados });
   const jaTem = new Set(checklist.itens.map((i) => i.origemModeloItemId).filter(Boolean));
@@ -443,7 +478,7 @@ export function sincronizarComModelo(
     .filter((m) => !jaTem.has(m.id));
   if (!novos.length) return { checklist, adicionados: 0 };
   let ordem = checklist.itens.reduce((max, i) => Math.max(max, i.ordem), -1);
-  const acrescentados = novos.map((m) => itemDoModelo(m, checklist.id, janela, ++ordem, novoId, projeto));
+  const acrescentados = novos.map((m) => itemDoModelo(m, checklist.id, janela, ++ordem, novoId, projeto, responsaveis));
   return {
     checklist: { ...checklist, itens: [...checklist.itens, ...acrescentados] },
     adicionados: acrescentados.length,
@@ -551,15 +586,29 @@ export function situacaoPrazo(item: ItemChecklist, hojeIso: string): SituacaoPra
   return faltam <= DIAS_ALERTA ? "proximo" : "em-dia";
 }
 
-/** Resumo do check-list para o cabeçalho da tela e para a lista de projetos. */
+/**
+ * Resumo do check-list para o cabeçalho da tela e para a lista de projetos.
+ *
+ * As contas FECHAM (26/11/2026): toda tarefa está em exatamente uma faixa —
+ *   total = concluídos + naoSeAplica + abertos
+ *   abertos = atrasados + vencendo (hoje e próximos dias) + noPrazo + semData
+ * Antes, "vencendo" e "em aberto" apareciam lado a lado sem dizer que um estava dentro do
+ * outro, e a soma das pílulas não dava o total.
+ */
 export interface ResumoChecklist {
   total: number;
   /** Tarefas que contam para o progresso (exclui as marcadas "Não se aplica"). */
   contam: number;
   concluidos: number;
+  naoSeAplica: number;
   abertos: number;
   atrasados: number;
+  /** Vence hoje ou nos próximos `DIAS_ALERTA` dias. */
   proximos: number;
+  /** Abertas com prazo depois da janela de alerta. */
+  noPrazo: number;
+  /** Abertas sem data-limite. */
+  semData: number;
   /** 0 a 1 — concluídos sobre o que de fato conta (exclui "Não se aplica"). */
   progresso: number;
 }
@@ -574,9 +623,12 @@ export function resumirChecklist(checklist: Checklist | undefined, hojeIso: stri
     total: itens.length,
     contam: contam.length,
     concluidos,
+    naoSeAplica: itens.length - contam.length,
     abertos: abertos.length,
     atrasados: situacoes.filter((s) => s === "atrasado").length,
     proximos: situacoes.filter((s) => s === "hoje" || s === "proximo").length,
+    noPrazo: situacoes.filter((s) => s === "em-dia").length,
+    semData: situacoes.filter((s) => s === "sem-data").length,
     progresso: contam.length ? concluidos / contam.length : 0,
   };
 }

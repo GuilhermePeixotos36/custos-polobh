@@ -204,3 +204,13 @@ export function capitalizarFrase(texto: string): string {
     (_m, inicio: string, letra: string) => `${inicio}${letra.toLocaleUpperCase("pt-BR")}`
   );
 }
+
+/**
+ * A data de HOJE no fuso de quem está usando ("YYYY-MM-DD"). `new Date().toISOString()` dá a data
+ * em UTC: depois das 21h no Brasil já é "amanhã", e a tarefa que vence hoje aparecia como atrasada
+ * (26/11/2026).
+ */
+export function hojeLocalIso(agora: Date = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${agora.getFullYear()}-${p(agora.getMonth() + 1)}-${p(agora.getDate())}`;
+}

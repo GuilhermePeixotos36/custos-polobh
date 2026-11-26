@@ -8,7 +8,7 @@ import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import { useMinhasPendencias } from "@/store/pendencias";
 import { useAuth } from "@/store/auth";
-import { cx } from "@/lib/format";
+import { cx, hojeLocalIso } from "@/lib/format";
 import { statusProjetoAutomatico } from "@/domain/statusProjeto";
 import { periodoDoProjeto } from "@/domain/calendario";
 import { dataBR } from "@/lib/format";
@@ -44,7 +44,7 @@ export function Projetos() {
   const [filtro, setFiltro] = useState<FiltroProjeto>("Ativo");
   const [busca, setBusca] = useState("");
 
-  const hoje = new Date().toISOString().slice(0, 10);
+  const hoje = hojeLocalIso();
   /** Resumo do check-list por projeto — alimenta a coluna de progresso. */
   const resumoPorProjeto = useMemo(() => {
     const mapa = new Map<string, ResumoChecklist>();

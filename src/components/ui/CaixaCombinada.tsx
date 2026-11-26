@@ -7,7 +7,7 @@ import { cx } from "@/lib/format";
 const semAcento = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 
 export function CaixaCombinada({
-  valor, opcoes, onChange, placeholder = "Buscar…", vazio = "Nada encontrado", disabled, permitirLimpar = true,
+  valor, opcoes, onChange, placeholder = "Buscar…", vazio = "Nada encontrado", disabled, permitirLimpar = true, semValor = "Escolha…",
 }: {
   valor: string;
   opcoes: string[];
@@ -16,6 +16,8 @@ export function CaixaCombinada({
   vazio?: string;
   disabled?: boolean;
   permitirLimpar?: boolean;
+  /** Texto da caixa fechada sem valor. */
+  semValor?: string;
 }) {
   const idLista = useId();
   const caixa = useRef<HTMLDivElement>(null);
@@ -65,7 +67,7 @@ export function CaixaCombinada({
           !aberto && !valor && "text-ink-3",
         )}
         value={aberto ? texto : valor}
-        placeholder={aberto ? (valor || placeholder) : "Escolha…"}
+        placeholder={aberto ? (valor || placeholder) : semValor}
         onFocus={abrir}
         onClick={() => !aberto && abrir()}
         onChange={(e) => { setTexto(e.target.value); setDestaque(0); if (!aberto) setAberto(true); }}
