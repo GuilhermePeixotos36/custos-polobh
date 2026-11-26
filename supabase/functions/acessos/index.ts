@@ -27,7 +27,7 @@
 //
 // Pólobh (26/11/2026): a tabela de usuários é `perfis`; não há lista de colaboradores (todo cadastro
 // é avulso, pelo "+") nem recorte de empresas (`RECORTE_DE_EMPRESAS = false`).
-import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.112.3";
+import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import { clienteDeLogDoAmbiente, registrarErroDaEdge, registrarLog } from "../_shared/log.ts";
 import {
   criarFreioDeTentativas, decidirReaproveitamento, duplicidadeDoErro, emailConfere, emailDoColaborador,

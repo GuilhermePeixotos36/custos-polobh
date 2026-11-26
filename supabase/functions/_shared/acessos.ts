@@ -168,8 +168,8 @@ export function emailDoColaborador(corporativo: unknown, informado: string): str
 export function duplicidadeDoErro(erro: { code?: unknown; message?: unknown; details?: unknown } | null | undefined): "email" | "cpf" | "colaborador" | null {
   if (!erro || erro.code !== "23505") return null;
   const texto = `${erro.message ?? ""} ${erro.details ?? ""}`;
-  if (/usuario_cpf_key|\(cpf\)/.test(texto)) return "cpf";
-  if (/usuario_email_key|email/.test(texto)) return "email";
+  if (/perfis_cpf_key|usuario_cpf_key|\(cpf\)/.test(texto)) return "cpf";
+  if (/perfis_email_key|usuario_email_key|email/.test(texto)) return "email";
   if (/colaborador_id/.test(texto)) return "colaborador";
   return null;
 }
