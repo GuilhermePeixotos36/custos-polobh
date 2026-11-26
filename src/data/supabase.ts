@@ -1006,12 +1006,24 @@ const authRepo: AuthRepository = {
       };
     });
   },
+  // Desde 26/11/2026 `perfis` tem o e-mail (padrão de Acessos): a lista sai direto do banco, sem a
+  // Edge antiga `gerenciar-usuarios` (aposentada). Colunas listadas: a sessão não lê o CPF.
   async usuariosCompletos() {
-    const { data, error } = await supabase.functions.invoke("gerenciar-usuarios", { body: { acao: "listar" } });
-    if (error) throw new Error((error as { message?: string }).message ?? "Falha ao listar usuários.");
-    const resposta = data as { ok: boolean; erro?: string; usuarios?: Usuario[] };
-    if (!resposta?.ok) throw new Error(resposta?.erro ?? "Não foi possível listar os usuários.");
-    return resposta.usuarios ?? [];
+    const data = ok(await supabase.from("perfis").select("id, nome, email, papel, telefone, area_id, ativo, areas(nome)").order("nome"));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (data ?? []).map((r: any): Usuario => {
+      const area = Array.isArray(r.areas) ? r.areas[0] : r.areas;
+      return {
+        id: r.id,
+        nome: r.nome ?? "",
+        email: r.email ?? "",
+        telefone: r.telefone ?? "",
+        papel: r.papel,
+        ativo: r.ativo ?? true,
+        areaId: r.area_id ?? undefined,
+        areaNome: area?.nome ?? undefined,
+      };
+    });
   },
   criarUsuario: (dados) => gerenciarUsuarios({ acao: "criar", ...dados }),
   atualizarUsuario: (dados) => gerenciarUsuarios({ acao: "atualizar", ...dados }),

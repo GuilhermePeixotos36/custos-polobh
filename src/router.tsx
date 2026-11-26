@@ -22,6 +22,7 @@ const ImprimirOs = lazyComRecuperacao(() => import("@/pages/Imprimir").then((m) 
 const Fornecedores = lazyComRecuperacao(() => import("@/pages/Fornecedores").then((m) => ({ default: m.Fornecedores })));
 const Configuracoes = lazyComRecuperacao(() => import("@/pages/Configuracoes").then((m) => ({ default: m.Configuracoes })));
 const Fluxograma = lazyComRecuperacao(() => import("@/pages/Fluxograma").then((m) => ({ default: m.Fluxograma })));
+const Acessos = lazyComRecuperacao(() => import("@/pages/Acessos").then((m) => ({ default: m.Acessos })));
 const Logs = lazyComRecuperacao(() => import("@/pages/Logs").then((m) => ({ default: m.Logs })));
 const Guia = lazyComRecuperacao(() => import("@/pages/Guia").then((m) => ({ default: m.Guia })));
 const Privacidade = lazyComRecuperacao(() => import("@/pages/Privacidade").then((m) => ({ default: m.Privacidade })));
@@ -70,6 +71,7 @@ export const router = createBrowserRouter([
       { path: "fluxograma", element: <RequireRecurso r="guia"><Fluxograma /></RequireRecurso> },
       { path: "configuracoes", element: <RequireRecurso r={["configuracoes", "checklists.padrao", "contratos.clausulas"]}><Configuracoes /></RequireRecurso> },
       { path: "logs", element: <RequireRecurso r="logs"><Logs /></RequireRecurso> },
+      { path: "acessos", element: <RequireRecurso r={["acessos.usuarios", "acessos.grupos"]}><Acessos /></RequireRecurso> },
       { path: "guia", element: <RequireRecurso r="guia"><Guia /></RequireRecurso> },
       // O Help Desk usa o mesmo recurso do Guia: pedir ajuda é para todo mundo
       // que consegue abrir o aplicativo.

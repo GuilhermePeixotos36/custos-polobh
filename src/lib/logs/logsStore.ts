@@ -1,10 +1,10 @@
-// Padrão de Logs — leitura e regras puras da tela. Copie para `src/lib/logs/logsStore.ts`.
+// Padrão de Logs — leitura e regras puras da tela (26/11/2026).
 //
 // A tela só lê pela RPC `consultar_logs`: ela confere a permissão e faz filtro, página, ordenação
 // e total no banco. Nada aqui é visual; os rótulos são texto e a cor fica com o design system do app.
 import type { SupabaseClient } from "@supabase/supabase-js";
-// ADAPTAR: o cliente Supabase do app.
 import { supabase } from "@/lib/supabaseClient";
+import { CATALOGO } from "@/config/acessos/catalogo";
 
 export type AbaLogs = "atividades" | "acessos" | "erros";
 export type NivelLog = "info" | "aviso" | "erro" | "critico";
@@ -42,7 +42,7 @@ export const ABAS_LOGS: { value: AbaLogs; label: string }[] = [
 
 // --- Rótulos ----------------------------------------------------------------------------------
 
-// ADAPTAR: acrescente as ações próprias do app. Ação sem rótulo aparece como a chave.
+// Ação sem rótulo aparece como a chave (é o caso das da trilha antiga, como "os.atualizar").
 const ROTULOS_ACAO: Record<string, string> = {
   login: "Entrou no app",
   logout: "Saiu do app",
@@ -60,6 +60,9 @@ const ROTULOS_ACAO: Record<string, string> = {
   senha_alterada: "Senha alterada pelo usuário",
   senha_troca_recusada: "Troca de senha recusada",
   grupo_alterado: "Grupo de permissão alterado",
+  grupo_criado: "Grupo de permissão criado",
+  usuario_ativado: "Usuário ativado",
+  usuario_alterado: "Acesso do usuário alterado",
   // Da auditoria genérica (PARTE 2 do banco.sql):
   registro_criado: "Registro criado",
   registro_alterado: "Registro alterado",
@@ -75,14 +78,11 @@ export const ROTULO_ORIGEM_LOG: Record<string, string> = { app: "App", banco: "B
 /**
  * As telas do app para o filtro "Tela" e para mostrar o nome no lugar do caminho.
  * O VALOR é o caminho da rota — o único formato que o log guarda.
- * ADAPTAR: monte a partir do catálogo de telas ou do menu do app. Exemplo com o catálogo do
- * padrão de Acessos:
- *   CATALOGO.flatMap((m) => m.telas).map((t) => ({ valor: t.rotas[0], rotulo: t.rotulo }))
+ * Montadas a partir do catálogo de Acessos.
  */
-export const TELAS_DO_APP: { valor: string; rotulo: string }[] = [
-  // { valor: "/clientes", rotulo: "Clientes" },
-  { valor: "/logs", rotulo: "Logs" },
-];
+export const TELAS_DO_APP: { valor: string; rotulo: string }[] = CATALOGO.flatMap((m) => m.telas)
+  .filter((t) => t.rotas.length > 0)
+  .map((t) => ({ valor: t.rotas[0], rotulo: t.chave.startsWith("acessos.") ? "Acessos" : t.rotulo }));
 
 export function opcoesDeTela(telas: { valor: string; rotulo: string }[] = TELAS_DO_APP): { valor: string; rotulo: string }[] {
   return telas
@@ -105,12 +105,10 @@ export function rotuloDaTela(tela: string | null | undefined, telas: { valor: st
  * O que o filtro "Tela" manda ao banco (`telas`): o caminho e, se o app tem catálogo de telas, as
  * CHAVES do catálogo daquela rota. O log tem os dois vocabulários — o front grava o caminho, e o
  * banco e a Edge às vezes gravam a chave (`acessos.usuarios`) —, e o banco casa por esta lista.
- * ADAPTAR: com o catálogo do padrão de Acessos,
- *   const chaves = CATALOGO.flatMap((m) => m.telas).filter((t) => t.rotas.includes(caminho)).map((t) => t.chave);
- *   return [caminho, ...chaves];
  */
 export function telasDoFiltro(caminho: string): string[] {
-  return [caminho];
+  const chaves = CATALOGO.flatMap((m) => m.telas).filter((t) => t.rotas.includes(caminho)).map((t) => t.chave);
+  return [caminho, ...chaves];
 }
 
 // --- Filtros → RPC ----------------------------------------------------------------------------
@@ -230,7 +228,7 @@ export const consultarLogs: Consultar = async (filtros, porPagina = POR_PAGINA) 
     const e = error as { message?: string; code?: string; status?: number };
     if (funcaoAusente(e)) throw new LogsIndisponiveis();
     // 42501 (sem permissão) e 22023 (parâmetro inválido) trazem o motivo em português: vale a
-    // mensagem do banco. ADAPTAR: no resto, use o tradutor de erro do app, se houver.
+    // mensagem do banco. No resto, a mensagem genérica.
     throw new Error((e.code === "42501" || e.code === "22023") && e.message ? e.message : "Não foi possível carregar os logs.");
   }
   const bruto = (data ?? { total: 0, itens: [] }) as Partial<RespostaDeLogs>;

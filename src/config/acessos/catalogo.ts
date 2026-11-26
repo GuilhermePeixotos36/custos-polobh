@@ -133,6 +133,9 @@ export const RECURSO_LEGADO: Record<string, { tela: string; acao: string }> = {
   "contratos.clausulas": { tela: "configuracoes", acao: "clausulas" },
   logs: { tela: "admin.logs", acao: "ver" },
   guia: { tela: "guia", acao: "ver" },
+  // Só do front (o banco não tem estas chaves no mapa antigo): o menu e a rota de Acessos.
+  "acessos.usuarios": { tela: "acessos.usuarios", acao: "ver" },
+  "acessos.grupos": { tela: "acessos.grupos", acao: "ver" },
 };
 
 // --- Permissões específicas por usuário ------------------------------------------------------

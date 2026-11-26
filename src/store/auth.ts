@@ -34,7 +34,10 @@ export type Recurso =
   | "rentabilidade"
   | "configuracoes"
   | "logs"
-  | "guia";
+  | "guia"
+  // Só do front (26/11/2026): as telas de Acessos, para o menu e a rota.
+  | "acessos.usuarios"
+  | "acessos.grupos";
 
 /** Todos os recursos — usado pelo perfil Administrador (acesso total). */
 export const TODOS_RECURSOS: Recurso[] = [
@@ -274,6 +277,11 @@ interface AuthState {
   recursos: Recurso[] | null;
   /** A senha foi definida por outra pessoa: o app pede a troca antes de qualquer tela. */
   senhaProvisoria: boolean;
+  /** As permissões cruas do grupo (tela + ação) e se ele é o de sistema. */
+  permissoesGrupo: { tela: string; acao: string }[];
+  grupoSistema: boolean;
+  /** Pode esta ação nesta tela do catálogo (src/config/acessos/catalogo.ts)? */
+  podeAcao: (tela: string, acao: string) => boolean;
   /** true até a sessão inicial ser resolvida (evita redirect prematuro). */
   carregando: boolean;
   pode: (r: Recurso) => boolean;
@@ -320,9 +328,13 @@ export const useAuth = create<AuthState>((set, get) => {
     // O GRUPO decide (26/11/2026). Cada permissão do grupo vira a chave antiga equivalente.
     let recursos: Recurso[] = [];
     let grupoNome: string | undefined;
+    let permissoesGrupo: { tela: string; acao: string }[] = [];
+    let grupoSistema = false;
     try {
       const minhas = await carregarMinhasPermissoes();
       grupoNome = minhas?.grupo?.nome;
+      permissoesGrupo = minhas?.permissoes ?? [];
+      grupoSistema = minhas?.grupo?.sistema === true;
       const tem = (tela: string, acao: string) =>
         minhas?.grupo?.sistema === true || (minhas?.permissoes ?? []).some((p) => p.tela === tela && p.acao === acao);
       recursos = (Object.keys(RECURSO_LEGADO) as Recurso[]).filter((r) => tem(RECURSO_LEGADO[r].tela, RECURSO_LEGADO[r].acao));
@@ -347,6 +359,8 @@ export const useAuth = create<AuthState>((set, get) => {
       usuario,
       recursos,
       senhaProvisoria: (data as { senha_provisoria?: boolean }).senha_provisoria === true,
+      permissoesGrupo,
+      grupoSistema,
       carregando: false,
     });
     return usuario;
@@ -356,7 +370,12 @@ export const useAuth = create<AuthState>((set, get) => {
     usuario: null,
     recursos: null,
     senhaProvisoria: false,
+    permissoesGrupo: [],
+    grupoSistema: false,
     carregando: true,
+
+    podeAcao: (tela, acao) =>
+      !!get().usuario && (get().grupoSistema || get().permissoesGrupo.some((p) => p.tela === tela && p.acao === acao)),
 
     marcarSenhaDefinitiva: () => set({ senhaProvisoria: false }),
 

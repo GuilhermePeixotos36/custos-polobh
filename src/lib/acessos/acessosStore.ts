@@ -31,6 +31,8 @@ export type GrupoAcesso = {
   usuariosAtivos: number | null;
   usuarios: number | null;
   permissoes: Permissao[];
+  /** Pólobh: o nível (papel antigo) que quem está no grupo recebe — as regras antigas do banco o leem. */
+  papelBase: "Admin" | "Direcao" | "Producao" | "Administrativo";
 };
 
 export type UsuarioDoAcesso = {
@@ -139,7 +141,7 @@ export async function carregarMinhasPermissoes(): Promise<PermissoesDoUsuario | 
   return { grupo: bruto.grupo, permissoes: Array.isArray(bruto.permissoes) ? bruto.permissoes : [], especiais };
 }
 
-type LinhaGrupo = { id: string; nome: string; descricao: string | null; sistema: boolean; ativo: boolean; padrao?: boolean | null };
+type LinhaGrupo = { id: string; nome: string; descricao: string | null; sistema: boolean; ativo: boolean; padrao?: boolean | null; papel_base?: GrupoAcesso["papelBase"] | null };
 type LinhaPermissao = { grupo_id: string; tela: string; acao: string };
 
 /** `contarUsuarios` = quem abre tem `acessos.usuarios` · ver (senão a contagem seria falsa). */
@@ -164,6 +166,7 @@ export async function carregarGrupos(contarUsuarios: boolean): Promise<GrupoAces
     sistema: g.sistema,
     ativo: g.ativo,
     padrao: g.padrao === true,
+    papelBase: g.papel_base ?? "Producao",
     usuarios: contarUsuarios ? usuarios.filter((u) => u.grupo_id === g.id).length : null,
     usuariosAtivos: contarUsuarios ? usuarios.filter((u) => u.grupo_id === g.id && u.status === "ativo").length : null,
     // O grupo de sistema não tem linhas: o banco o trata como "tudo". A tela o mostra marcado.
@@ -235,6 +238,8 @@ export type EntradaDoGrupo = {
   ativo?: boolean;
   /** Passe por `permissoesValidas()` antes: o banco não conhece o catálogo. */
   permissoes: Permissao[];
+  /** Pólobh: o nível do grupo (Direcao, Producao ou Administrativo). Quem não é Administrador só usa o seu ou o de Produção. */
+  papel_base?: "Direcao" | "Producao" | "Administrativo";
 };
 
 export async function salvarGrupo(entrada: EntradaDoGrupo): Promise<string> {
