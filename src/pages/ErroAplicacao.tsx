@@ -2,6 +2,8 @@ import { useRouteError } from "react-router-dom";
 import { Button } from "@/components/ui";
 import { ehErroDeChunk } from "@/lib/lazyComRecuperacao";
 import { supabase } from "@/lib/supabaseClient";
+import { useEffect } from "react";
+import { registrarErroJs } from "@/lib/logs/registrarLog";
 
 /**
  * Último recurso quando a tela quebra: encerra a sessão e apaga o que o navegador
@@ -34,6 +36,10 @@ export function ErroAplicacao() {
   const erro = useRouteError();
   const erroDeAtualizacao = ehErroDeChunk(erro);
   console.error("[rota] Falha ao abrir tela", erro);
+  // A tela que quebrou vai para Logs › Erros (o erro de atualização do app não: é esperado).
+  useEffect(() => {
+    if (!erroDeAtualizacao) registrarErroJs(erro, "rota");
+  }, [erro, erroDeAtualizacao]);
 
   return (
     <main className="min-h-screen grid place-items-center bg-page p-5">
