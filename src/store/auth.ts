@@ -5,6 +5,9 @@ import { supabase } from "@/lib/supabaseClient";
 import { auditar, definirAtor } from "@/store/logs";
 import { traduzirErroDeSenha } from "@/domain/senha";
 import type { User } from "@supabase/supabase-js";
+import { RECURSO_LEGADO } from "@/config/acessos/catalogo";
+import { carregarMinhasPermissoes, trocarMinhaSenha } from "@/lib/acessos/acessosStore";
+import { registrarFalhaDeLogin, registrarLoginUmaVez, registrarLogoutAntesDeSair } from "@/lib/logs/registrarLog";
 
 export type Recurso =
   | "projetos"
@@ -263,18 +266,22 @@ export const PAPEIS_AREA: Papel[] = ["Direcao", "Producao", "Administrativo"];
 
 interface AuthState {
   usuario: Usuario | null;
-  /** Recursos liberados pela área do usuário. null = sem área (cai no padrão do papel). */
+  /**
+   * Recursos liberados pelo GRUPO de permissão do usuário (26/11/2026), traduzidos para as chaves
+   * antigas pelo mapa `RECURSO_LEGADO` — as telas continuam perguntando `pode("oss.emitir")`.
+   * null = ainda não carregado.
+   */
   recursos: Recurso[] | null;
+  /** A senha foi definida por outra pessoa: o app pede a troca antes de qualquer tela. */
+  senhaProvisoria: boolean;
   /** true até a sessão inicial ser resolvida (evita redirect prematuro). */
   carregando: boolean;
   pode: (r: Recurso) => boolean;
   entrarComEmail: (email: string, senha: string) => Promise<{ ok: boolean; erro?: string }>;
   /** Troca a própria senha, já logado. Pede a atual para confirmar quem é. */
   trocarSenha: (atual: string, nova: string) => Promise<{ ok: boolean; erro?: string }>;
-  /** Manda o e-mail de redefinição de senha (a tela de login, sem sessão). */
-  pedirRedefinicaoSenha: (email: string) => Promise<{ ok: boolean; erro?: string }>;
-  /** Grava a senha nova de quem chegou pelo link do e-mail. */
-  definirSenhaPeloLink: (nova: string) => Promise<{ ok: boolean; erro?: string }>;
+  /** Depois da troca da senha provisória: libera o app. */
+  marcarSenhaDefinitiva: () => void;
   sair: () => Promise<void>;
   /** Inicializa a sessão a partir do Supabase (chamado uma vez no boot). */
   bootstrap: () => Promise<void>;
@@ -291,29 +298,39 @@ export const useAuth = create<AuthState>((set, get) => {
   async function carregarPerfil(user: User) {
     const { data, error } = await supabase
       .from("perfis")
-      .select("nome, papel, telefone, area_id, ativo, areas(nome, recursos)")
+      .select("nome, papel, telefone, area_id, ativo, status, senha_provisoria, areas(nome)")
       .eq("id", user.id)
       .maybeSingle();
 
     if (error || !data) {
       // Usuário sem perfil cadastrado: não tem acesso a nada.
       definirAtor(null);
-      set({ usuario: null, recursos: null, carregando: false });
+      set({ usuario: null, recursos: null, senhaProvisoria: false, carregando: false });
       return null;
     }
-    // CONTA INATIVA (24/09/2026). A RLS já recusa tudo — o que falta é dizer o
-    // motivo. A política de `perfis` deixa cada um ler a PRÓPRIA linha
-    // justamente para esta distinção existir: sem ela, a tela não saberia
-    // separar "sua conta foi desativada" de "seu usuário não tem perfil", e a
-    // pessoa abriria chamado de um defeito que não existe.
-    if ((data as { ativo?: boolean }).ativo === false) {
+    // CONTA INATIVA ou PENDENTE (26/11/2026: três estados). A RLS já recusa tudo — o que falta é
+    // dizer o motivo, por isso a política de `perfis` deixa cada um ler a PRÓPRIA linha.
+    const status = (data as { status?: string }).status ?? ((data as { ativo?: boolean }).ativo ? "ativo" : "inativo");
+    if (status !== "ativo") {
       definirAtor(null);
-      set({ usuario: null, recursos: null, carregando: false });
-      return "inativo" as const;
+      set({ usuario: null, recursos: null, senhaProvisoria: false, carregando: false });
+      return status === "pendente" ? ("pendente" as const) : ("inativo" as const);
     }
-    // O join volta como objeto (relação 1:1) — o tipo gerado do supabase-js
-    // descreve como array, daí o normalize abaixo.
-    const bruto = (data as { areas?: AreaJoin | AreaJoin[] | null }).areas;
+
+    // O GRUPO decide (26/11/2026). Cada permissão do grupo vira a chave antiga equivalente.
+    let recursos: Recurso[] = [];
+    let grupoNome: string | undefined;
+    try {
+      const minhas = await carregarMinhasPermissoes();
+      grupoNome = minhas?.grupo?.nome;
+      const tem = (tela: string, acao: string) =>
+        minhas?.grupo?.sistema === true || (minhas?.permissoes ?? []).some((p) => p.tela === tela && p.acao === acao);
+      recursos = (Object.keys(RECURSO_LEGADO) as Recurso[]).filter((r) => tem(RECURSO_LEGADO[r].tela, RECURSO_LEGADO[r].acao));
+    } catch {
+      // Falha de rede não vira acesso: sem permissão até recarregar.
+      recursos = [];
+    }
+    const bruto = (data as unknown as { areas?: AreaJoin | AreaJoin[] | null }).areas;
     const area = (Array.isArray(bruto) ? bruto[0] : bruto) ?? null;
 
     const usuario: Usuario = {
@@ -323,29 +340,32 @@ export const useAuth = create<AuthState>((set, get) => {
       telefone: data.telefone ?? "",
       papel: data.papel as Papel,
       areaId: data.area_id ?? undefined,
-      areaNome: area?.nome ?? undefined,
+      areaNome: grupoNome ?? area?.nome ?? undefined,
     };
     definirAtor({ id: user.id, nome: usuario.nome, papel: usuario.papel });
-    set({ usuario, recursos: (area?.recursos as Recurso[] | undefined) ?? null, carregando: false });
+    set({
+      usuario,
+      recursos,
+      senhaProvisoria: (data as { senha_provisoria?: boolean }).senha_provisoria === true,
+      carregando: false,
+    });
     return usuario;
   }
 
   return {
     usuario: null,
     recursos: null,
+    senhaProvisoria: false,
     carregando: true,
+
+    marcarSenhaDefinitiva: () => set({ senhaProvisoria: false }),
 
     pode: (r) => {
       const u = get().usuario;
       if (!u) return false;
-      // A área do usuário é a fonte de verdade; sem área (ou área sem nenhum
-      // recurso marcado), vale a matriz padrão do papel.
-      const daArea = get().recursos;
-      if (daArea && daArea.length) return daArea.includes(r);
-      // Papel que não está na matriz (cadastro novo, dado torto) devolvia
-      // `undefined` e derrubava a tela inteira num `.includes` de nada.
-      // Sem permissão é uma resposta; tela branca não é.
-      return (PERMISSOES[u.papel] ?? []).includes(r);
+      // O grupo de permissão é a fonte de verdade (26/11/2026). Grupo sem uma permissão é
+      // "não pode" — nunca cai na matriz padrão do papel.
+      return (get().recursos ?? []).includes(r);
     },
 
     entrarComEmail: async (email, senha) => {
@@ -354,7 +374,8 @@ export const useAuth = create<AuthState>((set, get) => {
         password: senha,
       });
       if (error || !data.user) {
-        return { ok: false, erro: "E-mail ou senha inválidos." };
+        registrarFalhaDeLogin(email);
+        return { ok: false, erro: "E-mail ou senha incorretos." };
       }
       const u = await carregarPerfil(data.user);
       if (u === "inativo") {
@@ -364,10 +385,18 @@ export const useAuth = create<AuthState>((set, get) => {
           erro: "A sua conta está inativa. Procure a Direção da Pólobh para reativar o acesso.",
         };
       }
+      if (u === "pendente") {
+        await supabase.auth.signOut();
+        return {
+          ok: false,
+          erro: "O seu acesso ainda não foi liberado. Fale com a TI.",
+        };
+      }
       if (!u) {
         await supabase.auth.signOut();
         return { ok: false, erro: "Seu usuário não tem um perfil de acesso configurado." };
       }
+      registrarLoginUmaVez("senha");
       auditar({
         categoria: "Autenticação",
         acao: "auth.login",
@@ -391,80 +420,20 @@ export const useAuth = create<AuthState>((set, get) => {
      * ninguém, não muda o perfil carregado. Só o `updateUser` depois é que
      * altera de fato a senha.
      */
+    /**
+     * Troca a senha de quem está logado, sempre informando a atual (26/11/2026: pela Edge
+     * `acessos`, que confere a senha atual num cliente descartável, tem freio de tentativas e
+     * tira a marca de senha provisória).
+     */
     trocarSenha: async (atual, nova) => {
-      const u = get().usuario;
-      if (!u?.email) return { ok: false, erro: "Sua sessão expirou. Entre de novo." };
-
-      const conferencia = await supabase.auth.signInWithPassword({ email: u.email, password: atual });
-      if (conferencia.error) {
-        auditar({
-          nivel: "aviso",
-          categoria: "Autenticação",
-          acao: "auth.senha.recusada",
-          mensagem: "Troca de senha recusada: senha atual incorreta",
-          usuario: u.nome,
-          papel: u.papel,
-        });
-        return { ok: false, erro: "Senha atual incorreta." };
+      if (!get().usuario) return { ok: false, erro: "Sua sessão expirou. Entre de novo." };
+      try {
+        await trocarMinhaSenha(atual, nova);
+        set({ senhaProvisoria: false });
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, erro: traduzirErroDeSenha((e as Error).message) };
       }
-
-      const { error } = await supabase.auth.updateUser({ password: nova });
-      if (error) return { ok: false, erro: traduzirErroDeSenha(error.message) };
-
-      auditar({
-        categoria: "Autenticação",
-        acao: "auth.senha",
-        mensagem: "Senha alterada pelo próprio usuário",
-        usuario: u.nome,
-        papel: u.papel,
-      });
-      return { ok: true };
-    },
-
-    /**
-     * "Esqueceu a senha?" — o caminho que faltava (15/09/2026).
-     *
-     * Até aqui, quem esquecia a senha pedia ao suporte um convite novo, e o
-     * resultado prático era a senha do primeiro dia valendo para sempre: ninguém
-     * abre um chamado para trocar de senha.
-     *
-     * A resposta é SEMPRE a mesma, tenha o e-mail cadastro ou não. Dizer "este
-     * e-mail não existe" entrega quem trabalha na casa a quem perguntar — e o
-     * sistema tem os nomes de toda a equipe.
-     */
-    pedirRedefinicaoSenha: async (email) => {
-      const limpo = email.trim().toLowerCase();
-      if (!limpo) return { ok: false, erro: "Informe o seu e-mail." };
-      const { error } = await supabase.auth.resetPasswordForEmail(limpo, {
-        redirectTo: `${window.location.origin}/nova-senha`,
-      });
-      // O erro do Supabase aqui costuma ser limite de envio, não "não existe".
-      if (error) return { ok: false, erro: traduzirErroDeSenha(error.message) };
-      auditar({
-        categoria: "Autenticação",
-        acao: "auth.senha.redefinicao",
-        mensagem: `Redefinição de senha solicitada para ${limpo}`,
-      });
-      return { ok: true };
-    },
-
-    /**
-     * A senha nova de quem chegou pelo link do e-mail.
-     *
-     * Aqui NÃO se pede a senha atual — quem chegou por este caminho não a tem,
-     * e é justamente isso que o link resolve. Quem garante que é a pessoa é o
-     * e-mail: o Supabase abre uma sessão de recuperação ao abrir o link, e sem
-     * ela `updateUser` falha.
-     */
-    definirSenhaPeloLink: async (nova) => {
-      const { error } = await supabase.auth.updateUser({ password: nova });
-      if (error) return { ok: false, erro: traduzirErroDeSenha(error.message) };
-      auditar({
-        categoria: "Autenticação",
-        acao: "auth.senha.redefinida",
-        mensagem: "Senha redefinida pelo link enviado por e-mail",
-      });
-      return { ok: true };
     },
 
     sair: async () => {
@@ -482,8 +451,9 @@ export const useAuth = create<AuthState>((set, get) => {
       // O aparelho para de receber os avisos de quem saiu (computador
       // compartilhado). Antes do signOut: a função precisa da sessão.
       await import("@/lib/push").then((m) => m.desligarNesteAparelho()).catch(() => {});
+      await registrarLogoutAntesDeSair();
       await supabase.auth.signOut();
-      set({ usuario: null, recursos: null });
+      set({ usuario: null, recursos: null, senhaProvisoria: false });
     },
 
     bootstrap: async () => {
@@ -499,7 +469,7 @@ export const useAuth = create<AuthState>((set, get) => {
           carregarPerfil(session.user);
         } else {
           definirAtor(null);
-          set({ usuario: null, recursos: null, carregando: false });
+          set({ usuario: null, recursos: null, senhaProvisoria: false, carregando: false });
         }
       });
     },

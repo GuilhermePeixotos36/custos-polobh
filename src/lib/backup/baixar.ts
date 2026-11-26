@@ -1,3 +1,5 @@
+import { baixarArquivo } from "@/lib/logs/baixarArquivo";
+
 /**
  * Entrega ao navegador o pacote que a Edge Function devolveu.
  *
@@ -12,14 +14,5 @@ export function baixarArquivoBase64(nome: string, base64: string, tipo = "applic
   const bytes = new Uint8Array(bruto.length);
   for (let i = 0; i < bruto.length; i++) bytes[i] = bruto.charCodeAt(i);
 
-  const url = URL.createObjectURL(new Blob([bytes], { type: tipo }));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = nome;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  // Sem isto o blob fica na memória da aba até ela ser fechada — e um back-up
-  // não é um arquivo pequeno.
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  baixarArquivo(new Blob([bytes], { type: tipo }), nome, "Back-up");
 }

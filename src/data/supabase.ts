@@ -4,6 +4,7 @@
  * gravados no formato exato do domínio (camelCase), então o mapeamento
  * coluna→objeto é direto. Snapshots embutidos: `ecs.cliente` e `oss.fornecedor`.
  */
+import { registrarErroDeRequisicao } from "@/lib/logs/registrarLog";
 import { supabase } from "@/lib/supabaseClient";
 import { producaoPadrao, producaoZerada, linhasProducaoLegado, honorariosPadrao, encargosPadrao, normalizarTaxa, bvVazio, rotuloNumeroEc } from "@/domain/calc";
 import { normalizarProjetoInfo, sincronizarCamposLegados } from "@/domain/projeto";
@@ -90,8 +91,13 @@ const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isUuid = (v: unknown): v is string => typeof v === "string" && UUID_RE.test(v);
 
-function ok<T>({ data, error }: { data: T; error: { message: string } | null }): T {
-  if (error) throw new Error(error.message);
+function ok<T>({ data, error }: { data: T; error: { message: string; code?: string } | null }): T {
+  if (error) {
+    // Ponto de captura 1 do padrão de Logs: todo erro do banco passa por aqui. Vai a mensagem e o
+    // código — nunca `details`/`hint`, onde o Postgres põe o valor da linha. 42501 vira acesso negado.
+    registrarErroDeRequisicao(error.message, error.code);
+    throw new Error(error.message);
+  }
   return data;
 }
 

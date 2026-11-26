@@ -1,3 +1,4 @@
+import { imprimirPagina } from "@/lib/logs/baixarArquivo";
 import type { Ec } from "@/data/types";
 import type { CronogramaExcelDados } from "./cronograma";
 import { auditar } from "@/store/logs";
@@ -128,7 +129,7 @@ export async function gerarCredenciamentoExcel(
 /** "Baixar PDF": usa a impressão do navegador sobre a visualização em tela.
  *  Funciona em qualquer navegador e mantém o armazenamento de arquivos mínimo. */
 export function baixarPdfViaImpressao() {
-  window.print();
+  imprimirPagina("PDF pela impressão");
 }
 
 /**

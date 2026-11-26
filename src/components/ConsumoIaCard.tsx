@@ -1,3 +1,4 @@
+import { baixarArquivo } from "@/lib/logs/baixarArquivo";
 /**
  * CONSUMO DE IA (05/11/2026) — Configurações > Consumo de IA.
  *
@@ -85,12 +86,11 @@ async function exportarExcel(mes: string, registros: RegistroIa[]) {
   cabecalho(chamadas);
 
   const buffer = await wb.xlsx.writeBuffer();
-  const url = URL.createObjectURL(new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `consumo-ia-polobh-${mes}.xlsx`;
-  a.click();
-  URL.revokeObjectURL(url);
+  baixarArquivo(
+    new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
+    `consumo-ia-polobh-${mes}.xlsx`,
+    "Relatório de consumo de IA",
+  );
   toast("Relatório de consumo de IA exportado.", "success");
 }
 
