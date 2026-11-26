@@ -22,6 +22,7 @@ import {
 } from "@/domain/checklist";
 import { datasDosFeriados } from "@/domain/feriados";
 import { lerFeriados } from "@/lib/feriados";
+import { carregarResponsaveisPorFuncao } from "@/lib/acessos/cadastros";
 import { usePendencias } from "@/store/pendencias";
 import { toast } from "@/store/toast";
 import type { Checklist, ItemChecklist, ModeloChecklist, Projeto } from "@/data/types";
@@ -68,6 +69,8 @@ export function useChecklistProjeto(
   const [carregando, setCarregando] = useState(true);
   // Feriados que a contagem de dias úteis pula (os do ano do evento e vizinhos).
   const [feriados, setFeriados] = useState<ReadonlySet<string>>(new Set());
+  // Função (cargo) → pessoas: dá dono às tarefas que nascem da lista padrão.
+  const [responsaveis, setResponsaveis] = useState<Record<string, string[]>>({});
   // Evita a segunda geração enquanto a primeira ainda está no ar (StrictMode
   // monta o efeito duas vezes em desenvolvimento).
   const gerando = useRef(false);
@@ -89,12 +92,15 @@ export function useChecklistProjeto(
     }
     setCarregando(true);
     try {
-      const [lista, atual, guardados] = await Promise.all([
+      const [lista, atual, guardados, porFuncao] = await Promise.all([
         repo.checklists.listarModelos(),
         repo.checklists.doProjeto(projetoId),
         // Sem feriado cadastrado a lista ainda funciona: só pula fim de semana.
         lerFeriados().catch(() => undefined),
+        // Sem o mapa a lista ainda nasce: só as tarefas de Produção ganham dono (o produtor).
+        carregarResponsaveisPorFuncao().catch(() => ({})),
       ]);
+      setResponsaveis(porFuncao);
       setModelos(lista);
       setChecklist(atual);
       const ano = Number((anoDoEvento.current || "").slice(0, 4)) || new Date().getFullYear();
@@ -117,7 +123,7 @@ export function useChecklistProjeto(
     gerando.current = true;
     void (async () => {
       try {
-        const novo = gerarChecklist(projeto, modelo, undefined, feriados);
+        const novo = gerarChecklist(projeto, modelo, undefined, feriados, responsaveis);
         setChecklist(await repo.checklists.criar(novo));
         toast(`Check-list ${modalidade} criado com ${novo.itens.length} tarefas.`, "success");
         void recarregarPendencias(true);
@@ -129,7 +135,7 @@ export function useChecklistProjeto(
         gerando.current = false;
       }
     })();
-  }, [carregando, checklist, projeto, modelo, podeEditar, projetoId, modalidade, projetoSalvo, carregar, recarregarPendencias, feriados]);
+  }, [carregando, checklist, projeto, modelo, podeEditar, projetoId, modalidade, projetoSalvo, carregar, recarregarPendencias, feriados, responsaveis]);
 
   /* ----------------------------- diagnósticos ----------------------------- */
 
@@ -293,7 +299,7 @@ export function useChecklistProjeto(
       toast(`Não foi possível recalcular: ${(erro as Error).message}`, "danger");
       await carregar();
     }
-  }, [checklist, projeto, modelo, carregar, recarregarPendencias, feriados]);
+  }, [checklist, projeto, modelo, carregar, recarregarPendencias, feriados, responsaveis]);
 
   /**
    * PRAZOS ACOMPANHAM AS DATAS SOZINHOS (15/10/2026).
@@ -319,7 +325,7 @@ export function useChecklistProjeto(
 
   const sincronizar = useCallback(async () => {
     if (!checklist || !projeto || !modelo) return;
-    const { checklist: atualizado, adicionados } = sincronizarComModelo(checklist, projeto, modelo, undefined, feriados);
+    const { checklist: atualizado, adicionados } = sincronizarComModelo(checklist, projeto, modelo, undefined, feriados, responsaveis);
     if (!adicionados) return;
     const novos = atualizado.itens.slice(checklist.itens.length);
     setChecklist(atualizado);
@@ -330,7 +336,7 @@ export function useChecklistProjeto(
       toast(`Não foi possível trazer as tarefas: ${(erro as Error).message}`, "danger");
       await carregar();
     }
-  }, [checklist, projeto, modelo, carregar, feriados]);
+  }, [checklist, projeto, modelo, carregar, feriados, responsaveis]);
 
   /**
    * Refaz a lista do zero quando a modalidade do projeto muda.
@@ -342,7 +348,7 @@ export function useChecklistProjeto(
     if (!checklist || !projeto || !modelo) return;
     try {
       await repo.checklists.remover(checklist.id);
-      const novo = gerarChecklist(projeto, modelo, undefined, feriados);
+      const novo = gerarChecklist(projeto, modelo, undefined, feriados, responsaveis);
       setChecklist(await repo.checklists.criar(novo));
       toast(`Check-list refeito no modelo ${modelo.modalidade}.`, "success");
       void recarregarPendencias(true);
@@ -350,7 +356,7 @@ export function useChecklistProjeto(
       toast(`Não foi possível refazer o check-list: ${(erro as Error).message}`, "danger");
       await carregar();
     }
-  }, [checklist, projeto, modelo, carregar, recarregarPendencias, feriados]);
+  }, [checklist, projeto, modelo, carregar, recarregarPendencias, feriados, responsaveis]);
 
   return {
     checklist,

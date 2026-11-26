@@ -26,6 +26,7 @@ import { MoverSetas } from "@/components/MoverSetas";
 import { NotifDot } from "@/components/NotifDot";
 import { useAnexosChecklist } from "@/hooks/useAnexosChecklist";
 import { idAncoraPendencia } from "@/lib/destaque";
+import { CabecalhoColuna, FiltroLista, type DirecaoOrdem } from "@/components/FiltroColuna";
 import {
   agruparPorData,
   atrasoNaConclusao,
@@ -48,7 +49,7 @@ import {
 import { confirmar } from "@/store/confirm";
 import { useAuth } from "@/store/auth";
 import { useSugestoes } from "@/hooks/useSugestoes";
-import { colapsarEspacos, cx, dataBR } from "@/lib/format";
+import { colapsarEspacos, cx, dataBR, hojeLocalIso } from "@/lib/format";
 import type { Checklist, ItemChecklist, Observacao, StatusChecklist } from "@/data/types";
 
 /** Cor de cada status da COLUNA "Status" (Pendente, Atrasado, Concluído). */
@@ -81,9 +82,24 @@ const AVISO_PRAZO: Record<SituacaoPrazo, { tom: Tom; rotulo: string } | null> = 
   encerrado: null,
 };
 
-const hojeIso = () => new Date().toISOString().slice(0, 10);
+const hojeIso = () => hojeLocalIso();
 
 type Agrupamento = "etapa" | "data";
+
+/** Colunas que ordenam (cabeçalho com ↑ ↓). */
+type ColunaOrdem = "tarefa" | "responsavel" | "prevista" | "conclusao" | "status";
+const SEM_RESPONSAVEL = "__sem__";
+const STATUS_EXIBIDOS: StatusExibido[] = ["Pendente", "Atrasado", "Concluído", "Não se aplica"];
+/** Faixas do filtro da Data Prevista — as mesmas das pílulas do resumo. */
+const FAIXAS_PRAZO: { valor: SituacaoPrazo; rotulo: string }[] = [
+  { valor: "atrasado", rotulo: "Atrasadas" },
+  { valor: "hoje", rotulo: "Vencem hoje" },
+  { valor: "proximo", rotulo: "Vencem nos próximos 3 dias" },
+  { valor: "em-dia", rotulo: "No prazo (mais adiante)" },
+  { valor: "sem-data", rotulo: "Sem data" },
+  { valor: "encerrado", rotulo: "Encerradas (concluídas ou não se aplica)" },
+];
+const ORDEM_STATUS: Record<StatusExibido, number> = { Atrasado: 0, Pendente: 1, Concluído: 2, "Não se aplica": 3 };
 
 interface Props {
   checklist: Checklist;
@@ -142,7 +158,23 @@ export function ChecklistProjeto({
   const sugestoes = useSugestoes();
   const [verRecolhidas, setVerRecolhidas] = useState(false);
   const [agrupamento, setAgrupamento] = useState<Agrupamento>("etapa");
-  const [filtroResponsavel, setFiltroResponsavel] = useState("");
+  // Filtros por coluna, como no Excel: `null` = todos (sem filtro).
+  const [filtroResp, setFiltroResp] = useState<Set<string> | null>(null);
+  const [filtroStatus, setFiltroStatus] = useState<Set<StatusExibido> | null>(null);
+  const [filtroPrazo, setFiltroPrazo] = useState<Set<SituacaoPrazo> | null>(null);
+  const [buscaTarefa, setBuscaTarefa] = useState("");
+  const [ordem, setOrdem] = useState<{ coluna: ColunaOrdem; dir: DirecaoOrdem } | null>(null);
+  const temFiltro = filtroResp !== null || filtroStatus !== null || filtroPrazo !== null || !!buscaTarefa.trim();
+  const limparFiltros = () => {
+    setFiltroResp(null);
+    setFiltroStatus(null);
+    setFiltroPrazo(null);
+    setBuscaTarefa("");
+  };
+  const ordenarPor = (coluna: ColunaOrdem) =>
+    setOrdem((o) => (o?.coluna !== coluna ? { coluna, dir: "asc" } : o.dir === "asc" ? { coluna, dir: "desc" } : null));
+  // Edição em lote: status e prazo das tarefas marcadas.
+  const [prazoEmLote, setPrazoEmLote] = useState("");
   /** Id da última tarefa criada aqui — recebe o foco assim que aparece. */
   const [idRecemCriado, setIdRecemCriado] = useState("");
   /**
@@ -179,14 +211,45 @@ export function ChecklistProjeto({
    */
   const visiveis = useMemo(() => {
     const cobrada = (i: ItemChecklist) => (pendenciasPorItem[i.id] ?? 0) > 0;
+    // Filtrar por Concluído/Não se aplica (ou pela faixa "Encerradas") é pedir para ver as
+    // recolhidas: sem isto o filtro devolvia uma lista vazia.
+    const querEncerradas =
+      (filtroStatus !== null && (filtroStatus.has("Concluído") || filtroStatus.has("Não se aplica"))) ||
+      (filtroPrazo !== null && filtroPrazo.has("encerrado"));
     const base = checklist.itens.filter(
-      (i) => verRecolhidas || !i.oculto || cobrada(i) || encerradasAgora.includes(i.id)
+      (i) => verRecolhidas || querEncerradas || !i.oculto || cobrada(i) || encerradasAgora.includes(i.id)
     );
-    const porPessoa = filtroResponsavel
-      ? base.filter((i) => i.responsavel === filtroResponsavel || cobrada(i))
-      : base;
-    return ordenarPorPrazo(porPessoa);
-  }, [checklist.itens, verRecolhidas, filtroResponsavel, pendenciasPorItem, encerradasAgora]);
+    const termo = colapsarEspacos(buscaTarefa).toLowerCase();
+    const filtrados = base.filter((i) => {
+      if (filtroResp !== null && !filtroResp.has(i.responsavel || SEM_RESPONSAVEL) && !cobrada(i)) return false;
+      if (filtroStatus !== null && !filtroStatus.has(statusExibido(i, hoje))) return false;
+      if (filtroPrazo !== null && !filtroPrazo.has(situacaoPrazo(i, hoje))) return false;
+      if (termo && !`${i.titulo} ${i.descricao}`.toLowerCase().includes(termo)) return false;
+      return true;
+    });
+    return ordenarPorPrazo(filtrados);
+  }, [checklist.itens, verRecolhidas, filtroResp, filtroStatus, filtroPrazo, buscaTarefa, pendenciasPorItem, encerradasAgora, hoje]);
+
+  /** A ordenação escolhida no cabeçalho (vale dentro de cada grupo). */
+  const comparar = useMemo(() => {
+    if (!ordem) return null;
+    const fator = ordem.dir === "asc" ? 1 : -1;
+    const texto = (a: string, b: string) => {
+      if (!a && !b) return 0;
+      if (!a) return 1; // vazio sempre no fim
+      if (!b) return -1;
+      return a.localeCompare(b, "pt-BR") * fator;
+    };
+    return (a: ItemChecklist, b: ItemChecklist) => {
+      switch (ordem.coluna) {
+        case "tarefa": return texto(a.titulo, b.titulo);
+        case "responsavel": return texto(a.responsavel, b.responsavel);
+        case "prevista": return texto(a.dataLimite, b.dataLimite);
+        case "conclusao": return texto(a.concluidoEm, b.concluidoEm);
+        case "status": return (ORDEM_STATUS[statusExibido(a, hoje)] - ORDEM_STATUS[statusExibido(b, hoje)]) * fator || texto(a.dataLimite, b.dataLimite);
+      }
+    };
+  }, [ordem, hoje]);
 
   /** Tudo o que está fora da visão principal — concluído OU recolhido à mão. */
   const recolhidas = useMemo(() => checklist.itens.filter((i) => i.oculto).length, [checklist.itens]);
@@ -200,7 +263,7 @@ export function ChecklistProjeto({
       return agruparPorData(visiveis).map((g) => ({
         chave: g.data,
         titulo: g.data ? dataBR(g.data) : "Sem data definida",
-        itens: g.itens,
+        itens: comparar ? [...g.itens].sort(comparar) : g.itens,
       }));
     }
     const mapa = new Map<string, ItemChecklist[]>();
@@ -215,9 +278,9 @@ export function ChecklistProjeto({
     return [...mapa.entries()].map(([chave, itens]) => ({
       chave,
       titulo: chave,
-      itens,
+      itens: comparar ? [...itens].sort(comparar) : itens,
     }));
-  }, [visiveis, agrupamento]);
+  }, [visiveis, agrupamento, comparar]);
 
   /**
    * Progresso de cada grupo, contado sobre o grupo INTEIRO — e não sobre o que
@@ -243,9 +306,22 @@ export function ChecklistProjeto({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [checklist.itens, agrupamento]);
 
-  const responsaveis = useMemo(
-    () => [...new Set(checklist.itens.map((i) => i.responsavel).filter(Boolean))].sort(),
-    [checklist.itens]
+
+  /** Opções dos funis, com a contagem de cada valor na lista inteira. */
+  const opcoesResp = useMemo(() => {
+    const conta = new Map<string, number>();
+    for (const i of checklist.itens) conta.set(i.responsavel || SEM_RESPONSAVEL, (conta.get(i.responsavel || SEM_RESPONSAVEL) ?? 0) + 1);
+    return [...conta.entries()]
+      .sort(([a], [b]) => (a === SEM_RESPONSAVEL ? 1 : b === SEM_RESPONSAVEL ? -1 : a.localeCompare(b, "pt-BR")))
+      .map(([valor, contagem]) => ({ valor, contagem, rotulo: valor === SEM_RESPONSAVEL ? "(sem responsável)" : valor }));
+  }, [checklist.itens]);
+  const opcoesStatus = useMemo(
+    () => STATUS_EXIBIDOS.map((v) => ({ valor: v, rotulo: v, contagem: checklist.itens.filter((i) => statusExibido(i, hoje) === v).length })),
+    [checklist.itens, hoje]
+  );
+  const opcoesPrazo = useMemo(
+    () => FAIXAS_PRAZO.map((f) => ({ ...f, contagem: checklist.itens.filter((i) => situacaoPrazo(i, hoje) === f.valor).length })),
+    [checklist.itens, hoje]
   );
 
   /** As etapas da lista, na ordem do processo — alimentam o seletor do item. */
@@ -372,6 +448,29 @@ export function ChecklistProjeto({
     onSalvarVarios(alvo.map((i) => definirStatus(i, "Pendente", nomeAtual, agora)));
     setSelecionadas(new Set());
   };
+  /** Status em lote: qualquer status, com a mesma regra da tarefa individual (data e autor da conclusão). */
+  const statusEmLote = (status: StatusChecklist) => {
+    const alvo = marcadas.filter((i) => i.status !== status);
+    if (!alvo.length) return;
+    const agora = new Date().toISOString();
+    const depois = alvo.map((i) => definirStatus(i, status, nomeAtual, agora));
+    setEncerradasAgora((ids) => {
+      const fechadas = depois.filter((i) => encerrado(i)).map((i) => i.id);
+      const abertas = new Set(depois.filter((i) => !encerrado(i)).map((i) => i.id));
+      return [...new Set([...ids.filter((id) => !abertas.has(id)), ...fechadas])];
+    });
+    onSalvarVarios(depois);
+    setSelecionadas(new Set());
+  };
+
+  /** Prazo em lote: a data vira manual (o recálculo automático não passa por cima dela). */
+  const prazoEmLoteAplicar = () => {
+    if (!prazoEmLote || !marcadas.length) return;
+    onSalvarVarios(marcadas.map((i) => ({ ...i, dataLimite: prazoEmLote, dataManual: true })));
+    setPrazoEmLote("");
+    setSelecionadas(new Set());
+  };
+
   const temEncerradaMarcada = marcadas.some((i) => encerrado(i));
   const temAbertaMarcada = marcadas.some((i) => !encerrado(i));
 
@@ -412,7 +511,7 @@ export function ChecklistProjeto({
    * nada — parecia que o botão não tinha funcionado.
    */
   const criar = async (base?: { etapa?: string; dataLimite?: string }) => {
-    setFiltroResponsavel("");
+    limparFiltros();
     const id = await onCriarItem(base);
     if (typeof id === "string") setIdRecemCriado(id);
   };
@@ -433,18 +532,27 @@ export function ChecklistProjeto({
               <ProgressBar value={resumo.progresso * 100} />
             </div>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {resumo.atrasados > 0 && (
-              <Badge tom="danger">
-                {resumo.atrasados} {resumo.atrasados === 1 ? "atrasada" : "atrasadas"}
-              </Badge>
-            )}
-            {resumo.proximos > 0 && (
-              <Badge tom="warning">
-                {resumo.proximos} vencendo
-              </Badge>
-            )}
-            <Badge tom="neutral">{resumo.abertos} em aberto</Badge>
+          {/* As pílulas FECHAM a conta (26/11/2026): "em aberto" é a soma das quatro primeiras, e
+              concluídas + não se aplica + em aberto = total. Clicar numa pílula filtra a lista. */}
+          <div className="flex flex-col items-end gap-1.5">
+            <div className="flex items-center gap-1.5 flex-wrap justify-end">
+              <span className="text-[12px] font-bold text-ink-2 mr-1">{resumo.abertos} em aberto:</span>
+              <PilulaResumo tom="danger" n={resumo.atrasados} rotulo={resumo.atrasados === 1 ? "atrasada" : "atrasadas"}
+                titulo="Prazo vencido e ainda não concluídas" onClick={() => { limparFiltros(); setFiltroPrazo(new Set(["atrasado"])); }} />
+              <PilulaResumo tom="warning" n={resumo.proximos} rotulo="vencem em até 3 dias"
+                titulo="Vencem hoje ou nos próximos 3 dias" onClick={() => { limparFiltros(); setFiltroPrazo(new Set(["hoje", "proximo"])); }} />
+              <PilulaResumo tom="info" n={resumo.noPrazo} rotulo="no prazo"
+                titulo="Abertas, com prazo mais adiante" onClick={() => { limparFiltros(); setFiltroPrazo(new Set(["em-dia"])); }} />
+              <PilulaResumo tom="neutral" n={resumo.semData} rotulo="sem data"
+                titulo="Abertas, sem data prevista" onClick={() => { limparFiltros(); setFiltroPrazo(new Set(["sem-data"])); }} />
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap justify-end">
+              <PilulaResumo tom="success" n={resumo.concluidos} rotulo={resumo.concluidos === 1 ? "concluída" : "concluídas"}
+                titulo="Concluídas" onClick={() => { limparFiltros(); setFiltroStatus(new Set(["Concluído"])); }} />
+              <PilulaResumo tom="neutral" n={resumo.naoSeAplica} rotulo="não se aplicam"
+                titulo="Marcadas como Não se aplica (fora do progresso)" onClick={() => { limparFiltros(); setFiltroStatus(new Set(["Não se aplica"])); }} />
+              <span className="text-[11.5px] font-bold text-ink-3">· {resumo.total} no total</span>
+            </div>
           </div>
         </div>
 
@@ -494,26 +602,20 @@ export function ChecklistProjeto({
             <option value="etapa">Agrupar por etapa</option>
             <option value="data">Agrupar por data</option>
           </Select>
-          {responsaveis.length > 0 && (
-            <Select
-              className="!h-9 !w-auto !text-[13px]"
-              value={filtroResponsavel}
-              onChange={(e) => setFiltroResponsavel(e.target.value)}
-              aria-label="Filtrar por responsável"
+          {nomeAtual && (
+            <Button
+              size="sm"
+              variant={filtroResp?.size === 1 && filtroResp.has(nomeAtual) ? "soft" : "secondary"}
+              onClick={() => setFiltroResp((f) => (f?.size === 1 && f.has(nomeAtual) ? null : new Set([nomeAtual])))}
+              title="Só as tarefas em que você é o responsável"
             >
-              <option value="">Todos os responsáveis</option>
-              {/* "As minhas" é o filtro que mais se usa, e estava escondido no
-                  meio de uma lista alfabética de nomes. Fica em cima, com o
-                  nome próprio junto para não haver dúvida de quem é "minhas". */}
-              {nomeAtual && <option value={nomeAtual}>Minhas tarefas ({nomeAtual})</option>}
-              {responsaveis
-                .filter((r) => r !== nomeAtual)
-                .map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-            </Select>
+              Minhas tarefas
+            </Button>
+          )}
+          {(temFiltro || ordem) && (
+            <Button size="sm" variant="text" onClick={() => { limparFiltros(); setOrdem(null); }}>
+              Limpar filtros e ordenação
+            </Button>
           )}
         </div>
         <button
@@ -549,11 +651,36 @@ export function ChecklistProjeto({
             {marcadas.length
               ? `${marcadas.length} ${marcadas.length === 1 ? "selecionada" : "selecionadas"}`
               : podeExcluir
-              ? "Marque tarefas para concluir, reabrir ou excluir em lote"
-              : "Marque tarefas para concluir ou reabrir em lote"}
+              ? "Marque tarefas para mudar status, prazo ou excluir em lote"
+              : "Marque tarefas para mudar status ou prazo em lote"}
           </span>
           {marcadas.length > 0 && (
             <div className="ml-auto flex items-center gap-2 flex-wrap">
+              <Select
+                className="!h-8 !w-auto !text-[12.5px]"
+                value=""
+                onChange={(e) => e.target.value && statusEmLote(e.target.value as StatusChecklist)}
+                aria-label="Alterar o status das selecionadas"
+              >
+                <option value="">Alterar status…</option>
+                <option value="Pendente">Pendente</option>
+                <option value="Em andamento">Em andamento</option>
+                <option value="Concluído">Concluído</option>
+                <option value="Não se aplica">Não se aplica</option>
+              </Select>
+              <span className="inline-flex items-center gap-1">
+                <input
+                  type="date"
+                  value={prazoEmLote}
+                  onChange={(e) => setPrazoEmLote(e.target.value)}
+                  className="h-8 rounded-btn border-[1.5px] border-[#BFC4CE] bg-surface px-2 text-[12.5px] input-focus"
+                  aria-label="Nova data prevista das selecionadas"
+                  title="Nova data prevista para as selecionadas"
+                />
+                <Button size="sm" variant="secondary" disabled={!prazoEmLote} onClick={prazoEmLoteAplicar}>
+                  Alterar prazo
+                </Button>
+              </span>
               {temAbertaMarcada && (
                 <Button size="sm" variant="secondary" icon={<IcCheck width={15} height={15} />} onClick={concluirMarcadas}>
                   Concluir selecionadas
@@ -586,10 +713,10 @@ export function ChecklistProjeto({
       {/* ------------------------------ lista ----------------------------- */}
       {!visiveis.length && (
         <EmptyState
-          title={filtroResponsavel ? "Nenhuma tarefa para este responsável" : "Nenhuma tarefa em aberto"}
+          title={temFiltro ? "Nenhuma tarefa com estes filtros" : "Nenhuma tarefa em aberto"}
           hint={
-            filtroResponsavel
-              ? "Troque o filtro para ver as demais."
+            temFiltro
+              ? "Troque ou limpe os filtros do cabeçalho para ver as demais."
               : recolhidas > 0
               ? `As ${recolhidas} tarefas do check-list estão concluídas ou recolhidas. Use “Ver recolhidas” para trazê-las de volta.`
               : "Este check-list ainda não tem tarefas."
@@ -602,6 +729,26 @@ export function ChecklistProjeto({
           linhas separadas por um fio, e o título preso no topo. Com um cartão
           por tarefa — borda, sombra e respiro em cada uma — doze tarefas viravam
           doze objetos, e a leitura de cima a baixo se perdia. */}
+      {/* Cabeçalho ÚNICO da tabela (26/11/2026): cada coluna com ordenar (↑ ↓) e funil de filtro,
+          como no Excel. Ordenar vale dentro de cada grupo; enquanto há ordenação, mover à mão
+          fica desligado (a ordem da tela não seria a ordem gravada). */}
+      {checklist.itens.length > 0 && (
+        <div className={cx(GRADE_COLUNAS, "max-md:flex max-md:flex-wrap sticky top-0 z-20 rounded-card border border-border bg-[#FAFAFB] px-4 py-2 text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-ink-3")}>
+          <span className="max-md:hidden" />
+          <span className="max-md:hidden" />
+          <CabecalhoColuna rotulo="Tarefa" ordem={ordem?.coluna === "tarefa" ? ordem.dir : null} onOrdenar={() => ordenarPor("tarefa")}
+            filtro={<FiltroLista rotulo="Tarefa" opcoes={[]} selecionados={null} onChange={() => {}} busca={buscaTarefa} onBusca={setBuscaTarefa} />} />
+          <CabecalhoColuna rotulo="Responsável" ordem={ordem?.coluna === "responsavel" ? ordem.dir : null} onOrdenar={() => ordenarPor("responsavel")}
+            filtro={<FiltroLista rotulo="Responsável" opcoes={opcoesResp} selecionados={filtroResp} onChange={setFiltroResp} />} />
+          <CabecalhoColuna rotulo="Data Prevista" ordem={ordem?.coluna === "prevista" ? ordem.dir : null} onOrdenar={() => ordenarPor("prevista")}
+            filtro={<FiltroLista rotulo="Data Prevista" opcoes={opcoesPrazo} selecionados={filtroPrazo} onChange={setFiltroPrazo} />} />
+          <CabecalhoColuna rotulo="Data de Conclusão" ordem={ordem?.coluna === "conclusao" ? ordem.dir : null} onOrdenar={() => ordenarPor("conclusao")} />
+          <CabecalhoColuna rotulo="Status" ordem={ordem?.coluna === "status" ? ordem.dir : null} onOrdenar={() => ordenarPor("status")}
+            filtro={<FiltroLista rotulo="Status" opcoes={opcoesStatus} selecionados={filtroStatus} onChange={setFiltroStatus} alinharDireita />} />
+          <span className="max-md:hidden" />
+        </div>
+      )}
+
       <DndContext sensors={sensores} collisionDetection={closestCenter} onDragEnd={aoSoltar}>
         <SortableContext items={blocos.map((b) => `etapa:${b.chave}`)} strategy={verticalListSortingStrategy}>
           {blocos.map((bloco, indiceBloco) => {
@@ -609,7 +756,7 @@ export function ChecklistProjeto({
             const idsDoBloco = bloco.itens.map((i) => i.id);
             const blocoMarcado = idsDoBloco.length > 0 && idsDoBloco.every((id) => selecionadas.has(id));
             return (
-              <SecaoEtapa key={bloco.chave} id={`etapa:${bloco.chave}`} ordenavel={podeEditar && agrupamento === "etapa"}>
+              <SecaoEtapa key={bloco.chave} id={`etapa:${bloco.chave}`} ordenavel={podeEditar && agrupamento === "etapa" && !ordem}>
                 {(alcaEtapa) => (
                   <>
                     <header className="flex items-center gap-2 px-4 py-2.5 bg-[#FAFAFB] border-b border-border-soft">
@@ -627,7 +774,7 @@ export function ChecklistProjeto({
                       {/* MOVER A ETAPA: arraste pela alça (saltos grandes) ou
                           pelas setas (uma posição por vez). Nos dois casos as
                           tarefas dela vão junto. */}
-                      {agrupamento === "etapa" && podeEditar && (
+                      {agrupamento === "etapa" && podeEditar && !ordem && (
                         <>
                           {alcaEtapa}
                           <MoverSetas
@@ -651,17 +798,6 @@ export function ChecklistProjeto({
                         {progresso.feitas} de {progresso.contam}
                       </span>
                     </header>
-                    {/* Cabeçalho das colunas (só em tela larga). */}
-                    <div className={cx(GRADE_COLUNAS, "max-md:hidden px-4 py-1.5 border-b border-border-soft text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-ink-3")}>
-                      <span />
-                      <span />
-                      <span>Tarefa</span>
-                      <span>Responsável</span>
-                      <span>Data Prevista</span>
-                      <span>Data de Conclusão</span>
-                      <span>Status</span>
-                      <span />
-                    </div>
                     <SortableContext items={idsDoBloco} strategy={verticalListSortingStrategy}>
                       <ul className="divide-y divide-border-soft">
                         {bloco.itens.map((item, indiceItem) => (
@@ -674,7 +810,7 @@ export function ChecklistProjeto({
                             usuarios={usuarios}
                             podeEditar={podeEditar}
                             podeExcluir={podeExcluir}
-                            ordenavel={podeEditar && agrupamento === "etapa"}
+                            ordenavel={podeEditar && agrupamento === "etapa" && !ordem}
                             selecionada={selecionadas.has(item.id)}
                             onSelecionar={(marcar) => alternarMarca([item.id], marcar)}
                             podeSubir={indiceItem > 0 || indiceBloco > 0}
@@ -1387,5 +1523,15 @@ function ConclusaoDoItem({
           <Badge tom="success">no prazo</Badge>
         ))}
     </span>
+  );
+}
+
+/** Pílula do resumo: número + rótulo; clicar filtra a lista por aquela faixa. Zero fica apagado. */
+function PilulaResumo({ tom, n, rotulo, titulo, onClick }: { tom: Tom; n: number; rotulo: string; titulo: string; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} disabled={n === 0} title={`${titulo} — clique para filtrar`}
+      className={cx("rounded-full input-focus", n === 0 ? "opacity-40 cursor-default" : "hover:brightness-95")}>
+      <Badge tom={tom}>{n} {rotulo}</Badge>
+    </button>
   );
 }

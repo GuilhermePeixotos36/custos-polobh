@@ -14,7 +14,8 @@
  * andamento recebe um aviso e decide quando trazer as tarefas novas.
  */
 import { useEffect, useMemo, useState } from "react";
-import { Button, CarregandoTela, Card, CardTitle, EmptyState, Input, NumberInput, Select } from "@/components/ui";
+import { Button, CaixaCombinada, CarregandoTela, Card, CardTitle, EmptyState, Input, NumberInput, Select } from "@/components/ui";
+import { carregarCadastro } from "@/lib/acessos/cadastros";
 import { IcPlus, IcTrash } from "@/components/icons";
 import { MoverSetas } from "@/components/MoverSetas";
 import { repo } from "@/data";
@@ -64,35 +65,57 @@ const REGRA_INICIAL: Record<ModoPrazoChecklist, RegraPrazoChecklist> = {
   percentual: { modo: "percentual", percentual: 0.5 },
 };
 
-/** "Direção de Produção + Back-Office" ⇄ lista. O texto só é lido ao sair do campo. */
+/**
+ * Funções responsáveis pela tarefa, escolhidas do cadastro de Funções (Acessos › Funções) — sem
+ * texto livre, para a função bater com o cargo das pessoas (26/11/2026). A primeira função que tem
+ * alguém decide o dono da tarefa no projeto; "Produção" é sempre o produtor do projeto.
+ */
 function CampoFuncoes({
   funcoes,
+  opcoes,
   disabled,
   onChange,
 }: {
   funcoes: string[];
+  opcoes: string[];
   disabled: boolean;
   onChange: (funcoes: string[]) => void;
 }) {
-  const [texto, setTexto] = useState(funcoes.join(" + "));
-  useEffect(() => setTexto(funcoes.join(" + ")), [funcoes]);
+  const restantes = opcoes.filter((o) => !funcoes.includes(o));
   return (
-    <Input
-      className="!h-8 !px-2 !text-[12.5px]"
-      value={texto}
-      disabled={disabled}
-      onChange={(e) => setTexto(e.target.value)}
-      onBlur={() =>
-        onChange(
-          texto
-            .split(/\s*[+\n;]\s*/)
-            .map((f) => f.trim())
-            .filter(Boolean)
-        )
-      }
-      placeholder="Funções responsáveis (separe com +)"
-      aria-label="Funções responsáveis pela tarefa"
-    />
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="text-[11.5px] font-bold text-ink-3">Função responsável:</span>
+      {funcoes.map((f, i) => (
+        <span
+          key={f}
+          className={cx(
+            "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[12px] font-semibold",
+            opcoes.includes(f) ? "border-border bg-[#F5F6F8] text-ink" : "border-warning bg-warning-soft text-ink",
+          )}
+          title={opcoes.includes(f) ? (i === 0 ? "Principal: quem tem esta função recebe a tarefa" : "Se a principal não tiver ninguém, esta recebe") : "Função fora do cadastro — escolha uma da lista"}
+        >
+          {f}
+          {!disabled && (
+            <button type="button" className="text-ink-3 hover:text-danger" aria-label={`Tirar ${f}`} onClick={() => onChange(funcoes.filter((x) => x !== f))}>
+              ×
+            </button>
+          )}
+        </span>
+      ))}
+      {!disabled && restantes.length > 0 && (
+        <div className="w-[230px]">
+          <CaixaCombinada
+            valor=""
+            opcoes={restantes}
+            permitirLimpar={false}
+            semValor={funcoes.length ? "+ outra função" : "Escolha a função"}
+            onChange={(f) => f && onChange([...funcoes, f])}
+            vazio="Nenhuma função com esse nome. Cadastre em Acessos › Funções."
+          />
+        </div>
+      )}
+      {disabled && funcoes.length === 0 && <span className="text-[12px] text-ink-3">—</span>}
+    </div>
   );
 }
 
@@ -108,6 +131,8 @@ export function ChecklistModelosCard() {
   // não bateria com o do cadastro e a tarefa nasceria sem dono de verdade.
   const { data: usuariosData } = useAsync(() => repo.auth.usuarios(), []);
   const usuarios = (usuariosData ?? []).map((u) => u.nome).filter(Boolean);
+  const { data: funcoesData } = useAsync(() => carregarCadastro("funcao"), []);
+  const funcoesCadastradas = (funcoesData ?? []).filter((f) => f.ativo).map((f) => f.nome);
   const [modelos, setModelos] = useState<ModeloChecklist[]>([]);
   const [modalidade, setModalidade] = useState<ModalidadeProjeto>("Corporativo");
   const [itens, setItens] = useState<ItemModeloChecklist[]>([]);
@@ -344,7 +369,7 @@ export function ChecklistModelosCard() {
                       onChange={(e) => alterar(item.id, { responsavelPadrao: e.target.value })}
                       aria-label="Responsável padrão pela tarefa"
                     >
-                      <option value="">Sem responsável padrão</option>
+                      <option value="">Pela função (automático)</option>
                       {/* Nome já gravado que saiu do quadro de usuários continua
                           na lista: sem isto o `select` apareceria vazio e salvar
                           apagaria o responsável sem ninguém ver. */}
@@ -355,6 +380,7 @@ export function ChecklistModelosCard() {
                   </div>
                   <CampoFuncoes
                     funcoes={item.funcoes ?? []}
+                    opcoes={funcoesCadastradas}
                     disabled={!podeEditar}
                     onChange={(funcoes) => alterar(item.id, { funcoes })}
                   />

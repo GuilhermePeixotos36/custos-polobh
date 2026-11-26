@@ -21,7 +21,7 @@ import { usePendencias } from "@/store/pendencias";
 import { toast } from "@/store/toast";
 import { definirStatus, diasEntre, encerrado, ordenarPorPrazo, situacaoPrazo } from "@/domain/checklist";
 import { statusProjetoAutomatico } from "@/domain/statusProjeto";
-import { cx, dataBR } from "@/lib/format";
+import { cx, dataBR, hojeLocalIso } from "@/lib/format";
 import type { Checklist, ItemChecklist, Projeto } from "@/data/types";
 
 /** Tarefa já com o projeto a que pertence — a agenda mistura projetos. */
@@ -67,7 +67,7 @@ export function Agenda() {
   const nomeAtual = useAuth((s) => s.usuario?.nome ?? "");
   const podeEditar = useAuth((s) => s.pode("checklists.editar"));
   const recarregarPendencias = usePendencias((s) => s.carregar);
-  const hoje = new Date().toISOString().slice(0, 10);
+  const hoje = hojeLocalIso();
 
   const { data, loading, error, reload } = useAsync(
     async () => {

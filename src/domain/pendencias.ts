@@ -42,7 +42,7 @@
  * para "OS/Contrato a emitir"). Para adicionar uma nova regra, basta empurrar
  * mais objetos em `calcularPendencias`.
  */
-import { documentoCompleto } from "@/lib/format";
+import { documentoCompleto, hojeLocalIso } from "@/lib/format";
 import { ABAS_COM_CONVERSA } from "@/data/types";
 import { ESPERANDO_FASE, faseDaOs, RECURSO_DA_FASE } from "@/domain/faseOs";
 import type { Recurso } from "@/store/auth";
@@ -436,7 +436,7 @@ export function calcularPendencias(
   /** Check-lists dos projetos — geram pendência de prazo e de observação. */
   checklists: Checklist[] = [],
   /** "Hoje" em ISO — injetado para o cálculo ser testável e estável. */
-  hojeIso: string = new Date().toISOString().slice(0, 10)
+  hojeIso: string = hojeLocalIso()
 ): Pendencia[] {
   const ecPorId = new Map(ecs.map((e) => [e.id, e]));
   const credenciamentoRespondido = new Set(osComCredenciamento);
@@ -918,7 +918,15 @@ export interface PendenciasAgregadas {
 }
 
 function normalizarPessoa(valor: string): string {
-  return valor.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
+  // "Carol Estelian (cp)" (como a produtora aparece no projeto) é a usuária "Carol Estelian": o
+  // apelido entre parênteses não pode separar a pessoa das pendências dela (26/11/2026).
+  return valor
+    .replace(/\s*\([^)]*\)\s*/g, " ")
+    .trim()
+    .replace(/\s+/g, " ")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("pt-BR");
 }
 
 /**

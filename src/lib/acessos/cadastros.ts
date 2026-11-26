@@ -34,3 +34,12 @@ export async function salvarItemCadastro(tipo: TipoCadastro, item: { id?: string
     : await bd.from(TABELA[tipo]).insert(linha);
   if (error) throw new Error(mensagem(error, tipo));
 }
+
+/** Função (cargo) → nomes dos usuários ativos com ela. Usado para dar dono às tarefas do check-list. */
+export async function carregarResponsaveisPorFuncao(): Promise<Record<string, string[]>> {
+  const { data, error } = await bd.rpc("responsaveis_por_funcao");
+  if (error) throw new Error(error.message);
+  const mapa: Record<string, string[]> = {};
+  for (const r of (data ?? []) as { funcao: string; nome: string }[]) (mapa[r.funcao] ??= []).push(r.nome);
+  return mapa;
+}
