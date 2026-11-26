@@ -18,7 +18,8 @@ import { Avatar, Button, Field, Input } from "@/components/ui";
 import { IcFechar } from "@/components/icons";
 import { useAuth, ROTULO_PAPEL } from "@/store/auth";
 import { toast } from "@/store/toast";
-import { motivoSenhaInvalida, TAMANHO_MINIMO_SENHA } from "@/domain/senha";
+import { TAMANHO_MINIMO_SENHA } from "@/domain/senha";
+import { motivoDaTrocaInvalida } from "@/lib/acessos/senha";
 
 export function MinhaContaModal({ onClose }: { onClose: () => void }) {
   const usuario = useAuth((s) => s.usuario);
@@ -38,7 +39,7 @@ export function MinhaContaModal({ onClose }: { onClose: () => void }) {
     e.preventDefault();
     setErro("");
     // A régua mora no domínio, testada — a tela só a aplica (ver `domain/senha`).
-    const motivo = motivoSenhaInvalida(atual, nova, confirmacao);
+    const motivo = motivoDaTrocaInvalida({ senhaAtual: atual, senhaNova: nova, confirmacao });
     if (motivo) {
       setErro(motivo);
       return;

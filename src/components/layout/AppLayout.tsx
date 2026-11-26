@@ -1,4 +1,5 @@
 import { Suspense, useCallback, useEffect, type ReactNode } from "react";
+import { DefinirNovaSenha } from "@/components/DefinirNovaSenha";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { TopNav } from "./TopNav";
 import { Toaster } from "@/components/ui/Toaster";
@@ -22,6 +23,7 @@ import { useVersaoDoApp } from "@/hooks/useVersaoDoApp";
 export function AppLayout() {
   const usuario = useAuth((s) => s.usuario);
   const carregando = useAuth((s) => s.carregando);
+  const senhaProvisoria = useAuth((s) => s.senhaProvisoria);
   const carregarPendencias = usePendencias((s) => s.carregar);
   const carregarEmpresas = useEmpresas((s) => s.carregar);
   const { pathname } = useLocation();
@@ -53,6 +55,8 @@ export function AppLayout() {
     return <div className="min-h-screen grid place-items-center text-ink-3">Carregando…</div>;
   }
   if (!usuario) return <Navigate to="/login" replace />;
+  // Senha provisória (definida por quem administra os acessos): nenhuma tela antes da troca.
+  if (senhaProvisoria) return <DefinirNovaSenha />;
 
   return (
     <div className="flex flex-col min-h-screen pb-[calc(var(--altura-nav-celular)+env(safe-area-inset-bottom))] md:pb-0">

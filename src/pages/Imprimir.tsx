@@ -1,3 +1,4 @@
+import { imprimirPagina } from "@/lib/logs/baixarArquivo";
 /**
  * Página de visualização/impressão de documentos (EC e OS).
  * Renderiza só o documento numa folha A4 — sem sidebar/topbar — então a
@@ -102,7 +103,7 @@ function Moldura({
   const [params] = useSearchParams();
   useEffect(() => {
     if (!loading && !vazio && params.get("auto") === "1") {
-      const t = setTimeout(() => window.print(), 400);
+      const t = setTimeout(() => imprimirPagina("PDF pela impressão"), 400);
       return () => clearTimeout(t);
     }
   }, [loading, vazio, params]);
@@ -116,7 +117,7 @@ function Moldura({
         </button>
         {/* A OS chega aqui com ?auto=1 e a janela de salvar já abre sozinha;
             este botão é para reabrir sem voltar e clicar de novo. */}
-        <Button size="sm" icon={<IcDownload width={16} height={16} />} onClick={() => window.print()}>
+        <Button size="sm" icon={<IcDownload width={16} height={16} />} onClick={() => imprimirPagina("PDF pela impressão")}>
           Baixar PDF
         </Button>
       </div>

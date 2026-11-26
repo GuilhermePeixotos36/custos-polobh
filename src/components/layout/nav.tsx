@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { Recurso } from "@/store/auth";
-import { IcCalendar, IcFluxo, IcFolder, IcGear, IcHelp, IcSuporte } from "@/components/icons";
+import { IcActivity, IcCalendar, IcFluxo, IcFolder, IcGear, IcHelp, IcShield, IcSuporte } from "@/components/icons";
 
 export interface NavItem {
   to: string;
@@ -55,6 +55,9 @@ export const NAV: NavItem[] = [
   { to: "/fluxograma", label: "Fluxograma", rotuloCurto: "Fluxo", icon: <IcFluxo />, recurso: "guia" },
   // A Coordenação não administra empresas e usuários, mas edita a lista padrão do check-list — por isso o `ou`.
   { to: "/configuracoes", label: "Configurações", rotuloCurto: "Config.", icon: <IcGear />, recurso: "configuracoes", ou: ["checklists.padrao", "contratos.clausulas"] },
+  // ACESSOS e LOGS no menu (padrão de Acessos e Logs, 26/11/2026): saíram de Configurações.
+  { to: "/acessos", label: "Acessos", icon: <IcShield />, recurso: "acessos.usuarios", ou: ["acessos.grupos"] },
+  { to: "/logs", label: "Logs", icon: <IcActivity />, recurso: "logs" },
   { to: "/guia", label: "Guia do Aplicativo", rotuloCurto: "Guia", icon: <IcHelp />, recurso: "guia" },
   { to: "/suporte", label: "Help Desk", rotuloCurto: "Suporte", icon: <IcSuporte />, recurso: "guia", painel: "suporte" },
 ];
@@ -114,9 +117,6 @@ export const NAV_CONFIG: (SecaoNav & { rota: string })[] = [
   { key: "checklist", label: "Check-list", rota: "/configuracoes?aba=checklist", recurso: "configuracoes", ou: ["checklists.padrao"] },
   // Só o Administrador e a Direção de Produção (13/11/2026): a chave é marcada à mão na área.
   { key: "contratos", label: "Contratos", rota: "/configuracoes?aba=contratos", recurso: "contratos.clausulas" },
-  { key: "areas", label: "Áreas e permissões", rota: "/configuracoes?aba=areas", recurso: "configuracoes" },
-  { key: "usuarios", label: "Usuários", rota: "/configuracoes?aba=usuarios", recurso: "configuracoes" },
   { key: "backup", label: "Back-up", rota: "/configuracoes?aba=backup", recurso: "configuracoes" },
   { key: "ia", label: "Consumo de IA", rota: "/configuracoes?aba=ia", recurso: "configuracoes" },
-  { key: "logs", label: "Logs do sistema", rota: "/logs", recurso: "logs" },
 ];

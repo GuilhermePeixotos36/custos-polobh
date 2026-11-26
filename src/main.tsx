@@ -7,6 +7,11 @@ import { useEmpresas } from "@/store/empresas";
 import "@/index.css";
 import { tentarRecuperarErroDeChunk } from "@/lib/lazyComRecuperacao";
 import { registrarWorker } from "@/lib/notificacoes";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { instalarCapturaDeErrosJs } from "@/lib/logs/registrarLog";
+
+// Erro solto e promessa rejeitada sem tratamento vão para Logs › Erros (padrão de Logs, ponto 2).
+instalarCapturaDeErrosJs();
 
 window.addEventListener("vite:preloadError", (evento) => {
   const erro = (evento as Event & { payload?: unknown }).payload;
@@ -27,6 +32,8 @@ useAuth
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <RouterProvider router={router} />
+    <ErrorBoundary>
+      <RouterProvider router={router} />
+    </ErrorBoundary>
   </React.StrictMode>
 );

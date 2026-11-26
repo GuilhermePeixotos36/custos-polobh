@@ -1,4 +1,5 @@
 import ExcelJS from "exceljs";
+import { baixarArquivo } from "@/lib/logs/baixarArquivo";
 
 /** Paleta Pólobh em ARGB (ExcelJS usa AARRGGBB). */
 export const COR = {
@@ -132,15 +133,8 @@ const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.s
 
 export function baixar(buffer: ArrayBuffer, nome: string, projetoId?: string) {
   arquivarCopia(projetoId, nome, buffer);
-  const blob = new Blob([buffer], { type: XLSX_MIME });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = nome.endsWith(".xlsx") ? nome : `${nome}.xlsx`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  const arquivo = nome.endsWith(".xlsx") ? nome : `${nome}.xlsx`;
+  baixarArquivo(new Blob([buffer], { type: XLSX_MIME }), arquivo, "Planilha");
 }
 
 /**

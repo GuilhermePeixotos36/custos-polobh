@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
+import { registrarRotaNegada } from "@/lib/logs/registrarLog";
 import { useAuth, type Recurso } from "@/store/auth";
 import { auditar } from "@/store/logs";
 
@@ -12,9 +13,11 @@ export function RequireRecurso({ r, children }: { r: Recurso | Recurso[]; childr
   const pode = useAuth((s) => s.pode);
   const usuario = useAuth((s) => s.usuario);
   const permitido = (Array.isArray(r) ? r : [r]).some(pode);
+  const { pathname } = useLocation();
 
   useEffect(() => {
     if (usuario && !permitido) {
+      registrarRotaNegada(pathname);
       auditar({
         nivel: "aviso",
         categoria: "Acesso",
@@ -24,7 +27,7 @@ export function RequireRecurso({ r, children }: { r: Recurso | Recurso[]; childr
         papel: usuario.papel,
       });
     }
-  }, [permitido, r, usuario]);
+  }, [permitido, r, usuario, pathname]);
 
   if (!permitido) return <Navigate to="/" replace />;
   return <>{children}</>;

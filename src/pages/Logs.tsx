@@ -1,167 +1,314 @@
-import { useMemo, useState } from "react";
+/**
+ * LOGS — Atividades, Acessos e Erros (padrão de Logs, 26/11/2026).
+ *
+ * Só consulta: filtro, página, ordenação e total são feitos no banco (`consultar_logs`), que também
+ * confere quem pode ver (`admin.logs` · ver). A trilha antiga (`audit_log`) vem unida na consulta.
+ * Tudo o que vem do log é TEXTO: nada de HTML, Markdown ou link.
+ */
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { PageShell } from "@/components/layout/AppLayout";
-import { BarraConfiguracoes } from "@/components/layout/BarraSecao";
-import { Card, Badge, Input, Select, Button, Table, THead, Tr, Td, EmptyState, ThOrd, useOrdenacao, type Tom } from "@/components/ui";
-import { IcDownload, IcSearch } from "@/components/icons";
-import { supabase } from "@/lib/supabaseClient";
-import { useAsync } from "@/hooks/useAsync";
+import { SubGuias } from "@/components/layout/SubGuias";
+import { Badge, Button, Card, EmptyState, Input, Select, Table, THead, Th, Tr, Td, type Tom } from "@/components/ui";
+import { IcDownload, IcFechar, IcSearch } from "@/components/icons";
+import { useAuth } from "@/store/auth";
 import { toast } from "@/store/toast";
-import { ROTULO_PAPEL } from "@/store/auth";
-import { dataHoraBR } from "@/lib/format";
-import type { LogCategoria, LogEntry, LogNivel } from "@/data/types";
+import { baixarArquivo } from "@/lib/logs/baixarArquivo";
+import { csvDosLogs, dataHoraBr, detalheComoTexto, nomeDoCsv } from "@/lib/logs/csv";
+import {
+  ABAS_LOGS, antesEDepois, coletarParaExportar, consultarLogs, filtrosAtivos, filtrosIniciais, hojeISO, addDias,
+  limitarPeriodo, LogsIndisponiveis, opcoesDeTela, rotuloDaAcao, rotuloDaTela, ROTULO_NIVEL, ROTULO_ORIGEM_LOG,
+  ROTULO_RESULTADO, POR_PAGINA, TETO_EXPORTACAO, type AbaLogs, type FiltrosLogs, type ItemLog, type RespostaDeLogs,
+} from "@/lib/logs/logsStore";
+import { supabase } from "@/lib/supabaseClient";
 
-const NIVEL_TOM: Record<LogNivel, Tom> = { info: "info", aviso: "warning", erro: "danger" };
-const NIVEL_LABEL: Record<LogNivel, string> = { info: "Info", aviso: "Aviso", erro: "Erro" };
-
-const CATEGORIAS: LogCategoria[] = [
-  "Autenticação", "Acesso", "Projeto", "EC", "OS", "Fornecedor", "Cliente", "Configuração", "Exportação", "IA", "Sistema",
-];
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapLog(r: any): LogEntry {
-  return {
-    id: r.id,
-    ts: r.ts,
-    nivel: r.nivel,
-    categoria: r.categoria,
-    acao: r.acao,
-    mensagem: r.mensagem,
-    usuario: r.usuario ?? undefined,
-    papel: r.papel ?? undefined,
-    alvoId: r.alvo_id ?? undefined,
-  };
-}
+const TOM_RESULTADO: Record<string, Tom> = { ok: "success", negado: "warning", falha: "danger" };
+const TOM_NIVEL: Record<string, Tom> = { info: "neutral", aviso: "warning", erro: "danger", critico: "danger" };
 
 export function Logs() {
-  const { data, loading, error } = useAsync(async () => {
-    const { data, error } = await supabase
-      .from("audit_log")
-      .select("*")
-      .order("ts", { ascending: false })
-      .limit(1000);
-    if (error) throw new Error(error.message);
-    return (data ?? []).map(mapLog);
+  const podeExportar = useAuth((s) => s.podeAcao)("admin.logs", "exportar");
+  const [filtros, setFiltros] = useState<FiltrosLogs>(() => filtrosIniciais(hojeISO()));
+  const [buscaDigitada, setBuscaDigitada] = useState("");
+  const [resposta, setResposta] = useState<RespostaDeLogs>({ total: 0, itens: [] });
+  const [carregando, setCarregando] = useState(true);
+  const [primeira, setPrimeira] = useState(true);
+  const [erro, setErro] = useState("");
+  const [indisponivel, setIndisponivel] = useState(false);
+  const [aberto, setAberto] = useState<ItemLog | null>(null);
+  const [exportando, setExportando] = useState(false);
+  const [usuarios, setUsuarios] = useState<{ id: string; nome: string }[]>([]);
+  const pedido = useRef(0);
+
+  useEffect(() => {
+    void supabase.from("perfis").select("id, nome").order("nome").then(({ data }) => setUsuarios((data ?? []) as { id: string; nome: string }[]));
   }, []);
 
-  const itens = useMemo(() => data ?? [], [data]);
-  const [busca, setBusca] = useState("");
-  const [categoria, setCategoria] = useState<LogCategoria | "">("");
-  const [nivel, setNivel] = useState<LogNivel | "">("");
+  // A busca vale depois de uma pausa na digitação.
+  useEffect(() => {
+    const t = setTimeout(() => setFiltros((f) => (f.busca === buscaDigitada ? f : { ...f, busca: buscaDigitada, pagina: 1 })), 400);
+    return () => clearTimeout(t);
+  }, [buscaDigitada]);
 
-  const filtrados = useMemo(() => {
-    const q = busca.trim().toLowerCase();
-    return itens.filter((l) => {
-      if (categoria && l.categoria !== categoria) return false;
-      if (nivel && l.nivel !== nivel) return false;
-      if (q) {
-        const alvo = `${l.mensagem} ${l.acao} ${l.usuario ?? ""} ${l.alvoId ?? ""}`.toLowerCase();
-        if (!alvo.includes(q)) return false;
+  const carregar = useCallback(async (f: FiltrosLogs) => {
+    const meu = ++pedido.current;
+    setCarregando(true);
+    try {
+      const r = await consultarLogs(f);
+      if (meu !== pedido.current) return; // uma consulta mais nova já está a caminho
+      setResposta(r);
+      setErro("");
+    } catch (e) {
+      if (meu !== pedido.current) return;
+      if (e instanceof LogsIndisponiveis) setIndisponivel(true);
+      else setErro(e instanceof Error ? e.message : "Não foi possível carregar os logs.");
+    } finally {
+      if (meu === pedido.current) {
+        setCarregando(false);
+        setPrimeira(false);
       }
-      return true;
-    });
-  }, [itens, busca, categoria, nivel]);
+    }
+  }, []);
 
-  const { ordem, ordenarPor, ordenados } = useOrdenacao(
-    filtrados,
-    {
-      ts: (l) => l.ts,
-      nivel: (l) => l.nivel,
-      categoria: (l) => l.categoria,
-      evento: (l) => l.mensagem,
-      usuario: (l) => l.usuario,
-    },
-    { col: "ts", dir: "desc" }
-  );
+  useEffect(() => {
+    void carregar(filtros);
+  }, [filtros, carregar]);
 
-  function exportarCsv() {
-    const cab = ["Data/Hora", "Nível", "Categoria", "Ação", "Mensagem", "Usuário", "Perfil", "Alvo"];
-    const linhas = filtrados.map((l) => [
-      dataHoraBR(l.ts), NIVEL_LABEL[l.nivel], l.categoria, l.acao, l.mensagem,
-      l.usuario ?? "", l.papel ? ROTULO_PAPEL[l.papel] : "", l.alvoId ?? "",
-    ]);
-    const esc = (c: string) => `"${String(c).replace(/"/g, '""')}"`;
-    const csv = [cab, ...linhas].map((r) => r.map(esc).join(";")).join("\r\n");
-    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `logs-polobh-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast("Logs exportados (CSV).", "success");
+  // Todo filtro volta para a página 1; a troca de página não.
+  const mudar = (parcial: Partial<FiltrosLogs>) => setFiltros((f) => ({ ...f, pagina: 1, ...parcial }));
+  const periodo = (dias: number) => {
+    const fim = hojeISO();
+    mudar({ inicio: addDias(fim, -(dias - 1)), fim });
+  };
+  const paginas = Math.max(1, Math.ceil(resposta.total / POR_PAGINA));
+  const telas = useMemo(() => opcoesDeTela(), []);
+  const ativos = filtrosAtivos(filtros);
+
+  async function exportar() {
+    if (exportando) return;
+    setExportando(true);
+    try {
+      const { itens, total, cortou } = await coletarParaExportar(filtros, consultarLogs);
+      const nome = nomeDoCsv(filtros.aba, filtros.inicio, filtros.fim);
+      // Exportar a própria trilha é justamente o evento que precisa ficar: o helper o registra.
+      baixarArquivo(new Blob([csvDosLogs(itens)], { type: "text/csv;charset=utf-8" }), nome, "Logs (CSV)");
+      if (cortou) {
+        toast(`Exportação cortada: foram exportadas só as primeiras ${TETO_EXPORTACAO.toLocaleString("pt-BR")} linhas de ${total.toLocaleString("pt-BR")}. Reduza o período ou use filtros para exportar o resto.`, "warning");
+      }
+    } catch {
+      toast("Não foi possível exportar os logs.", "danger");
+    } finally {
+      setExportando(false);
+    }
+  }
+
+  if (indisponivel) {
+    return (
+      <PageShell title="Logs">
+        <Card><EmptyState title="Os logs ainda não estão disponíveis neste ambiente (a atualização do banco está pendente)." /></Card>
+      </PageShell>
+    );
   }
 
   return (
     <PageShell
-      title="Logs do sistema"
-      subtitle="Trilha de auditoria de acessos, alterações e eventos do aplicativo."
-      subabas={<BarraConfiguracoes atual="logs" />}
+      title="Logs"
+      subtitle="Atividades, acessos e erros do aplicativo."
+      subabas={
+        <SubGuias<AbaLogs>
+          rotulo="Logs"
+          atual={filtros.aba}
+          onChange={(aba) => mudar({ aba })}
+          abas={ABAS_LOGS.map((a) => ({ key: a.value, label: a.label }))}
+        />
+      }
     >
       <div className="space-y-4">
         <Card>
           <div className="flex flex-wrap items-end gap-3">
+            <div className="flex items-end gap-2" aria-label="Período dos logs">
+              <label className="text-[12px] font-semibold text-ink-2">
+                De
+                <Input type="date" className="w-[150px]" value={filtros.inicio} max={filtros.fim}
+                  onChange={(e) => mudar(limitarPeriodo(e.target.value || filtros.inicio, filtros.fim))} />
+              </label>
+              <label className="text-[12px] font-semibold text-ink-2">
+                Até
+                <Input type="date" className="w-[150px]" value={filtros.fim} max={hojeISO()}
+                  onChange={(e) => mudar(limitarPeriodo(filtros.inicio, e.target.value || filtros.fim))} />
+              </label>
+              <div className="flex gap-1 pb-1">
+                {[1, 7, 30].map((d) => (
+                  <Button key={d} size="sm" variant="secondary" onClick={() => periodo(d)}>{d === 1 ? "Hoje" : `${d} dias`}</Button>
+                ))}
+              </div>
+            </div>
             <div className="relative flex-1 min-w-[200px]">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-3 pointer-events-none">
-                <IcSearch width={16} height={16} />
-              </span>
-              <Input className="pl-9" placeholder="Buscar por mensagem, ação, usuário…" value={busca} onChange={(e) => setBusca(e.target.value)} />
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-3 pointer-events-none"><IcSearch width={16} height={16} /></span>
+              <Input className="pl-9" aria-label="Buscar nos logs" placeholder="Buscar no texto" value={buscaDigitada} onChange={(e) => setBuscaDigitada(e.target.value)} />
             </div>
-            <Select className="w-[170px]" value={categoria} onChange={(e) => setCategoria(e.target.value as LogCategoria | "")}>
-              <option value="">Todas as categorias</option>
-              {CATEGORIAS.map((c) => <option key={c} value={c}>{c}</option>)}
-            </Select>
-            <Select className="w-[140px]" value={nivel} onChange={(e) => setNivel(e.target.value as LogNivel | "")}>
-              <option value="">Todos os níveis</option>
-              {(Object.keys(NIVEL_LABEL) as LogNivel[]).map((n) => <option key={n} value={n}>{NIVEL_LABEL[n]}</option>)}
-            </Select>
-            <div className="flex gap-2 ml-auto">
-              <Button variant="text" size="sm" icon={<IcDownload width={16} height={16} />} onClick={exportarCsv} disabled={!filtrados.length}>
-                Exportar CSV
+            {podeExportar && (
+              <Button variant="text" size="sm" icon={<IcDownload width={16} height={16} />} onClick={() => void exportar()} disabled={exportando || !resposta.total}>
+                {exportando ? "Exportando…" : "Exportar CSV"}
               </Button>
-            </div>
+            )}
           </div>
-          <p className="mt-3 text-[12px] text-ink-3">
-            {filtrados.length} de {itens.length} eventos · ordenados do mais recente para o mais antigo.
-          </p>
+          <div className="mt-3 grid grid-cols-2 md:grid-cols-5 gap-2">
+            <Select value={filtros.usuarioId} onChange={(e) => mudar({ usuarioId: e.target.value })}>
+              <option value="">Todos os usuários</option>
+              {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
+            </Select>
+            <Select value={filtros.nivel} onChange={(e) => mudar({ nivel: e.target.value })}>
+              <option value="">Todos os níveis</option>
+              {Object.entries(ROTULO_NIVEL).map(([v, r]) => <option key={v} value={v}>{r}</option>)}
+            </Select>
+            <Select value={filtros.resultado} onChange={(e) => mudar({ resultado: e.target.value })}>
+              <option value="">Todos os resultados</option>
+              {Object.entries(ROTULO_RESULTADO).map(([v, r]) => <option key={v} value={v}>{r}</option>)}
+            </Select>
+            <Select value={filtros.origem} onChange={(e) => mudar({ origem: e.target.value })}>
+              <option value="">Todas as origens</option>
+              {Object.entries(ROTULO_ORIGEM_LOG).map(([v, r]) => <option key={v} value={v}>{r}</option>)}
+            </Select>
+            <Select value={filtros.tela} onChange={(e) => mudar({ tela: e.target.value })}>
+              <option value="">Todas as telas</option>
+              {telas.map((t) => <option key={t.valor} value={t.valor}>{t.rotulo}</option>)}
+            </Select>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {filtros.correlacao && (
+              <button type="button" onClick={() => mudar({ correlacao: "" })}><Badge tom="info">Mesma correlação · limpar</Badge></button>
+            )}
+            {ativos > 0 && (
+              <Button size="sm" variant="text" onClick={() => mudar({ usuarioId: "", nivel: "", resultado: "", tela: "", origem: "", correlacao: "" })}>
+                Limpar filtros
+              </Button>
+            )}
+            <span className="ml-auto text-[12px] text-ink-3">{resposta.total.toLocaleString("pt-BR")} evento(s)</span>
+          </div>
         </Card>
 
         <Card padded={false}>
-          {loading ? (
-            <div className="p-8 text-center text-ink-3">Carregando…</div>
-          ) : error ? (
-            <div className="p-8"><EmptyState title="Não foi possível carregar" hint="Verifique sua conexão e permissões (apenas o Administrador lê os logs)." /></div>
-          ) : filtrados.length === 0 ? (
-            <div className="p-8"><EmptyState title="Nenhum evento" hint="Nenhum log corresponde aos filtros aplicados." /></div>
+          {primeira && carregando ? (
+            <div className="p-8 text-center text-ink-3">Carregando logs…</div>
+          ) : erro ? (
+            <div className="p-8 text-center text-danger font-semibold" role="alert">{erro}</div>
+          ) : resposta.itens.length === 0 ? (
+            <div className="p-8"><EmptyState title="Nenhum evento neste período e com estes filtros." /></div>
           ) : (
-            <Table>
-              <THead>
-                <ThOrd col="ts" ordem={ordem} onSort={ordenarPor} className="whitespace-nowrap">Data / Hora</ThOrd>
-                <ThOrd col="nivel" ordem={ordem} onSort={ordenarPor}>Nível</ThOrd>
-                <ThOrd col="categoria" ordem={ordem} onSort={ordenarPor}>Categoria</ThOrd>
-                <ThOrd col="evento" ordem={ordem} onSort={ordenarPor}>Evento</ThOrd>
-                <ThOrd col="usuario" ordem={ordem} onSort={ordenarPor}>Usuário</ThOrd>
-              </THead>
-              <tbody>
-                {ordenados.map((l) => (
-                  <Tr key={l.id}>
-                    <Td className="whitespace-nowrap text-ink-2 text-[12.5px]">{dataHoraBR(l.ts)}</Td>
-                    <Td><Badge tom={NIVEL_TOM[l.nivel]}>{NIVEL_LABEL[l.nivel]}</Badge></Td>
-                    <Td className="text-ink-2">{l.categoria}</Td>
-                    <Td>
-                      <div className="font-semibold text-ink">{l.mensagem}</div>
-                      <div className="text-[11.5px] text-ink-3">{l.acao}{l.alvoId ? ` · ${l.alvoId}` : ""}</div>
-                    </Td>
-                    <Td className="text-ink-2 text-[12.5px]">
-                      {l.usuario ?? "—"}
-                      {l.papel && <span className="text-ink-3"> · {ROTULO_PAPEL[l.papel]}</span>}
-                    </Td>
-                  </Tr>
-                ))}
-              </tbody>
-            </Table>
+            <div aria-busy={carregando} className={carregando ? "opacity-60" : undefined}>
+              <Table>
+                <THead>
+                  <th
+                    className="px-3 py-2 text-left text-[11.5px] font-bold uppercase tracking-wide text-ink-3 whitespace-nowrap cursor-pointer"
+                    aria-sort={filtros.ordem === "em_desc" ? "descending" : "ascending"}
+                    onClick={() => setFiltros((f) => ({ ...f, pagina: 1, ordem: f.ordem === "em_desc" ? "em_asc" : "em_desc" }))}
+                  >
+                    Data/hora {filtros.ordem === "em_desc" ? "↓" : "↑"}
+                  </th>
+                  <Th>Usuário</Th>
+                  <Th>Ação</Th>
+                  <Th>Alvo / tela</Th>
+                  <Th>{filtros.aba === "erros" ? "Nível" : "Resultado"}</Th>
+                  <Th>Origem</Th>
+                  <Th>IP</Th>
+                </THead>
+                <tbody>
+                  {resposta.itens.map((l) => {
+                    const alvo = l.alvoRotulo || rotuloDaTela(l.tela) || l.mensagem || "—";
+                    return (
+                      <Tr key={l.id} onClick={() => setAberto(l)} className="cursor-pointer">
+                        <Td className="whitespace-nowrap text-[12.5px] text-ink-2">
+                          <button type="button" className="hover:underline" aria-label={`Abrir o evento de ${dataHoraBr(l.em)}`}
+                            onClick={(e) => { e.stopPropagation(); setAberto(l); }}>
+                            {dataHoraBr(l.em)}
+                          </button>
+                        </Td>
+                        <Td className="text-[12.5px]">{l.atorNome || "—"}</Td>
+                        <Td className="text-[12.5px] font-semibold text-ink">{rotuloDaAcao(l.acao)}</Td>
+                        <Td className="text-[12.5px] text-ink-2 max-w-[360px]"><span className="block truncate" title={l.mensagem ?? undefined}>{alvo}</span></Td>
+                        <Td>
+                          {filtros.aba === "erros"
+                            ? <Badge tom={TOM_NIVEL[l.nivel] ?? "neutral"}>{ROTULO_NIVEL[l.nivel] ?? l.nivel}</Badge>
+                            : <Badge tom={TOM_RESULTADO[l.resultado] ?? "neutral"}>{ROTULO_RESULTADO[l.resultado] ?? l.resultado}</Badge>}
+                        </Td>
+                        <Td className="text-[12.5px] text-ink-2">{ROTULO_ORIGEM_LOG[l.origem ?? ""] ?? l.origem ?? "—"}</Td>
+                        <Td className="text-[12.5px] text-ink-3">{l.ip || "—"}</Td>
+                      </Tr>
+                    );
+                  })}
+                </tbody>
+              </Table>
+              <nav aria-label="Páginas" className="flex items-center justify-between px-4 py-3 text-[12.5px] text-ink-2">
+                <span>{resposta.total.toLocaleString("pt-BR")} evento(s)</span>
+                <span className="flex items-center gap-2">
+                  <Button size="sm" variant="secondary" disabled={filtros.pagina <= 1} onClick={() => setFiltros((f) => ({ ...f, pagina: f.pagina - 1 }))}>Página anterior</Button>
+                  Página {filtros.pagina} de {paginas}
+                  <Button size="sm" variant="secondary" disabled={filtros.pagina >= paginas} onClick={() => setFiltros((f) => ({ ...f, pagina: f.pagina + 1 }))}>Próxima página</Button>
+                </span>
+              </nav>
+            </div>
           )}
         </Card>
       </div>
+      {aberto && (
+        <DetalheLog
+          item={aberto}
+          onClose={() => setAberto(null)}
+          onCorrelacao={aberto.correlacao ? () => { mudar({ correlacao: aberto.correlacao ?? "" }); setAberto(null); } : undefined}
+        />
+      )}
     </PageShell>
+  );
+}
+
+function Campo({ rotulo, valor }: { rotulo: string; valor: string | null | undefined }) {
+  return (
+    <div>
+      <div className="text-[11px] font-bold uppercase tracking-wide text-ink-3">{rotulo}</div>
+      <div className="text-[13px] text-ink break-words">{valor || "—"}</div>
+    </div>
+  );
+}
+
+/** Popup "Detalhe do evento". Tudo como texto: o log também é escrito por quem nem entrou. */
+function DetalheLog({ item, onClose, onCorrelacao }: { item: ItemLog; onClose: () => void; onCorrelacao?: () => void }) {
+  const ad = antesEDepois(item);
+  return createPortal(
+    <div className="no-print fixed inset-0 z-[80] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div role="dialog" aria-label="Detalhe do evento" className="relative w-full max-w-[640px] bg-surface rounded-card-lg shadow-modal border border-border p-6 max-h-[90vh] overflow-y-auto">
+        <button type="button" onClick={onClose} title="Fechar" className="absolute right-3 top-3 rounded-btn p-1.5 text-ink-3 hover:bg-[#F1F2F5]">
+          <IcFechar width={18} height={18} />
+        </button>
+        <h2 className="font-display text-lg font-bold">Detalhe do evento</h2>
+        <p className="text-[13px] text-ink-2 mb-4">{rotuloDaAcao(item.acao)}</p>
+        <div className="grid grid-cols-2 gap-3">
+          <Campo rotulo="Data e hora" valor={dataHoraBr(item.em)} />
+          <Campo rotulo="Usuário" valor={item.atorNome} />
+          <Campo rotulo="Ação" valor={rotuloDaAcao(item.acao)} />
+          <Campo rotulo="Resultado" valor={ROTULO_RESULTADO[item.resultado] ?? item.resultado} />
+          <Campo rotulo="Nível" valor={ROTULO_NIVEL[item.nivel] ?? item.nivel} />
+          <Campo rotulo="Origem" valor={ROTULO_ORIGEM_LOG[item.origem ?? ""] ?? item.origem} />
+          <Campo rotulo="Tela" valor={rotuloDaTela(item.tela)} />
+          <Campo rotulo="Alvo" valor={[item.alvoTipo, item.alvoRotulo || item.alvoId].filter(Boolean).join(" · ")} />
+          <Campo rotulo="IP" valor={item.ip} />
+        </div>
+        {item.mensagem && <div className="mt-4"><Campo rotulo="Mensagem" valor={item.mensagem} /></div>}
+        {ad ? (
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <div><div className="text-[11px] font-bold uppercase text-ink-3">Antes</div><pre className="mt-1 whitespace-pre-wrap break-words rounded-btn bg-[#F5F6F8] p-2 text-[11.5px]">{detalheComoTexto(ad.antes)}</pre></div>
+            <div><div className="text-[11px] font-bold uppercase text-ink-3">Depois</div><pre className="mt-1 whitespace-pre-wrap break-words rounded-btn bg-[#F5F6F8] p-2 text-[11.5px]">{detalheComoTexto(ad.depois)}</pre></div>
+          </div>
+        ) : item.detalhe ? (
+          <div className="mt-4"><div className="text-[11px] font-bold uppercase text-ink-3">Detalhe</div><pre className="mt-1 whitespace-pre-wrap break-words rounded-btn bg-[#F5F6F8] p-2 text-[11.5px]">{detalheComoTexto(item.detalhe)}</pre></div>
+        ) : null}
+        {item.userAgent && <div className="mt-4"><Campo rotulo="Navegador (user-agent)" valor={item.userAgent} /></div>}
+        <div className="mt-5 flex justify-end gap-2">
+          {onCorrelacao && <Button variant="secondary" onClick={onCorrelacao}>Ver eventos da mesma correlação</Button>}
+          <Button onClick={onClose}>Fechar</Button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }

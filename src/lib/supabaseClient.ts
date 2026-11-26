@@ -4,6 +4,7 @@
  * (ver supabase/schema.sql), não em esconder a anon key.
  */
 import { createClient } from "@supabase/supabase-js";
+import { configurarRegistroDeLogs } from "@/lib/logs/registrarLog";
 
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const anon = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
@@ -21,4 +22,13 @@ export const supabase = createClient(url, anon, {
     autoRefreshToken: true,
     detectSessionInUrl: true,
   },
+});
+
+// O registro de logs recebe o cliente por INJEÇÃO (padrão de Logs, ponto 0): o registrador não
+// importa este módulo — um ciclo de import aqui é tela em branco em produção com testes verdes.
+configurarRegistroDeLogs({
+  rpc: (nome, argumentos) => (supabase as unknown as {
+    rpc: (n: string, a: Record<string, unknown>) => PromiseLike<{ error: { code?: string; message?: string } | null }>;
+  }).rpc(nome, argumentos),
+  ativo: true,
 });
