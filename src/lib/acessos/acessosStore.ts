@@ -238,8 +238,6 @@ export type EntradaDoGrupo = {
   ativo?: boolean;
   /** Passe por `permissoesValidas()` antes: o banco não conhece o catálogo. */
   permissoes: Permissao[];
-  /** Pólobh: o nível do grupo (Direcao, Producao ou Administrativo). Quem não é Administrador só usa o seu ou o de Produção. */
-  papel_base?: "Direcao" | "Producao" | "Administrativo";
 };
 
 export async function salvarGrupo(entrada: EntradaDoGrupo): Promise<string> {

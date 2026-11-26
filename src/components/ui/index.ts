@@ -9,3 +9,4 @@ export { CarregandoTela } from "./CarregandoTela";
 export { useOrdenacao, ThOrd, compararValores } from "./Ordenacao";
 export type { DirOrdem, EstadoOrdem, ValorOrdenavel } from "./Ordenacao";
 export { Stepper, StepperItem, StepperTrigger, StepperIndicator, StepperTitle, StepperDescription, StepperSeparator } from "./Stepper";
+export { CaixaCombinada } from "./CaixaCombinada";
