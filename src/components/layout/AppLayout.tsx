@@ -197,7 +197,7 @@ export function PageShell({
         {/* Sangra até as bordas para o fio virar a base do cabeçalho inteiro, e
             rola na horizontal quando as guias não cabem na largura da tela. */}
         {subabas && (
-          <div data-tour="subguias" className="mt-3 -mx-[var(--gutter)] px-[var(--gutter)] border-b border-border overflow-x-auto">{subabas}</div>
+          <div data-tour="subguias" className="mt-3 -mx-[var(--gutter)] px-[var(--gutter)] border-b border-border overflow-x-auto rolagem-fina">{subabas}</div>
         )}
       </div>
       {children}
