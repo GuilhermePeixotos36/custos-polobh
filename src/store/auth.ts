@@ -288,6 +288,10 @@ interface AuthState {
   entrarComEmail: (email: string, senha: string) => Promise<{ ok: boolean; erro?: string }>;
   /** Troca a própria senha, já logado. Pede a atual para confirmar quem é. */
   trocarSenha: (atual: string, nova: string) => Promise<{ ok: boolean; erro?: string }>;
+  /** Manda o e-mail com o link para criar uma nova senha (tela de login, sem sessão). */
+  pedirRedefinicaoSenha: (email: string) => Promise<{ ok: boolean; erro?: string }>;
+  /** Grava a senha nova de quem chegou pelo link do e-mail. */
+  definirSenhaPeloLink: (nova: string) => Promise<{ ok: boolean; erro?: string }>;
   /** Depois da troca da senha provisória: libera o app. */
   marcarSenhaDefinitiva: () => void;
   sair: () => Promise<void>;
@@ -453,6 +457,34 @@ export const useAuth = create<AuthState>((set, get) => {
       } catch (e) {
         return { ok: false, erro: traduzirErroDeSenha((e as Error).message) };
       }
+    },
+
+    /**
+     * "Esqueceu a sua senha?" (restaurado em 26/11/2026). A resposta é a MESMA tenha o e-mail
+     * cadastro ou não: dizer "este e-mail não existe" entregaria quem trabalha na casa.
+     */
+    pedirRedefinicaoSenha: async (email) => {
+      const limpo = email.trim().toLowerCase();
+      if (!limpo) return { ok: false, erro: "Informe o seu e-mail." };
+      const { error } = await supabase.auth.resetPasswordForEmail(limpo, {
+        redirectTo: `${window.location.origin}/nova-senha`,
+      });
+      // O erro do Supabase aqui costuma ser limite de envio, não "não existe".
+      if (error) return { ok: false, erro: traduzirErroDeSenha(error.message) };
+      return { ok: true };
+    },
+
+    /**
+     * A senha nova de quem chegou pelo link do e-mail. Não pede a atual: quem garante que é a
+     * pessoa é a sessão de recuperação que o Supabase abre com o link. A senha foi escolhida pela
+     * própria pessoa, então deixa de ser provisória.
+     */
+    definirSenhaPeloLink: async (nova) => {
+      const { error } = await supabase.auth.updateUser({ password: nova });
+      if (error) return { ok: false, erro: traduzirErroDeSenha(error.message) };
+      await supabase.rpc("marcar_minha_senha_definitiva" as never).then(() => undefined, () => undefined);
+      set({ senhaProvisoria: false });
+      return { ok: true };
     },
 
     sair: async () => {

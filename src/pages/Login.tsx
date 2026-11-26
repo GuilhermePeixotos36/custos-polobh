@@ -10,6 +10,28 @@ export function Login() {
   const [senha, setSenha] = useState("");
   const [erro, setErro] = useState("");
   const [entrando, setEntrando] = useState(false);
+  /**
+   * "Esqueceu a sua senha?" — manda o link por e-mail. O aviso é o MESMO tenha o e-mail cadastro
+   * ou não: dizer "este e-mail não existe" entregaria quem trabalha na casa.
+   */
+  const pedirRedefinicao = useAuth((s) => s.pedirRedefinicaoSenha);
+  const [enviandoLink, setEnviandoLink] = useState(false);
+  const [avisoLink, setAvisoLink] = useState("");
+
+  async function esqueciSenha() {
+    setErro("");
+    setAvisoLink("");
+    if (!email.trim()) {
+      setErro("Digite o seu e-mail acima e clique de novo.");
+      return;
+    }
+    setEnviandoLink(true);
+    const r = await pedirRedefinicao(email);
+    setEnviandoLink(false);
+    if (r.ok) setAvisoLink("Se este e-mail estiver cadastrado, o link para criar uma nova senha chega em instantes. Confira também a caixa de spam.");
+    else setErro(r.erro ?? "Não foi possível enviar o link agora.");
+  }
+
   async function submeter(e: React.FormEvent) {
     e.preventDefault();
     setErro("");
@@ -50,13 +72,22 @@ export function Login() {
             <p className="mb-4 text-[12.5px] font-semibold text-danger bg-danger-soft rounded-btn px-3 py-2">{erro}</p>
           )}
 
+          {avisoLink && (
+            <p className="mb-4 text-[12.5px] font-semibold text-info bg-info-soft rounded-btn px-3 py-2">{avisoLink}</p>
+          )}
+
           <Button type="submit" block disabled={entrando}>
             {entrando ? "Entrando…" : "Entrar"}
           </Button>
 
-          {/* Sem recuperação por e-mail (padrão de Acessos, 26/11/2026): quem esqueceu pede uma
-              senha provisória a quem administra os acessos. */}
-          <p className="mt-4 text-center text-[12.5px] font-semibold text-ink-3">Esqueceu a senha? Fale com a TI.</p>
+          <button
+            type="button"
+            onClick={() => void esqueciSenha()}
+            disabled={enviandoLink}
+            className="mt-4 block w-full text-center text-[12.5px] font-bold text-ink-2 hover:text-primary-dark input-focus rounded"
+          >
+            {enviandoLink ? "Enviando…" : "Esqueceu a sua senha?"}
+          </button>
         </form>
 
         <p className="text-center text-ink-3 text-[11.5px] mt-6">
