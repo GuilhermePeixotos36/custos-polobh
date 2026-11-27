@@ -26,7 +26,6 @@ import { MoverSetas } from "@/components/MoverSetas";
 import { NotifDot } from "@/components/NotifDot";
 import { useAnexosChecklist } from "@/hooks/useAnexosChecklist";
 import { idAncoraPendencia } from "@/lib/destaque";
-import { focarPendencia } from "@/lib/focoPendencia";
 import type { Pendencia } from "@/domain/pendencias";
 import { CabecalhoColuna, FiltroLista, type DirecaoOrdem } from "@/components/FiltroColuna";
 import {
@@ -91,15 +90,13 @@ type Agrupamento = "etapa" | "data";
 const SEM_PENDENCIAS: Pendencia[] = [];
 const SEM_MOTIVOS: string[] = [];
 
-/** O que a pendência pede de quem está olhando — a etiqueta da tarefa e o resumo da faixa. */
-const MOTIVO_PENDENCIA: Record<string, { etiqueta: string; um: string; varios: string }> = {
-  "checklist.atrasado": { etiqueta: "Com você: atrasada", um: "tarefa atrasada", varios: "tarefas atrasadas" },
-  "checklist.vencendo": { etiqueta: "Com você: vence hoje", um: "tarefa para hoje", varios: "tarefas para hoje" },
-  "checklist.observacao": { etiqueta: "Com você: responder", um: "observação de tarefa para responder", varios: "observações de tarefa para responder" },
-  // A conversa geral da aba (o card "Adicionar Observação" no topo): não mora em tarefa nenhuma.
-  "projeto.conversa": { etiqueta: "Com você: responder", um: "observação geral para responder", varios: "observações gerais para responder" },
+/** O que a pendência pede de quem está olhando — a etiqueta que aparece na tarefa. */
+const MOTIVO_PENDENCIA: Record<string, string> = {
+  "checklist.atrasado": "Com você: atrasada",
+  "checklist.vencendo": "Com você: vence hoje",
+  "checklist.observacao": "Com você: responder",
 };
-const ORDEM_MOTIVOS = ["checklist.atrasado", "checklist.vencendo", "checklist.observacao", "projeto.conversa"];
+const ORDEM_MOTIVOS = ["checklist.atrasado", "checklist.vencendo", "checklist.observacao"];
 
 /** Colunas que ordenam (cabeçalho com ↑ ↓). */
 type ColunaOrdem = "tarefa" | "responsavel" | "prevista" | "conclusao" | "status";
@@ -153,9 +150,9 @@ interface Props {
   pendenciasPorItem?: Record<string, number>;
   /**
    * As pendências DO USUÁRIO neste check-list, uma a uma (26/11/2026) — a mesma
-   * lista do sininho e da pílula do canto. Alimentam a faixa "Com você", o
-   * filtro "Minhas pendências" e a etiqueta que diz, em cada tarefa, o que
-   * está esperando por ela.
+   * lista do sininho e da pílula do canto. Alimentam o filtro "Tarefas com
+   * pendência" e a etiqueta que diz, em cada tarefa, o que está esperando por
+   * ela.
    */
   minhasPendencias?: Pendencia[];
 }
@@ -233,9 +230,11 @@ export function ChecklistProjeto({
    *
    * O número vermelho já existia — no sininho, na aba e numa bolinha ao lado da
    * tarefa —, mas dentro do check-list ele se perdia entre 180 linhas: a pessoa
-   * sabia que tinha "5" e não via quais nem por quê. Agora a lista abre com uma
-   * faixa dizendo quantas são e de que tipo, um botão que filtra só elas e uma
-   * etiqueta em cada tarefa com o que ela espera ("Com você: atrasada").
+   * sabia que tinha "5" e não via quais nem por quê. Agora a barra tem um botão
+   * que filtra só elas e cada tarefa traz uma etiqueta com o que ela espera
+   * ("Com você: atrasada"). Quem leva de uma pendência à outra continua sendo a
+   * pílula do canto, como em todas as telas — a faixa que repetia o papel dela
+   * no topo desta lista saiu em 27/11/2026.
    */
   const pendenciasDasTarefas = useMemo(() => minhasPendencias.filter((p) => !!p.checklistItemId), [minhasPendencias]);
   const motivosPorItem = useMemo(() => {
@@ -247,14 +246,6 @@ export function ChecklistProjeto({
     }
     return mapa;
   }, [pendenciasDasTarefas]);
-  const resumoPendencias = useMemo(
-    () =>
-      ORDEM_MOTIVOS.map((tipo) => {
-        const n = minhasPendencias.filter((p) => p.tipo === tipo).length;
-        return n ? `${n} ${n === 1 ? MOTIVO_PENDENCIA[tipo].um : MOTIVO_PENDENCIA[tipo].varios}` : "";
-      }).filter(Boolean),
-    [minhasPendencias]
-  );
   // A última pendência foi resolvida com o filtro ligado: ele se desliga, senão a lista ficaria vazia.
   useEffect(() => {
     if (soPendencias && pendenciasDasTarefas.length === 0) setSoPendencias(false);
@@ -263,16 +254,6 @@ export function ChecklistProjeto({
     const ligar = !soPendencias;
     limparFiltros();
     setSoPendencias(ligar);
-  };
-  /** Leva a tela até a primeira pendência, na ordem em que a lista aparece. */
-  const irParaPrimeiraPendencia = () => {
-    const naOrdem = visiveis.find((i) => motivosPorItem.has(i.id));
-    // A observação geral fica no topo da tela, antes de qualquer tarefa.
-    const alvo =
-      minhasPendencias.find((p) => !p.checklistItemId) ??
-      pendenciasDasTarefas.find((p) => p.checklistItemId === naOrdem?.id) ??
-      minhasPendencias[0];
-    if (alvo?.ancora) focarPendencia({ ancora: alvo.ancora, observacaoId: alvo.observacaoId, campos: alvo.campos });
   };
 
   /**
@@ -584,31 +565,6 @@ export function ChecklistProjeto({
 
   return (
     <div className="space-y-4">
-      {/* --------------------------- com você --------------------------- */}
-      {minhasPendencias.length > 0 && (
-        <div className="flex items-center gap-x-3 gap-y-2 flex-wrap rounded-card border border-danger/30 bg-danger-soft px-4 py-2.5">
-          <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-danger px-2 text-[13px] font-extrabold text-white tabular-nums">
-            {minhasPendencias.length}
-          </span>
-          <div className="min-w-0">
-            <div className="text-[13.5px] font-extrabold text-ink">
-              {minhasPendencias.length === 1 ? "1 pendência com você neste check-list" : `${minhasPendencias.length} pendências com você neste check-list`}
-            </div>
-            <div className="text-[12px] font-semibold text-ink-2">{resumoPendencias.join(" · ")}</div>
-          </div>
-          <div className="ml-auto flex items-center gap-2 flex-wrap">
-            {pendenciasDasTarefas.length > 0 && (
-              <Button size="sm" variant="secondary" onClick={alternarSoPendencias}>
-                {soPendencias ? "Mostrar todas as tarefas" : "Ver só as tarefas com pendência"}
-              </Button>
-            )}
-            <Button size="sm" variant="danger" className="!bg-danger !text-white hover:!brightness-110" onClick={irParaPrimeiraPendencia}>
-              Ir para a primeira
-            </Button>
-          </div>
-        </div>
-      )}
-
       {/* ----------------------------- resumo ----------------------------- */}
       <Card>
         {/* O RESUMO EM TRÊS BLOCOS (26/11/2026): o progresso, o que está EM ABERTO (repartido pelo
@@ -719,7 +675,7 @@ export function ChecklistProjeto({
               Minhas tarefas
             </Button>
           )}
-          {/* O mesmo filtro da faixa vermelha, sempre no mesmo lugar: com zero ele fica apagado,
+          {/* Só as tarefas que esperam por quem está olhando. Com zero ele fica apagado,
               e a pessoa sabe que não deve nada aqui. */}
           <Button
             size="sm"
@@ -1331,7 +1287,7 @@ function ItemCard({
                   className="inline-flex items-center gap-1.5 rounded-pill bg-danger px-2 py-[3px] text-[11px] font-extrabold leading-none text-white"
                   title="Pendência sua nesta tarefa"
                 >
-                  {MOTIVO_PENDENCIA[m].etiqueta}
+                  {MOTIVO_PENDENCIA[m]}
                 </span>
               ))
             ) : (
