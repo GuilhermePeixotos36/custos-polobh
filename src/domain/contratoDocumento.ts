@@ -35,7 +35,7 @@ import {
   clausulasPadrao,
   type ClausulasDaCasa,
   FECHO_CONTRATO,
-  modeloDoContrato,
+  modeloDaOs,
   RESSALVA_VALORES,
   textoDaClausula,
   type ChaveClausula,
@@ -380,7 +380,7 @@ export interface ContextoContrato {
  * lugar de onde a OS impressa e a tela tiram a resposta.
  */
 export function montarContrato(os: Os, { cliente, empresas, testemunhas, titulo, clausulasDaCasa }: ContextoContrato): ContratoDocumento {
-  const modelo = os.contrato.modelo || modeloDoContrato(os.projeto.modalidade);
+  const modelo = modeloDaOs(os);
   const tomador: DadosTomador | null = dadosDoTomador(os.contrato.contratante || os.financeiro.tomador, {
     cliente,
     empresas,

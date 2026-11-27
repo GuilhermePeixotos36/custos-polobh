@@ -110,9 +110,10 @@ describe("qual modelo o projeto usa", () => {
     expect(modeloDoContrato("Corporativo")).toBe("Corporativo");
   });
 
-  it("a escolha gravada na OS vence a modalidade do projeto", () => {
-    const c = montarContrato(os({ contrato: { ...os().contrato, modelo: "Cultural" } }), ctx());
-    expect(c.modelo).toBe("Cultural");
+  it("o modelo é sempre o da modalidade do projeto: escolha antiga gravada na OS não vale mais", () => {
+    const base = os();
+    const c = montarContrato(os({ contrato: { ...base.contrato, modelo: base.projeto.modalidade === "Cultural" ? "Corporativo" : "Cultural" } }), ctx());
+    expect(c.modelo).toBe(modeloDoContrato(base.projeto.modalidade));
   });
 });
 

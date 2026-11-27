@@ -60,7 +60,7 @@ import { usePendencias, useMinhasPendencias } from "@/store/pendencias";
 import { useSugestoes } from "@/hooks/useSugestoes";
 import { urlCredenciamento } from "@/lib/links";
 import { calcularAcerto, type CampoAcerto } from "@/domain/acertoFinanceiro";
-import { clausulasPadrao, modeloDoContrato, type ChaveClausula, type ClausulasDaCasa, type ModeloContrato } from "@/domain/contratoModelo";
+import { clausulasPadrao, modeloDaOs, type ChaveClausula, type ClausulasDaCasa, type ModeloContrato } from "@/domain/contratoModelo";
 import { ContratoPreview } from "@/components/ContratoPreview";
 import { entregarOsPdf } from "@/lib/osPdf";
 import { DOCUMENTOS_DO_FATURAMENTO, MEIOS_PAGAMENTO, meioDePagamento, prazoDePagamento, type MeioPagamento } from "@/domain/pagamentoOs";
@@ -877,7 +877,7 @@ export function OsForm() {
   const linkDadosGerais = ecCtx.projetoId ? `/projetos/${ecCtx.projetoId}?aba=dados` : "";
 
   /** Qual dos dois modelos vale aqui: o escolhido, ou o da modalidade do projeto. */
-  const modeloContrato: ModeloContrato = os.contrato.modelo || modeloDoContrato(os.projeto.modalidade);
+  const modeloContrato: ModeloContrato = modeloDaOs(os);
   const clausulas = clausulasPadrao(modeloContrato, clausulasCasa);
   /** A quantidade do contrato (sem valor gravado, 1). */
   const quantidadeCt = quantidadeDoContrato(os.contrato);
@@ -2532,25 +2532,11 @@ export function OsForm() {
             ) : (
             <>
 
-            {/* MODELO — Corporativo ou Cultural, os dois .docx que a Pólobh
-                mandou em 16/09/2026. A modalidade do projeto já responde isso
-                na quase totalidade dos casos, e é ela que vale enquanto
-                ninguém escolher: o seletor existe para o projeto corporativo
-                com um item incentivado, que é raro e existe. */}
-            <LinhaOs label="Modelo do Contrato">
-              {/* Trocar o modelo muda o caminho da OS (o Cultural passa pela
-                  Direção de Produção): só quem vê o financeiro ou valida o
-                  contrato escolhe (11/11/2026). */}
-              <Select
-                value={os.contrato.modelo ?? ""}
-                disabled={!(editaFinOs || podeValidarContrato)}
-                title={!(editaFinOs || podeValidarContrato) ? "O modelo segue a modalidade do projeto; só o Financeiro ou a Direção de Produção trocam." : undefined}
-                onChange={(e) => updCt({ modelo: (e.target.value || undefined) as ModeloContrato | undefined })}
-              >
-                <option value="">Pela modalidade do projeto — {modeloContrato}</option>
-                <option value="Corporativo">Corporativo</option>
-                <option value="Cultural">Cultural</option>
-              </Select>
+            {/* MODELO — Corporativo ou Cultural. Vem da modalidade do projeto
+                (Dados Gerais) e não se edita aqui (27/11/2026): para mudar o
+                modelo, muda-se a modalidade do projeto. */}
+            <LinhaOs label="Modelo do Contrato" hint="(da modalidade do projeto, nos Dados Gerais)">
+              <Auto v={modeloContrato} />
             </LinhaOs>
 
             {/* PROJETO INCENTIVADO no próprio contrato (11/11/2026): os mesmos

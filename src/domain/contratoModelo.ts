@@ -268,6 +268,18 @@ export const modeloDoContrato = (modalidade: ModalidadeProjeto): ModeloContrato 
   modalidade === "Cultural" ? "Cultural" : "Corporativo";
 
 /**
+ * O MODELO DO CONTRATO DE UMA OS (27/11/2026): sempre o da modalidade do
+ * projeto, escolhida nos Dados Gerais. Não se edita na OS.
+ *
+ * Até aqui a OS podia trocar o modelo à mão (`contrato.modelo`), pensando no
+ * projeto corporativo com um item incentivado. Na prática o seletor só abria
+ * espaço para o contrato sair num modelo diferente do projeto. O campo antigo
+ * continua gravado nas OS que o tinham, mas não é mais lido.
+ */
+export const modeloDaOs = (os: { projeto?: { modalidade?: ModalidadeProjeto } }): ModeloContrato =>
+  modeloDoContrato(os.projeto?.modalidade ?? "");
+
+/**
  * O texto que vale para uma cláusula: o que a pessoa escreveu, ou o do modelo.
  *
  * String vazia conta como "não editado" de propósito. Quem apaga o campo

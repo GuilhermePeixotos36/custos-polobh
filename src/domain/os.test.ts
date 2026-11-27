@@ -350,7 +350,7 @@ describe("OS de projeto incentivado", () => {
     expect(osIncentivada(os("Cultural"))).toBe(true);
     expect(osIncentivada(os("Corporativo"))).toBe(false);
   });
-  it("corporativo com contrato no modelo Cultural conta como incentivado", () => {
-    expect(osIncentivada(os("Corporativo", "Cultural"))).toBe(true);
+  it("o que decide é a modalidade do projeto: modelo antigo gravado na OS não muda nada", () => {
+    expect(osIncentivada(os("Corporativo", "Cultural"))).toBe(false);
   });
 });
