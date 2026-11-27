@@ -434,6 +434,41 @@ export function OsForm() {
   const [baseline, setBaseline] = useState("");
   const [cnpjMsg, setCnpjMsg] = useState("");
   const [busy, setBusy] = useState(false);
+  /*
+   * CNAE PELO CNPJ DO FORNECEDOR (27/11/2026). A OS de fornecedor cadastrado
+   * antes de o cadastro guardar as atividades abria sem lista nenhuma — e o
+   * campo caía no texto livre. Agora, sem atividades na OS, elas são buscadas
+   * pelo CNPJ: primeiro no cadastro da casa, depois na Receita. Ficam só na
+   * tela (não sujam a OS); o cadastro, se estava sem elas, é completado.
+   */
+  const [cnaesBuscados, setCnaesBuscados] = useState<{ doc: string; lista: string[] }>({ doc: "", lista: [] });
+  const [buscandoCnaes, setBuscandoCnaes] = useState(false);
+  const docDoFornecedor = onlyDigits(os?.fornecedor.cnpj ?? "");
+  const osTemCnaes = !!os?.fornecedor.cnaes?.length;
+  useEffect(() => {
+    if (!os || osTemCnaes || docDoFornecedor.length !== 14 || cnaesBuscados.doc === docDoFornecedor) return;
+    let vivo = true;
+    setBuscandoCnaes(true);
+    void (async () => {
+      let lista: string[] = [];
+      try {
+        const cadastrado = await repo.fornecedores.porCnpj(docDoFornecedor).catch(() => undefined);
+        lista = cadastrado?.cnaes ?? [];
+        if (!lista.length && flags.consultaCnpj) {
+          lista = (await consultarCnpj(docDoFornecedor)).cnaes ?? [];
+          if (lista.length && cadastrado) await repo.fornecedores.salvar({ ...cadastrado, cnaes: lista }).catch(() => undefined);
+        }
+      } catch {
+        // CNPJ inválido ou Receita fora do ar: o campo fica em texto livre.
+      }
+      if (!vivo) return;
+      setCnaesBuscados({ doc: docDoFornecedor, lista });
+      setBuscandoCnaes(false);
+    })();
+    return () => { vivo = false; };
+    // `os` entra só pela existência: o que dispara é o documento do fornecedor.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [docDoFornecedor, osTemCnaes, !!os]);
   /** O "Baixar PDF" da visualização chega aqui como `?baixarPdf=1` — atendido uma vez. */
   const pedidoDePdfAtendido = useRef(false);
   const baixarPdfRef = useRef<(() => Promise<void>) | null>(null);
@@ -716,6 +751,8 @@ export function OsForm() {
     });
   /** O documento que a forma de pagamento escolhida exige ("" = ainda sem forma). */
   const docDaForma = documentoFiscalDaContratacao(os.itens ?? []);
+  /** As atividades do CNPJ do fornecedor: as que a OS guarda ou, na falta, as buscadas agora. */
+  const cnaesDoFornecedor = os.fornecedor.cnaes?.length ? os.fornecedor.cnaes : cnaesBuscados.doc === onlyDigits(os.fornecedor.cnpj) ? cnaesBuscados.lista : [];
   /** Por onde o fornecedor recebe — OS antiga com conta preenchida já é "Dados bancários". */
   const meioPagamento = meioDePagamento(os);
   /** Esta OS tem contrato? Quem decide é a coluna Contrato dos itens, na EC. */
@@ -2762,12 +2799,17 @@ export function OsForm() {
             )}
             <LinhaOs
               label="CNAE"
-              hint={os.fornecedor.cnaes?.length ? `(${os.fornecedor.cnaes.length} do cartão CNPJ)` : "(consulte o CNPJ do fornecedor)"}
+              hint={
+                cnaesDoFornecedor.length
+                  ? `(${cnaesDoFornecedor.length} do cartão CNPJ do fornecedor)`
+                  : buscandoCnaes
+                    ? "(buscando as atividades do CNPJ…)"
+                    : "(sem atividades para este CNPJ/CPF — digite o CNAE)"
+              }
             >
               <CnaeDoFornecedor
                 valor={os.financeiro.cnae}
-                doCnpj={os.fornecedor.cnaes ?? []}
-                jaUsados={sugestoes.valores.cnae}
+                doCnpj={cnaesDoFornecedor}
                 onValor={(cnae) => updFin({ cnae })}
               />
             </LinhaOs>
@@ -3712,17 +3754,16 @@ function ItemContratacao({
  * Com o cartão CNPJ consultado, isto vira uma lista fechada das atividades
  * daquele CNPJ (a principal primeiro, como a Receita devolve), com escape para
  * digitar — o cartão pode estar desatualizado, e o financeiro precisa poder
- * corrigir. Sem consulta feita, volta a ser texto livre com a memória da casa.
+ * corrigir. Sem atividade nenhuma para o CNPJ (ou com CPF), é texto livre —
+ * sem a "memória da casa": o CNAE de outra empresa não é opção (27/11/2026).
  */
 function CnaeDoFornecedor({
   valor,
   doCnpj,
-  jaUsados,
   onValor,
 }: {
   valor: string;
   doCnpj: string[];
-  jaUsados: string[];
   onValor: (v: string) => void;
 }) {
   const [digitando, setDigitando] = useState(false);
@@ -3735,9 +3776,10 @@ function CnaeDoFornecedor({
   if (!doCnpj.length || digitando) {
     return (
       <>
+        {/* Sem sugestões (27/11/2026): os CNAEs usados em outras OS são de OUTRAS
+            empresas, e oferecê-los aqui levava à nota a atividade errada. */}
         <Input
           value={valor}
-          sugestoes={jaUsados}
           onChange={(e) => onValor(e.target.value)}
           placeholder="Ex.: 9001-9/06 - Atividades de sonorização e de iluminação"
         />
