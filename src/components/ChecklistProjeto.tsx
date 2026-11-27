@@ -588,20 +588,23 @@ export function ChecklistProjeto({
           logo abaixo do cabeçalho da página. Rolando a lista, o que está em cima é
           sempre o mesmo — e os filtros ficam à mão. Só da tela média para cima:
           no celular esse bloco ocuparia a tela inteira. O fundo é o da página,
-          para as tarefas não aparecerem por trás dos espaços entre os cartões. */}
-      <div className="space-y-4 md:sticky md:top-[calc(var(--altura-topnav)+var(--altura-cabecalho))] md:z-10 md:bg-bg md:pb-2 md:-mt-4 md:pt-4">
+          para as tarefas não aparecerem por trás dos espaços entre os cartões.
+          COMPACTO (27/11/2026): congelado, cada pixel daqui sai da lista. Os
+          respiros encolheram, e cada quadro do resumo traz o número e o nome na
+          mesma linha — cabem as mesmas informações em bem menos altura. */}
+      <div className="space-y-2 md:sticky md:top-[calc(var(--altura-topnav)+var(--altura-cabecalho))] md:z-10 md:bg-bg md:pb-2 md:-mt-4 md:pt-3">
         {topo}
       {/* ----------------------------- resumo ----------------------------- */}
-      <Card>
+      <Card className="!py-3">
         {/* O RESUMO EM TRÊS BLOCOS (26/11/2026): o progresso, o que está EM ABERTO (repartido pelo
             prazo) e o que está ENCERRADO. Cada quadro é um número grande com o nome embaixo, todos
             do mesmo tamanho, e os dois grupos fecham a conta: em aberto + encerradas = total.
             Clicar num quadro filtra a lista por ele; clicar de novo tira o filtro. */}
-        <div className="flex flex-wrap items-stretch gap-x-6 gap-y-4">
+        <div className="flex flex-wrap items-stretch gap-x-6 gap-y-3">
           <div className="min-w-[230px] flex-1 basis-[230px] max-w-md">
             <div className="text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-ink-3">Progresso</div>
-            <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-[26px] font-extrabold leading-none text-ink tabular-nums">
+            <div className="mt-1 flex items-baseline gap-2">
+              <span className="text-[22px] font-extrabold leading-none text-ink tabular-nums">
                 {resumo.concluidos}
                 <span className="text-ink-3">/{resumo.contam}</span>
               </span>
@@ -610,10 +613,10 @@ export function ChecklistProjeto({
                 {Math.round(resumo.progresso * 100)}%
               </span>
             </div>
-            <div className="mt-2">
+            <div className="mt-1.5">
               <ProgressBar value={resumo.progresso * 100} />
             </div>
-            <div className="mt-1.5 text-[11.5px] font-semibold text-ink-3">
+            <div className="mt-1 text-[11px] font-semibold leading-tight text-ink-3">
               {resumo.total} no total
               {resumo.naoSeAplica > 0 &&
                 ` · ${resumo.naoSeAplica} ${resumo.naoSeAplica === 1 ? "não se aplica e fica" : "não se aplicam e ficam"} fora da conta`}
@@ -750,7 +753,7 @@ export function ChecklistProjeto({
       {podeEditar && visiveis.length > 0 && (
         <div
           className={cx(
-            "flex min-h-[52px] items-center gap-x-4 gap-y-2 flex-wrap rounded-card border px-4 py-2 transition-colors",
+            "flex min-h-[42px] items-center gap-x-4 gap-y-1 flex-wrap rounded-card border px-4 py-1 transition-colors",
             marcadas.length ? "border-primary bg-primary-soft" : "border-border bg-surface"
           )}
         >
@@ -1815,7 +1818,7 @@ function GrupoResumo({ titulo, total, className, children }: { titulo: string; t
         {titulo}
         <span className="text-[12.5px] tracking-normal text-ink tabular-nums">{total}</span>
       </div>
-      <div className="mt-1.5 flex flex-wrap gap-2">{children}</div>
+      <div className="mt-1 flex flex-wrap gap-2">{children}</div>
     </div>
   );
 }
@@ -1858,13 +1861,13 @@ function QuadroResumo({
       aria-pressed={ativo}
       title={ativo ? `${titulo} — filtro ligado; clique para ver todas` : `${titulo} — clique para filtrar a lista`}
       className={cx(
-        "min-w-[124px] flex-1 rounded-btn border px-3 py-2 text-left transition-colors input-focus",
+        "flex min-w-[124px] flex-1 items-center gap-2 rounded-btn border px-3 py-1.5 text-left transition-colors input-focus",
         ativo ? cores.ativo : "border-border-soft bg-surface",
         zerado ? "cursor-default opacity-50" : !ativo && "hover:border-border hover:bg-[#FAFAFB]"
       )}
     >
-      <span className={cx("block text-[21px] font-extrabold leading-none tabular-nums", zerado ? "text-ink-3" : cores.numero)}>{n}</span>
-      <span className="mt-1.5 flex items-center gap-1.5 whitespace-nowrap text-[11.5px] font-bold leading-tight text-ink-2">
+      <span className={cx("text-[19px] font-extrabold leading-none tabular-nums", zerado ? "text-ink-3" : cores.numero)}>{n}</span>
+      <span className="flex items-center gap-1.5 whitespace-nowrap text-[11.5px] font-bold leading-tight text-ink-2">
         <span className={cx("h-1.5 w-1.5 shrink-0 rounded-full", cores.ponto)} aria-hidden />
         {rotulo}
       </span>
