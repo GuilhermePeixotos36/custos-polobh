@@ -14,37 +14,27 @@
  * caminho próprio (comentar não é editar o documento); a OS acumula no
  * formulário e vai junto do "Salvar".
  */
-import type { ReactNode } from "react";
-import { Card, CardTitle } from "@/components/ui";
+import { Card } from "@/components/ui";
 import { ObservacoesThread } from "@/components/ObservacoesPopup";
 import { NotifDot } from "@/components/NotifDot";
 import type { Observacao } from "@/data/types";
 
 /**
- * O TÍTULO e o TEXTO são os mesmos em toda etapa do sistema (pedido de
- * 15/09/2026). Cada tela passava a sua variação — "Observações — EC",
- * "Observações gerais", um texto diferente em cada uma —, e o que era a mesma
- * ferramenta parecia cinco coisas diferentes. Agora quem chama não escolhe:
- * as duas linhas abaixo valem para EC, OS, check-list, cronograma,
- * credenciamento, fornecedores e dados gerais.
+ * UMA LINHA SÓ (26/11/2026): o balão laranja e "Adicionar Observação".
+ *
+ * O card tinha título, um parágrafo explicando o campo e outro dizendo que a
+ * conversa é interna — três linhas de texto, em toda tela, para apresentar um
+ * botão. A equipe já conhece a ferramenta; o que sobra é o gesto. Com
+ * observações escritas, a mesma linha mostra a contagem e abre a conversa.
  */
-export const TITULO_CONVERSA = "Observações";
-export const TEXTO_CONVERSA =
-  "Neste campo a equipe da Pólobh registra suas observações e pendências sobre esta etapa do trabalho.";
-
 export function CardConversa({
-  titulo = TITULO_CONVERSA,
-  hint = TEXTO_CONVERSA,
   ancora,
   observacoes,
   usuarios,
   minhas,
   onChange,
   ancoraDom,
-  acao,
 }: {
-  titulo?: string;
-  hint?: string;
   /** Chave da conversa para o sistema de pendências (ver `domain/pendencias`). */
   ancora: string;
   observacoes: Observacao[];
@@ -54,27 +44,23 @@ export function CardConversa({
   onChange: (observacoes: Observacao[]) => void;
   /** `id` no DOM, para o navegador de pendências rolar até aqui. */
   ancoraDom?: string;
-  /** Botão à direita do título, quando a tela tem um. */
-  acao?: ReactNode;
 }) {
   return (
-    <Card>
-      <CardTitle hint={hint} action={acao}>
-        <span className="inline-flex items-center gap-2">
-          {titulo}
+    <Card padded={false} className="relative px-4 py-2.5 md:px-5">
+      <div id={ancoraDom}>
+        <ObservacoesThread
+          className="!border-t-0 !px-0 !py-0"
+          ancora={ancora}
+          observacoes={observacoes}
+          usuarios={usuarios}
+          onChange={onChange}
+        />
+      </div>
+      {minhas > 0 && (
+        <span className="absolute -right-1.5 -top-1.5">
           <NotifDot n={minhas} inline title={`${minhas} pendência(s) sua(s) nesta conversa`} />
         </span>
-      </CardTitle>
-      {/* A garantia de que isto é interno fica em letra miúda, mas fica: é o
-          que faz a equipe escrever à vontade. Saía junto com os textos antigos
-          de cada tela, e sem ela a conversa vira documento aos olhos de quem
-          escreve. */}
-      <p className="-mt-1 mb-1 text-[11.5px] text-ink-3">
-        Não sai em documento, e-mail nem planilha — quem é @mencionado fica com a pendência.
-      </p>
-      <div id={ancoraDom}>
-        <ObservacoesThread ancora={ancora} observacoes={observacoes} usuarios={usuarios} onChange={onChange} />
-      </div>
+      )}
     </Card>
   );
 }
