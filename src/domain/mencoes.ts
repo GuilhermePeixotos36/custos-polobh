@@ -16,7 +16,11 @@ function escapeRegExp(s: string): string {
 export function regexMencoes(usuarios: string[]): RegExp | null {
   const nomes = [...new Set(usuarios.filter(Boolean))].sort((a, b) => b.length - a.length);
   if (!nomes.length) return null;
-  return new RegExp(`@(${nomes.map(escapeRegExp).join("|")})\\b`, "g");
+  // O nome termina onde não vem mais letra nem número. Era `\b`, que só entende
+  // ASCII: "@José " e "@GPX Automação (dev) " não casavam (o "é" e o ")" não
+  // são "caractere de palavra" para ele), a menção não era reconhecida e a
+  // pendência não nascia (27/11/2026).
+  return new RegExp(`@(${nomes.map(escapeRegExp).join("|")})(?![\\p{L}\\p{N}_])`, "gu");
 }
 
 /** Lista (sem duplicatas, na ordem de aparição) das pessoas @mencionadas no texto. */

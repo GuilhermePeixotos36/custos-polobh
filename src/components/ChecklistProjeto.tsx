@@ -95,9 +95,11 @@ const SEM_MOTIVOS: string[] = [];
 const MOTIVO_PENDENCIA: Record<string, { etiqueta: string; um: string; varios: string }> = {
   "checklist.atrasado": { etiqueta: "Com você: atrasada", um: "tarefa atrasada", varios: "tarefas atrasadas" },
   "checklist.vencendo": { etiqueta: "Com você: vence hoje", um: "tarefa para hoje", varios: "tarefas para hoje" },
-  "checklist.observacao": { etiqueta: "Com você: responder", um: "observação para responder", varios: "observações para responder" },
+  "checklist.observacao": { etiqueta: "Com você: responder", um: "observação de tarefa para responder", varios: "observações de tarefa para responder" },
+  // A conversa geral da aba (o card "Adicionar Observação" no topo): não mora em tarefa nenhuma.
+  "projeto.conversa": { etiqueta: "Com você: responder", um: "observação geral para responder", varios: "observações gerais para responder" },
 };
-const ORDEM_MOTIVOS = ["checklist.atrasado", "checklist.vencendo", "checklist.observacao"];
+const ORDEM_MOTIVOS = ["checklist.atrasado", "checklist.vencendo", "checklist.observacao", "projeto.conversa"];
 
 /** Colunas que ordenam (cabeçalho com ↑ ↓). */
 type ColunaOrdem = "tarefa" | "responsavel" | "prevista" | "conclusao" | "status";
@@ -248,10 +250,10 @@ export function ChecklistProjeto({
   const resumoPendencias = useMemo(
     () =>
       ORDEM_MOTIVOS.map((tipo) => {
-        const n = pendenciasDasTarefas.filter((p) => p.tipo === tipo).length;
+        const n = minhasPendencias.filter((p) => p.tipo === tipo).length;
         return n ? `${n} ${n === 1 ? MOTIVO_PENDENCIA[tipo].um : MOTIVO_PENDENCIA[tipo].varios}` : "";
       }).filter(Boolean),
-    [pendenciasDasTarefas]
+    [minhasPendencias]
   );
   // A última pendência foi resolvida com o filtro ligado: ele se desliga, senão a lista ficaria vazia.
   useEffect(() => {
@@ -265,7 +267,11 @@ export function ChecklistProjeto({
   /** Leva a tela até a primeira pendência, na ordem em que a lista aparece. */
   const irParaPrimeiraPendencia = () => {
     const naOrdem = visiveis.find((i) => motivosPorItem.has(i.id));
-    const alvo = pendenciasDasTarefas.find((p) => p.checklistItemId === naOrdem?.id) ?? pendenciasDasTarefas[0];
+    // A observação geral fica no topo da tela, antes de qualquer tarefa.
+    const alvo =
+      minhasPendencias.find((p) => !p.checklistItemId) ??
+      pendenciasDasTarefas.find((p) => p.checklistItemId === naOrdem?.id) ??
+      minhasPendencias[0];
     if (alvo?.ancora) focarPendencia({ ancora: alvo.ancora, observacaoId: alvo.observacaoId, campos: alvo.campos });
   };
 
@@ -579,21 +585,23 @@ export function ChecklistProjeto({
   return (
     <div className="space-y-4">
       {/* --------------------------- com você --------------------------- */}
-      {pendenciasDasTarefas.length > 0 && (
+      {minhasPendencias.length > 0 && (
         <div className="flex items-center gap-x-3 gap-y-2 flex-wrap rounded-card border border-danger/30 bg-danger-soft px-4 py-2.5">
           <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-danger px-2 text-[13px] font-extrabold text-white tabular-nums">
-            {pendenciasDasTarefas.length}
+            {minhasPendencias.length}
           </span>
           <div className="min-w-0">
             <div className="text-[13.5px] font-extrabold text-ink">
-              {pendenciasDasTarefas.length === 1 ? "1 pendência com você neste check-list" : `${pendenciasDasTarefas.length} pendências com você neste check-list`}
+              {minhasPendencias.length === 1 ? "1 pendência com você neste check-list" : `${minhasPendencias.length} pendências com você neste check-list`}
             </div>
             <div className="text-[12px] font-semibold text-ink-2">{resumoPendencias.join(" · ")}</div>
           </div>
           <div className="ml-auto flex items-center gap-2 flex-wrap">
-            <Button size="sm" variant="secondary" onClick={alternarSoPendencias}>
-              {soPendencias ? "Mostrar todas as tarefas" : "Ver só as minhas pendências"}
-            </Button>
+            {pendenciasDasTarefas.length > 0 && (
+              <Button size="sm" variant="secondary" onClick={alternarSoPendencias}>
+                {soPendencias ? "Mostrar todas as tarefas" : "Ver só as tarefas com pendência"}
+              </Button>
+            )}
             <Button size="sm" variant="danger" className="!bg-danger !text-white hover:!brightness-110" onClick={irParaPrimeiraPendencia}>
               Ir para a primeira
             </Button>
@@ -725,7 +733,7 @@ export function ChecklistProjeto({
                 : "Nenhuma tarefa deste check-list está esperando por você"
             }
           >
-            Minhas pendências
+            Tarefas com pendência
             <span
               className={cx(
                 "inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[11px] font-extrabold leading-none tabular-nums",
