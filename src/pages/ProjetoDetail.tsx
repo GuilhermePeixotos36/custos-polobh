@@ -10,6 +10,7 @@ import {
   Card, CardTitle, Button, Field, Input, Label, TelefoneInput, Select, Badge,
   Table, THead, Tr, Td, EmptyState, ThOrd, useOrdenacao, tomStatusOs, type Tom,
   CarregandoTela,
+  TopoFixoDaLista,
 } from "@/components/ui";
 import { IcPlus, IcBack, IcDownload, IcSearch, IcTrash, IcEye, IcEyeOff, IcDoc, IcCopy, IcCalendar, IcPencil } from "@/components/icons";
 import { RichTextField } from "@/components/RichTextField";
@@ -18,6 +19,7 @@ import { TextosJaUsados } from "@/components/TextosJaUsados";
 import { TimelineConsolidada, type ItemConsolidado } from "@/components/Timeline";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
 import { ThId, TdId, NomeComPendencia } from "@/components/ColunaPendencias";
+import { useLoteOs } from "@/components/LoteOs";
 import { areaComAOs } from "@/domain/faseOs";
 import { NotifDot } from "@/components/NotifDot";
 import { MoverSetas, moverNaLista } from "@/components/MoverSetas";
@@ -113,7 +115,7 @@ export function ProjetoDetail() {
 
   const { data: existente, loading } = useAsync(() => (novo ? Promise.resolve(undefined) : repo.projetos.obter(id)), [id]);
   const { data: ecsAll } = useAsync(() => repo.ecs.listar(), []);
-  const { data: ossAll } = useAsync(() => repo.oss.listar(), []);
+  const { data: ossAll, reload: recarregarOss } = useAsync(() => repo.oss.listar(), []);
   const { data: clientesAll } = useAsync(() => repo.clientes.listar(), []);
   // Usuários elegíveis a Produtor Responsável — critério vem da área (ver useResponsaveis).
   const { data: usuariosAll } = useAsync(() => repo.auth.usuarios(), []);
@@ -340,6 +342,8 @@ export function ProjetoDetail() {
     },
     { col: "numero", dir: "asc" }
   );
+  /** Ações em lote do Back-office na aba OS (ver `LoteOs`). */
+  const loteOs = useLoteOs(ossOrdenadas.ordenados, recarregarOss);
   const fornecedoresOrdenados = useOrdenacao(
     fornecedores,
     {
@@ -1221,11 +1225,15 @@ export function ProjetoDetail() {
 
       {aba === "ec" && (
         <Card padded={false}>
+          {/* TOPO CONGELADO (27/11/2026): título, ações e filtros ficam à vista na
+              rolagem, com os nomes das colunas logo abaixo (ver `TopoFixoDaLista`).
+              O subtítulo saiu: o título já diz o que a lista é. */}
+          <TopoFixoDaLista>
           <div
             id={idAncoraPendencia(ancoraProjetoSemEc(id))}
-            className="p-5 flex items-center justify-between gap-3 flex-wrap"
+            className="px-5 pt-4 pb-3 flex items-center justify-between gap-3 flex-wrap"
           >
-            <CardTitle hint="Estimativas de custo deste projeto (incluindo versões)">
+            <CardTitle className="!mb-0">
               <span className="inline-flex items-center gap-2">
                 Estimativas (EC)
                 <NotifDot inline n={pendenciaSemEc} title="Este projeto ainda não tem estimativa" />
@@ -1261,7 +1269,7 @@ export function ProjetoDetail() {
               </div>
             )}
           </div>
-          <div className="px-5 pb-4 flex items-center gap-1 border-b border-border-soft" role="group" aria-label="Filtrar estimativas">
+          <div className="px-5 pb-3 flex items-center gap-1 border-b border-border-soft" role="group" aria-label="Filtrar estimativas">
             {([
               ["todas", "Todas"],
               // Sempre uma só: a estimativa que vale hoje (ver `domain/ec`).
@@ -1284,6 +1292,7 @@ export function ProjetoDetail() {
               </button>
             ))}
           </div>
+          </TopoFixoDaLista>
           {ecsDoProjeto.length === 0 ? (
             <div className="p-6"><EmptyState title="Nenhuma EC" hint="Crie a primeira EC deste projeto." /></div>
           ) : ecsFiltradas.length === 0 ? (
@@ -1363,11 +1372,13 @@ export function ProjetoDetail() {
 
       {aba === "os" && (
         <Card padded={false}>
-          <div className="p-5"><CardTitle hint="Ordens de serviço geradas a partir das ECs deste projeto">Ordens de Serviço</CardTitle></div>
+          {/* Topo congelado, como na aba EC — e sem o subtítulo. */}
+          <TopoFixoDaLista>
+          <div className="px-5 pt-4 pb-3"><CardTitle className="!mb-0">Ordens de Serviço</CardTitle></div>
           {/* Os mesmos filtros da lista de ECs (15/09/2026): a lista de OSs de um
               projeto cresce a cada versão reemitida, e o que se procura quase
               sempre é "as que ainda não saíram" ou "a que foi arquivada". */}
-          <div className="px-5 pb-4 flex items-center gap-1 flex-wrap border-b border-border-soft" role="group" aria-label="Filtrar ordens de serviço">
+          <div className="px-5 pb-3 flex items-center gap-1 flex-wrap border-b border-border-soft" role="group" aria-label="Filtrar ordens de serviço">
             {([
               ["todas", "Todas"],
               ["Ativa", "Ativa"],
@@ -1388,6 +1399,8 @@ export function ProjetoDetail() {
               </button>
             ))}
           </div>
+          {loteOs.barra}
+          </TopoFixoDaLista>
           {ossDoProjeto.length === 0 ? (
             <div className="p-6"><EmptyState title="Nenhuma OS" hint="Gere OSs a partir das ECs do projeto." /></div>
           ) : ossFiltradas.length === 0 ? (
@@ -1395,6 +1408,7 @@ export function ProjetoDetail() {
           ) : (
             <Table>
               <THead>
+                {loteOs.thSelecao}
                 <ThId col="id" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor} />
                 <ThOrd col="numero" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor}>OS</ThOrd>
                 {/* Sem rótulo: é o atalho para ver os itens, não uma coluna de dado. */}
@@ -1407,6 +1421,7 @@ export function ProjetoDetail() {
               <tbody>
                 {ossOrdenadas.ordenados.map((o) => (
                   <Tr key={o.id} id={idAncoraPendencia(o.id)} onClick={() => navigate(`/ordens/${o.id}`)}>
+                    {loteOs.tdSelecao(o)}
                     <TdId codigo={o.codigo} />
                     <Td className="font-bold">
                       <NomeComPendencia n={porOs[o.id] ?? 0} title="Ações pendentes suas nesta OS">{o.numero}</NomeComPendencia>

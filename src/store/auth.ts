@@ -20,6 +20,8 @@ export type Recurso =
   | "oss.validarContrato"
   | "oss.etapaFinanceiro"
   | "oss.etapaBackoffice"
+  | "oss.statusLote"
+  | "oss.excluir"
   | "contratos.clausulas"
   | "oss.financeiro"
   | "oss.financeiro.editar"
@@ -51,6 +53,8 @@ export const TODOS_RECURSOS: Recurso[] = [
   "oss.validarContrato",
   "oss.etapaFinanceiro",
   "oss.etapaBackoffice",
+  "oss.statusLote",
+  "oss.excluir",
   "contratos.clausulas",
   "oss.financeiro",
   "oss.financeiro.editar",

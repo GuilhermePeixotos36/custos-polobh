@@ -62,6 +62,9 @@ export const CATALOGO: ModuloAcesso[] = [
           { chave: "validar_contrato", rotulo: "Revisar a OS cultural (Direção de Produção)" },
           { chave: "etapa_financeiro", rotulo: "Responde pela etapa do Financeiro" },
           { chave: "etapa_backoffice", rotulo: "Responde pela etapa do Back-office" },
+          // Ações em lote da lista de OS (27/11/2026) — ver `domain/loteOs`.
+          { chave: "status_lote", rotulo: "Alterar o status das OS em lote" },
+          { chave: "excluir", rotulo: "Excluir OS (definitivo)" },
         ],
       },
       {
@@ -120,6 +123,9 @@ export const RECURSO_LEGADO: Record<string, { tela: string; acao: string }> = {
   "oss.validarContrato": { tela: "oss", acao: "validar_contrato" },
   "oss.etapaFinanceiro": { tela: "oss", acao: "etapa_financeiro" },
   "oss.etapaBackoffice": { tela: "oss", acao: "etapa_backoffice" },
+  // Só do front: o banco decide pelo papel do grupo; estas duas chaves controlam os botões da lista.
+  "oss.statusLote": { tela: "oss", acao: "status_lote" },
+  "oss.excluir": { tela: "oss", acao: "excluir" },
   "oss.financeiro": { tela: "oss", acao: "financeiro_ver" },
   "oss.financeiro.editar": { tela: "oss", acao: "financeiro_editar" },
   checklists: { tela: "checklists", acao: "ver" },

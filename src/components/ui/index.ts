@@ -4,7 +4,7 @@ export type { Tom } from "./Badge";
 export { Card, CardTitle, Eyebrow } from "./Card";
 export { Field, Label, MarcaObrigatorio, Input, Textarea, AutoTextarea, Select, NumberInput, CurrencyInput, TelefoneInput } from "./Field";
 export { Toggle, ChaveNaoSeAplica, AvisoNaoSeAplica, Avatar, ProgressBar, EmptyState, AvisoErro, AvisoEmailPendente } from "./Misc";
-export { Table, THead, Th, Tr, Td } from "./Table";
+export { Table, THead, Th, Tr, Td, TopoFixoDaLista } from "./Table";
 export { CarregandoTela } from "./CarregandoTela";
 export { useOrdenacao, ThOrd, compararValores } from "./Ordenacao";
 export type { DirOrdem, EstadoOrdem, ValorOrdenavel } from "./Ordenacao";

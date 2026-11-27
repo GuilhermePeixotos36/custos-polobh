@@ -31,13 +31,16 @@ export function CardTitle({
   children,
   hint,
   action,
+  className,
 }: {
   children: ReactNode;
   hint?: ReactNode;
   action?: ReactNode;
+  /** Ajuste de espaço para quem monta o próprio topo (ex.: `!mb-0` num topo fixo de lista). */
+  className?: string;
 }) {
   return (
-    <div className="flex items-start justify-between gap-3 mb-4">
+    <div className={cx("flex items-start justify-between gap-3 mb-4", className)}>
       <div className="flex items-start gap-2.5 min-w-0">
         <span className="mt-1 h-4 w-1.5 rounded-full bg-progress-grad shrink-0" />
         <div className="min-w-0">

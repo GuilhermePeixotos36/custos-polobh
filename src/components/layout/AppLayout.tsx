@@ -198,10 +198,12 @@ export function PageShell({
           </div>
         </div>
         {acoes && <div className="mt-3 flex items-center justify-between gap-3 flex-wrap">{acoes}</div>}
-        {/* Sangra até as bordas para o fio virar a base do cabeçalho inteiro, e
-            rola na horizontal quando as guias não cabem na largura da tela. */}
+        {/* Sangra até as bordas para o fio virar a base do cabeçalho inteiro. Só
+            rola na horizontal no celular, onde as guias não cabem: no computador
+            elas cabem sempre, e o `overflow-x-auto` punha uma barrinha de rolagem
+            ali por causa do balão de pendência, que passa da linha (27/11/2026). */}
         {subabas && (
-          <div data-tour="subguias" className="mt-3 -mx-[var(--gutter)] px-[var(--gutter)] border-b border-border overflow-x-auto rolagem-fina">{subabas}</div>
+          <div data-tour="subguias" className="mt-3 -mx-[var(--gutter)] px-[var(--gutter)] border-b border-border overflow-x-auto md:overflow-visible rolagem-fina">{subabas}</div>
         )}
       </div>
       {children}

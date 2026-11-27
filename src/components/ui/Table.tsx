@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useCallback, type ReactNode } from "react";
 import { cx } from "@/lib/format";
 
 /**
@@ -17,6 +17,48 @@ export function Table({ children, className }: { children: ReactNode; className?
   return (
     <div className="overflow-x-auto md:overflow-visible">
       <table className={cx("w-full border-collapse text-sm", className)}>{children}</table>
+    </div>
+  );
+}
+
+/** Um topo fixo por vez na tela — um observador basta. */
+let observadorTopoLista: ResizeObserver | null = null;
+
+/**
+ * O TOPO DA LISTA QUE FICA CONGELADO (27/11/2026): título do card, filtros e a
+ * barra de ações em lote. Gruda logo abaixo do cabeçalho da página, e os nomes
+ * das colunas (`Th`) grudam logo abaixo dele — a altura é publicada em
+ * `--altura-topo-lista`, que o `Th` soma ao próprio `top`. Rolando uma lista
+ * longa de ECs ou de OSs, o que se vê em cima é sempre: de que lista se trata,
+ * qual filtro está ligado e o que cada coluna é.
+ *
+ * Só da tela média para cima, como o grude do `Th` (no celular a tabela tem
+ * rolagem própria). Ao sair de cena a variável volta a zero, e as outras
+ * tabelas do app seguem grudando onde sempre grudaram.
+ */
+export function TopoFixoDaLista({ children, className }: { children: ReactNode; className?: string }) {
+  const medir = useCallback((node: HTMLDivElement | null) => {
+    const raiz = document.documentElement;
+    observadorTopoLista?.disconnect();
+    observadorTopoLista = null;
+    if (!node) {
+      raiz.style.setProperty("--altura-topo-lista", "0px");
+      return;
+    }
+    const publicar = () => raiz.style.setProperty("--altura-topo-lista", `${Math.round(node.getBoundingClientRect().height)}px`);
+    publicar();
+    observadorTopoLista = new ResizeObserver(publicar);
+    observadorTopoLista.observe(node);
+  }, []);
+  return (
+    <div
+      ref={medir}
+      className={cx(
+        "bg-surface rounded-t-card md:sticky md:top-[calc(var(--altura-topnav)+var(--altura-cabecalho))] md:z-[11]",
+        className
+      )}
+    >
+      {children}
     </div>
   );
 }
@@ -70,7 +112,7 @@ export function Th({
           // `sticky` passava a contar a partir DELE: o cabeçalho descia 150px
           // e cobria as linhas (12/10/2026). Grudar só vale da tela média
           // para cima, onde a tabela não tem rolagem própria.
-          "bg-surface border-b border-border md:border-b-0 md:sticky md:top-[calc(var(--altura-topnav)+var(--altura-cabecalho))] md:z-10 md:shadow-[inset_0_-1px_0_var(--border)]"
+          "bg-surface border-b border-border md:border-b-0 md:sticky md:top-[calc(var(--altura-topnav)+var(--altura-cabecalho)+var(--altura-topo-lista,0px))] md:z-10 md:shadow-[inset_0_-1px_0_var(--border)]"
           : "border-b border-border",
         align === "right" && "text-right",
         align === "center" && "text-center",

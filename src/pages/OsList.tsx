@@ -9,6 +9,7 @@ import { useAsync } from "@/hooks/useAsync";
 import { brl, cx } from "@/lib/format";
 import { ThId, TdId, NomeComPendencia } from "@/components/ColunaPendencias";
 import { areaComAOs } from "@/domain/faseOs";
+import { useLoteOs } from "@/components/LoteOs";
 import { ThItensOs, TdItensOs } from "@/components/ColunaItensOs";
 import { itensDaOs } from "@/domain/os";
 import { useMinhasPendencias } from "@/store/pendencias";
@@ -64,6 +65,7 @@ export function OsList() {
     },
     { col: "numero", dir: "asc" }
   );
+  const lote = useLoteOs(lista, reload);
 
   return (
     <PageShell title="Ordens de Serviço" subtitle="OSs geradas a partir das estimativas, consolidadas por fornecedor.">
@@ -95,6 +97,8 @@ export function OsList() {
             ))}
           </div>
         </div>
+        {/* Ações em lote do Back-office: aparece quando há OS marcada (ver `LoteOs`). */}
+        {lote.barra}
         {error ? (
           <AvisoErro erro={error} oQue="as OSs" onTentarDeNovo={reload} />
         ) : loading ? (
@@ -104,6 +108,7 @@ export function OsList() {
         ) : (
           <Table>
             <THead>
+              {lote.thSelecao}
               <ThId col="id" ordem={ordem} onSort={ordenarPor} />
               <ThOrd col="numero" ordem={ordem} onSort={ordenarPor}>OS</ThOrd>
               {/* Sem rótulo: é o atalho para ver os itens, não uma coluna de dado. */}
@@ -119,6 +124,7 @@ export function OsList() {
             <tbody>
               {lista.map((o) => (
                 <Tr key={o.id} onClick={() => navigate(`/ordens/${o.id}`)}>
+                  {lote.tdSelecao(o)}
                   <TdId codigo={o.codigo} />
                   <Td className="font-bold">
                     <NomeComPendencia n={porOs[o.id] ?? 0} title="Esta OS tem ação pendente">{o.numero}</NomeComPendencia>
