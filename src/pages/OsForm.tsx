@@ -2301,6 +2301,8 @@ export function OsForm() {
             titulo="Logística do Fornecedor"
             campos={CAMPOS_LOGISTICA}
             bloco={os.logistica}
+            naoSeAplica={!!os.logistica.naoSeAplica}
+            onNaoSeAplica={(v) => setOs((o) => (o ? { ...o, logistica: { ...o.logistica, naoSeAplica: v || undefined } } : o))}
             valorDe={(campo) => os.logistica[campo] ?? ""}
             sugestoes={sugestoes.valores}
             onBloco={(patch) => setOs((o) => (o ? { ...o, logistica: { ...o.logistica, ...patch } } : o))}
@@ -2311,6 +2313,8 @@ export function OsForm() {
             titulo="Infraestrutura"
             campos={CAMPOS_INFRAESTRUTURA}
             bloco={os.infraestrutura}
+            naoSeAplica={!!os.infraestrutura.naoSeAplica}
+            onNaoSeAplica={(v) => setOs((o) => (o ? { ...o, infraestrutura: { ...o.infraestrutura, naoSeAplica: v || undefined } } : o))}
             valorDe={(campo) => os.infraestrutura[campo] ?? ""}
             sugestoes={sugestoes.valores}
             onBloco={(patch) => setOs((o) => (o ? { ...o, infraestrutura: { ...o.infraestrutura, ...patch } } : o))}
@@ -3434,8 +3438,13 @@ function BlocoDeItens<C extends string>({
   onTitulo,
   onExcluir,
   ancoraDom,
+  naoSeAplica,
+  onNaoSeAplica,
 }: {
   titulo: string;
+  /** O bloco inteiro não se aplica a esta OS (Logística e Infraestrutura). */
+  naoSeAplica?: boolean;
+  onNaoSeAplica?: (v: boolean) => void;
   tituloEditavel?: boolean;
   campos: readonly { campo: C; rotulo: string }[];
   bloco: { naoAplicaveis?: readonly C[]; extras?: ItemExtraOs[]; ordem?: string[] } | undefined;
@@ -3491,10 +3500,19 @@ function BlocoDeItens<C extends string>({
     <LinhaOs
       id={ancoraDom}
       label={titulo}
-      hint={naoAplicaveisVisiveis ? `(${naoAplicaveisVisiveis} fora do documento)` : undefined}
+      hint={naoSeAplica ? "(fora do documento)" : naoAplicaveisVisiveis ? `(${naoAplicaveisVisiveis} fora do documento)` : undefined}
       acao={
         <div className="flex items-center gap-2">
-          <Button variant="secondary" size="sm" onClick={adicionarItem}>+ Item</Button>
+          {/* O bloco inteiro pode não se aplicar (27/11/2026), como o cronograma:
+              uma chave só, em vez de marcar item por item. */}
+          {onNaoSeAplica && (
+            <ChaveNaoSeAplica
+              ativo={!!naoSeAplica}
+              onChange={onNaoSeAplica}
+              title={`${titulo} não se aplica a esta OS — o bloco some do documento`}
+            />
+          )}
+          {!naoSeAplica && <Button variant="secondary" size="sm" onClick={adicionarItem}>+ Item</Button>}
           {onExcluir && (
             <button
               type="button"
@@ -3509,6 +3527,10 @@ function BlocoDeItens<C extends string>({
         </div>
       }
     >
+      {naoSeAplica ? (
+        <AvisoNaoSeAplica>Não se aplica — {titulo.toLocaleLowerCase("pt-BR")} não sai nesta OS.</AvisoNaoSeAplica>
+      ) : (
+      <>
       {tituloEditavel && onTitulo && (
         <Input
           className="!h-9 mb-2 font-bold"
@@ -3583,6 +3605,8 @@ function BlocoDeItens<C extends string>({
           <p className="text-[12.5px] text-ink-3 px-1">Nenhum item. Use “+ Item” para acrescentar.</p>
         )}
       </div>
+      </>
+      )}
     </LinhaOs>
   );
 }

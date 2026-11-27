@@ -67,6 +67,13 @@ function quebrar(texto: string, fonte: PDFFont, tam: number, max: number): strin
   return linhas.length ? linhas : [""];
 }
 
+/** Um trecho de texto dentro de uma linha: onde começa (a partir da coluna do valor) e como se escreve. */
+interface Segmento {
+  x: number;
+  t: string;
+  negrito?: boolean;
+}
+
 class Folha {
   paginas: PDFPage[] = [];
   pagina!: PDFPage;
@@ -132,10 +139,36 @@ class Folha {
     this.y -= alto;
   }
 
-  /** Linha "rótulo | valor". Valor comprido continua na página seguinte, com o rótulo repetido. */
+  /** Linha "rótulo | valor". Valor comprido continua na página seguinte. */
   lv(label: string, valor: string) {
+    this.rotulada(label, quebrar(valor, this.normal, CORPO, LARGURA - COL_ROTULO - RESPIRO.x * 2).map((t) => [{ x: 0, t }]));
+  }
+
+  /**
+   * Linha "rótulo | lista": o título de cada grupo em negrito e, embaixo, um
+   * tópico por item, com as duas colunas (data e horário) alinhadas.
+   */
+  lista(label: string, grupos: { titulo: string; itens: { a: string; b: string }[] }[]) {
+    const colA = Math.max(...grupos.flatMap((g) => g.itens.map((i) => this.normal.widthOfTextAtSize(limpar(i.a || "—", this.normal), CORPO))), 0);
+    const linhas: Segmento[][] = [];
+    grupos.forEach((g, n) => {
+      if (n > 0) linhas.push([]);
+      linhas.push([{ x: 0, t: limpar(g.titulo, this.negrito), negrito: true }]);
+      for (const i of g.itens) {
+        linhas.push([
+          { x: 2, t: "\u2022" },
+          { x: 12, t: limpar(i.a || "—", this.normal) },
+          { x: 12 + colA + 14, t: limpar(i.b, this.normal) },
+        ]);
+      }
+    });
+    this.rotulada(label, linhas);
+  }
+
+  /** O desenho comum das linhas rotuladas: cada linha do valor é uma lista de segmentos. */
+  private rotulada(label: string, linhas: Segmento[][]) {
     const rotulo = quebrar(label, this.negrito, CORPO, COL_ROTULO - RESPIRO.x * 2);
-    const linhas = quebrar(valor, this.normal, CORPO, LARGURA - COL_ROTULO - RESPIRO.x * 2);
+    if (!linhas.length) linhas = [[]];
     let i = 0;
     let primeira = true;
     do {
@@ -148,7 +181,11 @@ class Folha {
       const alto = n * ENTRELINHA + RESPIRO.y * 2;
       this.retangulo(MARGEM.esq, this.y - alto, COL_ROTULO, alto, FUNDO_ROTULO);
       rot.forEach((t, k) => this.texto(t, MARGEM.esq + RESPIRO.x, this.y - RESPIRO.y - ENTRELINHA * (k + 1) + 3, { fonte: this.negrito }));
-      pedaco.forEach((t, k) => this.texto(t, MARGEM.esq + COL_ROTULO + RESPIRO.x, this.y - RESPIRO.y - ENTRELINHA * (k + 1) + 3));
+      pedaco.forEach((segs, k) =>
+        segs.forEach((s) =>
+          this.texto(s.t, MARGEM.esq + COL_ROTULO + RESPIRO.x + s.x, this.y - RESPIRO.y - ENTRELINHA * (k + 1) + 3, { fonte: s.negrito ? this.negrito : this.normal })
+        )
+      );
       this.y -= alto;
       this.traco(MARGEM.esq, PAGINA.w - MARGEM.dir, this.y);
       i += pedaco.length;
@@ -250,6 +287,7 @@ export async function gerarOsPdf(modelo: OsDocumentoModelo, titulo: string): Pro
   for (const b of modelo.blocos) {
     if (b.t === "secao") folha.secao(b.titulo);
     else if (b.t === "lv") folha.lv(b.label, b.valor);
+    else if (b.t === "lista") folha.lista(b.label, b.grupos);
     else if (b.t === "tabela") folha.tabela(b);
     else folha.destaque(b.titulo, b.texto);
   }

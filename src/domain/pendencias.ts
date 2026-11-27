@@ -566,7 +566,8 @@ export function calcularPendencias(
     const responsavel = responsavelPorProjeto.get(ec.projetoId);
     if (!responsavel) continue; // sem responsável definido, não há para quem endereçar
 
-    if (!(os.cronograma ?? []).length) {
+    // "Não se aplica" é resposta: a OS sem cronograma por decisão não cobra cronograma (27/11/2026).
+    if (!os.cronogramaNaoSeAplica && !(os.cronograma ?? []).length) {
       out.push({
         id: `os.cronograma:${os.id}`,
         tipo: "os.cronograma",

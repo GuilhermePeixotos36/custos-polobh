@@ -307,6 +307,24 @@ export function resumoCronogramaProjeto(info: ProjetoInfo): string {
   return linhas.join("\n");
 }
 
+/**
+ * O mesmo cronograma, ESTRUTURADO (27/11/2026): cada etapa com as suas datas e
+ * horários separados. É o que o documento da OS desenha — o nome da etapa em
+ * negrito e, embaixo, um tópico por dia, com data e horário alinhados. O texto
+ * de `resumoCronogramaProjeto` segue servindo à comparação entre versões.
+ */
+export function etapasDoCronogramaProjeto(info: ProjetoInfo): { etapa: string; faixas: { data: string; horario: string }[] }[] {
+  const etapas: { etapa: string; faixas: { data: string; horario: string }[] }[] = [];
+  for (const { key, label } of ETAPAS_CRONOGRAMA) {
+    if ((info.etapasOcultas ?? []).includes(key)) continue;
+    const faixas = (info.cronograma?.[key] ?? [])
+      .filter((f) => f.data || f.inicio || f.fim)
+      .map((f) => ({ data: dataBR(f.data), horario: [f.inicio, f.fim].filter(Boolean).join(" às ") }));
+    if (faixas.length) etapas.push({ etapa: label, faixas });
+  }
+  return etapas;
+}
+
 export interface CampoObrigatorioProjeto {
   chave: string;
   label: string;

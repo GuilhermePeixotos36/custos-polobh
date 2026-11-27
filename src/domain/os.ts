@@ -134,9 +134,11 @@ export function itensDoBloco<C extends string>(
 
 /** O que sai no documento e na planilha: tudo o que não foi marcado como "não se aplica". */
 export function itensParaDocumento<C extends string>(
-  bloco: (Record<C, string> & BlocoOpcional & { extras?: ItemExtraOs[]; ordem?: string[] }) | undefined,
+  bloco: (Record<C, string> & BlocoOpcional & { extras?: ItemExtraOs[]; ordem?: string[]; naoSeAplica?: boolean }) | undefined,
   campos: readonly { campo: C; rotulo: string }[]
 ): { rotulo: string; valor: string }[] {
+  // O bloco inteiro marcado como "não se aplica" não manda item nenhum ao documento.
+  if (bloco?.naoSeAplica) return [];
   return itensDoBloco(bloco as { naoAplicaveis?: readonly C[]; extras?: ItemExtraOs[]; ordem?: string[] } | undefined, campos, (c) => bloco?.[c] ?? "")
     .filter((i) => !i.naoSeAplica)
     .map(({ rotulo, valor }) => ({ rotulo, valor }));

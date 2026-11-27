@@ -15,7 +15,7 @@ import { brl, dataBR } from "@/lib/format";
 import { itensParaDocumento, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, osIncentivada, incentivoDaNota } from "@/domain/os";
 import { bvDaContratacao, COLUNAS_CONTRATACAO, resumoContratacao, sincronizarContratacao, valorDaContratacao } from "@/domain/contratacaoOs";
 import { calcularAcerto, percentualDoBv } from "@/domain/acertoFinanceiro";
-import { datasDoEvento, horariosDoEvento, resumoCronogramaProjeto } from "@/domain/projeto";
+import { datasDoEvento, etapasDoCronogramaProjeto, horariosDoEvento } from "@/domain/projeto";
 import { dadosDoTomador, RETENCOES_PADRAO } from "@/domain/tomadorOs";
 import { osEmitida } from "@/domain/faseOs";
 
@@ -29,6 +29,12 @@ export interface ColunaTabelaOs {
 export type BlocoOs =
   | { t: "secao"; titulo: string }
   | { t: "lv"; label: string; valor: string }
+  /**
+   * Linha "rótulo | lista": grupos com título em negrito e, embaixo, tópicos de
+   * duas colunas alinhadas (data e horário). É o cronograma do projeto — antes
+   * saía tudo numa linha só, com as datas misturadas (27/11/2026).
+   */
+  | { t: "lista"; label: string; grupos: { titulo: string; itens: { a: string; b: string }[] }[] }
   | {
       t: "tabela";
       /** "escuro": cabeçalho grafite (cronograma); "claro": cabeçalho cinza (custos). */
@@ -125,7 +131,15 @@ export function montarOsDocumento(
   lv("Produtora Responsável", p.produtoraResponsavel);
   lv("Telefone", p.telefoneProdutora);
   lv("E-mail", p.emailProdutora);
-  lv("Cronograma do Projeto", resumoCronogramaProjeto(p));
+  // Uma etapa embaixo da outra, com as datas e os horários em tópicos alinhados.
+  const etapasDoProjeto = etapasDoCronogramaProjeto(p);
+  if (etapasDoProjeto.length) {
+    blocos.push({
+      t: "lista",
+      label: "Cronograma do Projeto",
+      grupos: etapasDoProjeto.map((e) => ({ titulo: e.etapa, itens: e.faixas.map((f) => ({ a: f.data, b: f.horario })) })),
+    });
+  } else lv("Cronograma do Projeto", "");
 
   secao("Dados do Fornecedor");
   lv("Fornecedor", f.nomeFantasia || f.razaoSocial);

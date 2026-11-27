@@ -9,6 +9,14 @@ const modelo = (descritivo: string): OsDocumentoModelo => ({
   blocos: [
     { t: "lv", label: "OS", valor: "BM – Convenção de Vendas 2027 – Sonorização – Som Teste – (Som Teste Ltda) – OS (01) em 27 11 26" },
     { t: "lv", label: "Status", valor: "Emitida" },
+    {
+      t: "lista", label: "Cronograma do Projeto",
+      grupos: [
+        { titulo: "Montagem", itens: [{ a: "25/11/2026", b: "08:00 às 18:00" }, { a: "26/11/2026", b: "08:00 às 12:00" }] },
+        { titulo: "Evento", itens: [{ a: "27/11/2026", b: "19:00 às 23:00" }] },
+        { titulo: "Desmontagem", itens: [{ a: "28/11/2026", b: "" }] },
+      ],
+    },
     { t: "secao", titulo: "Dados do Fornecedor" },
     { t: "lv", label: "Perfil (MEI / Simples / etc.)", valor: "Simples Nacional" },
     { t: "lv", label: "Dados bancários", valor: "Banco do Brasil  ·  Ag. 1234  ·  Conta 56789-0" },

@@ -724,6 +724,11 @@ export interface GrupoExtraOs {
 }
 
 export interface Logistica {
+  /**
+   * O BLOCO INTEIRO não se aplica a esta OS (27/11/2026): some do documento de
+   * uma vez, sem precisar marcar item por item. Os valores digitados ficam.
+   */
+  naoSeAplica?: boolean;
   transporteMaterial: string;
   transporteEquipe: string;
   hospedagem: string;
@@ -761,6 +766,11 @@ export type CampoInfraestrutura =
   | "artLaudos";
 
 export interface Infraestrutura {
+  /**
+   * O BLOCO INTEIRO não se aplica a esta OS (27/11/2026): some do documento de
+   * uma vez, sem precisar marcar item por item. Os valores digitados ficam.
+   */
+  naoSeAplica?: boolean;
   energia: string;
   internet: string;
   pontosEletricos: string;

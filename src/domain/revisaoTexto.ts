@@ -94,13 +94,13 @@ export function camposDaOs(os: Os): CampoRevisavel[] {
     (os.cronograma ?? []).forEach((c, i) => por(`os:crono:${c.id ?? i}`, c.atividades));
   }
 
-  for (const campo of CAMPOS_LOGISTICA) por(`os:log:${campo}`, os.logistica?.[campo]);
+  if (!os.logistica?.naoSeAplica) for (const campo of CAMPOS_LOGISTICA) por(`os:log:${campo}`, os.logistica?.[campo]);
   for (const campo of CAMPOS_INFRA) {
-    if (os.infraestrutura?.naoAplicaveis?.includes(campo)) continue;
+    if (os.infraestrutura?.naoSeAplica || os.infraestrutura?.naoAplicaveis?.includes(campo)) continue;
     por(`os:infra:${campo}`, os.infraestrutura?.[campo]);
   }
   for (const extra of os.infraestrutura?.extras ?? []) {
-    if (!extra.naoSeAplica) por(`os:infra:extra:${extra.id}`, extra.valor);
+    if (!extra.naoSeAplica && !os.infraestrutura?.naoSeAplica) por(`os:infra:extra:${extra.id}`, extra.valor);
   }
 
   for (const grupo of os.gruposExtras ?? []) {

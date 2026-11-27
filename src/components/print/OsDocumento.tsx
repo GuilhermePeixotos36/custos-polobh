@@ -26,6 +26,31 @@ function LV({ label, valor }: { label: string; valor: string }) {
   );
 }
 
+/** Linha "rótulo | lista": título de cada grupo em negrito e tópicos com as duas colunas alinhadas. */
+function Lista({ b }: { b: Extract<BlocoOs, { t: "lista" }> }) {
+  return (
+    <div className="grid grid-cols-[170px_1fr] border-b border-border-soft text-[12px]">
+      <div className="bg-[#F2F2F2] font-bold px-3 py-1">{b.label}</div>
+      <div className="px-3 py-1 space-y-1.5">
+        {b.grupos.map((g, i) => (
+          <div key={i} className="doc-avoid-break">
+            <div className="font-bold">{g.titulo}</div>
+            <ul>
+              {g.itens.map((it, j) => (
+                <li key={j} className="grid grid-cols-[12px_78px_1fr] items-baseline tabular-nums">
+                  <span aria-hidden>•</span>
+                  <span>{it.a || "—"}</span>
+                  <span>{it.b}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Tabela({ b }: { b: Extract<BlocoOs, { t: "tabela" }> }) {
   const escuro = b.estilo === "escuro";
   const celula = escuro ? "px-2 py-1.5" : "px-3 py-1 border-b border-border-soft";
@@ -94,6 +119,8 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
           <Secao key={i} titulo={b.titulo} />
         ) : b.t === "lv" ? (
           <LV key={i} label={b.label} valor={b.valor} />
+        ) : b.t === "lista" ? (
+          <Lista key={i} b={b} />
         ) : b.t === "tabela" ? (
           <Tabela key={i} b={b} />
         ) : (
