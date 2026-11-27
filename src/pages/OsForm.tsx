@@ -2293,7 +2293,7 @@ export function OsForm() {
                       value={pc.data ?? ""}
                       onChange={(e) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, data: e.target.value } : x)) })}
                     />
-                    <NumberInput className="!h-9 min-w-0" value={pc.valor} title={refParcelas.valor > 0 ? `Até ${brl(tetoDaParcela(i))} (saldo disponível)` : undefined} onValue={(v) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, valor: Math.min(v, tetoDaParcela(i)) } : x)) })} />
+                    <CurrencyInput className="!h-9 min-w-0" value={pc.valor} title={refParcelas.valor > 0 ? `Até ${brl(tetoDaParcela(i))} (saldo disponível)` : undefined} onValue={(v) => updOrc({ parcelas: os.orcamento.parcelas.map((x, j) => (j === i ? { ...x, valor: Math.min(v, tetoDaParcela(i)) } : x)) })} />
                     <button className="text-ink-3 hover:text-danger px-2" title="Remover parcela" onClick={() => updOrc({ parcelas: os.orcamento.parcelas.filter((_, j) => j !== i) })}>✕</button>
                   </div>
                 ))}
@@ -2710,7 +2710,7 @@ export function OsForm() {
                 quantidade, valor total, desconto, total a pagar. O total é unitário
                 × quantidade; digitar o total direto recalcula o unitário. */}
             <LinhaOs label="Valor unitário">
-              <NumberInput
+              <CurrencyInput
                 value={os.contrato.valorUnitario}
                 onValue={(v) => {
                   const total = v * quantidadeCt;
@@ -2729,7 +2729,7 @@ export function OsForm() {
               />
             </LinhaOs>
             <LinhaOs label="Valor total">
-              <NumberInput
+              <CurrencyInput
                 value={os.contrato.valorTotal}
                 onValue={(v) => updCt({ valorUnitario: v / quantidadeCt, valorTotal: v, valorAPagar: v - os.contrato.descontoNegociado })}
               />
@@ -2751,7 +2751,7 @@ export function OsForm() {
                 </div>
               )}
             </LinhaOs>
-            <LinhaOs label="Desconto Especial Negociado"><NumberInput value={os.contrato.descontoNegociado} onValue={(v) => updCt({ descontoNegociado: v, valorAPagar: os.contrato.valorTotal - v })} /></LinhaOs>
+            <LinhaOs label="Desconto Especial Negociado"><CurrencyInput value={os.contrato.descontoNegociado} onValue={(v) => updCt({ descontoNegociado: v, valorAPagar: os.contrato.valorTotal - v })} /></LinhaOs>
             <LinhaOs label="Valor Total a Pagar"><Auto v={brl(os.contrato.valorAPagar)} /></LinhaOs>
             {/* A forma de pagamento do contrato é a do faturamento (27/11/2026); com
                 ela escolhida, este texto vira o PRAZO da cláusula. */}
@@ -2916,7 +2916,7 @@ export function OsForm() {
               />
             </LinhaOs>
             <LinhaOs label="Valor total" hint={finDessincronizado ? undefined : "(espelha o valor negociado no Orçamento)"}>
-              <NumberInput value={os.financeiro.valorTotal} onValue={setValorTotalFinanceiro} />
+              <CurrencyInput value={os.financeiro.valorTotal} onValue={setValorTotalFinanceiro} />
               {finDessincronizado && (
                 <div className="mt-1.5 flex items-center gap-2 flex-wrap text-[12px] text-warning">
                   <span className="font-semibold">
@@ -2932,7 +2932,7 @@ export function OsForm() {
                 </div>
               )}
             </LinhaOs>
-            <LinhaOs label="Desconto Especial Negociado"><NumberInput value={os.financeiro.descontoNegociado} onValue={(v) => updFin({ descontoNegociado: v, valorAPagar: os.financeiro.valorTotal - v })} /></LinhaOs>
+            <LinhaOs label="Desconto Especial Negociado"><CurrencyInput value={os.financeiro.descontoNegociado} onValue={(v) => updFin({ descontoNegociado: v, valorAPagar: os.financeiro.valorTotal - v })} /></LinhaOs>
             {/* O bloco de emissão TERMINA aqui, no par valor + forma: o que
                 vem depois (BV, acerto) não é dado de nota — foi para "Acertos
                 Financeiros", grupo próprio no fim da tela.
