@@ -26,6 +26,8 @@ import { MoverSetas } from "@/components/MoverSetas";
 import { NotifDot } from "@/components/NotifDot";
 import { useAnexosChecklist } from "@/hooks/useAnexosChecklist";
 import { idAncoraPendencia } from "@/lib/destaque";
+import { focarPendencia } from "@/lib/focoPendencia";
+import type { Pendencia } from "@/domain/pendencias";
 import { CabecalhoColuna, FiltroLista, type DirecaoOrdem } from "@/components/FiltroColuna";
 import {
   agruparPorData,
@@ -86,6 +88,17 @@ const hojeIso = () => hojeLocalIso();
 
 type Agrupamento = "etapa" | "data";
 
+const SEM_PENDENCIAS: Pendencia[] = [];
+const SEM_MOTIVOS: string[] = [];
+
+/** O que a pendência pede de quem está olhando — a etiqueta da tarefa e o resumo da faixa. */
+const MOTIVO_PENDENCIA: Record<string, { etiqueta: string; um: string; varios: string }> = {
+  "checklist.atrasado": { etiqueta: "Com você: atrasada", um: "tarefa atrasada", varios: "tarefas atrasadas" },
+  "checklist.vencendo": { etiqueta: "Com você: vence hoje", um: "tarefa para hoje", varios: "tarefas para hoje" },
+  "checklist.observacao": { etiqueta: "Com você: responder", um: "observação para responder", varios: "observações para responder" },
+};
+const ORDEM_MOTIVOS = ["checklist.atrasado", "checklist.vencendo", "checklist.observacao"];
+
 /** Colunas que ordenam (cabeçalho com ↑ ↓). */
 type ColunaOrdem = "tarefa" | "responsavel" | "prevista" | "conclusao" | "status";
 const SEM_RESPONSAVEL = "__sem__";
@@ -136,6 +149,13 @@ interface Props {
    * número vermelho é sempre "o que é seu", nunca "o que existe".
    */
   pendenciasPorItem?: Record<string, number>;
+  /**
+   * As pendências DO USUÁRIO neste check-list, uma a uma (26/11/2026) — a mesma
+   * lista do sininho e da pílula do canto. Alimentam a faixa "Com você", o
+   * filtro "Minhas pendências" e a etiqueta que diz, em cada tarefa, o que
+   * está esperando por ela.
+   */
+  minhasPendencias?: Pendencia[];
 }
 
 export function ChecklistProjeto({
@@ -151,6 +171,7 @@ export function ChecklistProjeto({
   onSincronizar,
   itensNovosNoModelo = 0,
   pendenciasPorItem = {},
+  minhasPendencias = SEM_PENDENCIAS,
 }: Props) {
   const hoje = hojeIso();
   const nomeAtual = useAuth((s) => s.usuario?.nome ?? "");
@@ -164,8 +185,11 @@ export function ChecklistProjeto({
   const [filtroPrazo, setFiltroPrazo] = useState<Set<SituacaoPrazo> | null>(null);
   const [buscaTarefa, setBuscaTarefa] = useState("");
   const [ordem, setOrdem] = useState<{ coluna: ColunaOrdem; dir: DirecaoOrdem } | null>(null);
-  const temFiltro = filtroResp !== null || filtroStatus !== null || filtroPrazo !== null || !!buscaTarefa.trim();
+  /** Só as tarefas que têm pendência de quem está olhando. */
+  const [soPendencias, setSoPendencias] = useState(false);
+  const temFiltro = filtroResp !== null || filtroStatus !== null || filtroPrazo !== null || !!buscaTarefa.trim() || soPendencias;
   const limparFiltros = () => {
+    setSoPendencias(false);
     setFiltroResp(null);
     setFiltroStatus(null);
     setFiltroPrazo(null);
@@ -203,6 +227,49 @@ export function ChecklistProjeto({
   const resumo = useMemo(() => resumirChecklist(checklist, hoje), [checklist, hoje]);
 
   /**
+   * AS PENDÊNCIAS DE QUEM ESTÁ OLHANDO, À VISTA (26/11/2026).
+   *
+   * O número vermelho já existia — no sininho, na aba e numa bolinha ao lado da
+   * tarefa —, mas dentro do check-list ele se perdia entre 180 linhas: a pessoa
+   * sabia que tinha "5" e não via quais nem por quê. Agora a lista abre com uma
+   * faixa dizendo quantas são e de que tipo, um botão que filtra só elas e uma
+   * etiqueta em cada tarefa com o que ela espera ("Com você: atrasada").
+   */
+  const pendenciasDasTarefas = useMemo(() => minhasPendencias.filter((p) => !!p.checklistItemId), [minhasPendencias]);
+  const motivosPorItem = useMemo(() => {
+    const mapa = new Map<string, string[]>();
+    for (const p of pendenciasDasTarefas) {
+      const lista = mapa.get(p.checklistItemId!) ?? [];
+      if (!lista.includes(p.tipo)) lista.push(p.tipo);
+      mapa.set(p.checklistItemId!, lista);
+    }
+    return mapa;
+  }, [pendenciasDasTarefas]);
+  const resumoPendencias = useMemo(
+    () =>
+      ORDEM_MOTIVOS.map((tipo) => {
+        const n = pendenciasDasTarefas.filter((p) => p.tipo === tipo).length;
+        return n ? `${n} ${n === 1 ? MOTIVO_PENDENCIA[tipo].um : MOTIVO_PENDENCIA[tipo].varios}` : "";
+      }).filter(Boolean),
+    [pendenciasDasTarefas]
+  );
+  // A última pendência foi resolvida com o filtro ligado: ele se desliga, senão a lista ficaria vazia.
+  useEffect(() => {
+    if (soPendencias && pendenciasDasTarefas.length === 0) setSoPendencias(false);
+  }, [soPendencias, pendenciasDasTarefas.length]);
+  const alternarSoPendencias = () => {
+    const ligar = !soPendencias;
+    limparFiltros();
+    setSoPendencias(ligar);
+  };
+  /** Leva a tela até a primeira pendência, na ordem em que a lista aparece. */
+  const irParaPrimeiraPendencia = () => {
+    const naOrdem = visiveis.find((i) => motivosPorItem.has(i.id));
+    const alvo = pendenciasDasTarefas.find((p) => p.checklistItemId === naOrdem?.id) ?? pendenciasDasTarefas[0];
+    if (alvo?.ancora) focarPendencia({ ancora: alvo.ancora, observacaoId: alvo.observacaoId, campos: alvo.campos });
+  };
+
+  /**
    * Itens à vista.
    *
    * Uma tarefa sai da visão principal por dois caminhos: automaticamente, ao ser
@@ -229,6 +296,7 @@ export function ChecklistProjeto({
     );
     const termo = colapsarEspacos(buscaTarefa).toLowerCase();
     const filtrados = base.filter((i) => {
+      if (soPendencias && !cobrada(i)) return false;
       if (filtroResp !== null && !filtroResp.has(i.responsavel || SEM_RESPONSAVEL) && !cobrada(i)) return false;
       if (filtroStatus !== null && !filtroStatus.has(statusExibido(i, hoje))) return false;
       if (filtroPrazo !== null && !filtroPrazo.has(situacaoPrazo(i, hoje))) return false;
@@ -236,7 +304,7 @@ export function ChecklistProjeto({
       return true;
     });
     return ordenarPorPrazo(filtrados);
-  }, [checklist.itens, verRecolhidas, filtroResp, filtroStatus, filtroPrazo, buscaTarefa, pendenciasPorItem, encerradasAgora, hoje]);
+  }, [checklist.itens, verRecolhidas, filtroResp, filtroStatus, filtroPrazo, buscaTarefa, soPendencias, pendenciasPorItem, encerradasAgora, hoje]);
 
   /** A ordenação escolhida no cabeçalho (vale dentro de cada grupo). */
   const comparar = useMemo(() => {
@@ -510,6 +578,29 @@ export function ChecklistProjeto({
 
   return (
     <div className="space-y-4">
+      {/* --------------------------- com você --------------------------- */}
+      {pendenciasDasTarefas.length > 0 && (
+        <div className="flex items-center gap-x-3 gap-y-2 flex-wrap rounded-card border border-danger/30 bg-danger-soft px-4 py-2.5">
+          <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-danger px-2 text-[13px] font-extrabold text-white tabular-nums">
+            {pendenciasDasTarefas.length}
+          </span>
+          <div className="min-w-0">
+            <div className="text-[13.5px] font-extrabold text-ink">
+              {pendenciasDasTarefas.length === 1 ? "1 pendência com você neste check-list" : `${pendenciasDasTarefas.length} pendências com você neste check-list`}
+            </div>
+            <div className="text-[12px] font-semibold text-ink-2">{resumoPendencias.join(" · ")}</div>
+          </div>
+          <div className="ml-auto flex items-center gap-2 flex-wrap">
+            <Button size="sm" variant="secondary" onClick={alternarSoPendencias}>
+              {soPendencias ? "Mostrar todas as tarefas" : "Ver só as minhas pendências"}
+            </Button>
+            <Button size="sm" variant="danger" className="!bg-danger !text-white hover:!brightness-110" onClick={irParaPrimeiraPendencia}>
+              Ir para a primeira
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* ----------------------------- resumo ----------------------------- */}
       <Card>
         {/* O RESUMO EM TRÊS BLOCOS (26/11/2026): o progresso, o que está EM ABERTO (repartido pelo
@@ -620,6 +711,30 @@ export function ChecklistProjeto({
               Minhas tarefas
             </Button>
           )}
+          {/* O mesmo filtro da faixa vermelha, sempre no mesmo lugar: com zero ele fica apagado,
+              e a pessoa sabe que não deve nada aqui. */}
+          <Button
+            size="sm"
+            variant={soPendencias ? "soft" : "secondary"}
+            disabled={pendenciasDasTarefas.length === 0}
+            onClick={alternarSoPendencias}
+            className="disabled:opacity-50"
+            title={
+              pendenciasDasTarefas.length
+                ? "Só as tarefas que estão esperando por você: atrasadas, para hoje ou com observação para responder"
+                : "Nenhuma tarefa deste check-list está esperando por você"
+            }
+          >
+            Minhas pendências
+            <span
+              className={cx(
+                "inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[11px] font-extrabold leading-none tabular-nums",
+                pendenciasDasTarefas.length ? "bg-danger text-white" : "bg-[#E4E6EC] text-ink-3"
+              )}
+            >
+              {pendenciasDasTarefas.length}
+            </span>
+          </Button>
           {(temFiltro || ordem) && (
             <Button size="sm" variant="text" onClick={() => { limparFiltros(); setOrdem(null); }}>
               Limpar filtros e ordenação
@@ -835,6 +950,7 @@ export function ChecklistProjeto({
                             podeDescer={indiceItem < bloco.itens.length - 1 || indiceBloco < blocos.length - 1}
                             onSeta={(direcao) => moverTarefa(item, direcao)}
                             pendencias={pendenciasPorItem[item.id] ?? 0}
+                            motivos={motivosPorItem.get(item.id) ?? SEM_MOTIVOS}
                             autoFoco={item.id === idRecemCriado}
                             onAlterar={(patch) => alterar(item, patch)}
                             onStatus={(s) => mudarStatus(item, s)}
@@ -934,6 +1050,7 @@ function ItemCard({
   sugestoesTitulo,
   etapas,
   pendencias,
+  motivos,
   autoFoco,
   onAlterar,
   onStatus,
@@ -959,6 +1076,8 @@ function ItemCard({
   etapas: string[];
   /** Pendências do usuário nesta tarefa — o mesmo número do badge da aba. */
   pendencias: number;
+  /** Por que a tarefa está com o usuário (tipos de pendência) — vira etiqueta. */
+  motivos: string[];
   /** Tarefa recém-criada: o cursor vai direto para o título. */
   autoFoco: boolean;
   onAlterar: (patch: Partial<ItemChecklist>) => void;
@@ -1196,7 +1315,20 @@ function ItemCard({
                 data à mão
               </span>
             )}
-            <NotifDot inline n={pendencias} title={`${pendencias} pendência(s) sua(s) nesta tarefa`} />
+            {/* O que esta tarefa espera de quem está olhando. Sem motivo conhecido, fica a bolinha com o número. */}
+            {motivos.length > 0 ? (
+              ORDEM_MOTIVOS.filter((m) => motivos.includes(m)).map((m) => (
+                <span
+                  key={m}
+                  className="inline-flex items-center gap-1.5 rounded-pill bg-danger px-2 py-[3px] text-[11px] font-extrabold leading-none text-white"
+                  title="Pendência sua nesta tarefa"
+                >
+                  {MOTIVO_PENDENCIA[m].etiqueta}
+                </span>
+              ))
+            ) : (
+              <NotifDot inline n={pendencias} title={`${pendencias} pendência(s) sua(s) nesta tarefa`} />
+            )}
             {!item.descricao && podeEditar && (
               <button
                 type="button"

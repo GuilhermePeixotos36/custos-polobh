@@ -1680,6 +1680,7 @@ function ChecklistPainel({
         onSincronizar={() => void estado.sincronizar()}
         itensNovosNoModelo={estado.itensNovosNoModelo}
         pendenciasPorItem={pendenciasPorItem}
+        minhasPendencias={pendencias}
       />
     </div>
   );
