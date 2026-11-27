@@ -63,6 +63,7 @@ import { calcularAcerto, type CampoAcerto } from "@/domain/acertoFinanceiro";
 import { clausulasPadrao, modeloDoContrato, type ChaveClausula, type ClausulasDaCasa, type ModeloContrato } from "@/domain/contratoModelo";
 import { ContratoPreview } from "@/components/ContratoPreview";
 import { entregarOsPdf } from "@/lib/osPdf";
+import { DOCUMENTOS_DO_FATURAMENTO, MEIOS_PAGAMENTO, meioDePagamento, type MeioPagamento } from "@/domain/pagamentoOs";
 import { quantidadeDoContrato } from "@/domain/contratoDocumento";
 import { blobDoPdf, clausulasDaCasa, emitirContratoPdf, prepararContratoPdf, type PreparoContrato } from "@/lib/contratoPdf";
 import { dadosDoTomador, opcoesDeTomador, RETENCOES_PADRAO, TOMADOR_OUTRO } from "@/domain/tomadorOs";
@@ -99,7 +100,6 @@ import { aplicarMudancaDeStatus } from "@/domain/statusEc";
 import { auditar } from "@/store/logs";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import { podeDescartar } from "@/lib/cancelarEdicao";
-import type { ResumoContratacao } from "@/domain/contratacaoOs";
 import type {
   GrupoExtraOs,
   TomadorAvulso,
@@ -122,7 +122,8 @@ import { useTravaEdicao } from "@/hooks/useTravaEdicao";
 import { AvisoTravaEdicao } from "@/components/AvisoTravaEdicao";
 
 const MODALIDADES: Modalidade[] = ["Produto", "Serviço", "Locação", "Produto + Serviço", "Locação + Serviço"];
-const DOCS: DocumentoFiscal[] = ["Recibo Simples", "Fatura", "Nota Fiscal", "Fatura e Nota Fiscal"];
+/** Âncora do campo que trava a emissão quando está em branco. */
+const ID_FORMA_PAGAMENTO = "os-forma-pagamento";
 
 const fornecedorVazio = (razao = "", cnpj = ""): Fornecedor => ({
   id: "", razaoSocial: razao, nomeFantasia: "", cnpj, perfilTributario: "", endereco: "",
@@ -217,7 +218,7 @@ function aplicarAutoPreenchimento(osOriginal: Os, ec: Ec): Os {
 
   // Documento fiscal: vem do "Documento PG" já marcado nos itens da EC.
   const docEc = primeiroPreenchido(linhas.map((l) => l.faturaNf));
-  const docFiscalEc = (DOCS as string[]).includes(docEc) ? (docEc as DocumentoFiscal) : "";
+  const docFiscalEc = (["Recibo Simples", "Fatura", "Nota Fiscal", "Fatura e Nota Fiscal"] as string[]).includes(docEc) ? (docEc as DocumentoFiscal) : "";
 
   // Código de serviço e ordem de compra: o que já estiver nos itens
   // consolidados. Desde 15/09/2026 os dois são decididos AQUI e devolvidos à
@@ -661,8 +662,6 @@ export function OsForm() {
   /** Ordem atual do cronograma, pelas chaves que o arraste manipula. */
   const idsCronograma = os.cronograma.map(idDaEtapa);
 
-  /** Resumo dos Custos: o que a contratação decidiu, item a item, com os totais. */
-  const resumo = resumoContratacao(os.itens, linhasConsolidadas);
   /** O que trava a emissão na contratação: forma sem escolher, sem valor, ou misturada. */
   // O cronograma vazio é cobrado na subguia Cronograma do projeto, mas a
   // emissão continua travada por ele: a âncora é a do bloco desta tela.
@@ -717,6 +716,8 @@ export function OsForm() {
     });
   /** O documento que a forma de pagamento escolhida exige ("" = ainda sem forma). */
   const docDaForma = documentoFiscalDaContratacao(os.itens ?? []);
+  /** Por onde o fornecedor recebe — OS antiga com conta preenchida já é "Dados bancários". */
+  const meioPagamento = meioDePagamento(os);
   /** Esta OS tem contrato? Quem decide é a coluna Contrato dos itens, na EC. */
   const haContrato = temContrato(os, linhasConsolidadas);
   /** "Não se aplica" ligado no bloco e ainda não salvo: ao salvar, vai para a EC. */
@@ -1515,6 +1516,13 @@ export function OsForm() {
       toast(`Falta fechar a contratação: ${problemasContratacao[0]}${problemasContratacao.length > 1 ? ` (+${problemasContratacao.length - 1})` : ""}`, "danger");
       return;
     }
+    // A FORMA DE PAGAMENTO é obrigatória (27/11/2026): sem ela o Financeiro não sabe
+    // por onde pagar. Só é cobrada de quem enxerga o bloco de faturamento.
+    if (verFinanceiro && !meioPagamento) {
+      destacarElemento(ID_FORMA_PAGAMENTO, "pendencia");
+      toast("Antes de emitir, escolha a Forma de Pagamento nos Dados Emissão Faturamento.", "danger");
+      return;
+    }
     // PROJETO INCENTIVADO incompleto nos Dados Gerais (18/11/2026): a OS só lê
     // esses dados de lá, e emitir sem eles mandaria a nota (e o contrato) sem o
     // projeto, a lei ou o código. Antes havia um nome provisório e a lei
@@ -2009,17 +2017,8 @@ export function OsForm() {
               onChange={(inscricaoMunicipal) => updF({ inscricaoMunicipal })}
             />
           </LinhaOs>
-          <LinhaOs label="Conta PJ / PF">
-            <Select value={os.fornecedor.dadosBancarios.tipoConta} onChange={(e) => updB({ tipoConta: e.target.value as Fornecedor["dadosBancarios"]["tipoConta"] })}>
-              <option value="">Selecione…</option>
-              <option value="PJ">PJ</option>
-              <option value="PF">PF</option>
-            </Select>
-          </LinhaOs>
-          <LinhaOs label="Banco" hint={bancoDaOs ? `(dados da ${bancoDaOs}, usada antes por este fornecedor)` : undefined}><Input value={os.fornecedor.dadosBancarios.banco} sugestoes={[...new Set([...bancos, ...sugestoes.valores.bancoFornecedor])]} onChange={(e) => updB({ banco: e.target.value })} /></LinhaOs>
-          <LinhaOs label="Agência"><Input value={os.fornecedor.dadosBancarios.agencia} onChange={(e) => updB({ agencia: e.target.value })} /></LinhaOs>
-          <LinhaOs label="Conta Corrente"><Input value={os.fornecedor.dadosBancarios.conta} onChange={(e) => updB({ conta: e.target.value })} /></LinhaOs>
-          <LinhaOs label="Chave Pix"><Input value={os.fornecedor.dadosBancarios.chavePix} onChange={(e) => updB({ chavePix: e.target.value })} /></LinhaOs>
+          {/* Os dados bancários foram para os Dados para Faturamento (27/11/2026):
+              só aparecem quando a forma de pagamento é "Dados bancários". */}
           <LinhaOs label="Representante"><Input formato="titulo" value={os.fornecedor.representante} onChange={(e) => updF({ representante: e.target.value })} /></LinhaOs>
           <LinhaOs label="Telefone" obrigatorio><TelefoneInput value={os.fornecedor.telefone} onChange={(v) => updF({ telefone: v })} /></LinhaOs>
           <LinhaOs label="E-mail" obrigatorio><Input value={os.fornecedor.email} onChange={(e) => updF({ email: e.target.value })} /></LinhaOs>
@@ -2684,63 +2683,8 @@ export function OsForm() {
           </fieldset>
         )}
 
-        {/* RESUMO DOS CUSTOS em módulo próprio, depois da parte da produção
-            (22/10/2026). É preenchido pelo Financeiro (prazo de pagamento,
-            documento fiscal), então fica abaixo do botão que passa a OS a ele
-            e abre com a Produção e na fase dele. Quem vê não mudou: segue aberto a quem abre
-            a OS; só a tabela item a item é restrita ao financeiro. */}
-        <fieldset disabled={!mexeFinanceiro} className="min-w-0 border-0 p-0 m-0 disabled:opacity-100">
-        <CardOs secao="Resumo dos Custos" area="Financeiro" tambem="Produção">
-
-            {/* Sem o valor do item na EC (21/10/2026): aquele é o preço ao
-                cliente. O valor da OS é o que se paga ao fornecedor. */}
-            {/* Os totais saem da forma que cada item ADOTOU (29/09/2026): não são
-                digitáveis aqui, e alimentam o Faturamento e o Contrato. */}
-            <LinhaOs label="Valor Total Contratado" hint="(soma da forma adotada em cada item; sem forma escolhida, conta a Com BV e NF)"><Auto v={brl(resumo.contratado)} /></LinhaOs>
-            <LinhaOs label="Valor Total do BV" hint="(só dos itens com BV e NF)"><Auto v={brl(resumo.bvTotal)} /></LinhaOs>
-            <LinhaOs label="Valor Líquido" hint="(contratado menos o BV)"><Auto v={brl(resumo.liquido)} /></LinhaOs>
-
-            {/* O prazo é negociado pela Produção (linha "Prazo de pagamento" do Detalhamento da Contratação,
-                acima); aqui o Financeiro só o confere. */}
-            <LinhaOs label="Prazo de Pagamento" hint="(negociado pela Produção)">
-              <div className="py-1.5 text-[13px] text-ink space-y-0.5">
-                {os.orcamento.parcelas.length === 0 ? (
-                  <span className="text-ink-3">Sem parcelas informadas.</span>
-                ) : (
-                  os.orcamento.parcelas.map((pc, i) => (
-                    <div key={pc.id ?? i}>
-                      {i + 1}ª — {pc.descricao || "Parcela"}
-                      {pc.data ? ` · ${dataBR(pc.data)}` : " · sem data"}: <b className="font-display">{brl(pc.valor)}</b>
-                    </div>
-                  ))
-                )}
-                {parcelasDivergem && (
-                  <p className="text-danger font-semibold">
-                    Não fecha com o {refParcelas.rotulo} ({brl(refParcelas.valor)}) — diferença de {brl(Math.abs(somaParcelas - refParcelas.valor))}.
-                  </p>
-                )}
-              </div>
-            </LinhaOs>
-
-            {docDaForma ? (
-              <LinhaOs label="Documento Fiscal" hint="(segue a forma de pagamento: com NF → Nota Fiscal, sem NF → Fatura)">
-                <Auto v={docDaForma} />
-              </LinhaOs>
-            ) : (
-              <LinhaOs label="Documento Fiscal" hint="(definido pela forma de pagamento; enquanto não há forma, escolha aqui)">
-                <Select value={os.orcamento.documentoFiscal} onChange={(e) => updOrc({ documentoFiscal: e.target.value as DocumentoFiscal })}>
-                  <option value="">Selecione…</option>
-                  {DOCS.map((d) => <option key={d}>{d}</option>)}
-                </Select>
-              </LinhaOs>
-            )}
-            {verValoresEc && (
-            <LinhaOs label="Definido item a item" hint="(o que sai no PDF e na planilha)">
-              <TabelaResumoCustos resumo={resumo} />
-            </LinhaOs>
-          )}
-        </CardOs>
-        </fieldset>
+        {/* O bloco "Resumo dos Custos" saiu da OS (27/11/2026): documento fiscal,
+            forma e prazo de pagamento foram para os Dados Emissão Faturamento. */}
 
         {/* OS BLOCOS DO FINANCEIRO abrem com a Produção (12/11/2026), na fase dele (e seguem abertos no
             back-office, que ainda corrige um código de serviço na hora de
@@ -2847,11 +2791,51 @@ export function OsForm() {
                 sempre; a do bloco de contrato é cláusula contratual, e só
                 existe quando há contrato. São dois campos de propósito. */}
             <LinhaOs label="Valor total a pagar"><Auto v={brl(os.financeiro.valorAPagar)} /></LinhaOs>
-            <LinhaOs label="Forma de Pagamento" hint="(como o fornecedor recebe — editável)">
+            {/* DOCUMENTO FISCAL, FORMA e PRAZO DE PAGAMENTO (27/11/2026) — vieram
+                do antigo "Resumo dos Custos". O documento segue a forma que cada
+                item adotou na contratação (decisão que vem da EC); sem forma
+                definida, escolhe-se aqui. */}
+            {docDaForma ? (
+              <LinhaOs label="Documento Fiscal" hint="(segue a forma adotada nos itens: com NF → Nota Fiscal, sem NF → Fatura)">
+                <Auto v={docDaForma} />
+              </LinhaOs>
+            ) : (
+              <LinhaOs label="Documento Fiscal" hint="(preenchido pela escolha feita nos itens; sem ela, escolha aqui)">
+                <Select value={os.orcamento.documentoFiscal} onChange={(e) => updOrc({ documentoFiscal: e.target.value as DocumentoFiscal })}>
+                  <option value="">Selecione…</option>
+                  {[...new Set([...DOCUMENTOS_DO_FATURAMENTO, os.orcamento.documentoFiscal].filter(Boolean))].map((d) => <option key={d}>{d}</option>)}
+                </Select>
+              </LinhaOs>
+            )}
+            <LinhaOs id={ID_FORMA_PAGAMENTO} label="Forma de Pagamento" obrigatorio hint="(por onde o fornecedor recebe)">
+              <Select value={meioPagamento} onChange={(e) => updFin({ meioPagamento: e.target.value as MeioPagamento | "" })}>
+                <option value="">Selecione…</option>
+                {MEIOS_PAGAMENTO.map((m) => <option key={m}>{m}</option>)}
+              </Select>
+            </LinhaOs>
+            {/* A conta do fornecedor só existe na tela quando é por ela que se paga. */}
+            {meioPagamento === "Dados bancários" && (
+              <>
+                <LinhaOs label="Tipo da Conta">
+                  <Select value={os.fornecedor.dadosBancarios.tipoConta} onChange={(e) => updB({ tipoConta: e.target.value as Fornecedor["dadosBancarios"]["tipoConta"] })}>
+                    <option value="">Selecione…</option>
+                    <option value="PF">PF</option>
+                    <option value="PJ">PJ</option>
+                  </Select>
+                </LinhaOs>
+                <LinhaOs label="Banco" hint={bancoDaOs ? `(dados da ${bancoDaOs}, usada antes por este fornecedor)` : "(escolha da lista ou digite o nome)"}>
+                  <Input value={os.fornecedor.dadosBancarios.banco} sugestoes={[...new Set([...bancos, ...sugestoes.valores.bancoFornecedor])]} onChange={(e) => updB({ banco: e.target.value })} />
+                </LinhaOs>
+                <LinhaOs label="Agência"><Input value={os.fornecedor.dadosBancarios.agencia} onChange={(e) => updB({ agencia: e.target.value })} /></LinhaOs>
+                <LinhaOs label="Conta Corrente"><Input value={os.fornecedor.dadosBancarios.conta} onChange={(e) => updB({ conta: e.target.value })} /></LinhaOs>
+                <LinhaOs label="Chave Pix"><Input value={os.fornecedor.dadosBancarios.chavePix} onChange={(e) => updB({ chavePix: e.target.value })} /></LinhaOs>
+              </>
+            )}
+            <LinhaOs label="Prazo de Pagamento" hint="(campo aberto)">
               <Input
-                value={os.financeiro.formaPagamento ?? ""}
+                value={os.financeiro.prazoPagamento ?? os.financeiro.formaPagamento ?? ""}
                 sugestoes={sugestoes.valores.formaPagamento}
-                onChange={(e) => updFin({ formaPagamento: e.target.value })}
+                onChange={(e) => updFin({ prazoPagamento: e.target.value })}
                 placeholder={FORMA_PAGAMENTO_PADRAO}
               />
             </LinhaOs>
@@ -3711,74 +3695,6 @@ function ItemContratacao({
   );
 }
 
-/**
- * Resumo dos Custos — o que a contratação decidiu, item a item.
- *
- * Só entram as colunas que têm algum valor: é esta tabela que vai ao fornecedor
- * (documento e planilha), e uma coluna inteira zerada não é informação, é ruído
- * numa tabela que ele confere linha a linha (ver `resumoContratacao`).
- */
-function TabelaResumoCustos({ resumo }: { resumo: ResumoContratacao }) {
-  if (!resumo.linhas.length) {
-    return <p className="py-2 text-[12.5px] text-ink-3">Esta OS não está ligada a itens da EC.</p>;
-  }
-  const colunas = COLUNAS_CONTRATACAO.filter((c) => resumo.colunas[c.chave]);
-  if (!colunas.length) {
-    return (
-      <p className="py-2 text-[12.5px] text-ink-3">
-        Nenhum valor definido ainda — preencha as formas de cobrança em <b>Detalhamento da Contratação</b>.
-      </p>
-    );
-  }
-  const celula = (v: number | null) =>
-    v === null ? <i className="text-ink-3 font-normal">Não se aplica</i> : brl(v);
-
-  return (
-    <div className="py-1.5 overflow-x-auto md:overflow-visible">
-      <table className="w-full text-[12.5px] border-collapse">
-        <thead>
-          <tr className="text-[10.5px] font-extrabold uppercase tracking-[0.05em] text-ink-3">
-            <th className={cx("text-left font-extrabold bg-surface pt-1.5 pb-1.5 pr-2", GRUDE_CABECALHO)}>Item</th>
-            {colunas.map((c) => (
-              <th key={c.chave} className={cx("text-right font-extrabold bg-surface pt-1.5 pb-1.5 px-2 whitespace-nowrap", GRUDE_CABECALHO)}>{c.curto}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {resumo.linhas.map((l) => (
-            <tr key={l.ecLinhaId} className="border-t border-border-soft">
-              <td className="py-1.5 pr-2 font-semibold text-ink">{l.item}</td>
-              {colunas.map((c) => (
-                <td key={c.chave} className="py-1.5 px-2 text-right font-display text-ink">{celula(l[c.chave])}</td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr className="border-t-2 border-border font-bold text-ink">
-            <td className="py-1.5 pr-2">Total por forma de cobrança</td>
-            {colunas.map((c) => (
-              <td key={c.chave} className="py-1.5 px-2 text-right font-display">{brl(resumo.totais[c.chave])}</td>
-            ))}
-          </tr>
-        </tfoot>
-      </table>
-      {/* O que gera nota e o que não gera, separados: são bases diferentes, e
-          somá-las daria um total que não existe em lugar nenhum. */}
-      <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-[12px] border-t border-border-soft pt-2">
-        <span className="text-ink-2">
-          Total a faturar <span className="text-ink-3">(com nota fiscal)</span>:{" "}
-          <b className="font-display text-ink">{brl(resumo.totalComNota)}</b>
-        </span>
-        {resumo.totalSemNota > 0 && (
-          <span className="text-ink-2">
-            Sem nota fiscal: <b className="font-display text-ink">{brl(resumo.totalSemNota)}</b>
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
 
 /**
  * CNAE da nota: as atividades DESTE CNPJ, e não uma lista geral.

@@ -895,6 +895,15 @@ export interface FinanceiroOs {
    * existe só quando há contrato; esta acompanha a nota, e existe sempre.
    */
   formaPagamento?: string;
+  /**
+   * FORMA DE PAGAMENTO do bloco de faturamento (27/11/2026): por onde o
+   * fornecedor recebe — dados bancários, cartão de crédito ou boleto. Com
+   * "Dados bancários", os dados da conta (`fornecedor.dadosBancarios`) são
+   * preenchidos no mesmo bloco. Obrigatória para emitir a OS.
+   */
+  meioPagamento?: "Dados bancários" | "Cartão de crédito" | "Boleto bancário" | "";
+  /** PRAZO DE PAGAMENTO, em texto livre (27/11/2026). Sem ele, vale o texto antigo de `formaPagamento`. */
+  prazoPagamento?: string;
   bvPercentual: number; // %
   bvValor: number; // auto
   /**

@@ -13,11 +13,12 @@
 import type { Ec, EmpresaGrupo, Os } from "@/data/types";
 import { brl, dataBR } from "@/lib/format";
 import { itensParaDocumento, CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, osIncentivada, incentivoDaNota } from "@/domain/os";
-import { bvDaContratacao, COLUNAS_CONTRATACAO, resumoContratacao, sincronizarContratacao, valorDaContratacao } from "@/domain/contratacaoOs";
+import { bvDaContratacao, sincronizarContratacao, valorDaContratacao } from "@/domain/contratacaoOs";
 import { calcularAcerto, percentualDoBv } from "@/domain/acertoFinanceiro";
 import { datasDoEvento, etapasDoCronogramaProjeto, horariosDoEvento } from "@/domain/projeto";
 import { dadosDoTomador, RETENCOES_PADRAO } from "@/domain/tomadorOs";
 import { osEmitida } from "@/domain/faseOs";
+import { linhasDosBancarios, meioDePagamento, prazoParaDocumento } from "@/domain/pagamentoOs";
 
 export interface ColunaTabelaOs {
   titulo: string;
@@ -74,11 +75,8 @@ export function montarOsDocumento(
   // Os itens fixos E os criados nesta OS, na ordem da tela (15/09/2026).
   const logistica = itensParaDocumento(os.logistica, CAMPOS_LOGISTICA);
   const infraestrutura = itensParaDocumento(os.infraestrutura, CAMPOS_INFRAESTRUTURA);
-  // Os mesmos itens "em dia com a EC" servem ao resumo e ao acerto (27/11/2026).
+  // Os itens "em dia com a EC" servem ao acerto financeiro (27/11/2026).
   const itensEmDia = sincronizarContratacao(os.itens ?? [], consolidadas, { emitida: osEmitida(os) });
-  const resumo = resumoContratacao(itensEmDia, consolidadas);
-  /** Só as colunas com algum valor vão ao fornecedor — ver `resumoContratacao`. */
-  const colunas = COLUNAS_CONTRATACAO.filter((c) => resumo.colunas[c.chave]);
   const tomador = dadosDoTomador(os.financeiro.tomador, {
     cliente: cli,
     empresas: opts.empresas ?? [],
@@ -149,11 +147,7 @@ export function montarOsDocumento(
   lv("Endereço", f.endereco);
   lv("Inscrição Estadual", f.inscricaoEstadual);
   lv("Inscrição Municipal", f.inscricaoMunicipal);
-  lv("Conta PJ / PF", b.tipoConta);
-  lv(
-    "Dados bancários",
-    [b.banco, b.agencia && `Ag. ${b.agencia}`, b.conta && `Conta ${b.conta}`, b.chavePix && `Pix ${b.chavePix}`].filter(Boolean).join("  ·  ")
-  );
+  // Os dados bancários foram para os Dados para Faturamento, com a forma de pagamento (27/11/2026).
   lv("Representante", f.representante);
   lv("Telefone", f.telefone);
   lv("E-mail", f.email);
@@ -190,38 +184,8 @@ export function montarOsDocumento(
 
   // O CREDENCIAMENTO saiu da OS (29/08/2026): virou subaba do Projeto.
 
-  secao("Resumo dos Custos");
-  // Só entram as colunas que TÊM valor: coluna inteira vazia é ruído para o fornecedor.
-  if (resumo.linhas.length > 0 && colunas.length > 0) {
-    blocos.push({
-      t: "tabela",
-      estilo: "claro",
-      colunas: [{ titulo: "Item" }, ...colunas.map((c) => ({ titulo: c.curto, largura: 0.6 / colunas.length, direita: true }))],
-      linhas: resumo.linhas.map((l) => [l.item, ...colunas.map((c) => (l[c.chave] === null ? "Não se aplica" : brl(l[c.chave] as number)))]),
-      rodape: ["Total por forma de cobrança", ...colunas.map((c) => brl(resumo.totais[c.chave]))],
-    });
-  }
-  // A emissão fala das duas colunas COM nota; o "sem nota" sai separado.
-  if (resumo.totalComNota > 0) lv("Total a Faturar — Com BV e NF + Sem BV e Com NF", brl(resumo.totalComNota));
-  if (resumo.totalSemNota > 0) lv("Total Sem Nota Fiscal — Sem BV e Sem NF", brl(resumo.totalSemNota));
-  lv("Documento Fiscal", os.orcamento.documentoFiscal);
-  lv(
-    "Dados para Pagamento",
-    [
-      b.tipoConta && `Conta ${b.tipoConta}`,
-      b.banco,
-      [b.agencia && `Ag. ${b.agencia}`, b.conta && `C/C ${b.conta}`].filter(Boolean).join("  ·  "),
-      b.chavePix && `Pix: ${b.chavePix}`,
-    ].filter(Boolean).join("\n")
-  );
-  lv(
-    "Prazo de Pagamento",
-    os.orcamento.parcelas.length === 0
-      ? "____"
-      : os.orcamento.parcelas
-          .map((x, i) => `${i + 1}ª — ${x.descricao || "Parcela"}${x.data ? ` — pagamento em ${dataBR(x.data)}` : ""}: ${brl(x.valor)}`)
-          .join("\n")
-  );
+  // O bloco "Resumo dos Custos" saiu da OS (27/11/2026). O documento fiscal, a
+  // forma de pagamento e o prazo foram para os Dados para Faturamento.
 
   if (opts.restrito) {
     secao("Dados Emissão Faturamento");
@@ -244,7 +208,12 @@ export function montarOsDocumento(
     lv("Valor total", brl(os.financeiro.valorTotal));
     lv("Desconto Especial Negociado", brl(os.financeiro.descontoNegociado));
     lv("Valor total a pagar", brl(os.financeiro.valorAPagar));
-    lv("Forma de Pagamento", os.financeiro.formaPagamento ?? "");
+    lv("Documento Fiscal", os.orcamento.documentoFiscal);
+    const meio = meioDePagamento(os);
+    lv("Forma de Pagamento", meio);
+    // Só com "Dados bancários" a conta do fornecedor sai no papel.
+    if (meio === "Dados bancários") lv("Dados Bancários", linhasDosBancarios(b).join("\n"));
+    lv("Prazo de Pagamento", prazoParaDocumento(os));
     lv("Código de Serviço", os.financeiro.codigoServico);
     lv("Ordem de Compra", os.financeiro.ordemCompra ?? "");
 
