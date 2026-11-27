@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { comDadosAtuaisDoProjeto } from "@/lib/projetoAoVivo";
 import { gerarNovaVersaoEc } from "@/lib/novaVersaoEc";
@@ -32,6 +32,7 @@ import { NavegadorPendencias } from "@/components/NavegadorPendencias";
 import { ObservacoesGeraisEc } from "@/components/ObservacoesGeraisEc";
 import { pendenciasDaTela } from "@/domain/pendencias";
 import { destacarElemento, idAncoraPendencia } from "@/lib/destaque";
+import { aoFocarPendencia } from "@/lib/focoPendencia";
 import { documentoFiscalDaContratacao, itemDaLinhaEc, valorDaContratacao } from "@/domain/contratacaoOs";
 import { planoDeEmissao } from "@/domain/emissaoOs";
 import { comPerfilPeloDocumento } from "@/domain/fornecedor";
@@ -75,6 +76,30 @@ export function EcDetail() {
   const usuarios = (usuariosData ?? []).map((u) => u.nome).filter(Boolean);
   // Como na edição, os grupos abrem RECOLHIDOS: a EC é longa e o olho procura o grupo.
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
+  /**
+   * A PÍLULA DE PENDÊNCIAS ABRE O GRUPO (27/11/2026).
+   *
+   * Os grupos nascem recolhidos, e item de grupo recolhido não existe na tela.
+   * A pílula mandava ir até o item, não achava nada e o clique parecia não ter
+   * feito coisa alguma — era o "não evidencia a pendência" de dentro da EC.
+   * Agora o salto abre primeiro o grupo do item; aí a linha aparece, pisca e a
+   * observação se abre.
+   *
+   * Devolve `false` de propósito: quem "atende" o salto é a conversa do item,
+   * que só monta depois de o grupo abrir (ver `alvoPendente`).
+   */
+  const linhasDaEc = ec?.linhas;
+  useEffect(
+    () =>
+      aoFocarPendencia((alvo) => {
+        const linha = linhasDaEc?.find((l) => l.id === alvo.ancora && !l.oculto);
+        if (!linha) return false;
+        const grupo = agruparLinhas([linha])[0]?.nome;
+        if (grupo !== undefined) setExpandidos((atuais) => (atuais.has(grupo) ? atuais : new Set(atuais).add(grupo)));
+        return false;
+      }),
+    [linhasDaEc]
+  );
   // Itens marcados: a emissão de OS passa a valer só para eles (sem marcação, vale a EC toda).
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const alternarSelecao = (ids: string[], marcar: boolean) =>

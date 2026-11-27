@@ -17,6 +17,7 @@ import { repo } from "@/data";
 import { toast } from "@/store/toast";
 import { usePendencias, useMinhasPendencias } from "@/store/pendencias";
 import { ancoraObservacoesGeraisEc } from "@/domain/pendencias";
+import { idAncoraPendencia } from "@/lib/destaque";
 import type { Observacao } from "@/data/types";
 
 export function ObservacoesGeraisEc({
@@ -52,6 +53,8 @@ export function ObservacoesGeraisEc({
   return (
     <CardConversa
       ancora={ancoraObservacoesGeraisEc(ecId)}
+      // Sem isto a pílula não tinha elemento para rolar até a observação geral da EC.
+      ancoraDom={idAncoraPendencia(ancoraObservacoesGeraisEc(ecId))}
       observacoes={lista}
       usuarios={usuarios}
       minhas={minhas}

@@ -39,6 +39,7 @@ import {
 } from "@/domain/fornecedoresItem";
 import { grupoVisivel, ocultarTudo, ocultosPorGrupo, reexibirItens, totalOcultos } from "@/domain/ocultosEc";
 import { destacarElemento, seguirElemento, idAncoraPendencia, idCampoDescricaoCompleta, idCampoPendencia, idGrupoEc } from "@/lib/destaque";
+import { aoFocarPendencia } from "@/lib/focoPendencia";
 import { aprovarLinha, faltasParaEmitirOs, reverterAprovacaoLinha, opcaoNaoSeAplica, OPCOES_VALOR_ITEM, bvVazio, bvDaLinha, bvExigeJustificativa, limitarBvPercentual, BV_PADRAO_PERCENTUAL } from "@/domain/calc";
 import { flags } from "@/lib/flags";
 import { brl, cx } from "@/lib/format";
@@ -184,6 +185,18 @@ export function EcGrupos({
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   const isExp = (id: string) => expandido[id] ?? false;
+  // A pílula de pendências aponta um item de grupo recolhido: o grupo abre, senão
+  // a linha não existe na tela e o salto não mostra nada (27/11/2026). Devolve
+  // `false`: quem atende o salto é a conversa do item, que monta ao abrir.
+  useEffect(
+    () =>
+      aoFocarPendencia((alvo) => {
+        const grupo = gruposRef.current.find((g) => g.itens.some((l) => l.id === alvo.ancora));
+        if (grupo) setExpandido((e) => (e[grupo.id] ? e : { ...e, [grupo.id]: true }));
+        return false;
+      }),
+    []
+  );
   const toggle = (id: string) => setExpandido((e) => ({ ...e, [id]: !(e[id] ?? false) }));
   const expandirTodos = (v: boolean) => setExpandido(Object.fromEntries(grupos.map((g) => [g.id, v])));
 
