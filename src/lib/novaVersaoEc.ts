@@ -20,10 +20,34 @@ export async function gerarNovaVersaoEc(ec: Ec, opts: { alteracoesNaoSalvas?: bo
     confirmarTexto: "Gerar nova versão",
   });
   if (!ok) return null;
+  // Versão nova depois de um Fechamento volta a ser numerada (ver `novaVersao`).
   const nova = await repo.ecs.novaVersao(ec.id);
   toast(`Nova versão (${String(nova.versao).padStart(2, "0")}) criada. A anterior foi arquivada.`, "success");
   // A versão nova NÃO vai sozinha para a pasta (06/11/2026): ela nasce para
   // ser editada, e vai para o Dropbox pelo botão "Salvar na pasta". Antes ia na
   // hora, ficava marcada como arquivada, e a primeira edição já virava outra versão.
   return nova;
+}
+
+/**
+ * "GERAR FECHAMENTO" (27/11/2026) — a versão final da EC, a pedido.
+ *
+ * É uma versão nova como qualquer outra (a atual é arquivada, as OS em
+ * andamento vêm junto), só que marcada: no título, "Fechamento" ocupa o lugar
+ * do número. Nasce da EC GRAVADA, para o fechamento ser exatamente o que foi
+ * revisado. Nada impede gerar outra versão depois — ela volta a ser numerada.
+ */
+export async function gerarFechamentoEc(ec: Ec): Promise<Ec | null> {
+  const ok = await confirmar({
+    titulo: "Gerar a versão de Fechamento desta EC?",
+    mensagem:
+      "Use quando a EC estiver revisada e dada como final. É gerada uma nova versão com a palavra “Fechamento” no lugar do número, " +
+      "e a versão atual é arquivada automaticamente. Se a EC precisar mudar depois, basta gerar uma nova versão: ela volta a ser numerada.",
+    confirmarTexto: "Gerar Fechamento",
+  });
+  if (!ok) return null;
+  const nova = await repo.ecs.novaVersao(ec.id);
+  const fechada = await repo.ecs.salvar({ ...nova, fechamento: true });
+  toast("Versão de Fechamento criada. A anterior foi arquivada.", "success");
+  return fechada;
 }

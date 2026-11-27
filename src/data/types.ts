@@ -609,6 +609,15 @@ export interface Ec {
    * migração para guardar o que já cabe onde as outras configurações estão.
    */
   custosInternos?: CustoInterno[];
+  /**
+   * VERSÃO DE FECHAMENTO (27/11/2026). A EC revisada e dada como final: no
+   * título, a palavra "Fechamento" ocupa o lugar do número da versão — "EC – …
+   * (Fechamento) em 27 11 26". Só existe quando alguém pede ("Gerar
+   * Fechamento"); o número continua guardado em `versao`, e uma versão nova
+   * gerada depois volta a ser numerada. Viaja no jsonb `producao`, como os
+   * custos internos: é marca de gestão, não coluna.
+   */
+  fechamento?: boolean;
   /** Rótulo editável de Encargos no resumo/planilha (vazio = usa o padrão). */
   encargosRotulo?: string;
   responsavel: string; // produtora responsável / visto Pólobh

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { comDadosAtuaisDoProjeto } from "@/lib/projetoAoVivo";
-import { gerarNovaVersaoEc } from "@/lib/novaVersaoEc";
+import { gerarFechamentoEc, gerarNovaVersaoEc } from "@/lib/novaVersaoEc";
 import { LegendaProjeto } from "@/components/layout/LegendaProjeto";
 import { PageShell } from "@/components/layout/AppLayout";
 import { BarraProjeto } from "@/components/layout/BarraSecao";
@@ -21,7 +21,7 @@ import {
   useOrdenacao,
   tomStatusOs,
 } from "@/components/ui";
-import { IcBack, IcChevron, IcCopy, IcPencil, IcEye } from "@/components/icons";
+import { IcBack, IcCheck, IcChevron, IcCopy, IcPencil, IcEye } from "@/components/icons";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import type { ItemEmissaoOs } from "@/domain/calc";
@@ -617,6 +617,22 @@ export function EcDetail() {
                 if (nova) navigate(`/estimativas/${nova.id}/editar`);
               }}>
               Gerar Nova Versão EC
+            </Button>
+          )}
+          {/* GERAR FECHAMENTO (27/11/2026): a versão final, com "Fechamento" no
+              lugar do número. Só na EC que está no ar e ainda não é o fechamento. */}
+          {podeEditar && ecEditavel(ec) && !ec.fechamento && (
+            <Button variant="secondary" size="sm" icon={<IcCheck width={16} height={16} />}
+              title="Gera a versão final desta EC, com “Fechamento” no lugar do número da versão"
+              onClick={async () => {
+                try {
+                  const fechada = await gerarFechamentoEc(ec);
+                  if (fechada) navigate(`/estimativas/${fechada.id}`);
+                } catch (e) {
+                  toast(`Não foi possível gerar o Fechamento: ${(e as Error).message}`, "danger");
+                }
+              }}>
+              Gerar Fechamento
             </Button>
           )}
           {/* SALVAR NA PASTA (06/11/2026) — ver `lib/salvarEcNaPasta`. Só

@@ -503,6 +503,7 @@ function mapEc(r: any): Ec {
     encargos: normalizarTaxa(r.producao?.encargos, encargosPadrao()),
     honorariosRotulo: r.producao?.honorariosRotulo || undefined,
     custosInternos: Array.isArray(r.producao?.custosInternos) ? r.producao.custosInternos : [],
+    fechamento: r.producao?.fechamento === true,
     encargosRotulo: r.producao?.encargosRotulo || undefined,
     responsavel: r.responsavel ?? "",
     validadeDias: r.validade_dias ?? 30,
@@ -533,6 +534,8 @@ function ecRow(ec: Ec) {
       encargosRotulo: ec.encargosRotulo ?? "",
       // Custos internos da rentabilidade (15/09/2026) — ver `Ec.custosInternos`.
       custosInternos: ec.custosInternos ?? [],
+      // Versão de fechamento (27/11/2026) — ver `Ec.fechamento`.
+      ...(ec.fechamento ? { fechamento: true } : {}),
     },
     responsavel: padronizarTexto(ec.responsavel, "titulo"),
     validade_dias: ec.validadeDias,
@@ -589,6 +592,15 @@ const SELECT_EC_PAINEL =
  */
 const ecRecemSalva = new Map<string, { ec: Ec; em: number }>();
 
+/**
+ * A cópia do servidor leva o jsonb `producao` inteiro — e com ele a marca de
+ * Fechamento da versão anterior. Versão nova é trabalho reaberto: volta a ser
+ * numerada. Quem quer o fechamento marca depois (ver `gerarFechamentoEc`).
+ */
+async function semFechamentoHerdado(ec: Ec): Promise<Ec> {
+  return ec.fechamento ? ecRepo.salvar({ ...ec, fechamento: false }) : ec;
+}
+
 const ecRepo: EcRepository = {
   async listar() {
     const data = ok(await supabase.from("ecs").select(SELECT_EC).order("criado_em", { ascending: false }));
@@ -644,8 +656,9 @@ const ecRepo: EcRepository = {
     return salvas ?? observacoes;
   },
   async importar(origemId, destino) {
+    // A marca de Fechamento é da versão que a recebeu, não da cópia.
     const novoId = ok(
-      await supabase.rpc("importar_ec", { p_origem: origemId, p_ec: ecRow(destino) })
+      await supabase.rpc("importar_ec", { p_origem: origemId, p_ec: ecRow({ ...destino, fechamento: false }) })
     ) as string;
     const nova = await this.obter(novoId);
     if (!nova) throw new Error("Falha ao reler a EC importada.");
@@ -661,7 +674,7 @@ const ecRepo: EcRepository = {
     const r = ok(await supabase.rpc("nova_versao_ec_com_mapa", { p_ec_id: id })) as { id: string; mapa: Record<string, string> };
     const nova = await this.obter(r.id);
     if (!nova) throw new Error("Falha ao reler a nova versão.");
-    return { ec: nova, mapa: r.mapa ?? {} };
+    return { ec: await semFechamentoHerdado(nova), mapa: r.mapa ?? {} };
   },
   async marcarBaixada(id, impressao) {
     if (!isUuid(id)) return;
@@ -685,7 +698,7 @@ const ecRepo: EcRepository = {
     const novoId = ok(await supabase.rpc("nova_versao_ec", { p_ec_id: id })) as string;
     const nova = await this.obter(novoId);
     if (!nova) throw new Error("Falha ao reler a nova versão.");
-    return nova;
+    return semFechamentoHerdado(nova);
   },
   async definirAtiva(id) {
     const ec = await this.obter(id);

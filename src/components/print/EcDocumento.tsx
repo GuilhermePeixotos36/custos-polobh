@@ -66,7 +66,7 @@ export function EcDocumento({ ec }: { ec: Ec }) {
 
       <div className="grid grid-cols-3 gap-2 text-[11px] text-ink-2 mt-2">
         <div><b className="text-ink">Data:</b> {dataBR(ec.atualizadoEm)}</div>
-        <div><b className="text-ink">Versão:</b> V{String(ec.versao).padStart(2, "0")}</div>
+        <div><b className="text-ink">Versão:</b> {ec.fechamento ? "Fechamento" : `V${String(ec.versao).padStart(2, "0")}`}</div>
         <div className="text-right"><b className="text-ink">Validade:</b> {ec.validadeDias} dias</div>
       </div>
 

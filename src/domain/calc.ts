@@ -209,14 +209,20 @@ export function rotuloNumeroEc(numero: string | null | undefined): string {
 export const rotuloVersao = (versao: number): string => `(${String(versao).padStart(2, "0")})`;
 
 /**
+ * A versão DESTA EC como se lê no título: "(03)" — ou "(Fechamento)" quando ela
+ * é a versão final, marcada a pedido (27/11/2026).
+ */
+export const rotuloVersaoEc = (ec: Pick<Ec, "versao" | "fechamento">): string =>
+  ec.fechamento ? "(Fechamento)" : rotuloVersao(ec.versao);
+
+/**
  * Título automático da EC exibido em destaque no app e base do nome do arquivo
  * Excel — padrão: "EC – {Título do Projeto} ({NN}) em {DD/MM/AA}".
  */
 export function tituloEc(ec: Ec): string {
-  const versao = String(ec.versao).padStart(2, "0");
   const titulo = ec.projeto?.titulo || ec.numero || "EC";
   const data = ec.criadoEm ? dataBRCurta(ec.criadoEm) : "";
-  const base = `EC – ${titulo} (${versao})`;
+  const base = `EC – ${titulo} ${rotuloVersaoEc(ec)}`;
   return data ? `${base} em ${data}` : base;
 }
 
