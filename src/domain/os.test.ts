@@ -11,6 +11,9 @@ import {
   contratoPreenchido,
   mesmoFornecedor,
   exigeNovaVersaoPorFornecedor,
+  historicoDoContrato,
+  idsLinhasDoContrato,
+  idsLinhasPedindoContrato,
 } from "./os";
 import type { Ec, EcLinha, Infraestrutura, Logistica, Os } from "@/data/types";
 
@@ -204,9 +207,9 @@ describe("a OS tem contrato?", () => {
     expect(temContrato(comContrato(), [item("Não se Aplica"), item("Não se Aplica")])).toBe(false);
   });
 
-  it("'Pendente' e 'OK' não pedem emissão — o bloco espera a decisão na EC", () => {
+  it("'Pendente' espera a decisão na EC; 'OK' é contrato já emitido, e a OS segue tendo contrato", () => {
     expect(temContrato(comContrato(), [item("Pendente")])).toBe(false);
-    expect(temContrato(comContrato(), [item("OK")])).toBe(false);
+    expect(temContrato(comContrato(), [item("OK")])).toBe(true);
   });
 
   it("OS sem item vinculado não inventa contrato", () => {
@@ -352,5 +355,37 @@ describe("OS de projeto incentivado", () => {
   });
   it("o que decide é a modalidade do projeto: modelo antigo gravado na OS não muda nada", () => {
     expect(osIncentivada(os("Corporativo", "Cultural"))).toBe(false);
+  });
+});
+
+describe("contrato: coluna da EC e histórico entre versões da OS (27/11/2026)", () => {
+  const contratoVazio = {
+    contratante: "" as const, descritivoServicos: "", informacoesComplementares: "",
+    valorUnitario: 0, valorTotal: 0, descontoNegociado: 0, valorAPagar: 0,
+    dataContrato: "", rubrica: "",
+  };
+  const linhas = [
+    { id: "a", contratoStatus: "Emitir" },
+    { id: "b", contratoStatus: "OK" },
+    { id: "c", contratoStatus: "Pendente" },
+  ] as unknown as EcLinha[];
+  const daOs = { ecLinhaIds: ["a", "b", "c"] };
+
+  it("só os itens que ainda pedem emissão são fechados em OK", () => {
+    expect(idsLinhasPedindoContrato(daOs, linhas)).toEqual(["a"]);
+  });
+
+  it("item com contrato já emitido (OK) continua sendo item de contrato", () => {
+    expect(idsLinhasDoContrato(daOs, linhas)).toEqual(["a", "b"]);
+    expect(temContrato({ contrato: contratoVazio }, [linhas[1]])).toBe(true);
+    expect(temContrato({ contrato: { ...contratoVazio, naoSeAplica: true } }, [linhas[1]])).toBe(false);
+  });
+
+  it("a OS nova herda a versão e o histórico do contrato da que substitui — e nada do preenchimento", () => {
+    const emissoes = [{ versao: 1, emitidoEm: "2026-11-20T10:00:00.000Z", emitidoPor: "Ana", arquivo: "Contrato (01).pdf" }];
+    const anterior = { contrato: { ...contratoVazio, descritivoServicos: "Som", versaoEmitida: 1, impressaoEmitida: "x1", emitidoEm: emissoes[0].emitidoEm, emitidoPor: "Ana", emissoes } };
+    expect(historicoDoContrato(anterior)).toEqual({ versaoEmitida: 1, impressaoEmitida: "x1", emitidoEm: emissoes[0].emitidoEm, emitidoPor: "Ana", emissoes });
+    expect(historicoDoContrato({ contrato: contratoVazio })).toEqual({});
+    expect(historicoDoContrato(undefined)).toEqual({});
   });
 });

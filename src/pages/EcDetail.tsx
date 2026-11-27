@@ -1,3 +1,4 @@
+import { historicoDoContrato } from "@/domain/os";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { comDadosAtuaisDoProjeto } from "@/lib/projetoAoVivo";
@@ -327,7 +328,15 @@ export function EcDetail() {
         // Qual versão desta OS: conta as que já existem para este fornecedor
         // nesta EC, inclusive as que acabaram de ser arquivadas acima.
         const versao = versaoOs(oss ?? [], ec!.id, g.fornecedorCnpj, g.fornecedorRazao);
-        await repo.oss.salvar(montarOsEmissao(ecViva, g.linhas, seq, versao, fornCadastro));
+        // A OS que esta substitui (mesmo fornecedor) passa adiante o histórico do contrato.
+        const digitos = (v: string) => (v || "").replace(/\D/g, "");
+        const substituida = plano.arquivar.find((o) =>
+          digitos(g.fornecedorCnpj)
+            ? digitos(o.fornecedor?.cnpj ?? "") === digitos(g.fornecedorCnpj)
+            : o.ecLinhaIds.some((id) => g.linhas.some((l) => l.id === id))
+        );
+        const nova = montarOsEmissao(ecViva, g.linhas, seq, versao, fornCadastro);
+        await repo.oss.salvar({ ...nova, contrato: { ...nova.contrato, ...historicoDoContrato(substituida) } });
         criadas += 1;
         g.linhas.forEach((l) => idsEmitidos.add(l.id));
       }

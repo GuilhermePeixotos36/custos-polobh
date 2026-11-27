@@ -45,8 +45,8 @@ describe("os itens do contrato", () => {
     { id: "b", contratoStatus: "OK" },
     { id: "c", contratoStatus: "Emitir Nova Versão" },
   ] as never[];
-  it("são os da OS que a EC marcou para contrato", () => {
-    expect(idsLinhasDoContrato({ ecLinhaIds: ["a", "b"] }, linhas)).toEqual(["a"]);
+  it("são os da OS que a EC marcou para contrato — a emitir ou já emitido (OK)", () => {
+    expect(idsLinhasDoContrato({ ecLinhaIds: ["a", "b"] }, linhas)).toEqual(["a", "b"]);
   });
   it("sem nenhum marcado, vale todos os da OS", () => {
     expect(idsLinhasDoContrato({ ecLinhaIds: ["b"] }, linhas)).toEqual(["b"]);

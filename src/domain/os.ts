@@ -166,6 +166,12 @@ export function alternarNaoSeAplica<B extends BlocoOpcional>(bloco: B, campo: Ca
  * pedem emissão na EC.
  */
 const CONTRATO_A_EMITIR: StatusOs[] = ["Emitir", "Emitir Nova Versão"];
+/**
+ * "OK" na coluna Contrato é contrato EMITIDO (27/11/2026): a OS fecha a coluna
+ * quando o PDF vai para a pasta, como já fazia com a coluna OS. O item continua
+ * sendo de contrato — só não está mais pedindo emissão.
+ */
+const COM_CONTRATO: StatusOs[] = [...CONTRATO_A_EMITIR, "OK"];
 
 /**
  * Esta OS tem contrato?
@@ -183,14 +189,38 @@ const CONTRATO_A_EMITIR: StatusOs[] = ["Emitir", "Emitir Nova Versão"];
  */
 /** Os itens DESTA OS que a EC marcou para contrato — se nenhum, todos os da OS (contrato preenchido à mão). */
 export function idsLinhasDoContrato(os: Pick<Os, "ecLinhaIds">, linhas: Pick<EcLinha, "id" | "contratoStatus">[]): string[] {
-  const marcadas = linhas.filter((l) => os.ecLinhaIds.includes(l.id) && CONTRATO_A_EMITIR.includes(l.contratoStatus)).map((l) => l.id);
+  const marcadas = linhas.filter((l) => os.ecLinhaIds.includes(l.id) && COM_CONTRATO.includes(l.contratoStatus)).map((l) => l.id);
   return marcadas.length ? marcadas : os.ecLinhaIds;
+}
+
+/** Os itens desta OS que ainda PEDEM emissão de contrato na EC — os que a emissão fecha em "OK". */
+export function idsLinhasPedindoContrato(os: Pick<Os, "ecLinhaIds">, linhas: Pick<EcLinha, "id" | "contratoStatus">[]): string[] {
+  return linhas.filter((l) => os.ecLinhaIds.includes(l.id) && CONTRATO_A_EMITIR.includes(l.contratoStatus)).map((l) => l.id);
+}
+
+/**
+ * O que a OS NOVA herda do contrato da OS que ela substitui (27/11/2026): a
+ * versão emitida, a impressão do conteúdo e o histórico. Sem isso o contrato da
+ * OS nova recomeçava na (01) — e, com o mesmo nome de arquivo da (01) antiga, o
+ * PDF novo nem era salvo na pasta. O preenchimento do contrato não vem junto:
+ * a OS criada pela EC nasce em branco, como sempre.
+ */
+export function historicoDoContrato(anterior: Pick<Os, "contrato"> | undefined): Partial<Os["contrato"]> {
+  const c = anterior?.contrato;
+  if (!c?.versaoEmitida) return {};
+  return {
+    versaoEmitida: c.versaoEmitida,
+    impressaoEmitida: c.impressaoEmitida,
+    emitidoEm: c.emitidoEm,
+    emitidoPor: c.emitidoPor,
+    ...(c.emissoes?.length ? { emissoes: c.emissoes } : {}),
+  };
 }
 
 export function temContrato(os: Pick<Os, "contrato">, linhas: Pick<EcLinha, "contratoStatus">[]): boolean {
   // Dispensado pela própria OS: não há contrato, mesmo com o bloco já digitado.
   if (os.contrato.naoSeAplica) return false;
-  return linhas.some((l) => CONTRATO_A_EMITIR.includes(l.contratoStatus)) || contratoPreenchido(os.contrato);
+  return linhas.some((l) => COM_CONTRATO.includes(l.contratoStatus)) || contratoPreenchido(os.contrato) || !!os.contrato.versaoEmitida;
 }
 
 /** A EC pede contrato para algum item desta OS? */

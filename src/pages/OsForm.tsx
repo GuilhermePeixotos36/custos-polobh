@@ -94,7 +94,7 @@ import {
 import {
   CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, exigeNovaVersaoPorFornecedor, osIncentivada, incentivoDoContrato,
   incentivoDaNota, incentivoDosDadosGerais, incentivoFaltando,
-  itensDoBloco, temContrato, dispensaDeContratoPendente, comContratoReativadoPelaEc,
+  itensDoBloco, temContrato, dispensaDeContratoPendente, comContratoReativadoPelaEc, idsLinhasPedindoContrato,
 } from "@/domain/os";
 import { aplicarMudancaDeStatus } from "@/domain/statusEc";
 import { auditar } from "@/store/logs";
@@ -945,17 +945,36 @@ export function OsForm() {
         return;
       }
       if (!preparo.jaEmitido) {
+        const agora = new Date().toISOString();
         const salvo = await repo.oss.salvar({
           ...os!,
           contrato: {
             ...os!.contrato,
             versaoEmitida: preparo.versao,
             impressaoEmitida: preparo.impressao,
-            emitidoEm: new Date().toISOString(),
+            emitidoEm: agora,
             emitidoPor: nomeUsuario || "",
+            // O histórico: é por ele que a tela diz qual contrato vale e quais foram substituídos.
+            emissoes: [
+              ...(os!.contrato.emissoes ?? []).filter((x) => x.versao !== preparo.versao),
+              { versao: preparo.versao, emitidoEm: agora, emitidoPor: nomeUsuario || "", arquivo: preparo.nome },
+            ],
           },
         });
         iniciar(ecCtx ? aplicarAutoPreenchimento(salvo, ecCtx) : salvo);
+      }
+      // CONTRATO EMITIDO FECHA A COLUNA "CONTRATO" DA EC (27/11/2026), como a
+      // emissão da OS fecha a coluna OS: os itens que pediam contrato vão a "OK".
+      // "Emitir Nova Versão" na EC reabre o pedido. Falhar aqui não desfaz a
+      // emissão, que já aconteceu.
+      try {
+        const atual = ecCtx ? await repo.ecs.obter(ecCtx.id) : undefined;
+        const pedindo = atual ? idsLinhasPedindoContrato(os!, atual.linhas) : [];
+        if (atual && pedindo.length) {
+          setEcCtx(await repo.ecs.salvar({ ...atual, linhas: aplicarMudancaDeStatus(atual.linhas, pedindo, { contrato: "OK" }) }));
+        }
+      } catch (e) {
+        toast(`O contrato foi emitido, mas a coluna Contrato da EC não foi atualizada: ${(e as Error).message}`, "warning");
       }
       toast(
         preparo.jaEmitido
@@ -1609,6 +1628,28 @@ export function OsForm() {
       destacarElemento(ID_FORMA_PAGAMENTO, "pendencia");
       toast("Antes de emitir, escolha a Forma de Pagamento nos Dados Emissão Faturamento.", "danger");
       return;
+    }
+    // CONTRATO PENDENTE (27/11/2026): OS com contrato não sai sem ele. Vale o
+    // conteúdo de AGORA — contrato emitido e depois alterado (ou herdado de
+    // uma versão anterior da OS) precisa ser emitido de novo antes da OS.
+    if (haContrato) {
+      let emitido = !!os!.contrato.versaoEmitida;
+      if (emitido && !editando) {
+        try {
+          emitido = (await prepararContrato()).jaEmitido;
+        } catch {
+          // Sem conseguir montar o contrato para comparar, vale o que está gravado.
+        }
+      }
+      if (!emitido) {
+        toast(
+          os!.contrato.versaoEmitida
+            ? "O contrato mudou desde a última emissão. Use \"Emitir Contrato PDF\" antes de emitir a OS."
+            : "Esta OS tem contrato e ele ainda não foi emitido. Use \"Emitir Contrato PDF\" antes de emitir a OS.",
+          "danger"
+        );
+        return;
+      }
     }
     // PROJETO INCENTIVADO incompleto nos Dados Gerais (18/11/2026): a OS só lê
     // esses dados de lá, e emitir sem eles mandaria a nota (e o contrato) sem o
@@ -2588,6 +2629,25 @@ export function OsForm() {
             <LinhaOs label="Modelo do Contrato" hint="(da modalidade do projeto, nos Dados Gerais)">
               <Auto v={modeloContrato} />
             </LinhaOs>
+            {/* AS EMISSÕES DO CONTRATO (27/11/2026): qual vale e quais foram
+                substituídas. Os arquivos antigos seguem na pasta do projeto. */}
+            {(os.contrato.emissoes?.length ?? 0) > 0 && (
+              <LinhaOs label="Contratos Emitidos" hint="(arquivos na pasta do projeto)">
+                <ul className="py-1.5 space-y-1 text-[12.5px]">
+                  {[...os.contrato.emissoes!].sort((a, b) => b.versao - a.versao).map((x) => {
+                    const vigente = x.versao === os.contrato.versaoEmitida;
+                    return (
+                      <li key={x.versao} className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                        <Badge tom={vigente ? "success" : "arquivado"}>{vigente ? "Vigente" : "Substituído"}</Badge>
+                        <span className={cx("font-bold", vigente ? "text-ink" : "text-ink-3 line-through")}>Contrato ({numeroDaVersao(x.versao)})</span>
+                        <span className="text-ink-2">{dataBR(x.emitidoEm)}{x.emitidoPor ? ` · ${x.emitidoPor}` : ""}</span>
+                        <span className="basis-full text-[11.5px] text-ink-3 break-all">{x.arquivo}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </LinhaOs>
+            )}
 
             {/* PROJETO INCENTIVADO no próprio contrato (11/11/2026): os mesmos
                 três campos dos Dados Gerais, já preenchidos de lá. É daqui que

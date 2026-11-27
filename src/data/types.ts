@@ -1018,6 +1018,13 @@ export interface ContratoOs {
   emitidoEm?: string;
   emitidoPor?: string;
   /**
+   * O HISTÓRICO DAS EMISSÕES (27/11/2026): uma entrada por versão emitida, com o
+   * nome do arquivo que foi para a pasta do projeto. É o que diz, na tela, qual
+   * contrato vale e quais foram substituídos — os arquivos antigos continuam na
+   * pasta com o nome que tinham.
+   */
+  emissoes?: { versao: number; emitidoEm: string; emitidoPor: string; arquivo: string }[];
+  /**
    * Qual dos dois modelos da casa este contrato usa (16/09/2026).
    *
    * Em branco significa "o que a modalidade do projeto disser" — Cultural para

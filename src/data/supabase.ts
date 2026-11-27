@@ -959,8 +959,16 @@ const osRepo: OsRepository = {
         p_fornecedor: dados.fornecedor ? padronizarFornecedor(dados.fornecedor) : null,
       })
     ) as unknown as string;
-    const salvo = await this.obter(novoId);
+    let salvo = await this.obter(novoId);
     if (!salvo) throw new Error("Falha ao reler a nova versão da OS.");
+    // A REVISÃO DA DIREÇÃO não passa para a versão nova (27/11/2026): a cópia
+    // trazia `validadoEm` junto com o contrato, e a OS cultural reemitida já
+    // nascia "revisada" sem ninguém ter olhado o que mudou.
+    if (salvo.contrato?.validadoEm || salvo.contrato?.validadoPor) {
+      const contrato = { ...salvo.contrato, validadoEm: undefined, validadoPor: undefined };
+      ok(await supabase.from("oss").update({ contrato }).eq("id", novoId));
+      salvo = { ...salvo, contrato };
+    }
     auditar({
       categoria: "OS",
       acao: "os.nova_versao",
