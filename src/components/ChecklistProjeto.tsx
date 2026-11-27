@@ -26,7 +26,7 @@ import { ObservacoesThread } from "@/components/ObservacoesPopup";
 import { MoverSetas } from "@/components/MoverSetas";
 import { NotifDot } from "@/components/NotifDot";
 import { useAnexosChecklist } from "@/hooks/useAnexosChecklist";
-import { idAncoraPendencia } from "@/lib/destaque";
+import { destacarElemento, idAncoraPendencia } from "@/lib/destaque";
 import type { Pendencia } from "@/domain/pendencias";
 import { CabecalhoColuna, FiltroLista, type DirecaoOrdem } from "@/components/FiltroColuna";
 import {
@@ -226,6 +226,8 @@ export function ChecklistProjeto({
   const [prazoEmLote, setPrazoEmLote] = useState("");
   /** Id da última tarefa criada aqui — recebe o foco assim que aparece. */
   const [idRecemCriado, setIdRecemCriado] = useState("");
+  /** O bloco congelado do topo: é abaixo dele que a tarefa recém-criada precisa aparecer. */
+  const topoFixo = useRef<HTMLDivElement>(null);
   /**
    * Tarefas que a pessoa encerrou AGORA, nesta sessão.
    *
@@ -578,7 +580,35 @@ export function ChecklistProjeto({
   const criar = async (base?: { etapa?: string; dataLimite?: string }) => {
     limparFiltros();
     const id = await onCriarItem(base);
-    if (typeof id === "string") setIdRecemCriado(id);
+    if (typeof id !== "string") return;
+    setIdRecemCriado(id);
+    // A TELA VAI ATÉ A TAREFA NOVA (27/11/2026). Ela nasce no fim da etapa, que
+    // numa lista longa fica fora de vista: o botão do topo criava a tarefa e
+    // nada mudava na tela — parecia não ter funcionado. Agora a lista rola até
+    // ela e a linha pisca; o título já está com o cursor para escrever.
+    // A rolagem é feita aqui, e não pelo `destacarElemento`: ele centraliza na
+    // tela, e o centro da tela fica ATRÁS do topo congelado do check-list.
+    let tentativas = 0;
+    const levar = () => {
+      const linha = document.getElementById(idAncoraPendencia(id));
+      if (!linha) {
+        if (tentativas++ < 40) window.setTimeout(levar, 50);
+        return;
+      }
+      const topo = topoFixo.current;
+      const grudado = topo && getComputedStyle(topo).position === "sticky";
+      // Onde a lista começa a aparecer: embaixo do bloco congelado (ou, no celular, da barra do topo).
+      const inicioDaLista = grudado
+        ? (parseFloat(getComputedStyle(topo).top) || 0) + topo.getBoundingClientRect().height
+        : parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--altura-topnav")) || 60;
+      const semAnimar = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      window.scrollTo({
+        top: Math.max(0, linha.getBoundingClientRect().top + window.scrollY - inicioDaLista - 24),
+        behavior: semAnimar ? "auto" : "smooth",
+      });
+      destacarElemento(idAncoraPendencia(id), "novo", { rolar: false });
+    };
+    levar();
   };
 
   return (
@@ -592,7 +622,7 @@ export function ChecklistProjeto({
           COMPACTO (27/11/2026): congelado, cada pixel daqui sai da lista. Os
           respiros encolheram, e cada quadro do resumo traz o número e o nome na
           mesma linha — cabem as mesmas informações em bem menos altura. */}
-      <div className="space-y-2 md:sticky md:top-[calc(var(--altura-topnav)+var(--altura-cabecalho))] md:z-10 md:bg-bg md:pb-2 md:-mt-4 md:pt-3">
+      <div ref={topoFixo} className="space-y-2 md:sticky md:top-[calc(var(--altura-topnav)+var(--altura-cabecalho))] md:z-10 md:bg-bg md:pb-2 md:-mt-4 md:pt-3">
         {topo}
       {/* ----------------------------- resumo ----------------------------- */}
       <Card className="!py-3">
@@ -665,11 +695,10 @@ export function ChecklistProjeto({
       {/* ---------------------------- controles --------------------------- */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
-          {podeEditar && (
-            <Button size="sm" variant="secondary" icon={<IcPlus width={16} height={16} />} onClick={() => void criar()}>
-              Nova tarefa
-            </Button>
-          )}
+          {/* NOVA TAREFA pergunta a ETAPA (27/11/2026): o botão do topo criava a
+              tarefa na etapa do último item da lista, sem dizer qual. Com mais de
+              uma etapa, ele abre a lista delas; com uma só, cria direto. */}
+          {podeEditar && <BotaoNovaTarefa etapas={etapasExistentes} onCriar={(etapa) => void criar(etapa ? { etapa } : undefined)} />}
           {/* CRIAR ETAPA (15/09/2026). A etapa é o nome que as tarefas carregam,
               então criar uma é criar a primeira tarefa dela — e é assim que ela
               nasce com conteúdo em vez de virar um cabeçalho vazio que alguém
@@ -1097,6 +1126,12 @@ function ItemCard({
    * tarefa acabou de ser criada — ela vem sem nome, e o cursor tem de estar lá.
    */
   const [editandoTitulo, setEditandoTitulo] = useState(autoFoco);
+  // A linha da tarefa nova pode ser desenhada ANTES de a lista saber qual é a
+  // recém-criada (a criação é assíncrona): quando o aviso chega, o título abre
+  // para digitar. Sem isto a tarefa nascia fechada, com "Descreva a tarefa" (27/11/2026).
+  useEffect(() => {
+    if (autoFoco) setEditandoTitulo(true);
+  }, [autoFoco]);
   // Reflete alteração vinda de fora (recarga, outra aba) sem atropelar quem digita.
   useEffect(() => {
     if (!editandoTitulo) setTitulo(item.titulo);
@@ -1811,6 +1846,81 @@ function mesmoConjunto<T>(filtro: Set<T> | null, valores: T[]): boolean {
 }
 
 /** Um grupo de quadros do resumo, com o nome e a soma dele em cima. */
+/**
+ * "Nova tarefa" com a escolha da etapa. O menu abre embaixo do botão, fecha no
+ * Esc e no clique fora, e anda pelas setas — a primeira etapa já recebe o foco.
+ */
+function BotaoNovaTarefa({ etapas, onCriar }: { etapas: string[]; onCriar: (etapa?: string) => void }) {
+  const [aberto, setAberto] = useState(false);
+  const raiz = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!aberto) return;
+    const fora = (e: MouseEvent) => {
+      if (raiz.current && !raiz.current.contains(e.target as Node)) setAberto(false);
+    };
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setAberto(false);
+    };
+    document.addEventListener("mousedown", fora);
+    document.addEventListener("keydown", esc);
+    // O foco entra na lista: as setas e o Enter escolhem sem o mouse.
+    raiz.current?.querySelector<HTMLButtonElement>("[role=menuitem]")?.focus();
+    return () => {
+      document.removeEventListener("mousedown", fora);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [aberto]);
+
+  const escolher = (etapa: string) => {
+    setAberto(false);
+    onCriar(etapa);
+  };
+  const andar = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    e.preventDefault();
+    const itens = [...(raiz.current?.querySelectorAll<HTMLButtonElement>("[role=menuitem]") ?? [])];
+    const i = itens.indexOf(document.activeElement as HTMLButtonElement);
+    itens[(i + (e.key === "ArrowDown" ? 1 : -1) + itens.length) % itens.length]?.focus();
+  };
+
+  return (
+    <div ref={raiz} className="relative">
+      <Button
+        size="sm"
+        variant="secondary"
+        icon={<IcPlus width={16} height={16} />}
+        aria-haspopup={etapas.length > 1 ? "menu" : undefined}
+        aria-expanded={etapas.length > 1 ? aberto : undefined}
+        onClick={() => (etapas.length > 1 ? setAberto((a) => !a) : onCriar(etapas[0]))}
+      >
+        Nova tarefa
+      </Button>
+      {aberto && (
+        <div
+          role="menu"
+          aria-label="Em qual etapa criar a tarefa"
+          onKeyDown={andar}
+          className="absolute left-0 top-full z-30 mt-1 max-h-[320px] w-[min(26rem,90vw)] overflow-auto rounded-card border border-border bg-surface py-1 shadow-modal"
+        >
+          <div className="px-3 py-1.5 text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-ink-3">Criar a tarefa em qual etapa?</div>
+          {etapas.map((etapa) => (
+            <button
+              key={etapa}
+              type="button"
+              role="menuitem"
+              onClick={() => escolher(etapa)}
+              className="block w-full truncate px-3 py-2 text-left text-[13px] font-bold text-ink hover:bg-primary-soft focus:bg-primary-soft focus:outline-none"
+              title={etapa}
+            >
+              {etapa}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function GrupoResumo({ titulo, total, className, children }: { titulo: string; total: number; className?: string; children: ReactNode }) {
   return (
     <div className={cx("min-w-0 md:border-l md:border-border-soft md:pl-6", className)}>
