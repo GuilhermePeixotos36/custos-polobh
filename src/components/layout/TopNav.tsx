@@ -17,7 +17,7 @@ const CURVA_MENU = "ease-[cubic-bezier(0.22,1,0.36,1)]";
 /** O botão de uma tela no menu: quadrado em repouso, cresce quando o nome abre. */
 const classeDoItem = (ativo: boolean) =>
   cx(
-    "group flex h-9 shrink-0 items-center rounded-btn px-2.5 text-[13px] font-semibold whitespace-nowrap",
+    "group flex h-10 min-w-10 shrink-0 items-center rounded-btn px-2.5 text-[13px] font-semibold whitespace-nowrap",
     "transition-colors duration-200 outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
     ativo ? "bg-primary-soft text-primary-dark" : "text-ink-2 hover:bg-[#F5F6F8] hover:text-ink"
   );
@@ -39,7 +39,7 @@ function RotuloDoItem({ aberto, children }: { aberto: boolean; children: string 
       <span className="min-w-0 overflow-hidden">
         <span
           className={cx(
-            "block pl-2 transition-[opacity,transform] duration-200 motion-reduce:transition-none",
+            "block pl-2.5 pr-1 transition-[opacity,transform] duration-200 motion-reduce:transition-none",
             CURVA_MENU,
             aberto
               ? "opacity-100 translate-x-0"
@@ -79,7 +79,7 @@ export function TopNav() {
           A abertura é a coluna de uma grade indo de 0fr a 1fr: a largura anima
           até o tamanho exato de cada nome, sem medir nada. O texto entra um
           instante depois, deslizando 4px — é o que dá a sensação de "abrir". */}
-      <nav data-tour="topnav" className="hidden md:flex items-center gap-0.5 overflow-x-auto flex-1 min-w-0">
+      <nav data-tour="topnav" className="hidden md:flex items-center gap-2 overflow-x-auto flex-1 min-w-0 pl-2">
         {itens.map((i) =>
           /* Quem abre painel não navega: a tela de trás continua inteira, que é
              o ponto do Help Desk (ver `NavItem.painel`). */

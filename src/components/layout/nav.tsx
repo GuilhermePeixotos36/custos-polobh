@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { Recurso } from "@/store/auth";
-import { IcActivity, IcCalendar, IcFluxo, IcFolder, IcGear, IcHelp, IcShield, IcSuporte, IcTruck } from "@/components/icons";
+import { MnAcessos, MnCalendario, MnConfiguracoes, MnFluxograma, MnFornecedores, MnGuia, MnLogs, MnProjetos, MnSuporte } from "./iconesMenu";
 
 export interface NavItem {
   to: string;
@@ -49,19 +49,19 @@ export interface NavItem {
  * esta semana" antes de "onde está cada projeto".
  */
 export const NAV: NavItem[] = [
-  { to: "/calendario", label: "Calendário Pólobh", rotuloCurto: "Calendário", icon: <IcCalendar />, recurso: "projetos" },
-  { to: "/projetos", label: "Projetos", icon: <IcFolder />, recurso: "projetos", pendencias: true },
-  // O cadastro de fornecedores ganhou entrada no menu (27/11/2026): antes so se chegava nele por dentro de uma EC.
-  { to: "/fornecedores", label: "Fornecedores", icon: <IcTruck />, recurso: "fornecedores" },
-  // O FLUXOGRAMA fica entre Projetos e Configurações (pedido de 29/09/2026).
-  { to: "/fluxograma", label: "Fluxograma", rotuloCurto: "Fluxo", icon: <IcFluxo />, recurso: "guia" },
+  { to: "/calendario", label: "Calendário Pólobh", rotuloCurto: "Calendário", icon: <MnCalendario />, recurso: "projetos" },
+  { to: "/projetos", label: "Projetos", icon: <MnProjetos />, recurso: "projetos", pendencias: true },
+  // O FLUXOGRAMA vem logo depois de Projetos (pedido de 29/09/2026).
+  { to: "/fluxograma", label: "Fluxograma", rotuloCurto: "Fluxo", icon: <MnFluxograma />, recurso: "guia" },
+  // O cadastro de fornecedores ganhou entrada no menu (27/11/2026): antes só se chegava nele por dentro de uma EC.
+  { to: "/fornecedores", label: "Fornecedores", icon: <MnFornecedores />, recurso: "fornecedores" },
   // A Coordenação não administra empresas e usuários, mas edita a lista padrão do check-list — por isso o `ou`.
-  { to: "/configuracoes", label: "Configurações", rotuloCurto: "Config.", icon: <IcGear />, recurso: "configuracoes", ou: ["checklists.padrao", "contratos.clausulas"] },
+  { to: "/configuracoes", label: "Configurações", rotuloCurto: "Config.", icon: <MnConfiguracoes />, recurso: "configuracoes", ou: ["checklists.padrao", "contratos.clausulas"] },
   // ACESSOS e LOGS no menu (padrão de Acessos e Logs, 26/11/2026): saíram de Configurações.
-  { to: "/acessos", label: "Acessos", icon: <IcShield />, recurso: "acessos.usuarios", ou: ["acessos.grupos"] },
-  { to: "/logs", label: "Logs", icon: <IcActivity />, recurso: "logs" },
-  { to: "/guia", label: "Guia do Aplicativo", rotuloCurto: "Guia", icon: <IcHelp />, recurso: "guia" },
-  { to: "/suporte", label: "Help Desk", rotuloCurto: "Suporte", icon: <IcSuporte />, recurso: "guia", painel: "suporte" },
+  { to: "/acessos", label: "Acessos", icon: <MnAcessos />, recurso: "acessos.usuarios", ou: ["acessos.grupos"] },
+  { to: "/logs", label: "Logs", icon: <MnLogs />, recurso: "logs" },
+  { to: "/guia", label: "Guia do Aplicativo", rotuloCurto: "Guia", icon: <MnGuia />, recurso: "guia" },
+  { to: "/suporte", label: "Help Desk", rotuloCurto: "Suporte", icon: <MnSuporte />, recurso: "guia", painel: "suporte" },
 ];
 
 /* ------------------------- os segundos cabeçalhos ------------------------- */
