@@ -1007,8 +1007,6 @@ export function OsForm() {
     });
   }
 
-  const finDessincronizado = verFinanceiro && os.financeiro.valorTotal !== os.orcamento.valorComBvNf;
-  const ctDessincronizado = verFinanceiro && os.contrato.valorTotal !== os.financeiro.valorTotal;
 
   // BV Pólobh — quem negocia com o fornecedor é a Produção, então o bloco precisa
   // continuar acessível a todos os perfis (o salvamento exige a justificativa).
@@ -1021,6 +1019,30 @@ export function OsForm() {
 
   /** A conta do acerto — tudo calculado, menos o percentual de encargos. */
   const acerto = calcularAcerto(os.financeiro, os.orcamento, bvContratado.valor, valorDaContratacao(os.itens ?? []));
+
+  /*
+   * OS AVISOS DE "VALOR DIFERENTE", revistos em 27/11/2026.
+   *
+   * Eles comparavam com o "Orçamento" do antigo Resumo dos Custos (a coluna
+   * "com BV e NF", mesmo quando o item foi fechado de outra forma) e com o total
+   * do faturamento — e acusavam diferença justamente no caso que os Acertos
+   * Financeiros já explicam: a nota maior que o serviço (o acréscimo).
+   *
+   * Agora a referência é o VALOR CONTRATADO (a forma adotada em cada item), e
+   * diferença explicada pelo acerto não é aviso:
+   *   · faturamento ACIMA do contratado é acréscimo — aparece nos Acertos;
+   *   · só o faturamento ABAIXO do contratado é avisado (nota menor que o serviço);
+   *   · o contrato confere quando bate com o faturamento OU com o valor da NF
+   *     dos Acertos (que pode ter sido ajustado lá).
+   */
+  const centavos = (n: number) => Math.round((n || 0) * 100);
+  const valorContratadoRef = valorDaContratacao(os.itens ?? []) || os.orcamento.valorComBvNf || 0;
+  const acrescimoNoFaturamento = verFinanceiro && valorContratadoRef > 0 && centavos(os.financeiro.valorTotal) > centavos(valorContratadoRef);
+  const finDessincronizado = verFinanceiro && valorContratadoRef > 0 && centavos(os.financeiro.valorTotal) < centavos(valorContratadoRef);
+  const ctDessincronizado =
+    verFinanceiro &&
+    centavos(os.contrato.valorTotal) !== centavos(os.financeiro.valorTotal) &&
+    centavos(os.contrato.valorTotal) !== centavos(acerto.valorNf);
 
   const updF = (patch: Partial<Fornecedor>) =>
     setOs((o) => (o ? { ...o, fornecedor: comPerfilPeloDocumento({ ...o.fornecedor, ...patch }) } : o));
@@ -2915,19 +2937,28 @@ export function OsForm() {
                 onValor={(cnae) => updFin({ cnae })}
               />
             </LinhaOs>
-            <LinhaOs label="Valor total" hint={finDessincronizado ? undefined : "(espelha o valor negociado no Orçamento)"}>
+            <LinhaOs
+              label="Valor total"
+              hint={
+                finDessincronizado
+                  ? undefined
+                  : acrescimoNoFaturamento
+                    ? `(${brl(os.financeiro.valorTotal - valorContratadoRef)} acima do contratado — é o acréscimo dos Acertos Financeiros)`
+                    : "(espelha o valor contratado)"
+              }
+            >
               <CurrencyInput value={os.financeiro.valorTotal} onValue={setValorTotalFinanceiro} />
               {finDessincronizado && (
                 <div className="mt-1.5 flex items-center gap-2 flex-wrap text-[12px] text-warning">
                   <span className="font-semibold">
-                    Diferente do Orçamento ({brl(os.orcamento.valorComBvNf)}).
+                    Menor que o valor contratado ({brl(valorContratadoRef)}).
                   </span>
                   <button
                     type="button"
-                    onClick={() => setValorTotalFinanceiro(os.orcamento.valorComBvNf)}
+                    onClick={() => setValorTotalFinanceiro(valorContratadoRef)}
                     className="font-bold text-primary-dark hover:underline"
                   >
-                    Usar o valor do Orçamento
+                    Usar o valor contratado
                   </button>
                 </div>
               )}
