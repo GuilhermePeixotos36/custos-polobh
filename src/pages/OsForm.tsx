@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { EnderecoCampos } from "@/components/EnderecoCampos";
 import { comDadosAtuaisDoProjeto, osComDadosAtuais } from "@/lib/projetoAoVivo";
@@ -2790,9 +2790,9 @@ export function OsForm() {
             <LinhaOs label="Data do Contrato"><Input type="date" value={os.contrato.dataContrato} onChange={(e) => updCt({ dataContrato: e.target.value })} /></LinhaOs>
             {/* Sem o texto de ajuda "Iniciais de quem responde pelo contrato" (11/11/2026). */}
             {/* RUBRICA em lista suspensa (27/11/2026), como as outras do formulário:
-                as rubricas já usadas pela casa, em ordem numérica/alfabética, com
-                a saída para digitar uma nova. Antes era campo de texto com
-                sugestões soltas, na ordem em que apareciam nas OS. */}
+                as rubricas já usadas pela casa, em ordem numérica/alfabética. O
+                campo é de texto — digita-se a rubrica nova direto, sem escolher
+                "outra" antes — e a lista filtra pelo que foi escrito. */}
             <LinhaOs label="Rubrica">
               <ListaComDigitacao
                 valor={os.contrato.rubrica}
@@ -3899,13 +3899,18 @@ function ItemContratacao({
 
 
 /**
- * Lista suspensa ORDENADA com a saída para digitar um valor novo — a mesma
- * caixa de escolha dos outros campos do formulário (27/11/2026).
+ * CAIXA COMBINADA (27/11/2026): um campo em que se DIGITA direto e que também
+ * abre a lista das opções — as já usadas pela casa, em ordem de leitura.
  *
- * A ordem é a de leitura: número na frente ordena por grandeza ("9 - …" antes de
- * "52 - …" antes de "100 - …"), e o resto por ordem alfabética, sem olhar
- * acento ou caixa. O valor gravado que não está na lista entra nela, para o
- * campo nunca aparecer vazio por cima de um dado que existe.
+ * A primeira versão era uma lista fechada com "Outra (digitar)…" no fim: para
+ * escrever uma rubrica nova era preciso escolher essa opção antes. Agora o
+ * campo é sempre de texto; a lista é ajuda, não porta de entrada:
+ *   · digitar filtra as opções que contêm o que foi escrito;
+ *   · a seta do campo (ou seta para baixo no teclado) abre a lista inteira;
+ *   · setas andam, Enter escolhe, Esc fecha; clicar fora também.
+ *
+ * A ordem: número na frente ordena por grandeza ("9 - …" antes de "52 - …"), e
+ * o resto por ordem alfabética, sem olhar acento ou caixa.
  */
 function ListaComDigitacao({
   valor,
@@ -3920,44 +3925,136 @@ function ListaComDigitacao({
   rotulo: string;
   placeholder?: string;
 }) {
-  const [digitando, setDigitando] = useState(false);
-  const OUTRO = "__outro__";
-  const lista = useMemo(() => {
-    const limpas = [...new Set([...opcoes, valor].map((o) => (o ?? "").trim()).filter(Boolean))];
-    return limpas.sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true, sensitivity: "base" }));
-  }, [opcoes, valor]);
+  const [aberta, setAberta] = useState(false);
+  /** Só filtra depois de a pessoa digitar: abrir pela seta mostra a lista inteira. */
+  const [filtrando, setFiltrando] = useState(false);
+  const [ativa, setAtiva] = useState(-1);
+  const raiz = useRef<HTMLDivElement>(null);
+  const idLista = useId();
 
-  // Sem nenhuma opção ainda, ou a pedido: campo de texto.
-  if (!lista.length || digitando) {
-    return (
-      <>
-        <Input value={valor} onChange={(e) => onValor(e.target.value)} placeholder={placeholder} aria-label={rotulo} autoFocus={digitando} />
-        {opcoes.length > 0 && (
-          <button type="button" onClick={() => setDigitando(false)} className="mt-1.5 text-[12px] font-bold text-primary-dark hover:underline">
-            Voltar à lista
-          </button>
-        )}
-      </>
-    );
-  }
+  const ordenadas = useMemo(() => {
+    const limpas = [...new Set(opcoes.map((o) => (o ?? "").trim()).filter(Boolean))];
+    return limpas.sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true, sensitivity: "base" }));
+  }, [opcoes]);
+  const semAcento = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLocaleLowerCase("pt-BR");
+  const visiveis = useMemo(() => {
+    const termo = semAcento(valor.trim());
+    return filtrando && termo ? ordenadas.filter((o) => semAcento(o).includes(termo)) : ordenadas;
+    // `semAcento` é pura; não entra nas dependências.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ordenadas, valor, filtrando]);
+
+  useEffect(() => {
+    if (!aberta) return;
+    const fora = (e: MouseEvent) => {
+      if (raiz.current && !raiz.current.contains(e.target as Node)) setAberta(false);
+    };
+    document.addEventListener("mousedown", fora);
+    return () => document.removeEventListener("mousedown", fora);
+  }, [aberta]);
+  // A opção destacada acompanha a rolagem da lista.
+  useEffect(() => {
+    if (aberta && ativa >= 0) raiz.current?.querySelector(`[data-indice="${ativa}"]`)?.scrollIntoView({ block: "nearest" });
+  }, [aberta, ativa]);
+
+  const abrir = (comFiltro: boolean) => {
+    setFiltrando(comFiltro);
+    setAtiva(comFiltro ? -1 : Math.max(ordenadas.indexOf(valor.trim()), -1));
+    setAberta(true);
+  };
+  const escolher = (opcao: string) => {
+    onValor(opcao);
+    setAberta(false);
+  };
+
   return (
-    <Select
-      value={valor}
-      aria-label={rotulo}
-      onChange={(e) => {
-        if (e.target.value === OUTRO) {
-          setDigitando(true);
-          return;
-        }
-        onValor(e.target.value);
+    <div
+      ref={raiz}
+      className="relative"
+      // Saiu do campo pelo Tab: a lista fecha.
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setAberta(false);
       }}
     >
-      <option value="">Selecione…</option>
-      {lista.map((o) => (
-        <option key={o} value={o}>{o}</option>
-      ))}
-      <option value={OUTRO}>Outra (digitar)…</option>
-    </Select>
+      <Input
+        className="!pr-9"
+        value={valor}
+        placeholder={placeholder}
+        role="combobox"
+        aria-label={rotulo}
+        aria-expanded={aberta}
+        aria-controls={idLista}
+        aria-autocomplete="list"
+        autoComplete="off"
+        onChange={(e) => {
+          onValor(e.target.value);
+          abrir(true);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+            e.preventDefault();
+            if (!aberta) return abrir(false);
+            if (!visiveis.length) return;
+            const passo = e.key === "ArrowDown" ? 1 : -1;
+            setAtiva((i) => (i + passo + visiveis.length) % visiveis.length);
+          } else if (e.key === "Enter" && aberta && ativa >= 0 && visiveis[ativa]) {
+            e.preventDefault();
+            escolher(visiveis[ativa]);
+          } else if (e.key === "Escape" && aberta) {
+            e.preventDefault();
+            setAberta(false);
+          }
+        }}
+      />
+      <button
+        type="button"
+        tabIndex={-1}
+        aria-label={`Abrir a lista: ${rotulo}`}
+        onClick={() => (aberta ? setAberta(false) : abrir(false))}
+        className="absolute inset-y-0 right-0 flex w-9 items-center justify-center text-ink-3 hover:text-ink"
+      >
+        <IcSetaLista aberta={aberta} />
+      </button>
+      {aberta && visiveis.length > 0 && (
+        <ul
+          id={idLista}
+          role="listbox"
+          aria-label={rotulo}
+          className="absolute left-0 right-0 top-full z-30 mt-1 max-h-64 overflow-auto rounded-card border border-border bg-surface py-1 shadow-modal"
+        >
+          {visiveis.map((o, i) => (
+            <li
+              key={o}
+              role="option"
+              aria-selected={o === valor.trim()}
+              data-indice={i}
+              // mousedown, e não click: o campo não perde o foco antes da escolha.
+              onMouseDown={(e) => {
+                e.preventDefault();
+                escolher(o);
+              }}
+              onMouseEnter={() => setAtiva(i)}
+              className={cx(
+                "cursor-pointer px-3 py-2 text-[13px]",
+                i === ativa ? "bg-primary-soft text-ink" : "text-ink",
+                o === valor.trim() && "font-bold"
+              )}
+            >
+              {o}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** A seta da caixa combinada — a mesma das listas do formulário. */
+function IcSetaLista({ aberta }: { aberta: boolean }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden className={cx("transition-transform", aberta && "rotate-180")}>
+      <path d="M6 9l6 6 6-6" />
+    </svg>
   );
 }
 
