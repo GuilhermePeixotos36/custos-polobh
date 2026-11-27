@@ -6,6 +6,7 @@ import type { OsDocumentoModelo } from "@/domain/osDocumento";
 
 const modelo = (descritivo: string): OsDocumentoModelo => ({
   assinaturaFornecedor: "Som Teste Ltda",
+  id: "0036",
   blocos: [
     { t: "lv", label: "OS", valor: "BM – Convenção de Vendas 2027 – Sonorização – Som Teste – (Som Teste Ltda) – OS (01) em 27 11 26" },
     { t: "lv", label: "Status", valor: "Emitida" },

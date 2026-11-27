@@ -54,6 +54,12 @@ export interface OsDocumentoModelo {
   blocos: BlocoOs[];
   /** Quem assina do lado do fornecedor. */
   assinaturaFornecedor: string;
+  /**
+   * O ID da OS ("0036"), ou vazio enquanto ela não tem um (27/11/2026). Sai
+   * discreto no cabeçalho do documento e no rodapé de cada página: o nome da OS
+   * é longo e parecido entre versões; o número é o que separa uma da outra.
+   */
+  id: string;
 }
 
 const txt = (v: string | number | null | undefined): string => (v === null || v === undefined ? "" : String(v));
@@ -237,5 +243,6 @@ export function montarOsDocumento(
     lv("Observações", os.financeiro.acertoFinanceiro);
   }
 
-  return { blocos, assinaturaFornecedor: f.razaoSocial || "Fornecedor" };
+  const id = typeof os.codigo === "number" && os.codigo > 0 ? String(os.codigo).padStart(4, "0") : "";
+  return { blocos, assinaturaFornecedor: f.razaoSocial || "Fornecedor", id };
 }

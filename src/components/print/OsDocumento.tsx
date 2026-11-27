@@ -111,6 +111,8 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
         <img src="/polobh-logo.png" alt="Pólobh" className="h-9 w-auto object-contain" />
         <div className="text-right">
           <div className="font-display font-extrabold text-[16px] tracking-tight leading-tight">Ordem de Serviço</div>
+          {/* O ID, discreto: é por ele que se separa uma OS da outra (27/11/2026). */}
+          {doc.id && <div className="mt-0.5 text-[10.5px] font-semibold tracking-[0.08em] text-ink-3 tabular-nums">ID {doc.id}</div>}
         </div>
       </div>
 

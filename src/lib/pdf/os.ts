@@ -115,7 +115,7 @@ class Folha {
     this.pagina.drawLine({ start: { x: x1, y }, end: { x: x2, y }, color: cor, thickness: espessura });
   }
 
-  cabecalho(logo: PDFImage | null) {
+  cabecalho(logo: PDFImage | null, id: string) {
     const alto = 26;
     if (logo) {
       const w = (logo.width / logo.height) * alto;
@@ -123,7 +123,12 @@ class Folha {
     }
     const titulo = "Ordem de Serviço";
     const tam = 13;
-    this.texto(titulo, PAGINA.w - MARGEM.dir - this.negrito.widthOfTextAtSize(titulo, tam), this.y - alto + 8, { fonte: this.negrito, tam });
+    // Com ID, o título sobe um pouco e o número vai embaixo dele, pequeno e cinza.
+    this.texto(titulo, PAGINA.w - MARGEM.dir - this.negrito.widthOfTextAtSize(titulo, tam), this.y - alto + (id ? 13 : 8), { fonte: this.negrito, tam });
+    if (id) {
+      const rotulo = `ID ${id}`;
+      this.texto(rotulo, PAGINA.w - MARGEM.dir - this.normal.widthOfTextAtSize(rotulo, 8), this.y - alto + 3, { tam: 8, cor: FRACO });
+    }
     this.y -= alto + 8;
     this.traco(MARGEM.esq, PAGINA.w - MARGEM.dir, this.y, LARANJA, 1.6);
     this.y -= 2;
@@ -255,10 +260,11 @@ class Folha {
     escreve(`${fornecedor} — Data: ____ ____ ______`, MARGEM.esq + meio + 16);
   }
 
-  rodapes() {
+  rodapes(id: string) {
     const total = this.paginas.length;
     this.paginas.forEach((p, i) => {
-      const t = `pág ${i + 1} de ${total}`;
+      // O ID acompanha todas as páginas: folha solta de uma OS de três páginas ainda diz de qual é.
+      const t = `${id ? `OS ${id}  ·  ` : ""}pág ${i + 1} de ${total}`;
       p.drawText(t, { x: PAGINA.w - MARGEM.dir - this.normal.widthOfTextAtSize(t, 8), y: 24, size: 8, font: this.normal, color: FRACO });
     });
   }
@@ -283,7 +289,7 @@ export async function gerarOsPdf(modelo: OsDocumentoModelo, titulo: string): Pro
   doc.setAuthor("Pólobh");
   doc.setCreator("Sistema Pólobh");
   const folha = new Folha(doc, await doc.embedFont(StandardFonts.Helvetica), await doc.embedFont(StandardFonts.HelveticaBold));
-  folha.cabecalho(await buscarLogo(doc));
+  folha.cabecalho(await buscarLogo(doc), modelo.id);
   for (const b of modelo.blocos) {
     if (b.t === "secao") folha.secao(b.titulo);
     else if (b.t === "lv") folha.lv(b.label, b.valor);
@@ -292,6 +298,6 @@ export async function gerarOsPdf(modelo: OsDocumentoModelo, titulo: string): Pro
     else folha.destaque(b.titulo, b.texto);
   }
   folha.assinaturas(modelo.assinaturaFornecedor);
-  folha.rodapes();
+  folha.rodapes(modelo.id);
   return doc.save();
 }

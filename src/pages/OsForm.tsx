@@ -1754,7 +1754,18 @@ export function OsForm() {
       // Serviço" —, gastando uma linha do cabeçalho grudado para repetir. Que
       // documento é este, a barra do projeto já diz: a aba OS está acesa.
       title={os.numero}
-      titleAdornment={<Badge tom={tomStatusOs[os.status]}>{os.status}</Badge>}
+      titleAdornment={
+        <>
+          <Badge tom={tomStatusOs[os.status]}>{os.status}</Badge>
+          {/* O ID da OS, discreto ao lado do status (27/11/2026): o nome é longo e
+              parecido entre versões; o número é o que separa uma da outra. */}
+          {typeof os.codigo === "number" && os.codigo > 0 && (
+            <span className="text-[12px] font-bold tracking-[0.06em] text-ink-3 tabular-nums" title="ID da OS">
+              ID {String(os.codigo).padStart(4, "0")}
+            </span>
+          )}
+        </>
+      }
       legenda={<LegendaProjeto info={os.projeto ?? ecCtx.projeto} projetoId={ecCtx.projetoId} />}
       // O segundo cabeçalho do projeto: a OS é uma página interna dele, e sem
       // esta barra quem entrava aqui perdia toda a referência de onde estava.
