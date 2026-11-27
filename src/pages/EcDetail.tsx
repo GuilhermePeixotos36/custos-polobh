@@ -21,6 +21,7 @@ import {
   ThOrd,
   useOrdenacao,
   tomStatusOs,
+  GRUDE_CABECALHO,
 } from "@/components/ui";
 import { IcBack, IcCheck, IcChevron, IcCopy, IcPencil, IcEye } from "@/components/icons";
 import { repo } from "@/data";
@@ -550,13 +551,13 @@ export function EcDetail() {
   const totaisCard = t ? (
     <Card padded={false}>
       <div className="p-5 pb-3"><CardTitle>Resumo dos Custos</CardTitle></div>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto md:overflow-visible">
         <table className="w-full text-sm border-t border-border">
           <thead>
             <tr className="text-left bg-[#FAFAFB] border-b border-border">
-              <th className="px-4 py-2 text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Descrição</th>
-              <th className="px-4 py-2 text-right text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Pólobh</th>
-              <th className="px-4 py-2 text-right text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Cliente</th>
+              <th className={cx("px-4 py-2 bg-[#FAFAFB] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3", GRUDE_CABECALHO)}>Descrição</th>
+              <th className={cx("px-4 py-2 bg-[#FAFAFB] text-right text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3", GRUDE_CABECALHO)}>Pólobh</th>
+              <th className={cx("px-4 py-2 bg-[#FAFAFB] text-right text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3", GRUDE_CABECALHO)}>Cliente</th>
             </tr>
           </thead>
           <tbody>

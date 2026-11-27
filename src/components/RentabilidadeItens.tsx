@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { brl, pct, cx } from "@/lib/format";
-import { Button, Input, CurrencyInput } from "@/components/ui";
+import { Button, Input, CurrencyInput, GRUDE_CABECALHO } from "@/components/ui";
 import { IcDownload, IcEye, IcPlus } from "@/components/icons";
 import { calcularRentabilidade, type CustoInterno, type LinhaRentabilidade } from "@/domain/rentabilidade";
 import type { Ec } from "@/data/types";
@@ -78,15 +78,15 @@ export function RentabilidadeItens({
         )}
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto md:overflow-visible">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left border-y border-border bg-[#FAFAFB]">
-              <th className="px-3 py-2 text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Item</th>
-              <th className="px-3 py-2 text-right text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Valor na EC</th>
-              <th className="px-3 py-2 text-right text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Valor Líquido OS</th>
-              <th className="px-3 py-2 text-right text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Rentabilidade</th>
-              <th className="px-3 py-2 text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Justificativa Rentabilidade</th>
+              <th className={cx("px-3 py-2 bg-[#FAFAFB] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3", GRUDE_CABECALHO)}>Item</th>
+              <th className={cx("px-3 py-2 bg-[#FAFAFB] text-right text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3", GRUDE_CABECALHO)}>Valor na EC</th>
+              <th className={cx("px-3 py-2 bg-[#FAFAFB] text-right text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3", GRUDE_CABECALHO)}>Valor Líquido OS</th>
+              <th className={cx("px-3 py-2 bg-[#FAFAFB] text-right text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3", GRUDE_CABECALHO)}>Rentabilidade</th>
+              <th className={cx("px-3 py-2 bg-[#FAFAFB] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3", GRUDE_CABECALHO)}>Justificativa Rentabilidade</th>
             </tr>
           </thead>
           <tbody>

@@ -63,6 +63,17 @@ export function TopoFixoDaLista({ children, className }: { children: ReactNode; 
   );
 }
 
+/**
+ * O GRUDE DO CABEÇALHO, para as tabelas e grades escritas à mão (27/11/2026) —
+ * o Resumo dos Custos da EC, a Rentabilidade, o cronograma dentro da OS. É a
+ * mesma regra do `Th`: gruda logo abaixo do cabeçalho da página, da tela média
+ * para cima. Quem usa precisa dar FUNDO à própria célula (o fundo da linha não
+ * acompanha a célula grudada) e não pode estar dentro de um contêiner com
+ * rolagem própria (`overflow-x-auto` sem `md:overflow-visible`).
+ */
+export const GRUDE_CABECALHO =
+  "md:sticky md:top-[calc(var(--altura-topnav)+var(--altura-cabecalho)+var(--altura-topo-lista,0px))] md:z-10 md:shadow-[inset_0_-1px_0_var(--border)]";
+
 export function THead({ children }: { children: ReactNode }) {
   return (
     <thead>

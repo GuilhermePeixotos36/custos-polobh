@@ -26,6 +26,7 @@ import {
   StepperTitle,
   StepperDescription,
   StepperSeparator,
+  GRUDE_CABECALHO,
 } from "@/components/ui";
 import { IcBack, IcCheck, IcCopy, IcDoc, IcDownload, IcEye, IcPencil, IcSearch, IcSend, IcSpark, IcCadeado } from "@/components/icons";
 import { CardConversa } from "@/components/CardConversa";
@@ -2242,7 +2243,7 @@ export function OsForm() {
             ) : (
             <div className="py-1.5 overflow-x-auto md:overflow-visible">
               {/* Duas colunas vazias na frente: a alça de arraste e as setas. */}
-              <div className={cx(GRADE_CRONOGRAMA, "mb-2 text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3 px-1")}>
+              <div className={cx(GRADE_CRONOGRAMA, "mb-2 bg-surface py-1.5 text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3 px-1", GRUDE_CABECALHO)}>
                 <span /><span />
                 <span>Data</span><span>Horário</span><span>Etapa</span><span>Descritivo da contratação</span><span />
               </div>
@@ -3203,7 +3204,7 @@ function CardOs({
   const fase = useContext(FaseDaOsCtx);
   const destaque = area && fase && vezDoBloco(area, fase).vez ? DESTAQUE_AREA[area] : null;
   return (
-    <div className={cx("bg-surface border border-border rounded-card shadow-card overflow-hidden [&_input:not([type=checkbox]):not([type=radio])]:!h-8 [&_select]:!h-8 [&_input]:!py-0 [&_select]:!py-0", className, destaque?.borda)}>
+    <div className={cx("bg-surface border border-border rounded-card shadow-card overflow-clip [&_input:not([type=checkbox]):not([type=radio])]:!h-8 [&_select]:!h-8 [&_input]:!py-0 [&_select]:!py-0", className, destaque?.borda)}>
       <div className={cx(destaque ? destaque.faixa : "bg-[#C0C0C0]", "px-4 py-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1")}>
         {/* NÃO é um <button> (28/10/2026): os blocos de outra área ficam dentro
             de um `fieldset disabled` (leitura), que desliga todo botão lá
@@ -3733,13 +3734,13 @@ function TabelaResumoCustos({ resumo }: { resumo: ResumoContratacao }) {
     v === null ? <i className="text-ink-3 font-normal">Não se aplica</i> : brl(v);
 
   return (
-    <div className="py-1.5 overflow-x-auto">
+    <div className="py-1.5 overflow-x-auto md:overflow-visible">
       <table className="w-full text-[12.5px] border-collapse">
         <thead>
           <tr className="text-[10.5px] font-extrabold uppercase tracking-[0.05em] text-ink-3">
-            <th className="text-left font-extrabold pb-1.5 pr-2">Item</th>
+            <th className={cx("text-left font-extrabold bg-surface pt-1.5 pb-1.5 pr-2", GRUDE_CABECALHO)}>Item</th>
             {colunas.map((c) => (
-              <th key={c.chave} className="text-right font-extrabold pb-1.5 px-2 whitespace-nowrap">{c.curto}</th>
+              <th key={c.chave} className={cx("text-right font-extrabold bg-surface pt-1.5 pb-1.5 px-2 whitespace-nowrap", GRUDE_CABECALHO)}>{c.curto}</th>
             ))}
           </tr>
         </thead>

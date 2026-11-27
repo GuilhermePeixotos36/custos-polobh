@@ -17,6 +17,7 @@ import {
   CurrencyInput,
   Select,
   CarregandoTela,
+  GRUDE_CABECALHO,
 } from "@/components/ui";
 import { IcCopy, IcEye, IcSearch, IcBack } from "@/components/icons";
 import { repo } from "@/data";
@@ -949,13 +950,13 @@ function ResumoCustos({
     "font-semibold text-ink bg-transparent outline-none border-b border-dashed border-transparent hover:border-border focus:border-primary-dark min-w-0 flex-1 mr-2";
   const subTotalCliente = Math.round((t.somaCliente + t.honorariosCliente) * 100) / 100;
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto md:overflow-visible">
       <table className="w-full text-sm border-t border-border">
         <thead>
           <tr className="text-left bg-[#FAFAFB] border-b border-border">
-            <th className="px-4 py-2 text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Descrição</th>
-            <th className="px-4 py-2 text-right text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Pólobh</th>
-            <th className="px-4 py-2 text-right text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3">Cliente</th>
+            <th className={cx("px-4 py-2 bg-[#FAFAFB] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3", GRUDE_CABECALHO)}>Descrição</th>
+            <th className={cx("px-4 py-2 bg-[#FAFAFB] text-right text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3", GRUDE_CABECALHO)}>Pólobh</th>
+            <th className={cx("px-4 py-2 bg-[#FAFAFB] text-right text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-ink-3", GRUDE_CABECALHO)}>Cliente</th>
           </tr>
         </thead>
         <tbody>
