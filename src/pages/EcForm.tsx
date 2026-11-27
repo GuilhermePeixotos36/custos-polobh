@@ -34,6 +34,8 @@ import {
   rotuloTaxa,
   ROTULO_HONORARIOS_PADRAO,
   ROTULO_ENCARGOS_PADRAO,
+  versaoOs,
+  numeroOs,
 } from "@/domain/calc";
 import { motivoBloqueioEc, situacaoEc, ROTULO_SITUACAO_EC, TOM_SITUACAO_EC } from "@/domain/ec";
 import { projetoInfoVazio } from "@/domain/projeto";
@@ -57,7 +59,10 @@ import { NavegadorPendencias } from "@/components/NavegadorPendencias";
 import { ObservacoesGeraisEc } from "@/components/ObservacoesGeraisEc";
 import { pendenciasDaTela } from "@/domain/pendencias";
 import { comPerfilPeloDocumento, contatoDeTexto, mesclarContatos, semVazios } from "@/domain/fornecedor";
-import { useMinhasPendencias } from "@/store/pendencias";
+import { useMinhasPendencias, usePendencias } from "@/store/pendencias";
+import { planoOsAoSalvarEc } from "@/domain/osAoSalvarEc";
+import { comDadosAtuaisDoProjeto } from "@/lib/projetoAoVivo";
+import { confirmar } from "@/store/confirm";
 import { useSugestoes } from "@/hooks/useSugestoes";
 import { EcSubGuias, type SubGuiaEc } from "@/components/EcSubGuias";
 import { flags } from "@/lib/flags";
@@ -74,6 +79,7 @@ import type {
   ModalidadeProjeto,
   ProjetoInfo,
   TaxaConfig,
+  Os,
 } from "@/data/types";
 import type { EcTotais } from "@/domain/calc";
 
@@ -461,6 +467,60 @@ export function EcForm() {
    * Ao concluir, o botão mostra "Salvo" por um instante e a pessoa vai para a
    * visualização da EC (a não ser que `navegar` seja false).
    */
+  /**
+   * Leva às OS o que a gravação da EC decidiu (ver `planoOsAoSalvarEc`).
+   *
+   * A EC já está salva quando isto roda. As OS são relidas — a foto que a tela
+   * tinha é de quando a EC abriu —, e uma falha aqui não desfaz a EC: avisa
+   * qual OS ficou para trás, para a pessoa resolver nela.
+   */
+  async function aplicarPlanoNasOs(salvo: Ec, plano: { arquivar: Os[]; novaVersao: Os[] }) {
+    if (!plano.arquivar.length && !plano.novaVersao.length) return;
+    const existentes = new Set(salvo.linhas.map((l) => l.id));
+    const atuais = await repo.oss.porEc(salvo.id);
+    const falhas: string[] = [];
+    let arquivadas = 0;
+    let novas = 0;
+    for (const alvo of plano.arquivar) {
+      const o = atuais.find((x) => x.id === alvo.id);
+      if (!o || o.status === "Arquivada") continue;
+      try {
+        await repo.oss.salvar({ ...o, ecLinhaIds: o.ecLinhaIds.filter((id) => existentes.has(id)), status: "Arquivada" });
+        arquivadas += 1;
+      } catch (e) {
+        falhas.push(`${o.numero}: ${(e as Error).message}`);
+      }
+    }
+    if (plano.novaVersao.length) {
+      const viva = await comDadosAtuaisDoProjeto(salvo);
+      for (const alvo of plano.novaVersao) {
+        const o = atuais.find((x) => x.id === alvo.id);
+        if (!o || o.status === "Arquivada") continue;
+        try {
+          const ids = o.ecLinhaIds.filter((id) => existentes.has(id));
+          const versao = versaoOs(atuais, salvo.id, o.fornecedor.cnpj, o.fornecedor.razaoSocial);
+          const numeroNovo = numeroOs(viva, o.fornecedor, versao, undefined, ids);
+          const nova = await repo.oss.gerarNovaVersao(o, { numero: numeroNovo, projeto: viva.projeto, cliente: viva.cliente });
+          atuais.push(nova); // a próxima do mesmo fornecedor conta esta
+          novas += 1;
+        } catch (e) {
+          falhas.push(`${o.numero}: ${(e as Error).message}`);
+        }
+      }
+    }
+    if (arquivadas || novas) {
+      const partes = [
+        arquivadas ? `${arquivadas} OS ${arquivadas === 1 ? "arquivada" : "arquivadas"}` : "",
+        novas ? `${novas} ${novas === 1 ? "nova versão de OS criada, ativa" : "novas versões de OS criadas, ativas"}, para revisar e emitir` : "",
+      ].filter(Boolean);
+      toast(`${partes.join(" e ")}.`, "success");
+      usePendencias.getState().carregar(true);
+    }
+    if (falhas.length) {
+      toast(`A EC foi salva, mas não foi possível concluir nas OS: ${falhas.join("; ")}. Resolva na tela da OS.`, "danger");
+    }
+  }
+
   async function salvar(opcoes: { navegar?: boolean } = {}): Promise<Ec | null> {
     const navegar = opcoes.navegar ?? true;
     // O endereço do cliente, quando há, tem de estar completo (Marisa, 13/11/2026).
@@ -475,6 +535,29 @@ export function EcForm() {
     }
     const gravada = baseline ? (JSON.parse(baseline) as Ec) : null;
     const pendentes = pendentesDeRevisao(camposDaEc(ec!.linhas), camposDaEc(gravada?.linhas ?? []), jaRevisados);
+    /*
+     * AS OS QUE ESTA GRAVAÇÃO ALCANÇA (27/11/2026) — ver `domain/osAoSalvarEc`.
+     * O que vem de EXCLUSÃO de item já foi dito e aceito na hora de excluir. O
+     * que vem de ALTERAÇÃO em item de OS já emitida é perguntado aqui: a OS
+     * emitida é o documento que saiu, e só uma nova versão leva a mudança.
+     */
+    const planoOs = planoOsAoSalvarEc(gravada, ec!, ossData ?? []);
+    let reemitirEditadas = false;
+    if (planoOs.novaVersaoPorEdicao.length) {
+      const lista = planoOs.novaVersaoPorEdicao
+        .map(({ os, itens }) => `• “${os.numero}” — ${itens.join(", ")}`)
+        .join("\n");
+      const n = planoOs.novaVersaoPorEdicao.length;
+      reemitirEditadas = await confirmar({
+        titulo: n === 1 ? "A alteração alcança uma OS já emitida" : `A alteração alcança ${n} OS já emitidas`,
+        mensagem:
+          `${lista}\n\nGerar nova versão ${n === 1 ? "dessa OS" : "dessas OS"}? A emitida vai para o arquivo e a nova nasce ATIVA, ` +
+          "com todo o preenchimento preservado e os dados novos da EC, para revisar e emitir de novo. " +
+          "Sem isso, a OS emitida continua como saiu, diferente da EC.",
+        confirmarTexto: n === 1 ? "Salvar e gerar nova versão da OS" : "Salvar e gerar novas versões",
+        cancelarTexto: "Só salvar a EC",
+      });
+    }
     setSalvando(true);
     try {
       const linhas = pendentes.length ? aplicarNaEc(ec!.linhas, somenteMaiusculas(pendentes)) : ec!.linhas;
@@ -482,6 +565,11 @@ export function EcForm() {
       const salvo = await repo.ecs.salvar({
         ...alvo,
         responsavel: alvo.responsavel || alvo.projeto.produtoraResponsavel,
+      });
+      // A EC primeiro, as OS depois: se a EC não gravar, nenhuma OS é tocada.
+      await aplicarPlanoNasOs(salvo, {
+        arquivar: planoOs.arquivar,
+        novaVersao: [...planoOs.novaVersaoPorExclusao, ...(reemitirEditadas ? planoOs.novaVersaoPorEdicao.map((x) => x.os) : [])],
       });
       // Versão que já está na pasta e acabou de mudar: o aviso diz o que vai
       // acontecer, para ninguém achar que a pasta foi atualizada.
@@ -732,6 +820,7 @@ export function EcForm() {
               pendenciasPorLinha={pendenciasPorLinha}
               onValidarFornecedor={validarFornecedor}
               modalidade={modalidadeAtual}
+              oss={ossData ?? undefined}
             />
           </div>
         </Card>

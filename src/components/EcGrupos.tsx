@@ -40,10 +40,11 @@ import {
 import { grupoVisivel, ocultarTudo, ocultosPorGrupo, reexibirItens, totalOcultos } from "@/domain/ocultosEc";
 import { destacarElemento, seguirElemento, idAncoraPendencia, idCampoDescricaoCompleta, idCampoPendencia, idGrupoEc } from "@/lib/destaque";
 import { aoFocarPendencia } from "@/lib/focoPendencia";
+import { destinoDaOsAoExcluir, fraseDoDestino, ossVivasDoItem } from "@/domain/osAoSalvarEc";
 import { aprovarLinha, faltasParaEmitirOs, reverterAprovacaoLinha, opcaoNaoSeAplica, OPCOES_VALOR_ITEM, bvVazio, bvDaLinha, bvExigeJustificativa, limitarBvPercentual, BV_PADRAO_PERCENTUAL } from "@/domain/calc";
 import { flags } from "@/lib/flags";
 import { brl, cx } from "@/lib/format";
-import type { BvItem, EcLinha, Fornecedor, ModalidadeProjeto, Observacao, OpcaoValorDefinida, StatusAprovacao, StatusOs } from "@/data/types";
+import type { BvItem, EcLinha, Fornecedor, ModalidadeProjeto, Observacao, OpcaoValorDefinida, Os, StatusAprovacao, StatusOs } from "@/data/types";
 import type { Sugestoes } from "@/domain/sugestoes";
 
 /** Opções de status de OS e de Contrato — a mesma lista nos dois campos. */
@@ -138,6 +139,8 @@ function nomeGrupoUnico(base: string, grupos: Grupo[]): string {
 const containerDoItem = (grupos: Grupo[], itemId: string) =>
   grupos.find((g) => g.itens.some((i) => i.id === itemId))?.nome;
 
+const SEM_OSS: Os[] = [];
+
 interface Props {
   linhas: EcLinha[];
   onChange: (linhas: EcLinha[]) => void;
@@ -155,11 +158,17 @@ interface Props {
   onValidarFornecedor: (cnpj: string) => Promise<string | null>;
   /** Modalidade ATUAL do projeto: define o modelo oferecido em "Adicionar grupo / item". */
   modalidade?: ModalidadeProjeto;
+  /**
+   * As OS desta EC (27/11/2026). É por elas — e não mais pelo status do item —
+   * que a EC sabe se pode excluir: item de OS arquivada sai sem pergunta, e
+   * item de OS viva sai dizendo o que acontece com a OS (ver `osAoSalvarEc`).
+   */
+  oss?: Os[];
 }
 
 export function EcGrupos({
   linhas, onChange, verFinanceiro, fornecedores, usuarios, sugestoes,
-  pendenciasPorLinha = {}, onValidarFornecedor, modalidade = "",
+  pendenciasPorLinha = {}, onValidarFornecedor, modalidade = "", oss = SEM_OSS,
 }: Props) {
   const [grupos, setGrupos] = useState<Grupo[]>(() => agruparVinculados(agrupar(linhas)));
   const [expandido, setExpandido] = useState<Record<string, boolean>>({});
@@ -268,11 +277,10 @@ export function EcGrupos({
       const principal = todasLinhas().find((l) => l.id === principalId);
       const vinc = todasLinhas().find((l) => l.id === id);
       if (!principal || !vinc) return;
-      const impede = motivoQueImpedeExcluir(vinc);
-      if (impede) return toast(impede, "warning");
+      const comOs = consequenciasParaAsOs([vinc]);
       const ok = await confirmar({
-        titulo: "Tirar este fornecedor do item?",
-        mensagem: `${vinc.fornecedorRazao || "O fornecedor sem nome"} sai do item${vinc.valorPolobh ? ` e os ${brl(vinc.valorPolobh)} voltam para o item principal` : ""}. Vale ao salvar a EC.`,
+        titulo: comOs.length ? "Tirar este fornecedor do item e mexer na OS dele?" : "Tirar este fornecedor do item?",
+        mensagem: `${vinc.fornecedorRazao || "O fornecedor sem nome"} sai do item${vinc.valorPolobh ? ` e os ${brl(vinc.valorPolobh)} voltam para o item principal` : ""}.${comOs.length ? `\n\n${comOs.join("\n")}\n\n` : " "}Vale ao salvar a EC.`,
         confirmarTexto: "Tirar fornecedor",
         tom: "danger",
       });
@@ -341,17 +349,15 @@ export function EcGrupos({
     if (!alvo) return;
     // Fornecedores vinculados saem junto com o item principal.
     const juntos = alvo.divisao ? grupos.flatMap((g) => g.itens).filter((i) => i.id !== id && i.divisao === alvo.divisao) : [];
-    const impede = [alvo, ...juntos].map(motivoQueImpedeExcluir).find(Boolean) ?? null;
-    if (impede) {
-      toast(impede, "warning");
-      return;
-    }
+    const comOs = consequenciasParaAsOs([alvo, ...juntos]);
     const grupo = grupos.find((g) => g.itens.some((i) => i.id === id))!;
     const ultimo = grupo.itens.length === 1;
     const ok = await confirmar({
-      titulo: "Excluir este item?",
-      mensagem: `“${alvo.item || "Item sem nome"}” será removido da EC${ultimo ? ", e o grupo " + grupo.nome + " também, por ficar sem itens" : ""}. A exclusão vale ao salvar a EC.`,
-      confirmarTexto: "Excluir item",
+      titulo: comOs.length ? "Excluir este item e mexer na OS dele?" : "Excluir este item?",
+      mensagem:
+        `“${alvo.item || "Item sem nome"}” será removido da EC${ultimo ? ", e o grupo " + grupo.nome + " também, por ficar sem itens" : ""}.` +
+        (comOs.length ? `\n\n${comOs.join("\n")}\n\nTudo isso acontece ao salvar a EC.` : " A exclusão vale ao salvar a EC."),
+      confirmarTexto: comOs.length ? "Excluir item e seguir com a OS" : "Excluir item",
       tom: "danger",
     });
     if (!ok) return;
@@ -365,16 +371,14 @@ export function EcGrupos({
   const excluirGrupo = async (grupoId: string) => {
     const grupo = grupos.find((g) => g.id === grupoId);
     if (!grupo) return;
-    const impede = grupo.itens.map(motivoQueImpedeExcluir).find(Boolean);
-    if (impede) {
-      toast(impede, "warning");
-      return;
-    }
+    const comOs = consequenciasParaAsOs(grupo.itens);
     const n = grupo.itens.length;
     const ok = await confirmar({
-      titulo: "Excluir este grupo?",
-      mensagem: `O grupo ${grupo.nome} e ${n === 1 ? "o seu 1 item" : `os seus ${n} itens`} serão removidos da EC. A exclusão vale ao salvar a EC.`,
-      confirmarTexto: "Excluir grupo",
+      titulo: comOs.length ? "Excluir este grupo e mexer nas OS dele?" : "Excluir este grupo?",
+      mensagem:
+        `O grupo ${grupo.nome} e ${n === 1 ? "o seu 1 item" : `os seus ${n} itens`} serão removidos da EC.` +
+        (comOs.length ? `\n\n${comOs.join("\n")}\n\nTudo isso acontece ao salvar a EC.` : " A exclusão vale ao salvar a EC."),
+      confirmarTexto: comOs.length ? "Excluir grupo e seguir com as OS" : "Excluir grupo",
       tom: "danger",
     });
     if (!ok) return;
@@ -562,12 +566,30 @@ export function EcGrupos({
   const todosPendentesMarcados =
     pendentesAprovacao.length > 0 && pendentesAprovacao.every((l) => selecionados.has(l.id)) && totalSelecionados === pendentesAprovacao.length;
 
-  /** Item com OS emitida (ou a reemitir) não se apaga nem se oculta: a OS perderia o vínculo. */
-  const itemTemOs = (l: EcLinha) => l.statusOs === "OK" || l.statusOs === "Emitir Nova Versão";
-  const motivoQueImpedeExcluir = (l: EcLinha): string | null =>
-    itemTemOs(l) ? `O item “${l.item || "sem nome"}” já tem OS (${l.statusOs}). Resolva a OS antes de excluí-lo.` : null;
-  const motivoQueImpedeOcultar = (l: EcLinha): string | null =>
-    itemTemOs(l) ? `O item “${l.item || "sem nome"}” já tem OS (${l.statusOs}) e não pode ser ocultado.` : null;
+  /**
+   * Item com OS VIVA (ativa ou emitida) não se oculta: a OS continuaria valendo
+   * para um item que sumiu da EC. Quem decide é a OS de verdade, e não o status
+   * do item (27/11/2026) — item cuja OS foi arquivada está livre.
+   */
+  const itemTemOs = (l: EcLinha) => ossVivasDoItem(l.id, oss).length > 0;
+  const motivoQueImpedeOcultar = (l: EcLinha): string | null => {
+    const viva = ossVivasDoItem(l.id, oss)[0];
+    return viva ? `O item “${l.item || "sem nome"}” está na OS “${viva.numero}” (${viva.status}) e não pode ser ocultado.` : null;
+  };
+  /**
+   * EXCLUIR ITEM COM OS (27/11/2026). Não trava mais: a confirmação diz o que
+   * acontece com cada OS viva que cobre os itens que estão saindo — arquivada,
+   * nova versão sem o item, ou só perde o item — e isso é feito quando a EC for
+   * salva (ver `planoOsAoSalvarEc`). Devolve as frases, uma por OS.
+   */
+  const consequenciasParaAsOs = (saindo: EcLinha[]): string[] => {
+    const removidos = new Set(saindo.map((l) => l.id));
+    const existentes = new Set(grupos.flatMap((g) => g.itens).map((l) => l.id).filter((id) => !removidos.has(id)));
+    return oss.flatMap((o) => {
+      const destino = destinoDaOsAoExcluir(o, removidos, existentes);
+      return destino ? [fraseDoDestino(o, destino)] : [];
+    });
+  };
 
   /** Oculta um item: ele some da tela (volta pelo popup "Ocultos"). */
   const setOcultoItem = (id: string, oculto: boolean) => {
