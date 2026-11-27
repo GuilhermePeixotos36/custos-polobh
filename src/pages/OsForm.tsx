@@ -3193,7 +3193,12 @@ function ValorDoAcerto({
 }) {
   const gravar = (valor: number | undefined) => {
     const dig = { ...(financeiro.acertoDigitado ?? {}) };
-    if (valor === undefined) delete dig[campo];
+    // SÓ FICA GRAVADO O QUE DIFERE DO CÁLCULO (27/11/2026). O campo avisa o valor
+    // também ao SAIR dele, mesmo sem ninguém digitar: passar pelo campo (com o
+    // Tab ou um clique) gravava o número daquele momento como "digitado", e a
+    // linha deixava de acompanhar a conta — mudava a nota e o acréscimo, os
+    // encargos e a devolução ficavam parados no valor antigo.
+    if (valor === undefined || Math.round(valor * 100) === Math.round(acerto.automatico[campo] * 100)) delete dig[campo];
     else dig[campo] = valor;
     // O campo antigo do valor original (17/11/2026) passa a morar aqui.
     onFin(campo === "valorOriginal" ? { acertoDigitado: dig, valorOriginalServicos: undefined } : { acertoDigitado: dig });
