@@ -729,7 +729,7 @@ export function OsForm() {
   /** OS cultural: o contrato é preenchido pela Produção e validado pela Direção de Produção. */
   const contratoCultural = osIncentivada(os);
   /** Esta OS passa pela Direção de Produção (ou já está com ela). */
-  const validaContrato = comValidacaoDeContrato(contratoCultural, haContrato) || fase === "direcao";
+  const validaContrato = comValidacaoDeContrato(contratoCultural) || fase === "direcao";
   /**
    * Quem mexe nos Dados para Contrato agora. Na cultural: a Produção enquanto
    * monta, a Direção de Produção enquanto valida (e o Back-office, que corrige
@@ -1413,9 +1413,9 @@ export function OsForm() {
   }
 
   /**
-   * O botão da Produção. Na OS cultural com contrato, a OS vai primeiro para a
-   * Direção de Produção validar os Dados para Contrato (11/11/2026); nas
-   * outras, direto para o Financeiro, como sempre.
+   * O botão da Produção. Na OS cultural — com ou sem contrato —, a OS vai
+   * primeiro para a Direção de Produção revisar (11/11/2026, estendido em
+   * 27/11/2026); na corporativa, direto para o Financeiro, como sempre.
    */
   async function enviarDaProducao() {
     if (validaContrato) {
@@ -1509,14 +1509,15 @@ export function OsForm() {
       toast(`Antes de emitir, preencha nos Dados Gerais do projeto: ${faltaIncentivo.join(", ")}.`, "danger");
       return;
     }
-    // OS cultural com contrato que não passou pela Direção de Produção (as que já
-    // estavam no Financeiro antes de 11/11/2026, por exemplo): emitir pede
-    // confirmação, e o caminho certo é devolver para a validação.
-    if (contratoCultural && haContrato && !os!.contrato.validadoEm) {
+    // OS cultural que não passou pela Direção de Produção (as que já estavam no
+    // Financeiro antes de a etapa valer para elas, por exemplo): emitir pede
+    // confirmação, e o caminho certo é devolver para a revisão. Com ou sem
+    // contrato (27/11/2026).
+    if (contratoCultural && !os!.contrato.validadoEm) {
       if (!(await confirmar({
         titulo: "Esta OS não passou pela revisão da Direção de Produção",
         mensagem:
-          "Esta OS é cultural e tem contrato, mas não passou pela revisão da Direção de Produção. O caminho certo é \"Devolver à etapa anterior\" até ela. Emitir assim mesmo?",
+          "Esta OS é cultural e não passou pela revisão da Direção de Produção. O caminho certo é \"Devolver à etapa anterior\" até ela. Emitir assim mesmo?",
         confirmarTexto: "Emitir sem revisão",
       }))) return;
     }
@@ -2859,7 +2860,7 @@ export function OsForm() {
         {/* OS BOTÕES QUE PASSAM O BASTÃO, no FIM do formulário (12/11/2026). A
             Produção preenche a OS inteira — inclusive os blocos do Financeiro,
             para quem os vê —, então o comando fica depois do último bloco. O
-            caminho não mudou: na OS cultural com contrato vai para a Direção de
+            caminho não mudou: na OS cultural vai para a Direção de
             Produção; nas demais, direto para a Coordenação Administrativo-
             Financeira. Fora dos fieldsets, que travam tudo em leitura. */}
         {podeEditar && fase === "producao" && os.id && !encerradaDoc && (

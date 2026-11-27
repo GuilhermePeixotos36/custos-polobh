@@ -79,10 +79,9 @@ describe("destaque dos blocos da vez", () => {
 describe("Direção de Produção valida o contrato da OS cultural (11/11/2026)", async () => {
   const { comValidacaoDeContrato, fasesDoCaminho, RECURSO_DA_FASE } = await import("./faseOs");
 
-  it("só a OS cultural COM contrato passa pela Direção", () => {
-    expect(comValidacaoDeContrato(true, true)).toBe(true);
-    expect(comValidacaoDeContrato(true, false)).toBe(false);
-    expect(comValidacaoDeContrato(false, true)).toBe(false);
+  it("toda OS cultural passa pela Direção, com ou sem contrato; a corporativa não", () => {
+    expect(comValidacaoDeContrato(true)).toBe(true);
+    expect(comValidacaoDeContrato(false)).toBe(false);
   });
 
   it("o caminho com validação ganha a etapa entre Produção e Financeiro", () => {

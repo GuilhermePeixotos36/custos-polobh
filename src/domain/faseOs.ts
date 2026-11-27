@@ -24,14 +24,15 @@ import type { Os } from "@/data/types";
 import type { Recurso } from "@/store/auth";
 
 /**
- * DIREÇÃO DE PRODUÇÃO (11/11/2026). Na OS CULTURAL com contrato, os Dados para
- * Contrato são preenchidos pela Produção e VALIDADOS pela Direção de Produção
- * antes de a OS seguir para o Financeiro:
+ * DIREÇÃO DE PRODUÇÃO (11/11/2026). A OS CULTURAL é montada pela Produção e
+ * REVISADA pela Direção de Produção antes de seguir para o Financeiro:
  *
- *   Produção monta → Direção de Produção valida o contrato → Financeiro → Back-office
+ *   Produção monta → Direção de Produção revisa → Financeiro → Back-office
  *
- * Nas outras OSs (corporativa, ou cultural sem contrato) essa etapa não existe
- * e o caminho segue o de sempre — ver `comValidacaoDeContrato`.
+ * Vale para TODA OS cultural, com ou sem contrato (27/11/2026): a Direção
+ * revisa a OS inteira, não só os Dados para Contrato. Até então a cultural sem
+ * contrato pulava a etapa — e dispensar o contrato pela OS tirava a Direção do
+ * caminho. Na corporativa a etapa não existe — ver `comValidacaoDeContrato`.
  */
 export type FaseOs = "producao" | "direcao" | "financeiro" | "backoffice" | "emitida";
 
@@ -90,10 +91,10 @@ export const editaFinanceiro = (os: Pick<Os, "fase" | "status">): boolean => {
 export const osEmitida = (os: Pick<Os, "fase" | "status">): boolean => faseDaOs(os) === "emitida";
 
 /**
- * A OS passa pela Direção de Produção? Só a CULTURAL que tem contrato: é o
- * contrato do projeto incentivado que a Direção valida.
+ * A OS passa pela Direção de Produção? Toda OS CULTURAL, tenha contrato ou não
+ * (27/11/2026). O nome ficou do tempo em que só o contrato era validado.
  */
-export const comValidacaoDeContrato = (cultural: boolean, temContrato: boolean): boolean => cultural && temContrato;
+export const comValidacaoDeContrato = (cultural: boolean): boolean => cultural;
 
 /** As fases do caminho DESTA OS — sem a da Direção quando ela não valida. */
 export const fasesDoCaminho = (comValidacao: boolean): FaseOs[] =>
