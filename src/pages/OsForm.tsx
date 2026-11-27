@@ -63,6 +63,7 @@ import { calcularAcerto, type CampoAcerto } from "@/domain/acertoFinanceiro";
 import { clausulasPadrao, modeloDaOs, type ChaveClausula, type ClausulasDaCasa, type ModeloContrato } from "@/domain/contratoModelo";
 import { ContratoPreview } from "@/components/ContratoPreview";
 import { entregarOsPdf } from "@/lib/osPdf";
+import { useAbreNoTab } from "@/hooks/useNavegacaoPorTeclado";
 import { DOCUMENTOS_DO_FATURAMENTO, MEIOS_PAGAMENTO, meioDePagamento, prazoDePagamento, type MeioPagamento } from "@/domain/pagamentoOs";
 import { quantidadeDoContrato } from "@/domain/contratoDocumento";
 import { blobDoPdf, clausulasDaCasa, emitirContratoPdf, prepararContratoPdf, type PreparoContrato } from "@/lib/contratoPdf";
@@ -3333,10 +3334,12 @@ function CardOs({
 }) {
   // A OS abre só com os títulos dos blocos (28/10/2026); a seta abre cada um.
   const { recolhida, alternar } = useSecaoRecolhivel(idSecao(secao), { fechadoDeInicio: true });
+  // PELO TAB (27/11/2026): chegar ao título do bloco abre o bloco; sair dele o recolhe de novo.
+  const { aoFocarCabecalho, aoSairDoBloco } = useAbreNoTab(!recolhida, alternar);
   const fase = useContext(FaseDaOsCtx);
   const destaque = area && fase && vezDoBloco(area, fase).vez ? DESTAQUE_AREA[area] : null;
   return (
-    <div className={cx("bg-surface border border-border rounded-card shadow-card overflow-clip [&_input:not([type=checkbox]):not([type=radio])]:!h-8 [&_select]:!h-8 [&_input]:!py-0 [&_select]:!py-0", className, destaque?.borda)}>
+    <div onBlur={aoSairDoBloco} className={cx("bg-surface border border-border rounded-card shadow-card overflow-clip [&_input:not([type=checkbox]):not([type=radio])]:!h-8 [&_select]:!h-8 [&_input]:!py-0 [&_select]:!py-0", className, destaque?.borda)}>
       <div className={cx(destaque ? destaque.faixa : "bg-[#C0C0C0]", "px-4 py-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1")}>
         {/* NÃO é um <button> (28/10/2026): os blocos de outra área ficam dentro
             de um `fieldset disabled` (leitura), que desliga todo botão lá
@@ -3346,6 +3349,7 @@ function CardOs({
           role="button"
           tabIndex={0}
           onClick={alternar}
+          onFocus={aoFocarCabecalho}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
               e.preventDefault();

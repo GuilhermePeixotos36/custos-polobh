@@ -18,6 +18,7 @@ import { PainelSuporte } from "@/components/suporte/PainelSuporte";
 import { ConviteAvisos } from "@/components/ConviteAvisos";
 import { cx } from "@/lib/format";
 import { useVersaoDoApp } from "@/hooks/useVersaoDoApp";
+import { useNavegacaoPorTeclado } from "@/hooks/useNavegacaoPorTeclado";
 
 /** Casca autenticada: sidebar + área de conteúdo. */
 export function AppLayout() {
@@ -28,6 +29,8 @@ export function AppLayout() {
   const carregarEmpresas = useEmpresas((s) => s.carregar);
   const { pathname } = useLocation();
   const versaoNova = useVersaoDoApp();
+  // Preencher pelo teclado: Tab seleciona o valor, seta para baixo abre a lista (ver o hook).
+  useNavegacaoPorTeclado();
 
   // Mantém as pendências (badges) atualizadas ao navegar entre telas.
   useEffect(() => {

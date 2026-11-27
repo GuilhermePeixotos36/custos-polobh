@@ -1,3 +1,4 @@
+import { useAbreNoTab } from "@/hooks/useNavegacaoPorTeclado";
 import { useEffect, useRef, useState } from "react";
 import {
   DndContext,
@@ -972,6 +973,8 @@ function GrupoCard({
 }: GrupoProps) {
   const sortable = useSortable({ id: GID(g.id) });
   const droppable = useDroppable({ id: CID(g.id) });
+  // PELO TAB (27/11/2026): chegar à seta do grupo abre o grupo; sair dele o recolhe de novo.
+  const { aoFocarCabecalho, aoSairDoBloco } = useAbreNoTab(aberto, onToggle);
   const setRefs = (node: HTMLElement | null) => {
     sortable.setNodeRef(node);
     droppable.setNodeRef(node);
@@ -995,6 +998,7 @@ function GrupoCard({
       ref={setRefs}
       style={style}
       id={idGrupoEc(g.id)}
+      onBlur={aoSairDoBloco}
       className={cx(
         "rounded-card border bg-white",
         sortable.isDragging ? "opacity-40" : "border-border",
@@ -1030,7 +1034,7 @@ function GrupoCard({
           onSubir={() => onMoverGrupo(-1)}
           onDescer={() => onMoverGrupo(1)}
         />
-        <button onClick={onToggle} className="shrink-0 text-ink-2 hover:text-ink" title={aberto ? "Retrair" : "Expandir"}>
+        <button onClick={onToggle} onFocus={aoFocarCabecalho} className="shrink-0 text-ink-2 hover:text-ink" title={aberto ? "Retrair" : "Expandir"}>
           <IcChevron width={20} height={20} className={cx("transition-transform duration-200", aberto && "rotate-90")} />
         </button>
         <Input
