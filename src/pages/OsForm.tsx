@@ -3096,6 +3096,8 @@ export function OsForm() {
       {previaContrato && (
         <ContratoPreview
           url={previaContrato.url}
+          bytes={previaContrato.preparo.bytes}
+          nomeArquivo={previaContrato.preparo.nome}
           titulo={previaContrato.preparo.contrato.tituloDocumento}
           versao={previaContrato.preparo.versao}
           jaEmitido={previaContrato.preparo.jaEmitido}
