@@ -63,7 +63,7 @@ import { calcularAcerto, type CampoAcerto } from "@/domain/acertoFinanceiro";
 import { clausulasPadrao, modeloDoContrato, type ChaveClausula, type ClausulasDaCasa, type ModeloContrato } from "@/domain/contratoModelo";
 import { ContratoPreview } from "@/components/ContratoPreview";
 import { entregarOsPdf } from "@/lib/osPdf";
-import { DOCUMENTOS_DO_FATURAMENTO, MEIOS_PAGAMENTO, meioDePagamento, type MeioPagamento } from "@/domain/pagamentoOs";
+import { DOCUMENTOS_DO_FATURAMENTO, MEIOS_PAGAMENTO, meioDePagamento, prazoDePagamento, type MeioPagamento } from "@/domain/pagamentoOs";
 import { quantidadeDoContrato } from "@/domain/contratoDocumento";
 import { blobDoPdf, clausulasDaCasa, emitirContratoPdf, prepararContratoPdf, type PreparoContrato } from "@/lib/contratoPdf";
 import { dadosDoTomador, opcoesDeTomador, RETENCOES_PADRAO, TOMADOR_OUTRO } from "@/domain/tomadorOs";
@@ -2614,7 +2614,12 @@ export function OsForm() {
             </LinhaOs>
             <LinhaOs label="Desconto Especial Negociado"><NumberInput value={os.contrato.descontoNegociado} onValue={(v) => updCt({ descontoNegociado: v, valorAPagar: os.contrato.valorTotal - v })} /></LinhaOs>
             <LinhaOs label="Valor Total a Pagar"><Auto v={brl(os.contrato.valorAPagar)} /></LinhaOs>
-            <LinhaOs label="Forma de Pagamento">
+            {/* A forma de pagamento do contrato é a do faturamento (27/11/2026); com
+                ela escolhida, este texto vira o PRAZO da cláusula. */}
+            {os.financeiro.meioPagamento && (
+              <LinhaOs label="Forma de Pagamento" hint="(a escolhida nos Dados Emissão Faturamento)"><Auto v={os.financeiro.meioPagamento} /></LinhaOs>
+            )}
+            <LinhaOs label={os.financeiro.meioPagamento ? "Prazo de Pagamento" : "Forma de Pagamento"} hint={os.financeiro.meioPagamento ? "(cláusula do contrato)" : undefined}>
               <Input value={os.contrato.formaPagamento ?? ""} sugestoes={sugestoes.valores.formaPagamento} onChange={(e) => updCt({ formaPagamento: e.target.value })} placeholder={FORMA_PAGAMENTO_PADRAO} />
             </LinhaOs>
             <LinhaOs label="Observações Gerais">
@@ -2833,10 +2838,9 @@ export function OsForm() {
             )}
             <LinhaOs label="Prazo de Pagamento" hint="(campo aberto)">
               <Input
-                value={os.financeiro.prazoPagamento ?? os.financeiro.formaPagamento ?? ""}
-                sugestoes={sugestoes.valores.formaPagamento}
+                value={os.financeiro.prazoPagamento ?? prazoDePagamento(os)}
                 onChange={(e) => updFin({ prazoPagamento: e.target.value })}
-                placeholder={FORMA_PAGAMENTO_PADRAO}
+                placeholder="Ex.: 30 dias após a emissão da nota"
               />
             </LinhaOs>
 

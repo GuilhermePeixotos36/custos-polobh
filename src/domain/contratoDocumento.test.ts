@@ -266,6 +266,17 @@ describe("a Cláusula Primeira", () => {
     expect(t.indexOf(id)).toBeGreaterThan(t.indexOf("- **Valor Total a Pagar"));
   });
 
+  it("a forma de pagamento escolhida no faturamento vai ao contrato, e o texto do contrato vira o prazo", () => {
+    const base = os();
+    const t = textoDe(montarContrato(os({ financeiro: { ...base.financeiro, meioPagamento: "Boleto bancário" } }), ctx()));
+    expect(t).toContain("**Forma de Pagamento:** Boleto bancário");
+    expect(t).toContain("**Prazo de Pagamento:** À vista, no ato da emissão da nota fiscal");
+    // Sem a opção escolhida, o contrato sai como sempre saiu.
+    const antigo = textoDe(montarContrato(base, ctx()));
+    expect(antigo).toContain("**Forma de Pagamento:** À vista, no ato da emissão da nota fiscal");
+    expect(antigo).not.toContain("Prazo de Pagamento");
+  });
+
   it("Valores e forma de pagamento: total em negrito, forma com o rótulo em negrito e as observações gerais", () => {
     const base = os();
     const t = textoDe(montarContrato(os({ contrato: { ...base.contrato, observacoesGerais: "" } }), ctx()));

@@ -29,9 +29,24 @@ export function meioDePagamento(os: Pick<Os, "financeiro" | "fornecedor">): Meio
   return temBancarios(os.fornecedor?.dadosBancarios) ? "Dados bancários" : "";
 }
 
-/** O prazo de pagamento escrito na OS; nas antigas, o texto que morava em "forma de pagamento". */
+/**
+ * O texto que o sistema punha sozinho no antigo campo "forma de pagamento"
+ * ("À vista, no ato da emissão da nota fiscal / fatura"). Ninguém o escreveu:
+ * não é prazo combinado, e não migra para o campo novo.
+ */
+const ehTextoAutomatico = (texto: string): boolean =>
+  texto.trim().toLocaleLowerCase("pt-BR").startsWith("à vista, no ato da emissão da nota fiscal");
+
+/**
+ * O prazo de pagamento escrito na OS. Nas OS antigas vale o que alguém DIGITOU
+ * no campo "forma de pagamento"; o texto automático da casa fica de fora, para
+ * o prazo nascer em branco e ser preenchido por quem negocia.
+ */
 export function prazoDePagamento(os: Pick<Os, "financeiro">): string {
-  return (os.financeiro?.prazoPagamento ?? os.financeiro?.formaPagamento ?? "").trim();
+  const novo = os.financeiro?.prazoPagamento;
+  if (novo !== undefined) return novo.trim();
+  const antigo = (os.financeiro?.formaPagamento ?? "").trim();
+  return ehTextoAutomatico(antigo) ? "" : antigo;
 }
 
 /** Os dados da conta, uma informação por linha — é como saem no documento. */

@@ -463,7 +463,7 @@ export async function gerarContratoPdf(c: ContratoDocumento): Promise<Uint8Array
       else {
         // O fecho dos valores não se parte: "Valor Total a Pagar", "Forma de Pagamento"
         // e as observações gerais ficam na mesma página.
-        const dosValores = /^\*\*(Valor Total a Pagar|Forma de Pagamento)/.test(b.texto);
+        const dosValores = /^\*\*(Valor Total a Pagar|Forma de Pagamento|Prazo de Pagamento)/.test(b.texto);
         const total = /^\*\*Valor Total a Pagar/.test(b.texto);
         const entrada = (b.nivel ?? 0) * NIVEL_RECUO;
         e.paragrafo(pedacosDe(b.texto), {

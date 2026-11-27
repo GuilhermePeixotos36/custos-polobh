@@ -336,12 +336,23 @@ function corpoDoObjeto(os: Os, modelo: ModeloContrato, intro: string, projetoCom
       : nomeProjeto;
   if (identificacao) out.push("", `**${identificacao}**`);
 
+  // A FORMA DE PAGAMENTO do contrato é a escolhida no faturamento da OS
+  // (27/11/2026): dados bancários, cartão ou boleto. O texto do bloco de contrato
+  // ("À vista, no ato da emissão da nota…") passa a ser o PRAZO. Enquanto a OS
+  // não tem a opção escolhida, o contrato sai como sempre saiu — é o que mantém
+  // iguais os contratos já emitidos.
+  const meio = os.financeiro?.meioPagamento || "";
+  const textoPagamento = (ct.formaPagamento ?? "").trim();
+  const pagamento = meio
+    ? [`**Forma de Pagamento:** ${meio}`, ...(textoPagamento ? [`**Prazo de Pagamento:** ${textoPagamento}`] : [])]
+    : [`**Forma de Pagamento:** ${textoPagamento || "(não informada)"}`];
+
   out.push(
     "",
     "VALORES E FORMA DE PAGAMENTO:",
     "",
     `**Valor Total a Pagar: ${brl(ct.valorAPagar)}**`,
-    `**Forma de Pagamento:** ${(ct.formaPagamento ?? "").trim() || "(não informada)"}`,
+    ...pagamento,
     "",
     (ct.observacoesGerais ?? "").trim() || RESSALVA_VALORES
   );

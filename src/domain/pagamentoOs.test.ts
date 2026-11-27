@@ -20,6 +20,9 @@ describe("pagamento no faturamento da OS", () => {
     expect(prazoDePagamento(os({ formaPagamento: "À vista" }))).toBe("À vista");
     // Apagar o prazo de propósito não ressuscita o texto antigo.
     expect(prazoDePagamento(os({ prazoPagamento: "", formaPagamento: "À vista" }))).toBe("");
+    // O texto que o sistema punha sozinho não é prazo combinado: não migra.
+    expect(prazoDePagamento(os({ formaPagamento: "À vista, no ato da emissão da nota fiscal / fatura" }))).toBe("");
+    expect(prazoDePagamento(os({ formaPagamento: "Cartão de Crédito Final 6198" }))).toBe("Cartão de Crédito Final 6198");
   });
 
   it("no documento, as parcelas combinadas vão abaixo do prazo", () => {
