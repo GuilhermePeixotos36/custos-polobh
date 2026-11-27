@@ -61,6 +61,7 @@ import { pendenciasDaTela } from "@/domain/pendencias";
 import { comPerfilPeloDocumento, contatoDeTexto, mesclarContatos, semVazios } from "@/domain/fornecedor";
 import { useMinhasPendencias, usePendencias } from "@/store/pendencias";
 import { planoOsAoSalvarEc } from "@/domain/osAoSalvarEc";
+import { osEmDiaComAEc } from "@/domain/osAcompanhaEc";
 import { comDadosAtuaisDoProjeto } from "@/lib/projetoAoVivo";
 import { confirmar } from "@/store/confirm";
 import { useSugestoes } from "@/hooks/useSugestoes";
@@ -474,13 +475,17 @@ export function EcForm() {
    * tinha é de quando a EC abriu —, e uma falha aqui não desfaz a EC: avisa
    * qual OS ficou para trás, para a pessoa resolver nela.
    */
-  async function aplicarPlanoNasOs(salvo: Ec, plano: { arquivar: Os[]; novaVersao: Os[] }) {
-    if (!plano.arquivar.length && !plano.novaVersao.length) return;
+  async function aplicarPlanoNasOs(salvo: Ec, plano: { arquivar: Os[]; novaVersao: Os[] }, linhasAntes: EcLinha[] | null) {
+    // EC nova, ou EC sem OS nenhuma: não há o que levar.
+    if (!linhasAntes || !(ossData ?? []).length) return;
     const existentes = new Set(salvo.linhas.map((l) => l.id));
     const atuais = await repo.oss.porEc(salvo.id);
     const falhas: string[] = [];
     let arquivadas = 0;
     let novas = 0;
+    let atualizadas = 0;
+    /** As que saem de cena nesta gravação — não são postas em dia. */
+    const foraDeCena = new Set([...plano.arquivar, ...plano.novaVersao].map((o) => o.id));
     for (const alvo of plano.arquivar) {
       const o = atuais.find((x) => x.id === alvo.id);
       if (!o || o.status === "Arquivada") continue;
@@ -501,17 +506,36 @@ export function EcForm() {
           const versao = versaoOs(atuais, salvo.id, o.fornecedor.cnpj, o.fornecedor.razaoSocial);
           const numeroNovo = numeroOs(viva, o.fornecedor, versao, undefined, ids);
           const nova = await repo.oss.gerarNovaVersao(o, { numero: numeroNovo, projeto: viva.projeto, cliente: viva.cliente });
-          atuais.push(nova); // a próxima do mesmo fornecedor conta esta
+          atuais.push(nova); // a próxima do mesmo fornecedor conta esta — e ela é posta em dia logo abaixo
           novas += 1;
         } catch (e) {
           falhas.push(`${o.numero}: ${(e as Error).message}`);
         }
       }
     }
-    if (arquivadas || novas) {
+    /*
+     * A OS ATIVA ACOMPANHA A EC (ver `domain/osAcompanhaEc`): valores, descritivo
+     * e título das OS ainda não emitidas são postos em dia agora, e não só
+     * quando alguém as abrir. A nova versão que acabou de nascer entra aqui
+     * também — ela é cópia da emitida e precisa receber o que mudou.
+     */
+    for (const o of atuais) {
+      if (foraDeCena.has(o.id) || o.status !== "Ativa") continue;
+      try {
+        const base = { ...o, ecLinhaIds: o.ecLinhaIds.filter((id) => existentes.has(id)) };
+        const emDia = osEmDiaComAEc(base, linhasAntes, salvo.linhas);
+        if (emDia === base) continue;
+        await repo.oss.salvar(emDia);
+        if (!plano.novaVersao.some((x) => x.fornecedor?.cnpj === o.fornecedor?.cnpj && x.fornecedor?.razaoSocial === o.fornecedor?.razaoSocial)) atualizadas += 1;
+      } catch (e) {
+        falhas.push(`${o.numero}: ${(e as Error).message}`);
+      }
+    }
+    if (arquivadas || novas || atualizadas) {
       const partes = [
         arquivadas ? `${arquivadas} OS ${arquivadas === 1 ? "arquivada" : "arquivadas"}` : "",
         novas ? `${novas} ${novas === 1 ? "nova versão de OS criada, ativa" : "novas versões de OS criadas, ativas"}, para revisar e emitir` : "",
+        atualizadas ? `${atualizadas} OS ${atualizadas === 1 ? "ativa atualizada" : "ativas atualizadas"} com a EC` : "",
       ].filter(Boolean);
       toast(`${partes.join(" e ")}.`, "success");
       usePendencias.getState().carregar(true);
@@ -570,7 +594,7 @@ export function EcForm() {
       await aplicarPlanoNasOs(salvo, {
         arquivar: planoOs.arquivar,
         novaVersao: [...planoOs.novaVersaoPorExclusao, ...(reemitirEditadas ? planoOs.novaVersaoPorEdicao.map((x) => x.os) : [])],
-      });
+      }, gravada?.linhas ?? null);
       // Versão que já está na pasta e acabou de mudar: o aviso diz o que vai
       // acontecer, para ninguém achar que a pasta foi atualizada.
       if (navegar && salvo.baixadaEm && verFinanceiro) {

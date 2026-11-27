@@ -59,12 +59,16 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
   // O que a OS DEFINIU item a item (ver `domain/contratacaoOs`).
   // OS gravada antes desta revisão não tem contratação nenhuma: `sincronizar`
   // parte do que a EC levantou, para o documento nunca sair com a tabela vazia.
-  const resumo = resumoContratacao(sincronizarContratacao(os.itens ?? [], consolidadas, { emitida: osEmitida(os) }), consolidadas);
+  // Os mesmos itens "em dia com a EC" servem ao resumo e ao acerto: antes o
+  // acerto lia o que estava GRAVADO na OS, e numa OS ativa com valor corrigido
+  // na EC a tabela mostrava o valor novo e o acerto, o velho (27/11/2026).
+  const itensEmDia = sincronizarContratacao(os.itens ?? [], consolidadas, { emitida: osEmitida(os) });
+  const resumo = resumoContratacao(itensEmDia, consolidadas);
   /** Só as colunas com algum valor vão ao fornecedor — ver `resumoContratacao`. */
   const colunas = COLUNAS_CONTRATACAO.filter((c) => resumo.colunas[c.chave]);
   const infraestrutura = itensParaDocumento(os.infraestrutura, CAMPOS_INFRAESTRUTURA);
   const tom = fiscaisDe(os.financeiro.tomador, cli, os.financeiro.tomadorAvulso);
-  const acerto = calcularAcerto(os.financeiro, os.orcamento, bvDaContratacao(os.itens ?? []).valor, valorDaContratacao(os.itens ?? []));
+  const acerto = calcularAcerto(os.financeiro, os.orcamento, bvDaContratacao(itensEmDia).valor, valorDaContratacao(itensEmDia));
   /** "R$ 300,00 (15%)" — o percentual só aparece quando há BV e valor original. */
   const pctBv = percentualDoBv(acerto);
   const bvComPercentual =
