@@ -62,6 +62,7 @@ export function ImprimirOs() {
   const [params] = useSearchParams();
   const usuario = useAuth((s) => s.usuario);
   const pode = useAuth((s) => s.pode);
+  const navigate = useNavigate();
   const { data: os, loading } = useAsync(() => repo.oss.obter(id), [id]);
   // A EC com os dados do projeto de AGORA: a OS ainda não emitida sai com o
   // cliente e o projeto do cadastro (ver `osComDadosAtuais`).
@@ -80,7 +81,9 @@ export function ImprimirOs() {
   if (!usuario) return <Navigate to="/login" replace />;
   const restrito = pode("financeiro") && params.get("financeiro") !== "0";
   return (
-    <Moldura voltarPara={`/ordens/${id}`} loading={loading} vazio={!os || !ec}>
+    // BAIXAR PDF É EMITIR A OS (27/11/2026): quem decide se pode é a tela da OS,
+    // com as travas da emissão — o botão daqui leva o pedido para lá.
+    <Moldura voltarPara={`/ordens/${id}`} loading={loading} vazio={!os || !ec} aoBaixar={() => navigate(`/ordens/${id}?baixarPdf=1`)}>
       {os && ec && <OsDocumento os={osComDadosAtuais(os, ec)} ec={ec} restrito={restrito} />}
     </Moldura>
   );
@@ -90,11 +93,14 @@ function Moldura({
   voltarPara,
   loading,
   vazio,
+  aoBaixar,
   children,
 }: {
   voltarPara: string;
   loading: boolean;
   vazio: boolean;
+  /** O que o "Baixar PDF" faz; sem isto, abre a impressão do navegador (EC). */
+  aoBaixar?: () => void;
   children: React.ReactNode;
 }) {
   const navigate = useNavigate();
@@ -107,7 +113,7 @@ function Moldura({
         <button onClick={() => navigate(voltarPara)} className="inline-flex items-center gap-1.5 text-sm text-ink-2 hover:text-ink font-semibold">
           <IcBack width={16} height={16} /> Voltar
         </button>
-        <Button size="sm" icon={<IcDownload width={16} height={16} />} onClick={() => imprimirPagina("PDF pela impressão")}>
+        <Button size="sm" icon={<IcDownload width={16} height={16} />} onClick={() => (aoBaixar ? aoBaixar() : imprimirPagina("PDF pela impressão"))}>
           Baixar PDF
         </Button>
       </div>

@@ -27,7 +27,7 @@ import {
   StepperDescription,
   StepperSeparator,
 } from "@/components/ui";
-import { IcBack, IcCheck, IcCopy, IcDoc, IcEye, IcPencil, IcSearch, IcSend, IcSpark, IcCadeado } from "@/components/icons";
+import { IcBack, IcCheck, IcCopy, IcDoc, IcDownload, IcEye, IcPencil, IcSearch, IcSend, IcSpark, IcCadeado } from "@/components/icons";
 import { CardConversa } from "@/components/CardConversa";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
@@ -61,6 +61,7 @@ import { urlCredenciamento } from "@/lib/links";
 import { calcularAcerto, type CampoAcerto } from "@/domain/acertoFinanceiro";
 import { clausulasPadrao, modeloDoContrato, type ChaveClausula, type ClausulasDaCasa, type ModeloContrato } from "@/domain/contratoModelo";
 import { ContratoPreview } from "@/components/ContratoPreview";
+import { entregarOsPdf } from "@/lib/osPdf";
 import { quantidadeDoContrato } from "@/domain/contratoDocumento";
 import { blobDoPdf, clausulasDaCasa, emitirContratoPdf, prepararContratoPdf, type PreparoContrato } from "@/lib/contratoPdf";
 import { dadosDoTomador, opcoesDeTomador, RETENCOES_PADRAO, TOMADOR_OUTRO } from "@/domain/tomadorOs";
@@ -431,6 +432,9 @@ export function OsForm() {
   const [baseline, setBaseline] = useState("");
   const [cnpjMsg, setCnpjMsg] = useState("");
   const [busy, setBusy] = useState(false);
+  /** O "Baixar PDF" da visualização chega aqui como `?baixarPdf=1` — atendido uma vez. */
+  const pedidoDePdfAtendido = useRef(false);
+  const baixarPdfRef = useRef<(() => Promise<void>) | null>(null);
   /** Busca do fornecedor pelo CPF/CNPJ em andamento — em segundo plano, sem a tela cheia do "Salvando…". */
   const [consultandoCnpj, setConsultandoCnpj] = useState(false);
   /** "Revisar" em andamento (a IA leva alguns segundos). */
@@ -641,6 +645,15 @@ export function OsForm() {
   }, [editando, digitosFornecedor]);
 
   if (!os || !ecCtx) return <PageShell title="Carregando…">{null}</PageShell>;
+  baixarPdfRef.current = baixarPdf;
+  // Veio do "Baixar PDF" da visualização: faz o mesmo que o botão daqui, uma vez só.
+  if (params.get("baixarPdf") === "1" && !pedidoDePdfAtendido.current) {
+    pedidoDePdfAtendido.current = true;
+    setTimeout(() => {
+      navigate(`/ordens/${os.id}`, { replace: true });
+      void baixarPdfRef.current?.();
+    }, 0);
+  }
 
   // Linhas da EC que esta OS consolida (mesmo fornecedor).
   const linhasConsolidadas = ecCtx.linhas.filter((l) => os.ecLinhaIds.includes(l.id));
@@ -1523,8 +1536,10 @@ export function OsForm() {
     }
     if (!(await confirmar({
       titulo: `Emitir a OS ${os!.numero}?`,
-      mensagem: "A OS passa a Emitida e os itens da EC que ela consolida ficam com a OS em OK. Depois disso, o que mudar exige uma nova versão.",
-      confirmarTexto: "Emitir OS",
+      mensagem:
+        "Baixar o PDF é emitir a OS: ela passa a Emitida, os itens da EC que ela consolida ficam com a OS em OK, " +
+        "o PDF é salvo na pasta do projeto e abre para você enviar ao fornecedor. Depois disso, o que mudar exige uma nova versão.",
+      confirmarTexto: "Emitir e baixar PDF",
     }))) return;
     const emitida = await salvar("Emitida", { fase: "emitida" });
     if (!emitida) return;
@@ -1534,6 +1549,38 @@ export function OsForm() {
       toast(`A OS foi emitida, mas os itens da EC não foram fechados: ${(e as Error).message}`, "warning");
     }
     setEditando(false);
+    await entregarPdf(emitida);
+  }
+
+  /**
+   * O PDF da OS (27/11/2026): salvo na pasta do projeto, baixado e aberto numa aba.
+   * Só existe para a OS EMITIDA — baixar o PDF de uma OS em andamento é emiti-la.
+   */
+  async function entregarPdf(alvo: Os) {
+    setBusy(true);
+    try {
+      const pasta = await entregarOsPdf(alvo, ecCtx!, { restrito: verValoresEc, naPasta: true });
+      if (pasta?.status === "ok") toast("PDF da OS salvo na pasta do projeto.", "success");
+      else if (pasta?.status === "ja-existia") toast("Esta versão do PDF já estava na pasta do projeto.", "info");
+      else if (pasta?.status === "sem-pasta") toast("O projeto não tem o link da pasta nos Dados Gerais: o PDF foi só baixado.", "warning");
+      else if (pasta?.status === "erro") toast(`O PDF foi baixado, mas não foi salvo na pasta do projeto: ${pasta.erro}`, "warning");
+    } catch (e) {
+      toast(`Não foi possível gerar o PDF da OS: ${(e as Error).message}`, "danger");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** BAIXAR PDF: emitida, entrega o arquivo; em andamento, é a emissão — de quem emite, na vez do Back-office. */
+  async function baixarPdf() {
+    if (!os) return;
+    if (osEmitida(os)) return void (await entregarPdf(os));
+    if (os.status === "Arquivada") return toast("OS arquivada não é emitida: abra a versão vigente.", "info");
+    if (!podeEmitir || fase !== "backoffice") {
+      return toast("Baixar o PDF emite a OS, e a emissão é do Back-office, na etapa de emissão. Para conferir antes, use \"OS PDF\".", "info");
+    }
+    if (editando && sujo) return toast("Salve a OS antes de emiti-la: o PDF sai do que está gravado.", "info");
+    await emitirOs();
   }
 
   return (
@@ -1748,9 +1795,17 @@ export function OsForm() {
           {/* A emissão é do BACK-OFFICE, e pede a chave dela (`oss.emitir`).
               Com `oss.editar`, quem monta a OS — a Produção — emitiria o
               documento que a fase acabou de tirar das mãos dela. */}
+          {/* BAIXAR PDF = EMITIR (27/11/2026): na vez do Back-office, o mesmo
+              clique emite, salva na pasta do projeto e abre o PDF. Emitida, só
+              entrega o arquivo de novo. */}
           {podeEmitir && fase === "backoffice" && !encerradaDoc && (
-            <Button size="sm" icon={<IcCheck width={15} height={15} />} disabled={busy} onClick={() => void emitirOs()}>
-              Emitir OS
+            <Button size="sm" icon={<IcDownload width={15} height={15} />} disabled={busy} onClick={() => void baixarPdf()}>
+              Baixar PDF e emitir OS
+            </Button>
+          )}
+          {emitida && !encerradaDoc && (
+            <Button variant="secondary" size="sm" icon={<IcDownload width={15} height={15} />} disabled={busy} onClick={() => void baixarPdf()}>
+              Baixar PDF
             </Button>
           )}
           {fase !== "producao" && !emitida && !encerradaDoc && (podeEditar || editaFinOs || podeValidarContrato) && (

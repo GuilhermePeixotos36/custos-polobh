@@ -867,8 +867,10 @@ const MODULOS: Modulo[] = [
         <Secao titulo="O documento da OS">
           <p>
             A OS existe em dois lugares: na <b>tela</b>, onde é criada, editada e visualizada, e no <b>PDF</b>.
-            O botão <b>OS PDF</b> abre a visualização do documento; de lá, <b>Baixar PDF</b> abre a janela de
-            imprimir/salvar do navegador. O PDF respeita o seu perfil — quem não vê o bloco financeiro também não
+            O botão <b>OS PDF</b> abre a visualização do documento, só para conferir. <b>Baixar PDF é emitir a OS</b>:
+            na etapa do Back-office, o mesmo clique passa a OS a Emitida, fecha os itens na EC, salva o arquivo na
+            pasta do projeto e o abre para seguir por e-mail. Depois de emitida, o botão só entrega o arquivo de novo.
+            O PDF respeita o seu perfil — quem não vê o bloco financeiro também não
             o vê no arquivo.
           </p>
           <Dica>
