@@ -183,9 +183,9 @@ export function ListaClientes({ pedidoNovo }: { /** Muda a cada clique em "Novo 
           oQue="cliente"
           nome={aberto.cliente.nome || aberto.cliente.razaoSocial || "Cliente"}
           carregarUso={() => repo.clientes.uso(aberto.cliente.id)}
-          // Quem pode ficar no lugar: os outros clientes ATIVOS.
+          // Quem pode ficar no lugar: só um DUPLICADO — outro registro com o mesmo CPF/CNPJ.
           destinos={(data ?? [])
-            .filter((o) => o.id !== aberto.cliente.id && o.ativo !== false)
+            .filter((o) => o.id !== aberto.cliente.id && !!onlyDigits(o.cnpjCpf) && onlyDigits(o.cnpjCpf) === onlyDigits(aberto.cliente.cnpjCpf))
             .map((o) => ({ id: o.id, rotulo: `${rotuloId(o.codigo)} · ${o.nome || o.razaoSocial} · ${o.cnpjCpf || "sem documento"}` }))}
           excluir={(destinoId) => repo.clientes.excluir(aberto.cliente.id, destinoId)}
           onClose={() => setAberto(null)}

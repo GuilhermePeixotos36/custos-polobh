@@ -1,16 +1,19 @@
 /**
  * EXCLUIR UM REGISTRO DO CADASTRO (27/11/2026) — fornecedor ou cliente.
  *
- * A janela primeiro diz ONDE o registro é usado. Daí são dois caminhos:
+ * A regra da casa: SÓ SE EXCLUI O QUE NÃO TEM USO. Registro que já aparece em
+ * projeto, EC ou OS tem história — esse se INATIVA.
+ *
+ * A janela primeiro diz ONDE o registro é usado. Daí:
  *
  *   · sem uso nenhum — é só confirmar: o registro sai do cadastro;
- *   · em uso — a pessoa escolhe o REGISTRO QUE FICA no lugar dele. Os documentos
- *     ATIVOS (itens de EC ativa, OS ativa, projeto ativo) passam para esse
- *     registro; o que já foi emitido ou arquivado é histórico e fica como saiu.
- *     Só depois o registro é apagado. É como se desfaz uma duplicidade.
+ *   · em uso, e existe OUTRO registro com o MESMO CPF/CNPJ — é uma duplicidade,
+ *     e ela se desfaz aqui: a pessoa escolhe o registro que fica, os documentos
+ *     ATIVOS passam para ele (o emitido e o arquivado ficam como saíram) e o
+ *     duplicado é apagado;
+ *   · em uso, sem duplicado — não se exclui: a janela oferece "Inativar".
  *
- * Quem só quer tirar o registro de cena, sem mexer em documento nenhum, usa
- * "Inativar": é a saída oferecida aqui mesmo quando o registro está em uso.
+ * Unificar registros de documentos DIFERENTES não se faz pela tela.
  */
 import { useEffect, useMemo, useState } from "react";
 import { Button, Select } from "@/components/ui";
@@ -54,12 +57,12 @@ export function ExcluirCadastro({
   oQue: "fornecedor" | "cliente";
   nome: string;
   carregarUso: () => Promise<UsoDoCadastro>;
-  /** Os outros registros ATIVOS do cadastro: os candidatos a ficar no lugar. */
+  /** Os DUPLICADOS deste registro — outros com o mesmo CPF/CNPJ. Só eles podem ficar no lugar. */
   destinos: OpcaoDeDestino[];
   excluir: (destinoId?: string) => Promise<ResultadoExclusaoCadastro>;
   onClose: () => void;
   onExcluido: () => void;
-  /** Oferecido quando o registro está em uso: tirar de cena sem mexer em documento. */
+  /** Para o registro em uso: tirar de cena sem mexer em documento. `undefined` = já está inativo. */
   onInativar?: () => void;
 }) {
   const [uso, setUso] = useState<UsoDoCadastro | null>(null);
@@ -81,6 +84,8 @@ export function ExcluirCadastro({
 
   const linhas = useMemo(() => (uso ? linhasDoUso(uso) : []), [uso]);
   const emUso = linhas.length > 0;
+  /** Em uso e sem duplicado: não se exclui, só se inativa. */
+  const soInativar = emUso && destinos.length === 0;
 
   async function confirmar() {
     setOcupado(true);
@@ -113,18 +118,22 @@ export function ExcluirCadastro({
       onClose={onClose}
       rodape={
         <>
-          <Button variant="secondary" onClick={onClose} disabled={ocupado}>Cancelar</Button>
+          <Button variant="secondary" onClick={onClose} disabled={ocupado}>{soInativar && !onInativar ? "Fechar" : "Cancelar"}</Button>
           {emUso && onInativar && (
-            <Button variant="secondary" onClick={onInativar} disabled={ocupado}>Só inativar</Button>
+            <Button variant={soInativar ? "primary" : "secondary"} onClick={onInativar} disabled={ocupado}>
+              {soInativar ? `Inativar ${oQue}` : "Só inativar"}
+            </Button>
           )}
-          <Button
-            variant="danger"
-            icon={<IcTrash width={15} height={15} />}
-            onClick={() => void confirmar()}
-            disabled={ocupado || !uso || (emUso && !destino)}
-          >
-            {ocupado ? "Excluindo…" : emUso ? "Transferir e excluir" : `Excluir ${oQue}`}
-          </Button>
+          {!soInativar && (
+            <Button
+              variant="danger"
+              icon={<IcTrash width={15} height={15} />}
+              onClick={() => void confirmar()}
+              disabled={ocupado || !uso || (emUso && !destino)}
+            >
+              {ocupado ? "Excluindo…" : emUso ? "Unificar e excluir" : `Excluir ${oQue}`}
+            </Button>
+          )}
         </>
       }
     >
@@ -143,21 +152,25 @@ export function ExcluirCadastro({
               {linhas.map((l) => <li key={l}>• {l}</li>)}
             </ul>
           </Bloco>
-          <Bloco titulo="Registro que fica no lugar dele">
-            <Select value={destino} onChange={(e) => setDestino(e.target.value)} aria-label="Registro que fica no lugar do excluído">
-              <option value="">Selecione…</option>
-              {destinos.map((d) => <option key={d.id} value={d.id}>{d.rotulo}</option>)}
-            </Select>
-            <p className="mt-2 text-[12.5px] text-ink-2">
-              Os documentos <b>ativos</b> passam para o registro escolhido. O que já foi emitido ou arquivado continua com os
-              dados de quando saiu. A exclusão é definitiva e não pode ser desfeita.
+          {soInativar ? (
+            <p className="rounded-btn border border-border bg-[#FAFAFB] px-3 py-2.5 text-[13px] text-ink">
+              Este {oQue} já tem documentos no sistema e <b>não pode ser excluído</b>.{" "}
+              {onInativar
+                ? "Para tirá-lo de cena, inative: ele continua no cadastro e no histórico, e deixa de ser sugerido no preenchimento."
+                : "Ele já está inativo: continua no cadastro e no histórico, sem ser sugerido no preenchimento."}
             </p>
-            {destinos.length === 0 && (
-              <p className="mt-2 text-[12.5px] font-semibold text-warning">
-                Não há outro registro ativo para receber os documentos. Cadastre o registro correto antes, ou use “Só inativar”.
+          ) : (
+            <Bloco titulo="Duplicidade: registro que fica no lugar dele">
+              <Select value={destino} onChange={(e) => setDestino(e.target.value)} aria-label="Registro que fica no lugar do excluído">
+                <option value="">Selecione…</option>
+                {destinos.map((d) => <option key={d.id} value={d.id}>{d.rotulo}</option>)}
+              </Select>
+              <p className="mt-2 text-[12.5px] text-ink-2">
+                Há outro registro com o <b>mesmo CPF/CNPJ</b>. Os documentos <b>ativos</b> passam para o registro escolhido; o que já
+                foi emitido ou arquivado continua com os dados de quando saiu. A exclusão é definitiva e não pode ser desfeita.
               </p>
-            )}
-          </Bloco>
+            </Bloco>
+          )}
         </div>
       )}
     </Janela>

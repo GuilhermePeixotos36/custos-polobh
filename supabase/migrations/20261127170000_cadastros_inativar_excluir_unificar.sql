@@ -9,11 +9,17 @@
 --     preenchimento. É o caminho para quem deixou de ser fornecedor/cliente e
 --     tem histórico: nada do que já foi feito muda.
 --
---   EXCLUIR — apaga o registro. Projetos, ECs e OS não apontam para o cadastro:
---     cada um guarda uma CÓPIA dos dados, e a ligação é pelo CNPJ/CPF. Por isso,
---     ao excluir um registro EM USO, quem exclui escolhe o registro que fica
---     (UNIFICAR), e as cópias dos documentos ATIVOS passam a ser as dele. O que
---     já foi emitido ou arquivado é histórico e fica como saiu.
+--   EXCLUIR — só o registro SEM USO: quem já aparece em projeto, EC ou OS tem
+--     história, e não se apaga — inativa-se.
+--
+--   UNIFICAR — a única exceção, e é para DUPLICIDADE: o registro em uso pode
+--     ser excluído quando existe OUTRO com o MESMO CPF/CNPJ para ficar no lugar
+--     dele. Projetos, ECs e OS guardam uma CÓPIA dos dados; as cópias dos
+--     documentos ATIVOS passam a ser as do registro que fica, e o que já foi
+--     emitido ou arquivado continua como saiu. Com a trava de documento único
+--     (fornecedores já têm; clientes ganham em seguida), a duplicidade deixa de
+--     existir e, com ela, este caminho. Unificar registros de documentos
+--     DIFERENTES não se faz pela tela.
 --
 -- As duas funções são `security definer`: quem cuida do cadastro (permissão
 -- `fornecedores.editar`) nem sempre pode editar EC e OS, e a unificação precisa
@@ -117,13 +123,17 @@ begin
     if not found then raise exception 'Fornecedor nao encontrado'; end if;
     v_em_uso := (v_uso->>'itensEc')::int + (v_uso->>'oss')::int > 0;
     if v_em_uso and p_destino is null then
-      raise exception 'Este fornecedor esta em uso: escolha o registro que fica no lugar dele, ou inative-o';
+      raise exception 'Este fornecedor ja tem documentos no sistema e nao pode ser excluido: inative-o';
     end if;
 
     if p_destino is not null then
       select * into d from fornecedores where id = p_destino;
       if not found then raise exception 'O registro que fica nao foi encontrado'; end if;
       v_doc := private.so_digitos(f.cnpj);
+      -- Unificar é só para duplicidade: o mesmo CPF/CNPJ dos dois lados.
+      if v_doc = '' or private.so_digitos(d.cnpj) <> v_doc then
+        raise exception 'So e possivel unificar registros com o mesmo CPF/CNPJ';
+      end if;
 
       -- Itens das ECs ATIVAS: documento e nome do que fica.
       update ec_linhas l
@@ -164,12 +174,17 @@ begin
     if not found then raise exception 'Cliente nao encontrado'; end if;
     v_em_uso := (v_uso->>'projetos')::int + (v_uso->>'ecs')::int + (v_uso->>'oss')::int > 0;
     if v_em_uso and p_destino is null then
-      raise exception 'Este cliente esta em uso: escolha o registro que fica no lugar dele, ou inative-o';
+      raise exception 'Este cliente ja tem documentos no sistema e nao pode ser excluido: inative-o';
     end if;
 
     if p_destino is not null then
+      v_doc := private.so_digitos(c.cnpj_cpf);
       select * into c from clientes where id = p_destino;
       if not found then raise exception 'O registro que fica nao foi encontrado'; end if;
+      -- Unificar é só para duplicidade: o mesmo CPF/CNPJ dos dois lados.
+      if v_doc = '' or private.so_digitos(c.cnpj_cpf) <> v_doc then
+        raise exception 'So e possivel unificar registros com o mesmo CPF/CNPJ';
+      end if;
       v_cliente := jsonb_build_object(
         'id', c.id, 'apelido', coalesce(c.apelido, ''), 'nome', coalesce(c.nome, ''),
         'razaoSocial', coalesce(c.razao_social, ''), 'endereco', coalesce(c.endereco, ''),

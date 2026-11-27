@@ -192,9 +192,9 @@ export function ListaFornecedores({ pedidoNovo }: { /** Muda a cada clique em "N
           oQue="fornecedor"
           nome={aberto.fornecedor.nomeFantasia || aberto.fornecedor.razaoSocial || "Fornecedor"}
           carregarUso={() => repo.fornecedores.uso(aberto.fornecedor.id)}
-          // Quem pode ficar no lugar: os outros fornecedores ATIVOS.
+          // Quem pode ficar no lugar: só um DUPLICADO — outro registro com o mesmo CPF/CNPJ.
           destinos={(data ?? [])
-            .filter((o) => o.id !== aberto.fornecedor.id && o.ativo !== false)
+            .filter((o) => o.id !== aberto.fornecedor.id && !!onlyDigits(o.cnpj) && onlyDigits(o.cnpj) === onlyDigits(aberto.fornecedor.cnpj))
             .map((o) => ({ id: o.id, rotulo: `${rotuloIdFornecedor(o.codigo)} · ${o.nomeFantasia || o.razaoSocial} · ${o.cnpj || "sem documento"}` }))}
           excluir={(destinoId) => repo.fornecedores.excluir(aberto.fornecedor.id, destinoId)}
           onClose={() => setAberto(null)}
