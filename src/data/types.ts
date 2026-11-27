@@ -959,6 +959,15 @@ export interface ContratoOs {
   validadoEm?: string;
   validadoPor?: string;
   /**
+   * CONTRATO DISPENSADO PELA OS (27/11/2026) — o "Não se aplica" do bloco Dados
+   * para Contrato. A verdade continua sendo a coluna Contrato dos itens na EC:
+   * ao salvar a OS com isto ligado, os itens dela passam a "Não se Aplica" lá.
+   * A marca fica na OS para o bloco não voltar só porque alguém já tinha
+   * digitado nele (ver `temContrato`); se a EC voltar a pedir contrato, a marca
+   * é desfeita na abertura da OS.
+   */
+  naoSeAplica?: boolean;
+  /**
    * O PDF DO CONTRATO emitido (11/11/2026). Cada contrato tem versões, como a EC
    * e a OS: a primeira emissão é a (01); mudou o conteúdo e emitiu de novo, nasce
    * a (02) — e a anterior continua na pasta do projeto, como estava.

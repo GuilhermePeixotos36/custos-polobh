@@ -186,7 +186,43 @@ export function idsLinhasDoContrato(os: Pick<Os, "ecLinhaIds">, linhas: Pick<EcL
 }
 
 export function temContrato(os: Pick<Os, "contrato">, linhas: Pick<EcLinha, "contratoStatus">[]): boolean {
+  // Dispensado pela própria OS: não há contrato, mesmo com o bloco já digitado.
+  if (os.contrato.naoSeAplica) return false;
   return linhas.some((l) => CONTRATO_A_EMITIR.includes(l.contratoStatus)) || contratoPreenchido(os.contrato);
+}
+
+/** A EC pede contrato para algum item desta OS? */
+export function ecPedeContrato(linhas: Pick<EcLinha, "contratoStatus">[]): boolean {
+  return linhas.some((l) => CONTRATO_A_EMITIR.includes(l.contratoStatus));
+}
+
+/**
+ * O "Não se aplica" do contrato foi ligado na OS e AINDA NÃO chegou à EC
+ * (27/11/2026).
+ *
+ * É o intervalo entre marcar e salvar: a OS já diz que não há contrato, e a EC
+ * ainda diz "Emitir". Ao salvar, a OS leva a coluna Contrato dos seus itens
+ * para "Não se Aplica" — na mesma EC, sem gerar versão nova: status não é
+ * conteúdo do documento.
+ */
+export function dispensaDeContratoPendente(
+  os: Pick<Os, "contrato">,
+  linhas: Pick<EcLinha, "contratoStatus">[]
+): boolean {
+  return !!os.contrato.naoSeAplica && ecPedeContrato(linhas);
+}
+
+/**
+ * A EC voltou a pedir contrato depois de a OS tê-lo dispensado: vale a EC, e a
+ * marca da OS é desfeita. Só faz sentido para a OS como está GRAVADA — no
+ * formulário, marca ligada com a EC pedindo contrato é a dispensa a salvar.
+ */
+export function comContratoReativadoPelaEc<T extends Pick<Os, "contrato">>(
+  os: T,
+  linhas: Pick<EcLinha, "contratoStatus">[]
+): T {
+  if (!os.contrato.naoSeAplica || !ecPedeContrato(linhas)) return os;
+  return { ...os, contrato: { ...os.contrato, naoSeAplica: undefined } };
 }
 
 /**

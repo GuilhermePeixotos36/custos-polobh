@@ -91,8 +91,10 @@ import {
 import {
   CAMPOS_LOGISTICA, CAMPOS_INFRAESTRUTURA, exigeNovaVersaoPorFornecedor, osIncentivada, incentivoDoContrato,
   incentivoDaNota, incentivoDosDadosGerais, incentivoFaltando,
-  itensDoBloco, temContrato,
+  itensDoBloco, temContrato, dispensaDeContratoPendente, comContratoReativadoPelaEc,
 } from "@/domain/os";
+import { aplicarMudancaDeStatus } from "@/domain/statusEc";
+import { auditar } from "@/store/logs";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import { podeDescartar } from "@/lib/cancelarEdicao";
 import type { ResumoContratacao } from "@/domain/contratacaoOs";
@@ -199,7 +201,12 @@ function cronogramaDoProjeto(projeto: ProjetoInfo): Os["cronograma"] {
  */
 function aplicarAutoPreenchimento(osOriginal: Os, ec: Ec): Os {
   // Fornecedor com CPF: perfil "Pessoa Física (Recibo Simples)" quando ainda está vazio.
-  const os = { ...osOriginal, fornecedor: comPerfilPeloDocumento(osOriginal.fornecedor) };
+  const linhasDaOs = ec.linhas.filter((l) => osOriginal.ecLinhaIds.includes(l.id));
+  // Contrato dispensado pela OS e depois pedido de novo na EC: vale a EC.
+  const os = comContratoReativadoPelaEc(
+    { ...osOriginal, fornecedor: comPerfilPeloDocumento(osOriginal.fornecedor) },
+    linhasDaOs
+  );
   const incentivada = osIncentivada(os);
   /** Os dados do projeto incentivado acompanham os Dados Gerais: cultural e ainda não emitida. */
   const incentivoAoVivo = incentivada && !osEmitida(os);
@@ -698,6 +705,27 @@ export function OsForm() {
   const docDaForma = documentoFiscalDaContratacao(os.itens ?? []);
   /** Esta OS tem contrato? Quem decide é a coluna Contrato dos itens, na EC. */
   const haContrato = temContrato(os, linhasConsolidadas);
+  /** "Não se aplica" ligado no bloco e ainda não salvo: ao salvar, vai para a EC. */
+  const dispensaPendente = dispensaDeContratoPendente(os, linhasConsolidadas);
+  /**
+   * Liga/desliga o "Não se aplica" do contrato. Nada é gravado aqui — a mudança
+   * vai junto do "Salvar", como os outros blocos da OS.
+   *
+   * Contrato já emitido em PDF não se dispensa por aqui: o arquivo está na
+   * pasta do projeto (e pode estar com o fornecedor). Aí a decisão é tomada na
+   * EC, por quem sabe o que fazer com o documento que já saiu.
+   */
+  const alternarDispensaContrato = (ligar: boolean) => {
+    if (ligar && os.contrato.emitidoEm) {
+      toast(
+        `O contrato desta OS já foi emitido (${numeroDaVersao(os.contrato.versaoEmitida ?? 1)}) e está na pasta do projeto. ` +
+          "Para dispensá-lo, mude a coluna Contrato dos itens para “Não se Aplica” na EC.",
+        "warning"
+      );
+      return;
+    }
+    updCt({ naoSeAplica: ligar || undefined });
+  };
   /** OS cultural: o contrato é preenchido pela Produção e validado pela Direção de Produção. */
   const contratoCultural = osIncentivada(os);
   /** Esta OS passa pela Direção de Produção (ou já está com ela). */
@@ -1154,9 +1182,48 @@ export function OsForm() {
       camposDaOs(gravadaParaRevisao ?? comPatchParaRevisao),
       jaRevisados,
     );
+    /*
+     * CONTRATO DISPENSADO NESTA OS (27/11/2026). A coluna Contrato da EC é quem
+     * manda, então salvar com o "Não se aplica" ligado muda os itens desta OS
+     * lá — todos eles: a OS tem um contrato só. Pergunta antes, porque mexe em
+     * outro documento.
+     */
+    const linhasDaOsNaEc = (ecCtx?.linhas ?? []).filter((l) => os!.ecLinhaIds.includes(l.id));
+    const dispensarContrato = dispensaDeContratoPendente(comPatchParaRevisao, linhasDaOsNaEc);
+    if (dispensarContrato) {
+      const n = os!.ecLinhaIds.length;
+      const ok = await confirmar({
+        titulo: "Dispensar o contrato desta OS?",
+        mensagem:
+          `${n === 1 ? "O item desta OS passa" : `Os ${n} itens desta OS passam`} a “Não se Aplica” na coluna Contrato da EC, ` +
+          "o bloco Dados para Contrato sai da OS e a pendência de emitir contrato é encerrada. " +
+          "A EC continua na mesma versão. Para voltar atrás, mude a coluna Contrato na EC.",
+        confirmarTexto: "Dispensar e salvar",
+      });
+      if (!ok) return undefined;
+    }
     const querRevisao = momentoDeRevisar && pendentes.length > 0 && (await perguntarRevisao(pendentes.length));
     setBusy(true);
     try {
+      // A EC primeiro: se ela não gravar, a OS não pode ficar dizendo "sem
+      // contrato" com a EC ainda pedindo um. Relê antes de gravar, como toda
+      // mudança de status, para não pisar no que outra pessoa mexeu.
+      let ecDepois = ecCtx;
+      if (dispensarContrato && ecCtx) {
+        const atual = await repo.ecs.obter(ecCtx.id);
+        if (!atual) throw new Error("a EC desta OS não foi encontrada");
+        ecDepois = await repo.ecs.salvar({
+          ...atual,
+          linhas: aplicarMudancaDeStatus(atual.linhas, os!.ecLinhaIds, { contrato: "Não se Aplica" }),
+        });
+        setEcCtx(ecDepois);
+        auditar({
+          categoria: "OS",
+          acao: "os.contrato.dispensar",
+          mensagem: `Contrato dispensado pela OS: ${os!.ecLinhaIds.length} item(ns) da EC passaram a “Não se Aplica”`,
+          alvoId: os!.id,
+        });
+      }
       // O BV é gravado na própria OS (a Produção negocia), mas depende do
       // `valorTotal`, que mora no bloco restrito. Para quem não vê o financeiro
       // a RLS devolve zero — recalcular aqui gravaria BV = R$ 0,00 por cima do
@@ -1197,7 +1264,7 @@ export function OsForm() {
         credenciamento: { ...os!.credenciamento, linkFormulario: linkCred },
         financeiro: { ...os!.financeiro, bvValor },
       });
-      iniciar(ecCtx ? aplicarAutoPreenchimento(salvo, ecCtx) : salvo);
+      iniciar(ecDepois ? aplicarAutoPreenchimento(salvo, ecDepois) : salvo);
       if (!jaEmitida) await devolverAoCadastro(salvo.fornecedor, fornecedorAntes);
       toast("OS salva.", "success");
       usePendencias.getState().carregar(true); // atualiza os badges de pendência
@@ -2342,12 +2409,31 @@ export function OsForm() {
                 a OS (pode corrigir, se precisar) e manda ao Financeiro;
               · OS CORPORATIVA: segue com o Financeiro, como antes (e só quem vê
                 o financeiro o enxerga). */}
-        {haContrato && (contratoCultural || verFinanceiro) && (
+        {(haContrato || dispensaPendente) && (contratoCultural || verFinanceiro) && (
           <fieldset disabled={!mexeContrato} className="space-y-4 min-w-0 disabled:opacity-100">
           <CardOs
             secao="Dados para Contrato"
             area={contratoCultural ? "Produção" : "Financeiro"}
+            // "NÃO SE APLICA" (27/11/2026): o contrato caiu depois de a OS
+            // nascer. Só com a OS ainda na casa; salvando, a coluna Contrato
+            // dos itens desta OS vai a "Não se Aplica" na EC.
+            acaoSecao={
+              !osEmitida(os) ? (
+                <ChaveNaoSeAplica
+                  ativo={dispensaPendente}
+                  onChange={alternarDispensaContrato}
+                  title="Esta OS não terá contrato — ao salvar, os itens dela ficam “Não se Aplica” na coluna Contrato da EC"
+                />
+              ) : undefined
+            }
           >
+            {dispensaPendente ? (
+              <AvisoNaoSeAplica>
+                Não se aplica — ao salvar, {os.ecLinhaIds.length === 1 ? "o item desta OS fica" : `os ${os.ecLinhaIds.length} itens desta OS ficam`}{" "}
+                “Não se Aplica” na coluna Contrato da EC e este bloco sai da OS.
+              </AvisoNaoSeAplica>
+            ) : (
+            <>
 
             {/* MODELO — Corporativo ou Cultural, os dois .docx que a Pólobh
                 mandou em 16/09/2026. A modalidade do projeto já responde isso
@@ -2531,6 +2617,8 @@ export function OsForm() {
             {/* TESTEMUNHAS FIXAS (11/11/2026): o Tiago e a Viviane assinam todos
                 os contratos, e os dados deles se editam em Configurações ›
                 Contratos — não há mais o que digitar em cada OS. */}
+            </>
+            )}
           </CardOs>
           </fieldset>
         )}
