@@ -105,64 +105,34 @@ export function destacarCampo(id: string): void {
 const SELETOR_FOCAVEL = "input, textarea, select, [contenteditable=true]";
 
 /**
- * As DUAS marcas permanentes da pendência (15/09/2026).
+ * A marca de ONDE A PÍLULA PAROU (27/11/2026).
  *
- * Até aqui, achar uma pendência era um pisca de 2,6 segundos: a pessoa desviava
- * o olho, ele acabava, e ela perdia o lugar — "hoje a pendência pisca quando
- * acionada; ela pode ficar vermelha enquanto estiver pendente?", pediu a Pólobh,
- * quatro vezes no mesmo check-list.
- *
- * São duas coisas diferentes, e por isso duas classes:
- *  · `com-pendencia` — o contorno discreto de TUDO que tem pendência aberta.
- *    Não pede ação agora; diz "aqui tem algo a resolver", e só some quando a
- *    pendência some;
- *  · `pendencia-atual` — o realce forte do item que a pílula está apontando
- *    NESTE momento. Sai quando a seta leva para o próximo.
- *
- * O pisca continua existindo, e agora no papel certo: é o aceno de "a seta fez
- * alguma coisa" quando a câmera não precisa se mexer, por cima da marca que
- * fica.
+ * Em 15/09/2026 a pendência passou a ficar vermelha o tempo todo: contorno em
+ * tudo o que tinha pendência aberta e realce forte no item atual, já na
+ * abertura da tela. Resolveu o "pisquei e perdi o lugar", mas numa tela com
+ * várias pendências virou vermelho permanente. Agora:
+ *  · ao entrar na tela, nada é marcado — a pílula do canto é o aviso;
+ *  · ao clicar na pílula, o item pisca e fica com um contorno fino
+ *    (`pendencia-atual`), que é o que guarda o lugar depois do pisca;
+ *  · o contorno sai quando a seta vai para a próxima, quando a pendência é
+ *    resolvida ou quando se sai da tela.
  */
-export const CLASSE_COM_PENDENCIA = "com-pendencia";
 export const CLASSE_PENDENCIA_ATUAL = "pendencia-atual";
 
-/**
- * Marca no DOM os elementos que têm pendência aberta, e desmarca o resto.
- *
- * Trabalha por varredura em vez de prop a prop de propósito: as âncoras já
- * existem (`idAncoraPendencia`), estão espalhadas por dez telas, e passar um
- * booleano por cada linha de cada lista significaria mexer em todas elas —
- * com o risco de uma esquecer e ficar sem a marca, que é justamente o defeito
- * que se está corrigindo.
- */
-export function marcarPendencias(ancoras: string[]): void {
-  if (typeof document === "undefined") return;
-  const querDestaque = new Set(ancoras.map((a) => idAncoraPendencia(a)));
-  for (const el of document.querySelectorAll<HTMLElement>(`.${CLASSE_COM_PENDENCIA}`)) {
-    if (!querDestaque.has(el.id)) el.classList.remove(CLASSE_COM_PENDENCIA);
-  }
-  for (const id of querDestaque) {
-    document.getElementById(id)?.classList.add(CLASSE_COM_PENDENCIA);
-  }
-}
-
-/** Tira a marca de todos — usado quando a tela que as contava sai de cena. */
+/** Tira a marca — usado quando a tela que a pôs sai de cena. */
 export function limparMarcasDePendencia(): void {
-  if (typeof document === "undefined") return;
-  for (const el of document.querySelectorAll<HTMLElement>(`.${CLASSE_COM_PENDENCIA}, .${CLASSE_PENDENCIA_ATUAL}`)) {
-    el.classList.remove(CLASSE_COM_PENDENCIA, CLASSE_PENDENCIA_ATUAL);
-  }
-}
-
-/**
- * O realce forte da pendência que a pílula aponta agora. Uma por vez: marcar a
- * nova apaga a anterior, sem que o chamador precise guardar qual era.
- */
-export function marcarPendenciaAtual(ancora: string | null): void {
   if (typeof document === "undefined") return;
   for (const el of document.querySelectorAll<HTMLElement>(`.${CLASSE_PENDENCIA_ATUAL}`)) {
     el.classList.remove(CLASSE_PENDENCIA_ATUAL);
   }
+}
+
+/**
+ * Marca o item em que a pílula parou. Um por vez: marcar o novo apaga o
+ * anterior, sem que o chamador precise guardar qual era.
+ */
+export function marcarPendenciaAtual(ancora: string | null): void {
+  limparMarcasDePendencia();
   if (!ancora) return;
   // Pode ser chamado no mesmo quadro em que a tela ainda está pintando.
   comElemento(idAncoraPendencia(ancora), (el) => el.classList.add(CLASSE_PENDENCIA_ATUAL));

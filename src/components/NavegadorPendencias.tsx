@@ -16,10 +16,13 @@
  * piscando é o convite para abrir a EC/OS e responder. Atravessar o sistema
  * continua sendo papel do sininho.
  *
- * As setas ▲ / ▼ saltam de uma para a outra: a tela rola até o item, ele "lateja"
- * duas vezes e, quando a pendência é um comentário, a thread daquele item se
- * abre e o comentário exato pisca em vermelho (ver `focarPendencia`); quando é
- * "OS/Contrato a emitir", quem pisca são os campos de status.
+ * Ao entrar na tela NADA fica marcado (27/11/2026): a pílula é o aviso. Clicar
+ * nela leva até a pendência que ela mostra; as setas ▲ / ▼ saltam de uma para a
+ * outra. Em qualquer dos casos a tela rola até o item, ele "lateja" duas vezes
+ * e, quando a pendência é um comentário, a thread daquele item se abre e o
+ * comentário exato pisca em vermelho (ver `focarPendencia`); quando é
+ * "OS/Contrato a emitir", quem pisca são os campos de status. Depois do pisca
+ * fica um contorno fino no item, para não perder o lugar, até o próximo salto.
  *
  * O pisca acontece a CADA clique, inclusive quando as duas pendências moram no
  * mesmo item e a câmera não precisa se mexer — é o único sinal de que a seta fez
@@ -31,7 +34,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { IcChevron, IcComment } from "@/components/icons";
 import { focarPendencia } from "@/lib/focoPendencia";
-import { limparMarcasDePendencia, marcarPendenciaAtual, marcarPendencias } from "@/lib/destaque";
+import { limparMarcasDePendencia, marcarPendenciaAtual } from "@/lib/destaque";
 import { cx } from "@/lib/format";
 import type { Pendencia } from "@/domain/pendencias";
 
@@ -76,28 +79,22 @@ export function NavegadorPendencias({ pendencias }: { pendencias: Pendencia[] })
   }, [pendencias.length]);
 
   /**
-   * O CONTORNO VERMELHO PERMANENTE (15/09/2026).
-   *
-   * Quem conhece as pendências da tela é esta pílula — ela já recebe a lista
-   * recortada —, então é daqui que as marcas são postas e tiradas. A varredura
-   * roda a cada mudança da lista: resolver uma observação apaga o contorno dela
-   * sem que nenhuma tela precise saber disso.
-   *
-   * A chave do efeito é a lista de âncoras, e não o array: `pendenciasDaTela`
-   * devolve um array novo a cada render, e o efeito rodaria em todo quadro.
+   * O item em que a pílula parou — o único que fica contornado, e só depois de
+   * um clique. `null` enquanto ninguém clicou: a tela abre limpa.
    */
+  const [visitada, setVisitada] = useState<string | null>(null);
+  // A chave é a lista de âncoras, e não o array: `pendenciasDaTela` devolve um
+  // array novo a cada render, e o efeito rodaria em todo quadro.
   const ancoras = pendencias.map((p) => p.ancora).filter(Boolean).join("|");
   useEffect(() => {
-    marcarPendencias(ancoras ? ancoras.split("|") : []);
-    return limparMarcasDePendencia;
-  }, [ancoras]);
-
-  // E o realce forte acompanha a posição da pílula — inclusive na primeira
-  // pintura, antes de alguém apertar seta nenhuma.
-  const ancoraAtual = pendencias[Math.min(posicao, Math.max(0, pendencias.length - 1))]?.ancora ?? null;
-  useEffect(() => {
-    marcarPendenciaAtual(ancoraAtual ?? null);
-  }, [ancoraAtual]);
+    // A pendência visitada foi resolvida (ou saiu da tela): o contorno vai junto.
+    if (visitada && !ancoras.split("|").includes(visitada)) {
+      setVisitada(null);
+      marcarPendenciaAtual(null);
+    }
+  }, [ancoras, visitada]);
+  // Sair da tela apaga a marca: ela é desta visita, não do item.
+  useEffect(() => limparMarcasDePendencia, []);
 
   if (!pendencias.length) return null;
 
@@ -108,7 +105,10 @@ export function NavegadorPendencias({ pendencias }: { pendencias: Pendencia[] })
     setPosicao(alvo);
     const p = pendencias[alvo];
     // `pendenciasDaTela` já garantiu a âncora: toda seta tem para onde levar.
-    if (p.ancora) focarPendencia({ ancora: p.ancora, observacaoId: p.observacaoId, campos: p.campos });
+    if (!p.ancora) return;
+    focarPendencia({ ancora: p.ancora, observacaoId: p.observacaoId, campos: p.campos });
+    setVisitada(p.ancora);
+    marcarPendenciaAtual(p.ancora);
   };
 
   return (
@@ -118,20 +118,28 @@ export function NavegadorPendencias({ pendencias }: { pendencias: Pendencia[] })
       role="group"
       aria-label="Navegar pelas pendências desta tela"
     >
+      {/* O corpo da pílula é um botão: leva até a pendência que ela está mostrando. */}
+      <button
+        type="button"
+        onClick={() => irPara(posicao)}
+        title="Ir até esta pendência"
+        className="flex min-w-0 items-center gap-2 rounded-btn text-left outline-none hover:opacity-80 focus-visible:ring-2 focus-visible:ring-danger/40"
+      >
       <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-danger text-white shrink-0">
         <IcComment width={14} height={14} />
       </span>
-      <div className="leading-tight min-w-0">
-        <div className="text-[12.5px] font-extrabold text-ink whitespace-nowrap">
+      <span className="block leading-tight min-w-0">
+        <span className="block text-[12.5px] font-extrabold text-ink whitespace-nowrap">
           {pendencias.length} {pendencias.length === 1 ? "pendência" : "pendências"}
           <span className="font-bold text-ink-3"> · {posicao + 1} de {pendencias.length}</span>
-        </div>
+        </span>
         {/* O título vem junto: diz o que a próxima seta vai mostrar, em vez de
             deixar a pessoa saltar às cegas para descobrir. */}
-        <div className="text-[11px] text-ink-2 truncate" title={atual.titulo}>
+        <span className="block text-[11px] text-ink-2 truncate" title={atual.titulo}>
           {atual.titulo}
-        </div>
-      </div>
+        </span>
+      </span>
+      </button>
       {/* Setas empilhadas: ▲ em cima de ▼, como um seletor de posição. */}
       <div className="flex flex-col ml-auto shrink-0">
         <SetaPendencia direcao="anterior" onClick={() => irPara(posicao - 1)} />
