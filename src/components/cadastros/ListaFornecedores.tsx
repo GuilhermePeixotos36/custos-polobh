@@ -9,7 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Card, Button, Input, Table, THead, Th, Tr, Td, Badge, EmptyState, AvisoErro, ThOrd, useOrdenacao,
 } from "@/components/ui";
-import { IcSearch, IcEye, IcPencil } from "@/components/icons";
+import { IcSearch, IcEye, IcEyeOff, IcPencil, IcTrash, IcCheck } from "@/components/icons";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import { gerarApelidoFornecedor, textoDoContato } from "@/domain/fornecedor";
@@ -19,9 +19,13 @@ import { useAuth } from "@/store/auth";
 import type { Fornecedor } from "@/data/types";
 import { FormularioFornecedor, novoFornecedor } from "./FormularioFornecedor";
 import { Bloco, Janela } from "./pecas";
+import { ExcluirCadastro } from "./ExcluirCadastro";
+import { confirmar } from "@/store/confirm";
+import { toast } from "@/store/toast";
+import { cx } from "@/lib/format";
 
 /** O que está aberto na janela: a ficha (só leitura) ou o formulário. */
-type Aberto = { modo: "ver" | "editar"; fornecedor: Fornecedor } | null;
+type Aberto = { modo: "ver" | "editar" | "excluir"; fornecedor: Fornecedor } | null;
 
 export function ListaFornecedores({ pedidoNovo }: { /** Muda a cada clique em "Novo fornecedor" na barra da tela. */ pedidoNovo: number }) {
   const podeEditar = useAuth((s) => s.pode("fornecedores.editar"));
@@ -31,6 +35,27 @@ export function ListaFornecedores({ pedidoNovo }: { /** Muda a cada clique em "N
   useEffect(() => {
     if (pedidoNovo) setAberto({ modo: "editar", fornecedor: novoFornecedor() });
   }, [pedidoNovo]);
+
+  /**
+   * INATIVAR / REATIVAR (27/11/2026). O inativo continua no cadastro e em tudo o
+   * que já foi feito com ele; só deixa de ser sugerido no preenchimento.
+   */
+  async function definirAtivo(alvo: Fornecedor, ativo: boolean) {
+    const nome = alvo.nomeFantasia || alvo.razaoSocial || "o fornecedor";
+    if (!ativo && !(await confirmar({
+      titulo: `Inativar ${nome}?`,
+      mensagem: "O registro continua no cadastro e nos documentos já feitos, mas deixa de ser sugerido no preenchimento. Dá para reativar depois.",
+      confirmarTexto: "Inativar",
+    }))) return;
+    try {
+      await repo.fornecedores.definirAtivo(alvo.id, ativo);
+      toast(ativo ? `${nome} foi reativado.` : `${nome} foi inativado.`, "success");
+      setAberto(null);
+      reload();
+    } catch (e) {
+      toast(`Não foi possível ${ativo ? "reativar" : "inativar"}: ${(e as Error).message}`, "danger");
+    }
+  }
 
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
@@ -91,10 +116,13 @@ export function ListaFornecedores({ pedidoNovo }: { /** Muda a cada clique em "N
               </THead>
               <tbody>
                 {lista.map((f) => (
-                  <Tr key={f.id}>
+                  <Tr key={f.id} className={cx(f.ativo === false && "opacity-60")}>
                     <Td className="text-[12.5px] font-bold text-ink-2 tabular-nums">{rotuloIdFornecedor(f.codigo)}</Td>
                     <Td>
-                      <div className="font-bold text-ink">{f.nomeFantasia || f.razaoSocial || "(sem nome)"}</div>
+                      <div className="font-bold text-ink">
+                        {f.nomeFantasia || f.razaoSocial || "(sem nome)"}
+                        {f.ativo === false && <span className="ml-2 align-middle"><Badge tom="arquivado">Inativo</Badge></span>}
+                      </div>
                       {f.nomeFantasia && f.razaoSocial && f.nomeFantasia !== f.razaoSocial && (
                         <div className="text-[12px] text-ink-2">{f.razaoSocial}</div>
                       )}
@@ -120,10 +148,27 @@ export function ListaFornecedores({ pedidoNovo }: { /** Muda a cada clique em "N
                           <IcEye width={16} height={16} />
                         </button>
                         {podeEditar && (
-                          <button type="button" title="Editar" aria-label={`Editar ${f.razaoSocial}`}
-                            className="rounded-btn p-1.5 text-ink-3 hover:bg-[#F1F2F5] hover:text-ink" onClick={() => setAberto({ modo: "editar", fornecedor: f })}>
-                            <IcPencil width={16} height={16} />
-                          </button>
+                          <>
+                            <button type="button" title="Editar" aria-label={`Editar ${f.razaoSocial}`}
+                              className="rounded-btn p-1.5 text-ink-3 hover:bg-[#F1F2F5] hover:text-ink" onClick={() => setAberto({ modo: "editar", fornecedor: f })}>
+                              <IcPencil width={16} height={16} />
+                            </button>
+                            {f.ativo === false ? (
+                              <button type="button" title="Reativar" aria-label={`Reativar ${f.razaoSocial}`}
+                                className="rounded-btn p-1.5 text-ink-3 hover:bg-success-soft hover:text-success" onClick={() => void definirAtivo(f, true)}>
+                                <IcCheck width={16} height={16} />
+                              </button>
+                            ) : (
+                              <button type="button" title="Inativar" aria-label={`Inativar ${f.razaoSocial}`}
+                                className="rounded-btn p-1.5 text-ink-3 hover:bg-[#F1F2F5] hover:text-ink" onClick={() => void definirAtivo(f, false)}>
+                                <IcEyeOff width={16} height={16} />
+                              </button>
+                            )}
+                            <button type="button" title="Excluir" aria-label={`Excluir ${f.razaoSocial}`}
+                              className="rounded-btn p-1.5 text-ink-3 hover:bg-danger-soft hover:text-danger" onClick={() => setAberto({ modo: "excluir", fornecedor: f })}>
+                              <IcTrash width={16} height={16} />
+                            </button>
+                          </>
                         )}
                       </div>
                     </Td>
@@ -140,6 +185,21 @@ export function ListaFornecedores({ pedidoNovo }: { /** Muda a cada clique em "N
           fornecedor={aberto.fornecedor}
           onClose={() => setAberto(null)}
           onEditar={podeEditar ? () => setAberto({ modo: "editar", fornecedor: aberto.fornecedor }) : undefined}
+        />
+      )}
+      {aberto?.modo === "excluir" && (
+        <ExcluirCadastro
+          oQue="fornecedor"
+          nome={aberto.fornecedor.nomeFantasia || aberto.fornecedor.razaoSocial || "Fornecedor"}
+          carregarUso={() => repo.fornecedores.uso(aberto.fornecedor.id)}
+          // Quem pode ficar no lugar: os outros fornecedores ATIVOS.
+          destinos={(data ?? [])
+            .filter((o) => o.id !== aberto.fornecedor.id && o.ativo !== false)
+            .map((o) => ({ id: o.id, rotulo: `${rotuloIdFornecedor(o.codigo)} · ${o.nomeFantasia || o.razaoSocial} · ${o.cnpj || "sem documento"}` }))}
+          excluir={(destinoId) => repo.fornecedores.excluir(aberto.fornecedor.id, destinoId)}
+          onClose={() => setAberto(null)}
+          onExcluido={() => { setAberto(null); reload(); }}
+          onInativar={aberto.fornecedor.ativo === false ? undefined : () => void definirAtivo(aberto.fornecedor, false)}
         />
       )}
       {aberto?.modo === "editar" && (

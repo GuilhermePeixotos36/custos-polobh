@@ -463,6 +463,8 @@ export function ProjetoDetail() {
   const sugestoesCliente = useMemo(() => {
     if (!cnpjDigitado) return [];
     return (clientesAll ?? [])
+      // Cliente inativo não é sugerido (27/11/2026).
+      .filter((c) => c.ativo !== false)
       .filter((c) => {
         const d = onlyDigits(c.cnpjCpf);
         return d.startsWith(cnpjDigitado) && d !== cnpjDigitado;
@@ -474,7 +476,7 @@ export function ProjetoDetail() {
     const busca = p.cliente.nome.trim().toLocaleLowerCase("pt-BR");
     if (busca.length < 2) return [];
     return (clientesAll ?? [])
-      .filter((c) => c.id !== p.cliente.id)
+      .filter((c) => c.id !== p.cliente.id && c.ativo !== false)
       .filter((c) => [c.nome, c.razaoSocial, c.apelido].some((valor) => valor.toLocaleLowerCase("pt-BR").includes(busca)))
       .slice(0, 8);
   }, [clientesAll, p.cliente.id, p.cliente.nome]);

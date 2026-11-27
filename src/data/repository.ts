@@ -4,6 +4,8 @@
  * hoje, Supabase para tudo (não existe mais mock em memória).
  */
 import type {
+  ResultadoExclusaoCadastro,
+  UsoDoCadastro,
   AbaComConversa, AnexoObservacao, Area, Chamado, Checklist, Cliente, CredenciamentoResposta, Ec, EmpresaGrupo, Fornecedor,
   ItemChecklist, ModeloChecklist, Observacao, Os, Projeto, ProjetoInfo, RegistroBackup, Usuario,
 } from "./types";
@@ -27,13 +29,24 @@ export interface ProjetoRepository {
   remover(id: string): Promise<void>;
 }
 
-export interface ClienteRepository {
+/**
+ * O que os dois cadastros (clientes e fornecedores) têm em comum desde
+ * 27/11/2026: inativar, ver onde o registro é usado e excluir — transferindo,
+ * quando ele está em uso, os documentos ATIVOS para o registro que fica.
+ */
+export interface ManutencaoDeCadastro {
+  definirAtivo(id: string, ativo: boolean): Promise<void>;
+  uso(id: string): Promise<UsoDoCadastro>;
+  excluir(id: string, destinoId?: string): Promise<ResultadoExclusaoCadastro>;
+}
+
+export interface ClienteRepository extends ManutencaoDeCadastro {
   listar(): Promise<Cliente[]>;
   obter(id: string): Promise<Cliente | undefined>;
   salvar(c: Cliente): Promise<Cliente>;
 }
 
-export interface FornecedorRepository {
+export interface FornecedorRepository extends ManutencaoDeCadastro {
   listar(): Promise<Fornecedor[]>;
   obter(id: string): Promise<Fornecedor | undefined>;
   porCnpj(cnpj: string): Promise<Fornecedor | undefined>;

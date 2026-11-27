@@ -83,6 +83,8 @@ import type {
   Projeto,
   RegistroBackup,
   Representante,
+  ResultadoExclusaoCadastro,
+  UsoDoCadastro,
   Usuario,
 } from "./types";
 import type { PosseDeEdicao } from "@/domain/travaEdicao";
@@ -198,6 +200,7 @@ function mapCliente(r: any): Cliente {
   return {
     id: r.id,
     codigo: typeof r.codigo === "number" ? r.codigo : undefined,
+    ativo: r.ativo !== false,
     apelido: r.apelido ?? "",
     nome: r.nome ?? "",
     razaoSocial: r.razao_social ?? "",
@@ -223,7 +226,44 @@ function clienteRow(cru: Cliente) {
   };
 }
 
+/**
+ * Inativar, uso e exclusão — iguais para clientes e fornecedores (27/11/2026).
+ * Inativar é um UPDATE só da coluna `ativo` (o salvamento normal não a envia,
+ * para o formulário não reativar ninguém sem querer). Uso e exclusão são RPC:
+ * a unificação mexe em EC e OS, que quem cuida do cadastro nem sempre edita.
+ */
+function manutencaoDeCadastro(tipo: "cliente" | "fornecedor", tabela: "clientes" | "fornecedores", rotulo: "Cliente" | "Fornecedor") {
+  return {
+    async definirAtivo(id: string, ativo: boolean) {
+      ok(await supabase.from(tabela).update({ ativo }).eq("id", id));
+      auditar({
+        categoria: rotulo,
+        acao: `${tipo}.${ativo ? "reativar" : "inativar"}`,
+        mensagem: `${rotulo} ${ativo ? "reativado" : "inativado"} no cadastro`,
+        alvoId: id,
+      });
+    },
+    async uso(id: string) {
+      return (ok(await supabase.rpc("uso_do_cadastro", { p_tipo: tipo, p_id: id })) ?? {}) as UsoDoCadastro;
+    },
+    async excluir(id: string, destinoId?: string) {
+      const r = ok(
+        await supabase.rpc("excluir_cadastro", { p_tipo: tipo, p_id: id, p_destino: destinoId ?? null })
+      ) as ResultadoExclusaoCadastro | null;
+      auditar({
+        nivel: "aviso",
+        categoria: rotulo,
+        acao: destinoId ? `${tipo}.unificar` : `${tipo}.excluir`,
+        mensagem: destinoId ? `${rotulo} excluído do cadastro e unificado em outro registro` : `${rotulo} excluído do cadastro`,
+        alvoId: id,
+      });
+      return r ?? { itensEc: 0, oss: 0, ecs: 0, projetos: 0 };
+    },
+  };
+}
+
 const clienteRepo: ClienteRepository = {
+  ...manutencaoDeCadastro("cliente", "clientes", "Cliente"),
   async listar() {
     const data = ok(await supabase.from("clientes").select("*").order("nome"));
     return (data ?? []).map(mapCliente);
@@ -256,6 +296,7 @@ function mapFornecedor(r: any): Fornecedor {
   return {
     id: r.id,
     codigo: typeof r.codigo === "number" ? r.codigo : undefined,
+    ativo: r.ativo !== false,
     razaoSocial: r.razao_social ?? "",
     apelido: r.apelido ?? undefined,
     nomeFantasia: r.nome_fantasia ?? undefined,
@@ -294,6 +335,7 @@ function fornecedorRow(cru: Fornecedor) {
 }
 
 const fornecedorRepo: FornecedorRepository = {
+  ...manutencaoDeCadastro("fornecedor", "fornecedores", "Fornecedor"),
   async listar() {
     const data = ok(await supabase.from("fornecedores").select("*").order("razao_social"));
     return (data ?? []).map(mapFornecedor);

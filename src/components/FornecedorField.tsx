@@ -74,7 +74,8 @@ export function FornecedorField({ razao, cnpj, fornecedores: doCadastro, onChang
   // Sugestões enquanto digita: fornecedores cujo CNPJ começa pelo que já foi digitado.
   const sugestoes = useMemo(() => {
     if (digits.length < 2 || digits.length === 14) return [];
-    return fornecedores.filter((f) => onlyDigits(f.cnpj).startsWith(digits)).slice(0, 6);
+    // Inativo não é sugerido (27/11/2026) — mas continua reconhecido quando o documento é digitado por inteiro.
+    return fornecedores.filter((f) => f.ativo !== false && onlyDigits(f.cnpj).startsWith(digits)).slice(0, 6);
   }, [fornecedores, digits]);
 
   function escolher(f: Fornecedor) {

@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Card, Button, Input, Table, THead, Th, Tr, Td, Badge, EmptyState, AvisoErro, ThOrd, useOrdenacao,
 } from "@/components/ui";
-import { IcSearch, IcEye, IcPencil } from "@/components/icons";
+import { IcSearch, IcEye, IcEyeOff, IcPencil, IcTrash, IcCheck } from "@/components/icons";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import { rotuloIdFornecedor as rotuloId } from "@/domain/fornecedorCadastro";
@@ -17,9 +17,13 @@ import { useAuth } from "@/store/auth";
 import type { Cliente } from "@/data/types";
 import { FormularioCliente } from "./FormularioCliente";
 import { Bloco, Janela } from "./pecas";
+import { ExcluirCadastro } from "./ExcluirCadastro";
+import { confirmar } from "@/store/confirm";
+import { toast } from "@/store/toast";
+import { cx } from "@/lib/format";
 
 /** O que está aberto na janela: a ficha (só leitura) ou o formulário. */
-type Aberto = { modo: "ver" | "editar"; cliente: Cliente } | null;
+type Aberto = { modo: "ver" | "editar" | "excluir"; cliente: Cliente } | null;
 
 export function ListaClientes({ pedidoNovo }: { /** Muda a cada clique em "Novo cliente" na barra da tela. */ pedidoNovo: number }) {
   const podeEditar = useAuth((s) => s.pode("fornecedores.editar"));
@@ -29,6 +33,27 @@ export function ListaClientes({ pedidoNovo }: { /** Muda a cada clique em "Novo 
   useEffect(() => {
     if (pedidoNovo) setAberto({ modo: "editar", cliente: novoCliente() });
   }, [pedidoNovo]);
+
+  /**
+   * INATIVAR / REATIVAR (27/11/2026). O inativo continua no cadastro e em tudo o
+   * que já foi feito com ele; só deixa de ser sugerido no preenchimento.
+   */
+  async function definirAtivo(alvo: Cliente, ativo: boolean) {
+    const nome = alvo.nome || alvo.razaoSocial || "o cliente";
+    if (!ativo && !(await confirmar({
+      titulo: `Inativar ${nome}?`,
+      mensagem: "O registro continua no cadastro e nos documentos já feitos, mas deixa de ser sugerido no preenchimento. Dá para reativar depois.",
+      confirmarTexto: "Inativar",
+    }))) return;
+    try {
+      await repo.clientes.definirAtivo(alvo.id, ativo);
+      toast(ativo ? `${nome} foi reativado.` : `${nome} foi inativado.`, "success");
+      setAberto(null);
+      reload();
+    } catch (e) {
+      toast(`Não foi possível ${ativo ? "reativar" : "inativar"}: ${(e as Error).message}`, "danger");
+    }
+  }
 
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
@@ -87,10 +112,13 @@ export function ListaClientes({ pedidoNovo }: { /** Muda a cada clique em "Novo 
               </THead>
               <tbody>
                 {lista.map((c) => (
-                  <Tr key={c.id}>
+                  <Tr key={c.id} className={cx(c.ativo === false && "opacity-60")}>
                     <Td className="text-[12.5px] font-bold text-ink-2 tabular-nums">{rotuloId(c.codigo)}</Td>
                     <Td>
-                      <div className="font-bold text-ink">{c.nome || c.razaoSocial || "(sem nome)"}</div>
+                      <div className="font-bold text-ink">
+                        {c.nome || c.razaoSocial || "(sem nome)"}
+                        {c.ativo === false && <span className="ml-2 align-middle"><Badge tom="arquivado">Inativo</Badge></span>}
+                      </div>
                       {c.nome && c.razaoSocial && c.nome !== c.razaoSocial && <div className="text-[12px] text-ink-2">{c.razaoSocial}</div>}
                     </Td>
                     <Td className="text-[12.5px] tabular-nums whitespace-nowrap">
@@ -111,10 +139,27 @@ export function ListaClientes({ pedidoNovo }: { /** Muda a cada clique em "Novo 
                           <IcEye width={16} height={16} />
                         </button>
                         {podeEditar && (
-                          <button type="button" title="Editar" aria-label={`Editar ${c.nome}`}
-                            className="rounded-btn p-1.5 text-ink-3 hover:bg-[#F1F2F5] hover:text-ink" onClick={() => setAberto({ modo: "editar", cliente: c })}>
-                            <IcPencil width={16} height={16} />
-                          </button>
+                          <>
+                            <button type="button" title="Editar" aria-label={`Editar ${c.nome}`}
+                              className="rounded-btn p-1.5 text-ink-3 hover:bg-[#F1F2F5] hover:text-ink" onClick={() => setAberto({ modo: "editar", cliente: c })}>
+                              <IcPencil width={16} height={16} />
+                            </button>
+                            {c.ativo === false ? (
+                              <button type="button" title="Reativar" aria-label={`Reativar ${c.nome}`}
+                                className="rounded-btn p-1.5 text-ink-3 hover:bg-success-soft hover:text-success" onClick={() => void definirAtivo(c, true)}>
+                                <IcCheck width={16} height={16} />
+                              </button>
+                            ) : (
+                              <button type="button" title="Inativar" aria-label={`Inativar ${c.nome}`}
+                                className="rounded-btn p-1.5 text-ink-3 hover:bg-[#F1F2F5] hover:text-ink" onClick={() => void definirAtivo(c, false)}>
+                                <IcEyeOff width={16} height={16} />
+                              </button>
+                            )}
+                            <button type="button" title="Excluir" aria-label={`Excluir ${c.nome}`}
+                              className="rounded-btn p-1.5 text-ink-3 hover:bg-danger-soft hover:text-danger" onClick={() => setAberto({ modo: "excluir", cliente: c })}>
+                              <IcTrash width={16} height={16} />
+                            </button>
+                          </>
                         )}
                       </div>
                     </Td>
@@ -131,6 +176,21 @@ export function ListaClientes({ pedidoNovo }: { /** Muda a cada clique em "Novo 
           cliente={aberto.cliente}
           onClose={() => setAberto(null)}
           onEditar={podeEditar ? () => setAberto({ modo: "editar", cliente: aberto.cliente }) : undefined}
+        />
+      )}
+      {aberto?.modo === "excluir" && (
+        <ExcluirCadastro
+          oQue="cliente"
+          nome={aberto.cliente.nome || aberto.cliente.razaoSocial || "Cliente"}
+          carregarUso={() => repo.clientes.uso(aberto.cliente.id)}
+          // Quem pode ficar no lugar: os outros clientes ATIVOS.
+          destinos={(data ?? [])
+            .filter((o) => o.id !== aberto.cliente.id && o.ativo !== false)
+            .map((o) => ({ id: o.id, rotulo: `${rotuloId(o.codigo)} · ${o.nome || o.razaoSocial} · ${o.cnpjCpf || "sem documento"}` }))}
+          excluir={(destinoId) => repo.clientes.excluir(aberto.cliente.id, destinoId)}
+          onClose={() => setAberto(null)}
+          onExcluido={() => { setAberto(null); reload(); }}
+          onInativar={aberto.cliente.ativo === false ? undefined : () => void definirAtivo(aberto.cliente, false)}
         />
       )}
       {aberto?.modo === "editar" && (

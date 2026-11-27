@@ -105,6 +105,8 @@ export interface Representante {
 
 export interface Cliente {
   id: string;
+  /** `false` = inativo (27/11/2026): fica no cadastro e some das sugestões de preenchimento. */
+  ativo?: boolean;
   /** O ID do cadastro (27/11/2026): sequencial, dado pelo banco e mostrado com quatro casas. Só leitura. */
   codigo?: number;
   /** Apelido único do cliente, reutilizado como prefixo dos novos projetos. */
@@ -130,6 +132,8 @@ export interface DadosBancarios {
 
 export interface Fornecedor {
   id: string;
+  /** `false` = inativo (27/11/2026): fica no cadastro e some das sugestões de preenchimento. */
+  ativo?: boolean;
   /**
    * O ID do cadastro (27/11/2026): numero sequencial que o banco da ao gravar e
    * que a tela mostra com quatro casas ("0042"). So leitura: nunca e enviado.
@@ -1367,4 +1371,29 @@ export interface RegistroBackup {
   anexos: number;
   status: "concluido" | "parcial" | "erro";
   erro?: string;
+}
+
+/* ------------------- Cadastros: uso, exclusão e unificação ------------------ */
+
+/**
+ * Onde um registro do cadastro é usado (27/11/2026). `...Ativos` é o que a
+ * unificação atualiza; os totais incluem o histórico (emitido e arquivado).
+ */
+export interface UsoDoCadastro {
+  itensEc?: number;
+  itensEcAtivos?: number;
+  projetos?: number;
+  projetosAtivos?: number;
+  ecs?: number;
+  ecsAtivas?: number;
+  oss?: number;
+  ossAtivas?: number;
+}
+
+/** O que a unificação atualizou antes de apagar o registro. */
+export interface ResultadoExclusaoCadastro {
+  itensEc: number;
+  oss: number;
+  ecs: number;
+  projetos: number;
 }
