@@ -202,11 +202,12 @@ export function ChecklistProjeto({
         : undefined;
     },
   });
-  /** Só as tarefas que têm pendência de quem está olhando. */
-  const [soPendencias, setSoPendencias] = usePreferencia<boolean>("checklist.soPendencias", false, booleano);
-  const temFiltro = filtroResp !== null || filtroStatus !== null || filtroPrazo !== null || !!buscaTarefa.trim() || soPendencias;
+  // Os botões "Minhas tarefas" e "Tarefas com pendência" saíram da barra
+  // (27/11/2026): o funil de Responsável e o de Status fazem o mesmo, e a barra
+  // congelada ficou com uma linha a menos. O filtro "só pendências" foi junto —
+  // quem tinha deixado ligado não ficaria com um filtro sem botão para desligar.
+  const temFiltro = filtroResp !== null || filtroStatus !== null || filtroPrazo !== null || !!buscaTarefa.trim();
   const limparFiltros = () => {
-    setSoPendencias(false);
     setFiltroResp(null);
     setFiltroStatus(null);
     setFiltroPrazo(null);
@@ -266,16 +267,6 @@ export function ChecklistProjeto({
     }
     return mapa;
   }, [pendenciasDasTarefas]);
-  // A última pendência foi resolvida com o filtro ligado: ele se desliga, senão a lista ficaria vazia.
-  useEffect(() => {
-    if (soPendencias && pendenciasDasTarefas.length === 0) setSoPendencias(false);
-  }, [soPendencias, pendenciasDasTarefas.length]);
-  const alternarSoPendencias = () => {
-    const ligar = !soPendencias;
-    limparFiltros();
-    setSoPendencias(ligar);
-  };
-
   /**
    * Itens à vista.
    *
@@ -303,7 +294,6 @@ export function ChecklistProjeto({
     );
     const termo = colapsarEspacos(buscaTarefa).toLowerCase();
     const filtrados = base.filter((i) => {
-      if (soPendencias && !cobrada(i)) return false;
       if (filtroResp !== null && !filtroResp.has(i.responsavel || SEM_RESPONSAVEL) && !cobrada(i)) return false;
       if (filtroStatus !== null && !filtroStatus.has(statusExibido(i, hoje))) return false;
       if (filtroPrazo !== null && !filtroPrazo.has(situacaoPrazo(i, hoje))) return false;
@@ -311,7 +301,7 @@ export function ChecklistProjeto({
       return true;
     });
     return ordenarPorPrazo(filtrados);
-  }, [checklist.itens, verRecolhidas, filtroResp, filtroStatus, filtroPrazo, buscaTarefa, soPendencias, pendenciasPorItem, encerradasAgora, hoje]);
+  }, [checklist.itens, verRecolhidas, filtroResp, filtroStatus, filtroPrazo, buscaTarefa, pendenciasPorItem, encerradasAgora, hoje]);
 
   /** A ordenação escolhida no cabeçalho (vale dentro de cada grupo). */
   const comparar = useMemo(() => {
@@ -692,101 +682,49 @@ export function ChecklistProjeto({
         )}
       </Card>
 
-      {/* ---------------------------- controles --------------------------- */}
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* NOVA TAREFA pergunta a ETAPA (27/11/2026): o botão do topo criava a
-              tarefa na etapa do último item da lista, sem dizer qual. Com mais de
-              uma etapa, ele abre a lista delas; com uma só, cria direto. */}
-          {podeEditar && <BotaoNovaTarefa etapas={etapasExistentes} onCriar={(etapa) => void criar(etapa ? { etapa } : undefined)} />}
-          {/* CRIAR ETAPA (15/09/2026). A etapa é o nome que as tarefas carregam,
-              então criar uma é criar a primeira tarefa dela — e é assim que ela
-              nasce com conteúdo em vez de virar um cabeçalho vazio que alguém
-              esquece na lista. */}
-          {podeEditar && agrupamento === "etapa" && (
-            <Button
-              size="sm"
-              variant="secondary"
-              icon={<IcPlus width={16} height={16} />}
-              onClick={() => void criar({ etapa: nomeDeEtapaNova(checklist.itens) })}
-              title="Cria a etapa com a primeira tarefa dela"
-            >
-              Nova etapa
-            </Button>
-          )}
-          <Select
-            className="!h-9 !w-auto !text-[13px]"
-            value={agrupamento}
-            onChange={(e) => setAgrupamento(e.target.value as Agrupamento)}
-            aria-label="Agrupar tarefas"
-          >
-            <option value="etapa">Agrupar por etapa</option>
-            <option value="data">Agrupar por data</option>
-          </Select>
-          {nomeAtual && (
-            <Button
-              size="sm"
-              variant={filtroResp?.size === 1 && filtroResp.has(nomeAtual) ? "soft" : "secondary"}
-              onClick={() => setFiltroResp((f) => (f?.size === 1 && f.has(nomeAtual) ? null : new Set([nomeAtual])))}
-              title="Só as tarefas em que você é o responsável"
-            >
-              Minhas tarefas
-            </Button>
-          )}
-          {/* Só as tarefas que esperam por quem está olhando. Com zero ele fica apagado,
-              e a pessoa sabe que não deve nada aqui. */}
-          <Button
-            size="sm"
-            variant={soPendencias ? "soft" : "secondary"}
-            disabled={pendenciasDasTarefas.length === 0}
-            onClick={alternarSoPendencias}
-            className="disabled:opacity-50"
+      {/* -------------------- controles e alterações em lote --------------------
+          UMA LINHA SÓ (27/11/2026): criar, agrupar, selecionar e — com tarefas
+          marcadas — mudar o status, o prazo ou excluir. Eram duas faixas (a dos
+          botões e a de "Selecionar todas"); juntas, o topo congelado do check-list
+          perde uma linha inteira. Com seleção, a linha ganha a moldura laranja:
+          é o aviso de que os controles da direita agem sobre as marcadas. */}
+      <div
+        className={cx(
+          "flex min-h-[40px] items-center gap-x-3 gap-y-1.5 flex-wrap rounded-card border px-2 py-1 transition-colors",
+          marcadas.length ? "border-primary bg-primary-soft" : "border-transparent"
+        )}
+      >
+        {/* O botão "Novo" junta as duas criações; a tarefa nova pergunta a etapa. */}
+        {podeEditar && (
+          <BotaoNovo
+            etapas={etapasExistentes}
+            // Etapa nova só faz sentido com a lista agrupada por etapa.
+            podeCriarEtapa={agrupamento === "etapa"}
+            onNovaTarefa={(etapa) => void criar(etapa ? { etapa } : undefined)}
+            // A etapa é o nome que as tarefas carregam: criar uma é criar a
+            // primeira tarefa dela (15/09/2026).
+            onNovaEtapa={() => void criar({ etapa: nomeDeEtapaNova(checklist.itens) })}
+          />
+        )}
+        <Select
+          className="!h-9 !w-auto !text-[13px]"
+          value={agrupamento}
+          onChange={(e) => setAgrupamento(e.target.value as Agrupamento)}
+          aria-label="Agrupar tarefas"
+        >
+          <option value="etapa">Agrupar por etapa</option>
+          <option value="data">Agrupar por data</option>
+        </Select>
+
+        {podeEditar && visiveis.length > 0 && (
+          <label
+            className="inline-flex h-9 items-center gap-2 rounded-btn px-2 text-[13px] font-bold text-ink cursor-pointer hover:bg-[#F1F2F5]"
             title={
-              pendenciasDasTarefas.length
-                ? "Só as tarefas que estão esperando por você: atrasadas, para hoje ou com observação para responder"
-                : "Nenhuma tarefa deste check-list está esperando por você"
+              podeExcluir
+                ? "Marque as tarefas para mudar o status, o prazo ou excluir várias de uma vez"
+                : "Marque as tarefas para mudar o status ou o prazo de várias de uma vez"
             }
           >
-            Tarefas com pendência
-            <span
-              className={cx(
-                "inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[11px] font-extrabold leading-none tabular-nums",
-                pendenciasDasTarefas.length ? "bg-danger text-white" : "bg-[#E4E6EC] text-ink-3"
-              )}
-            >
-              {pendenciasDasTarefas.length}
-            </span>
-          </Button>
-          {(temFiltro || ordem) && (
-            <Button size="sm" variant="text" onClick={() => { limparFiltros(); setOrdem(null); }}>
-              Limpar filtros e ordenação
-            </Button>
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={() => setVerRecolhidas((v) => !v)}
-          disabled={!verRecolhidas && recolhidas === 0}
-          title="Mostra as tarefas concluídas e as que foram recolhidas da lista"
-          className="inline-flex items-center gap-1.5 text-[13px] font-bold text-ink-2 hover:text-ink disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {verRecolhidas ? <IcEyeOff width={16} height={16} /> : <IcEye width={16} height={16} />}
-          {verRecolhidas ? "Esconder recolhidas" : `Ver recolhidas (${recolhidas})`}
-        </button>
-      </div>
-
-      {/* --------------------------- alterações em lote --------------------------
-          UMA barra, três gestos (26/11/2026): mudar o status, mudar o prazo e
-          excluir. Tudo na mesma altura e com a mesma moldura; o que cada controle
-          muda está escrito nele. Concluir e reabrir em lote são o próprio "Status". */}
-      {podeEditar && visiveis.length > 0 && (
-        <div
-          className={cx(
-            "flex min-h-[42px] items-center gap-x-4 gap-y-1 flex-wrap rounded-card border px-4 py-1 transition-colors",
-            marcadas.length ? "border-primary bg-primary-soft" : "border-border bg-surface"
-          )}
-        >
-          <label className="inline-flex items-center gap-2 text-[13px] font-bold text-ink cursor-pointer">
             <input
               type="checkbox"
               checked={todasMarcadas}
@@ -795,75 +733,86 @@ export function ChecklistProjeto({
             />
             Selecionar todas
           </label>
-          {marcadas.length === 0 ? (
-            <span className="text-[12.5px] font-semibold text-ink-3">
-              {podeExcluir
-                ? "Marque as tarefas para mudar o status, o prazo ou excluir várias de uma vez"
-                : "Marque as tarefas para mudar o status ou o prazo de várias de uma vez"}
-            </span>
-          ) : (
-            <>
-              <span className="inline-flex items-center gap-2 text-[13px] font-extrabold text-primary-dark">
-                <span className="tabular-nums">
-                  {marcadas.length} {marcadas.length === 1 ? "selecionada" : "selecionadas"}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setSelecionadas(new Set())}
-                  className="rounded px-1 text-[12.5px] font-bold text-ink-2 underline decoration-dotted underline-offset-2 hover:text-ink input-focus"
-                >
-                  limpar
-                </button>
+        )}
+
+        {podeEditar && marcadas.length > 0 && (
+          <>
+            <span className="inline-flex items-center gap-2 text-[13px] font-extrabold text-primary-dark">
+              <span className="tabular-nums">
+                {marcadas.length} {marcadas.length === 1 ? "selecionada" : "selecionadas"}
               </span>
+              <button
+                type="button"
+                onClick={() => setSelecionadas(new Set())}
+                className="rounded px-1 text-[12.5px] font-bold text-ink-2 underline decoration-dotted underline-offset-2 hover:text-ink input-focus"
+              >
+                limpar
+              </button>
+            </span>
 
-              <div className="ml-auto flex items-center gap-2 flex-wrap">
-                <ControleEmLote rotulo="Status">
-                  <select
-                    value=""
-                    onChange={(e) => e.target.value && void statusEmLote(e.target.value as StatusChecklist)}
-                    aria-label="Mudar o status das tarefas selecionadas"
-                    className="h-full cursor-pointer appearance-none bg-transparent bg-no-repeat pl-2.5 pr-8 text-[13px] font-bold text-ink outline-none"
-                    style={{ backgroundImage: SETA_LISTA, backgroundPosition: "right 10px center" }}
-                  >
-                    <option value="">Mudar para…</option>
-                    <option value="Pendente">Pendente</option>
-                    <option value="Concluído">Concluído</option>
-                    <option value="Não se aplica">Não se aplica</option>
-                  </select>
-                </ControleEmLote>
+          <div className="flex items-center gap-2 flex-wrap">
+            <ControleEmLote rotulo="Status">
+              <select
+                value=""
+                onChange={(e) => e.target.value && void statusEmLote(e.target.value as StatusChecklist)}
+                aria-label="Mudar o status das tarefas selecionadas"
+                className="h-full cursor-pointer appearance-none bg-transparent bg-no-repeat pl-2.5 pr-8 text-[13px] font-bold text-ink outline-none"
+                style={{ backgroundImage: SETA_LISTA, backgroundPosition: "right 10px center" }}
+              >
+                <option value="">Mudar para…</option>
+                <option value="Pendente">Pendente</option>
+                <option value="Concluído">Concluído</option>
+                <option value="Não se aplica">Não se aplica</option>
+              </select>
+            </ControleEmLote>
 
-                <ControleEmLote rotulo="Prazo">
-                  <input
-                    type="date"
-                    min="1900-01-01"
-                    max="2100-12-31"
-                    value={prazoEmLote}
-                    onChange={(e) => setPrazoEmLote(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && prazoEmLoteAplicar()}
-                    className="h-full bg-transparent px-2.5 text-[13px] font-bold text-ink outline-none"
-                    aria-label="Nova data prevista das tarefas selecionadas"
-                    title="Nova data prevista para as selecionadas"
-                  />
-                  <button
-                    type="button"
-                    disabled={!prazoEmLote}
-                    onClick={prazoEmLoteAplicar}
-                    className="h-full border-l-[1.5px] border-[#D6D9E0] px-3 text-[13px] font-bold text-primary-dark hover:bg-primary-soft disabled:cursor-not-allowed disabled:text-ink-3 disabled:hover:bg-transparent"
-                  >
-                    Aplicar
-                  </button>
-                </ControleEmLote>
+            <ControleEmLote rotulo="Prazo">
+              <input
+                type="date"
+                min="1900-01-01"
+                max="2100-12-31"
+                value={prazoEmLote}
+                onChange={(e) => setPrazoEmLote(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && prazoEmLoteAplicar()}
+                className="h-full bg-transparent px-2.5 text-[13px] font-bold text-ink outline-none"
+                aria-label="Nova data prevista das tarefas selecionadas"
+                title="Nova data prevista para as selecionadas"
+              />
+              <button
+                type="button"
+                disabled={!prazoEmLote}
+                onClick={prazoEmLoteAplicar}
+                className="h-full border-l-[1.5px] border-[#D6D9E0] px-3 text-[13px] font-bold text-primary-dark hover:bg-primary-soft disabled:cursor-not-allowed disabled:text-ink-3 disabled:hover:bg-transparent"
+              >
+                Aplicar
+              </button>
+            </ControleEmLote>
 
-                {podeExcluir && (
-                  <Button size="sm" variant="danger" icon={<IcTrash width={15} height={15} />} onClick={() => void excluirMarcadas()}>
-                    Excluir
-                  </Button>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-      )}
+            {podeExcluir && (
+              <Button size="sm" variant="danger" icon={<IcTrash width={15} height={15} />} onClick={() => void excluirMarcadas()}>
+                Excluir
+              </Button>
+            )}
+          </div>
+          </>
+        )}
+
+        {(temFiltro || ordem) && (
+          <Button size="sm" variant="text" onClick={() => { limparFiltros(); setOrdem(null); }}>
+            Limpar filtros e ordenação
+          </Button>
+        )}
+        <button
+          type="button"
+          onClick={() => setVerRecolhidas((v) => !v)}
+          disabled={!verRecolhidas && recolhidas === 0}
+          title="Mostra as tarefas concluídas e as que foram recolhidas da lista"
+          className="ml-auto inline-flex items-center gap-1.5 text-[13px] font-bold text-ink-2 hover:text-ink disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {verRecolhidas ? <IcEyeOff width={16} height={16} /> : <IcEye width={16} height={16} />}
+          {verRecolhidas ? "Esconder recolhidas" : `Ver recolhidas (${recolhidas})`}
+        </button>
+      </div>
 
       {/* Cada grupo é UMA lista, e não uma pilha de cartões soltos.
           O que faz uma lista parecer uma lista é a continuidade: um fundo só,
@@ -1847,10 +1796,23 @@ function mesmoConjunto<T>(filtro: Set<T> | null, valores: T[]): boolean {
 
 /** Um grupo de quadros do resumo, com o nome e a soma dele em cima. */
 /**
- * "Nova tarefa" com a escolha da etapa. O menu abre embaixo do botão, fecha no
- * Esc e no clique fora, e anda pelas setas — a primeira etapa já recebe o foco.
+ * "NOVO" — um botão para as duas criações (27/11/2026). Eram dois botões lado a
+ * lado ("Nova tarefa" e "Nova etapa"); juntos, a barra congelada do check-list
+ * fica mais curta e a pergunta vem na ordem certa: o que criar e, sendo tarefa,
+ * em qual etapa. O menu abre embaixo do botão, fecha no Esc e no clique fora, e
+ * anda pelas setas — a primeira opção já recebe o foco.
  */
-function BotaoNovaTarefa({ etapas, onCriar }: { etapas: string[]; onCriar: (etapa?: string) => void }) {
+function BotaoNovo({
+  etapas,
+  podeCriarEtapa,
+  onNovaTarefa,
+  onNovaEtapa,
+}: {
+  etapas: string[];
+  podeCriarEtapa: boolean;
+  onNovaTarefa: (etapa?: string) => void;
+  onNovaEtapa: () => void;
+}) {
   const [aberto, setAberto] = useState(false);
   const raiz = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -1871,9 +1833,9 @@ function BotaoNovaTarefa({ etapas, onCriar }: { etapas: string[]; onCriar: (etap
     };
   }, [aberto]);
 
-  const escolher = (etapa: string) => {
+  const fazer = (acao: () => void) => {
     setAberto(false);
-    onCriar(etapa);
+    acao();
   };
   const andar = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
@@ -1882,6 +1844,8 @@ function BotaoNovaTarefa({ etapas, onCriar }: { etapas: string[]; onCriar: (etap
     const i = itens.indexOf(document.activeElement as HTMLButtonElement);
     itens[(i + (e.key === "ArrowDown" ? 1 : -1) + itens.length) % itens.length]?.focus();
   };
+  const item = "block w-full truncate px-3 py-2 text-left text-[13px] font-bold text-ink hover:bg-primary-soft focus:bg-primary-soft focus:outline-none";
+  const rotuloGrupo = "px-3 pt-2 pb-1 text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-ink-3";
 
   return (
     <div ref={raiz} className="relative">
@@ -1889,32 +1853,48 @@ function BotaoNovaTarefa({ etapas, onCriar }: { etapas: string[]; onCriar: (etap
         size="sm"
         variant="secondary"
         icon={<IcPlus width={16} height={16} />}
-        aria-haspopup={etapas.length > 1 ? "menu" : undefined}
-        aria-expanded={etapas.length > 1 ? aberto : undefined}
-        onClick={() => (etapas.length > 1 ? setAberto((a) => !a) : onCriar(etapas[0]))}
+        aria-haspopup="menu"
+        aria-expanded={aberto}
+        onClick={() => setAberto((a) => !a)}
+        title="Criar uma tarefa ou uma etapa"
       >
-        Nova tarefa
+        Novo
+        <IcChevron width={13} height={13} className="rotate-90 opacity-60" aria-hidden />
       </Button>
       {aberto && (
         <div
           role="menu"
-          aria-label="Em qual etapa criar a tarefa"
+          aria-label="O que criar"
           onKeyDown={andar}
-          className="absolute left-0 top-full z-30 mt-1 max-h-[320px] w-[min(26rem,90vw)] overflow-auto rounded-card border border-border bg-surface py-1 shadow-modal"
+          className="absolute left-0 top-full z-30 mt-1 max-h-[340px] w-[min(26rem,90vw)] overflow-auto rounded-card border border-border bg-surface py-1 shadow-modal"
         >
-          <div className="px-3 py-1.5 text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-ink-3">Criar a tarefa em qual etapa?</div>
-          {etapas.map((etapa) => (
-            <button
-              key={etapa}
-              type="button"
-              role="menuitem"
-              onClick={() => escolher(etapa)}
-              className="block w-full truncate px-3 py-2 text-left text-[13px] font-bold text-ink hover:bg-primary-soft focus:bg-primary-soft focus:outline-none"
-              title={etapa}
-            >
-              {etapa}
+          {podeCriarEtapa && (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => fazer(onNovaEtapa)}
+                className={cx(item, "flex items-center gap-2")}
+                title="Cria a etapa com a primeira tarefa dela"
+              >
+                <IcPlus width={15} height={15} className="shrink-0 text-primary-dark" aria-hidden />
+                Nova etapa
+              </button>
+              <div className="my-1 border-t border-border-soft" />
+            </>
+          )}
+          <div className={rotuloGrupo}>Nova tarefa em…</div>
+          {etapas.length === 0 ? (
+            <button type="button" role="menuitem" onClick={() => fazer(() => onNovaTarefa())} className={item}>
+              Nova tarefa
             </button>
-          ))}
+          ) : (
+            etapas.map((etapa) => (
+              <button key={etapa} type="button" role="menuitem" onClick={() => fazer(() => onNovaTarefa(etapa))} className={item} title={etapa}>
+                {etapa}
+              </button>
+            ))
+          )}
         </div>
       )}
     </div>
