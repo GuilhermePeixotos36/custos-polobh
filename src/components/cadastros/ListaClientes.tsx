@@ -50,7 +50,8 @@ export function ListaClientes({ pedidoNovo }: { /** Muda a cada clique em "Novo 
       apelido: (c) => c.apelido,
       representante: (c) => c.representante.nome,
     },
-    { col: "cliente", dir: "asc" }
+    { col: "cliente", dir: "asc" },
+    "cadastros.clientes"
   );
 
   return (

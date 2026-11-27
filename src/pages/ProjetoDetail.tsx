@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { usePreferencia, umDe } from "@/hooks/usePreferencia";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { EnderecoCampos } from "@/components/EnderecoCampos";
 import { textoDoQueFalta, validarEndereco } from "@/domain/endereco";
@@ -198,9 +199,10 @@ export function ProjetoDetail() {
   }, [trava.travado, trava.aviso, editando, novo]);
   /** Diferenças a repercutir em EC/OS depois de salvar (ver RepercutirMudancasModal). */
   const [repercussao, setRepercussao] = useState<{ mudancas: MudancaEvento[]; atual: SnapshotEvento } | null>(null);
-  const [filtroEc, setFiltroEc] = useState<"todas" | "ativas" | "arquivadas">("todas");
+  // Os filtros das abas EC e OS ficam guardados para o usuário (ver `usePreferencia`).
+  const [filtroEc, setFiltroEc] = usePreferencia<"todas" | "ativas" | "arquivadas">("projeto.ecs.filtro", "todas", umDe(["todas", "ativas", "arquivadas"] as const));
   /** Mesmo filtro da EC, agora também na lista de OSs do projeto (15/09/2026). */
-  const [filtroOs, setFiltroOs] = useState<"todas" | StatusOsDoc>("todas");
+  const [filtroOs, setFiltroOs] = usePreferencia<"todas" | StatusOsDoc>("projeto.oss.filtro", "todas", umDe(["todas", "Ativa", "Emitida", "Arquivada"] as const));
   const [cnpjLoading, setCnpjLoading] = useState(false);
   const [cnpjMsg, setCnpjMsg] = useState("");
   const [cnpjFoco, setCnpjFoco] = useState(false);
@@ -334,7 +336,8 @@ export function ProjetoDetail() {
     },
     // Padrão = ativa no topo; dentro do mesmo status, a ordenação estável preserva
     // a da lista de origem (versão mais nova primeiro).
-    { col: "status", dir: "asc" }
+    { col: "status", dir: "asc" },
+    "projeto.ecs"
   );
   const ossOrdenadas = useOrdenacao(
     ossFiltradas,
@@ -345,7 +348,8 @@ export function ProjetoDetail() {
       estaCom: (o) => areaComAOs(o) ?? "￿",
       status: (o) => o.status,
     },
-    { col: "numero", dir: "asc" }
+    { col: "numero", dir: "asc" },
+    "projeto.oss"
   );
   /** Ações em lote do Back-office na aba OS (ver `LoteOs`). */
   const loteOs = useLoteOs(ossOrdenadas.ordenados, recarregarOss);
@@ -358,7 +362,8 @@ export function ProjetoDetail() {
       telefone: (f) => f.telefone,
       email: (f) => f.email,
     },
-    { col: "fornecedor", dir: "asc" }
+    { col: "fornecedor", dir: "asc" },
+    "projeto.fornecedores"
   );
 
   // Linhas do cronograma (uma por etapa da OS, com Data e Horário próprios).

@@ -12,6 +12,7 @@
  * existem e se preenche sozinho conforme a equipe cadastra as datas.
  */
 import { useMemo, useState } from "react";
+import { usePreferencia, umDe } from "@/hooks/usePreferencia";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { PageShell } from "@/components/layout/AppLayout";
 import { Card, Badge, Button, EmptyState, AvisoErro, Select } from "@/components/ui";
@@ -114,8 +115,11 @@ export function Calendario() {
   );
 
   const [busca, setBusca] = useState("");
-  const [filtro, setFiltro] = useState<FiltroStatus>("Todos");
-  const [modalidade, setModalidade] = useState("");
+  // Status e modalidade ficam guardados para o usuário (ver `usePreferencia`).
+  const [filtro, setFiltro] = usePreferencia<FiltroStatus>("calendario.filtro", "Todos", umDe(["Todos", "Ativos", "Arquivados"] as const));
+  const [modalidade, setModalidade] = usePreferencia<string>("calendario.modalidade", "", {
+    deGuardado: (b) => (typeof b === "string" ? b : undefined),
+  });
   const [produtora, setProdutora] = useState("");
 
   const { itens, semData } = useMemo(

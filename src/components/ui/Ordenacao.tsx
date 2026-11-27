@@ -14,6 +14,7 @@
  */
 import { useMemo, useState, type ReactNode } from "react";
 import { Th } from "./Table";
+import { usePreferencia } from "@/hooks/usePreferencia";
 import { cx } from "@/lib/format";
 
 export type DirOrdem = "asc" | "desc";
@@ -50,9 +51,26 @@ export function useOrdenacao<T, C extends string>(
   extratores: ExtratoresOrdem<T, C>,
   // `NoInfer` faz as colunas serem deduzidas SÓ das chaves de `extratores`;
   // sem ele, o TypeScript fecharia o tipo na única coluna citada aqui.
-  inicial: EstadoOrdem<NoInfer<C>>
+  inicial: EstadoOrdem<NoInfer<C>>,
+  /**
+   * Com a chave, a ordenação escolhida fica GUARDADA para o usuário (27/11/2026)
+   * e a lista reabre como ele deixou (ver `usePreferencia`). Sem ela, vale só
+   * enquanto a tela estiver aberta — para tabela de diálogo, por exemplo.
+   */
+  chave?: string
 ): { ordem: EstadoOrdem<C>; ordenarPor: (col: C) => void; ordenados: T[] } {
-  const [ordem, setOrdem] = useState<EstadoOrdem<C>>(inicial);
+  const [guardada, setGuardada] = usePreferencia<EstadoOrdem<C>>(chave ? `ordem:${chave}` : "ordem:sem-chave", inicial, {
+    // Coluna que saiu da tabela (ou valor estranho) cai na ordenação padrão.
+    deGuardado: (bruto) => {
+      const b = bruto as Partial<EstadoOrdem<C>> | null;
+      return b && typeof b.col === "string" && b.col in extratores && (b.dir === "asc" || b.dir === "desc")
+        ? { col: b.col, dir: b.dir }
+        : undefined;
+    },
+  });
+  const [local, setLocal] = useState<EstadoOrdem<C>>(inicial);
+  const ordem = chave ? guardada : local;
+  const setOrdem = chave ? setGuardada : setLocal;
 
   /** Clicar na mesma coluna inverte a direção; em outra coluna recomeça em ascendente. */
   const ordenarPor = (col: C) =>

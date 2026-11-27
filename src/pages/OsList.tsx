@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { usePreferencia, umDe } from "@/hooks/usePreferencia";
 import { valorDaContratacao } from "@/domain/contratacaoOs";
 import { useNavigate } from "react-router-dom";
 import { PageShell } from "@/components/layout/AppLayout";
@@ -27,7 +28,8 @@ export function OsList() {
   // lista). Falha em silêncio: sem elas o atalho some, a lista continua.
   const { data: ecs } = useAsync(() => repo.ecs.listar().catch(() => []), []);
   const [busca, setBusca] = useState("");
-  const [filtro, setFiltro] = useState<Filtro>("todas");
+  // O filtro de status fica guardado para o usuário (ver `usePreferencia`).
+  const [filtro, setFiltro] = usePreferencia<Filtro>("oss.filtro", "todas", umDe(["todas", "Ativa", "Emitida", "Arquivada"] as const));
   const { porOs } = useMinhasPendencias();
 
   const filtrados = useMemo(() => {
@@ -63,7 +65,8 @@ export function OsList() {
       estaCom: (o) => areaComAOs(o) ?? "￿",
       status: (o) => o.status,
     },
-    { col: "numero", dir: "asc" }
+    { col: "numero", dir: "asc" },
+    "oss"
   );
   const lote = useLoteOs(lista, reload);
 

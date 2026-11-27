@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { usePreferencia, umDe } from "@/hooks/usePreferencia";
 import { useNavigate } from "react-router-dom";
 import { PageShell } from "@/components/layout/AppLayout";
 import { Card, Button, Badge, Table, THead, Tr, Td, EmptyState, AvisoErro, ThOrd, useOrdenacao, ProgressBar, type Tom } from "@/components/ui";
@@ -41,7 +42,8 @@ export function Projetos() {
     ]);
     return { projetos, ecs, checklists };
   }, [podeVerChecklist], { oQue: "os projetos" });
-  const [filtro, setFiltro] = useState<FiltroProjeto>("Ativo");
+  // O filtro de status fica guardado para o usuário (ver `usePreferencia`).
+  const [filtro, setFiltro] = usePreferencia<FiltroProjeto>("projetos.filtro", "Ativo", umDe(["Todos", "Ativo", "Arquivado"] as const));
   const [busca, setBusca] = useState("");
 
   const hoje = hojeLocalIso();
@@ -74,7 +76,8 @@ export function Projetos() {
       checklist: (p) => resumoPorProjeto.get(p.id)?.abertos ?? -1,
       status: (p) => p.status,
     },
-    { col: "cliente", dir: "asc" }
+    { col: "cliente", dir: "asc" },
+    "projetos"
   );
 
   return (

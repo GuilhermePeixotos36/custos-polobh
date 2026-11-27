@@ -148,7 +148,8 @@ export function EcDetail() {
       valor: (o) => valorDaContratacao(o.itens ?? []),
       status: (o) => o.status,
     },
-    { col: "numero", dir: "asc" }
+    { col: "numero", dir: "asc" },
+    "ec.oss"
   );
 
   if (loading) return <PageShell title="Carregando…">{null}</PageShell>;

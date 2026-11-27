@@ -9,6 +9,7 @@
  * trabalhando em tarefas diferentes do mesmo projeto nunca se sobrescrevem.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { usePreferencia, umDe, conjuntoOuNulo } from "@/hooks/usePreferencia";
 import {
   DndContext,
   PointerSensor,
@@ -176,16 +177,30 @@ export function ChecklistProjeto({
   const nomeAtual = useAuth((s) => s.usuario?.nome ?? "");
   // Memória dos campos: título e etapa de tarefa se repetem projeto a projeto.
   const sugestoes = useSugestoes();
-  const [verRecolhidas, setVerRecolhidas] = useState(false);
-  const [agrupamento, setAgrupamento] = useState<Agrupamento>("etapa");
+  /*
+   * A VISTA DO CHECK-LIST É DO USUÁRIO (27/11/2026): agrupamento, filtros de
+   * coluna, ordenação e "só as minhas pendências" ficam guardados e valem em
+   * todo projeto, até a pessoa trocar (ver `usePreferencia`). A busca não.
+   */
+  const booleano = { deGuardado: (b: unknown) => (typeof b === "boolean" ? b : undefined) };
+  const [verRecolhidas, setVerRecolhidas] = usePreferencia<boolean>("checklist.verRecolhidas", false, booleano);
+  const [agrupamento, setAgrupamento] = usePreferencia<Agrupamento>("checklist.agrupamento", "etapa", umDe(["etapa", "data"] as const));
   // Filtros por coluna, como no Excel: `null` = todos (sem filtro).
-  const [filtroResp, setFiltroResp] = useState<Set<string> | null>(null);
-  const [filtroStatus, setFiltroStatus] = useState<Set<StatusExibido> | null>(null);
-  const [filtroPrazo, setFiltroPrazo] = useState<Set<SituacaoPrazo> | null>(null);
+  const [filtroResp, setFiltroResp] = usePreferencia<Set<string> | null>("checklist.filtroResp", null, conjuntoOuNulo<string>());
+  const [filtroStatus, setFiltroStatus] = usePreferencia<Set<StatusExibido> | null>("checklist.filtroStatus", null, conjuntoOuNulo<StatusExibido>());
+  const [filtroPrazo, setFiltroPrazo] = usePreferencia<Set<SituacaoPrazo> | null>("checklist.filtroPrazo", null, conjuntoOuNulo<SituacaoPrazo>());
   const [buscaTarefa, setBuscaTarefa] = useState("");
-  const [ordem, setOrdem] = useState<{ coluna: ColunaOrdem; dir: DirecaoOrdem } | null>(null);
+  const [ordem, setOrdem] = usePreferencia<{ coluna: ColunaOrdem; dir: DirecaoOrdem } | null>("checklist.ordem", null, {
+    deGuardado: (b) => {
+      if (b === null) return null;
+      const o = b as { coluna?: string; dir?: string };
+      return ["tarefa", "responsavel", "prevista", "conclusao", "status"].includes(o?.coluna ?? "") && (o.dir === "asc" || o.dir === "desc")
+        ? { coluna: o.coluna as ColunaOrdem, dir: o.dir }
+        : undefined;
+    },
+  });
   /** Só as tarefas que têm pendência de quem está olhando. */
-  const [soPendencias, setSoPendencias] = useState(false);
+  const [soPendencias, setSoPendencias] = usePreferencia<boolean>("checklist.soPendencias", false, booleano);
   const temFiltro = filtroResp !== null || filtroStatus !== null || filtroPrazo !== null || !!buscaTarefa.trim() || soPendencias;
   const limparFiltros = () => {
     setSoPendencias(false);

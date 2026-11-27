@@ -54,7 +54,8 @@ export function ListaFornecedores({ pedidoNovo }: { /** Muda a cada clique em "N
       perfil: (f) => f.perfilTributario,
       contato: (f) => f.email || f.telefone,
     },
-    { col: "fornecedor", dir: "asc" }
+    { col: "fornecedor", dir: "asc" },
+    "cadastros.fornecedores"
   );
 
   return (
