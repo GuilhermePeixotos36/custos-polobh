@@ -34,7 +34,8 @@
  * no que vem todo em maiúsculas e preserva as siglas. Texto longo (descritivo, roteiro, observação) tem dono
  * próprio: o revisor da EC (`lib/correcaoOrtografica`), que preserva parágrafos.
  */
-import { capitalizarFrase, colapsarEspacos, tituloProprio } from "@/lib/format";
+import { capitalizarFrase, capitalizarPalavra, colapsarEspacos, ehConector, SIGLAS_SOCIETARIAS, tituloProprio } from "@/lib/format";
+import { formatarRazaoSocial } from "@/domain/formatosDocumento";
 import { pareceSigla } from "@/domain/fornecedor";
 import type {
   Cliente,
@@ -82,8 +83,26 @@ const UFS = new Set([
  * escapar disso; aqui ela vale para o endereço venha de onde vier.
  */
 function padronizarEndereco(texto: string): string {
-  return preservarMaiusculas(tituloProprio(texto), (letras) => letras === "CEP" || (letras.length === 2 && UFS.has(letras)));
+  return conectoresMinusculos(
+    preservarMaiusculas(tituloProprio(texto), (letras) => letras === "CEP" || (letras.length === 2 && UFS.has(letras)) || ehSigla(letras) || ehRomano(letras))
+  );
 }
+
+/**
+ * "Avenida Do Contorno" → "Avenida do Contorno" (27/11/2026).
+ *
+ * O endereço da Receita é montado em PEDAÇOS (tipo, nome, bairro…), e cada um
+ * era capitalizado sozinho: o conector que abria o pedaço virava início de
+ * frase. Aqui ele volta a ser minúsculo quando está ENTRE duas palavras. Depois
+ * de " - " ou no começo do endereço fica como está: ali ele abre um nome
+ * ("Dos Funcionários"). O "e" fica de fora — "Bloco E" é letra, não conector.
+ */
+export function conectoresMinusculos(texto: string): string {
+  return texto.replace(/(?<=[\p{L}\d]) (De|Da|Das|Do|Dos) (?=[\p{L}\d])/gu, (m) => m.toLocaleLowerCase("pt-BR"));
+}
+
+/** Algarismo romano curto ("II", "III", "IV", "XII") — fica em maiúsculas. Só I, V e X, para não pegar palavra. */
+const ehRomano = (letras: string): boolean => /^(?=.{2,4}$)X{0,2}(IX|IV|V?I{0,3})$/.test(letras);
 
 /**
  * Devolve à CAIXA ALTA as palavras que o `tituloProprio` não devia ter baixado.
@@ -114,8 +133,55 @@ const LETRAS_SIGLA = 5;
 const ehSigla = (letras: string): boolean => letras.length <= LETRAS_SIGLA && pareceSigla(letras);
 
 /** Nome próprio com as siglas de pé: "LSPRO Locacoes", e não "Lspro Locacoes". */
-const tituloComSiglas = (texto: string, opts: { preservarSiglas?: boolean } = {}): string =>
-  preservarMaiusculas(tituloProprio(texto, opts), ehSigla);
+export const tituloComSiglas = (texto: string, opts: { preservarSiglas?: boolean } = {}): string =>
+  preservarMaiusculas(tituloProprio(texto, opts), (letras) => ehSigla(letras) || ehRomano(letras));
+
+/**
+ * O "Nome Próprio" de quem está DIGITANDO — o que o campo aplica ao sair dele
+ * (27/11/2026).
+ *
+ * Até aqui o campo passava o texto inteiro pelo `tituloProprio`, que baixa tudo
+ * antes de capitalizar: quem digitava "Arena MRV" via virar "Arena Mrv", "BH"
+ * virar "Bh" — a regra desfazia justamente o que a pessoa tinha escrito certo.
+ * E como o texto saía dali em caixa mista, a gravação (que só mexe em caixa
+ * alta) não consertava mais.
+ *
+ * Agora a decisão é PALAVRA A PALAVRA:
+ *   · tudo em maiúsculas (colou da Receita): vira Nome Próprio, siglas de pé;
+ *   · palavra em minúsculas: ganha a inicial ("joão" → "João"), menos conector;
+ *   · palavra em MAIÚSCULAS no meio de um texto misto: fica, se for curta (até
+ *     4 letras: "BH", "MRV", "SESC") ou tiver cara de sigla ("LSPRO"); comprida
+ *     e comum ("MERCANTIL") vira Nome Próprio;
+ *   · palavra em caixa mista ("iPhone", "McDonald"): é de quem escreveu, fica.
+ */
+export function tituloAoDigitar(texto: string | undefined | null, opts: { preservarSiglas?: boolean } = {}): string {
+  const limpo = corrigirCapsLock(colapsarEspacos(texto ?? ""));
+  if (!limpo) return "";
+  if (emCaixaAlta(limpo)) return tituloComSiglas(limpo, opts);
+  return limpo
+    .split(" ")
+    .map((palavra, i) => {
+      const letras = palavra.replace(/[^\p{L}]/gu, "");
+      if (!letras) return palavra;
+      const maiuscula = palavra.toLocaleUpperCase("pt-BR");
+      const minuscula = palavra.toLocaleLowerCase("pt-BR");
+      if (opts.preservarSiglas && SIGLAS_SOCIETARIAS.has(maiuscula)) return maiuscula;
+      if (palavra === minuscula) return i > 0 && ehConector(palavra) ? palavra : capitalizarPalavra(palavra);
+      if (palavra === maiuscula) {
+        const L = letras.toLocaleUpperCase("pt-BR");
+        return L.length <= 4 || ehSigla(L) || ehRomano(L) ? palavra : capitalizarPalavra(minuscula);
+      }
+      return palavra;
+    })
+    .join(" ");
+}
+
+/**
+ * O TIPO SOCIETÁRIO no fim do nome, sempre do mesmo jeito: "Ltda." (27/11/2026).
+ * O cadastro tinha "LTDA" (o que vem da Receita), "Ltda" e "Ltda." convivendo;
+ * o contrato já uniformizava na hora de imprimir. Agora o cadastro também.
+ */
+export const comTipoSocietario = (texto: string): string => formatarRazaoSocial(texto);
 
 /**
  * Veio de fonte externa?
@@ -146,7 +212,10 @@ export function corrigirCapsLock(texto: string): string {
 export function padronizarTexto(valor: string | undefined | null, formato: FormatoTexto): string {
   const limpo = corrigirCapsLock(colapsarEspacos(valor ?? ""));
   if (!limpo) return "";
-  // Caixa mista já é escolha de gente: só apara os espaços e devolve.
+  // Caixa mista já é escolha de gente: só apara os espaços e devolve. No
+  // endereço, os conectores entre duas palavras voltam a ser minúsculos — é o
+  // que conserta "Avenida Do Contorno", montado em pedaços pela consulta.
+  if (formato === "endereco" && !emCaixaAlta(limpo)) return conectoresMinusculos(limpo);
   if (formato === "livre" || !emCaixaAlta(limpo)) return limpo;
   switch (formato) {
     case "titulo":
@@ -269,7 +338,7 @@ export function padronizarCliente(c: Cliente): Cliente {
     // e vira prefixo do número da EC: passá-lo por Nome Próprio daria "Bm".
     apelido: padronizarTexto(c.apelido, "livre"),
     nome: padronizarTexto(c.nome, "titulo"),
-    razaoSocial: padronizarTexto(c.razaoSocial, "titulo-empresa"),
+    razaoSocial: comTipoSocietario(padronizarTexto(c.razaoSocial, "titulo-empresa")),
     endereco: padronizarTexto(c.endereco, "endereco"),
     cnpjCpf: padronizarTexto(c.cnpjCpf, "livre"),
     inscricaoEstadual: padronizarTexto(c.inscricaoEstadual, "inscricao"),
@@ -289,11 +358,11 @@ const padronizarContato = (c: ContatoFornecedor): ContatoFornecedor => ({
 export function padronizarFornecedor(f: Fornecedor): Fornecedor {
   return {
     ...f,
-    razaoSocial: padronizarTexto(f.razaoSocial, "titulo-empresa"),
+    razaoSocial: comTipoSocietario(padronizarTexto(f.razaoSocial, "titulo-empresa")),
     // O apelido é escolha da casa e entra no título da OS: fica como escreveram —
     // menos o Caps Lock ligado ("eLISSANDRA fLAVIA"), que se desinverte.
     apelido: f.apelido ? corrigirCapsLock(f.apelido) : f.apelido,
-    nomeFantasia: padronizarTexto(f.nomeFantasia, "titulo"),
+    nomeFantasia: comTipoSocietario(padronizarTexto(f.nomeFantasia, "titulo")),
     endereco: padronizarTexto(f.endereco, "endereco"),
     inscricaoEstadual: padronizarTexto(f.inscricaoEstadual, "inscricao"),
     inscricaoMunicipal: padronizarTexto(f.inscricaoMunicipal, "inscricao"),
@@ -330,7 +399,7 @@ export function padronizarEcLinha(l: EcLinha): EcLinha {
     ...l,
     grupo: padronizarNomeGrupo(l.grupo) || l.grupo,
     item: padronizarNomeItem(l.item),
-    fornecedorRazao: padronizarTexto(l.fornecedorRazao, "titulo-empresa"),
+    fornecedorRazao: comTipoSocietario(padronizarTexto(l.fornecedorRazao, "titulo-empresa")),
     fornecedorContato: padronizarTexto(l.fornecedorContato, "titulo"),
   };
 }

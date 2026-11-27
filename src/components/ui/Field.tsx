@@ -8,10 +8,10 @@ import type {
 } from "react";
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import {
-  cx, maskTelefone, onlyDigits, colapsarEspacos, tituloProprio, capitalizarFrase,
+  cx, maskTelefone, onlyDigits, colapsarEspacos, capitalizarFrase,
   brl, limparEntradaNumerica, parseNumeroBR,
 } from "@/lib/format";
-import { padronizarNomeGrupo, padronizarNomeItem } from "@/domain/textos";
+import { comTipoSocietario, padronizarNomeGrupo, padronizarNomeItem, tituloAoDigitar } from "@/domain/textos";
 
 const fieldBase =
   "w-full bg-surface border-[1.5px] border-[#BFC4CE] rounded-btn px-3.5 text-sm text-ink placeholder:text-ink-3 input-focus disabled:bg-[#EDEEF1] disabled:text-ink-2";
@@ -100,10 +100,12 @@ type InputProps = InputHTMLAttributes<HTMLInputElement> & {
 
 function aplicarFormato(v: string, formato?: FormatoCampo): string {
   switch (formato) {
+    // Palavra a palavra, sem baixar o que a pessoa escreveu em maiúsculas de
+    // propósito ("Arena MRV" não vira "Arena Mrv") — ver `tituloAoDigitar`.
     case "titulo":
-      return tituloProprio(v);
+      return tituloAoDigitar(v);
     case "titulo-empresa":
-      return tituloProprio(v, { preservarSiglas: true });
+      return comTipoSocietario(tituloAoDigitar(v, { preservarSiglas: true }));
     case "frase":
       return capitalizarFrase(v);
     case "grupo":

@@ -3,8 +3,8 @@
  * https://brasilapi.com.br/api/cnpj/v1/{cnpj}
  * Plano B: erro é tratado e o usuário edita manualmente.
  */
-import { onlyDigits, tituloProprio } from "./format";
-import { padronizarTexto } from "@/domain/textos";
+import { onlyDigits } from "./format";
+import { comTipoSocietario, conectoresMinusculos, padronizarTexto, tituloComSiglas } from "@/domain/textos";
 import { formatarEndereco, tipoPorExtenso } from "@/domain/endereco";
 
 export interface DadosCnpj {
@@ -73,9 +73,12 @@ function perfil(d: BrasilApiCnpj): string {
  * (`domain/endereco`): a UF continua maiúscula e o CEP ganha o hífen.
  */
 function montarEndereco(d: BrasilApiCnpj): string {
-  const t = (s?: string) => tituloProprio(s ?? "");
+  // Cada pedaço com as siglas de pé ("Rodovia LMG 800", e não "Lmg") — 27/11/2026.
+  const t = (s?: string) => tituloComSiglas(s ?? "");
   const tipo = tipoPorExtenso(d.descricao_tipo_de_logradouro ?? "") || t(d.descricao_tipo_de_logradouro);
-  return formatarEndereco({
+  // Montado em pedaços, o conector que abre um deles vinha maiúsculo
+  // ("Avenida Do Contorno"): `conectoresMinusculos` devolve o "do".
+  return conectoresMinusculos(formatarEndereco({
     tipo,
     nome: t(d.logradouro),
     numero: (d.numero ?? "").trim(),
@@ -84,7 +87,7 @@ function montarEndereco(d: BrasilApiCnpj): string {
     cidade: t(d.municipio),
     uf: (d.uf ?? "").toUpperCase(),
     cep: d.cep ?? "",
-  });
+  }));
 }
 
 /** Validação do dígito verificador do CNPJ (evita chamada à API com lixo). */
@@ -197,8 +200,9 @@ export async function consultarCnpj(cnpjRaw: string): Promise<DadosCnpj> {
     // jeito (ver `domain/textos`), mas eles são normalizados já aqui para
     // aparecerem certos na tela no instante da consulta — e não só depois de
     // salvar.
-    razaoSocial: tituloProprio(d.razao_social ?? "", { preservarSiglas: true }),
-    nomeFantasia: tituloProprio(d.nome_fantasia ?? ""),
+    // Siglas de pé ("MHB Hotelaria") e o tipo societário no padrão da casa ("Ltda.").
+    razaoSocial: comTipoSocietario(tituloComSiglas(d.razao_social ?? "", { preservarSiglas: true })),
+    nomeFantasia: comTipoSocietario(tituloComSiglas(d.nome_fantasia ?? "")),
     endereco: montarEndereco(d),
     perfilTributario: perfil(d),
     cnaes,

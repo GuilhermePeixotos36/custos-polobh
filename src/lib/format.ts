@@ -168,12 +168,21 @@ export const colapsarEspacos = (s: string): string => (s || "").replace(/\s+/g, 
 // Conectores que ficam em minúscula no meio de nomes próprios (pt-BR).
 const CONECTORES = new Set(["de", "da", "das", "do", "dos", "e", "di", "du", "del", "la", "las", "los", "y", "à", "às"]);
 // Siglas/tipos societários que devem permanecer em maiúsculas na Razão Social.
-const SIGLAS = new Set(["LTDA", "EIRELI", "ME", "EPP", "MEI", "CIA", "S.A.", "S/A", "SA", "LLC", "LTD", "EPC", "SS", "SCP"]);
+export const SIGLAS_SOCIETARIAS = new Set(["LTDA", "EIRELI", "ME", "EPP", "MEI", "CIA", "S.A.", "S/A", "SA", "LLC", "LTD", "EPC", "SS", "SCP"]);
+const SIGLAS = SIGLAS_SOCIETARIAS;
 
-const capitalizarPalavra = (p: string): string =>
+/** Os conectores que ficam minúsculos no meio de um nome ("de", "da", "dos"…). */
+export const ehConector = (palavra: string): boolean => CONECTORES.has(palavra.toLocaleLowerCase("pt-BR"));
+
+/**
+ * Maiúscula na primeira LETRA de cada parte — e não no primeiro caractere: a
+ * palavra que abre com parêntese ou aspas também se capitaliza. "(taguatinga)"
+ * ficava minúscula porque o "primeiro caractere" era o parêntese (27/11/2026).
+ */
+export const capitalizarPalavra = (p: string): string =>
   p
     .split("-")
-    .map((parte) => (parte ? parte.charAt(0).toLocaleUpperCase("pt-BR") + parte.slice(1) : parte))
+    .map((parte) => parte.replace(/^([^\p{L}]*)(\p{L})/u, (_m, antes: string, letra: string) => antes + letra.toLocaleUpperCase("pt-BR")))
     .join("-");
 
 /**

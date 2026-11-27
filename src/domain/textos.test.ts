@@ -6,6 +6,9 @@ import {
   padronizarFornecedor,
   padronizarProjetoInfo,
   padronizarTexto,
+  tituloAoDigitar,
+  conectoresMinusculos,
+  comTipoSocietario,
 } from "./textos";
 import { projetoInfoVazio } from "./projeto";
 import type { Cliente, EcLinha, Fornecedor } from "@/data/types";
@@ -152,7 +155,7 @@ describe("fornecedor", () => {
         inscricaoEstadual: "ISENTO",
       })
     );
-    expect(f.razaoSocial).toBe("Som & Luz Produções LTDA");
+    expect(f.razaoSocial).toBe("Som & Luz Produções Ltda.");
     expect(f.endereco).toBe("Rua dos Timbiras, 100 - Belo Horizonte - MG");
     expect(f.representante).toBe("Carlos Alberto");
     expect(f.inscricaoEstadual).toBe("Isento");
@@ -192,7 +195,7 @@ describe("linha da EC", () => {
     expect(l.grupo).toBe("EQUIPE PRODUÇÃO");
     // Sigla da casa: baixar automaticamente daria "Ecad".
     expect(l.item).toBe("ECAD");
-    expect(l.fornecedorRazao).toBe("Som & Luz Produções LTDA");
+    expect(l.fornecedorRazao).toBe("Som & Luz Produções Ltda.");
     expect(l.fornecedorContato).toBe("Carlos Alberto");
   });
 });
@@ -212,5 +215,62 @@ describe("Caps Lock ligado (18/11/2026)", () => {
   it("vale na padronização dos cadastros", () => {
     expect(padronizarTexto("eLISSANDRA fLAVIA", "titulo")).toBe("Elissandra Flavia");
     expect(padronizarFornecedor({ apelido: "eLISSANDRA fLAVIA" } as never).apelido).toBe("Elissandra Flavia");
+  });
+});
+
+describe("caixa ao digitar (27/11/2026)", () => {
+  it("não rebaixa a sigla que a pessoa escreveu em maiúsculas", () => {
+    expect(tituloAoDigitar("Arena MRV")).toBe("Arena MRV");
+    expect(tituloAoDigitar("expominas BH")).toBe("Expominas BH");
+    expect(tituloAoDigitar("MHB hotelaria")).toBe("MHB Hotelaria");
+    expect(tituloAoDigitar("rodovia LMG 800")).toBe("Rodovia LMG 800");
+  });
+
+  it("capitaliza o que veio em minúsculas e deixa o conector do meio", () => {
+    expect(tituloAoDigitar("joão da silva")).toBe("João da Silva");
+    expect(tituloAoDigitar("  centro   de convenções ")).toBe("Centro de Convenções");
+  });
+
+  it("palavra comprida e comum em maiúsculas, no meio de texto misto, vira Nome Próprio", () => {
+    expect(tituloAoDigitar("Banco MERCANTIL do Brasil")).toBe("Banco Mercantil do Brasil");
+  });
+
+  it("texto todo em maiúsculas vira Nome Próprio com as siglas de pé", () => {
+    expect(tituloAoDigitar("LSPRO LOCACOES")).toBe("LSPRO Locacoes");
+    expect(tituloAoDigitar("TORRE II")).toBe("Torre II");
+  });
+
+  it("a palavra entre parênteses também ganha a inicial", () => {
+    expect(tituloAoDigitar("setor norte (taguatinga)")).toBe("Setor Norte (Taguatinga)");
+    expect(padronizarTexto("SETOR NORTE (TAGUATINGA)", "titulo")).toBe("Setor Norte (Taguatinga)");
+  });
+
+  it("caixa mista é de quem escreveu", () => {
+    expect(tituloAoDigitar("iFood McDonald")).toBe("iFood McDonald");
+  });
+});
+
+describe("endereço: conectores e siglas (27/11/2026)", () => {
+  it("o conector entre duas palavras fica minúsculo", () => {
+    expect(conectoresMinusculos("Avenida Do Contorno, 6061 - Dos Funcionários")).toBe("Avenida do Contorno, 6061 - Dos Funcionários");
+    expect(conectoresMinusculos("Rua Dos Timbiras, 10 - Bloco E")).toBe("Rua dos Timbiras, 10 - Bloco E");
+  });
+
+  it("vale também para o endereço já gravado em caixa mista", () => {
+    expect(padronizarTexto("Avenida Do Contorno, 6061", "endereco")).toBe("Avenida do Contorno, 6061");
+  });
+
+  it("sigla e UF ficam de pé no endereço em caixa alta", () => {
+    expect(padronizarTexto("RODOVIA LMG 800, KM 7 - CONFINS - MG", "endereco")).toBe("Rodovia LMG 800, KM 7 - Confins - MG");
+  });
+});
+
+describe("tipo societário (27/11/2026)", () => {
+  it("fica sempre do mesmo jeito no fim do nome", () => {
+    expect(comTipoSocietario("Som & Luz Produções LTDA")).toBe("Som & Luz Produções Ltda.");
+    expect(comTipoSocietario("Som & Luz Produções Ltda")).toBe("Som & Luz Produções Ltda.");
+    expect(comTipoSocietario("Som & Luz Produções Ltda.")).toBe("Som & Luz Produções Ltda.");
+    expect(comTipoSocietario("Fulano de Tal")).toBe("Fulano de Tal");
+    expect(comTipoSocietario("")).toBe("");
   });
 });
