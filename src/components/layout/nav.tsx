@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { Recurso } from "@/store/auth";
-import { IcActivity, IcCalendar, IcFluxo, IcFolder, IcGear, IcHelp, IcShield, IcSuporte } from "@/components/icons";
+import { IcActivity, IcCalendar, IcFluxo, IcFolder, IcGear, IcHelp, IcShield, IcSuporte, IcTruck } from "@/components/icons";
 
 export interface NavItem {
   to: string;
@@ -51,6 +51,8 @@ export interface NavItem {
 export const NAV: NavItem[] = [
   { to: "/calendario", label: "Calendário Pólobh", rotuloCurto: "Calendário", icon: <IcCalendar />, recurso: "projetos" },
   { to: "/projetos", label: "Projetos", icon: <IcFolder />, recurso: "projetos", pendencias: true },
+  // O cadastro de fornecedores ganhou entrada no menu (27/11/2026): antes so se chegava nele por dentro de uma EC.
+  { to: "/fornecedores", label: "Fornecedores", icon: <IcTruck />, recurso: "fornecedores" },
   // O FLUXOGRAMA fica entre Projetos e Configurações (pedido de 29/09/2026).
   { to: "/fluxograma", label: "Fluxograma", rotuloCurto: "Fluxo", icon: <IcFluxo />, recurso: "guia" },
   // A Coordenação não administra empresas e usuários, mas edita a lista padrão do check-list — por isso o `ou`.

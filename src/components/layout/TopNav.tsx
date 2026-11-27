@@ -44,7 +44,8 @@ export function TopNav() {
               )}
             >
               <span className="shrink-0">{i.icon}</span>
-              <span className="hidden md:inline">{i.label}</span>
+              <span className="hidden md:inline min-[1700px]:hidden" title={i.label}>{i.rotuloCurto ?? i.label}</span>
+              <span className="hidden min-[1700px]:inline">{i.label}</span>
             </button>
           ) : (
             <NavLink
@@ -72,9 +73,12 @@ export function TopNav() {
                   />
                 )}
               </span>
-              {/* O rótulo agora cabe: são cinco botões, não sete. Ele some só no
-                  celular, onde nem cinco cabem. */}
-              <span className="hidden md:inline">{i.label}</span>
+              {/* Com o cadastro de Fornecedores no menu (27/11/2026) os rótulos
+                  inteiros deixaram de caber em notebook: até 1700px entra o
+                  rótulo curto ("Config.", "Guia"), e o inteiro só em tela larga.
+                  No celular o rótulo some daqui — o menu é a barra de baixo. */}
+              <span className="hidden md:inline min-[1700px]:hidden" title={i.label}>{i.rotuloCurto ?? i.label}</span>
+              <span className="hidden min-[1700px]:inline">{i.label}</span>
             </NavLink>
           )
         )}

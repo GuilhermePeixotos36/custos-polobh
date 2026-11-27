@@ -1,135 +1,362 @@
-import { useMemo, useState } from "react";
+/**
+ * CADASTRO DE FORNECEDORES (27/11/2026).
+ *
+ * A tela existia como um painel lateral fora do menu: o fornecedor nascia de
+ * passagem numa EC e era corrigido aqui, quando alguém lembrava. Agora é um
+ * cadastro com entrada própria no menu, feito pelo Administrativo-Financeiro:
+ *
+ *   · a LISTA mostra o básico — ID, fornecedor, documento, perfil e contato — e
+ *     uma coluna de ações: o olho abre a ficha para leitura, o lápis para edição;
+ *   · o FORMULÁRIO abre em janela e começa pelo tipo (CNPJ ou CPF), que decide
+ *     os campos: razão social, inscrições e consulta à Receita só existem para
+ *     empresa;
+ *   · o documento é conferido (dígito verificador) e não pode se repetir;
+ *   · os CONTATOS são uma linha por meio de contato — nome, tipo e valor — com
+ *     o "+" na própria linha.
+ *
+ * As regras que não dependem de tela estão em `domain/fornecedorCadastro`.
+ */
+import { useMemo, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { PageShell } from "@/components/layout/AppLayout";
 import { EnderecoCampos } from "@/components/EnderecoCampos";
-import { textoDoQueFalta, validarEndereco } from "@/domain/endereco";
+import { InscricaoMunicipalInput } from "@/components/InscricaoMunicipalInput";
 import {
-  Card, CardTitle, Button, Field, Input, TelefoneInput, Select, Table, THead, Tr, Td,
-  Badge, EmptyState, AvisoErro, Avatar, ThOrd, useOrdenacao,
-  CarregandoTela,
+  Card, Button, Field, Input, TelefoneInput, Select, Table, THead, Th, Tr, Td,
+  Badge, EmptyState, AvisoErro, ThOrd, useOrdenacao, CarregandoTela,
 } from "@/components/ui";
-import { IcSearch, IcTrash, IcPlus } from "@/components/icons";
+import { IcSearch, IcTrash, IcPlus, IcEye, IcPencil, IcFechar } from "@/components/icons";
 import { repo } from "@/data";
 import { useAvisoDeSaida } from "@/hooks/useAvisoDeSaida";
 import { useAsync } from "@/hooks/useAsync";
 import { consultarCnpj } from "@/lib/cnpj";
 import { useAoCompletarDocumento } from "@/lib/buscaPorDocumento";
 import { flags } from "@/lib/flags";
-import { comPerfilPeloDocumento, gerarApelidoFornecedor, semVazios, textoDoContato } from "@/domain/fornecedor";
+import { comPerfilPeloDocumento, gerarApelidoFornecedor, opcoesPerfilTributario, semVazios, textoDoContato } from "@/domain/fornecedor";
+import {
+  contatosDasLinhas, linhaContatoVazia, linhasDosContatos, rotuloIdFornecedor, semCamposDeEmpresa, tipoDoFornecedor,
+  validarCadastroFornecedor,
+  type ErrosCadastroFornecedor, type LinhaContato, type TipoContato, type TipoFornecedor,
+} from "@/domain/fornecedorCadastro";
 import { cx, maskCpfCnpjInput, onlyDigits } from "@/lib/format";
 import { toast } from "@/store/toast";
 import { useAuth } from "@/store/auth";
-import type { ContatoFornecedor, Fornecedor } from "@/data/types";
+import type { Fornecedor } from "@/data/types";
+
+const PERFIL_PF = "Pessoa Física (Recibo Simples)";
+
+/** Fornecedor em branco, para o "Novo fornecedor". */
+const novoFornecedor = (): Fornecedor => ({
+  id: "", razaoSocial: "", apelido: "", nomeFantasia: "", cnpj: "", perfilTributario: "", endereco: "",
+  inscricaoEstadual: "", inscricaoMunicipal: "",
+  dadosBancarios: { tipoConta: "", banco: "", agencia: "", conta: "", chavePix: "" },
+  representante: "", telefone: "", email: "", contatos: [],
+});
+
+/** O que está aberto na janela: a ficha (só leitura) ou o formulário. */
+type Aberto = { modo: "ver" | "editar"; fornecedor: Fornecedor } | null;
 
 export function Fornecedores() {
   const podeEditar = useAuth((s) => s.pode("fornecedores.editar"));
   const { data, loading, error, reload } = useAsync(() => repo.fornecedores.listar(), [], { oQue: "os fornecedores" });
   const [busca, setBusca] = useState("");
-  const [edit, setEdit] = useState<Fornecedor | null>(null);
-  // Cadastro aberto e mexido: F5, fechar a aba ou sair da tela pedem confirmação.
-  useAvisoDeSaida(edit);
-  /** Apelido que o sistema usaria — mostrado como sugestão enquanto o campo está vazio. */
-  const apelidoAutomatico = useMemo(
-    () => gerarApelidoFornecedor(edit?.nomeFantasia, edit?.razaoSocial),
-    [edit?.nomeFantasia, edit?.razaoSocial]
-  );
-  const [msg, setMsg] = useState("");
-  /** Tentou salvar com o endereço incompleto: os campos que faltam ficam contornados. */
-  const [tentouSalvar, setTentouSalvar] = useState(false);
-
-  /* ------------------------------ contatos ------------------------------ */
-
-  /**
-   * A agenda do fornecedor é editada NO LUGAR: cada contato é um bloco de
-   * campos, não uma frase.
-   *
-   * O botão só acrescenta um bloco em branco — quem preenche é a pessoa, campo
-   * a campo. Assim o mesmo lugar serve para criar e para corrigir, inclusive
-   * um contato antigo que veio de uma frase e ficou com o nome torto. Blocos
-   * que continuarem vazios somem ao salvar.
-   */
-  function addContato() {
-    if (!edit) return;
-    setEdit({ ...edit, contatos: [...(edit.contatos ?? []), { nome: "" }] });
-    // O campo do bloco novo recebe o cursor: sem isso a pessoa clica em
-    // "Adicionar", a tela cresce e ela ainda precisa mirar no campo certo.
-    window.setTimeout(() => {
-      const campos = document.querySelectorAll<HTMLInputElement>("[data-contato-nome]");
-      campos[campos.length - 1]?.focus();
-    }, 0);
-  }
-
-  function mudarContato(i: number, patch: Partial<ContatoFornecedor>) {
-    if (!edit) return;
-    const lista = [...(edit.contatos ?? [])];
-    lista[i] = { ...lista[i], ...patch };
-    setEdit({ ...edit, contatos: lista });
-  }
-
-  function removerContato(i: number) {
-    if (!edit) return;
-    setEdit({ ...edit, contatos: (edit.contatos ?? []).filter((_, j) => j !== i) });
-  }
+  const [aberto, setAberto] = useState<Aberto>(null);
 
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
     if (!q) return data ?? [];
-    // A busca cobre o que a tela mostra: era possível ver "Som & Luz" na lista
-    // (nome fantasia) e não achar nada ao digitar exatamente isso.
+    // A busca cobre o que a tela mostra — inclusive o ID e os contatos.
     return (data ?? []).filter((f) =>
-      [f.apelido, f.nomeFantasia, f.razaoSocial, f.cnpj, f.perfilTributario, f.email, f.telefone,
-       ...(f.contatos ?? []).map(textoDoContato)]
+      [rotuloIdFornecedor(f.codigo), f.apelido, f.nomeFantasia, f.razaoSocial, f.cnpj, onlyDigits(f.cnpj), f.perfilTributario,
+       f.email, f.telefone, ...(f.contatos ?? []).map(textoDoContato)]
         .join(" ")
         .toLowerCase()
         .includes(q)
     );
   }, [data, busca]);
 
-  /** Fornecedor com o endereço incompleto: a linha da lista mostra o que falta. */
-  /** Fornecedor em branco — o cadastro manual, para quem ainda não veio de uma EC. */
-  const novoFornecedor = (): Fornecedor => ({
-    id: "", razaoSocial: "", apelido: "", nomeFantasia: "", cnpj: "", perfilTributario: "", endereco: "",
-    inscricaoEstadual: "", inscricaoMunicipal: "",
-    dadosBancarios: { tipoConta: "", banco: "", agencia: "", conta: "", chavePix: "" },
-    representante: "", telefone: "", email: "", contatos: [],
-  });
-
   const { ordem, ordenarPor, ordenados: lista } = useOrdenacao(
     filtrados,
     {
+      id: (f) => f.codigo ?? 0,
       fornecedor: (f) => f.nomeFantasia || f.razaoSocial,
-      cnpj: (f) => f.cnpj,
+      documento: (f) => onlyDigits(f.cnpj),
       perfil: (f) => f.perfilTributario,
-      contato: (f) => f.email,
+      contato: (f) => f.email || f.telefone,
     },
     { col: "fornecedor", dir: "asc" }
   );
 
-  /**
-   * CPF/CNPJ digitado no cadastro (18/11/2026, Marisa): já cadastrado, avisa e
-   * não duplica; CNPJ novo, os dados da Receita entram sozinhos — sem clicar em
-   * "Consultar CNPJ" (que continua, para buscar de novo).
-   */
-  // A chave é o cadastro aberto: trocar de linha (ou de "Novo" para uma linha)
-  // muda o documento na tela sem ninguém digitar — isso não dispara busca.
-  useAoCompletarDocumento(edit?.cnpj ?? "", !!edit, (digitos) => {
-    const outro = (data ?? []).find((f) => f.id !== edit?.id && onlyDigits(f.cnpj) === digitos);
-    if (outro) {
-      setMsg(`Este CPF/CNPJ já está cadastrado: ${outro.nomeFantasia || outro.razaoSocial}.`);
+  return (
+    <PageShell
+      title="Fornecedores"
+      subtitle="Cadastro dos fornecedores da casa: empresas (CNPJ) e pessoas físicas (CPF)."
+      topAction={
+        podeEditar && (
+          <Button size="sm" icon={<IcPlus width={15} height={15} />} onClick={() => setAberto({ modo: "editar", fornecedor: novoFornecedor() })}>
+            Novo fornecedor
+          </Button>
+        )
+      }
+    >
+      <div className="space-y-4">
+        <Card>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative flex-1 min-w-[220px]">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-3 pointer-events-none"><IcSearch width={16} height={16} /></span>
+              <Input className="pl-9" placeholder="Buscar por ID, nome, CNPJ/CPF ou contato" value={busca} onChange={(e) => setBusca(e.target.value)} />
+            </div>
+            <span className="text-[12px] text-ink-3">{lista.length} fornecedor(es)</span>
+          </div>
+        </Card>
+
+        <Card padded={false}>
+          {error ? <AvisoErro erro={error} oQue="os fornecedores" onTentarDeNovo={reload} /> : loading ? <div className="p-8 text-ink-3 text-sm">Carregando…</div> : lista.length === 0 ? (
+            <div className="p-8">
+              <EmptyState
+                title={busca.trim() ? "Nenhum fornecedor com essa busca" : "Nenhum fornecedor cadastrado"}
+                hint={busca.trim() ? "Confira o que foi digitado ou limpe a busca." : podeEditar ? "Use “Novo fornecedor” para cadastrar o primeiro." : undefined}
+              />
+            </div>
+          ) : (
+            <Table>
+              <THead>
+                <ThOrd col="id" ordem={ordem} onSort={ordenarPor}>ID</ThOrd>
+                <ThOrd col="fornecedor" ordem={ordem} onSort={ordenarPor}>Fornecedor</ThOrd>
+                <ThOrd col="documento" ordem={ordem} onSort={ordenarPor}>CNPJ / CPF</ThOrd>
+                <ThOrd col="perfil" ordem={ordem} onSort={ordenarPor}>Perfil</ThOrd>
+                <ThOrd col="contato" ordem={ordem} onSort={ordenarPor}>Contato</ThOrd>
+                <Th align="right">Ações</Th>
+              </THead>
+              <tbody>
+                {lista.map((f) => (
+                  <Tr key={f.id}>
+                    <Td className="text-[12.5px] font-bold text-ink-2 tabular-nums">{rotuloIdFornecedor(f.codigo)}</Td>
+                    <Td>
+                      <div className="font-bold text-ink">{f.nomeFantasia || f.razaoSocial || "(sem nome)"}</div>
+                      {f.nomeFantasia && f.razaoSocial && f.nomeFantasia !== f.razaoSocial && (
+                        <div className="text-[12px] text-ink-2">{f.razaoSocial}</div>
+                      )}
+                    </Td>
+                    <Td className="text-[12.5px] tabular-nums whitespace-nowrap">
+                      {f.cnpj || "—"}
+                      <span className="ml-2 align-middle"><Badge tom="neutral">{tipoDoFornecedor(f)}</Badge></span>
+                    </Td>
+                    <Td className="text-[12.5px] text-ink-2">{f.perfilTributario || "—"}</Td>
+                    <Td className="text-[12.5px]">
+                      <div>{f.email || f.telefone || "—"}</div>
+                      {(f.contatos?.length ?? 0) > 0 && (
+                        <div className="text-[11px] text-ink-3">
+                          {f.contatos![0].nome || "contato sem nome"}
+                          {f.contatos!.length > 1 && ` +${f.contatos!.length - 1}`}
+                        </div>
+                      )}
+                    </Td>
+                    <Td align="right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button type="button" title="Visualizar" aria-label={`Visualizar ${f.razaoSocial}`}
+                          className="rounded-btn p-1.5 text-ink-3 hover:bg-[#F1F2F5] hover:text-ink" onClick={() => setAberto({ modo: "ver", fornecedor: f })}>
+                          <IcEye width={16} height={16} />
+                        </button>
+                        {podeEditar && (
+                          <button type="button" title="Editar" aria-label={`Editar ${f.razaoSocial}`}
+                            className="rounded-btn p-1.5 text-ink-3 hover:bg-[#F1F2F5] hover:text-ink" onClick={() => setAberto({ modo: "editar", fornecedor: f })}>
+                            <IcPencil width={16} height={16} />
+                          </button>
+                        )}
+                      </div>
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+        </Card>
+      </div>
+
+      {aberto?.modo === "ver" && (
+        <FichaFornecedor
+          fornecedor={aberto.fornecedor}
+          onClose={() => setAberto(null)}
+          onEditar={podeEditar ? () => setAberto({ modo: "editar", fornecedor: aberto.fornecedor }) : undefined}
+        />
+      )}
+      {aberto?.modo === "editar" && (
+        <FormularioFornecedor
+          // A chave reinicia o formulário ao trocar de fornecedor (ou de "novo" para um existente).
+          key={aberto.fornecedor.id || "novo"}
+          inicial={aberto.fornecedor}
+          todos={data ?? []}
+          onClose={() => setAberto(null)}
+          onSalvo={() => { setAberto(null); reload(); }}
+        />
+      )}
+    </PageShell>
+  );
+}
+
+/* --------------------------------- janela -------------------------------- */
+
+function Janela({ titulo, subtitulo, onClose, children, rodape }: {
+  titulo: string; subtitulo?: ReactNode; onClose: () => void; children: ReactNode; rodape?: ReactNode;
+}) {
+  return createPortal(
+    <div className="no-print fixed inset-0 z-[80] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" />
+      <div role="dialog" aria-label={titulo} className="relative flex w-full max-w-[820px] max-h-[92vh] flex-col bg-surface rounded-card-lg shadow-modal border border-border">
+        <div className="px-6 pt-5 pb-4 border-b border-border-soft">
+          <button type="button" onClick={onClose} title="Fechar" className="absolute right-3 top-3 rounded-btn p-1.5 text-ink-3 hover:bg-[#F1F2F5]">
+            <IcFechar width={18} height={18} />
+          </button>
+          <h2 className="font-display text-lg font-bold pr-8">{titulo}</h2>
+          {subtitulo && <div className="text-[13px] text-ink-2 mt-0.5">{subtitulo}</div>}
+        </div>
+        <div className="flex-1 overflow-y-auto px-6 py-5">{children}</div>
+        {rodape && <div className="flex justify-end gap-2 px-6 py-4 border-t border-border-soft">{rodape}</div>}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+/** Título de um bloco do formulário ou da ficha. */
+const Bloco = ({ titulo, children, acao }: { titulo: string; children: ReactNode; acao?: ReactNode }) => (
+  <section>
+    <div className="mb-2.5 flex items-center justify-between gap-2">
+      <h3 className="text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-ink-3">{titulo}</h3>
+      {acao}
+    </div>
+    {children}
+  </section>
+);
+
+const ErroCampo = ({ texto }: { texto?: string }) => (texto ? <p className="mt-1 text-[12px] font-semibold text-danger" role="alert">{texto}</p> : null);
+
+/* ---------------------------------- ficha --------------------------------- */
+
+function FichaFornecedor({ fornecedor: f, onClose, onEditar }: { fornecedor: Fornecedor; onClose: () => void; onEditar?: () => void }) {
+  const tipo = tipoDoFornecedor(f);
+  const linhas = linhasDosContatos(f.contatos);
+  const Dado = ({ rotulo, valor, largo }: { rotulo: string; valor?: string; largo?: boolean }) => (
+    <div className={largo ? "sm:col-span-2" : undefined}>
+      <dt className="text-[11.5px] font-bold text-ink-3">{rotulo}</dt>
+      <dd className="text-[13.5px] text-ink break-words">{valor?.trim() || "—"}</dd>
+    </div>
+  );
+  return (
+    <Janela
+      titulo={f.nomeFantasia || f.razaoSocial || "Fornecedor"}
+      subtitulo={<>ID {rotuloIdFornecedor(f.codigo)} · {tipo === "CPF" ? "Pessoa física" : "Empresa"}</>}
+      onClose={onClose}
+      rodape={
+        <>
+          <Button variant="secondary" onClick={onClose}>Fechar</Button>
+          {onEditar && <Button icon={<IcPencil width={15} height={15} />} onClick={onEditar}>Editar</Button>}
+        </>
+      }
+    >
+      <div className="space-y-6">
+        <Bloco titulo="Identificação">
+          <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+            <Dado rotulo={tipo} valor={f.cnpj} />
+            <Dado rotulo={tipo === "CPF" ? "Nome completo" : "Razão social"} valor={f.razaoSocial} />
+            {tipo === "CNPJ" && <Dado rotulo="Nome fantasia" valor={f.nomeFantasia} />}
+            <Dado rotulo="Apelido (título das OS)" valor={f.apelido || gerarApelidoFornecedor(f.nomeFantasia, f.razaoSocial)} />
+            <Dado rotulo="Perfil tributário" valor={f.perfilTributario} />
+            {tipo === "CNPJ" && <Dado rotulo="Inscrição estadual" valor={f.inscricaoEstadual} />}
+            {tipo === "CNPJ" && <Dado rotulo="Inscrição municipal" valor={f.inscricaoMunicipal} />}
+          </dl>
+        </Bloco>
+        <Bloco titulo="Endereço">
+          <dl><Dado rotulo="Endereço completo" valor={f.endereco} /></dl>
+        </Bloco>
+        <Bloco titulo="Contato">
+          <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+            <Dado rotulo="Telefone" valor={f.telefone} />
+            <Dado rotulo="E-mail" valor={f.email} />
+          </dl>
+          {linhas.length > 0 && (
+            <ul className="mt-3 divide-y divide-border-soft rounded-btn border border-border-soft">
+              {linhas.map((l, i) => (
+                <li key={i} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-2 text-[13px]">
+                  <span className="font-bold text-ink">{l.nome || "Sem nome"}</span>
+                  {l.funcao && <span className="text-ink-3">{l.funcao}</span>}
+                  <span className="ml-auto text-ink-2">{l.tipo === "email" ? "E-mail" : "Telefone"}: <span className="text-ink">{l.valor || "—"}</span></span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Bloco>
+        {tipo === "CNPJ" && (f.cnaes?.length ?? 0) > 0 && (
+          <Bloco titulo="CNAEs">
+            <div className="flex flex-wrap gap-1.5">
+              {f.cnaes!.map((c, i) => <span key={i} className="text-[11px] bg-[#F0F1F4] text-ink-2 rounded-pill px-2 py-1">{c}</span>)}
+            </div>
+          </Bloco>
+        )}
+      </div>
+    </Janela>
+  );
+}
+
+/* ------------------------------- formulário ------------------------------- */
+
+function FormularioFornecedor({ inicial, todos, onClose, onSalvo }: {
+  inicial: Fornecedor; todos: Fornecedor[]; onClose: () => void; onSalvo: () => void;
+}) {
+  const [f, setF] = useState<Fornecedor>(() => structuredClone(inicial));
+  const [tipo, setTipo] = useState<TipoFornecedor>(() => tipoDoFornecedor(inicial));
+  // Sempre há pelo menos uma linha de contato na tela, pronta para preencher.
+  const [linhas, setLinhas] = useState<LinhaContato[]>(() => {
+    const l = linhasDosContatos(inicial.contatos);
+    return l.length ? l : [linhaContatoVazia()];
+  });
+  const [erros, setErros] = useState<ErrosCadastroFornecedor>({});
+  const [aviso, setAviso] = useState("");
+  const [consultando, setConsultando] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  // Cadastro aberto e mexido: F5, fechar a aba ou sair da tela pedem confirmação.
+  useAvisoDeSaida({ f, linhas });
+
+  const upd = (patch: Partial<Fornecedor>) => setF((atual) => ({ ...atual, ...patch }));
+  const apelidoAutomatico = useMemo(() => gerarApelidoFornecedor(f.nomeFantasia, f.razaoSocial), [f.nomeFantasia, f.razaoSocial]);
+  const repetido = todos.find((o) => o.id !== f.id && onlyDigits(o.cnpj) && onlyDigits(o.cnpj) === onlyDigits(f.cnpj));
+
+  /** Trocar o tipo troca o formulário: o documento do outro tipo não serve, e dado de empresa não é de pessoa. */
+  function trocarTipo(novo: TipoFornecedor) {
+    if (novo === tipo) return;
+    setTipo(novo);
+    setErros({});
+    setAviso("");
+    setF((atual) =>
+      novo === "CPF"
+        ? { ...semCamposDeEmpresa(atual), cnpj: "", perfilTributario: PERFIL_PF }
+        : { ...atual, cnpj: "", perfilTributario: atual.perfilTributario === PERFIL_PF ? "" : atual.perfilTributario }
+    );
+  }
+
+  /** Só os dígitos do tipo escolhido: no CPF não cabe um 12º dígito que o transformaria em CNPJ. */
+  const mudarDocumento = (valor: string) => {
+    const limite = tipo === "CPF" ? 11 : 14;
+    const mascarado = maskCpfCnpjInput(onlyDigits(valor).slice(0, limite));
+    setErros((e) => ({ ...e, documento: undefined }));
+    setF((atual) => comPerfilPeloDocumento({ ...atual, cnpj: mascarado }));
+  };
+
+  /** A lupa do CNPJ: busca na Receita e preenche o que veio, sem apagar o que já foi digitado. */
+  async function consultar() {
+    const doc = onlyDigits(f.cnpj);
+    setAviso("");
+    if (doc.length !== 14) {
+      setErros((e) => ({ ...e, documento: "Digite o CNPJ completo para consultar." }));
       return;
     }
-    if (digitos.length === 14 && flags.consultaCnpj) void consultar();
-  }, edit ? edit.id || "novo" : undefined);
-
-  async function consultar() {
-    if (!edit) return;
-    setMsg("");
+    setConsultando(true);
     try {
-      const digitos = onlyDigits(edit.cnpj);
-      const d = await consultarCnpj(edit.cnpj);
-      // Valor vazio na Receita (e-mail, telefone…) não apaga o que foi digitado;
-      // e a resposta que chega depois de o documento mudar é descartada.
-      setEdit((atual) =>
-        atual && onlyDigits(atual.cnpj) === digitos
+      const d = await consultarCnpj(f.cnpj);
+      // A resposta que chega depois de o documento mudar é descartada.
+      setF((atual) =>
+        onlyDigits(atual.cnpj) === doc
           ? {
               ...atual,
               ...semVazios({
@@ -139,247 +366,212 @@ export function Fornecedores() {
               ...(d.cnaes?.length ? { cnaes: d.cnaes } : {}),
               inscricaoEstadual: d.inscricaoEstadual || atual.inscricaoEstadual || "Isenta",
             }
-          : atual,
+          : atual
       );
-      setMsg("Dados preenchidos pela BrasilAPI.");
+      setAviso("Dados preenchidos pela consulta do CNPJ. Confira e complete o que faltar.");
     } catch (e) {
-      setMsg((e as Error).message);
+      setErros((er) => ({ ...er, documento: (e as Error).message }));
+    } finally {
+      setConsultando(false);
     }
   }
 
-  const [salvando, setSalvando] = useState(false);
+  // CNPJ novo digitado por inteiro: os dados da Receita entram sozinhos (a lupa busca de novo).
+  useAoCompletarDocumento(f.cnpj, true, (doc) => {
+    if (todos.some((o) => o.id !== f.id && onlyDigits(o.cnpj) === doc)) return; // o aviso de duplicado já está na tela
+    if (tipo === "CNPJ" && doc.length === 14 && flags.consultaCnpj) void consultar();
+  }, f.id || "novo");
+
+  /* contatos */
+  const mudarLinha = (i: number, patch: Partial<LinhaContato>) =>
+    setLinhas((atuais) => atuais.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+  const adicionarDepois = (i: number) =>
+    setLinhas((atuais) => [...atuais.slice(0, i + 1), linhaContatoVazia(), ...atuais.slice(i + 1)]);
+  const removerLinha = (i: number) =>
+    setLinhas((atuais) => (atuais.length === 1 ? [linhaContatoVazia()] : atuais.filter((_, j) => j !== i)));
 
   async function salvar() {
-    if (!edit) return;
-    // Sem razão social nem CNPJ o cadastro não identifica ninguém — e era
-    // possível salvar assim, criando fornecedor fantasma na lista.
-    if (!edit.razaoSocial.trim() && !edit.cnpj.trim()) {
-      toast("Informe ao menos a razão social ou o CNPJ/CPF do fornecedor.", "warning");
-      return;
-    }
-    // O endereço é obrigatório e completo (Marisa, 13/11/2026): sem ele o
-    // contrato sai com a qualificação do fornecedor pela metade.
-    const end = validarEndereco(edit.endereco);
-    if (!end.completo) {
-      setTentouSalvar(true);
-      toast(`Endereço incompleto. ${textoDoQueFalta(end.faltando)}`, "danger");
+    const encontrados = validarCadastroFornecedor(f, tipo, linhas, todos);
+    setErros(encontrados);
+    const primeiro = Object.values(encontrados).find(Boolean);
+    if (primeiro) {
+      toast(primeiro, "danger");
       return;
     }
     setSalvando(true);
     try {
-      await repo.fornecedores.salvar(edit);
-      toast("Fornecedor salvo.", "success");
-      setTentouSalvar(false);
-      setEdit(null);
-      reload();
+      const pronto = { ...(tipo === "CPF" ? semCamposDeEmpresa(f) : f), contatos: contatosDasLinhas(linhas) };
+      await repo.fornecedores.salvar(pronto);
+      toast(f.id ? "Fornecedor salvo." : "Fornecedor cadastrado.", "success");
+      onSalvo();
     } catch (e) {
-      // A falha (RLS, rede) subia sem tratamento: a tela ficava parada, sem
-      // aviso nenhum, e a pessoa achava que tinha salvado.
       toast(`Não foi possível salvar: ${(e as Error).message}`, "danger");
     } finally {
       setSalvando(false);
     }
   }
 
+  const erroDocumento = erros.documento ?? (repetido ? `Este ${tipo} já está cadastrado: ${repetido.nomeFantasia || repetido.razaoSocial}.` : undefined);
+
   return (
-    <PageShell
-      title="Fornecedores"
-      subtitle="Consulta e edição. Os fornecedores são registrados automaticamente ao serem usados nas ECs."
-      topAction={
-        podeEditar && (
-          // O cartão de edição já sabia dizer "Novo fornecedor", mas nada nesta
-          // tela criava um: só dava para cadastrar passando por uma EC.
-          <Button size="sm" icon={<IcPlus width={15} height={15} />} onClick={() => { setEdit(novoFornecedor()); setMsg(""); setTentouSalvar(false); }}>
-            Novo fornecedor
-          </Button>
-        )
+    <Janela
+      titulo={f.id ? "Editar fornecedor" : "Novo fornecedor"}
+      subtitulo={f.id ? <>ID {rotuloIdFornecedor(f.codigo)}</> : "O ID é gerado ao salvar."}
+      onClose={onClose}
+      rodape={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={salvando}>Cancelar</Button>
+          <Button onClick={() => void salvar()} disabled={salvando}>{salvando ? "Salvando…" : f.id ? "Salvar" : "Cadastrar fornecedor"}</Button>
+        </>
       }
     >
-      <div className={cx(edit ? "grid lg:grid-cols-[1.5fr_1fr] gap-4 items-start" : "max-w-5xl mx-auto")}>
-        <Card padded={false}>
-          <div className="p-4 border-b border-border-soft">
-            <div className="relative max-w-md">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-3"><IcSearch width={16} height={16} /></span>
-              <Input className="!h-10 pl-9" placeholder="Buscar fornecedor…" value={busca} onChange={(e) => setBusca(e.target.value)} />
-            </div>
-          </div>
-          {error ? <AvisoErro erro={error} oQue="os fornecedores" onTentarDeNovo={reload} /> : loading ? <div className="p-8 text-ink-3 text-sm">Carregando…</div> : lista.length === 0 ? (
-            <EmptyState title="Nenhum fornecedor" />
-          ) : (
-            <Table>
-              <THead>
-                <ThOrd col="fornecedor" ordem={ordem} onSort={ordenarPor}>Fornecedor</ThOrd>
-                <ThOrd col="cnpj" ordem={ordem} onSort={ordenarPor}>CNPJ</ThOrd>
-                <ThOrd col="perfil" ordem={ordem} onSort={ordenarPor}>Perfil</ThOrd>
-                <ThOrd col="contato" ordem={ordem} onSort={ordenarPor}>Contato</ThOrd>
-              </THead>
-              <tbody>
-                {lista.map((f) => (
-                  <Tr key={f.id} onClick={() => { setEdit(structuredClone(f)); setMsg(""); setTentouSalvar(false); }}>
-                    <Td>
-                      <div className="flex items-center gap-2.5">
-                        <Avatar nome={f.razaoSocial} size={34} />
-                        <div>
-                          <div className="font-bold text-ink">{f.nomeFantasia || f.razaoSocial}</div>
-                          <div className="text-[12px] text-ink-2">{f.razaoSocial}</div>
-                          {!validarEndereco(f.endereco).completo && (
-                            <div className="text-[11px] font-bold text-warning">Endereço incompleto — {textoDoQueFalta(validarEndereco(f.endereco).faltando).replace(/\.$/, "").toLocaleLowerCase("pt-BR")}</div>
-                          )}
-                        </div>
-                      </div>
-                    </Td>
-                    <Td className="text-[12.5px]">{f.cnpj}</Td>
-                    <Td><Badge tom="info">{f.perfilTributario || "—"}</Badge></Td>
-                    <Td className="text-[12.5px]">
-                      <div>{f.email || "—"}</div>
-                      {/* Mostra QUEM é o primeiro contato, não só quantos são:
-                          "3 contato(s)" não ajuda ninguém a decidir se abre a
-                          ficha; "Maria · Produção" ajuda. */}
-                      {(f.contatos?.length ?? 0) > 0 && (
-                        <div className="text-[11px] text-ink-3">
-                          {[f.contatos![0].nome, f.contatos![0].funcao].filter(Boolean).join(" · ") || "contato sem nome"}
-                          {f.contatos!.length > 1 && ` +${f.contatos!.length - 1}`}
-                        </div>
-                      )}
-                    </Td>
-                  </Tr>
+      {salvando && <CarregandoTela />}
+      <div className="space-y-6">
+        <Bloco titulo="Identificação">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {/* O TIPO vem primeiro: é ele que decide os campos do resto do formulário. */}
+            <Field label="Tipo de fornecedor" obrigatorio>
+              <div role="radiogroup" aria-label="Tipo de fornecedor" className="inline-flex h-11 w-full rounded-btn border-[1.5px] border-[#BFC4CE] bg-surface p-1">
+                {(["CNPJ", "CPF"] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    role="radio"
+                    aria-checked={tipo === t}
+                    onClick={() => trocarTipo(t)}
+                    className={cx(
+                      "flex-1 rounded-[8px] text-[13px] font-bold transition-colors input-focus",
+                      tipo === t ? "bg-primary-soft text-primary-dark" : "text-ink-2 hover:bg-[#F1F2F5]"
+                    )}
+                  >
+                    {t === "CNPJ" ? "Empresa (CNPJ)" : "Pessoa física (CPF)"}
+                  </button>
                 ))}
-              </tbody>
-            </Table>
-          )}
-        </Card>
-
-        {edit && (
-          <Card>
-            <CardTitle action={
-              <Button variant="soft" size="sm" icon={<IcSearch width={15} height={15} />} onClick={consultar} disabled={!flags.consultaCnpj}>Consultar CNPJ</Button>
-            }>{edit.id ? "Editar fornecedor" : "Novo fornecedor"}</CardTitle>
-            {msg && <div className="mb-3 text-[12.5px] text-info bg-info-soft rounded-btn px-3 py-2">{msg}</div>}
-            <div className="grid gap-3">
-              <Field label="CNPJ/CPF" hint="(ou razão social)" obrigatorio><Input value={edit.cnpj} onChange={(e) => setEdit(comPerfilPeloDocumento({ ...edit, cnpj: maskCpfCnpjInput(e.target.value) }))} inputMode="numeric" placeholder="00.000.000/0000-00" /></Field>
-              <Field label="Razão social" hint="(ou CNPJ/CPF)" obrigatorio><Input formato="titulo-empresa" value={edit.razaoSocial} onChange={(e) => setEdit({ ...edit, razaoSocial: e.target.value })} /></Field>
-              <Field label="Nome fantasia"><Input formato="titulo" value={edit.nomeFantasia} onChange={(e) => setEdit({ ...edit, nomeFantasia: e.target.value })} /></Field>
-              {/* O apelido é GERADO a partir do nome (ver domain/fornecedor) e
-                  entra no título das OSs. O campo existe só como saída para
-                  quando a redução automática não agradar. */}
-              <Field label="Apelido" hint="(entra no título das OSs)">
-                <Input
-                  formato="titulo"
-                  value={edit.apelido ?? ""}
-                  onChange={(e) => setEdit({ ...edit, apelido: e.target.value })}
-                  placeholder={apelidoAutomatico || "gerado a partir do nome"}
-                />
-                <p className="text-[12px] text-ink-3 mt-1.5">
-                  {apelidoAutomatico
-                    ? <>Em branco, o sistema usa <b>{apelidoAutomatico}</b>, tirado do nome do fornecedor.</>
-                    : "Preencha a razão social ou o nome fantasia e o apelido sai sozinho."}
-                </p>
-              </Field>
-              <Field label="Perfil tributário">
-                <Select value={edit.perfilTributario} onChange={(e) => setEdit({ ...edit, perfilTributario: e.target.value })}>
-                  <option value="">Selecione…</option>
-                  <option>MEI</option><option>Simples Nacional</option><option>Lucro Presumido/Real</option>
-                </Select>
-              </Field>
-              <Field label="Endereço" obrigatorio><EnderecoCampos value={edit.endereco} mostrarErros={tentouSalvar} onChange={(endereco) => setEdit({ ...edit, endereco })} /></Field>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Telefone"><TelefoneInput value={edit.telefone} onChange={(v) => setEdit({ ...edit, telefone: v })} /></Field>
-                <Field label="E-mail"><Input value={edit.email} onChange={(e) => setEdit({ ...edit, email: e.target.value })} /></Field>
               </div>
-              {edit.cnaes && edit.cnaes.length > 0 && (
-                <div>
-                  <span className="block mb-1.5 text-[12.5px] font-bold text-ink">CNAEs <span className="text-ink-3 font-medium">(do CNPJ)</span></span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {edit.cnaes.map((c, i) => (
-                      <span key={i} className="text-[11px] bg-[#F0F1F4] text-ink-2 rounded-pill px-2 py-1">{c}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
+            </Field>
 
-              {/* A AGENDA do fornecedor: as pessoas de lá dentro, uma a uma.
-                  Era uma lista de frases — dava para ler e não dava para usar:
-                  nem ligar, nem mandar e-mail, nem saber quem cuida de nota
-                  fiscal. Separado, cada pedaço vira uma ação. */}
-              <div>
-                <div className="flex items-center justify-between gap-2 mb-1.5">
-                  <span className="text-[12.5px] font-bold text-ink">
-                    Contatos <span className="text-ink-3 font-medium">(pessoas do fornecedor)</span>
-                  </span>
-                  <Button variant="secondary" size="sm" icon={<IcPlus width={13} height={13} />} onClick={addContato}>
-                    Adicionar
-                  </Button>
-                </div>
-                {(edit.contatos ?? []).length === 0 ? (
-                  <p className="text-[12px] text-ink-3">
-                    Nenhum contato ainda. Os informados nas ECs entram aqui sozinhos, e você pode acrescentar
-                    outros com <b>Adicionar</b>.
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {(edit.contatos ?? []).map((c, i) => (
-                      <div key={i} className="rounded-btn border border-border bg-[#F7F8FA] p-2.5">
-                        <div className="flex items-center justify-between gap-2 mb-1.5">
-                          <span className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-ink-3">
-                            Contato {i + 1}
-                          </span>
-                          <button
-                            onClick={() => removerContato(i)}
-                            className="text-ink-3 hover:text-danger shrink-0"
-                            title="Remover contato"
-                          >
-                            <IcTrash width={14} height={14} />
-                          </button>
-                        </div>
-                        {/* Nome e função dividem a linha; telefone e e-mail
-                            ocupam a largura toda — o telefone porque vem em
-                            duas caixas (DDD + número) e ficaria espremido, o
-                            e-mail porque endereço cortado não serve para nada. */}
-                        <div className="grid grid-cols-2 gap-2">
-                          <Field label="Nome">
-                            <Input
-                              data-contato-nome
-                              formato="titulo"
-                              value={c.nome ?? ""}
-                              onChange={(e) => mudarContato(i, { nome: e.target.value })}
-                            />
-                          </Field>
-                          <Field label="Cargo / função" hint="O que a pessoa resolve ali dentro">
-                            <Input
-                              placeholder="Produção, Financeiro…"
-                              value={c.funcao ?? ""}
-                              onChange={(e) => mudarContato(i, { funcao: e.target.value })}
-                            />
-                          </Field>
-                          <Field label="Telefone" className="col-span-2">
-                            <TelefoneInput
-                              value={c.telefone ?? ""}
-                              onChange={(v) => mudarContato(i, { telefone: v })}
-                            />
-                          </Field>
-                          <Field label="E-mail" className="col-span-2">
-                            <Input
-                              type="email"
-                              value={c.email ?? ""}
-                              onChange={(e) => mudarContato(i, { email: e.target.value })}
-                            />
-                          </Field>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+            <Field label={tipo} obrigatorio>
+              <div className="flex gap-2">
+                <Input
+                  erro={!!erroDocumento}
+                  value={f.cnpj}
+                  onChange={(e) => mudarDocumento(e.target.value)}
+                  inputMode="numeric"
+                  placeholder={tipo === "CPF" ? "000.000.000-00" : "00.000.000/0000-00"}
+                  aria-label={tipo}
+                />
+                {tipo === "CNPJ" && (
+                  <button
+                    type="button"
+                    onClick={() => void consultar()}
+                    disabled={!flags.consultaCnpj || consultando}
+                    title={flags.consultaCnpj ? "Buscar os dados deste CNPJ na Receita" : "Consulta de CNPJ desligada neste ambiente"}
+                    aria-label="Buscar os dados do CNPJ na Receita"
+                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-btn border-[1.5px] border-[#D6D9E0] bg-surface text-ink-2 hover:border-primary hover:bg-primary-soft hover:text-primary-dark disabled:cursor-not-allowed disabled:opacity-50 input-focus"
+                  >
+                    <IcSearch width={17} height={17} className={consultando ? "animate-pulse" : undefined} />
+                  </button>
                 )}
               </div>
+              <ErroCampo texto={erroDocumento} />
+            </Field>
 
-              <div className="flex gap-2 pt-1">
-                {salvando && <CarregandoTela />}
-                {podeEditar && <Button block onClick={salvar} disabled={salvando}>{salvando ? "Salvando…" : "Salvar"}</Button>}
-                <Button variant="secondary" block={!podeEditar} onClick={() => setEdit(null)}>{podeEditar ? "Cancelar" : "Fechar"}</Button>
+            <Field label={tipo === "CPF" ? "Nome completo" : "Razão social"} obrigatorio className={tipo === "CPF" ? "sm:col-span-2" : undefined}>
+              <Input erro={!!erros.nome} formato={tipo === "CPF" ? "titulo" : "titulo-empresa"} value={f.razaoSocial} onChange={(e) => { upd({ razaoSocial: e.target.value }); setErros((er) => ({ ...er, nome: undefined })); }} />
+              <ErroCampo texto={erros.nome} />
+            </Field>
+            {tipo === "CNPJ" && (
+              <Field label="Nome fantasia">
+                <Input formato="titulo" value={f.nomeFantasia ?? ""} onChange={(e) => upd({ nomeFantasia: e.target.value })} />
+              </Field>
+            )}
+
+            <Field label="Apelido" hint="(entra no título das OS)">
+              <Input formato="titulo" value={f.apelido ?? ""} onChange={(e) => upd({ apelido: e.target.value })} placeholder={apelidoAutomatico || "gerado a partir do nome"} />
+              <p className="text-[12px] text-ink-3 mt-1">
+                {apelidoAutomatico ? <>Em branco, o sistema usa <b>{apelidoAutomatico}</b>.</> : "Em branco, sai do nome do fornecedor."}
+              </p>
+            </Field>
+            <Field label="Perfil tributário">
+              {tipo === "CPF" ? (
+                <Input value={PERFIL_PF} disabled />
+              ) : (
+                <Select value={f.perfilTributario} onChange={(e) => upd({ perfilTributario: e.target.value })}>
+                  <option value="">Selecione…</option>
+                  {opcoesPerfilTributario(f.perfilTributario).filter((p) => p !== PERFIL_PF).map((p) => <option key={p} value={p}>{p}</option>)}
+                </Select>
+              )}
+            </Field>
+
+            {tipo === "CNPJ" && (
+              <>
+                <Field label="Inscrição estadual">
+                  <Input value={f.inscricaoEstadual} onChange={(e) => upd({ inscricaoEstadual: e.target.value })} placeholder="Número ou “Isenta”" />
+                </Field>
+                <Field label="Inscrição municipal" hint="(a lupa copia o CNPJ)">
+                  <InscricaoMunicipalInput value={f.inscricaoMunicipal} onChange={(v) => upd({ inscricaoMunicipal: v })} cnpj={f.cnpj} compacto />
+                </Field>
+              </>
+            )}
+          </div>
+          {aviso && <div className="mt-3 text-[12.5px] text-info bg-info-soft rounded-btn px-3 py-2">{aviso}</div>}
+          {tipo === "CNPJ" && (f.cnaes?.length ?? 0) > 0 && (
+            <div className="mt-3">
+              <span className="block mb-1.5 text-[12.5px] font-bold text-ink">CNAEs <span className="text-ink-3 font-medium">(do CNPJ)</span></span>
+              <div className="flex flex-wrap gap-1.5">
+                {f.cnaes!.map((c, i) => <span key={i} className="text-[11px] bg-[#F0F1F4] text-ink-2 rounded-pill px-2 py-1">{c}</span>)}
               </div>
             </div>
-          </Card>
-        )}
+          )}
+        </Bloco>
+
+        <Bloco titulo="Endereço">
+          <EnderecoCampos value={f.endereco} mostrarErros={!!erros.endereco} onChange={(endereco) => { upd({ endereco }); setErros((er) => ({ ...er, endereco: undefined })); }} />
+          <ErroCampo texto={erros.endereco} />
+        </Bloco>
+
+        <Bloco titulo="Contato geral">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Telefone"><TelefoneInput value={f.telefone} onChange={(v) => upd({ telefone: v })} /></Field>
+            <Field label="E-mail"><Input type="email" value={f.email} onChange={(e) => upd({ email: e.target.value })} placeholder="contato@empresa.com.br" /></Field>
+          </div>
+        </Bloco>
+
+        {/* CONTATOS: uma linha por meio de contato — nome, tipo e valor. O "+"
+            fica na própria linha e abre outra logo abaixo. */}
+        <Bloco titulo="Contatos (pessoas do fornecedor)">
+          <div className="space-y-2">
+            <div className="hidden sm:grid grid-cols-[minmax(0,1.1fr)_9rem_minmax(0,1.3fr)_auto] gap-2 text-[11.5px] font-bold text-ink-2">
+              <span>Nome</span><span>Tipo</span><span>Contato</span><span className="w-[84px]" />
+            </div>
+            {linhas.map((l, i) => (
+              <div key={i} className="grid grid-cols-1 sm:grid-cols-[minmax(0,1.1fr)_9rem_minmax(0,1.3fr)_auto] gap-2 items-start">
+                <Input formato="titulo" value={l.nome} onChange={(e) => mudarLinha(i, { nome: e.target.value })} placeholder="Nome da pessoa" aria-label={`Nome do contato ${i + 1}`} />
+                <Select value={l.tipo} onChange={(e) => mudarLinha(i, { tipo: e.target.value as TipoContato, valor: "" })} aria-label={`Tipo do contato ${i + 1}`}>
+                  <option value="telefone">Telefone</option>
+                  <option value="email">E-mail</option>
+                </Select>
+                {l.tipo === "telefone" ? (
+                  <TelefoneInput value={l.valor} onChange={(v) => mudarLinha(i, { valor: v })} />
+                ) : (
+                  <Input type="email" value={l.valor} onChange={(e) => mudarLinha(i, { valor: e.target.value })} placeholder="nome@empresa.com.br" aria-label={`E-mail do contato ${i + 1}`} />
+                )}
+                <div className="flex gap-1">
+                  <button type="button" onClick={() => adicionarDepois(i)} title="Adicionar outro contato" aria-label="Adicionar outro contato"
+                    className="inline-flex h-11 w-10 items-center justify-center rounded-btn border-[1.5px] border-[#D6D9E0] bg-surface text-ink-2 hover:border-primary hover:bg-primary-soft hover:text-primary-dark input-focus">
+                    <IcPlus width={16} height={16} />
+                  </button>
+                  <button type="button" onClick={() => removerLinha(i)} title="Remover este contato" aria-label={`Remover o contato ${i + 1}`}
+                    className="inline-flex h-11 w-10 items-center justify-center rounded-btn text-ink-3 hover:bg-danger-soft hover:text-danger input-focus">
+                    <IcTrash width={15} height={15} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <ErroCampo texto={erros.contatos} />
+        </Bloco>
       </div>
-    </PageShell>
+    </Janela>
   );
 }

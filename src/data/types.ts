@@ -128,6 +128,11 @@ export interface DadosBancarios {
 
 export interface Fornecedor {
   id: string;
+  /**
+   * O ID do cadastro (27/11/2026): numero sequencial que o banco da ao gravar e
+   * que a tela mostra com quatro casas ("0042"). So leitura: nunca e enviado.
+   */
+  codigo?: number;
   razaoSocial: string;
   /**
    * Nome curto pelo qual a casa chama o fornecedor — é ele que entra no título

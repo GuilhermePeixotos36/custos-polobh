@@ -254,6 +254,7 @@ function mapFornecedor(r: any): Fornecedor {
   const contato = r.contato ?? {};
   return {
     id: r.id,
+    codigo: typeof r.codigo === "number" ? r.codigo : undefined,
     razaoSocial: r.razao_social ?? "",
     apelido: r.apelido ?? undefined,
     nomeFantasia: r.nome_fantasia ?? undefined,
