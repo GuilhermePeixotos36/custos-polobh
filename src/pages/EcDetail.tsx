@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { comDadosAtuaisDoProjeto } from "@/lib/projetoAoVivo";
 import { gerarFechamentoEc, gerarNovaVersaoEc } from "@/lib/novaVersaoEc";
+import { ThId, TdId } from "@/components/ColunaPendencias";
 import { LegendaProjeto } from "@/components/layout/LegendaProjeto";
 import { PageShell } from "@/components/layout/AppLayout";
 import { BarraProjeto } from "@/components/layout/BarraSecao";
@@ -139,6 +140,7 @@ export function EcDetail() {
   const ossOrdenadas = useOrdenacao(
     useMemo(() => oss ?? [], [oss]),
     {
+      id: (o) => o.codigo ?? 0,
       numero: (o) => o.numero,
       fornecedor: (o) => o.fornecedor.razaoSocial,
       itens: (o) => o.ecLinhaIds.length,
@@ -502,6 +504,7 @@ export function EcDetail() {
       ) : (
         <Table>
           <THead>
+            <ThId col="id" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor} />
             <ThOrd col="numero" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor}>OS</ThOrd>
             <ThOrd col="fornecedor" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor}>Fornecedor</ThOrd>
             <ThOrd col="itens" align="center" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor}>Itens</ThOrd>
@@ -511,6 +514,7 @@ export function EcDetail() {
           <tbody>
             {ossOrdenadas.ordenados.map((o) => (
               <Tr key={o.id} onClick={() => navigate(`/ordens/${o.id}`)}>
+                <TdId codigo={o.codigo} />
                 <Td className="font-bold">{o.numero}</Td>
                 <Td>{o.fornecedor.razaoSocial}</Td>
                 <Td align="center">

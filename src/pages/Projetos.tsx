@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { PageShell } from "@/components/layout/AppLayout";
 import { Card, Button, Badge, Table, THead, Tr, Td, EmptyState, AvisoErro, ThOrd, useOrdenacao, ProgressBar, type Tom } from "@/components/ui";
 import { IcPlus, IcSearch } from "@/components/icons";
-import { ThPendencias, TdPendencias } from "@/components/ColunaPendencias";
+import { ThId, TdId, NomeComPendencia } from "@/components/ColunaPendencias";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import { useMinhasPendencias } from "@/store/pendencias";
@@ -63,7 +63,7 @@ export function Projetos() {
   const { ordem, ordenarPor, ordenados: lista } = useOrdenacao(
     filtrados,
     {
-      pendencias: (p) => porProjeto[p.id] ?? 0,
+      id: (p) => p.codigo ?? 0,
       cliente: (p) => p.cliente?.nome,
       projeto: (p) => p.nome,
       produtora: (p) => p.info?.produtoraResponsavel ?? "",
@@ -124,9 +124,9 @@ export function Projetos() {
         ) : (
           <Table>
             <THead>
-              {/* Pendências em coluna própria: os badges ficam alinhados entre si e o
-                  nome do projeto começa sempre na mesma posição. */}
-              <ThPendencias col="pendencias" ordem={ordem} onSort={ordenarPor} />
+              {/* ID na primeira coluna (27/11/2026); o balão de pendência foi para o
+                  canto do nome do projeto. */}
+              <ThId col="id" ordem={ordem} onSort={ordenarPor} />
               <ThOrd col="cliente" ordem={ordem} onSort={ordenarPor}>Cliente</ThOrd>
               <ThOrd col="projeto" ordem={ordem} onSort={ordenarPor}>Projeto</ThOrd>
               {/* Produtora e datas do evento (15/09/2026): as duas perguntas que
@@ -141,11 +141,15 @@ export function Projetos() {
             <tbody>
               {lista.map((p) => (
                 <Tr key={p.id} onClick={() => navigate(`/projetos/${p.id}`)}>
-                  <TdPendencias n={porProjeto[p.id] ?? 0} title={`${porProjeto[p.id] ?? 0} pendência(s) neste projeto`} />
+                  <TdId codigo={p.codigo} />
                   <Td className="text-ink font-medium">{p.cliente?.nome || "—"}</Td>
                   {/* Sem thumbnail: as iniciais não informavam nada e saíam quebradas em
                       títulos com travessão ("BM – Convenção…" virava "B–"). */}
-                  <Td className="font-bold text-ink">{p.nome || "(sem título)"}</Td>
+                  <Td className="font-bold text-ink">
+                    <NomeComPendencia n={porProjeto[p.id] ?? 0} title={`${porProjeto[p.id] ?? 0} pendência(s) neste projeto`}>
+                      {p.nome || "(sem título)"}
+                    </NomeComPendencia>
+                  </Td>
                   <Td className="text-ink font-medium">{p.info?.produtoraResponsavel || "—"}</Td>
                   <Td className="text-ink font-medium whitespace-nowrap tabular-nums">{datasDoProjeto(p)}</Td>
                   {podeVerChecklist && (

@@ -110,3 +110,21 @@ describe("Direção de Produção valida o contrato da OS cultural (11/11/2026)"
     expect(vezDoBloco("Produção", "direcao").vez).toBe(false);
   });
 });
+
+describe("coluna Está com (27/11/2026)", async () => {
+  const { areaComAOs } = await import("./faseOs");
+
+  it("OS ativa: a área da etapa em que ela está parada", () => {
+    expect(areaComAOs({ status: "Ativa", fase: "producao" })).toBe("Produção");
+    expect(areaComAOs({ status: "Ativa", fase: "direcao" })).toBe("Direção de Produção");
+    expect(areaComAOs({ status: "Ativa", fase: "financeiro" })).toBe("Financeiro");
+    expect(areaComAOs({ status: "Ativa", fase: "backoffice" })).toBe("Back-office");
+    // OS antiga, sem fase gravada: está com a produção.
+    expect(areaComAOs({ status: "Ativa", fase: undefined })).toBe("Produção");
+  });
+
+  it("emitida ou arquivada não está com ninguém", () => {
+    expect(areaComAOs({ status: "Emitida", fase: "emitida" })).toBeNull();
+    expect(areaComAOs({ status: "Arquivada", fase: "financeiro" })).toBeNull();
+  });
+});

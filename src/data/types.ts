@@ -538,6 +538,8 @@ export const ABAS_COM_CONVERSA = [
 
 export interface Projeto {
   id: string;
+  /** ID de exibição (27/11/2026): número sequencial dado pelo banco. Só leitura. */
+  codigo?: number;
   nome: string;
   cliente: Cliente;
   info: ProjetoInfo; // título, modalidade, datas, local, participantes, produtora, roteiro
@@ -572,6 +574,8 @@ export interface TaxaConfig {
 
 export interface Ec {
   id: string;
+  /** ID de exibição (27/11/2026): número sequencial dado pelo banco. Só leitura. */
+  codigo?: number;
   numero: string; // "EC – Cliente – Projeto – V01"
   slugPublico: string; // token não-adivinhável p/ o link público do cronograma
   versao: number;
@@ -1049,6 +1053,8 @@ export interface CredenciamentoResposta {
 
 export interface Os {
   id: string;
+  /** ID de exibição (27/11/2026): número sequencial dado pelo banco. Só leitura. */
+  codigo?: number;
   numero: string; // "...– OS-01"
   slugCredenciamento: string; // token do link público de credenciamento
   seq: number;

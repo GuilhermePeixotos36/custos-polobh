@@ -17,7 +17,8 @@ import { InscricaoMunicipalInput } from "@/components/InscricaoMunicipalInput";
 import { TextosJaUsados } from "@/components/TextosJaUsados";
 import { TimelineConsolidada, type ItemConsolidado } from "@/components/Timeline";
 import { NavegadorPendencias } from "@/components/NavegadorPendencias";
-import { ThPendencias, TdPendencias } from "@/components/ColunaPendencias";
+import { ThId, TdId, NomeComPendencia } from "@/components/ColunaPendencias";
+import { areaComAOs } from "@/domain/faseOs";
 import { NotifDot } from "@/components/NotifDot";
 import { MoverSetas, moverNaLista } from "@/components/MoverSetas";
 import { ListaArrastavel, ItemArrastavel } from "@/components/ListaArrastavel";
@@ -318,7 +319,7 @@ export function ProjetoDetail() {
   const ecsOrdenadas = useOrdenacao(
     ecsFiltradas,
     {
-      pendencias: (e) => porEc[e.id] ?? 0,
+      id: (e) => e.codigo ?? 0,
       titulo: (e) => tituloEc(e),
       // Booleano em vez do rótulo: ordenado por texto, "Arquivada" viria antes de
       // "Ativa". Como booleano, a EC ativa é sempre a primeira.
@@ -331,9 +332,10 @@ export function ProjetoDetail() {
   const ossOrdenadas = useOrdenacao(
     ossFiltradas,
     {
-      pendencias: (o) => porOs[o.id] ?? 0,
+      id: (o) => o.codigo ?? 0,
       numero: (o) => o.numero,
       fornecedor: (o) => nomeCurtoFornecedor(o.fornecedor),
+      estaCom: (o) => areaComAOs(o) ?? "￿",
       status: (o) => o.status,
     },
     { col: "numero", dir: "asc" }
@@ -1289,8 +1291,8 @@ export function ProjetoDetail() {
           ) : (
             <Table>
               <THead>
-                {/* Pendências em coluna própria, alinhadas à esquerda do título da EC. */}
-                <ThPendencias col="pendencias" ordem={ecsOrdenadas.ordem} onSort={ecsOrdenadas.ordenarPor} />
+                {/* ID na primeira coluna (27/11/2026); o balão de pendência foi para o canto do título. */}
+                <ThId col="id" ordem={ecsOrdenadas.ordem} onSort={ecsOrdenadas.ordenarPor} />
                 <ThOrd col="titulo" ordem={ecsOrdenadas.ordem} onSort={ecsOrdenadas.ordenarPor}>Título da EC</ThOrd>
                 <ThOrd col="status" align="center" ordem={ecsOrdenadas.ordem} onSort={ecsOrdenadas.ordenarPor}>Status</ThOrd>
               </THead>
@@ -1300,9 +1302,11 @@ export function ProjetoDetail() {
                   // na subguia EC a pílula pisca a linha, e o detalhe (comentário,
                   // campo a emitir) fica para a tela da EC.
                   <Tr key={e.id} id={idAncoraPendencia(e.id)} onClick={() => navigate(`/estimativas/${e.id}`)}>
-                    <TdPendencias n={porEc[e.id] ?? 0} title="Ações pendentes suas nesta EC" />
+                    <TdId codigo={e.codigo} />
                     {/* Versão e data já vêm no próprio título ("EC – … (03) em 10 08 26"). */}
-                    <Td className={cx("font-bold", e.ativa ? "text-primary-dark" : "text-ink")}>{tituloEc(e)}</Td>
+                    <Td className={cx("font-bold", e.ativa ? "text-primary-dark" : "text-ink")}>
+                      <NomeComPendencia n={porEc[e.id] ?? 0} title="Ações pendentes suas nesta EC">{tituloEc(e)}</NomeComPendencia>
+                    </Td>
                     {/* Dois estados, e só: no ar ou no arquivo (ver `domain/ec`). */}
                     <Td align="center">
                       <Badge tom={TOM_SITUACAO_EC[situacaoEc(e)]}>{ROTULO_SITUACAO_EC[situacaoEc(e)]}</Badge>
@@ -1391,20 +1395,27 @@ export function ProjetoDetail() {
           ) : (
             <Table>
               <THead>
-                <ThPendencias col="pendencias" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor} />
+                <ThId col="id" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor} />
                 <ThOrd col="numero" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor}>OS</ThOrd>
                 {/* Sem rótulo: é o atalho para ver os itens, não uma coluna de dado. */}
                 <ThItensOs />
                 <ThOrd col="fornecedor" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor}>Fornecedor</ThOrd>
+                {/* "Está com": a área em que a OS está parada no andamento — não é o status. */}
+                <ThOrd col="estaCom" className="whitespace-nowrap" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor}>Está com</ThOrd>
                 <ThOrd col="status" align="center" ordem={ossOrdenadas.ordem} onSort={ossOrdenadas.ordenarPor}>Status</ThOrd>
               </THead>
               <tbody>
                 {ossOrdenadas.ordenados.map((o) => (
                   <Tr key={o.id} id={idAncoraPendencia(o.id)} onClick={() => navigate(`/ordens/${o.id}`)}>
-                    <TdPendencias n={porOs[o.id] ?? 0} title="Ações pendentes suas nesta OS" />
-                    <Td className="font-bold">{o.numero}</Td>
+                    <TdId codigo={o.codigo} />
+                    <Td className="font-bold">
+                      <NomeComPendencia n={porOs[o.id] ?? 0} title="Ações pendentes suas nesta OS">{o.numero}</NomeComPendencia>
+                    </Td>
                     <TdItensOs itens={itensPorOs[o.id] ?? []} />
                     <Td>{nomeCurtoFornecedor(o.fornecedor) || "—"}</Td>
+                    <Td className="text-[12.5px] whitespace-nowrap">
+                      {areaComAOs(o) ? <span className="font-bold text-ink">{areaComAOs(o)}</span> : <span className="text-ink-3" title="A OS não está mais em andamento">—</span>}
+                    </Td>
                     <Td align="center"><Badge tom={tomStatusOs[o.status]}>{o.status}</Badge></Td>
                   </Tr>
                 ))}

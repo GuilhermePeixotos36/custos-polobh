@@ -46,6 +46,28 @@ export const ROTULO_FASE: Record<FaseOs, string> = {
   emitida: "Emitida",
 };
 
+/**
+ * COM QUEM A OS ESTÁ — a coluna "Está com" das listas de OS (27/11/2026).
+ *
+ * É a etapa do andamento, dita pelo nome da área. Não é o status: o status diz
+ * o que a OS É (ativa, emitida, arquivada); isto diz na mesa de quem ela está
+ * parada agora. Por isso só existe enquanto a OS está ativa — emitida ou
+ * arquivada, ela não está com ninguém.
+ */
+export const AREA_DA_FASE: Record<Exclude<FaseOs, "emitida">, string> = {
+  producao: "Produção",
+  direcao: "Direção de Produção",
+  financeiro: "Financeiro",
+  backoffice: "Back-office",
+};
+
+/** A área que está com a OS agora; `null` quando ela já saiu de cena (emitida ou arquivada). */
+export function areaComAOs(os: Pick<Os, "fase" | "status">): string | null {
+  if (os.status !== "Ativa") return null;
+  const fase = faseDaOs(os);
+  return fase === "emitida" ? null : AREA_DA_FASE[fase];
+}
+
 /** O que cada fase está esperando — a frase que a tela mostra no topo. */
 export const ESPERANDO_FASE: Record<FaseOs, string> = {
   producao: "A produção está montando esta OS.",

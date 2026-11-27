@@ -486,6 +486,7 @@ function mapEc(r: any): Ec {
   }
   return {
     id: r.id,
+    codigo: typeof r.codigo === "number" ? r.codigo : undefined,
     numero: r.numero,
     slugPublico: r.slug_publico ?? "",
     projetoId: r.projeto_id ?? "",
@@ -754,6 +755,7 @@ export function mapOs(r: any): Os {
   };
   return {
     id: r.id,
+    codigo: typeof r.codigo === "number" ? r.codigo : undefined,
     numero: r.numero,
     slugCredenciamento: r.slug_credenciamento ?? "",
     seq: r.seq,
@@ -1098,6 +1100,7 @@ const areaRepo: AreaRepository = {
 function mapProjeto(r: any): Projeto {
   return {
     id: r.id,
+    codigo: typeof r.codigo === "number" ? r.codigo : undefined,
     nome: r.nome ?? "",
     cliente: r.cliente ?? clienteVazio(),
     info: normalizarProjetoInfo(r.projeto),
