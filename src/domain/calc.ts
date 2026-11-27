@@ -267,15 +267,31 @@ export function versaoOs(oss: Os[], ecId: string, fornecedorCnpj: string, fornec
 }
 
 /**
- * Título da OS (30/10/2026): "{Projeto} – {Item} – {Fornecedor} – OS ({N}) em
- * {DD MM AA}". Ex.: "BM – Convenção de Vendas 2027 – Transporte Terrestre – Raos
- * Transfer – OS (01) em 28 10 26". Até 30/10 o "OS" vinha no começo.
+ * O fornecedor no título da OS (27/11/2026): "Nome Fantasia – (Razão Social)".
+ * Os dois nomes inteiros, como estão no cadastro — o apelido reduzido saiu do
+ * título da OS (segue no do contrato). Sem um dos dois, fica só o que existe.
+ */
+export function fornecedorNoTituloOs(
+  f: Pick<Fornecedor, "nomeFantasia" | "razaoSocial"> | string | undefined
+): string {
+  if (typeof f === "string") return f.trim();
+  const fantasia = corrigirCapsLock((f?.nomeFantasia || "").trim());
+  const razao = (f?.razaoSocial || "").trim();
+  return [fantasia, razao ? `(${razao})` : ""].filter(Boolean).join(" – ");
+}
+
+/**
+ * Título da OS (27/11/2026): "{Apelido do Cliente} – {Projeto} – {Item} –
+ * {Nome Fantasia} – ({Razão Social}) – OS ({N}) em {DD MM AA}". Ex.: "BM –
+ * Convenção de Vendas 2027 – Transporte Terrestre – Raos Transfer – (Raos
+ * Transportes Ltda) – OS (01) em 28 10 26". Até 27/11 o fornecedor entrava só
+ * pelo apelido; até 30/10 o "OS" vinha no começo.
  *
  * - Projeto: apelido do cliente + nome do projeto + ano ("BM – Convenção de
  *   Vendas 2027"); EC antiga, sem os pedaços separados, usa o título do projeto.
  * - Item: o nome do item da EC; com mais de um item na OS, "Diversos".
- * - Fornecedor: o apelido (ver `apelidoFornecedor`), com a versão entre
- *   parênteses, com dois dígitos, logo depois.
+ * - Fornecedor: nome fantasia e, entre parênteses, a razão social (ver
+ *   `fornecedorNoTituloOs`); a versão vem depois, com dois dígitos.
  */
 export function numeroOs(
   ec: Ec,
@@ -290,7 +306,7 @@ export function numeroOs(
   const ano = (p.anoProjeto || (p.evento || criadoEm || "").slice(0, 4)).trim();
   const projeto = nome ? [cliente, [nome, ano].filter(Boolean).join(" ")].filter(Boolean).join(" – ") : (p.titulo || cliente).trim();
   const item = itemDoTituloOs(ec, ecLinhaIds);
-  const forn = apelidoFornecedor(fornecedor);
+  const forn = fornecedorNoTituloOs(fornecedor);
   const data = dataBRCurta(criadoEm);
   const fim = `OS (${String(versao).padStart(2, "0")})` + (data ? ` em ${data}` : "");
   return [projeto, item, forn, fim].filter(Boolean).join(" – ");

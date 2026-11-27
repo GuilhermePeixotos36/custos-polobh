@@ -183,8 +183,8 @@ describe("numeroOs", () => {
     }) as unknown as Ec;
 
   it("projeto – item – fornecedor – OS (versão) em data", () => {
-    const n = numeroOs(comProjeto({}), { apelido: "Âmbar", razaoSocial: "AMBAR CENOGRAFIA LTDA" }, 1, "2026-10-27T10:00:00.000Z", ["l1"]);
-    expect(n).toBe("BM – Convenção de Vendas 2027 – Cenografia – Âmbar – OS (01) em 27 10 26");
+    const n = numeroOs(comProjeto({}), { apelido: "Âmbar", nomeFantasia: "Âmbar", razaoSocial: "Ambar Cenografia Ltda" }, 1, "2026-10-27T10:00:00.000Z", ["l1"]);
+    expect(n).toBe("BM – Convenção de Vendas 2027 – Cenografia – Âmbar – (Ambar Cenografia Ltda) – OS (01) em 27 10 26");
   });
 
   it("mais de um item na OS: Diversos", () => {
@@ -197,8 +197,9 @@ describe("numeroOs", () => {
     expect(apelidoFornecedor({ razaoSocial: "SOM & LUZ PRODUÇÕES LTDA" })).toBe("Som & Luz");
     expect(apelidoFornecedor({ nomeFantasia: "Sonora AV", razaoSocial: "Sonora Áudio e Iluminação Ltda" }))
       .toBe("Sonora AV");
-    expect(numeroOs(comProjeto({}), { razaoSocial: "MONTA TUDO ESTRUTURAS LTDA" }, 2, "2026-08-27T10:00:00.000Z", ["l1"]))
-      .toContain("– Monta Tudo – OS (02) em");
+    // No título da OS não entra mais o apelido: sem nome fantasia, só a razão social.
+    expect(numeroOs(comProjeto({}), { razaoSocial: "Monta Tudo Estruturas Ltda" }, 2, "2026-08-27T10:00:00.000Z", ["l1"]))
+      .toContain("– Cenografia – (Monta Tudo Estruturas Ltda) – OS (02) em");
   });
 
   it("apelido preenchido à mão vence a geração automática", () => {
