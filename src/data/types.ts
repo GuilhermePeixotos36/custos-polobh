@@ -919,6 +919,7 @@ export interface FinanceiroOs {
    * @deprecated Ignorado desde 24/11/2026: o acerto financeiro não tem mais "Não se aplica" e o
    * cálculo aparece sempre. Fica no tipo só porque OSs antigas o têm gravado.
    */
+  /** @deprecated Sem efeito desde 24/11/2026: o acerto financeiro aparece sempre. Fica só nas OS antigas. */
   acertoNaoSeAplica?: boolean;
   /** % de encargos sobre o acréscimo — o único número digitado do acerto. */
   encargosAcrescimoPercentual?: number;

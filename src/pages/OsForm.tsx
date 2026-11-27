@@ -2555,6 +2555,11 @@ export function OsForm() {
               <LinhaOs label="BV sobre o valor original" hint="(combinado item a item)">
                 <ValorDoAcerto campo="bvSobreOriginal" acerto={acerto} financeiro={os.financeiro} onFin={updFin} />
               </LinhaOs>
+              {/* O VALOR LÍQUIDO veio do antigo "Resumo dos Custos" (27/11/2026): os
+                  cálculos da OS ficam todos aqui. Só leitura — segue as duas linhas acima. */}
+              <LinhaOs label="Valor líquido" hint="(valor original menos o BV)">
+                <Auto v={brl(acerto.valorLiquido)} />
+              </LinhaOs>
               <LinhaOs label="Valor da NF" hint="(do bloco de emissão)">
                 <ValorDoAcerto campo="valorNf" acerto={acerto} financeiro={os.financeiro} onFin={updFin} />
               </LinhaOs>

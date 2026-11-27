@@ -9,6 +9,7 @@
  *
  *   valor original dos serviços   ← o que foi contratado (automático; editável)
  *   BV sobre o valor original      ← o combinado item a item (automático)
+ *   valor líquido                  = valor original − BV
  *   valor da NF                    ← o que a nota cobra (automático)
  *   acréscimo                      = valor da NF − valor original
  *   encargos sobre o acréscimo     = % (editável) × acréscimo
@@ -54,6 +55,11 @@ export interface AcertoFinanceiro {
   /** O valor original foi digitado (e não é o automático). */
   valorOriginalDigitado: boolean;
   bvSobreOriginal: number;
+  /**
+   * Valor líquido = valor original − BV (27/11/2026). Era uma linha do bloco
+   * "Resumo dos Custos", que saiu da OS; os cálculos ficaram todos aqui.
+   */
+  valorLiquido: number;
   valorNf: number;
   acrescimo: number;
   encargosPercentual: number;
@@ -125,6 +131,7 @@ export function calcularAcerto(
     valorOriginalAutomatico: automatico.valorOriginal,
     valorOriginalDigitado: digitado.valorOriginal,
     bvSobreOriginal,
+    valorLiquido: r2(valorOriginal - bvSobreOriginal),
     valorNf,
     acrescimo,
     encargosPercentual,

@@ -229,6 +229,7 @@ export function montarOsDocumento(
     secao("Acertos Financeiros");
     lv("Valor original dos serviços", brl(acerto.valorOriginal));
     lv("BV sobre o valor original", bvComPercentual);
+    lv("Valor líquido", brl(acerto.valorLiquido));
     lv("Valor da NF", brl(acerto.valorNf));
     lv("Valor do acréscimo", brl(acerto.acrescimo));
     lv(`Encargos sobre o acréscimo (${acerto.encargosPercentual}%)`, brl(acerto.encargosSobreAcrescimo));

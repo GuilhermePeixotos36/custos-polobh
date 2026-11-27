@@ -11,6 +11,13 @@ describe("acerto financeiro — quanto o fornecedor devolve à Pólobh", () => {
     expect(a.devolucaoPolobh).toBe(1_500);
   });
 
+  it("valor líquido: o valor original menos o BV (a linha que veio do Resumo dos Custos)", () => {
+    expect(calcularAcerto({ valorTotal: 10_000 }, orcamento(10_000), 1_500).valorLiquido).toBe(8_500);
+    // Segue o valor original DIGITADO, e não só o automático.
+    expect(calcularAcerto({ valorTotal: 10_000, acertoDigitado: { valorOriginal: 9_000 } }, orcamento(10_000), 1_500).valorLiquido).toBe(7_500);
+    expect(calcularAcerto({ valorTotal: 10_000 }, orcamento(10_000), 0).valorLiquido).toBe(10_000);
+  });
+
   it("com acréscimo, soma o acréscimo e desconta os encargos sobre ele", () => {
     // Serviço de 10.000, nota de 12.000: 2.000 de acréscimo, 16,33% de encargos
     // sobre esses 2.000 (326,60) e o BV de 1.500 por cima.
