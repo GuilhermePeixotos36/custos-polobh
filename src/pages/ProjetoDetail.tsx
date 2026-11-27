@@ -847,6 +847,18 @@ export function ProjetoDetail() {
     }
   }
 
+  /** A conversa da aba, como card — no check-list ela vai dentro do topo congelado da lista. */
+  const cardDaConversa = (ABAS_COM_CONVERSA as readonly string[]).includes(aba) ? (
+    <CardConversa
+      ancora={ancoraConversaAba(id, aba)}
+      ancoraDom={idAncoraPendencia(ancoraConversaAba(id, aba))}
+      observacoes={p.conversas?.[aba as AbaComConversa] ?? []}
+      usuarios={nomesUsuarios}
+      minhas={minhasPendencias.filter((x) => x.tipo === "projeto.conversa" && x.projetoId === id && x.aba === aba).length}
+      onChange={(observacoes) => gravarConversa(aba as AbaComConversa, observacoes)}
+    />
+  ) : null;
+
   return (
     <PageShell
       title={novo ? "Novo projeto" : p.nome || "Projeto"}
@@ -918,17 +930,10 @@ export function ProjetoDetail() {
           parar no campo de texto mais próximo), EC e OS saíram (ali a conversa
           mora DENTRO do documento — no corredor da listagem era uma terceira
           caixa de texto para o mesmo assunto). */}
-      {!novo && (ABAS_COM_CONVERSA as readonly string[]).includes(aba) && (
-        <div className="mb-4">
-          <CardConversa
-            ancora={ancoraConversaAba(id, aba)}
-            ancoraDom={idAncoraPendencia(ancoraConversaAba(id, aba))}
-            observacoes={p.conversas?.[aba as AbaComConversa] ?? []}
-            usuarios={nomesUsuarios}
-            minhas={minhasPendencias.filter((x) => x.tipo === "projeto.conversa" && x.projetoId === id && x.aba === aba).length}
-            onChange={(observacoes) => gravarConversa(aba as AbaComConversa, observacoes)}
-          />
-        </div>
+      {/* No CHECK-LIST o card vai DENTRO do topo congelado da lista (27/11/2026) —
+          ver `cardDaConversa`, entregue ao painel mais abaixo. */}
+      {!novo && aba !== "checklist" && (ABAS_COM_CONVERSA as readonly string[]).includes(aba) && (
+        <div className="mb-4">{cardDaConversa}</div>
       )}
 
       {/* O LEMBRETE QUE SUBSTITUI O "CONCLUÍDO" (15/09/2026).
@@ -1478,6 +1483,7 @@ export function ProjetoDetail() {
 
       {aba === "checklist" && (
         <ChecklistPainel
+          topo={!novo ? cardDaConversa : undefined}
           estado={checklistProjeto}
           projeto={p}
           podeEditar={podeEditarChecklist}
@@ -1597,6 +1603,7 @@ export function ProjetoDetail() {
  * desatualizados, modalidade trocada) e a lista em si.
  */
 function ChecklistPainel({
+  topo,
   estado,
   projeto,
   podeEditar,
@@ -1604,6 +1611,8 @@ function ChecklistPainel({
   usuarios,
   pendencias,
 }: {
+  /** O card da conversa da aba: abre o topo congelado do check-list. */
+  topo?: React.ReactNode;
   estado: ReturnType<typeof useChecklistProjeto>;
   projeto: Projeto;
   podeEditar: boolean;
@@ -1743,6 +1752,7 @@ function ChecklistPainel({
         itensNovosNoModelo={estado.itensNovosNoModelo}
         pendenciasPorItem={pendenciasPorItem}
         minhasPendencias={pendencias}
+        topo={topo}
       />
     </div>
   );

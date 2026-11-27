@@ -156,6 +156,8 @@ interface Props {
    * ela.
    */
   minhasPendencias?: Pendencia[];
+  /** O que abre o topo congelado, acima do resumo — a observação da aba, que vem da tela do projeto. */
+  topo?: ReactNode;
 }
 
 export function ChecklistProjeto({
@@ -172,6 +174,7 @@ export function ChecklistProjeto({
   itensNovosNoModelo = 0,
   pendenciasPorItem = {},
   minhasPendencias = SEM_PENDENCIAS,
+  topo,
 }: Props) {
   const hoje = hojeIso();
   const nomeAtual = useAuth((s) => s.usuario?.nome ?? "");
@@ -580,6 +583,14 @@ export function ChecklistProjeto({
 
   return (
     <div className="space-y-4">
+      {/* O TOPO DO CHECK-LIST FICA CONGELADO (27/11/2026): a observação da aba, o
+          resumo, os botões, a seleção em lote e os nomes das colunas grudam juntos
+          logo abaixo do cabeçalho da página. Rolando a lista, o que está em cima é
+          sempre o mesmo — e os filtros ficam à mão. Só da tela média para cima:
+          no celular esse bloco ocuparia a tela inteira. O fundo é o da página,
+          para as tarefas não aparecerem por trás dos espaços entre os cartões. */}
+      <div className="space-y-4 md:sticky md:top-[calc(var(--altura-topnav)+var(--altura-cabecalho))] md:z-10 md:bg-bg md:pb-2 md:-mt-4 md:pt-4">
+        {topo}
       {/* ----------------------------- resumo ----------------------------- */}
       <Card>
         {/* O RESUMO EM TRÊS BLOCOS (26/11/2026): o progresso, o que está EM ABERTO (repartido pelo
@@ -822,20 +833,6 @@ export function ChecklistProjeto({
         </div>
       )}
 
-      {/* ------------------------------ lista ----------------------------- */}
-      {!visiveis.length && (
-        <EmptyState
-          title={temFiltro ? "Nenhuma tarefa com estes filtros" : "Nenhuma tarefa em aberto"}
-          hint={
-            temFiltro
-              ? "Troque ou limpe os filtros do cabeçalho para ver as demais."
-              : recolhidas > 0
-              ? `As ${recolhidas} tarefas do check-list estão concluídas ou recolhidas. Use “Ver recolhidas” para trazê-las de volta.`
-              : "Este check-list ainda não tem tarefas."
-          }
-        />
-      )}
-
       {/* Cada grupo é UMA lista, e não uma pilha de cartões soltos.
           O que faz uma lista parecer uma lista é a continuidade: um fundo só,
           linhas separadas por um fio, e o título preso no topo. Com um cartão
@@ -850,7 +847,7 @@ export function ChecklistProjeto({
           barra do topo + o cabeçalho da página (medidos, como no `Th`), numa
           camada abaixo da dele. */}
       {checklist.itens.length > 0 && (
-        <div className={cx(GRADE_COLUNAS, "max-md:flex max-md:flex-wrap sticky top-[calc(var(--altura-topnav)+var(--altura-cabecalho))] z-10 rounded-card border border-border bg-[#FAFAFB] px-4 py-2 text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-ink-3")}>
+        <div className={cx(GRADE_COLUNAS, "max-md:flex max-md:flex-wrap rounded-card border border-border bg-[#FAFAFB] px-4 py-2 text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-ink-3")}>
           <span className="max-md:hidden" />
           <span className="max-md:hidden" />
           <CabecalhoColuna rotulo="Tarefa" ordem={ordem?.coluna === "tarefa" ? ordem.dir : null} onOrdenar={() => ordenarPor("tarefa")}
@@ -865,6 +862,22 @@ export function ChecklistProjeto({
           <span className="max-md:hidden" />
         </div>
       )}
+      </div>
+
+      {/* ------------------------------ lista ----------------------------- */}
+      {!visiveis.length && (
+        <EmptyState
+          title={temFiltro ? "Nenhuma tarefa com estes filtros" : "Nenhuma tarefa em aberto"}
+          hint={
+            temFiltro
+              ? "Troque ou limpe os filtros do cabeçalho para ver as demais."
+              : recolhidas > 0
+              ? `As ${recolhidas} tarefas do check-list estão concluídas ou recolhidas. Use “Ver recolhidas” para trazê-las de volta.`
+              : "Este check-list ainda não tem tarefas."
+          }
+        />
+      )}
+
 
       <DndContext sensors={sensores} collisionDetection={closestCenter} onDragEnd={aoSoltar}>
         <SortableContext items={blocos.map((b) => `etapa:${b.chave}`)} strategy={verticalListSortingStrategy}>
