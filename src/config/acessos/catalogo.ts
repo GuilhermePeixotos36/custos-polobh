@@ -75,7 +75,7 @@ export const CATALOGO: ModuloAcesso[] = [
         ],
       },
       { chave: "cronogramas", rotulo: "Cronogramas", rotas: ["/cronogramas"], acoes: SO_VER },
-      { chave: "fornecedores", rotulo: "Fornecedores", rotas: ["/fornecedores"], acoes: VER_EDITAR },
+      { chave: "fornecedores", rotulo: "Cadastros (fornecedores e clientes)", rotas: ["/cadastros", "/fornecedores"], acoes: VER_EDITAR },
       { chave: "guia", rotulo: "Guia do Aplicativo", rotas: ["/guia"], acoes: SO_VER },
     ],
   },

@@ -105,6 +105,8 @@ export interface Representante {
 
 export interface Cliente {
   id: string;
+  /** O ID do cadastro (27/11/2026): sequencial, dado pelo banco e mostrado com quatro casas. Só leitura. */
+  codigo?: number;
   /** Apelido único do cliente, reutilizado como prefixo dos novos projetos. */
   apelido: string;
   nome: string;

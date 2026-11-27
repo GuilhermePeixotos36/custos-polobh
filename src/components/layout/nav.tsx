@@ -54,7 +54,8 @@ export const NAV: NavItem[] = [
   // O FLUXOGRAMA vem logo depois de Projetos (pedido de 29/09/2026).
   { to: "/fluxograma", label: "Fluxograma", rotuloCurto: "Fluxo", icon: <MnFluxograma />, recurso: "guia" },
   // O cadastro de fornecedores ganhou entrada no menu (27/11/2026): antes só se chegava nele por dentro de uma EC.
-  { to: "/fornecedores", label: "Fornecedores", icon: <MnFornecedores />, recurso: "fornecedores" },
+  // Virou CADASTROS: fornecedores e clientes na mesma tela, em subabas.
+  { to: "/cadastros", label: "Cadastros", icon: <MnFornecedores />, recurso: "fornecedores" },
   // A Coordenação não administra empresas e usuários, mas edita a lista padrão do check-list — por isso o `ou`.
   { to: "/configuracoes", label: "Configurações", rotuloCurto: "Config.", icon: <MnConfiguracoes />, recurso: "configuracoes", ou: ["checklists.padrao", "contratos.clausulas"] },
   // ACESSOS e LOGS no menu (padrão de Acessos e Logs, 26/11/2026): saíram de Configurações.

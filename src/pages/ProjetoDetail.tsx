@@ -32,6 +32,7 @@ import { useResponsaveis } from "@/hooks/useResponsaveis";
 import { useSugestoes } from "@/hooks/useSugestoes";
 import { filhosDe, type CampoSugerido } from "@/domain/sugestoes";
 import { useAuth } from "@/store/auth";
+import { FormularioCliente } from "@/components/cadastros/FormularioCliente";
 import { gerarCronogramaExcel, gerarDadosUteisExcel } from "@/lib/excel";
 import { cnpjValido, consultarCnpj } from "@/lib/cnpj";
 import { numeroEc, tituloEc } from "@/domain/calc";
@@ -117,6 +118,10 @@ export function ProjetoDetail() {
   const { data: ecsAll } = useAsync(() => repo.ecs.listar(), []);
   const { data: ossAll, reload: recarregarOss } = useAsync(() => repo.oss.listar(), []);
   const { data: clientesAll } = useAsync(() => repo.clientes.listar(), []);
+  /** O "+" do cliente: quem cadastra (a mesma chave da tela Cadastros) e a janela aberta. */
+  const podeCadastrarCliente = useAuth((s) => s.pode("fornecedores.editar"));
+  const [cadastrandoCliente, setCadastrandoCliente] = useState(false);
+  const [clientesNovos, setClientesNovos] = useState<Cliente[]>([]);
   // Usuários elegíveis a Produtor Responsável — critério vem da área (ver useResponsaveis).
   const { data: usuariosAll } = useAsync(() => repo.auth.usuarios(), []);
   const produtoresResponsaveis = useResponsaveis(usuariosAll);
@@ -624,7 +629,8 @@ export function ProjetoDetail() {
   async function arquivarCliente(cliente: Cliente): Promise<Cliente> {
     const digitos = onlyDigits(cliente.cnpjCpf);
     if (!digitos) return cliente;
-    const existenteArquivado = (clientesAll ?? []).find((c) => onlyDigits(c.cnpjCpf) === digitos);
+    // Inclui o cliente cadastrado agora pelo "+": sem isso ele seria gravado de novo, em duplicidade.
+    const existenteArquivado = [...(clientesAll ?? []), ...clientesNovos].find((c) => onlyDigits(c.cnpjCpf) === digitos);
     try {
       return await repo.clientes.salvar({ ...cliente, id: existenteArquivado?.id || "" });
     } catch (erro) {
@@ -962,10 +968,35 @@ export function ProjetoDetail() {
           )}
           <Card data-tour="projeto-cliente">
               <CardTitle action={
-                <Button variant="soft" size="sm" icon={<IcSearch width={15} height={15} />} onClick={() => consultarCnpjCliente()} disabled={cnpjLoading || !flags.consultaCnpj}>
-                  {cnpjLoading ? "Consultando…" : "Consultar CNPJ"}
-                </Button>
+                <div className="flex items-center gap-2">
+                  {/* O "+" (27/11/2026): cadastra um cliente novo sem sair do projeto —
+                      o mesmo formulário da tela Cadastros; ao salvar, os dados entram aqui. */}
+                  {podeCadastrarCliente && (
+                    <Button variant="soft" size="sm" icon={<IcPlus width={15} height={15} />} onClick={() => setCadastrandoCliente(true)} title="Cadastrar um novo cliente sem sair do projeto">
+                      Novo cliente
+                    </Button>
+                  )}
+                  <Button variant="soft" size="sm" icon={<IcSearch width={15} height={15} />} onClick={() => consultarCnpjCliente()} disabled={cnpjLoading || !flags.consultaCnpj}>
+                    {cnpjLoading ? "Consultando…" : "Consultar CNPJ"}
+                  </Button>
+                </div>
               }>Cliente</CardTitle>
+              {cadastrandoCliente && (
+                <FormularioCliente
+                  inicial={{ ...clienteVazio(), cnpjCpf: p.cliente.id ? "" : p.cliente.cnpjCpf, nome: p.cliente.id ? "" : p.cliente.nome }}
+                  todos={[...(clientesAll ?? []), ...clientesNovos]}
+                  onClose={() => setCadastrandoCliente(false)}
+                  onSalvo={(salvo) => {
+                    setClientesNovos((atuais) => [...atuais, salvo]);
+                    setCadastrandoCliente(false);
+                    ultimoCnpjAutopreenchido.current = onlyDigits(salvo.cnpjCpf);
+                    ultimoCnpjConsultado.current = onlyDigits(salvo.cnpjCpf);
+                    aplicarClienteCadastrado(salvo);
+                    // O apelido do cliente abre o nome do projeto: entra junto, se ainda estiver em branco.
+                    if (!p.info.clienteAbreviado.trim() && salvo.apelido) updTituloParte({ clienteAbreviado: salvo.apelido });
+                  }}
+                />
+              )}
               {cnpjMsg && <div className="mb-3 text-[12.5px] text-info bg-info-soft rounded-btn px-3 py-2">{cnpjMsg}</div>}
               <div className="grid sm:grid-cols-2 gap-4">
                 <Field label="CNPJ/CPF" obrigatorio>

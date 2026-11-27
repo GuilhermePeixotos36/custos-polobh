@@ -1,38 +1,22 @@
 /**
- * CADASTRO DE FORNECEDORES (27/11/2026).
+ * O FORMULÁRIO DO FORNECEDOR, em janela (27/11/2026).
  *
- * A tela existia como um painel lateral fora do menu: o fornecedor nascia de
- * passagem numa EC e era corrigido aqui, quando alguém lembrava. Agora é um
- * cadastro com entrada própria no menu, feito pelo Administrativo-Financeiro:
- *
- *   · a LISTA mostra o básico — ID, fornecedor, documento, perfil e contato — e
- *     uma coluna de ações: o olho abre a ficha para leitura, o lápis para edição;
- *   · o FORMULÁRIO abre em janela e começa pelo tipo (CNPJ ou CPF), que decide
- *     os campos: razão social, inscrições e consulta à Receita só existem para
- *     empresa;
- *   · o documento é conferido (dígito verificador) e não pode se repetir;
- *   · os CONTATOS são uma linha por meio de contato — nome, tipo e valor — com
- *     o "+" na própria linha.
- *
- * As regras que não dependem de tela estão em `domain/fornecedorCadastro`.
+ * É o mesmo na tela Cadastros e no "+" do item da EC: cadastrar um fornecedor
+ * novo sem sair de onde se está. Começa pelo tipo (CNPJ ou CPF), que decide os
+ * campos; o documento é conferido e não pode se repetir; os contatos são uma
+ * linha por meio de contato. As regras estão em `domain/fornecedorCadastro`.
  */
-import { useMemo, useState, type ReactNode } from "react";
-import { createPortal } from "react-dom";
-import { PageShell } from "@/components/layout/AppLayout";
+import { useMemo, useState } from "react";
 import { EnderecoCampos } from "@/components/EnderecoCampos";
 import { InscricaoMunicipalInput } from "@/components/InscricaoMunicipalInput";
-import {
-  Card, Button, Field, Input, TelefoneInput, Select, Table, THead, Th, Tr, Td,
-  Badge, EmptyState, AvisoErro, ThOrd, useOrdenacao, CarregandoTela,
-} from "@/components/ui";
-import { IcSearch, IcTrash, IcPlus, IcEye, IcPencil, IcFechar } from "@/components/icons";
+import { Button, Field, Input, TelefoneInput, Select, CarregandoTela } from "@/components/ui";
+import { IcSearch, IcTrash, IcPlus } from "@/components/icons";
 import { repo } from "@/data";
 import { useAvisoDeSaida } from "@/hooks/useAvisoDeSaida";
-import { useAsync } from "@/hooks/useAsync";
 import { consultarCnpj } from "@/lib/cnpj";
 import { useAoCompletarDocumento } from "@/lib/buscaPorDocumento";
 import { flags } from "@/lib/flags";
-import { comPerfilPeloDocumento, gerarApelidoFornecedor, opcoesPerfilTributario, semVazios, textoDoContato } from "@/domain/fornecedor";
+import { comPerfilPeloDocumento, gerarApelidoFornecedor, opcoesPerfilTributario, semVazios } from "@/domain/fornecedor";
 import {
   contatosDasLinhas, linhaContatoVazia, linhasDosContatos, rotuloIdFornecedor, semCamposDeEmpresa, tipoDoFornecedor,
   validarCadastroFornecedor,
@@ -40,269 +24,25 @@ import {
 } from "@/domain/fornecedorCadastro";
 import { cx, maskCpfCnpjInput, onlyDigits } from "@/lib/format";
 import { toast } from "@/store/toast";
-import { useAuth } from "@/store/auth";
 import type { Fornecedor } from "@/data/types";
+import { Bloco, ErroCampo, Janela } from "./pecas";
 
 const PERFIL_PF = "Pessoa Física (Recibo Simples)";
 
 /** Fornecedor em branco, para o "Novo fornecedor". */
-const novoFornecedor = (): Fornecedor => ({
+export const novoFornecedor = (): Fornecedor => ({
   id: "", razaoSocial: "", apelido: "", nomeFantasia: "", cnpj: "", perfilTributario: "", endereco: "",
   inscricaoEstadual: "", inscricaoMunicipal: "",
   dadosBancarios: { tipoConta: "", banco: "", agencia: "", conta: "", chavePix: "" },
   representante: "", telefone: "", email: "", contatos: [],
 });
 
-/** O que está aberto na janela: a ficha (só leitura) ou o formulário. */
-type Aberto = { modo: "ver" | "editar"; fornecedor: Fornecedor } | null;
-
-export function Fornecedores() {
-  const podeEditar = useAuth((s) => s.pode("fornecedores.editar"));
-  const { data, loading, error, reload } = useAsync(() => repo.fornecedores.listar(), [], { oQue: "os fornecedores" });
-  const [busca, setBusca] = useState("");
-  const [aberto, setAberto] = useState<Aberto>(null);
-
-  const filtrados = useMemo(() => {
-    const q = busca.trim().toLowerCase();
-    if (!q) return data ?? [];
-    // A busca cobre o que a tela mostra — inclusive o ID e os contatos.
-    return (data ?? []).filter((f) =>
-      [rotuloIdFornecedor(f.codigo), f.apelido, f.nomeFantasia, f.razaoSocial, f.cnpj, onlyDigits(f.cnpj), f.perfilTributario,
-       f.email, f.telefone, ...(f.contatos ?? []).map(textoDoContato)]
-        .join(" ")
-        .toLowerCase()
-        .includes(q)
-    );
-  }, [data, busca]);
-
-  const { ordem, ordenarPor, ordenados: lista } = useOrdenacao(
-    filtrados,
-    {
-      id: (f) => f.codigo ?? 0,
-      fornecedor: (f) => f.nomeFantasia || f.razaoSocial,
-      documento: (f) => onlyDigits(f.cnpj),
-      perfil: (f) => f.perfilTributario,
-      contato: (f) => f.email || f.telefone,
-    },
-    { col: "fornecedor", dir: "asc" }
-  );
-
-  return (
-    <PageShell
-      title="Fornecedores"
-      subtitle="Cadastro dos fornecedores da casa: empresas (CNPJ) e pessoas físicas (CPF)."
-      topAction={
-        podeEditar && (
-          <Button size="sm" icon={<IcPlus width={15} height={15} />} onClick={() => setAberto({ modo: "editar", fornecedor: novoFornecedor() })}>
-            Novo fornecedor
-          </Button>
-        )
-      }
-    >
-      <div className="space-y-4">
-        <Card>
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative flex-1 min-w-[220px]">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-3 pointer-events-none"><IcSearch width={16} height={16} /></span>
-              <Input className="pl-9" placeholder="Buscar por ID, nome, CNPJ/CPF ou contato" value={busca} onChange={(e) => setBusca(e.target.value)} />
-            </div>
-            <span className="text-[12px] text-ink-3">{lista.length} fornecedor(es)</span>
-          </div>
-        </Card>
-
-        <Card padded={false}>
-          {error ? <AvisoErro erro={error} oQue="os fornecedores" onTentarDeNovo={reload} /> : loading ? <div className="p-8 text-ink-3 text-sm">Carregando…</div> : lista.length === 0 ? (
-            <div className="p-8">
-              <EmptyState
-                title={busca.trim() ? "Nenhum fornecedor com essa busca" : "Nenhum fornecedor cadastrado"}
-                hint={busca.trim() ? "Confira o que foi digitado ou limpe a busca." : podeEditar ? "Use “Novo fornecedor” para cadastrar o primeiro." : undefined}
-              />
-            </div>
-          ) : (
-            <Table>
-              <THead>
-                <ThOrd col="id" ordem={ordem} onSort={ordenarPor}>ID</ThOrd>
-                <ThOrd col="fornecedor" ordem={ordem} onSort={ordenarPor}>Fornecedor</ThOrd>
-                <ThOrd col="documento" ordem={ordem} onSort={ordenarPor}>CNPJ / CPF</ThOrd>
-                <ThOrd col="perfil" ordem={ordem} onSort={ordenarPor}>Perfil</ThOrd>
-                <ThOrd col="contato" ordem={ordem} onSort={ordenarPor}>Contato</ThOrd>
-                <Th align="right">Ações</Th>
-              </THead>
-              <tbody>
-                {lista.map((f) => (
-                  <Tr key={f.id}>
-                    <Td className="text-[12.5px] font-bold text-ink-2 tabular-nums">{rotuloIdFornecedor(f.codigo)}</Td>
-                    <Td>
-                      <div className="font-bold text-ink">{f.nomeFantasia || f.razaoSocial || "(sem nome)"}</div>
-                      {f.nomeFantasia && f.razaoSocial && f.nomeFantasia !== f.razaoSocial && (
-                        <div className="text-[12px] text-ink-2">{f.razaoSocial}</div>
-                      )}
-                    </Td>
-                    <Td className="text-[12.5px] tabular-nums whitespace-nowrap">
-                      {f.cnpj || "—"}
-                      <span className="ml-2 align-middle"><Badge tom="neutral">{tipoDoFornecedor(f)}</Badge></span>
-                    </Td>
-                    <Td className="text-[12.5px] text-ink-2">{f.perfilTributario || "—"}</Td>
-                    <Td className="text-[12.5px]">
-                      <div>{f.email || f.telefone || "—"}</div>
-                      {(f.contatos?.length ?? 0) > 0 && (
-                        <div className="text-[11px] text-ink-3">
-                          {f.contatos![0].nome || "contato sem nome"}
-                          {f.contatos!.length > 1 && ` +${f.contatos!.length - 1}`}
-                        </div>
-                      )}
-                    </Td>
-                    <Td align="right">
-                      <div className="flex items-center justify-end gap-1">
-                        <button type="button" title="Visualizar" aria-label={`Visualizar ${f.razaoSocial}`}
-                          className="rounded-btn p-1.5 text-ink-3 hover:bg-[#F1F2F5] hover:text-ink" onClick={() => setAberto({ modo: "ver", fornecedor: f })}>
-                          <IcEye width={16} height={16} />
-                        </button>
-                        {podeEditar && (
-                          <button type="button" title="Editar" aria-label={`Editar ${f.razaoSocial}`}
-                            className="rounded-btn p-1.5 text-ink-3 hover:bg-[#F1F2F5] hover:text-ink" onClick={() => setAberto({ modo: "editar", fornecedor: f })}>
-                            <IcPencil width={16} height={16} />
-                          </button>
-                        )}
-                      </div>
-                    </Td>
-                  </Tr>
-                ))}
-              </tbody>
-            </Table>
-          )}
-        </Card>
-      </div>
-
-      {aberto?.modo === "ver" && (
-        <FichaFornecedor
-          fornecedor={aberto.fornecedor}
-          onClose={() => setAberto(null)}
-          onEditar={podeEditar ? () => setAberto({ modo: "editar", fornecedor: aberto.fornecedor }) : undefined}
-        />
-      )}
-      {aberto?.modo === "editar" && (
-        <FormularioFornecedor
-          // A chave reinicia o formulário ao trocar de fornecedor (ou de "novo" para um existente).
-          key={aberto.fornecedor.id || "novo"}
-          inicial={aberto.fornecedor}
-          todos={data ?? []}
-          onClose={() => setAberto(null)}
-          onSalvo={() => { setAberto(null); reload(); }}
-        />
-      )}
-    </PageShell>
-  );
-}
-
-/* --------------------------------- janela -------------------------------- */
-
-function Janela({ titulo, subtitulo, onClose, children, rodape }: {
-  titulo: string; subtitulo?: ReactNode; onClose: () => void; children: ReactNode; rodape?: ReactNode;
-}) {
-  return createPortal(
-    <div className="no-print fixed inset-0 z-[80] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40" />
-      <div role="dialog" aria-label={titulo} className="relative flex w-full max-w-[820px] max-h-[92vh] flex-col bg-surface rounded-card-lg shadow-modal border border-border">
-        <div className="px-6 pt-5 pb-4 border-b border-border-soft">
-          <button type="button" onClick={onClose} title="Fechar" className="absolute right-3 top-3 rounded-btn p-1.5 text-ink-3 hover:bg-[#F1F2F5]">
-            <IcFechar width={18} height={18} />
-          </button>
-          <h2 className="font-display text-lg font-bold pr-8">{titulo}</h2>
-          {subtitulo && <div className="text-[13px] text-ink-2 mt-0.5">{subtitulo}</div>}
-        </div>
-        <div className="flex-1 overflow-y-auto px-6 py-5">{children}</div>
-        {rodape && <div className="flex justify-end gap-2 px-6 py-4 border-t border-border-soft">{rodape}</div>}
-      </div>
-    </div>,
-    document.body,
-  );
-}
-
-/** Título de um bloco do formulário ou da ficha. */
-const Bloco = ({ titulo, children, acao }: { titulo: string; children: ReactNode; acao?: ReactNode }) => (
-  <section>
-    <div className="mb-2.5 flex items-center justify-between gap-2">
-      <h3 className="text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-ink-3">{titulo}</h3>
-      {acao}
-    </div>
-    {children}
-  </section>
-);
-
-const ErroCampo = ({ texto }: { texto?: string }) => (texto ? <p className="mt-1 text-[12px] font-semibold text-danger" role="alert">{texto}</p> : null);
-
-/* ---------------------------------- ficha --------------------------------- */
-
-function FichaFornecedor({ fornecedor: f, onClose, onEditar }: { fornecedor: Fornecedor; onClose: () => void; onEditar?: () => void }) {
-  const tipo = tipoDoFornecedor(f);
-  const linhas = linhasDosContatos(f.contatos);
-  const Dado = ({ rotulo, valor, largo }: { rotulo: string; valor?: string; largo?: boolean }) => (
-    <div className={largo ? "sm:col-span-2" : undefined}>
-      <dt className="text-[11.5px] font-bold text-ink-3">{rotulo}</dt>
-      <dd className="text-[13.5px] text-ink break-words">{valor?.trim() || "—"}</dd>
-    </div>
-  );
-  return (
-    <Janela
-      titulo={f.nomeFantasia || f.razaoSocial || "Fornecedor"}
-      subtitulo={<>ID {rotuloIdFornecedor(f.codigo)} · {tipo === "CPF" ? "Pessoa física" : "Empresa"}</>}
-      onClose={onClose}
-      rodape={
-        <>
-          <Button variant="secondary" onClick={onClose}>Fechar</Button>
-          {onEditar && <Button icon={<IcPencil width={15} height={15} />} onClick={onEditar}>Editar</Button>}
-        </>
-      }
-    >
-      <div className="space-y-6">
-        <Bloco titulo="Identificação">
-          <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
-            <Dado rotulo={tipo} valor={f.cnpj} />
-            <Dado rotulo={tipo === "CPF" ? "Nome completo" : "Razão social"} valor={f.razaoSocial} />
-            {tipo === "CNPJ" && <Dado rotulo="Nome fantasia" valor={f.nomeFantasia} />}
-            <Dado rotulo="Apelido (título das OS)" valor={f.apelido || gerarApelidoFornecedor(f.nomeFantasia, f.razaoSocial)} />
-            <Dado rotulo="Perfil tributário" valor={f.perfilTributario} />
-            {tipo === "CNPJ" && <Dado rotulo="Inscrição estadual" valor={f.inscricaoEstadual} />}
-            {tipo === "CNPJ" && <Dado rotulo="Inscrição municipal" valor={f.inscricaoMunicipal} />}
-          </dl>
-        </Bloco>
-        <Bloco titulo="Endereço">
-          <dl><Dado rotulo="Endereço completo" valor={f.endereco} /></dl>
-        </Bloco>
-        <Bloco titulo="Contato">
-          <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
-            <Dado rotulo="Telefone" valor={f.telefone} />
-            <Dado rotulo="E-mail" valor={f.email} />
-          </dl>
-          {linhas.length > 0 && (
-            <ul className="mt-3 divide-y divide-border-soft rounded-btn border border-border-soft">
-              {linhas.map((l, i) => (
-                <li key={i} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-2 text-[13px]">
-                  <span className="font-bold text-ink">{l.nome || "Sem nome"}</span>
-                  {l.funcao && <span className="text-ink-3">{l.funcao}</span>}
-                  <span className="ml-auto text-ink-2">{l.tipo === "email" ? "E-mail" : "Telefone"}: <span className="text-ink">{l.valor || "—"}</span></span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Bloco>
-        {tipo === "CNPJ" && (f.cnaes?.length ?? 0) > 0 && (
-          <Bloco titulo="CNAEs">
-            <div className="flex flex-wrap gap-1.5">
-              {f.cnaes!.map((c, i) => <span key={i} className="text-[11px] bg-[#F0F1F4] text-ink-2 rounded-pill px-2 py-1">{c}</span>)}
-            </div>
-          </Bloco>
-        )}
-      </div>
-    </Janela>
-  );
-}
-
-/* ------------------------------- formulário ------------------------------- */
-
-function FormularioFornecedor({ inicial, todos, onClose, onSalvo }: {
-  inicial: Fornecedor; todos: Fornecedor[]; onClose: () => void; onSalvo: () => void;
+export function FormularioFornecedor({ inicial, todos, onClose, onSalvo }: {
+  inicial: Fornecedor;
+  todos: Fornecedor[];
+  onClose: () => void;
+  /** Recebe o fornecedor como ficou gravado (com id e ID de exibição). */
+  onSalvo: (salvo: Fornecedor) => void;
 }) {
   const [f, setF] = useState<Fornecedor>(() => structuredClone(inicial));
   const [tipo, setTipo] = useState<TipoFornecedor>(() => tipoDoFornecedor(inicial));
@@ -401,9 +141,9 @@ function FormularioFornecedor({ inicial, todos, onClose, onSalvo }: {
     setSalvando(true);
     try {
       const pronto = { ...(tipo === "CPF" ? semCamposDeEmpresa(f) : f), contatos: contatosDasLinhas(linhas) };
-      await repo.fornecedores.salvar(pronto);
+      const salvo = await repo.fornecedores.salvar(pronto);
       toast(f.id ? "Fornecedor salvo." : "Fornecedor cadastrado.", "success");
-      onSalvo();
+      onSalvo(salvo);
     } catch (e) {
       toast(`Não foi possível salvar: ${(e as Error).message}`, "danger");
     } finally {
@@ -486,7 +226,7 @@ function FormularioFornecedor({ inicial, todos, onClose, onSalvo }: {
               </Field>
             )}
 
-            <Field label="Apelido" hint="(entra no título das OS)">
+            <Field label="Apelido" hint="(entra no título do contrato)">
               <Input formato="titulo" value={f.apelido ?? ""} onChange={(e) => upd({ apelido: e.target.value })} placeholder={apelidoAutomatico || "gerado a partir do nome"} />
               <p className="text-[12px] text-ink-3 mt-1">
                 {apelidoAutomatico ? <>Em branco, o sistema usa <b>{apelidoAutomatico}</b>.</> : "Em branco, sai do nome do fornecedor."}

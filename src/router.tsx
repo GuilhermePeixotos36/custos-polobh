@@ -20,7 +20,7 @@ const CronogramaPublico = lazyComRecuperacao(() => import("@/pages/CronogramaPub
 const CredenciamentoPublico = lazyComRecuperacao(() => import("@/pages/CredenciamentoPublico").then((m) => ({ default: m.CredenciamentoPublico })));
 const ImprimirEc = lazyComRecuperacao(() => import("@/pages/Imprimir").then((m) => ({ default: m.ImprimirEc })));
 const ImprimirOs = lazyComRecuperacao(() => import("@/pages/Imprimir").then((m) => ({ default: m.ImprimirOs })));
-const Fornecedores = lazyComRecuperacao(() => import("@/pages/Fornecedores").then((m) => ({ default: m.Fornecedores })));
+const Cadastros = lazyComRecuperacao(() => import("@/pages/Cadastros").then((m) => ({ default: m.Cadastros })));
 const Configuracoes = lazyComRecuperacao(() => import("@/pages/Configuracoes").then((m) => ({ default: m.Configuracoes })));
 const Fluxograma = lazyComRecuperacao(() => import("@/pages/Fluxograma").then((m) => ({ default: m.Fluxograma })));
 const Acessos = lazyComRecuperacao(() => import("@/pages/Acessos").then((m) => ({ default: m.Acessos })));
@@ -67,7 +67,9 @@ export const router = createBrowserRouter([
       // — nada o alcança.
       { path: "calendario", element: <RequireRecurso r="projetos"><Calendario /></RequireRecurso> },
       { path: "cronogramas", element: <RequireRecurso r="cronogramas"><Cronogramas /></RequireRecurso> },
-      { path: "fornecedores", element: <RequireRecurso r="fornecedores"><Fornecedores /></RequireRecurso> },
+      // CADASTROS (27/11/2026): fornecedores e clientes, em subabas. O endereço antigo segue valendo.
+      { path: "cadastros", element: <RequireRecurso r="fornecedores"><Cadastros /></RequireRecurso> },
+      { path: "fornecedores", element: <Navigate to="/cadastros" replace /> },
       // O fluxo do processo da Pólobh (29/09/2026) — leitura para todo perfil,
       // como o Guia; a troca da imagem exige `configuracoes` dentro da tela.
       { path: "fluxograma", element: <RequireRecurso r="guia"><Fluxograma /></RequireRecurso> },

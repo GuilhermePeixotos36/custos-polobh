@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Input } from "@/components/ui";
-import { IcCheck } from "@/components/icons";
+import { IcCheck, IcPlus } from "@/components/icons";
+import { FormularioFornecedor, novoFornecedor } from "@/components/cadastros/FormularioFornecedor";
+import { useAuth } from "@/store/auth";
 import { onlyDigits, maskCpfCnpjInput, maskDoc } from "@/lib/format";
 import { cnpjValido } from "@/lib/cnpj";
 import { flags } from "@/lib/flags";
@@ -28,7 +30,17 @@ interface Props {
  * O efeito aplica o nome UMA vez por CNPJ (`ultimoAplicado`): depois disso, a
  * razão social continua livre para ser corrigida à mão sem o sistema desfazer.
  */
-export function FornecedorField({ razao, cnpj, fornecedores, onChange, onValidar }: Props) {
+export function FornecedorField({ razao, cnpj, fornecedores: doCadastro, onChange, onValidar }: Props) {
+  /**
+   * O "+" (27/11/2026): cadastrar um fornecedor novo sem sair do item da EC. Abre
+   * o mesmo formulário da tela Cadastros, já com o que foi digitado aqui; ao
+   * salvar, o CNPJ e o nome entram nos campos. Só para quem cadastra fornecedor.
+   */
+  const podeCadastrar = useAuth((s) => s.pode("fornecedores.editar"));
+  const [cadastrando, setCadastrando] = useState(false);
+  // Os cadastrados por aqui entram na lista na hora, sem esperar a tela recarregar.
+  const [novos, setNovos] = useState<Fornecedor[]>([]);
+  const fornecedores = useMemo(() => (novos.length ? [...doCadastro, ...novos] : doCadastro), [doCadastro, novos]);
   const [validando, setValidando] = useState(false);
   const [foco, setFoco] = useState(false);
   const digits = onlyDigits(cnpj);
@@ -146,6 +158,30 @@ export function FornecedorField({ razao, cnpj, fornecedores, onChange, onValidar
         value={razao}
         onChange={(e) => onChange({ fornecedorRazao: e.target.value })}
       />
+      {podeCadastrar && !registrado && (
+        <button
+          type="button"
+          onClick={() => setCadastrando(true)}
+          title="Cadastrar um novo fornecedor sem sair daqui"
+          aria-label="Cadastrar um novo fornecedor"
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-btn border-[1.5px] border-[#D6D9E0] bg-surface text-ink-2 hover:border-primary hover:bg-primary-soft hover:text-primary-dark input-focus"
+        >
+          <IcPlus width={15} height={15} />
+        </button>
+      )}
+      {cadastrando && (
+        <FormularioFornecedor
+          inicial={{ ...novoFornecedor(), cnpj, razaoSocial: razao }}
+          todos={fornecedores}
+          onClose={() => setCadastrando(false)}
+          onSalvo={(salvo) => {
+            setNovos((atuais) => [...atuais, salvo]);
+            setCadastrando(false);
+            ultimoAplicado.current = onlyDigits(salvo.cnpj);
+            onChange({ fornecedorCnpj: maskDoc(salvo.cnpj), fornecedorRazao: nomeDe(salvo) });
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -523,7 +523,7 @@ export function montarPassos(ctx: ContextoTour, pode: (r: Recurso) => boolean): 
       id: "fornecedores",
       capitulo: SISTEMA,
       titulo: "Fornecedores: a memória da casa",
-      rota: "/fornecedores",
+      rota: "/cadastros",
       recurso: "fornecedores",
       // Sem `alvo`: o cadastro saiu do cabeçalho e não tem mais ícone para
       // apontar. O passo continua valendo — a tela existe e o tour navega até

@@ -197,6 +197,7 @@ const clienteVazio = (): Cliente => ({
 function mapCliente(r: any): Cliente {
   return {
     id: r.id,
+    codigo: typeof r.codigo === "number" ? r.codigo : undefined,
     apelido: r.apelido ?? "",
     nome: r.nome ?? "",
     razaoSocial: r.razao_social ?? "",
