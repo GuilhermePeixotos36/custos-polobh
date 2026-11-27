@@ -843,9 +843,14 @@ export function ChecklistProjeto({
           doze objetos, e a leitura de cima a baixo se perdia. */}
       {/* Cabeçalho ÚNICO da tabela (26/11/2026): cada coluna com ordenar (↑ ↓) e funil de filtro,
           como no Excel. Ordenar vale dentro de cada grupo; enquanto há ordenação, mover à mão
-          fica desligado (a ordem da tela não seria a ordem gravada). */}
+          fica desligado (a ordem da tela não seria a ordem gravada).
+          GRUDA LOGO ABAIXO DO CABEÇALHO DA PÁGINA (27/11/2026). Estava em `top-0`
+          com a mesma camada do cabeçalho da página: ao rolar, os nomes das colunas
+          subiam por cima do título e das abas do projeto. Agora a posição é a
+          barra do topo + o cabeçalho da página (medidos, como no `Th`), numa
+          camada abaixo da dele. */}
       {checklist.itens.length > 0 && (
-        <div className={cx(GRADE_COLUNAS, "max-md:flex max-md:flex-wrap sticky top-0 z-20 rounded-card border border-border bg-[#FAFAFB] px-4 py-2 text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-ink-3")}>
+        <div className={cx(GRADE_COLUNAS, "max-md:flex max-md:flex-wrap sticky top-[calc(var(--altura-topnav)+var(--altura-cabecalho))] z-10 rounded-card border border-border bg-[#FAFAFB] px-4 py-2 text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-ink-3")}>
           <span className="max-md:hidden" />
           <span className="max-md:hidden" />
           <CabecalhoColuna rotulo="Tarefa" ordem={ordem?.coluna === "tarefa" ? ordem.dir : null} onOrdenar={() => ordenarPor("tarefa")}
