@@ -99,15 +99,7 @@ function Moldura({
 }) {
   const navigate = useNavigate();
 
-  // dispara a impressão se vier com ?auto=1
-  const [params] = useSearchParams();
-  useEffect(() => {
-    if (!loading && !vazio && params.get("auto") === "1") {
-      const t = setTimeout(() => imprimirPagina("PDF pela impressão"), 400);
-      return () => clearTimeout(t);
-    }
-  }, [loading, vazio, params]);
-
+  // A visualização NUNCA abre a janela de impressão sozinha (27/11/2026): imprimir é o botão.
   return (
     <div className="min-h-screen bg-bg py-8">
       {/* Barra de ações — não imprime */}
@@ -115,8 +107,6 @@ function Moldura({
         <button onClick={() => navigate(voltarPara)} className="inline-flex items-center gap-1.5 text-sm text-ink-2 hover:text-ink font-semibold">
           <IcBack width={16} height={16} /> Voltar
         </button>
-        {/* A OS chega aqui com ?auto=1 e a janela de salvar já abre sozinha;
-            este botão é para reabrir sem voltar e clicar de novo. */}
         <Button size="sm" icon={<IcDownload width={16} height={16} />} onClick={() => imprimirPagina("PDF pela impressão")}>
           Baixar PDF
         </Button>

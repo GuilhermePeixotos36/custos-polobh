@@ -89,6 +89,8 @@ export function OsDocumento({ os, ec, restrito = false }: { os: Os; ec: Ec; rest
       <LV label="OS" valor={os.numero} />
       <LV label="Projeto" valor={p.titulo} />
       <LV label="Data de emissão" valor={dataBR(os.criadoEm)} />
+      {/* O status voltou ao cabeçalho do PDF (27/11/2026). */}
+      <LV label="Status" valor={os.status} />
 
       <Secao titulo="Dados do Cliente" />
       <LV label="Cliente" valor={cli.nome} />
