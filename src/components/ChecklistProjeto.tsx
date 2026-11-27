@@ -517,9 +517,9 @@ export function ChecklistProjeto({
             do mesmo tamanho, e os dois grupos fecham a conta: em aberto + encerradas = total.
             Clicar num quadro filtra a lista por ele; clicar de novo tira o filtro. */}
         <div className="flex flex-wrap items-stretch gap-x-6 gap-y-4">
-          <div className="min-w-[230px] flex-1 basis-[230px] max-w-md self-center">
+          <div className="min-w-[230px] flex-1 basis-[230px] max-w-md">
             <div className="text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-ink-3">Progresso</div>
-            <div className="mt-0.5 flex items-baseline gap-2">
+            <div className="mt-2 flex items-baseline gap-2">
               <span className="text-[26px] font-extrabold leading-none text-ink tabular-nums">
                 {resumo.concluidos}
                 <span className="text-ink-3">/{resumo.contam}</span>
@@ -543,7 +543,7 @@ export function ChecklistProjeto({
             <QuadroResumo tom="danger" n={resumo.atrasados} rotulo={resumo.atrasados === 1 ? "Atrasada" : "Atrasadas"}
               titulo="Prazo vencido e ainda não concluídas"
               ativo={mesmoConjunto(filtroPrazo, ["atrasado"])} onClick={() => filtrarPeloResumo({ prazo: ["atrasado"] })} />
-            <QuadroResumo tom="warning" n={resumo.proximos} rotulo={resumo.proximos === 1 ? "Vence em até 3 dias" : "Vencem em até 3 dias"}
+            <QuadroResumo tom="warning" n={resumo.proximos} rotulo={resumo.proximos === 1 ? "Vence em 3 dias" : "Vencem em 3 dias"}
               titulo="Vencem hoje ou nos próximos 3 dias"
               ativo={mesmoConjunto(filtroPrazo, ["hoje", "proximo"])} onClick={() => filtrarPeloResumo({ prazo: ["hoje", "proximo"] })} />
             <QuadroResumo tom="info" n={resumo.noPrazo} rotulo="No prazo"
@@ -1179,7 +1179,7 @@ function ItemCard({
                 podeEditar={podeEditar}
                 valor={item.etapa}
                 onChange={(etapa) => onAlterar({ etapa })}
-                className="max-w-[16rem] !h-[26px] !text-[12px]"
+                className="max-w-[16rem] !h-[24px] !border-transparent !bg-[#F1F2F5] !text-[11.5px] !text-ink-2 hover:!border-primary"
               >
                 <option value="">Sem etapa</option>
                 {etapas.map((e) => (
@@ -1727,13 +1727,13 @@ function QuadroResumo({
       aria-pressed={ativo}
       title={ativo ? `${titulo} — filtro ligado; clique para ver todas` : `${titulo} — clique para filtrar a lista`}
       className={cx(
-        "min-w-[98px] flex-1 rounded-btn border px-3 py-2 text-left transition-colors input-focus",
+        "min-w-[124px] flex-1 rounded-btn border px-3 py-2 text-left transition-colors input-focus",
         ativo ? cores.ativo : "border-border-soft bg-surface",
         zerado ? "cursor-default opacity-50" : !ativo && "hover:border-border hover:bg-[#FAFAFB]"
       )}
     >
       <span className={cx("block text-[21px] font-extrabold leading-none tabular-nums", zerado ? "text-ink-3" : cores.numero)}>{n}</span>
-      <span className="mt-1.5 flex items-center gap-1.5 text-[11.5px] font-bold leading-tight text-ink-2">
+      <span className="mt-1.5 flex items-center gap-1.5 whitespace-nowrap text-[11.5px] font-bold leading-tight text-ink-2">
         <span className={cx("h-1.5 w-1.5 shrink-0 rounded-full", cores.ponto)} aria-hidden />
         {rotulo}
       </span>
