@@ -105,6 +105,12 @@ export interface OsRepository {
    * `ec_linhas`. Chamada quando a OS é emitida — o fecho do ciclo EC → OS → EC.
    */
   fecharItensNaEc(osId: string): Promise<number>;
+  /**
+   * Grava SÓ a conversa da OS (`Os.observacoes`) — sem salvar a OS e sem exigir
+   * permissão de editá-la: quem enxerga a OS conversa nela, em qualquer status
+   * (27/11/2026). Devolve a conversa como ficou gravada.
+   */
+  salvarObservacoes(osId: string, observacoes: Observacao[]): Promise<Observacao[]>;
   listar(): Promise<Os[]>;
   porEc(ecId: string): Promise<Os[]>;
   obter(id: string): Promise<Os | undefined>;

@@ -815,7 +815,7 @@ export async function criarEcExcelBuffer(
     "de terceiros) e às empresas contratadas por conta e ordem do cliente para fornecimento de serviços e " +
     "mercadorias vinculados ao projeto, e promete efetuar o pagamento do valor descrito na linha " +
     '"Total Geral NF Pólobh x Cliente" no prazo máximo de 30 dias a partir da apresentação da(s) nota(s) ' +
-    "fiscal(is) da Pólobh, que poderão ser emitidas pela Pólobh Promoções Eireli e MF Promoções Eireli, " +
+    "fiscal(is) da Pólobh, que poderão ser emitidas pela Pólobh Promoções Ltda. e MF Promoções Eireli, " +
     "ambas do mesmo grupo empresarial, em conjunto ou separadamente.";
   legal.font = { name: FONT_LIGHT, size: PT, color: { argb: COR.ink } };
   legal.alignment = { wrapText: true, vertical: "top", horizontal: "justify" };

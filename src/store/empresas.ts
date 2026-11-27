@@ -1,5 +1,5 @@
 /**
- * Empresas do grupo Pólobh (Pólobh Promoções Eireli / MF Promoções Eireli).
+ * Empresas do grupo Pólobh (os nomes vêm do cadastro, em Configurações › Empresas do Grupo).
  * Dados fiscais usados na OS quando o tomador/contratante é a própria Pólobh.
  *
  * Fonte de verdade: Supabase (tabela `empresas_grupo`, via repo). Este store é

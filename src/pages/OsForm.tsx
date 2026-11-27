@@ -110,6 +110,7 @@ import type {
   EcLinha,
   Fornecedor,
   Modalidade,
+  Observacao,
   Os,
   ProjetoInfo,
 } from "@/data/types";
@@ -1530,6 +1531,48 @@ export function OsForm() {
   }
 
   /**
+   * A CONVERSA DA OS GRAVA NA HORA (27/11/2026), como a da EC e a das abas do
+   * projeto. Ela ficava só na tela até a OS inteira ser salva: quem respondia
+   * com a OS em leitura — ou numa OS emitida, que nem se edita — perdia a
+   * resposta, e a pendência continuava com quem já tinha respondido.
+   *
+   * A OS é relida antes de gravar, para a mensagem de outra pessoa que chegou
+   * nesse meio-tempo não ser apagada. OS ainda não salva (sem id) guarda a
+   * conversa na tela e a leva no primeiro salvamento.
+   */
+  async function gravarObservacoes(novas: Observacao[]) {
+    const anteriores = os!.observacoes ?? [];
+    setOs((o) => (o ? { ...o, observacoes: novas } : o)); // otimista: a conversa não espera o servidor
+    if (!os!.id) return;
+    try {
+      const removidas = new Set(anteriores.filter((a) => !novas.some((n) => n.id === a.id)).map((a) => a.id));
+      const noBanco = (await repo.oss.obter(os!.id))?.observacoes ?? [];
+      const mescladas = noBanco.filter((o) => !removidas.has(o.id));
+      for (const n of novas) {
+        const i = mescladas.findIndex((m) => m.id === n.id);
+        if (i >= 0) mescladas[i] = n;
+        else mescladas.push(n);
+      }
+      const salvas = await repo.oss.salvarObservacoes(os!.id, mescladas);
+      setOs((o) => (o ? { ...o, observacoes: salvas } : o));
+      // A conversa já está gravada: não conta como alteração pendente da OS.
+      setBaseline((b) => (b ? JSON.stringify({ ...(JSON.parse(b) as Os), observacoes: salvas }) : b));
+      // A bolinha de quem ficou com a vez acende (ou apaga) na hora.
+      usePendencias.getState().carregar(true);
+    } catch (e) {
+      const mensagem = (e as Error).message ?? "";
+      // Banco ainda sem a função `salvar_observacoes_os` (migration não aplicada):
+      // vale o comportamento antigo — a conversa fica na tela e é gravada com a OS.
+      if (/salvar_observacoes_os|could not find the function|PGRST202/i.test(mensagem)) {
+        toast("Observação anotada: ela será gravada quando a OS for salva.", "info");
+        return;
+      }
+      setOs((o) => (o ? { ...o, observacoes: anteriores } : o));
+      toast(`Não foi possível salvar a observação: ${mensagem}`, "danger");
+    }
+  }
+
+  /**
    * EMITIR a OS — o fim do ciclo EC → OS → EC.
    *
    * Duas coisas acontecem juntas, e é isso que fecha o circuito: a OS vira
@@ -1935,7 +1978,7 @@ export function OsForm() {
           observacoes={os.observacoes}
           usuarios={usuarios}
           minhas={pendenciasDoUsuario.filter((x) => x.tipo === "os.observacao" && x.osId === os.id).length}
-          onChange={(observacoes) => setOs((o) => (o ? { ...o, observacoes } : o))}
+          onChange={(observacoes) => void gravarObservacoes(observacoes)}
         />
 
         {/* OS BLOCOS DA PRODUÇÃO ficam em leitura assim que a OS passa adiante.

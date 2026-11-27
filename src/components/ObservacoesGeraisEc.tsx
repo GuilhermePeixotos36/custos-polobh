@@ -43,7 +43,9 @@ export function ObservacoesGeraisEc({
     try {
       setLista(await repo.ecs.salvarObservacoes(ecId, novas));
       // A bolinha de quem ficou com a vez acende (ou apaga) na hora.
-      recarregarPendencias();
+      // Forçada: sem isso a recarga cai na janela de silêncio da navegação e a
+      // bolinha de quem acabou de responder só apagava minutos depois.
+      void recarregarPendencias(true);
     } catch (e) {
       setLista(anteriores);
       toast(`Não foi possível salvar a observação: ${(e as Error).message}`, "danger");

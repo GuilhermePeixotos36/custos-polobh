@@ -186,7 +186,7 @@ function TestemunhasContratoCard() {
 }
 
 /**
- * Empresas do grupo Pólobh (Pólobh Promoções Eireli / MF Promoções Eireli).
+ * Empresas do grupo Pólobh (os nomes vêm do cadastro, editável aqui).
  * Preenchem os dados fiscais da OS quando o tomador/contratante é a Pólobh.
  * Fonte: Supabase (tabela empresas_grupo). Edita ao digitar, salva ao sair do campo.
  */
@@ -245,8 +245,13 @@ function EmpresasGrupoCard() {
               </div>
 
               <div className="space-y-3">
+                {/* O NOME é o que aparece nas listas (tomador da OS, contratante). Ele
+                    vinha fixo do banco e não dava para corrigir pela tela (27/11/2026). */}
+                <Field label="Nome" hint="(como aparece nas listas)">
+                  <Input value={e.nome} onChange={(ev) => editar(e.id, { nome: ev.target.value })} onBlur={() => salvar(e.id)} placeholder="Ex.: Pólobh Promoções" />
+                </Field>
                 <Field label="Razão Social">
-                  <Input value={e.razaoSocial} onChange={(ev) => editar(e.id, { razaoSocial: ev.target.value })} onBlur={() => salvar(e.id)} placeholder="Ex.: Pólobh Promoções Eireli" />
+                  <Input value={e.razaoSocial} onChange={(ev) => editar(e.id, { razaoSocial: ev.target.value })} onBlur={() => salvar(e.id)} placeholder="Ex.: Pólobh Promoções Ltda." />
                 </Field>
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="CNPJ">

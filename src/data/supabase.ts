@@ -930,6 +930,15 @@ const osRepo: OsRepository = {
     });
     return salvo;
   },
+  async salvarObservacoes(osId, observacoes) {
+    // RPC própria (ver a migração `os_observacoes_gravacao_propria`): grava só a
+    // conversa, sem tocar em `atualizado_em`. Antes ela só ia ao banco junto com a
+    // OS inteira — e a resposta dada numa OS em leitura ou emitida se perdia.
+    const salvas = ok(
+      await supabase.rpc("salvar_observacoes_os", { p_os_id: osId, p_observacoes: observacoes })
+    ) as unknown as Observacao[] | null;
+    return salvas ?? observacoes;
+  },
   async fecharItensNaEc(osId) {
     const { data, error } = await supabase.rpc("marcar_itens_da_os_como_emitidos", { p_os_id: osId });
     if (error) throw new Error(error.message);
