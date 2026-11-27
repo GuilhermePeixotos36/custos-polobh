@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Card, Button, Input, Table, THead, Th, Tr, Td, Badge, EmptyState, AvisoErro, ThOrd, useOrdenacao,
 } from "@/components/ui";
-import { IcSearch, IcEye, IcEyeOff, IcPencil, IcTrash, IcCheck } from "@/components/icons";
+import { IcSearch, IcEye, IcPencil, IcTrash, IcPower, IcPowerOff } from "@/components/icons";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import { rotuloIdFornecedor as rotuloId } from "@/domain/fornecedorCadastro";
@@ -147,12 +147,12 @@ export function ListaClientes({ pedidoNovo }: { /** Muda a cada clique em "Novo 
                             {c.ativo === false ? (
                               <button type="button" title="Reativar" aria-label={`Reativar ${c.nome}`}
                                 className="rounded-btn p-1.5 text-ink-3 hover:bg-success-soft hover:text-success" onClick={() => void definirAtivo(c, true)}>
-                                <IcCheck width={16} height={16} />
+                                <IcPower width={16} height={16} />
                               </button>
                             ) : (
                               <button type="button" title="Inativar" aria-label={`Inativar ${c.nome}`}
                                 className="rounded-btn p-1.5 text-ink-3 hover:bg-[#F1F2F5] hover:text-ink" onClick={() => void definirAtivo(c, false)}>
-                                <IcEyeOff width={16} height={16} />
+                                <IcPowerOff width={16} height={16} />
                               </button>
                             )}
                             <button type="button" title="Excluir" aria-label={`Excluir ${c.nome}`}

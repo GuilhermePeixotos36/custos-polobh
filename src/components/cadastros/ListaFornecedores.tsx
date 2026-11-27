@@ -9,7 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Card, Button, Input, Table, THead, Th, Tr, Td, Badge, EmptyState, AvisoErro, ThOrd, useOrdenacao,
 } from "@/components/ui";
-import { IcSearch, IcEye, IcEyeOff, IcPencil, IcTrash, IcCheck } from "@/components/icons";
+import { IcSearch, IcEye, IcPencil, IcTrash, IcPower, IcPowerOff } from "@/components/icons";
 import { repo } from "@/data";
 import { useAsync } from "@/hooks/useAsync";
 import { gerarApelidoFornecedor, textoDoContato } from "@/domain/fornecedor";
@@ -156,12 +156,12 @@ export function ListaFornecedores({ pedidoNovo }: { /** Muda a cada clique em "N
                             {f.ativo === false ? (
                               <button type="button" title="Reativar" aria-label={`Reativar ${f.razaoSocial}`}
                                 className="rounded-btn p-1.5 text-ink-3 hover:bg-success-soft hover:text-success" onClick={() => void definirAtivo(f, true)}>
-                                <IcCheck width={16} height={16} />
+                                <IcPower width={16} height={16} />
                               </button>
                             ) : (
                               <button type="button" title="Inativar" aria-label={`Inativar ${f.razaoSocial}`}
                                 className="rounded-btn p-1.5 text-ink-3 hover:bg-[#F1F2F5] hover:text-ink" onClick={() => void definirAtivo(f, false)}>
-                                <IcEyeOff width={16} height={16} />
+                                <IcPowerOff width={16} height={16} />
                               </button>
                             )}
                             <button type="button" title="Excluir" aria-label={`Excluir ${f.razaoSocial}`}

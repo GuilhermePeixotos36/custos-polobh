@@ -229,6 +229,22 @@ export const IcEyeOff = (p: P) => (
     <path d="M2 2l20 20" />
   </I>
 );
+/** Ligar: o botão de energia. Nos cadastros, "Reativar" (27/11/2026). */
+export const IcPower = (p: P) => (
+  <I {...p}>
+    <path d="M12 2v10" />
+    <path d="M18.4 6.6a9 9 0 1 1-12.77.04" />
+  </I>
+);
+/** Ligar cortado: o botão de energia com o risco. Nos cadastros, "Inativar". */
+export const IcPowerOff = (p: P) => (
+  <I {...p}>
+    <path d="M18.36 6.64A9 9 0 0 1 20.77 15" />
+    <path d="M6.16 6.16a9 9 0 1 0 12.68 12.68" />
+    <path d="M12 2v4" />
+    <path d="M2 2l20 20" />
+  </I>
+);
 export const IcBold = (p: P) => (
   <I {...p}>
     <path d="M7 5h6a3.5 3.5 0 0 1 0 7H7z" />
