@@ -896,7 +896,8 @@ const osRepo: OsRepository = {
       const { error: erroDevolucao } = await supabase.rpc("devolver_dados_fiscais_para_ec", {
         p_os_id: id,
         p_codigo_servico: os.financeiro.codigoServico ?? "",
-        p_ordem_compra: os.financeiro.ordemCompra ?? "",
+        // A ordem de compra é da EC desde 27/11/2026: vazio aqui = a RPC não mexe nela.
+        p_ordem_compra: "",
       });
       if (erroDevolucao) console.warn("Não foi possível devolver os dados fiscais à EC:", erroDevolucao.message);
     }

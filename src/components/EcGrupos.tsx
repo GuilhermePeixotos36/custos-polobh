@@ -1330,7 +1330,7 @@ function ItemRow({
             onValidar={onValidarFornecedor}
           />
         </Campo>
-        {/* DOCUMENTO PG, CÓDIGO DE SERVIÇO e PEDIDO DE COMPRA são LEITURA aqui
+        {/* DOCUMENTO PG e CÓDIGO DE SERVIÇO são LEITURA aqui
             (15/09/2026). Eles são decididos na OS, por quem emite o faturamento,
             e voltam preenchidos para o item da EC válida. Editáveis dos dois
             lados, a EC e a OS discordavam sobre o mesmo dado — e, pior, a EC
@@ -1341,8 +1341,18 @@ function ItemRow({
         <Campo label="Código de Serviço" className="flex-[1_1_8rem] min-w-[7rem]">
           <DaOs valor={l.codigoServico} />
         </Campo>
+        {/* O PEDIDO DE COMPRA é da EC (27/11/2026): preenche-se aqui — o número ou
+            "Não se Aplica" — e a OS só o mostra. Ele era digitado na OS e
+            devolvido para cá, e a OS deixava editar até o que a EC já tinha
+            marcado como não se aplica. */}
         <Campo label="Pedido de Compra" className="flex-[1_1_8rem] min-w-[7rem]">
-          <DaOs valor={l.pedidoCompra} />
+          <Input
+            className="!h-9 !px-2 !text-[12.5px]"
+            value={l.pedidoCompra}
+            sugestoes={["Não se Aplica"]}
+            onChange={(e) => onUpd({ pedidoCompra: e.target.value })}
+            placeholder="Nº ou Não se Aplica"
+          />
         </Campo>
       </div>
 

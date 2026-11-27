@@ -143,6 +143,10 @@ const novoId = () =>
   globalThis.crypto?.randomUUID?.() ?? `it-${Math.random().toString(36).slice(2)}`;
 
 /** Primeiro valor de verdade da lista (ignora vazios e os status de controle da EC). */
+/** A ordem de compra como a EC a escreveu nos itens da OS — valores distintos, na ordem dos itens. */
+const ordemDeCompraDaEc = (linhas: Pick<EcLinha, "pedidoCompra">[]): string =>
+  [...new Set(linhas.map((l) => (l.pedidoCompra ?? "").trim()).filter(Boolean))].join(" · ");
+
 const primeiroPreenchido = (vals: (string | undefined | null)[]): string =>
   vals.find((v) => v && v.trim() && !STATUS_CONTROLE_EC.includes(v.trim().toLowerCase()))?.trim() ?? "";
 
@@ -225,7 +229,9 @@ function aplicarAutoPreenchimento(osOriginal: Os, ec: Ec): Os {
   // EC — este auto-preenchimento é o que faz a OS reaberta (e a EC que já
   // recebeu a devolução) continuarem dizendo a mesma coisa.
   const codigoServico = primeiroPreenchido(linhas.map((l) => l.codigoServico));
-  const ordemCompra = primeiroPreenchido(linhas.map((l) => l.pedidoCompra));
+  // A ORDEM DE COMPRA é da EC (27/11/2026): a OS mostra o que os itens dizem,
+  // inclusive "Não se Aplica", e não a edita.
+  const ordemCompra = ordemDeCompraDaEc(linhas);
   // CNAE: só quando o cadastro do fornecedor tem um único — vários exigem escolha.
   const cnaeUnico = os.fornecedor.cnaes?.length === 1 ? os.fornecedor.cnaes[0] : "";
 
@@ -285,7 +291,8 @@ function aplicarAutoPreenchimento(osOriginal: Os, ec: Ec): Os {
     },
     financeiro: {
       ...os.financeiro,
-      ordemCompra: os.financeiro.ordemCompra || ordemCompra,
+      // A da EC vence; OS antiga, digitada quando o campo era daqui, mantém a sua se a EC estiver em branco.
+      ordemCompra: ordemCompra || os.financeiro.ordemCompra,
       descritivoNf,
       // Tomador: quem contrata o fornecedor é a Pólobh — é ela que emite a OS e
       // recebe a nota. Deixar em branco só obrigava a escolher a única resposta
@@ -2882,8 +2889,9 @@ export function OsForm() {
             <LinhaOs label="Código de Serviço" hint="(vai para os itens da EC)">
               <Input value={os.financeiro.codigoServico} sugestoes={sugestoes.valores.codigoServico} onChange={(e) => updFin({ codigoServico: e.target.value })} />
             </LinhaOs>
-            <LinhaOs label="Ordem de Compra" hint="(vai para os itens da EC)">
-              <Input value={os.financeiro.ordemCompra ?? ""} sugestoes={sugestoes.valores.pedidoCompra} onChange={(e) => updFin({ ordemCompra: e.target.value })} placeholder="Ex.: PC-2026-119" />
+            {/* Só leitura (27/11/2026): a ordem de compra é preenchida no item da EC. */}
+            <LinhaOs label="Ordem de Compra" hint="(preenchida no item da EC)">
+              <Auto v={os.financeiro.ordemCompra || "—"} />
             </LinhaOs>
 
             {/* RETENÇÕES FISCAIS (15/09/2026) — texto padrão da casa, em box de
