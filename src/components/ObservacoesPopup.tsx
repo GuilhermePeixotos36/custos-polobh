@@ -1,12 +1,12 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import { createPortal } from "react-dom";
-import { Button, Select } from "@/components/ui";
+import { Avatar } from "@/components/ui";
 import { IcComment, IcChevron, IcPencil, IcTrash, IcSend, IcClipe, IcFechar } from "@/components/icons";
 import { cx, dataHoraBR } from "@/lib/format";
 import { idComentario } from "@/lib/destaque";
 import { alvoPendente, aoFocarPendencia, destacarAlvo, destacarComentario, type AlvoPendencia } from "@/lib/focoPendencia";
-import { regexMencoes } from "@/domain/mencoes";
+import { extrairMencoes, regexMencoes } from "@/domain/mencoes";
 import {
   ACCEPT_ANEXOS,
   MAXIMO_ANEXOS_POR_COMENTARIO,
@@ -127,14 +127,20 @@ export function ObservacoesThread({ observacoes, usuarios, onChange, className, 
   const n = validas.length;
   const abertas = validas.filter((o) => !o.resolvida).length;
 
-  const adicionar = (texto: string, responsavelNome?: string, arquivos: AnexoObservacao[] = []) => {
+  /**
+   * Quem recebe a pendência é quem foi @marcado no texto (26/11/2026). O campo
+   * "Responsável" saiu: eram dois jeitos de endereçar a mesma observação, e a
+   * pessoa marcada na lista não aparecia no texto. `responsavelNome` continua
+   * sendo lido nas observações antigas (ver `destinatariosDaVez`).
+   */
+  const adicionar = (texto: string, arquivos: AnexoObservacao[] = []) => {
     const nova: Observacao = {
       id: novoId(),
       texto,
       autorId: usuarioAtual?.id ?? "",
       autorNome: usuarioAtual?.nome ?? "Você",
       criadoEm: new Date().toISOString(),
-      responsavelNome: responsavelNome || "",
+      responsavelNome: "",
       resolvida: false,
       respostas: [],
       ...(arquivos.length ? { anexos: arquivos } : {}),
@@ -245,7 +251,7 @@ export function ObservacoesThread({ observacoes, usuarios, onChange, className, 
       </div>
 
       {aberto && n > 0 && (
-        <div className="mt-2.5 space-y-3">
+        <div className="mt-3 divide-y divide-border-soft">
           {validas.map((o) => (
             <ComentarioLinha
               key={o.id}
@@ -272,7 +278,7 @@ export function ObservacoesThread({ observacoes, usuarios, onChange, className, 
                     usuarios={usuarios}
                     rotuloEnviar="Responder"
                     anexos={anexos}
-                    onEnviar={(texto, _resp, arquivos) => responder(o.id, texto, arquivos)}
+                    onEnviar={(texto, arquivos) => responder(o.id, texto, arquivos)}
                     onCancelar={() => setCompor(null)}
                   />
                 ) : null
@@ -287,10 +293,11 @@ export function ObservacoesThread({ observacoes, usuarios, onChange, className, 
           key={compor.modo === "editar" ? compor.id : "novo"}
           valorInicial={emEdicao?.texto ?? ""}
           usuarios={usuarios}
-          comResponsavel={compor.modo === "novo"}
+          avisaQuemRecebe={compor.modo === "novo"}
+          rotuloEnviar={compor.modo === "editar" ? "Salvar" : "Enviar"}
           anexos={anexos}
-          onEnviar={(texto, responsavel, arquivos) =>
-            compor.modo === "editar" ? editar(compor.id, texto, arquivos) : adicionar(texto, responsavel, arquivos)
+          onEnviar={(texto, arquivos) =>
+            compor.modo === "editar" ? editar(compor.id, texto, arquivos) : adicionar(texto, arquivos)
           }
           onCancelar={() => setCompor(null)}
         />
@@ -336,81 +343,102 @@ function ComentarioLinha({
   const respostas = o.respostas ?? [];
   const minhaVez = vez.some((n) => mesmaPessoa(n, nomeAtual));
   return (
-    <div
-      id={idComentario(o.id)}
-      className={cx("group rounded-btn border px-2.5 py-2", o.resolvida ? "border-border-soft bg-[#FAFAFB] opacity-80" : "border-border-soft")}
-    >
-      <div className="flex items-baseline gap-2 flex-wrap">
-        <span className="text-[12.5px] font-bold text-ink">{o.autorNome || "Usuário"}</span>
-        {o.responsavelNome && (
-          <span className="text-[11px] font-bold text-primary-dark bg-primary-soft rounded-full px-2 py-0.5">Para: {o.responsavelNome}</span>
-        )}
-        {o.resolvida && (
-          <span className="text-[11px] font-bold text-success bg-success-soft rounded-full px-2 py-0.5">
-            Resolvida{o.resolvidoPorNome ? ` por ${o.resolvidoPorNome}` : ""}
+    // DESENHO DE CHAT (26/11/2026): avatar, nome e hora numa linha, o texto
+    // embaixo, as respostas penduradas num fio à esquerda. Sem caixa em volta
+    // de cada observação — quem separa uma da outra é um fio e o respiro.
+    <div id={idComentario(o.id)} className={cx("group flex gap-2.5 py-3 first:pt-0 last:pb-1", o.resolvida && "opacity-70")}>
+      <Avatar nome={o.autorNome || "Usuário"} size={28} />
+      <div className="min-w-0 flex-1">
+        <div className="flex min-h-[28px] items-center gap-x-2 gap-y-0.5 flex-wrap">
+          <span className="text-[13px] font-bold text-ink">{o.autorNome || "Usuário"}</span>
+          <span className="text-[11px] text-ink-3 tabular-nums">{dataHoraBR(o.criadoEm)}</span>
+          {/* De quem é a bola agora. Cada resposta passa adiante; só "Resolver" encerra. */}
+          {o.resolvida ? (
+            <Etiqueta tom="success">Resolvida{o.resolvidoPorNome ? ` por ${o.resolvidoPorNome}` : ""}</Etiqueta>
+          ) : vez.length > 0 ? (
+            minhaVez ? <Etiqueta tom="danger">Sua vez</Etiqueta> : <Etiqueta>Aguardando {vez.join(", ")}</Etiqueta>
+          ) : null}
+          <span className="acoes-observacao ml-auto flex items-center gap-0.5 transition-opacity focus-within:opacity-100">
+            <AcaoTexto onClick={onResponder} title="Responder">Responder</AcaoTexto>
+            {podeResolver && (
+              <AcaoTexto
+                onClick={onResolver}
+                className="hover:!text-success"
+                title="Concluir a pendência (não pode ser reaberta). Só quem abriu a observação, a Coordenação e a Direção concluem."
+              >
+                Resolver
+              </AcaoTexto>
+            )}
+            {souAutor && (
+              <button type="button" onClick={onEditar} className="rounded p-1 text-ink-3 hover:bg-[#F1F2F5] hover:text-ink" title="Editar observação" aria-label="Editar observação">
+                <IcPencil width={14} height={14} />
+              </button>
+            )}
+            {souAutor && (
+              <button type="button" onClick={onExcluir} className="rounded p-1 text-ink-3 hover:bg-danger-soft hover:text-danger" title="Excluir observação" aria-label="Excluir observação">
+                <IcTrash width={14} height={14} />
+              </button>
+            )}
           </span>
-        )}
-        {/* De quem é a bola agora. Cada resposta passa adiante; só "Resolver" encerra. */}
-        {!o.resolvida && vez.length > 0 && (
-          minhaVez ? (
-            <span className="text-[11px] font-extrabold text-danger bg-danger-soft rounded-full px-2 py-0.5">Sua vez</span>
-          ) : (
-            <span className="text-[11px] font-bold text-ink-3 bg-[#F0F1F4] rounded-full px-2 py-0.5">
-              Aguardando {vez.join(", ")}
-            </span>
-          )
-        )}
-        <span className="text-[11px] text-ink-3">{dataHoraBR(o.criadoEm)}</span>
-        <span className="acoes-observacao ml-auto flex items-center gap-1 transition-opacity focus-within:opacity-100">
-          <button type="button" onClick={onResponder} className="text-[11px] font-bold text-ink-3 hover:text-primary px-1.5 py-1" title="Responder">
-            Responder
-          </button>
-          {podeResolver && (
-            <button type="button" onClick={onResolver} className="text-[11px] font-bold text-ink-3 hover:text-success px-1.5 py-1" title="Concluir a pendência (não pode ser reaberta). Só quem abriu a observação, a Coordenação e a Direção concluem.">
-              Resolver
-            </button>
-          )}
-          {souAutor && (
-            <button type="button" onClick={onEditar} className="text-ink-3 hover:text-primary p-1" title="Editar observação" aria-label="Editar observação">
-              <IcPencil width={14} height={14} />
-            </button>
-          )}
-          {souAutor && (
-            <button type="button" onClick={onExcluir} className="text-ink-3 hover:text-danger p-1" title="Excluir observação" aria-label="Excluir observação">
-              <IcTrash width={14} height={14} />
-            </button>
-          )}
-        </span>
-      </div>
-      <p className={cx("text-[13px] whitespace-pre-wrap leading-snug mt-0.5", o.resolvida ? "text-ink-3 line-through" : "text-ink-2")}>
-        {renderComMencoes(o.texto, usuarios)}
-      </p>
-
-      {anexos && (o.anexos ?? []).length > 0 && (
-        <ListaAnexos
-          itens={o.anexos!}
-          onAbrir={anexos.abrir}
-          onRemover={souAutor && !o.resolvida ? onRemoverAnexo : undefined}
-        />
-      )}
-
-      {respostas.length > 0 && (
-        <div className="mt-2 space-y-1.5 border-l-2 border-border-soft pl-2.5">
-          {respostas.map((r) => (
-            <div key={r.id}>
-              <div className="flex items-baseline gap-2">
-                <span className="text-[12px] font-bold text-ink">{r.autorNome || "Usuário"}</span>
-                <span className="text-[10.5px] text-ink-3">{dataHoraBR(r.criadoEm)}</span>
-              </div>
-              <p className="text-[12.5px] text-ink-2 whitespace-pre-wrap leading-snug">{renderComMencoes(r.texto, usuarios)}</p>
-              {anexos && (r.anexos ?? []).length > 0 && <ListaAnexos itens={r.anexos!} onAbrir={anexos.abrir} />}
-            </div>
-          ))}
         </div>
-      )}
+        <p className={cx("text-[13px] whitespace-pre-wrap leading-relaxed", o.resolvida ? "text-ink-3" : "text-ink")}>
+          {renderComMencoes(o.texto, usuarios)}
+        </p>
+        {/* Observação antiga, endereçada pelo campo "Responsável" que não existe mais. */}
+        {o.responsavelNome && <p className="mt-0.5 text-[11.5px] font-semibold text-ink-3">Para {o.responsavelNome}</p>}
 
-      {respondendo && <div className="mt-1.5">{composer}</div>}
+        {anexos && (o.anexos ?? []).length > 0 && (
+          <ListaAnexos
+            itens={o.anexos!}
+            onAbrir={anexos.abrir}
+            onRemover={souAutor && !o.resolvida ? onRemoverAnexo : undefined}
+          />
+        )}
+
+        {respostas.length > 0 && (
+          <div className="mt-2.5 space-y-2.5 border-l-2 border-border-soft pl-3">
+            {respostas.map((r) => (
+              <div key={r.id} className="flex gap-2">
+                <Avatar nome={r.autorNome || "Usuário"} size={22} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex min-h-[22px] items-center gap-2">
+                    <span className="text-[12.5px] font-bold text-ink">{r.autorNome || "Usuário"}</span>
+                    <span className="text-[11px] text-ink-3 tabular-nums">{dataHoraBR(r.criadoEm)}</span>
+                  </div>
+                  <p className="text-[13px] text-ink whitespace-pre-wrap leading-relaxed">{renderComMencoes(r.texto, usuarios)}</p>
+                  {anexos && (r.anexos ?? []).length > 0 && <ListaAnexos itens={r.anexos!} onAbrir={anexos.abrir} />}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {respondendo && composer}
+      </div>
     </div>
+  );
+}
+
+/** Etiqueta pequena ao lado do nome: de quem é a vez, ou que já foi resolvida. */
+function Etiqueta({ tom, children }: { tom?: "danger" | "success"; children: React.ReactNode }) {
+  return (
+    <span
+      className={cx(
+        "rounded-pill px-2 py-[3px] text-[11px] font-bold leading-none",
+        tom === "danger" ? "bg-danger-soft text-danger" : tom === "success" ? "bg-success-soft text-success" : "bg-[#F0F1F4] text-ink-2"
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+/** Ação em texto da observação (Responder, Resolver): discreta até o mouse chegar. */
+function AcaoTexto({ className, children, ...rest }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button type="button" className={cx("rounded px-1.5 py-1 text-[11.5px] font-bold text-ink-3 hover:bg-[#F1F2F5] hover:text-ink", className)} {...rest}>
+      {children}
+    </button>
   );
 }
 
@@ -512,20 +540,20 @@ function Composer({
   usuarios,
   onEnviar,
   onCancelar,
-  comResponsavel = false,
-  rotuloEnviar = "Comentar",
+  avisaQuemRecebe = false,
+  rotuloEnviar = "Enviar",
   anexos,
 }: {
   valorInicial: string;
   usuarios: string[];
-  onEnviar: (texto: string, responsavelNome?: string, arquivos?: AnexoObservacao[]) => void;
+  onEnviar: (texto: string, arquivos?: AnexoObservacao[]) => void;
   onCancelar: () => void;
-  comResponsavel?: boolean;
+  /** Observação nova: o rodapé diz quem fica com a pendência (os @marcados). */
+  avisaQuemRecebe?: boolean;
   rotuloEnviar?: string;
   anexos?: ApiAnexos;
 }) {
   const [texto, setTexto] = useState(valorInicial);
-  const [responsavel, setResponsavel] = useState("");
   /**
    * Os arquivos escolhidos ficam AQUI até o envio, e só então sobem.
    *
@@ -598,6 +626,26 @@ function Composer({
     });
   }
 
+  /** O botão "@": põe o arroba onde está o cursor e já abre a lista de pessoas. */
+  function inserirArroba() {
+    const el = taRef.current;
+    if (!el) return;
+    const pos = el.selectionStart ?? texto.length;
+    const antes = texto.slice(0, pos);
+    const arroba = antes && !/\s$/.test(antes) ? " @" : "@";
+    const novoTexto = antes + arroba + texto.slice(pos);
+    const novaPos = pos + arroba.length;
+    setTexto(novoTexto);
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(novaPos, novaPos);
+      detectarMencao(novoTexto, novaPos);
+    });
+  }
+
+  /** Quem está marcado no texto agora — é para eles que a pendência vai. */
+  const marcados = useMemo(() => (avisaQuemRecebe ? extrairMencoes(texto, usuarios) : []), [avisaQuemRecebe, texto, usuarios]);
+
   /** Peneira os escolhidos: o que não passa vira mensagem, o resto entra na fila. */
   function escolherArquivos(lista: FileList | null) {
     if (!lista?.length) return;
@@ -618,7 +666,7 @@ function Composer({
     const t = texto.trim();
     if (!t || enviando) return;
     if (!pendentes.length || !anexos) {
-      onEnviar(t, comResponsavel ? responsavel : undefined);
+      onEnviar(t);
       return;
     }
     setEnviando(true);
@@ -628,7 +676,7 @@ function Composer({
       // aponta qual deles falhou em vez de derrubar o lote inteiro.
       const enviados: AnexoObservacao[] = [];
       for (const arquivo of pendentes) enviados.push(await anexos.enviar(arquivo));
-      onEnviar(t, comResponsavel ? responsavel : undefined, enviados);
+      onEnviar(t, enviados);
     } catch (e) {
       // O texto continua na caixa: ninguém perde o que escreveu por causa do anexo.
       setErroAnexo((e as Error).message);
@@ -669,18 +717,10 @@ function Composer({
   }
 
   return (
-    <div className="mt-2.5 rounded-btn border-[1.5px] border-[#BFC4CE] bg-surface p-2 focus-within:border-primary/60">
-      {comResponsavel && (
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-[11.5px] font-bold text-ink-2 shrink-0">Responsável:</span>
-          <Select className="!h-8 !text-[12.5px] flex-1" value={responsavel} onChange={(e) => setResponsavel(e.target.value)}>
-            <option value="">— Ninguém (observação geral) —</option>
-            {usuarios.map((u) => (
-              <option key={u} value={u}>{u}</option>
-            ))}
-          </Select>
-        </div>
-      )}
+    // A CAIXA DE ESCREVER (26/11/2026): o texto em cima e uma régua de ações
+    // embaixo — marcar alguém e anexar à esquerda, cancelar e enviar à direita.
+    // Uma moldura só; nenhum campo dentro de campo.
+    <div className="mt-2.5 rounded-[14px] border border-border bg-surface shadow-card transition-colors focus-within:border-primary focus-within:shadow-[0_0_0_3px_rgba(242,130,13,0.12)]">
       <textarea
         ref={taRef}
         autoFocus
@@ -689,8 +729,8 @@ function Composer({
         spellCheck
         autoCapitalize="sentences"
         autoCorrect="on"
-        placeholder="Escreva uma observação… use @ para mencionar alguém"
-        className="w-full resize-none bg-transparent text-[13px] text-ink outline-none placeholder:text-ink-3 leading-relaxed"
+        placeholder={avisaQuemRecebe ? "Escreva a observação. Use @ para marcar quem precisa responder." : "Escreva aqui. Use @ para marcar alguém."}
+        className="block w-full resize-none bg-transparent px-3.5 pt-3 pb-1 text-[13px] text-ink outline-none placeholder:text-ink-3 leading-relaxed"
         value={texto}
         onChange={(e) => {
           setTexto(e.target.value);
@@ -706,7 +746,7 @@ function Composer({
       />
       {/* Fila de anexos deste comentário — ainda no computador de quem escreve. */}
       {anexos && pendentes.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mt-1.5">
+        <div className="flex flex-wrap gap-1.5 px-3.5 pt-1">
           {pendentes.map((f, i) => (
             <span
               key={`${f.name}-${i}`}
@@ -730,9 +770,20 @@ function Composer({
         </div>
       )}
 
-      {erroAnexo && <p className="mt-1.5 text-[11.5px] font-semibold text-danger">{erroAnexo}</p>}
+      {erroAnexo && <p className="px-3.5 pt-1.5 text-[11.5px] font-semibold text-danger">{erroAnexo}</p>}
 
-      <div className="flex items-center justify-end gap-2 mt-1.5">
+      <div className="flex items-center gap-1 px-2 pb-2 pt-1">
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()} // o cursor continua no texto
+          onClick={inserirArroba}
+          disabled={enviando}
+          title="Marcar alguém"
+          aria-label="Marcar alguém"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-btn text-[15px] font-extrabold leading-none text-ink-3 hover:bg-primary-soft hover:text-primary-dark disabled:opacity-40"
+        >
+          @
+        </button>
         {anexos && (
           <>
             <input
@@ -748,25 +799,52 @@ function Composer({
               onClick={() => arquivoRef.current?.click()}
               disabled={enviando || pendentes.length >= MAXIMO_ANEXOS_POR_COMENTARIO}
               title={`Anexar arquivo (até ${MAXIMO_ANEXOS_POR_COMENTARIO}, 5 MB cada)`}
-              className="mr-auto inline-flex items-center gap-1.5 h-8 px-2 rounded-btn text-[12px] font-bold text-ink-3 hover:text-primary-dark hover:bg-primary-soft transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+              aria-label="Anexar arquivo"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-btn text-ink-3 hover:bg-primary-soft hover:text-primary-dark disabled:opacity-40 disabled:hover:bg-transparent"
             >
-              <IcClipe width={14} height={14} /> Anexar
+              <IcClipe width={15} height={15} />
             </button>
           </>
         )}
-        <Button type="button" variant="text" size="sm" onClick={onCancelar} disabled={enviando}>
-          Cancelar
-        </Button>
-        <Button type="button" size="sm" icon={<IcSend width={14} height={14} />} onClick={enviar} disabled={!texto.trim() || enviando}>
-          {enviando ? "Enviando…" : rotuloEnviar}
-        </Button>
+        {/* Para quem vai: a pendência fica com quem foi marcado, até a pessoa responder. */}
+        {avisaQuemRecebe && (
+          <span className="ml-1 min-w-0 truncate text-[11.5px] font-semibold text-ink-3">
+            {marcados.length ? (
+              <>
+                Pendência para <span className="font-bold text-primary-dark">{marcados.join(", ")}</span>
+              </>
+            ) : (
+              "Sem ninguém marcado, fica só como recado"
+            )}
+          </span>
+        )}
+        <span className="ml-auto flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            onClick={onCancelar}
+            disabled={enviando}
+            className="h-8 rounded-btn px-2.5 text-[12.5px] font-bold text-ink-2 hover:bg-[#F1F2F5] hover:text-ink disabled:opacity-40"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={enviar}
+            disabled={!texto.trim() || enviando}
+            title="Enviar (Ctrl + Enter)"
+            className="inline-flex h-8 items-center gap-1.5 rounded-btn bg-primary-grad px-3 text-[12.5px] font-bold text-[#2A1602] hover:brightness-[1.03] disabled:bg-none disabled:bg-[#EEF1F7] disabled:text-[#A3ADC2] disabled:cursor-not-allowed"
+          >
+            <IcSend width={14} height={14} />
+            {enviando ? "Enviando…" : rotuloEnviar}
+          </button>
+        </span>
       </div>
 
       {mencao && sugestoes.length > 0 && posDropdown &&
         createPortal(
           <div
             style={{ position: "fixed", top: posDropdown.top, left: posDropdown.left, zIndex: 90, width: 240 }}
-            className="rounded-btn border border-border bg-white shadow-2xl py-1 max-h-52 overflow-y-auto"
+            className="rounded-[12px] border border-border bg-white shadow-modal p-1 max-h-56 overflow-y-auto"
           >
             {sugestoes.map((u, i) => (
               <button
@@ -777,11 +855,12 @@ function Composer({
                   selecionarMencao(u);
                 }}
                 className={cx(
-                  "w-full text-left px-3 py-1.5 text-[13px] truncate",
+                  "flex w-full items-center gap-2 rounded-[9px] px-2 py-1.5 text-left text-[13px]",
                   i === indiceAtivo ? "bg-primary-soft text-primary-dark font-bold" : "text-ink hover:bg-[#FAFAFB]"
                 )}
               >
-                {u}
+                <Avatar nome={u} size={22} />
+                <span className="truncate">{u}</span>
               </button>
             ))}
           </div>,
