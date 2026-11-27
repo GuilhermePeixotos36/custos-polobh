@@ -8,7 +8,7 @@
  * Gravação item a item: cada mudança persiste só a tarefa mexida. Duas pessoas
  * trabalhando em tarefas diferentes do mesmo projeto nunca se sobrescrevem.
  */
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   DndContext,
   PointerSensor,
@@ -20,7 +20,7 @@ import {
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Badge, Button, Card, EmptyState, Input, ProgressBar, Select, type Tom } from "@/components/ui";
-import { IcBack, IcCheck, IcPlus, IcEye, IcEyeOff, IcCalendar, IcTrash, IcGrip } from "@/components/icons";
+import { IcPlus, IcEye, IcEyeOff, IcCalendar, IcChevron, IcPencil, IcTrash, IcGrip } from "@/components/icons";
 import { ObservacoesThread } from "@/components/ObservacoesPopup";
 import { MoverSetas } from "@/components/MoverSetas";
 import { NotifDot } from "@/components/NotifDot";
@@ -170,6 +170,14 @@ export function ChecklistProjeto({
     setFiltroStatus(null);
     setFiltroPrazo(null);
     setBuscaTarefa("");
+  };
+  /** Clique num quadro do resumo: filtra só por ele; no que já está ligado, tira o filtro. */
+  const filtrarPeloResumo = (alvo: { prazo?: SituacaoPrazo[]; status?: StatusExibido[] }) => {
+    const jaLigado = alvo.prazo ? mesmoConjunto(filtroPrazo, alvo.prazo) : mesmoConjunto(filtroStatus, alvo.status ?? []);
+    limparFiltros();
+    if (jaLigado) return;
+    if (alvo.prazo) setFiltroPrazo(new Set(alvo.prazo));
+    if (alvo.status) setFiltroStatus(new Set(alvo.status));
   };
   const ordenarPor = (coluna: ColunaOrdem) =>
     setOrdem((o) => (o?.coluna !== coluna ? { coluna, dir: "asc" } : o.dir === "asc" ? { coluna, dir: "desc" } : null));
@@ -417,41 +425,28 @@ export function ChecklistProjeto({
       return novo;
     });
 
-  const concluirMarcadas = () => {
-    const alvo = marcadas.filter((i) => !encerrado(i));
-    if (alvo.length) {
-      const agora = new Date().toISOString();
-      setEncerradasAgora((ids) => [...new Set([...ids, ...alvo.map((i) => i.id)])]);
-      onSalvarVarios(alvo.map((i) => definirStatus(i, "Concluído", nomeAtual, agora)));
-    }
-    setSelecionadas(new Set());
-  };
-
   /**
-   * REABRIR em lote (04/11/2026): o caminho de volta do "Concluir
-   * selecionadas". A tarefa concluída (ou marcada "Não se aplica") volta a
-   * Pendente e reaparece na lista; a data de conclusão é apagada, por isso
+   * STATUS EM LOTE — o único caminho para concluir, reabrir ou marcar "Não se
+   * aplica" várias tarefas (26/11/2026). Os botões "Concluir selecionadas" e
+   * "Reabrir selecionadas" saíram: faziam o mesmo que escolher o status aqui.
+   *
+   * Vale a mesma regra da tarefa individual (data e autor da conclusão). Reabrir
+   * o que estava concluído apaga a data de conclusão registrada, por isso
    * pergunta antes.
    */
-  const reabrirMarcadas = async () => {
-    const alvo = marcadas.filter((i) => encerrado(i));
-    if (!alvo.length) return;
-    const ok = await confirmar({
-      titulo: alvo.length === 1 ? "Reabrir esta tarefa?" : `Reabrir ${alvo.length} tarefas?`,
-      mensagem: "Elas voltam para Pendente e reaparecem na lista. A data de conclusão registrada é apagada.",
-      confirmarTexto: "Reabrir",
-    });
-    if (!ok) return;
-    const agora = new Date().toISOString();
-    const ids = new Set(alvo.map((i) => i.id));
-    setEncerradasAgora((atuais) => atuais.filter((id) => !ids.has(id)));
-    onSalvarVarios(alvo.map((i) => definirStatus(i, "Pendente", nomeAtual, agora)));
-    setSelecionadas(new Set());
-  };
-  /** Status em lote: qualquer status, com a mesma regra da tarefa individual (data e autor da conclusão). */
-  const statusEmLote = (status: StatusChecklist) => {
+  const statusEmLote = async (status: StatusChecklist) => {
     const alvo = marcadas.filter((i) => i.status !== status);
     if (!alvo.length) return;
+    const reabre = status !== "Concluído" && status !== "Não se aplica";
+    const concluidas = alvo.filter((i) => i.status === "Concluído").length;
+    if (reabre && concluidas > 0) {
+      const ok = await confirmar({
+        titulo: concluidas === 1 ? "Reabrir a tarefa concluída?" : `Reabrir ${concluidas} tarefas concluídas?`,
+        mensagem: `Elas voltam para ${status} e reaparecem na lista. A data de conclusão registrada é apagada.`,
+        confirmarTexto: "Reabrir",
+      });
+      if (!ok) return;
+    }
     const agora = new Date().toISOString();
     const depois = alvo.map((i) => definirStatus(i, status, nomeAtual, agora));
     setEncerradasAgora((ids) => {
@@ -470,9 +465,6 @@ export function ChecklistProjeto({
     setPrazoEmLote("");
     setSelecionadas(new Set());
   };
-
-  const temEncerradaMarcada = marcadas.some((i) => encerrado(i));
-  const temAbertaMarcada = marcadas.some((i) => !encerrado(i));
 
   /**
    * Excluir em lote. A tarefa que veio da lista padrão não some do banco — a
@@ -520,40 +512,56 @@ export function ChecklistProjeto({
     <div className="space-y-4">
       {/* ----------------------------- resumo ----------------------------- */}
       <Card>
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div className="min-w-[220px] flex-1">
-            <div className="flex items-baseline gap-2">
-              <span className="text-[22px] font-extrabold text-ink">
-                {resumo.concluidos}/{resumo.contam}
+        {/* O RESUMO EM TRÊS BLOCOS (26/11/2026): o progresso, o que está EM ABERTO (repartido pelo
+            prazo) e o que está ENCERRADO. Cada quadro é um número grande com o nome embaixo, todos
+            do mesmo tamanho, e os dois grupos fecham a conta: em aberto + encerradas = total.
+            Clicar num quadro filtra a lista por ele; clicar de novo tira o filtro. */}
+        <div className="flex flex-wrap items-stretch gap-x-6 gap-y-4">
+          <div className="min-w-[230px] flex-1 basis-[230px] max-w-md self-center">
+            <div className="text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-ink-3">Progresso</div>
+            <div className="mt-0.5 flex items-baseline gap-2">
+              <span className="text-[26px] font-extrabold leading-none text-ink tabular-nums">
+                {resumo.concluidos}
+                <span className="text-ink-3">/{resumo.contam}</span>
               </span>
               <span className="text-[13px] font-bold text-ink-2">tarefas concluídas</span>
+              <span className="ml-auto text-[14px] font-extrabold text-primary-dark tabular-nums">
+                {Math.round(resumo.progresso * 100)}%
+              </span>
             </div>
-            <div className="mt-2 max-w-sm">
+            <div className="mt-2">
               <ProgressBar value={resumo.progresso * 100} />
             </div>
-          </div>
-          {/* As pílulas FECHAM a conta (26/11/2026): "em aberto" é a soma das quatro primeiras, e
-              concluídas + não se aplica + em aberto = total. Clicar numa pílula filtra a lista. */}
-          <div className="flex flex-col items-end gap-1.5">
-            <div className="flex items-center gap-1.5 flex-wrap justify-end">
-              <span className="text-[12px] font-bold text-ink-2 mr-1">{resumo.abertos} em aberto:</span>
-              <PilulaResumo tom="danger" n={resumo.atrasados} rotulo={resumo.atrasados === 1 ? "atrasada" : "atrasadas"}
-                titulo="Prazo vencido e ainda não concluídas" onClick={() => { limparFiltros(); setFiltroPrazo(new Set(["atrasado"])); }} />
-              <PilulaResumo tom="warning" n={resumo.proximos} rotulo="vencem em até 3 dias"
-                titulo="Vencem hoje ou nos próximos 3 dias" onClick={() => { limparFiltros(); setFiltroPrazo(new Set(["hoje", "proximo"])); }} />
-              <PilulaResumo tom="info" n={resumo.noPrazo} rotulo="no prazo"
-                titulo="Abertas, com prazo mais adiante" onClick={() => { limparFiltros(); setFiltroPrazo(new Set(["em-dia"])); }} />
-              <PilulaResumo tom="neutral" n={resumo.semData} rotulo="sem data"
-                titulo="Abertas, sem data prevista" onClick={() => { limparFiltros(); setFiltroPrazo(new Set(["sem-data"])); }} />
-            </div>
-            <div className="flex items-center gap-1.5 flex-wrap justify-end">
-              <PilulaResumo tom="success" n={resumo.concluidos} rotulo={resumo.concluidos === 1 ? "concluída" : "concluídas"}
-                titulo="Concluídas" onClick={() => { limparFiltros(); setFiltroStatus(new Set(["Concluído"])); }} />
-              <PilulaResumo tom="neutral" n={resumo.naoSeAplica} rotulo="não se aplicam"
-                titulo="Marcadas como Não se aplica (fora do progresso)" onClick={() => { limparFiltros(); setFiltroStatus(new Set(["Não se aplica"])); }} />
-              <span className="text-[11.5px] font-bold text-ink-3">· {resumo.total} no total</span>
+            <div className="mt-1.5 text-[11.5px] font-semibold text-ink-3">
+              {resumo.total} no total
+              {resumo.naoSeAplica > 0 &&
+                ` · ${resumo.naoSeAplica} ${resumo.naoSeAplica === 1 ? "não se aplica e fica" : "não se aplicam e ficam"} fora da conta`}
             </div>
           </div>
+
+          <GrupoResumo titulo="Em aberto" total={resumo.abertos} className="flex-[4_1_420px]">
+            <QuadroResumo tom="danger" n={resumo.atrasados} rotulo={resumo.atrasados === 1 ? "Atrasada" : "Atrasadas"}
+              titulo="Prazo vencido e ainda não concluídas"
+              ativo={mesmoConjunto(filtroPrazo, ["atrasado"])} onClick={() => filtrarPeloResumo({ prazo: ["atrasado"] })} />
+            <QuadroResumo tom="warning" n={resumo.proximos} rotulo={resumo.proximos === 1 ? "Vence em até 3 dias" : "Vencem em até 3 dias"}
+              titulo="Vencem hoje ou nos próximos 3 dias"
+              ativo={mesmoConjunto(filtroPrazo, ["hoje", "proximo"])} onClick={() => filtrarPeloResumo({ prazo: ["hoje", "proximo"] })} />
+            <QuadroResumo tom="info" n={resumo.noPrazo} rotulo="No prazo"
+              titulo="Abertas, com prazo mais adiante"
+              ativo={mesmoConjunto(filtroPrazo, ["em-dia"])} onClick={() => filtrarPeloResumo({ prazo: ["em-dia"] })} />
+            <QuadroResumo tom="neutral" n={resumo.semData} rotulo="Sem data"
+              titulo="Abertas, sem data prevista"
+              ativo={mesmoConjunto(filtroPrazo, ["sem-data"])} onClick={() => filtrarPeloResumo({ prazo: ["sem-data"] })} />
+          </GrupoResumo>
+
+          <GrupoResumo titulo="Encerradas" total={resumo.concluidos + resumo.naoSeAplica} className="flex-[2_1_210px]">
+            <QuadroResumo tom="success" n={resumo.concluidos} rotulo={resumo.concluidos === 1 ? "Concluída" : "Concluídas"}
+              titulo="Concluídas"
+              ativo={mesmoConjunto(filtroStatus, ["Concluído"])} onClick={() => filtrarPeloResumo({ status: ["Concluído"] })} />
+            <QuadroResumo tom="neutral" n={resumo.naoSeAplica} rotulo={resumo.naoSeAplica === 1 ? "Não se aplica" : "Não se aplicam"}
+              titulo="Marcadas como Não se aplica (fora do progresso)"
+              ativo={mesmoConjunto(filtroStatus, ["Não se aplica"])} onClick={() => filtrarPeloResumo({ status: ["Não se aplica"] })} />
+          </GrupoResumo>
         </div>
 
         {/* Só aparece quando a lista padrão ganhou itens depois deste projeto. */}
@@ -630,15 +638,18 @@ export function ChecklistProjeto({
         </button>
       </div>
 
-      {/* ---------------------- concluir / excluir em lote ---------------------- */}
+      {/* --------------------------- alterações em lote --------------------------
+          UMA barra, três gestos (26/11/2026): mudar o status, mudar o prazo e
+          excluir. Tudo na mesma altura e com a mesma moldura; o que cada controle
+          muda está escrito nele. Concluir e reabrir em lote são o próprio "Status". */}
       {podeEditar && visiveis.length > 0 && (
         <div
           className={cx(
-            "flex items-center gap-3 flex-wrap rounded-btn border px-3 py-2",
-            marcadas.length ? "border-primary bg-primary-soft" : "border-border-soft bg-surface"
+            "flex min-h-[52px] items-center gap-x-4 gap-y-2 flex-wrap rounded-card border px-4 py-2 transition-colors",
+            marcadas.length ? "border-primary bg-primary-soft" : "border-border bg-surface"
           )}
         >
-          <label className="inline-flex items-center gap-2 text-[12.5px] font-bold text-ink-2 cursor-pointer">
+          <label className="inline-flex items-center gap-2 text-[13px] font-bold text-ink cursor-pointer">
             <input
               type="checkbox"
               checked={todasMarcadas}
@@ -647,65 +658,72 @@ export function ChecklistProjeto({
             />
             Selecionar todas
           </label>
-          <span className="text-[12.5px] font-bold text-ink-3">
-            {marcadas.length
-              ? `${marcadas.length} ${marcadas.length === 1 ? "selecionada" : "selecionadas"}`
-              : podeExcluir
-              ? "Marque tarefas para mudar status, prazo ou excluir em lote"
-              : "Marque tarefas para mudar status ou prazo em lote"}
-          </span>
-          {marcadas.length > 0 && (
-            <div className="ml-auto flex items-center gap-2 flex-wrap">
-              <Select
-                className="!h-8 !w-auto !text-[12.5px]"
-                value=""
-                onChange={(e) => e.target.value && statusEmLote(e.target.value as StatusChecklist)}
-                aria-label="Alterar o status das selecionadas"
-              >
-                <option value="">Alterar status…</option>
-                <option value="Pendente">Pendente</option>
-                <option value="Em andamento">Em andamento</option>
-                <option value="Concluído">Concluído</option>
-                <option value="Não se aplica">Não se aplica</option>
-              </Select>
-              <span className="inline-flex items-center gap-1">
-                <input
-                  type="date"
-                  value={prazoEmLote}
-                  onChange={(e) => setPrazoEmLote(e.target.value)}
-                  className="h-8 rounded-btn border-[1.5px] border-[#BFC4CE] bg-surface px-2 text-[12.5px] input-focus"
-                  aria-label="Nova data prevista das selecionadas"
-                  title="Nova data prevista para as selecionadas"
-                />
-                <Button size="sm" variant="secondary" disabled={!prazoEmLote} onClick={prazoEmLoteAplicar}>
-                  Alterar prazo
-                </Button>
-              </span>
-              {temAbertaMarcada && (
-                <Button size="sm" variant="secondary" icon={<IcCheck width={15} height={15} />} onClick={concluirMarcadas}>
-                  Concluir selecionadas
-                </Button>
-              )}
-              {temEncerradaMarcada && (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  icon={<IcBack width={15} height={15} />}
-                  onClick={() => void reabrirMarcadas()}
-                  title="Volta as tarefas concluídas (ou que não se aplicam) para Pendente"
+          {marcadas.length === 0 ? (
+            <span className="text-[12.5px] font-semibold text-ink-3">
+              {podeExcluir
+                ? "Marque as tarefas para mudar o status, o prazo ou excluir várias de uma vez"
+                : "Marque as tarefas para mudar o status ou o prazo de várias de uma vez"}
+            </span>
+          ) : (
+            <>
+              <span className="inline-flex items-center gap-2 text-[13px] font-extrabold text-primary-dark">
+                <span className="tabular-nums">
+                  {marcadas.length} {marcadas.length === 1 ? "selecionada" : "selecionadas"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelecionadas(new Set())}
+                  className="rounded px-1 text-[12.5px] font-bold text-ink-2 underline decoration-dotted underline-offset-2 hover:text-ink input-focus"
                 >
-                  Reabrir selecionadas
-                </Button>
-              )}
-              {podeExcluir && (
-                <Button size="sm" variant="danger" icon={<IcTrash width={15} height={15} />} onClick={() => void excluirMarcadas()}>
-                  Excluir selecionadas
-                </Button>
-              )}
-              <Button size="sm" variant="text" onClick={() => setSelecionadas(new Set())}>
-                Limpar seleção
-              </Button>
-            </div>
+                  limpar
+                </button>
+              </span>
+
+              <div className="ml-auto flex items-center gap-2 flex-wrap">
+                <ControleEmLote rotulo="Status">
+                  <select
+                    value=""
+                    onChange={(e) => e.target.value && void statusEmLote(e.target.value as StatusChecklist)}
+                    aria-label="Mudar o status das tarefas selecionadas"
+                    className="h-full cursor-pointer appearance-none bg-transparent bg-no-repeat pl-2.5 pr-8 text-[13px] font-bold text-ink outline-none"
+                    style={{ backgroundImage: SETA_LISTA, backgroundPosition: "right 10px center" }}
+                  >
+                    <option value="">Mudar para…</option>
+                    <option value="Pendente">Pendente</option>
+                    <option value="Concluído">Concluído</option>
+                    <option value="Não se aplica">Não se aplica</option>
+                  </select>
+                </ControleEmLote>
+
+                <ControleEmLote rotulo="Prazo">
+                  <input
+                    type="date"
+                    min="1900-01-01"
+                    max="2100-12-31"
+                    value={prazoEmLote}
+                    onChange={(e) => setPrazoEmLote(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && prazoEmLoteAplicar()}
+                    className="h-full bg-transparent px-2.5 text-[13px] font-bold text-ink outline-none"
+                    aria-label="Nova data prevista das tarefas selecionadas"
+                    title="Nova data prevista para as selecionadas"
+                  />
+                  <button
+                    type="button"
+                    disabled={!prazoEmLote}
+                    onClick={prazoEmLoteAplicar}
+                    className="h-full border-l-[1.5px] border-[#D6D9E0] px-3 text-[13px] font-bold text-primary-dark hover:bg-primary-soft disabled:cursor-not-allowed disabled:text-ink-3 disabled:hover:bg-transparent"
+                  >
+                    Aplicar
+                  </button>
+                </ControleEmLote>
+
+                {podeExcluir && (
+                  <Button size="sm" variant="danger" icon={<IcTrash width={15} height={15} />} onClick={() => void excluirMarcadas()}>
+                    Excluir
+                  </Button>
+                )}
+              </div>
+            </>
           )}
         </div>
       )}
@@ -1097,14 +1115,23 @@ function ItemCard({
               disabled={!podeEditar}
               onClick={() => setEditandoTitulo(true)}
               className={cx(
-                "block w-full text-left text-[14px] font-bold leading-snug rounded px-1 -mx-1 py-0.5 input-focus",
-                podeEditar && "hover:bg-[#F1F2F5] cursor-text",
+                "group/titulo flex w-full items-start gap-1.5 text-left text-[14px] font-bold leading-snug rounded-btn border border-transparent px-1.5 -mx-1.5 py-[3px] input-focus",
+                podeEditar && "hover:border-primary hover:bg-surface cursor-text",
                 fechado ? "line-through text-ink-3" : "text-ink",
                 !item.titulo && "text-ink-3 font-semibold italic"
               )}
               title={podeEditar ? "Clique para renomear" : undefined}
             >
-              {item.titulo || "Descreva a tarefa"}
+              <span className="min-w-0 flex-1">{item.titulo || "Descreva a tarefa"}</span>
+              {/* O lápis aparece ao passar o mouse na linha: é o aviso de que o título se edita. */}
+              {podeEditar && (
+                <IcPencil
+                  width={13}
+                  height={13}
+                  className="mt-[3px] shrink-0 text-ink-3 opacity-0 group-hover:opacity-70 group-hover/titulo:text-primary-dark group-hover/titulo:opacity-100 max-md:opacity-70 transition-opacity"
+                  aria-hidden
+                />
+              )}
             </button>
           )}
 
@@ -1132,9 +1159,9 @@ function ItemCard({
               disabled={!podeEditar}
               onClick={() => setEditandoDescricao(true)}
               className={cx(
-                "block w-full text-left text-[12.5px] leading-snug rounded px-1 -mx-1 mt-0.5 input-focus",
+                "block w-full text-left text-[12.5px] leading-snug rounded-btn border border-transparent px-1.5 -mx-1.5 py-px mt-0.5 input-focus",
                 fechado ? "text-ink-3" : "text-ink-2",
-                podeEditar && "hover:bg-[#F1F2F5] cursor-text"
+                podeEditar && "hover:border-primary hover:bg-surface cursor-text"
               )}
               title={podeEditar ? "Clique para editar a descrição" : undefined}
             >
@@ -1145,24 +1172,20 @@ function ItemCard({
           {/* Linha de apoio da tarefa: etapa (mover por seletor), avisos e convites. */}
           <div className="mt-1 flex items-center gap-x-3 gap-y-1 flex-wrap text-[12.5px]">
             {etapas.length > 0 && (
-              <CampoDiscreto
+              <CampoLista
                 titulo="Etapa"
                 vazio={!item.etapa}
                 rotulo={item.etapa || "Sem etapa"}
                 podeEditar={podeEditar}
+                valor={item.etapa}
+                onChange={(etapa) => onAlterar({ etapa })}
+                className="max-w-[16rem] !h-[26px] !text-[12px]"
               >
-                <Select
-                  className="!h-7 !px-1.5 !text-[12.5px] !w-[14rem]"
-                  value={item.etapa}
-                  onChange={(e) => onAlterar({ etapa: e.target.value })}
-                  aria-label="Etapa da tarefa"
-                >
-                  <option value="">Sem etapa</option>
-                  {etapas.map((e) => (
-                    <option key={e} value={e}>{e}</option>
-                  ))}
-                </Select>
-              </CampoDiscreto>
+                <option value="">Sem etapa</option>
+                {etapas.map((e) => (
+                  <option key={e} value={e}>{e}</option>
+                ))}
+              </CampoLista>
             )}
             {/* O atraso já se lê na coluna Status; aqui ficam só os avisos que a
                 coluna não diz (vence hoje, vence em breve). */}
@@ -1216,27 +1239,24 @@ function ItemCard({
             Em tela larga são colunas da grade; no celular descem juntas, em
             linha, embaixo da tarefa. */}
         <div className="col-span-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px] md:contents">
-          <div className="min-w-0 md:pt-1">
-            <CampoDiscreto
+          <div className="min-w-0 max-md:w-[13rem]">
+            <CampoLista
               titulo="Responsável"
               vazio={!item.responsavel}
               rotulo={item.responsavel || "Sem responsável"}
               podeEditar={podeEditar}
+              valor={item.responsavel}
+              onChange={(responsavel) => onAlterar({ responsavel })}
             >
-              <Select
-                className="!h-7 !px-1.5 !text-[12.5px] !w-[13rem]"
-                value={item.responsavel}
-                onChange={(e) => onAlterar({ responsavel: e.target.value })}
-                aria-label="Responsável pela tarefa"
-              >
-                <option value="">Sem responsável</option>
-                {usuarios.map((u) => (
-                  <option key={u} value={u}>
-                    {u}
-                  </option>
-                ))}
-              </Select>
-            </CampoDiscreto>
+              <option value="">Sem responsável</option>
+              {/* Quem saiu da lista de usuários continua aparecendo na tarefa que já era dele. */}
+              {item.responsavel && !usuarios.includes(item.responsavel) && <option value={item.responsavel}>{item.responsavel}</option>}
+              {usuarios.map((u) => (
+                <option key={u} value={u}>
+                  {u}
+                </option>
+              ))}
+            </CampoLista>
             {/* A função da lista padrão ("Back-Office", "Direção de Produção"…):
                 quem é a pessoa pode variar, a função da tarefa não. */}
             {!!item.funcoes?.length && (
@@ -1246,53 +1266,59 @@ function ItemCard({
             )}
           </div>
 
-          <div className="md:pt-1">
-            <CampoDiscreto
-              icone={<IcCalendar width={13} height={13} />}
-              titulo="Data Prevista — o prazo calculado pelo sistema; clique para ajustar à mão"
+          <div className="min-w-0 max-md:w-[8.5rem]">
+            <CampoDataLinha
+              titulo="Data Prevista — o prazo calculado pelo sistema; dá para ajustar à mão"
               vazio={!item.dataLimite}
               rotulo={item.dataLimite ? dataBR(item.dataLimite) : "Sem data"}
               tom={situacao === "atrasado" ? "danger" : undefined}
               podeEditar={podeEditar}
+              larguraAberto="w-[9.5rem]"
             >
               <Input
                 type="date"
-                className="!h-7 !px-1.5 !text-[12.5px] !w-[9.5rem]"
+                className="!h-[30px] !px-2 !text-[12.5px] !font-semibold w-full"
                 value={item.dataLimite}
                 // Editar a data trava o item contra o recálculo automático: o
                 // ajuste da pessoa vale mais que a régua do modelo.
                 onChange={(e) => onAlterar({ dataLimite: e.target.value, dataManual: true })}
                 aria-label="Data prevista da tarefa"
               />
-            </CampoDiscreto>
+            </CampoDataLinha>
           </div>
 
           {/* DATA DE CONCLUSÃO: quando a tarefa foi de fato concluída. Vazia
-              enquanto a tarefa está aberta; depois de concluída, editável
-              (quem terminou na sexta e marcou na segunda corrige aqui). */}
-          <div className="min-w-0 md:pt-1">
+              enquanto a tarefa está aberta (e aí não há o que editar, por isso
+              é só um traço, sem moldura); depois de concluída, editável (quem
+              terminou na sexta e marcou na segunda corrige aqui). */}
+          <div className="min-w-0 max-md:w-[10.5rem]">
             {item.status === "Concluído" ? (
               <ConclusaoDoItem item={item} podeEditar={podeEditar} onAlterar={onAlterar} />
             ) : (
-              <span className="font-semibold text-ink-3">—</span>
+              <span
+                className="inline-flex h-[30px] items-center px-2 font-semibold text-ink-3"
+                title="Preenchida quando a tarefa for concluída"
+              >
+                —
+              </span>
             )}
           </div>
 
-          <div className="min-w-0 md:pt-1">
+          <div className="min-w-0 max-md:w-[8.5rem]">
             {/* Pendente, Atrasado ou Concluído — o valor mostrado sai do prazo;
                 o que se escolhe é Pendente, Concluído ou Não se aplica. */}
-            <CampoDiscreto titulo="Status" rotulo={status} tom={tomStatusExibido[status]} podeEditar={podeEditar}>
-              <Select
-                className="!h-7 !px-1.5 !text-[12.5px] !w-[9.5rem]"
-                value={item.status === "Concluído" || item.status === "Não se aplica" ? item.status : "Pendente"}
-                onChange={(e) => onStatus(e.target.value as StatusChecklist)}
-                aria-label="Status da tarefa"
-              >
-                <option value="Pendente">Pendente</option>
-                <option value="Concluído">Concluído</option>
-                <option value="Não se aplica">Não se aplica</option>
-              </Select>
-            </CampoDiscreto>
+            <CampoLista
+              titulo="Status"
+              rotulo={status}
+              tom={tomStatusExibido[status]}
+              podeEditar={podeEditar}
+              valor={item.status === "Concluído" || item.status === "Não se aplica" ? item.status : "Pendente"}
+              onChange={(s) => onStatus(s as StatusChecklist)}
+            >
+              <option value="Pendente">Pendente</option>
+              <option value="Concluído">Concluído</option>
+              <option value="Não se aplica">Não se aplica</option>
+            </CampoLista>
           </div>
         </div>
 
@@ -1413,58 +1439,155 @@ function NomeDaEtapa({ nome, onRenomear }: { nome: string; onRenomear: (nome: st
  * competia por atenção com molduras vazias, e a pessoa lia a tela procurando
  * onde estava a informação em vez de simplesmente lê-la.
  */
-function CampoDiscreto({
-  icone,
-  titulo,
-  rotulo,
-  tom,
-  vazio,
-  podeEditar,
-  children,
-}: {
+/*
+ * OS CAMPOS DA LINHA COM CARA DE CAMPO (26/11/2026).
+ *
+ * O texto puro que só virava campo no clique ficou limpo demais: nada dizia que
+ * dava para editar, e quem sabia ainda precisava de dois cliques (um para o
+ * texto virar caixa, outro para a lista abrir). Agora o que é editável tem
+ * moldura fina, o ícone do tipo (setinha de lista, calendário) e realce laranja
+ * ao passar o mouse; um clique só já abre a lista ou o calendário. O que NÃO é
+ * editável (sem permissão) continua texto puro, sem moldura — a diferença entre
+ * os dois é o próprio aviso.
+ */
+const CAMPO_LINHA =
+  "relative flex h-[30px] min-w-0 items-center gap-1.5 rounded-btn border px-2 text-[12.5px] font-semibold transition-colors " +
+  "hover:border-primary focus-within:border-primary focus-within:shadow-[0_0_0_3px_rgba(242,130,13,0.12)]";
+
+/** Moldura e cor do campo: neutra por padrão; colorida quando o valor tem tom (status, atraso). */
+const CAMPO_LINHA_TOM: Record<Tom, string> = {
+  danger: "border-danger/30 bg-danger-soft text-danger",
+  warning: "border-warning/30 bg-warning-soft text-warning",
+  success: "border-success/30 bg-success-soft text-success",
+  info: "border-info/30 bg-info-soft text-info",
+  neutral: "border-border bg-[#F0F1F4] text-ink-2",
+};
+const corCampoLinha = (tom: Tom | undefined, vazio: boolean | undefined) =>
+  tom ? CAMPO_LINHA_TOM[tom] : cx("border-border bg-surface", vazio ? "text-ink-3" : "text-ink");
+const corTextoPuro = (tom: Tom | undefined, vazio: boolean | undefined) =>
+  tom === "danger" ? "text-danger" : tom === "warning" ? "text-warning" : tom === "success" ? "text-success" : vazio ? "text-ink-3" : "text-ink-2";
+
+interface PropsCampoLinha {
   icone?: ReactNode;
   /** Nome do dado, para quem passa o mouse e para leitor de tela. */
   titulo: string;
-  /** O que se lê quando o campo está fechado. */
+  /** O que se lê no campo. */
   rotulo: string;
   tom?: Tom;
   /** Sem valor: fica apagado, para "Sem responsável" não pesar como um dado. */
   vazio?: boolean;
   podeEditar: boolean;
+  /** Largura: por padrão ocupa a coluna inteira. */
+  className?: string;
+}
+
+/** O dado quando a pessoa não pode editar: só texto, sem moldura. */
+function TextoDoCampo({ icone, titulo, rotulo, tom, vazio }: Omit<PropsCampoLinha, "podeEditar" | "className">) {
+  return (
+    <span title={titulo} className={cx("inline-flex h-[30px] min-w-0 items-center gap-1.5 text-[12.5px] font-semibold", corTextoPuro(tom, vazio))}>
+      {icone}
+      <span className="truncate">{rotulo}</span>
+    </span>
+  );
+}
+
+/**
+ * Campo de LISTA (responsável, status, etapa).
+ *
+ * O que se vê é a moldura com o texto e a setinha; por cima dela fica o
+ * `<select>` de verdade, invisível. Assim um clique só abre a lista do
+ * navegador, o teclado funciona como em qualquer lista, e o texto mostrado pode
+ * ser diferente das opções (o status mostra "Atrasado", que não se escolhe).
+ */
+function CampoLista({
+  valor,
+  onChange,
+  children,
+  className,
+  ...campo
+}: PropsCampoLinha & { valor: string; onChange: (valor: string) => void; children: ReactNode }) {
+  if (!campo.podeEditar) return <TextoDoCampo {...campo} />;
+  return (
+    <span className={cx(CAMPO_LINHA, corCampoLinha(campo.tom, campo.vazio), className ?? "w-full")} title={`${campo.titulo} — clique para alterar`}>
+      {campo.icone}
+      <span className="min-w-0 flex-1 truncate">{campo.rotulo}</span>
+      <IcChevron width={13} height={13} className="shrink-0 rotate-90 opacity-60" aria-hidden />
+      <select
+        value={valor}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label={campo.titulo}
+        className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0"
+      >
+        {children}
+      </select>
+    </span>
+  );
+}
+
+/**
+ * Campo de DATA (prevista e de conclusão).
+ *
+ * Fechado, é a moldura com a data e o calendário; no clique vira o campo de
+ * data do navegador, já em foco e com o calendário aberto — dá para escolher no
+ * calendário ou digitar. Fecha sozinho ao sair.
+ */
+function CampoDataLinha({
+  children,
+  className,
+  larguraAberto,
+  ...campo
+}: PropsCampoLinha & {
+  /** O `<Input type="date">` (ou `datetime-local`) que aparece ao abrir. */
   children: ReactNode;
+  /** Largura do campo aberto, quando precisa de mais espaço que a coluna (data e hora). */
+  larguraAberto?: string;
 }) {
   const [aberto, setAberto] = useState(false);
+  const caixa = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!aberto) return;
+    const input = caixa.current?.querySelector("input");
+    if (!input) return;
+    input.focus();
+    // Abre o calendário junto. Navegador que não tem `showPicker` (ou que o
+    // recusa) fica só com o campo em foco, que já resolve.
+    try {
+      input.showPicker?.();
+    } catch {
+      /* sem calendário automático */
+    }
+  }, [aberto]);
 
-  if (aberto && podeEditar) {
+  if (!campo.podeEditar) return <TextoDoCampo {...campo} />;
+  if (aberto) {
     return (
-      // Fecha ao sair do campo — inclusive quando o foco vai para outro lugar
-      // da tela. `blur` no container não basta: ele não dispara para o filho.
+      // Fecha ao sair do campo — inclusive quando o foco vai para outro lugar da tela.
       <span
+        ref={caixa}
+        className={cx("relative block h-[30px]", className ?? "w-full")}
         onBlur={(e) => {
           if (!e.currentTarget.contains(e.relatedTarget as Node)) setAberto(false);
         }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === "Escape") setAberto(false);
+        }}
       >
-        {children}
+        <span className={cx("absolute left-0 top-0 z-10", larguraAberto ?? "w-full")}>{children}</span>
       </span>
     );
   }
-
   return (
     <button
       type="button"
-      disabled={!podeEditar}
       onClick={() => setAberto(true)}
-      title={podeEditar ? `${titulo} — clique para alterar` : titulo}
-      aria-label={`${titulo}: ${rotulo}`}
-      className={cx(
-        "inline-flex items-center gap-1 rounded px-1 -mx-1 py-0.5 font-semibold input-focus",
-        podeEditar && "hover:bg-[#F1F2F5]",
-        tom === "danger" ? "text-danger" : tom === "warning" ? "text-warning" : vazio ? "text-ink-3" : "text-ink-2",
-        !podeEditar && "cursor-default"
-      )}
+      title={`${campo.titulo} — clique para alterar`}
+      aria-label={`${campo.titulo}: ${campo.rotulo}`}
+      className={cx(CAMPO_LINHA, "cursor-pointer text-left outline-none focus-visible:border-primary", corCampoLinha(campo.tom, campo.vazio), className ?? "w-full")}
     >
-      {icone}
-      {rotulo}
+      <span className="min-w-0 flex-1 truncate">{campo.rotulo}</span>
+      <span className="shrink-0 opacity-60" aria-hidden>
+        {campo.icone ?? <IcCalendar width={13} height={13} />}
+      </span>
     </button>
   );
 }
@@ -1493,45 +1616,127 @@ function ConclusaoDoItem({
   const atraso = atrasoNaConclusao(item);
   const quando = paraCampoDataHora(item.concluidoEm);
   return (
-    <span className="inline-flex items-center gap-1.5 flex-wrap">
-      {/* Texto até alguém precisar corrigir — o mesmo tratamento do prazo e do
-          responsável. Um campo de data e hora aberto em toda tarefa concluída
-          enchia a lista de caixas que quase ninguém mexe. */}
-      <CampoDiscreto
+    <div className="min-w-0">
+      {/* O mesmo campo da Data Prevista: a data na moldura, o calendário no
+          clique. Quem concluiu e se saiu no prazo ficam na linha de baixo, em
+          letra de apoio, como a função embaixo do responsável. */}
+      <CampoDataLinha
         titulo="Data e hora reais da conclusão — corrija se você marcou depois de ter feito"
-        rotulo={quando ? `Concluída em ${dataBR(item.concluidoEm.slice(0, 10))}` : "Sem data de conclusão"}
+        rotulo={quando ? dataBR(item.concluidoEm.slice(0, 10)) : "Sem data"}
         vazio={!quando}
         podeEditar={podeEditar}
+        larguraAberto="w-[12.5rem]"
       >
         <Input
           type="datetime-local"
-          className="!h-7 !px-1.5 !text-[12px] !w-[12.5rem]"
+          className="!h-[30px] !px-2 !text-[12.5px] !font-semibold w-full"
           value={quando}
           onChange={(e) => onAlterar(definirDataConclusao(item, e.target.value))}
           aria-label="Data e hora em que a tarefa foi concluída"
         />
-      </CampoDiscreto>
-      {item.concluidoPor && (
-        <span className="text-[11.5px] font-semibold text-ink-3">por {item.concluidoPor}</span>
+      </CampoDataLinha>
+      {(item.concluidoPor || atraso !== null) && (
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[11px] font-bold leading-tight text-ink-3">
+          {item.concluidoPor && <span className="truncate">por {item.concluidoPor}</span>}
+          {atraso !== null &&
+            (atraso > 0 ? (
+              <span className="text-danger">
+                {atraso} {atraso === 1 ? "dia de atraso" : "dias de atraso"}
+              </span>
+            ) : (
+              <span className="text-success">no prazo</span>
+            ))}
+        </div>
       )}
-      {atraso !== null &&
-        (atraso > 0 ? (
-          <Badge tom="danger">
-            {atraso} {atraso === 1 ? "dia de atraso" : "dias de atraso"}
-          </Badge>
-        ) : (
-          <Badge tom="success">no prazo</Badge>
-        ))}
+    </div>
+  );
+}
+
+/** A setinha das listas, a mesma do `Select` do design system. */
+const SETA_LISTA =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236A6E78' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")";
+
+/**
+ * Um controle da barra de alterações em lote: o nome do que ele muda, numa aba
+ * cinza à esquerda, e o campo ao lado — tudo numa moldura só, na altura dos
+ * botões da tela.
+ */
+function ControleEmLote({ rotulo, children }: { rotulo: string; children: ReactNode }) {
+  return (
+    <span className="inline-flex h-9 items-stretch overflow-hidden rounded-btn border-[1.5px] border-[#D6D9E0] bg-surface focus-within:border-primary">
+      <span className="flex items-center border-r-[1.5px] border-[#D6D9E0] bg-[#FAFAFB] px-2.5 text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-3">
+        {rotulo}
+      </span>
+      {children}
     </span>
   );
 }
 
-/** Pílula do resumo: número + rótulo; clicar filtra a lista por aquela faixa. Zero fica apagado. */
-function PilulaResumo({ tom, n, rotulo, titulo, onClick }: { tom: Tom; n: number; rotulo: string; titulo: string; onClick: () => void }) {
+/** O filtro está exatamente nestes valores (nem mais, nem menos)? */
+function mesmoConjunto<T>(filtro: Set<T> | null, valores: T[]): boolean {
+  return filtro !== null && filtro.size === valores.length && valores.every((v) => filtro.has(v));
+}
+
+/** Um grupo de quadros do resumo, com o nome e a soma dele em cima. */
+function GrupoResumo({ titulo, total, className, children }: { titulo: string; total: number; className?: string; children: ReactNode }) {
   return (
-    <button type="button" onClick={onClick} disabled={n === 0} title={`${titulo} — clique para filtrar`}
-      className={cx("rounded-full input-focus", n === 0 ? "opacity-40 cursor-default" : "hover:brightness-95")}>
-      <Badge tom={tom}>{n} {rotulo}</Badge>
+    <div className={cx("min-w-0 md:border-l md:border-border-soft md:pl-6", className)}>
+      <div className="flex items-baseline gap-1.5 text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-ink-3">
+        {titulo}
+        <span className="text-[12.5px] tracking-normal text-ink tabular-nums">{total}</span>
+      </div>
+      <div className="mt-1.5 flex flex-wrap gap-2">{children}</div>
+    </div>
+  );
+}
+
+const QUADRO_TOM: Record<Tom, { numero: string; ponto: string; ativo: string }> = {
+  danger: { numero: "text-danger", ponto: "bg-danger", ativo: "border-danger bg-danger-soft" },
+  warning: { numero: "text-warning", ponto: "bg-warning", ativo: "border-warning bg-warning-soft" },
+  info: { numero: "text-info", ponto: "bg-info", ativo: "border-info bg-info-soft" },
+  success: { numero: "text-success", ponto: "bg-success", ativo: "border-success bg-success-soft" },
+  neutral: { numero: "text-ink-2", ponto: "bg-ink-3", ativo: "border-ink-3 bg-[#F0F1F4]" },
+};
+
+/**
+ * Quadro do resumo: o número grande, na cor do assunto, e o nome embaixo.
+ * Clicar filtra a lista por ele (e, ligado, desliga). Zero fica apagado.
+ */
+function QuadroResumo({
+  tom,
+  n,
+  rotulo,
+  titulo,
+  ativo,
+  onClick,
+}: {
+  tom: Tom;
+  n: number;
+  rotulo: string;
+  titulo: string;
+  ativo: boolean;
+  onClick: () => void;
+}) {
+  const cores = QUADRO_TOM[tom];
+  const zerado = n === 0 && !ativo;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={zerado}
+      aria-pressed={ativo}
+      title={ativo ? `${titulo} — filtro ligado; clique para ver todas` : `${titulo} — clique para filtrar a lista`}
+      className={cx(
+        "min-w-[98px] flex-1 rounded-btn border px-3 py-2 text-left transition-colors input-focus",
+        ativo ? cores.ativo : "border-border-soft bg-surface",
+        zerado ? "cursor-default opacity-50" : !ativo && "hover:border-border hover:bg-[#FAFAFB]"
+      )}
+    >
+      <span className={cx("block text-[21px] font-extrabold leading-none tabular-nums", zerado ? "text-ink-3" : cores.numero)}>{n}</span>
+      <span className="mt-1.5 flex items-center gap-1.5 text-[11.5px] font-bold leading-tight text-ink-2">
+        <span className={cx("h-1.5 w-1.5 shrink-0 rounded-full", cores.ponto)} aria-hidden />
+        {rotulo}
+      </span>
     </button>
   );
 }
