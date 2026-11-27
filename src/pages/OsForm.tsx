@@ -2789,7 +2789,19 @@ export function OsForm() {
             </LinhaOs>
             <LinhaOs label="Data do Contrato"><Input type="date" value={os.contrato.dataContrato} onChange={(e) => updCt({ dataContrato: e.target.value })} /></LinhaOs>
             {/* Sem o texto de ajuda "Iniciais de quem responde pelo contrato" (11/11/2026). */}
-            <LinhaOs label="Rubrica"><Input value={os.contrato.rubrica} sugestoes={sugestoes.valores.rubrica} onChange={(e) => updCt({ rubrica: e.target.value })} /></LinhaOs>
+            {/* RUBRICA em lista suspensa (27/11/2026), como as outras do formulário:
+                as rubricas já usadas pela casa, em ordem numérica/alfabética, com
+                a saída para digitar uma nova. Antes era campo de texto com
+                sugestões soltas, na ordem em que apareciam nas OS. */}
+            <LinhaOs label="Rubrica">
+              <ListaComDigitacao
+                valor={os.contrato.rubrica}
+                opcoes={sugestoes.valores.rubrica}
+                onValor={(rubrica) => updCt({ rubrica })}
+                rotulo="Rubrica do contrato"
+                placeholder="Ex.: 52 - Custos de acessibilidade"
+              />
+            </LinhaOs>
 
             {/* AS SETE CLÁUSULAS. Nos dois modelos, cada uma traz à margem a
                 anotação "Manter este campo editável" — é o texto da casa, e ele
@@ -3885,6 +3897,69 @@ function ItemContratacao({
   );
 }
 
+
+/**
+ * Lista suspensa ORDENADA com a saída para digitar um valor novo — a mesma
+ * caixa de escolha dos outros campos do formulário (27/11/2026).
+ *
+ * A ordem é a de leitura: número na frente ordena por grandeza ("9 - …" antes de
+ * "52 - …" antes de "100 - …"), e o resto por ordem alfabética, sem olhar
+ * acento ou caixa. O valor gravado que não está na lista entra nela, para o
+ * campo nunca aparecer vazio por cima de um dado que existe.
+ */
+function ListaComDigitacao({
+  valor,
+  opcoes,
+  onValor,
+  rotulo,
+  placeholder,
+}: {
+  valor: string;
+  opcoes: string[];
+  onValor: (v: string) => void;
+  rotulo: string;
+  placeholder?: string;
+}) {
+  const [digitando, setDigitando] = useState(false);
+  const OUTRO = "__outro__";
+  const lista = useMemo(() => {
+    const limpas = [...new Set([...opcoes, valor].map((o) => (o ?? "").trim()).filter(Boolean))];
+    return limpas.sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true, sensitivity: "base" }));
+  }, [opcoes, valor]);
+
+  // Sem nenhuma opção ainda, ou a pedido: campo de texto.
+  if (!lista.length || digitando) {
+    return (
+      <>
+        <Input value={valor} onChange={(e) => onValor(e.target.value)} placeholder={placeholder} aria-label={rotulo} autoFocus={digitando} />
+        {opcoes.length > 0 && (
+          <button type="button" onClick={() => setDigitando(false)} className="mt-1.5 text-[12px] font-bold text-primary-dark hover:underline">
+            Voltar à lista
+          </button>
+        )}
+      </>
+    );
+  }
+  return (
+    <Select
+      value={valor}
+      aria-label={rotulo}
+      onChange={(e) => {
+        if (e.target.value === OUTRO) {
+          setDigitando(true);
+          return;
+        }
+        onValor(e.target.value);
+      }}
+    >
+      <option value="">Selecione…</option>
+      {lista.map((o) => (
+        <option key={o} value={o}>{o}</option>
+      ))}
+      <option value={OUTRO}>Outra (digitar)…</option>
+    </Select>
+  );
+}
 
 /**
  * CNAE da nota: as atividades DESTE CNPJ, e não uma lista geral.
