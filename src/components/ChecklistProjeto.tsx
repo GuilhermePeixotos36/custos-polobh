@@ -1557,6 +1557,7 @@ const CAMPO_LINHA_TOM: Record<Tom, string> = {
   success: "border-success/30 bg-success-soft text-success",
   info: "border-info/30 bg-info-soft text-info",
   neutral: "border-border bg-[#F0F1F4] text-ink-2",
+  arquivado: "border-border bg-[#F0F1F4] text-ink-2",
 };
 const corCampoLinha = (tom: Tom | undefined, vazio: boolean | undefined) =>
   tom ? CAMPO_LINHA_TOM[tom] : cx("border-border bg-surface", vazio ? "text-ink-3" : "text-ink");
@@ -1792,6 +1793,7 @@ const QUADRO_TOM: Record<Tom, { numero: string; ponto: string; ativo: string }> 
   info: { numero: "text-info", ponto: "bg-info", ativo: "border-info bg-info-soft" },
   success: { numero: "text-success", ponto: "bg-success", ativo: "border-success bg-success-soft" },
   neutral: { numero: "text-ink-2", ponto: "bg-ink-3", ativo: "border-ink-3 bg-[#F0F1F4]" },
+  arquivado: { numero: "text-ink-2", ponto: "bg-ink-3", ativo: "border-ink-3 bg-[#F0F1F4]" },
 };
 
 /**

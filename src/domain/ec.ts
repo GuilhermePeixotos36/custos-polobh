@@ -41,9 +41,13 @@ export const ROTULO_SITUACAO_EC: Record<SituacaoEc, string> = {
 };
 
 /** Cor do selo — o mesmo par rótulo/cor em toda tela que mostra uma EC. */
-export const TOM_SITUACAO_EC: Record<SituacaoEc, "success" | "neutral"> = {
-  ativa: "success",
-  arquivada: "neutral",
+/**
+ * Azul para a que está em trabalho, cinza cheio para a arquivada — as mesmas
+ * cores da OS (ver `tomStatusOs`). Verde ficou reservado para "Emitida".
+ */
+export const TOM_SITUACAO_EC: Record<SituacaoEc, "info" | "arquivado"> = {
+  ativa: "info",
+  arquivada: "arquivado",
 };
 
 /** Pode abrir o editor? Só a que está no ar. */

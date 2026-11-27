@@ -1,6 +1,11 @@
 import { cx } from "@/lib/format";
 
-export type Tom = "success" | "warning" | "danger" | "info" | "neutral";
+/**
+ * `arquivado` é o cinza de DOCUMENTO ARQUIVADO (27/11/2026): mais escuro e mais
+ * cheio que o `neutral`, que é quase branco e some ao lado de um selo colorido.
+ * Arquivado não é "sem status" — é um status, e precisa se ler de longe.
+ */
+export type Tom = "success" | "warning" | "danger" | "info" | "neutral" | "arquivado";
 
 const tons: Record<Tom, string> = {
   success: "bg-success-soft text-success",
@@ -8,6 +13,7 @@ const tons: Record<Tom, string> = {
   danger: "bg-danger-soft text-danger",
   info: "bg-info-soft text-info",
   neutral: "bg-[#F0F1F4] text-ink-2",
+  arquivado: "bg-[#D5D8DF] text-graphite",
 };
 
 export function Badge({
@@ -41,8 +47,8 @@ export function Badge({
  * que lê a situação em vez da coluna.
  */
 export const tomStatusEc: Record<string, Tom> = {
-  Ativa: "success",
-  Arquivada: "neutral",
+  Ativa: "info",
+  Arquivada: "arquivado",
   // legado, só por segurança na leitura
   Rascunho: "neutral",
   Aguardando: "warning",
@@ -51,10 +57,18 @@ export const tomStatusEc: Record<string, Tom> = {
   Cancelada: "neutral",
 };
 
+/**
+ * AS TRÊS CORES DO DOCUMENTO (27/11/2026), iguais para EC e OS:
+ *   azul  · Ativa     — está em trabalho;
+ *   verde · Emitida   — saiu, está concluída;
+ *   cinza · Arquivada — fora de uso (cinza cheio, para não parecer "sem status").
+ * Antes a OS ativa e a arquivada eram o mesmo cinza claro, e a EC ativa era
+ * verde: numa lista com as duas, não dava para separar pelo olho.
+ */
 export const tomStatusOs: Record<string, Tom> = {
-  Ativa: "neutral",
-  Emitida: "info",
-  Arquivada: "neutral",
+  Ativa: "info",
+  Emitida: "success",
+  Arquivada: "arquivado",
 };
 
 /**
@@ -90,6 +104,7 @@ const CAMPO_POR_TOM: Record<Tom, string> = {
   danger: "!bg-danger-soft !text-danger !font-bold",
   info: "!bg-info-soft !text-info !font-bold",
   neutral: "",
+  arquivado: "",
 };
 
 export const classeCampoStatus = (valor: string | undefined | null): string => CAMPO_POR_TOM[tomDoStatus(valor)];
